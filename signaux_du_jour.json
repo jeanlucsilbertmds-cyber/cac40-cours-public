@@ -1,0 +1,77 @@
+{
+ "calcule_le": "2026-09-11 17:03 (Europe/Paris)",
+ "strategie": "C5-ETENDU-10",
+ "seance": "2026-09-10",
+ "univers": 10,
+ "valeurs_sans_cette_seance": [],
+ "signaux": [],
+ "detail_indicateurs": [
+  {
+   "valeur": "TOTALENERGIES",
+   "cmf": -0.146658,
+   "cmf_veille": -0.161698,
+   "cci": 109.05
+  },
+  {
+   "valeur": "ENGIE",
+   "cmf": -0.081765,
+   "cmf_veille": -0.164451,
+   "cci": -29.14
+  },
+  {
+   "valeur": "VEOLIA",
+   "cmf": -0.424218,
+   "cmf_veille": -0.480468,
+   "cci": -99.37
+  },
+  {
+   "valeur": "BOUYGUES",
+   "cmf": -0.131757,
+   "cmf_veille": -0.143386,
+   "cci": -77.64
+  },
+  {
+   "valeur": "EIFFAGE",
+   "cmf": -0.248788,
+   "cmf_veille": -0.226924,
+   "cci": -82.02
+  },
+  {
+   "valeur": "AIRBUS",
+   "cmf": -0.245595,
+   "cmf_veille": -0.199027,
+   "cci": -70.01
+  },
+  {
+   "valeur": "RENAULT",
+   "cmf": 0.030228,
+   "cmf_veille": 0.121325,
+   "cci": 43.29
+  },
+  {
+   "valeur": "UNIBAIL_RODAMCO",
+   "cmf": -0.289762,
+   "cmf_veille": -0.224964,
+   "cci": -119.44
+  },
+  {
+   "valeur": "BUREAU_VERITAS",
+   "cmf": -0.015741,
+   "cmf_veille": -0.001659,
+   "cci": 98.84
+  },
+  {
+   "valeur": "VINCI",
+   "cmf": -0.354118,
+   "cmf_veille": -0.356703,
+   "cci": -110.96
+  }
+ ],
+ "calibrage": {
+  "valeur": "UNIBAIL_RODAMCO",
+  "date": "2026-08-20",
+  "cmf": 0.001823,
+  "cci": -62.46,
+  "verdict": "OK"
+ }
+}
