@@ -1,70 +1,70 @@
 {
- "calcule_le": "2026-09-17 20:21 (Europe/Paris)",
+ "calcule_le": "2026-09-18 20:20 (Europe/Paris)",
  "strategie": "C5-ETENDU-10",
- "seance": "2026-09-17",
+ "seance": "2026-09-18",
  "univers": 10,
  "valeurs_sans_cette_seance": [],
  "signaux": [],
  "detail_indicateurs": [
   {
    "valeur": "TOTALENERGIES",
-   "cmf": -0.044084,
-   "cmf_veille": -0.043006,
-   "cci": 92.82
+   "cmf": 0.173972,
+   "cmf_veille": -0.044084,
+   "cci": 47.93
   },
   {
    "valeur": "ENGIE",
-   "cmf": 0.033918,
-   "cmf_veille": 0.005228,
-   "cci": 19.2
+   "cmf": 0.2149,
+   "cmf_veille": 0.033918,
+   "cci": -24.92
   },
   {
    "valeur": "VEOLIA",
-   "cmf": -0.133189,
-   "cmf_veille": -0.149511,
-   "cci": 48.26
+   "cmf": -0.065546,
+   "cmf_veille": -0.133189,
+   "cci": -15.25
   },
   {
    "valeur": "BOUYGUES",
-   "cmf": 0.075812,
-   "cmf_veille": 0.040712,
-   "cci": 111.2
+   "cmf": -0.059562,
+   "cmf_veille": 0.075812,
+   "cci": -87.65
   },
   {
    "valeur": "EIFFAGE",
-   "cmf": -0.044589,
-   "cmf_veille": -0.049246,
-   "cci": -10.81
+   "cmf": -0.077424,
+   "cmf_veille": -0.044589,
+   "cci": -85.96
   },
   {
    "valeur": "AIRBUS",
-   "cmf": -0.14731,
-   "cmf_veille": -0.096841,
-   "cci": -21.5
+   "cmf": -0.189107,
+   "cmf_veille": -0.14731,
+   "cci": -125.84
   },
   {
    "valeur": "RENAULT",
-   "cmf": -0.15555,
-   "cmf_veille": -0.069711,
-   "cci": -26.35
+   "cmf": -0.245985,
+   "cmf_veille": -0.15555,
+   "cci": -196.47
   },
   {
    "valeur": "UNIBAIL_RODAMCO",
-   "cmf": -0.148711,
-   "cmf_veille": -0.17327,
-   "cci": -29.57
+   "cmf": -0.129033,
+   "cmf_veille": -0.148711,
+   "cci": -67.98
   },
   {
    "valeur": "BUREAU_VERITAS",
-   "cmf": 0.041403,
-   "cmf_veille": 0.136116,
-   "cci": 67.01
+   "cmf": -0.101936,
+   "cmf_veille": 0.041403,
+   "cci": -37.96
   },
   {
    "valeur": "VINCI",
-   "cmf": -0.03644,
-   "cmf_veille": -0.10561,
-   "cci": 7.83
+   "cmf": -0.014436,
+   "cmf_veille": -0.03644,
+   "cci": -69.77
   }
  ],
  "calibrage": {
