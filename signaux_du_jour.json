@@ -1,70 +1,70 @@
 {
- "calcule_le": "2026-09-18 20:20 (Europe/Paris)",
+ "calcule_le": "2026-09-21 20:20 (Europe/Paris)",
  "strategie": "C5-ETENDU-10",
- "seance": "2026-09-18",
+ "seance": "2026-09-21",
  "univers": 10,
  "valeurs_sans_cette_seance": [],
  "signaux": [],
  "detail_indicateurs": [
   {
    "valeur": "TOTALENERGIES",
-   "cmf": 0.173972,
-   "cmf_veille": -0.044084,
-   "cci": 47.93
+   "cmf": 0.075488,
+   "cmf_veille": 0.173972,
+   "cci": 22.96
   },
   {
    "valeur": "ENGIE",
-   "cmf": 0.2149,
-   "cmf_veille": 0.033918,
-   "cci": -24.92
+   "cmf": 0.228851,
+   "cmf_veille": 0.2149,
+   "cci": -106.29
   },
   {
    "valeur": "VEOLIA",
-   "cmf": -0.065546,
-   "cmf_veille": -0.133189,
-   "cci": -15.25
+   "cmf": -0.070627,
+   "cmf_veille": -0.065546,
+   "cci": -36.75
   },
   {
    "valeur": "BOUYGUES",
-   "cmf": -0.059562,
-   "cmf_veille": 0.075812,
-   "cci": -87.65
+   "cmf": -0.074793,
+   "cmf_veille": -0.059562,
+   "cci": -122.0
   },
   {
    "valeur": "EIFFAGE",
-   "cmf": -0.077424,
-   "cmf_veille": -0.044589,
-   "cci": -85.96
+   "cmf": -0.100243,
+   "cmf_veille": -0.077424,
+   "cci": -57.17
   },
   {
    "valeur": "AIRBUS",
-   "cmf": -0.189107,
-   "cmf_veille": -0.14731,
-   "cci": -125.84
+   "cmf": -0.188884,
+   "cmf_veille": -0.189107,
+   "cci": -117.37
   },
   {
    "valeur": "RENAULT",
-   "cmf": -0.245985,
-   "cmf_veille": -0.15555,
-   "cci": -196.47
+   "cmf": -0.287557,
+   "cmf_veille": -0.245985,
+   "cci": -173.44
   },
   {
    "valeur": "UNIBAIL_RODAMCO",
-   "cmf": -0.129033,
-   "cmf_veille": -0.148711,
-   "cci": -67.98
+   "cmf": -0.062405,
+   "cmf_veille": -0.129033,
+   "cci": -63.01
   },
   {
    "valeur": "BUREAU_VERITAS",
-   "cmf": -0.101936,
-   "cmf_veille": 0.041403,
-   "cci": -37.96
+   "cmf": -0.078301,
+   "cmf_veille": -0.101936,
+   "cci": -78.5
   },
   {
    "valeur": "VINCI",
-   "cmf": -0.014436,
-   "cmf_veille": -0.03644,
-   "cci": -69.77
+   "cmf": -0.052984,
+   "cmf_veille": -0.014436,
+   "cci": -25.31
   }
  ],
  "calibrage": {
