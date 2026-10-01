@@ -1,70 +1,70 @@
 {
- "calcule_le": "2026-09-30 20:21 (Europe/Paris)",
+ "calcule_le": "2026-10-01 20:23 (Europe/Paris)",
  "strategie": "C5-ETENDU-10",
- "seance": "2026-09-30",
+ "seance": "2026-10-01",
  "univers": 10,
  "valeurs_sans_cette_seance": [],
  "signaux": [],
  "detail_indicateurs": [
   {
    "valeur": "TOTALENERGIES",
-   "cmf": 0.04598,
-   "cmf_veille": 0.068507,
-   "cci": -239.26
+   "cmf": 0.032555,
+   "cmf_veille": 0.04598,
+   "cci": -247.33
   },
   {
    "valeur": "ENGIE",
-   "cmf": 0.135119,
-   "cmf_veille": 0.165102,
-   "cci": -162.02
+   "cmf": 0.144113,
+   "cmf_veille": 0.135119,
+   "cci": -179.16
   },
   {
    "valeur": "VEOLIA",
-   "cmf": -0.133132,
-   "cmf_veille": -0.084894,
-   "cci": -132.61
+   "cmf": -0.055552,
+   "cmf_veille": -0.133132,
+   "cci": -212.3
   },
   {
    "valeur": "BOUYGUES",
-   "cmf": -0.332237,
-   "cmf_veille": -0.28791,
-   "cci": -185.09
+   "cmf": -0.326804,
+   "cmf_veille": -0.332237,
+   "cci": -231.11
   },
   {
    "valeur": "EIFFAGE",
-   "cmf": -0.233975,
-   "cmf_veille": -0.16539,
-   "cci": -255.63
+   "cmf": -0.24236,
+   "cmf_veille": -0.233975,
+   "cci": -214.33
   },
   {
    "valeur": "AIRBUS",
-   "cmf": -0.272008,
-   "cmf_veille": -0.271621,
-   "cci": -133.89
+   "cmf": -0.391083,
+   "cmf_veille": -0.272008,
+   "cci": -222.55
   },
   {
    "valeur": "RENAULT",
-   "cmf": -0.35754,
-   "cmf_veille": -0.358787,
-   "cci": -85.63
+   "cmf": -0.467538,
+   "cmf_veille": -0.35754,
+   "cci": -103.78
   },
   {
    "valeur": "UNIBAIL_RODAMCO",
-   "cmf": -0.274389,
-   "cmf_veille": -0.219015,
-   "cci": -212.0
+   "cmf": -0.235186,
+   "cmf_veille": -0.274389,
+   "cci": -233.33
   },
   {
    "valeur": "BUREAU_VERITAS",
-   "cmf": -0.412951,
-   "cmf_veille": -0.316128,
-   "cci": -79.42
+   "cmf": -0.412152,
+   "cmf_veille": -0.412951,
+   "cci": -116.73
   },
   {
    "valeur": "VINCI",
-   "cmf": -0.041317,
-   "cmf_veille": -0.057951,
-   "cci": -233.9
+   "cmf": -0.027774,
+   "cmf_veille": -0.041317,
+   "cci": -225.58
   }
  ],
  "calibrage": {
