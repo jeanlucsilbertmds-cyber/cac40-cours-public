@@ -1,0 +1,276 @@
+# CIRCUIT DU SOIR — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
+# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py à partir du fichier du circuit
+# du dépôt privé (A-543). Il fait tourner les programmes de ce dépôt sur les données
+# du dépôt privé. Chaque pas passe par programmes/ETAPE_MUETTE.py : le journal public
+# ne dit que « étape … : OK » ou « étape … : ÉCHEC » ; le détail est au dépôt privé.
+name: Circuit du soir
+on:
+  workflow_dispatch:
+    inputs:
+      rattrapage:
+        description: "Relance du matin (saute la mesure de la performance)"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 18 * * 1-5"
+concurrency:
+  group: circuit-du-soir
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  collecte:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: python3 programmes/ETAPE_MUETTE.py {0}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
+          token: ${{ secrets.JETON_DEPOTS }}
+          fetch-depth: 0
+      - uses: actions/checkout@v5
+        with:
+          path: _code
+      - name: Poser les programmes publics, s'ils sont ceux du depot prive
+        id: poser_les_programmes
+        shell: python3 _code/programmes/ETAPE_MUETTE.py {0}
+        run: |
+          D=""
+          for f in _code/programmes/*.py; do
+            n=$(basename "$f")
+            if [ -f "programmes/$n" ] && ! cmp -s "$f" "programmes/$n"; then D="$D $n"; fi
+          done
+          if [ -n "$D" ]; then echo "::error::PROGRAMMES PUBLICS DIFFERENTS DU DEPOT PRIVE :$D"; exit 1; fi
+          cp _code/programmes/*.py programmes/
+          mkdir -p "$RUNNER_TEMP/circuit_public"
+          cp _code/.github/workflows/circuit_du_soir.yml "$RUNNER_TEMP/circuit_public/"
+          rm -rf _code
+      - name: Le circuit public est-il celui que fabrique le depot prive ?
+        id: circuit_a_jour
+        continue-on-error: true
+        run: |
+          rm -rf "$RUNNER_TEMP/refait" && mkdir -p "$RUNNER_TEMP/refait"
+          python3 programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py . "$RUNNER_TEMP/refait"
+          cmp "$RUNNER_TEMP/refait/.github/workflows/circuit_du_soir.yml" "$RUNNER_TEMP/circuit_public/circuit_du_soir.yml"             || { echo "::error::LE CIRCUIT PUBLIC N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }
+      - name: Collecter les 40 valeurs et empiler dans donnees/claude_cours_nouveaux.csv
+        id: collecte
+        continue-on-error: true
+        run: |
+          set +e
+          python3 programmes/COLLECTER_ABC_GITHUB.py "$GITHUB_WORKSPACE"
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Commiter ce qui a été écrit — cours et rapport
+        id: commiter_ce_qui_a_ete_ecrit_cours_et_r
+        run: |
+          git config user.name "collecte-abc"
+          git config user.email "collecte-abc@users.noreply.github.com"
+          git add donnees/claude_cours_nouveaux.csv rapports/collecte_abc_*.md \
+            || { echo "::error::git add A ECHOUE — un fichier manque ou a change de nom"; exit 1; }
+          if git diff --cached --quiet; then
+            echo "rien à commiter"
+          else
+            git commit -m "collecte ABC $(date -u +%Y-%m-%d) — code de sortie ${{ steps.collecte.outputs.code }} [skip ci]"
+            RESTE=$(git diff --name-only)
+            if [ -n "$RESTE" ]; then
+              echo "::error::FICHIER(S) SUIVI(S) MODIFIE(S) SANS ETRE ENREGISTRE(S) — la poussee serait refusee : $RESTE"
+              exit 1
+            fi
+            PARTI=0
+            for i in 1 2 3; do
+              if git pull --rebase origin main && git push; then PARTI=1; break; fi
+              echo "essai $i refuse, nouvelle tentative"; sleep 5
+            done
+            if [ "$PARTI" -ne 1 ]; then
+              echo "::error::POUSSEE REFUSEE 3 FOIS — la seance du jour n est nulle part"
+              exit 1
+            fi
+          fi
+      - name: Verser la seance du jour dans le fichier maitre
+        id: versement
+        run: |
+          python3 programmes/TENIR_L_HISTORIQUE.py "$GITHUB_WORKSPACE" \
+            || { echo "::error::LE FICHIER MAITRE N A PAS ETE ALIMENTE — le detecteur calculerait sur des cours perimes";
+                 if [ -f rapports/ALERTE_FICHIER_MAITRE.md ]; then
+                   git add rapports/ALERTE_FICHIER_MAITRE.md \
+                     && git -c user.email=actions@github.com -c user.name=actions commit -m "ALERTE fichier maitre des cours — decision de Jean-Luc attendue [skip ci]" -- rapports/ALERTE_FICHIER_MAITRE.md \
+                     && git push \
+                     || echo "::error::L ALERTE DU FICHIER MAITRE N A PAS PU ETRE DEPOSEE";
+                 fi;
+                 exit 1; }
+          if [ -f rapports/ALERTE_FICHIER_MAITRE.md ]; then
+            RESOLUE="archives/ALERTE_FICHIER_MAITRE_resolue_$(TZ=Europe/Paris date +%d-%m-%Y_%Hh%M).md"
+            mkdir -p archives
+            mv rapports/ALERTE_FICHIER_MAITRE.md "$RESOLUE"
+            printf '\n**RÉSOLUE le %s (Paris)** : le versement du soir est repassé, les deux protections du fichier maître aussi.\n' "$(TZ=Europe/Paris date '+%d-%m-%Y %Hh%M')" >> "$RESOLUE"
+            git add "$RESOLUE" \
+              && git rm -q --cached --ignore-unmatch rapports/ALERTE_FICHIER_MAITRE.md \
+              || { echo "::error::L ALERTE RESOLUE N A PAS PU ETRE RANGEE AUX ARCHIVES"; exit 1; }
+          fi
+          git add donnees/cours_maitre.csv \
+            || { echo "::error::git add cours_maitre A ECHOUE"; exit 1; }
+          git -c user.email=actions@github.com -c user.name=actions \
+            diff --cached --quiet || git -c user.email=actions@github.com \
+            -c user.name=actions commit -m "seance du jour versee dans le fichier maitre [skip ci]"
+          git push || { echo "::error::poussee du maitre refusee"; exit 1; }
+
+      - name: Controler les valeurs attendues
+        id: valeurs
+        continue-on-error: true
+        run: python3 "programmes/CONTROLER_LES_VALEURS_Lun_17-08-2026_18h20.py" "$GITHUB_WORKSPACE" || { echo "::error::CONTROLE DES VALEURS — au moins une valeur attendue manque"; exit 1; }
+
+      - name: Détecter les signaux du jour — le calcul va où sont les données
+        id: detecter_les_signaux_du_jour_le_calcul
+        run: python3 programmes/DETECTER_LES_SIGNAUX_GITHUB.py "$GITHUB_WORKSPACE"
+
+      - name: Commiter les signaux
+        id: commiter_les_signaux
+        run: |
+          git add donnees/signaux_du_jour.json \
+            || { echo "::error::git add A ECHOUE — un fichier manque ou a change de nom"; exit 1; }
+          if git diff --cached --quiet; then echo "signaux inchangés"; else
+            git commit -m "signaux du jour $(date -u +%Y-%m-%d) [skip ci]"
+            RESTE=$(git diff --name-only)
+            if [ -n "$RESTE" ]; then
+              echo "::error::FICHIER(S) SUIVI(S) MODIFIE(S) SANS ETRE ENREGISTRE(S) — la poussee serait refusee : $RESTE"
+              exit 1
+            fi
+            PARTI=0
+            for i in 1 2 3; do
+              if git pull --rebase origin main && git push; then PARTI=1; break; fi
+              echo "essai $i refuse, nouvelle tentative"; sleep 5
+            done
+            if [ "$PARTI" -ne 1 ]; then
+              echo "::error::POUSSEE REFUSEE 3 FOIS — le travail reste sur la machine jetable"
+              exit 1
+            fi
+          fi
+
+      - name: Tenir les positions
+        id: tenir_les_positions
+        run: python3 programmes/TENIR_LES_POSITIONS.py "$GITHUB_WORKSPACE"
+
+      - name: Commiter positions et journal
+        id: commiter_positions_et_journal
+        run: |
+          git add donnees/claude_positions_ouvertes.csv donnees/claude_journal_trades.csv donnees/historique_mesures.csv \
+            || { echo "::error::git add A ECHOUE — un des fichiers manque ou a change de nom"; exit 1; }
+          if git diff --cached --quiet; then echo "positions inchangées"; else
+            git commit -m "positions $(date -u +%Y-%m-%d) [skip ci]"
+            RESTE=$(git diff --name-only)
+            if [ -n "$RESTE" ]; then
+              echo "::error::FICHIER(S) SUIVI(S) MODIFIE(S) SANS ETRE ENREGISTRE(S) — la poussee serait refusee : $RESTE"
+              exit 1
+            fi
+            PARTI=0
+            for i in 1 2 3; do
+              if git pull --rebase origin main && git push; then PARTI=1; break; fi
+              echo "essai $i refuse, nouvelle tentative"; sleep 5
+            done
+            if [ "$PARTI" -ne 1 ]; then
+              echo "::error::POUSSEE REFUSEE 3 FOIS — le travail reste sur la machine jetable"
+              exit 1
+            fi
+          fi
+
+      - name: Fabriquer et publier le cockpit en page web
+        id: fabriquer_et_publier_le_cockpit_en_pag
+        env:
+          GH_TOKEN: ${{ secrets.JETON_DEPOTS }}
+          PHRASE: ${{ secrets.PHRASE_COCKPIT }}
+        run: python3 programmes/PUBLIER_LE_SITE.py "$GITHUB_WORKSPACE"
+
+      - name: Publier les cours et l'historique dans le dépôt PUBLIC
+        id: publier_les_cours_et_l_historique_dans
+        env:
+          GH_TOKEN: ${{ secrets.JETON_DEPOTS }}
+        run: python3 programmes/PUBLIER_AU_DEPOT_PUBLIC.py "$GITHUB_WORKSPACE"
+
+      - name: Mesurer la performance
+        id: mesure
+        continue-on-error: true
+        run: |
+          if [ "${{ inputs.rattrapage }}" = "true" ]; then echo "mesure sautée : relance du matin (elle s'empile par jour d'horloge)"; exit 0; fi
+          python3 "programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py" "$GITHUB_WORKSPACE" || { echo "::error::Mesurer la performance A ÉCHOUÉ"; exit 1; }
+
+      - name: Fabriquer le PILOTE
+        id: pilote
+        continue-on-error: true
+        run: python3 programmes/claude_FABRIQUER_LE_PILOTE.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/gouvernance/PILOTE.md" || { echo "::error::Fabriquer le PILOTE A ÉCHOUÉ"; exit 1; }
+
+      - name: Confronter les fichiers a leurs contrats
+        id: contrats
+        continue-on-error: true
+        run: python3 programmes/CONFRONTER_AUX_CONTRATS.py "$GITHUB_WORKSPACE" || { echo "::error::CONTRATS — au moins un fichier ne porte plus les champs de son contrat"; exit 1; }
+
+      - name: Passer le radar sur l ecosysteme
+        id: radar
+        continue-on-error: true
+        run: |
+          set +e
+          python3 programmes/audit_ecosysteme.py "$GITHUB_WORKSPACE" > rapports/audit_du_jour.md 2>&1
+          CODE=$?
+          echo "radar : code $CODE"
+          echo "verts   : $(grep -c '✅' rapports/audit_du_jour.md || echo 0)"
+          echo "alertes : $(grep -c '⚠️' rapports/audit_du_jour.md || echo 0)"
+          grep '^❌' rapports/audit_du_jour.md || echo "echecs  : aucun"
+          if [ "$CODE" -ne 0 ]; then echo "::error::Passer le radar A ECHOUE (code $CODE)"; exit 1; fi
+
+      - name: Commiter mesures, PILOTE et rapport du radar
+        id: commiter_mesures_pilote_et_rapport_du_
+        run: |
+          git add donnees/historique_mesures.csv gouvernance/PILOTE.md rapports/audit_du_jour.md \
+                  rapports/AUDIT_ECOSYSTEME.md \
+            || { echo "::error::git add A ECHOUE — un fichier manque ou a change de nom"; exit 1; }
+          OUBLIES=$(git diff --name-only)
+          if [ -n "$OUBLIES" ]; then
+            echo "::error::FICHIER(S) SUIVI(S) MODIFIE(S) PAR LE PASSAGE ET JAMAIS ENREGISTRE(S) — ils seraient perdus : $OUBLIES"
+            exit 1
+          fi
+          if git diff --cached --quiet; then echo "rien de neuf"; else
+            git commit -m "mesures, pilote et radar $(date -u +%Y-%m-%d) [skip ci]"
+            RESTE=$(git diff --name-only)
+            if [ -n "$RESTE" ]; then
+              echo "::error::FICHIER(S) SUIVI(S) MODIFIE(S) SANS ETRE ENREGISTRE(S) — la poussee serait refusee : $RESTE"
+              exit 1
+            fi
+            PARTI=0
+            for i in 1 2 3; do
+              if git pull --rebase origin main && git push; then PARTI=1; break; fi
+              echo "essai $i refuse, nouvelle tentative"; sleep 5
+            done
+            if [ "$PARTI" -ne 1 ]; then
+              echo "::error::POUSSEE REFUSEE 3 FOIS — le travail reste sur la machine jetable"
+              exit 1
+            fi
+          fi
+
+      - name: Échouer bruyamment si la collecte a échoué
+        id: echouer_bruyamment_si_la_collecte_a_ec
+        if: steps.collecte.outputs.code != '0'
+        run: |
+          echo "::error::collecte ABC terminée avec le code ${{ steps.collecte.outputs.code }} — lire rapports/collecte_abc_*.md"
+          exit 1
+
+      - name: Dire quels pas non bloquants sont tombes
+        id: dire_quels_pas_non_bloquants_sont_tomb
+        if: always()
+        env:
+          PAS: ${{ toJSON(steps) }}
+        run: |
+          python3 programmes/DIRE_LES_PAS_TOMBES.py "$GITHUB_WORKSPACE"
+      - name: Enregistrer le journal du passage au depot prive
+        id: journal
+        if: always()
+        shell: bash
+        run: |
+          git rebase --abort 2>/dev/null || true
+          git add rapports/journal_du_circuit/ || { echo "journal introuvable"; exit 1; }
+          if git diff --cached --quiet; then echo "journal : rien a enregistrer"; exit 0; fi
+          git -c user.name=circuit-public -c user.email=circuit-public@users.noreply.github.com commit -q -m "journal du circuit public, passage ${GITHUB_RUN_ID} [skip ci]"
+          for i in 1 2 3; do
+            if git pull -q --rebase --autostash origin main && git push -q; then echo "journal : enregistre"; exit 0; fi
+            sleep 5
+          done
+          echo "journal : POUSSEE REFUSEE 3 FOIS"; exit 1
