@@ -169,6 +169,7 @@ def fabriquer_le_circuit(texte_prive):
       clonage `actions/checkout@v5` avec `fetch-depth: 0`, chacun UNE fois.
     ⑤ SORTIE — UNE valeur : le texte du circuit public ; lève `ValueError` si une
       forme attendue manque ou s'il reste du code Python écrit. [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — Voir l'en-tête du programme, ⑥ ②-③.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Voir l'en-tête, ⑧ : une seule rédaction des pas.
@@ -176,6 +177,7 @@ def fabriquer_le_circuit(texte_prive):
       fin de ligne de commande reste.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main. [sort: non]
+      [sort: non]
     """
     if texte_prive.count("\njobs:\n") != 1:
         raise ValueError("le circuit privé ne porte pas une seule ligne « jobs: »")
@@ -216,12 +218,14 @@ def main():
     ③ ENTRÉE — Deux arguments : racine privée, clone public.
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête.
     ⑤ SORTIE — UNE valeur : le code de sortie. [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — Voir l'en-tête.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Voir l'en-tête.
     ⑨ CE QUI CLOCHE — Voir l'en-tête.
     ⑩ EFFET — Voir l'en-tête.
     ⑪ TERMINAISON — Rend la main. [sort: oui]
+      [sort: non]
     """
     if len(sys.argv) != 3:
         print("usage : FABRIQUER_LE_CIRCUIT_PUBLIC.py <racine du dépôt privé> <clone du dépôt public>")

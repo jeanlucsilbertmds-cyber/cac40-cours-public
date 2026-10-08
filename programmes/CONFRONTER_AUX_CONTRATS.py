@@ -39,12 +39,14 @@ def main():
     ③ ENTRÉE — `sys.argv[1]`, facultatif : la racine.
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête.
     ⑤ SORTIE — UNE valeur : le code de sortie. [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — Voir l'en-tête.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Voir l'en-tête.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main. [sort: oui]
+      [sort: non]
     """
     base = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("GITHUB_WORKSPACE", ".")
     sp = importlib.util.spec_from_file_location("c", os.path.join(base, "programmes", "CONTRATS_DES_FICHIERS.py"))

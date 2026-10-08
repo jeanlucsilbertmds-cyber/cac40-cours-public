@@ -31,9 +31,9 @@
   ⑥ rendre le code.
 ⑦ UNITÉ — —
 ⑧ POURQUOI — Le journal d'un dépôt public est lisible par toute personne
-  connectée à GitHub. Mesuré par Cowork le 06-10-2026 : il afficherait
-  « C5E10-OBS-V1 · jetons illimites : 2 operation(s) · cumul 897.75 EUR »
-  (A-543, action ①). Un enrobage UNIQUE pour tous les pas évite de modifier
+  connectée à GitHub. Mesuré par Cowork le 06-10-2026 : il afficherait le nom
+  d'une stratégie, son nombre d'opérations et son cumul en euros (A-543,
+  action ①). L'exemple chiffré n'est pas recopié ici : ce fichier est public. Un enrobage UNIQUE pour tous les pas évite de modifier
   chaque pas un par un : deux façons de faire la même chose divergent toujours
   (R-708).
 ⑨ CE QUI CLOCHE — Les annonces que GitHub lit dans la sortie d'un pas (lignes
@@ -72,6 +72,7 @@ def chemin_du_journal(base, passage):
       du passage et de sa tentative (texte).
     ④ CONDITIONS D'ENTRÉE — Aucune.
     ⑤ SORTIE — UNE valeur : le chemin, texte. [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — Joindre la base, le dossier du journal et
       `circuit_<passage>.log`.
     ⑦ UNITÉ — —
@@ -82,6 +83,7 @@ def chemin_du_journal(base, passage):
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main. [sort: non]
+      [sort: non]
     """
     return os.path.join(base, DOSSIER_DU_JOURNAL, f"circuit_{passage}.log")
 
@@ -94,12 +96,14 @@ def main():
     ③ ENTRÉE — `sys.argv[1]` : le fichier du pas ; l'environnement de GitHub.
     ④ CONDITIONS D'ENTRÉE — Un argument.
     ⑤ SORTIE — UNE valeur : le code de sortie. [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — Voir l'en-tête, ⑥.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Voir l'en-tête, ⑧.
     ⑨ CE QUI CLOCHE — Voir l'en-tête, ⑨.
     ⑩ EFFET — ÉCRIT le journal ; lance bash.
     ⑪ TERMINAISON — Rend la main quand le pas se termine. [sort: oui]
+      [sort: non]
     """
     pas = os.environ.get("GITHUB_ACTION", "pas-sans-nom")
     if len(sys.argv) != 2:

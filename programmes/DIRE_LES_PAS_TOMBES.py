@@ -48,6 +48,7 @@ def dates_du_jour(base):
     ③ ENTRÉE — `base` : la racine du dépôt.
     ④ CONDITIONS D'ENTRÉE — Aucune : toute erreur est rattrapée et affichée.
     ⑤ SORTIE — Ne rend rien ; affiche. [rend: 0]
+      [rend: rien]
     ⑥ TRAITEMENT — Charger les contrats, appeler `fabrique_du_jour` sur les deux
       fichiers, afficher en rouge chaque date manquante.
     ⑦ UNITÉ — —
@@ -55,6 +56,7 @@ def dates_du_jour(base):
     ⑨ CE QUI CLOCHE — Une erreur ici n'est qu'affichée, comme avant.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main. [sort: non]
+      [sort: non]
     """
     try:
         _sp = importlib.util.spec_from_file_location("c", os.path.join(base, "programmes", "CONTRATS_DES_FICHIERS.py"))
@@ -78,12 +80,14 @@ def compter_les_pas(pas):
     ③ ENTRÉE — `pas` : la table des pas, dictionnaire lu dans `PAS`.
     ④ CONDITIONS D'ENTRÉE — Un dictionnaire.
     ⑤ SORTIE — Ne rend rien ; affiche et écrit au résumé. [rend: 0]
+      [rend: rien]
     ⑥ TRAITEMENT — Voir l'en-tête, ⑥ ② à ④.
     ⑦ UNITÉ — Des nombres de pas.
     ⑧ POURQUOI — Un pas tombé sans bloquer ne doit jamais passer en silence.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — ÉCRIT au résumé du passage.
     ⑪ TERMINAISON — Rend la main. [sort: non]
+      [sort: non]
     """
     issues = {}
     for n, v in pas.items():
@@ -128,12 +132,14 @@ def main():
     ③ ENTRÉE — `sys.argv[1]`, facultatif : la racine ; `PAS`.
     ④ CONDITIONS D'ENTRÉE — `PAS` posé.
     ⑤ SORTIE — UNE valeur : le code de sortie. [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — `dates_du_jour`, puis `compter_les_pas`.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Voir l'en-tête.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Voir l'en-tête.
     ⑪ TERMINAISON — Rend la main. [sort: oui]
+      [sort: non]
     """
     base = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("GITHUB_WORKSPACE", ".")
     dates_du_jour(base)
