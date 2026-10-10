@@ -1,0 +1,47 @@
+# OPÉRATION PONCTUELLE (ÉTUDE 19 §10, A-534) — hors circuit du soir, sans horaire.
+# Télécharge depuis les archives du web l'historique de la liste « consensus CAC 40 » de Boursorama et
+# l'écrit au dépôt privé. Se lance quand ce fichier ou ses programmes changent, ou à la main.
+# Relançable : reprend là où il s'est arrêté.
+name: Telecharger le consensus archive
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/telecharger_consensus_archive.yml"
+      - "essais/telecharger_consensus_archive.py"
+      - "essais/archives_web.py"
+permissions:
+  contents: read
+concurrency:
+  group: telecharger-consensus-archive
+  cancel-in-progress: false
+jobs:
+  telecharger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
+          token: ${{ secrets.JETON_DEPOTS }}
+          path: prive
+      - name: Epreuves hors ligne avant de lancer
+        run: python3 essais/epreuves_archives_web.py prive/temoins/archives_web --saboter > /dev/null 2>&1
+      - name: Telecharger
+        id: telecharger
+        continue-on-error: true
+        run: python3 essais/telecharger_consensus_archive.py prive > /dev/null 2>&1
+      - name: Deposer au depot prive
+        if: always()
+        run: |
+          cd prive
+          git config user.name "consensus-archive"
+          git config user.email "consensus-archive@localhost"
+          git add donnees/consensus_archives_boursorama.csv donnees/consensus_archives_index.csv rapports || true
+          git commit -q -m "consensus archivé Boursorama — téléchargement depuis les archives du web [skip ci]" || exit 0
+          for i in 1 2 3; do git pull -q --rebase && git push -q && exit 0; sleep 10; done
+          exit 1
+      - name: Rougir si le telechargement est incomplet
+        if: steps.telecharger.outcome != 'success'
+        run: exit 1
