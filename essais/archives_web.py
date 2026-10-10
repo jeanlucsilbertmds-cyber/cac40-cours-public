@@ -74,7 +74,9 @@ def lister_copies(adresse, ouvrir=urllib.request.urlopen, pause=20.0):
         lignes = json.loads(t)
     except ValueError:
         raise ErreurArchives(f"index illisible pour {adresse} : {t[:80]!r}")
-    if not lignes or lignes[0] != ["timestamp", "statuscode", "digest"]:
+    if lignes == []:  # l'index répond « [] » quand la page n'a jamais été archivée
+        return []
+    if lignes[0] != ["timestamp", "statuscode", "digest"]:
         raise ErreurArchives(f"en-tête d'index inattendu pour {adresse} : {lignes[:1]}")
     return [(ts, emp) for ts, code, emp in lignes[1:] if code == "200"]
 

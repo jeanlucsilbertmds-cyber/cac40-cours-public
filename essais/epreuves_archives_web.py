@@ -19,7 +19,8 @@ SABOTAGES = {
     "aw": {
         "K1": ('if b[:2] == b"\\x1f\\x8b":', "if False:"),
         "K2": ("if e.code not in (429, 503):", "if True:"),
-        "K3": ('if not lignes or lignes[0] != ["timestamp", "statuscode", "digest"]:', "if False:"),
+        "K3": ('if lignes[0] != ["timestamp", "statuscode", "digest"]:', "if False:"),
+        "K3b": ("if lignes == []:", "if False:"),
         "K4": ("if not (len(horodatage) == 14 and horodatage.isdigit()):", "if False:"),
         "K5": ('if code == "200"]', 'if True]'),
     },
@@ -104,6 +105,10 @@ def epreuves(aw, tc):
         o, _ = ouvreur([b'[["a","b","c"],["20190322073831","200","X"]]'])
         return leve(lambda: aw.lister_copies("x", ouvrir=o, pause=0), aw.ErreurArchives)
     essai("E8 index à en-tête inattendu → erreur", e8)
+    def e8b():
+        o, _ = ouvreur([b"[]"])
+        return aw.lister_copies("x", ouvrir=o, pause=0) == []
+    essai("E8b index vide « [] » → aucune copie", e8b)
     essai("E9 horodatage invalide → erreur", lambda: leve(lambda: aw.lire_copie("x", "2019", ouvrir=ouvreur([b"ok"])[0], pause=0), aw.ErreurArchives))
     def e10():
         o, _ = ouvreur([b'[["timestamp","statuscode","digest"],["20190322073831","200","A"],["20190323073831","302","B"]]'])
