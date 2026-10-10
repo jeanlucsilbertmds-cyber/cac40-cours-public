@@ -8,7 +8,7 @@ Ce n'est PAS un programme du circuit : il est lancé une fois, par un dépôt de
 Entrée : un argument, le dossier où écrire (le clone du dépôt privé). Sortie : code 0 si l'index des archives
 a répondu, 1 sinon. Écrit : rapports/ESSAI_ARCHIVES_WEB_<horodatage>.md et temoins/archives_web/*.html.
 """
-import json, os, sys, time, urllib.request, urllib.error, datetime, zoneinfo, re
+import gzip, json, os, sys, time, urllib.request, urllib.error, datetime, zoneinfo, re
 
 UA = "Mozilla/5.0 (compatible; essai-archives-cac40/1.0)"
 CIBLES = {
@@ -19,18 +19,31 @@ CIBLES = {
 }
 
 
-def lire(url, essais=3):
-    """Rend (code HTTP, texte) ; code 0 si la connexion échoue trois fois."""
+def lire(url, essais=4):
+    """Rend (code HTTP, texte) ; décompresse le gzip ; réessaie sur 429/503 ; code 0 si la connexion échoue."""
+    dernier = ""
     for i in range(essais):
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA}), timeout=60) as r:
-                return r.status, r.read().decode("utf-8", "replace")
+                b = r.read()
+                if b[:2] == b"\x1f\x8b":
+                    b = gzip.decompress(b)
+                return r.status, b.decode("utf-8", "replace")
         except urllib.error.HTTPError as e:
+            if e.code in (429, 503) and i < essais - 1:
+                time.sleep(20 * (i + 1)); continue
             return e.code, ""
         except Exception as e:
             dernier = str(e)
             time.sleep(5 * (i + 1))
     return 0, dernier
+
+
+def lignes_de_la_liste(page):
+    """Nombre de lignes de valeurs du tableau « Reco. / Obj. Cours », et la date « Mis à jour le »."""
+    n = len(re.findall(r'href="/cours/consensus/[0-9A-Za-z]+/"', page))
+    m = re.search(r"Mis à jour le ([0-9./]+)", page)
+    return n, (m.group(1) if m else "?"), ("Obj. Cours" in page)
 
 
 def lister_copies(cible):
@@ -64,18 +77,18 @@ def main():
             continue
         rapport.append(f"- **{nom}** : index → 200, **{len(copies)} copies au contenu distinct**, "
                        f"de {copies[0][0][:8]} à {copies[-1][0][:8]}")
-        choix = [copies[0], copies[len(copies) // 2], copies[-1]]
+        k = len(copies)
+        choix = [copies[j] for j in sorted({0, k // 4, k // 2, 3 * k // 4, k - 1})]
         for ts, _, _ in choix:
-            time.sleep(2)
+            time.sleep(3)
             c, page = lire(f"https://web.archive.org/web/{ts}id_/https://www.{cible}")
-            n = len(re.findall(r"/cours/consensus/[0-9A-Za-z]+/", page))
-            marque = ("Obj. Cours" in page) or ("Objectif de cours" in page) or ("objectif" in page.lower())
+            n, maj, obj = lignes_de_la_liste(page)
             f = os.path.join(dossier, f"{re.sub(r'[^A-Za-z0-9]+', '_', nom)}_{ts}.html")
             if c == 200 and page:
                 open(f, "w", encoding="utf-8").write(page)
             rapport.append(f"  - copie {ts} → code {c}, {len(page)} caractères, {n} liens de consensus, "
-                           f"mot « objectif » présent : {'oui' if marque else 'non'}")
-        time.sleep(2)
+                           f"colonne « Obj. Cours » : {'oui' if obj else 'non'}, « Mis à jour le » {maj}")
+        time.sleep(15)
     rapport += ["", f"**Verdict** : index des archives {'LISIBLE' if index_ok else 'ILLISIBLE'} depuis une machine GitHub."]
     open(os.path.join(sortie, "rapports", f"ESSAI_ARCHIVES_WEB_{maintenant}.md"), "w", encoding="utf-8").write("\n".join(rapport) + "\n")
     print("index lisible" if index_ok else "index illisible")
