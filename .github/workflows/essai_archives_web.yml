@@ -1,0 +1,38 @@
+# ESSAI PONCTUEL (ÉTUDE 19 §10, A-534) — hors circuit du soir, sans horaire.
+# Se lance quand ce fichier ou l'essai change, ou à la main. Écrit son rapport au dépôt privé.
+name: Essai archives du web
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/essai_archives_web.yml"
+      - "essais/essai_archives_web.py"
+permissions:
+  contents: read
+jobs:
+  essai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
+          token: ${{ secrets.JETON_DEPOTS }}
+          path: prive
+      - name: Essayer les archives du web
+        id: essai
+        continue-on-error: true
+        run: python3 essais/essai_archives_web.py prive > /dev/null 2>&1
+      - name: Deposer le rapport au depot prive
+        run: |
+          cd prive
+          git config user.name "essai-archives"
+          git config user.email "essai@localhost"
+          git add rapports temoins/archives_web || true
+          git commit -q -m "essai archives du web depuis GitHub — rapport [skip ci]" || exit 0
+          for i in 1 2 3; do git pull -q --rebase && git push -q && exit 0; sleep 5; done
+          exit 1
+      - name: Rougir si l'index des archives n'a pas repondu
+        if: steps.essai.outcome != 'success'
+        run: exit 1
