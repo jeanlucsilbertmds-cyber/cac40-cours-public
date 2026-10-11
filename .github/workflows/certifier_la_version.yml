@@ -1,0 +1,77 @@
+# CERTIFIER LA VERSION DU DÉPÔT PRIVÉ, DEPUIS LE DÉPÔT PUBLIC — Dim 11-10-2026
+# À QUOI IL SERT. La certification rejoue toutes les épreuves du dépôt privé et dit si
+# la version est certifiée (programmes/CERTIFIER_LA_VERSION.py, décision de Jean-Luc du
+# 01-10-2026). Elle tournait au dépôt privé, dont le quota gratuit de GitHub est épuisé
+# depuis le 02-10-2026 (A-543) : elle n'a plus tourné depuis. Ici, au dépôt public, les
+# machines de GitHub ne coûtent rien. Décision de Jean-Luc du 11-10-2026 à 18h59 : remettre
+# le circuit habituel dans l'espace public, la certification d'abord.
+# CE QU'IL FAIT. ① prend le dépôt privé (programmes, épreuves, données) avec le jeton déjà
+# employé par le circuit du soir · ② lance la certification · ③ dépose au dépôt privé le
+# certificat (rapports/CERTIFICAT_DE_LA_VERSION.md) et le journal détaillé du passage
+# (rapports/journal_du_circuit/) · ④ rougit si la version n'est pas certifiée.
+# CE QUI EST PUBLIC. Ce dépôt est lisible par tous : chaque pas passe par
+# programmes/ETAPE_MUETTE.py (celui du dépôt privé), et le journal public ne dit que
+# « étape … : OK » ou « étape … : ÉCHEC ». Le détail est au dépôt privé.
+# QUAND. Chaque soir de bourse à 21h UTC (après le circuit du soir de 18h UTC, dont des
+# épreuves lisent les données) ; à la main ; et une fois quand ce fichier lui-même change.
+# LIMITE. THÉORIQUE jusqu'au premier passage réel. Un passage a duré 74,5 minutes au dépôt
+# privé (A-543). La référence (gouvernance/CERTIFICAT_REFERENCE.json) date du 02-10-2026 :
+# du code ajouté depuis peut faire rougir la certification ; c'est une information, pas une
+# panne.
+name: Certifier la version
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 21 * * 1-5"
+  push:
+    branches: [main]
+    paths: [".github/workflows/certifier_la_version.yml"]
+concurrency:
+  group: certifier-la-version
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  certifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: python3 programmes/ETAPE_MUETTE.py {0}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
+          token: ${{ secrets.JETON_DEPOTS }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Installer la mesure et les dependances des programmes
+        id: installer
+        run: python3 -m pip install --quiet "coverage==7.16.2" cryptography pyyaml
+      - name: Certifier
+        id: certifier
+        continue-on-error: true
+        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE"
+      - name: Deposer le certificat et le journal au depot prive
+        id: deposer
+        if: always()
+        shell: bash
+        run: |
+          git add rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ \
+            || { echo "::error::certificat ou journal introuvable"; exit 1; }
+          if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
+          git -c user.name=certification-publique -c user.email=certification-publique@users.noreply.github.com \
+            commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
+          for i in 1 2 3; do
+            if git pull -q --rebase --autostash origin main && git push -q; then echo "depose"; exit 0; fi
+            sleep 5
+          done
+          echo "::error::POUSSEE REFUSEE 3 FOIS — le certificat reste sur la machine jetable"; exit 1
+      - name: Rougir si la version n'est pas certifiee
+        id: verdict
+        if: steps.certifier.outcome != 'success'
+        run: |
+          echo "::error::VERSION NON CERTIFIEE — lire rapports/CERTIFICAT_DE_LA_VERSION.md au depot prive"
+          exit 1
