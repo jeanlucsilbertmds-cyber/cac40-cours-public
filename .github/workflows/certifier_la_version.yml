@@ -59,11 +59,15 @@ jobs:
         if: always()
         shell: bash
         run: |
+          # Identite posee pour TOUT le depot, pas seulement pour le commit : le « pull --rebase »
+          # rejoue le commit et exige lui aussi une identite. Passage du 11-10-2026 : sans elle,
+          # « Committer identity unknown », puis la poussee refusee trois fois et le certificat perdu.
+          git config user.name certification-publique
+          git config user.email certification-publique@users.noreply.github.com
           git add rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ \
             || { echo "::error::certificat ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
-          git -c user.name=certification-publique -c user.email=certification-publique@users.noreply.github.com \
-            commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
+          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
           for i in 1 2 3; do
             if git pull -q --rebase --autostash origin main && git push -q; then echo "depose"; exit 0; fi
             sleep 5
