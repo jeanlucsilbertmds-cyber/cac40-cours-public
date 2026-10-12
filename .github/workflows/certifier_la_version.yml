@@ -21,11 +21,10 @@
 name: Certifier la version
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 21 * * 1-5"
-  push:
-    branches: [main]
-    paths: [".github/workflows/certifier_la_version.yml"]
+  # DÉCLENCHEMENTS AUTOMATIQUES COUPÉS LE 12-10-2026 (décision de Jean-Luc, 08h05) : ce circuit
+  # exécute le code du dépôt privé depuis le dépôt public, ce que Jean-Luc avait écarté le
+  # 08-10-2026 (A-543 : « Non pas question de prendre ces risques »). La certification passe
+  # à une tâche planifiée Claude, hors GitHub. Ne pas lancer à la main sans son accord.
 concurrency:
   group: certifier-la-version
   cancel-in-progress: false
