@@ -1,70 +1,70 @@
 {
- "calcule_le": "2026-10-10 00:17 (Europe/Paris)",
+ "calcule_le": "2026-10-13 02:10 (Europe/Paris)",
  "strategie": "C5-ETENDU-10",
- "seance": "2026-10-09",
+ "seance": "2026-10-12",
  "univers": 10,
  "valeurs_sans_cette_seance": [],
  "signaux": [],
  "detail_indicateurs": [
   {
    "valeur": "TOTALENERGIES",
-   "cmf": 0.139682,
-   "cmf_veille": 0.050519,
-   "cci": 19.27
+   "cmf": 0.16528,
+   "cmf_veille": 0.139682,
+   "cci": 46.86
   },
   {
    "valeur": "ENGIE",
-   "cmf": -0.056685,
-   "cmf_veille": -0.022471,
-   "cci": -52.66
+   "cmf": -0.010139,
+   "cmf_veille": -0.056685,
+   "cci": -30.53
   },
   {
    "valeur": "VEOLIA",
-   "cmf": -0.051491,
-   "cmf_veille": -0.052126,
-   "cci": 20.4
+   "cmf": -0.042822,
+   "cmf_veille": -0.051491,
+   "cci": 73.32
   },
   {
    "valeur": "BOUYGUES",
-   "cmf": -0.33476,
-   "cmf_veille": -0.291051,
-   "cci": -85.5
+   "cmf": -0.244927,
+   "cmf_veille": -0.33476,
+   "cci": -78.5
   },
   {
    "valeur": "EIFFAGE",
-   "cmf": -0.20776,
-   "cmf_veille": -0.166714,
-   "cci": -81.14
+   "cmf": -0.139959,
+   "cmf_veille": -0.20776,
+   "cci": -67.5
   },
   {
    "valeur": "AIRBUS",
-   "cmf": -0.155569,
-   "cmf_veille": -0.139344,
-   "cci": -71.47
+   "cmf": -0.139934,
+   "cmf_veille": -0.155569,
+   "cci": -56.91
   },
   {
    "valeur": "RENAULT",
-   "cmf": -0.198182,
-   "cmf_veille": -0.230134,
-   "cci": 70.11
+   "cmf": -0.281956,
+   "cmf_veille": -0.198182,
+   "cci": 121.37
   },
   {
    "valeur": "UNIBAIL_RODAMCO",
-   "cmf": -0.176194,
-   "cmf_veille": -0.163435,
-   "cci": -95.27
+   "cmf": -0.254853,
+   "cmf_veille": -0.176194,
+   "cci": -87.38
   },
   {
    "valeur": "BUREAU_VERITAS",
-   "cmf": -0.342617,
-   "cmf_veille": -0.442167,
-   "cci": 32.4
+   "cmf": -0.35507,
+   "cmf_veille": -0.342617,
+   "cci": 89.58
   },
   {
    "valeur": "VINCI",
-   "cmf": -0.017553,
-   "cmf_veille": 0.038143,
-   "cci": -47.89
+   "cmf": 0.030097,
+   "cmf_veille": -0.017553,
+   "cci": -47.49
   }
  ],
  "calibrage": {
