@@ -11,15 +11,89 @@ on:
         description: "Relance du matin (saute la mesure de la performance)"
         type: boolean
         default: false
+  # QUATRE REVEILS, ET C'EST L'HORLOGE DE PARIS QUI DECIDE (decision de Jean-Luc du
+  # 13-10-2026 : 18h07, secours 21h23, rattrapage 7h41). GitHub compte en heure
+  # universelle, qui ne suit pas l'heure d'ete ; programmes/FAUT_IL_TOURNER.py lit
+  # l'heure de Paris au demarrage reel : jamais entre 9h et 18h, et seulement si la
+  # derniere seance close n'est pas finie. Aucun reveil a l'heure pile : GitHub les
+  # retarde en forte charge (passages de 23h25, 00h17, 02h10 avec 18h00 pile).
   schedule:
-    - cron: "0 18 * * 1-5"
+    - cron: "7 16 * * 1-5"     # 18h07 l'ete · 17h07 l'hiver (s'arrete)
+    - cron: "7 17 * * 1-5"     # 19h07 l'ete (travail deja fait) · 18h07 l'hiver
+    - cron: "23 19 * * 1-5"    # secours : 21h23 l'ete · 20h23 l'hiver
+    - cron: "41 5 * * 2-6"     # rattrapage : 7h41 l'ete · 6h41 l'hiver, mesure sautee
 concurrency:
   group: circuit-du-soir
   cancel-in-progress: false
 permissions:
   contents: write
 jobs:
+  faut_il_tourner:
+    runs-on: ubuntu-latest
+    outputs:
+      tourner: ${{ steps.decision.outputs.tourner }}
+      rattrapage: ${{ steps.decision.outputs.rattrapage }}
+    defaults:
+      run:
+        shell: python3 programmes/ETAPE_MUETTE.py {0}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
+          token: ${{ secrets.JETON_DEPOTS }}
+          fetch-depth: 0
+      - uses: actions/checkout@v5
+        with:
+          path: _code
+      - name: Poser les programmes publics, s'ils sont ceux du depot prive
+        id: poser_les_programmes
+        shell: python3 _code/programmes/ETAPE_MUETTE.py {0}
+        run: |
+          D=""
+          for f in _code/programmes/*.py; do
+            n=$(basename "$f")
+            if [ -f "programmes/$n" ] && ! cmp -s "$f" "programmes/$n"; then D="$D $n"; fi
+          done
+          if [ -n "$D" ]; then echo "::error::PROGRAMMES PUBLICS DIFFERENTS DU DEPOT PRIVE :$D"; exit 1; fi
+          cp _code/programmes/*.py programmes/
+          mkdir -p "$RUNNER_TEMP/circuit_public"
+          cp _code/.github/workflows/circuit_du_soir.yml "$RUNNER_TEMP/circuit_public/"
+          rm -rf _code
+      - name: Le circuit public est-il celui que fabrique le depot prive ?
+        id: circuit_a_jour
+        continue-on-error: true
+        run: |
+          rm -rf "$RUNNER_TEMP/refait" && mkdir -p "$RUNNER_TEMP/refait"
+          python3 programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py . "$RUNNER_TEMP/refait"
+          cmp "$RUNNER_TEMP/refait/.github/workflows/circuit_du_soir.yml" "$RUNNER_TEMP/circuit_public/circuit_du_soir.yml"             || { echo "::error::LE CIRCUIT PUBLIC N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }
+      - name: Faut-il tourner ?
+        id: decision
+        run: |
+          set +e
+          python3 programmes/FAUT_IL_TOURNER.py . "${{ github.event_name }}" "${{ inputs.rattrapage }}"
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Rougir si la decision n a pas pu se prendre
+        if: steps.decision.outputs.code != '0'
+        run: |
+          echo "::error::DECISION IMPOSSIBLE OU PAR PRECAUTION — voir le journal du passage au depot prive"
+          exit 1
+      - name: Enregistrer le journal du passage au depot prive
+        id: journal
+        if: always()
+        shell: bash
+        run: |
+          git rebase --abort 2>/dev/null || true
+          git add rapports/journal_du_circuit/ || { echo "journal introuvable"; exit 1; }
+          if git diff --cached --quiet; then echo "journal : rien a enregistrer"; exit 0; fi
+          git -c user.name=circuit-public -c user.email=circuit-public@users.noreply.github.com commit -q -m "journal du circuit public, passage ${GITHUB_RUN_ID} [skip ci]"
+          for i in 1 2 3; do
+            if git pull -q --rebase --autostash origin main && git push -q; then echo "journal : enregistre"; exit 0; fi
+            sleep 5
+          done
+          echo "journal : POUSSEE REFUSEE 3 FOIS"; exit 1
   collecte:
+    needs: faut_il_tourner
+    if: ${{ !cancelled() && needs.faut_il_tourner.outputs.tourner == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -191,7 +265,7 @@ jobs:
         id: mesure
         continue-on-error: true
         run: |
-          if [ "${{ inputs.rattrapage }}" = "true" ]; then echo "mesure sautée : relance du matin (elle s'empile par jour d'horloge)"; exit 0; fi
+          if [ "${{ needs.faut_il_tourner.outputs.rattrapage }}" = "true" ]; then echo "mesure sautée : relance du matin (elle s'empile par jour d'horloge)"; exit 0; fi
           python3 "programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py" "$GITHUB_WORKSPACE" || { echo "::error::Mesurer la performance A ÉCHOUÉ"; exit 1; }
 
       - name: Fabriquer le PILOTE

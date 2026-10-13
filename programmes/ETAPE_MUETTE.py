@@ -14,8 +14,8 @@
 ③ ENTRÉE — La ligne de commande : UN argument, le chemin du fichier qui porte le
   texte du pas. L'environnement : `GITHUB_WORKSPACE`, le dossier du dépôt privé
   cloné, où le journal est écrit ; `GITHUB_ACTION`, le nom du pas (son `id`) ;
-  `GITHUB_RUN_ID` et `GITHUB_RUN_ATTEMPT`, le numéro du passage et de sa
-  tentative (une relance garde le même numéro de passage).
+  `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT` et `GITHUB_JOB`, le numéro du passage, de sa
+  tentative et le nom du job (une relance garde le même numéro de passage).
 ④ CONDITIONS D'ENTRÉE — Le fichier du pas existe. `GITHUB_WORKSPACE` est posé et
   on peut y écrire : sinon le pas est déclaré en échec, jamais exécuté en
   silence ailleurs.
@@ -23,7 +23,7 @@
   autre = échec), ou 1 si le journal n'a pas pu être ouvert. Sur l'écran : UNE
   ligne. [rend: 1]
 ⑥ TRAITEMENT — ① ouvrir, en ajout, `rapports/journal_du_circuit/circuit_<numéro
-  du passage>_<tentative>.log` dans le dépôt privé · ② y écrire un en-tête
+  du passage>_<tentative>_<job>.log` dans le dépôt privé · ② y écrire un en-tête
   « étape, heure de Paris » · ③ lancer `bash -e <fichier>` — la commande même
   que GitHub emploie pour un pas qui ne déclare pas d'interpréteur, comme tous
   les pas du circuit privé (relecture du 08-10-2026 : `-o pipefail` n'en fait
@@ -80,6 +80,11 @@ def chemin_du_journal(base, passage):
       même soir au même endroit, le soir suivant n'écrase rien, et une relance
       n'ajoute rien à un journal déjà enregistré au dépôt — sinon le premier pas
       de commit s'arrêterait sur un fichier suivi modifié (relecture du 08-10-2026).
+      Un fichier par JOB aussi : depuis le 13-10-2026, le job `faut_il_tourner`
+      enregistre son journal au dépôt avant que le job du circuit ne clone ; un
+      même nom faisait du journal un fichier suivi et modifié, et le circuit
+      s'arrêtait à son premier commit (relecture à mandat inversé du 13-10-2026,
+      prouvée par exécution).
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main. [sort: non]
@@ -114,7 +119,8 @@ def main():
         print(f"étape {pas} : ÉCHEC — GITHUB_WORKSPACE absent : pas exécuté, faute de journal")
         return 1
     chemin = chemin_du_journal(base, os.environ.get("GITHUB_RUN_ID", "sans-numero") + "_"
-                               + os.environ.get("GITHUB_RUN_ATTEMPT", "1"))
+                               + os.environ.get("GITHUB_RUN_ATTEMPT", "1") + "_"
+                               + os.environ.get("GITHUB_JOB", "job-sans-nom"))
     heure = datetime.datetime.now(ZoneInfo("Europe/Paris")).strftime("%d-%m-%Y %Hh%M:%S")
     try:
         os.makedirs(os.path.dirname(chemin), exist_ok=True)

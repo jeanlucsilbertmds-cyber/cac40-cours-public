@@ -27,7 +27,11 @@
   commentaires, le jeton du dépôt public remplacé par le secret `JETON_DEPOTS`
   (un commit fait avec le jeton de GitHub ne reconstruit pas la page publique du
   cockpit, relecture du 08-10-2026), et un
-  dernier pas qui enregistre le journal au dépôt privé · ③ refuser un pas privé
+  dernier pas qui enregistre le journal au dépôt privé ; DEVANT ce job, un premier job
+  `faut_il_tourner` (mêmes clonages, même journal) qui lance programmes/FAUT_IL_TOURNER.py,
+  et dont la réponse conditionne le job du circuit ; la case « rattrapage » des pas du
+  privé est remplacée par la réponse de ce premier job ; quatre réveils planifiés
+  (décision de Jean-Luc du 13-10-2026, voir la fiche de FAUT_IL_TOURNER.py) · ③ refuser un pas privé
   qui rendrait quelque chose lisible au public (voir le code) · ④ écrire : programmes, fichier du
   circuit ; retirer du clone public tout programme qui n'est plus dans la liste.
 ⑦ UNITÉ — —
@@ -45,6 +49,9 @@
   chantier. Un chemin du circuit qui n'a pas tourné ce soir-là peut en appeler
   un autre ; ce programme-là serait alors exécuté depuis le clone du dépôt
   privé, sans alarme. Le pas qui pose les programmes n'en voit que la présence.
+  Le job du circuit ne tourne que si le premier job a répondu « tourner » : si ce
+  premier job tombe avant de répondre (clonage refusé, réseau), le passage ne fait
+  rien et rougit ; le réveil suivant (secours du soir, rattrapage du matin) reprend.
 ⑩ EFFET — ÉCRIT dans le clone public : `programmes/*.py` et
   `.github/workflows/circuit_du_soir.yml` ; RETIRE de `programmes/` du clone
   public les programmes hors liste. Ne pousse rien.
@@ -78,6 +85,8 @@ PROGRAMMES_PUBLICS = (
     # écrits pour ce chantier (A-543)
     "ETAPE_MUETTE.py", "CONFRONTER_AUX_CONTRATS.py", "DIRE_LES_PAS_TOMBES.py",
     "FABRIQUER_LE_CIRCUIT_PUBLIC.py",
+    # le premier job du circuit, qui dit si le passage doit tourner (13-10-2026)
+    "FAUT_IL_TOURNER.py", "FAUT_IL_RATTRAPER.py", "CALENDRIER_DE_LA_BOURSE.py",
 )
 
 ENTETE = """# CIRCUIT DU SOIR — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
@@ -93,8 +102,17 @@ on:
         description: "Relance du matin (saute la mesure de la performance)"
         type: boolean
         default: false
+  # QUATRE REVEILS, ET C'EST L'HORLOGE DE PARIS QUI DECIDE (decision de Jean-Luc du
+  # 13-10-2026 : 18h07, secours 21h23, rattrapage 7h41). GitHub compte en heure
+  # universelle, qui ne suit pas l'heure d'ete ; programmes/FAUT_IL_TOURNER.py lit
+  # l'heure de Paris au demarrage reel : jamais entre 9h et 18h, et seulement si la
+  # derniere seance close n'est pas finie. Aucun reveil a l'heure pile : GitHub les
+  # retarde en forte charge (passages de 23h25, 00h17, 02h10 avec 18h00 pile).
   schedule:
-    - cron: "0 18 * * 1-5"
+    - cron: "7 16 * * 1-5"     # 18h07 l'ete · 17h07 l'hiver (s'arrete)
+    - cron: "7 17 * * 1-5"     # 19h07 l'ete (travail deja fait) · 18h07 l'hiver
+    - cron: "23 19 * * 1-5"    # secours : 21h23 l'ete · 20h23 l'hiver
+    - cron: "41 5 * * 2-6"     # rattrapage : 7h41 l'ete · 6h41 l'hiver, mesure sautee
 concurrency:
   group: circuit-du-soir
   cancel-in-progress: false
@@ -156,6 +174,34 @@ JOURNAL = """      - name: Enregistrer le journal du passage au depot prive
           echo "journal : POUSSEE REFUSEE 3 FOIS"; exit 1
 """
 
+DECISION_ENTETE = """  faut_il_tourner:
+    runs-on: ubuntu-latest
+    outputs:
+      tourner: ${{ steps.decision.outputs.tourner }}
+      rattrapage: ${{ steps.decision.outputs.rattrapage }}
+""" + DEFAULTS + "    steps:\n"
+
+DECISION_PAS = """      - name: Faut-il tourner ?
+        id: decision
+        run: |
+          set +e
+          python3 programmes/FAUT_IL_TOURNER.py . "${{ github.event_name }}" "${{ inputs.rattrapage }}"
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Rougir si la decision n a pas pu se prendre
+        if: steps.decision.outputs.code != '0'
+        run: |
+          echo "::error::DECISION IMPOSSIBLE OU PAR PRECAUTION — voir le journal du passage au depot prive"
+          exit 1
+"""
+
+JOB_PRIVE = "  collecte:\n"
+JOB_CONDITION = """  collecte:
+    needs: faut_il_tourner
+    if: ${{ !cancelled() && needs.faut_il_tourner.outputs.tourner == 'true' }}
+"""
+RATTRAPAGE_PRIVE = "${{ inputs.rattrapage }}"
+RATTRAPAGE_PUBLIC = "${{ needs.faut_il_tourner.outputs.rattrapage }}"
+
 CHECKOUT_PRIVE = re.compile(r"      - uses: actions/checkout@v5\n        with:\n(?:\s*#.*\n)*\s*fetch-depth: 0\n")
 
 
@@ -166,7 +212,8 @@ def fabriquer_le_circuit(texte_prive):
     ② CONTEXTE D'APPEL — `main`, une fois ; les épreuves.
     ③ ENTRÉE — `texte_prive` : le contenu de `.github/workflows/collecte_abc.yml`.
     ④ CONDITIONS D'ENTRÉE — Le texte porte `jobs:`, `runs-on: ubuntu-latest` et un
-      clonage `actions/checkout@v5` avec `fetch-depth: 0`, chacun UNE fois.
+      clonage `actions/checkout@v5` avec `fetch-depth: 0`, chacun UNE fois ; son job
+      s'appelle `collecte` ; il porte `${{ inputs.rattrapage }}` UNE fois.
     ⑤ SORTIE — UNE valeur : le texte du circuit public ; lève `ValueError` si une
       forme attendue manque ou s'il reste du code Python écrit. [rend: 1]
       [rend: 1]
@@ -186,11 +233,17 @@ def fabriquer_le_circuit(texte_prive):
         raise ValueError("« runs-on: ubuntu-latest » absent ou répété")
     if len(CHECKOUT_PRIVE.findall(corps)) != 1:
         raise ValueError("le clonage du dépôt privé n'a pas la forme attendue")
+    if not corps.startswith(JOB_PRIVE):
+        raise ValueError("le circuit privé ne commence pas par le job « collecte: »")
+    if corps.count(RATTRAPAGE_PRIVE) != 1:
+        raise ValueError(f"« {RATTRAPAGE_PRIVE} » absent ou répété dans le circuit privé")
+    corps = corps.replace(JOB_PRIVE, JOB_CONDITION, 1).replace(RATTRAPAGE_PRIVE, RATTRAPAGE_PUBLIC)
     corps = CHECKOUT_PRIVE.sub(lambda m: CLONAGES, corps)
     corps = corps.replace("    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n" + DEFAULTS, 1)
     corps = corps.replace("${{ secrets.TOKEN_PUBLIC }}", "${{ secrets.JETON_DEPOTS }}")
     lignes = [l for l in corps.split("\n") if not l.lstrip().startswith("#")]
-    texte = ENTETE + "\n".join(lignes).rstrip("\n") + "\n" + JOURNAL
+    texte = (ENTETE + DECISION_ENTETE + CLONAGES + DECISION_PAS + JOURNAL
+             + "\n".join(lignes).rstrip("\n") + "\n" + JOURNAL)
     for interdit in ("secrets.TOKEN_PUBLIC",):
         if interdit in texte:
             raise ValueError(f"il reste « {interdit} » dans le circuit public")
