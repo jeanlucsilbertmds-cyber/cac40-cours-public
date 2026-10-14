@@ -2084,8 +2084,9 @@ def ligne(date_mesure, strat_id, comptabilite, etat, s, carte, golden, temoin_p,
     ② CONTEXTE D'APPEL — Un seul appel, dans `main`, DEUX FOIS par stratégie
       vivante, une fois par comptabilité, donc quatre fois par passage avec les
       deux stratégies vivantes au 19-09-2026.
-    ③ ENTRÉE — `date_mesure` : le jour du passage, en année-mois-jour, heure de
-      Paris · `strat_id` : l'identifiant de la stratégie au registre, par exemple
+    ③ ENTRÉE — `date_mesure` : la SÉANCE mesurée — la dernière séance des cours lus —,
+      en année-mois-jour (jusqu'au 14-10-2026 : le jour d'horloge du passage, heure de
+      Paris) · `strat_id` : l'identifiant de la stratégie au registre, par exemple
       `'C5E10-QA-V1'` · `comptabilite` : `'un jeton'` ou `'jetons illimites'` ·
       `etat` : l'état de vie lu au registre, `'QA'` ou `'PRODUCTION'` · `s` : le
       dictionnaire de chiffres rendu par `stats` · `carte` : la ligne du registre
@@ -2255,14 +2256,16 @@ def main():
       écrites dans ses deux comptabilités ne font pas le nombre de ses lignes au
       journal.
       [rend: 1]
-    ⑥ TRAITEMENT — ① relever la date du jour en heure de Paris · ② trouver et lire
+    ⑥ TRAITEMENT — ① relever l'heure de Paris · ② trouver et lire
       le journal des opérations, et s'arrêter s'il manque · ③ refaire les chiffres
       de référence, et s'arrêter s'ils ne tombent pas juste · ③bis s'arrêter si
       une opération n'a pas de comptabilité reconnue · ④ relever au
       registre les stratégies en essai ou en production, et s'arrêter s'il n'y en
       a aucune · ④bis signaler un nom qui désigne deux d'entre elles · ⑤ charger les chiffres de référence figés · ⑥ charger le
       référentiel des valeurs et dire s'il manque · ⑦ reconstituer la courbe du
-      capital et calculer le rapport gain sur secousses et les deux témoins ·
+      capital et calculer le rapport gain sur secousses et les deux témoins ; la
+      DATE DE LA MESURE est la dernière séance de cette courbe, et rien ne s'écrit
+      s'il n'y en a aucune ·
       ⑧ pour chaque stratégie : retrouver ses opérations — celles dont le nom
       écrit au journal est ÉGAL à l'identifiant du registre ou au nom court avant
       la parenthèse —, signaler celles qui
@@ -2277,14 +2280,26 @@ def main():
       ligne par mesure, et le chemin du fichier écrit.
     ⑦ UNITÉ — Les cumuls en EUROS · les taux et les verdicts en POURCENTS · les
       compteurs en NOMBRES D'OPÉRATIONS TERMINÉES · la date de mesure en
-      année-mois-jour, heure de Paris.
+      année-mois-jour : celle de la SÉANCE mesurée.
     ⑧ POURQUOI — L'historique s'empile et ne s'écrase jamais, décidé par Jean-Luc
       le 15-08-2026. Une ligne par jour permet de voir une dégradation lente, que
       la photographie du jour ne montrerait pas, et de savoir ce que le système
       savait à une date donnée. L'unicité est assurée par le trio date,
-      stratégie, comptabilité : relancer le programme deux fois le même jour
+      stratégie, comptabilité : relancer le programme deux fois sur la même séance
       n'ajoute rien, mesuré le 19-09-2026 par un second passage qui annonce
       « 0 ecrite(s), 4 deja presente(s) ».
+      LA DATE EST CELLE DE LA SÉANCE, PLUS CELLE DE L'HORLOGE — décision de Jean-Luc
+      du 14-10-2026 à 18h50 (« 1 »), cassure J de Cowork : GitHub lance parfois le
+      circuit du soir après minuit (00h17 le 10-10, 02h10 le 13-10) ; datée par
+      l'horloge, la mesure de la séance de la veille prenait la date du lendemain, et
+      celle du lendemain soir était refusée (date déjà écrite) — une séance restait
+      sans mesure. Datée par la séance, un passage tardif, un rattrapage du matin ou
+      une relance écrivent la ligne de LEUR séance, une seule fois. Les lignes écrites
+      avant ce changement gardent leur date d'horloge (le fichier ne se réécrit
+      jamais) : celles du 10-10 et du 13-10 portent en fait les séances du 09-10 et
+      du 12-10 ; et la ligne « 2026-10-13 » bloque aussi la séance du 13-10, qui
+      n'aura donc pas de ligne à elle (ses chiffres recalculés le 14-10 étaient
+      identiques à ceux de cette ligne — relecture du 14-10-2026).
       Le calibrage vient avant tout le reste, et son échec arrête tout sans rien
       écrire, parce qu'une mesure fausse empilée dans l'historique y reste : le
       fichier ne se réécrit pas, et le tableau de bord la relira chaque jour.
@@ -2300,6 +2315,13 @@ def main():
       plus qu'un seul fichier, `donnees/historique_mesures.csv`, 85 lignes, et
       aucun fichier de ce nom à la racine du dépôt.
     ⑨ CE QUI CLOCHE —
+      ⓪ LA DATE DE LA SÉANCE (relecture à mandat inversé du 14-10-2026) : a) elle est
+      la date la plus récente de N'IMPORTE QUELLE valeur des cours lus : un soir où une
+      seule page d'ABC a répondu, la séance est datée et sa ligne écrite, et le secours
+      qui complète les cours ne la réécrit pas — défaut antérieur au changement de
+      date, consigné (A-579) ; b) un passage qui rattrape deux séances n'écrit la ligne
+      que de la plus récente ; c) le radar juge la fraîcheur de ce fichier à deux jours
+      CALENDAIRES : une séance manquée se voit le lundi, pas du mardi au vendredi.
       ① CORRIGÉ LE 27-09-2026 (défaut 3 de A-491), avec le ② : appariement
       exact, filtre par comptabilité. Mesuré sur une copie : « C5E10-OBS-V1 · un
       jeton : 1 operation(s) · cumul -2796.25 EUR », au lieu de 3 et 1292.25.
@@ -2367,7 +2389,8 @@ def main():
       référentiel, les fichiers de cours et l'historique lui-même, et parcourt
       l'arborescence du dossier de sources pour les trouver. Affiche une dizaine
       de lignes. Aucun accès réseau.
-    ⑪ TERMINAISON — Rend la main avec 0 ou 1 dans le cas normal. PEUT LEVER une
+    ⑪ TERMINAISON — Rend la main avec 0 ou 1 dans le cas normal (1 aussi quand les
+      cours lus ne portent aucune séance — en pratique la courbe du capital lève avant). PEUT LEVER une
       erreur non rattrapée, qui arrête alors le programme : quand le dossier de
       sortie ne porte pas de sous-dossier `donnees/`, et quand un point mort
       calculé sort de l'intervalle de 0 à 100. Et un de ses appels peut ne pas
@@ -2401,7 +2424,6 @@ def main():
     base = sys.argv[1] if len(sys.argv) > 1 else '.'
     sortie = sys.argv[2] if len(sys.argv) > 2 else '.'
     now = datetime.now(PARIS)
-    jour = now.strftime('%Y-%m-%d')
 
     ch = _p(base, 'journal_trades.csv')
     if not ch:
@@ -2472,6 +2494,11 @@ def main():
         print("ATTENTION : referentiel introuvable — le controle d'univers ne peut pas fonctionner")
 
     seances, courbe = courbe_capital(operations, base, None)
+    if not seances:
+        print("ARRET : aucune seance dans les cours lus — la mesure n'a pas de date, rien n'est ecrit.")
+        return 1
+    jour = seances[-1]      # la seance mesuree, pas le jour d'horloge (cassure J, 14-10-2026)
+    print(f"seance mesuree : {jour} (passage du {now.strftime('%d-%m-%Y %Hh%M')}, heure de Paris)")
     gs = rapport_gain_secousses(courbe)
     tp_, tm_ = temoins(base, seances, courbe, operations)
 

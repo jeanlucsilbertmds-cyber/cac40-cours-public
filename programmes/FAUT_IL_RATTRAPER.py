@@ -53,6 +53,10 @@
   ④ La mesure de la performance s'empile une ligne par jour d'HORLOGE, et passe une date
   déjà écrite : lancée le matin, elle empêchait celle du soir (relecteur, 01-10-2026).
   Le passage du matin la saute donc ; la mesure du soir manqué n'est jamais écrite.
+  Depuis le 14-10-2026, la mesure est datée par la SÉANCE qu'elle mesure (A-579,
+  décision de Jean-Luc à 18h50) : le circuit public, qui appelle ce programme par
+  programmes/FAUT_IL_TOURNER.py, ne la saute plus ; un rattrapage écrit la ligne de
+  la séance rattrapée.
   ⑤ Une valeur durablement absente (retirée de la cote) ferait relancer chaque matin :
   elle est alors aussi une alerte du contrôle des valeurs, à trancher par Jean-Luc.
 ⑩ EFFET — Lit trois fichiers ; n'écrit rien.

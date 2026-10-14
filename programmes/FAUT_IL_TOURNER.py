@@ -23,13 +23,12 @@
   sortie : 0 si la décision est prise ; 1 si elle n'a pas pu l'être (calendrier
   illisible) — le passage tourne alors par précaution, et le pas rougit (R-734 : un
   contrôle qui n'a pas pu conclure ne rend jamais 0).
-⑥ TRAITEMENT — `decider` : ① lancé à la main → tourner, avec la case « rattrapage » telle
-  qu'elle a été cochée · ② réveil planifié : demander à FAUT_IL_RATTRAPER si la dernière
-  séance close est déjà finie — à partir de l'heure où la clôture du jour est définitive
-  chez ABC Bourse (`HEURE_CLOTURE_PARIS` de programmes/COLLECTER_ABC_GITHUB.py, 18h),
-  c'est celle du jour ; avant, celle de la veille — et tourner seulement si elle ne l'est
-  pas · ③ un passage planifié qui tourne avant 18h saute la mesure de la performance ; un
-  lancement à la main la saute aussi avant 18h, case cochée ou non.
+⑥ TRAITEMENT — `decider` : ① lancé à la main → tourner, la mesure sautée seulement si la
+  case « rattrapage » est cochée · ② réveil planifié : demander à FAUT_IL_RATTRAPER si la
+  dernière séance close est déjà finie — à partir de l'heure où la clôture du jour est
+  définitive chez ABC Bourse (`HEURE_CLOTURE_PARIS` de programmes/COLLECTER_ABC_GITHUB.py,
+  18h), c'est celle du jour ; avant, celle de la veille — et tourner seulement si elle ne
+  l'est pas ; un réveil planifié ne saute jamais la mesure.
 ⑦ UNITÉ — Des heures et des dates de Paris.
 ⑧ POURQUOI — Décision de Jean-Luc du 13-10-2026 : faire partir le circuit au plus tôt
   après la clôture (18h07), avec un secours le soir (21h23) et un rattrapage le matin
@@ -40,52 +39,38 @@
   vaut 18h07 l'été mais 17h07 l'hiver, avant la clôture définitive. Le circuit est donc
   réveillé à 16h07 ET 17h07 universelles, et c'est l'horloge de Paris, lue ici, qui
   décide : l'été, 18h07 tourne et 19h07 trouve le travail fait ; l'hiver, 17h07 s'arrête
-  si la veille est faite (sinon il la rattrape, mesure sautée) et 18h07 tourne. Avant 18h, la collecte refuserait la ligne du jour (partielle) et
-  le reste du circuit recalculerait la veille ; pire, la mesure de la performance, qui
-  s'empile une ligne par jour d'horloge et passe une date déjà écrite, serait écrite
-  sans la séance du jour et empêcherait celle du soir. Pour la même raison, elle est
-  sautée le matin (FAUT_IL_RATTRAPER.py, ⑨ ④). Un passage dont le travail est déjà fait
-  s'arrête : il ne ferait que pousser des fichiers identiques. Un lancement à la main
-  avant 18h sautait la mesure seulement si la case était cochée : sinon il écrivait la
-  mesure de la journée avec la séance de la veille, et celle du soir n'était plus
-  écrite (relecture à mandat inversé du 13-10-2026, cas D, défaut antérieur).
+  si la veille est faite (sinon il la rattrape) et 18h07 tourne. Avant 18h, la collecte
+  refuse la ligne du jour (partielle) : un passage avant 18h ne fait que rattraper la
+  veille. Un passage dont le travail est déjà fait s'arrête : il ne ferait que pousser
+  des fichiers identiques.
   AUCUNE FENÊTRE D'INTERDICTION EN JOURNÉE : une première version (13-10-2026) refusait
   tout réveil planifié entre 9h et 18h. Le Chat l'avait ajoutée de lui-même, sans
   demande de Jean-Luc, pour arrêter le réveil de 17h07 l'hiver. Le 14-10-2026, le réveil
   prévu à 7h41 est parti à 12h37 (GitHub, 4 h 56 de retard) et cette fenêtre l'a arrêté :
   un matin où la séance de la veille aurait manqué, ses signaux auraient été perdus
-  (cassure K). Elle ne protégeait rien que le reste ne protège déjà : avant 18h, la
-  collecte refuse la ligne du jour (partielle) et la mesure est sautée ; un réveil en
-  journée ne fait donc que rattraper la veille, et un réveil dont la veille est faite
-  s'arrête. Retirée sur décision de Jean-Luc du 14-10-2026 à 18h32 (« 1 »).
-⑨ CE QUI CLOCHE — ① « La clôture du jour est définitive à 17h55 chez ABC » repose sur
+  (cassure K). Retirée sur décision de Jean-Luc du 14-10-2026 à 18h32 (« 1 »).
+  PLUS AUCUNE MESURE SAUTÉE PAR UN RÉVEIL PLANIFIÉ : jusqu'au 14-10-2026, la mesure de
+  la performance était datée du jour d'HORLOGE et refusait une date déjà écrite ; un
+  passage du matin ou d'après minuit la sautait donc, sans quoi il aurait pris la date
+  du jour et empêché celle du soir — et la journée de sa séance restait sans mesure
+  (cassure J de Cowork). Depuis la décision de Jean-Luc du 14-10-2026 à 18h50 (« 1 »),
+  la mesure est datée par la SÉANCE qu'elle mesure : chaque passage écrit la ligne de
+  sa séance, une seule fois, à toute heure. La case « rattrapage » ne sert plus qu'au
+  lancement à la main, pour qui veut un passage sans mesure.
+⑨ CE QUI CLOCHE — ① « La clôture du jour est définitive à 17h55 chez ABC » reposait sur
   UNE observation, le 09-09-2026 (A-391) ; le 14-10-2026, l'essai d'A-579 l'a vue
-  définitive dès 17h35-17h36, le volume dès 17h39 ; si ABC servait un jour une ligne partielle
-  après 18h, la collecte l'accepterait, et seule la détection des révisions du
+  définitive dès 17h35-17h36, le volume dès 17h39 ; si ABC servait un jour une ligne
+  partielle après 18h, la collecte l'accepterait, et seule la détection des révisions du
   lendemain le dirait. ② Le calendrier ne couvre que 2026 (A-513) : au-delà, code 1 et
-  passage par précaution, à chaque réveil. ③ Un réveil du SOIR retardé par GitHub
-  après minuit est jugé comme un réveil du matin : il tourne, mais saute la mesure de
-  la performance, et la journée reste sans mesure (cassure J de Cowork, 14-10-2026 ;
-  la réparer demande que la mesure s'empile par séance et non par jour d'horloge —
-  décision de Jean-Luc attendue, A-579).
-  ④ Un passage de 18h07 où ABC n'aurait pas encore la séance du jour écrit quand même
-  la mesure de la journée, sans cette séance ; le secours de 21h23 complète les cours
-  et les signaux, pas la mesure (relecture du 13-10-2026 ; le risque existait à 20h00,
-  il est plus probable à 18h07). ⑤ Si ce programme meurt avant d'écrire sa réponse,
-  le job du circuit ne tourne pas et le pas rougit ; le réveil suivant reprend.
-  ⑥ « Relancer » un passage depuis la page de GitHub garde l'événement d'origine
-  (« schedule ») : relancé en journée, il s'arrête si la veille est faite, et ne
-  traite jamais la séance du jour avant 18h. Pour relancer, utiliser « Run
-  workflow » (THÉORIQUE, d'après la documentation de GitHub, non éprouvé ici).
-  ⑦ Relecture à mandat inversé du 14-10-2026 (retrait de la fenêtre) : a) une décision
-  prise juste avant 18h, la veille manquante, suivie d'une collecte qui démarre après 18h :
-  la collecte, qui relit sa propre horloge, prend la ligne du jour ; la mesure est sautée,
-  puis les réveils suivants trouvent le travail fait — la journée reste sans mesure ; même
-  remède que ③ (une mesure par séance, A-579) ; b) à partir de 2027, faute de calendrier
-  (A-513), le réveil de 17h07 tourne chaque jour par précaution, en rouge ; c) un
-  rattrapage en journée écrit le rapport du radar daté du jour : si les passages du soir
-  tombent ensuite, l'alerte « Circuit du soir NON passé », qui ne compare que la date,
-  ne sort pas (défaut antérieur, étendu).
+  passage par précaution, à chaque réveil, en rouge — le réveil de 17h07 compris.
+  ③ Si ce programme meurt avant d'écrire sa réponse, le job du circuit ne tourne pas
+  et le pas rougit ; le réveil suivant reprend. ④ « Relancer » un passage depuis la
+  page de GitHub garde l'événement d'origine (« schedule ») : il décide comme un réveil
+  planifié. Pour un passage sans mesure, utiliser « Run workflow » et cocher la case
+  (THÉORIQUE, d'après la documentation de GitHub, non éprouvé ici). ⑤ Un rattrapage en
+  journée écrit le rapport du radar daté du jour : si les passages du soir tombent
+  ensuite, l'alerte « Circuit du soir NON passé », qui ne compare que la date, ne sort
+  pas (relecture du 14-10-2026, défaut antérieur, étendu par le retrait de la fenêtre).
 ⑩ EFFET — Lit trois fichiers (par FAUT_IL_RATTRAPER) ; écrit deux lignes dans
   `GITHUB_OUTPUT` s'il est posé.
 ⑪ TERMINAISON — Sort par sys.exit, en 0 ou 1. Aucun appel qui puisse ne pas revenir.
@@ -150,18 +135,16 @@ def decider(racine, maintenant, evenement, case_rattrapage):
     heure = f"{maintenant:%Y-%m-%d %H:%M} (Paris)"
     cloture = _module("COLLECTER_ABC_GITHUB.py").HEURE_CLOTURE_PARIS
     if evenement != "schedule":
-        tot = maintenant.hour < cloture
-        r = case_rattrapage == "true" or tot
+        r = case_rattrapage == "true"
         return DECIDE, True, r, [f"▶️ TOURNER — lancé à la main ({evenement}) le {heure}"
-                                 + (", mesure sautée (case « rattrapage » cochée)" if case_rattrapage == "true"
-                                    else f", mesure sautée (avant {cloture}h)" if tot else "")]
+                                 + (", mesure sautée (case « rattrapage » cochée)" if r else "")]
     soir = maintenant.hour >= cloture
     # FAUT_IL_RATTRAPER attend la séance « avant le jour qu'on lui donne » : le soir, on lui
     # donne demain, et la séance attendue est celle d'aujourd'hui si la Bourse a ouvert.
     jour = maintenant.date() + (timedelta(days=1) if soir else timedelta(0))
     code, lignes = _module("FAUT_IL_RATTRAPER.py").decider(racine, jour)
-    rattrapage = not soir
-    suite = f", mesure sautée (avant {cloture}h)" if rattrapage else ""
+    rattrapage = False      # la mesure est datée par sa séance : aucun réveil planifié ne la saute
+    suite = ""
     if code == 0:
         return DECIDE, False, rattrapage, [f"⏹️ NE PAS TOURNER — réveil du {heure} : travail déjà fait"] + lignes
     if code == 10:
@@ -194,11 +177,7 @@ def main():
     try:
         code, tourner, rattrapage, lignes = decider(sys.argv[1], datetime.now(PARIS), sys.argv[2], sys.argv[3])
     except Exception as e:      # dans le doute, on tourne : une séance non lue perd ses signaux
-        try:   # la mesure n'est sautée qu'avant l'heure de clôture, comme à la main
-            rattrapage = datetime.now(PARIS).hour < _module("COLLECTER_ABC_GITHUB.py").HEURE_CLOTURE_PARIS
-        except Exception:
-            rattrapage = True   # l'heure de clôture elle-même est illisible : mesure sautée par précaution
-        code, tourner = INDECIS, True
+        code, tourner, rattrapage = INDECIS, True, False   # la mesure, datée par sa séance, peut s'écrire
         lignes = [f"🚨 TOURNER PAR PRÉCAUTION — décision impossible ({type(e).__name__}: {str(e)[:120]})"]
     sortie = os.environ.get("GITHUB_OUTPUT")
     if sortie:

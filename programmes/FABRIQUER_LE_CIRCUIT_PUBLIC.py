@@ -99,7 +99,7 @@ on:
   workflow_dispatch:
     inputs:
       rattrapage:
-        description: "Relance du matin (saute la mesure de la performance)"
+        description: "Passage sans mesure de la performance"
         type: boolean
         default: false
   # QUATRE REVEILS, ET C'EST L'HORLOGE DE PARIS QUI DECIDE (decision de Jean-Luc du
