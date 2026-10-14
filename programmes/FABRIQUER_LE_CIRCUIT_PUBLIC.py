@@ -105,11 +105,11 @@ on:
   # QUATRE REVEILS, ET C'EST L'HORLOGE DE PARIS QUI DECIDE (decision de Jean-Luc du
   # 13-10-2026 : 18h07, secours 21h23, rattrapage 7h41). GitHub compte en heure
   # universelle, qui ne suit pas l'heure d'ete ; programmes/FAUT_IL_TOURNER.py lit
-  # l'heure de Paris au demarrage reel : jamais entre 9h et 18h, et seulement si la
-  # derniere seance close n'est pas finie. Aucun reveil a l'heure pile : GitHub les
+  # l'heure de Paris au demarrage reel : il tourne seulement si la derniere seance
+  # close n'est pas finie (celle du jour apres 18h, la veille avant), mesure sautee avant 18h. Aucun reveil a l'heure pile : GitHub les
   # retarde en forte charge (passages de 23h25, 00h17, 02h10 avec 18h00 pile).
   schedule:
-    - cron: "7 16 * * 1-5"     # 18h07 l'ete · 17h07 l'hiver (s'arrete)
+    - cron: "7 16 * * 1-5"     # 18h07 l'ete · 17h07 l'hiver (s'arrete si la veille est faite)
     - cron: "7 17 * * 1-5"     # 19h07 l'ete (travail deja fait) · 18h07 l'hiver
     - cron: "23 19 * * 1-5"    # secours : 21h23 l'ete · 20h23 l'hiver
     - cron: "41 5 * * 2-6"     # rattrapage : 7h41 l'ete · 6h41 l'hiver, mesure sautee
