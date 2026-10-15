@@ -165,6 +165,14 @@ FABRIQUES_DU_SOIR = (
 # un programme du dépôt absent de la liste, et quand ces seuls fichiers, copiés dans un
 # dossier vide, ne refont plus un vrai trade du journal. Le texte des trois boucles doit
 # copier exactement ces fichiers : c'est Cowork, seul à lire les tâches, qui le confronte.
+# LES DEUX PROGRAMMES DE L'HISTORIQUE LONG (ajoutés le 15-10-2026) : ce module NOMME
+# programmes/REPARER_L_HISTORIQUE_LONG.py dans FICHIERS_REPARES, plus bas — un nom écrit pour
+# être comparé au registre de provenance, jamais chargé ; et ce programme nomme à son tour
+# programmes/CONTROLER_L_HISTORIQUE_LONG.py. L'épreuve compte tout nom écrit dans le code
+# comme une dépendance, par choix : « la liste s'élargit à tort plutôt que de se taire » (son ⑨).
+# Elle rougissait (E1) depuis l'ajout de FICHIERS_REPARES le 13-10-2026 (A-578) ; trouvé le
+# 15-10-2026 avant le versement de l'historique long, réparé sur décision de Jean-Luc (« 2 »,
+# 08h57 : réparer les épreuves rouges avant de verser). Les boucles copient deux fichiers de plus.
 COPIE_DES_BOUCLES = (
     "programmes/TENIR_LES_POSITIONS.py",
     "programmes/MODULE_POSITIONS.py",
@@ -173,6 +181,8 @@ COPIE_DES_BOUCLES = (
     "programmes/CONTRATS_DES_FICHIERS.py",
     "programmes/COMMUN.py",
     "programmes/MODULE_JUGEMENT.py",
+    "programmes/REPARER_L_HISTORIQUE_LONG.py",
+    "programmes/CONTROLER_L_HISTORIQUE_LONG.py",
     "donnees/cac40_strategies.csv",
 )
 
@@ -437,7 +447,9 @@ MESURE = [
     "temoin_miroir", "rapport_gain_secousses", "source_calibrage",
 ]
 
-# l historique des cours qui grandit — TENIR_L_HISTORIQUE écrit, tout le reste lit
+# l historique des cours qui grandit — TENIR_L_HISTORIQUE écrit, tout le reste lit ;
+# le même contrat pour l'historique long réparé (A-539) : REPARER_L_HISTORIQUE_LONG écrit,
+# CONTROLER_L_HISTORIQUE_LONG lit — rien n'en est versé au maître sans décision de Jean-Luc
 COURS_MAITRE = [
     "valeur", "date", "open", "high",
     "low", "close", "volume", "source",
@@ -463,6 +475,45 @@ COURS_NOUVEAUX = [
     "valeur", "date", "open", "high",
     "low", "close", "volume",
 ]
+
+# LES CONTRATS D'UN FICHIER DE COURS — les en-têtes qu'accepte programmes/LIRE_LES_COURS.py, le lecteur unique
+# (R-111). Le fichier maître et l'historique long portent huit colonnes (COURS_MAITRE, la huitième dit la source) ;
+# l'arrivée du soir (claude_cours_nouveaux.csv) et la référence Google (cac40_ohlcv.csv) en portent sept, sans source
+# (COURS_NOUVEAUX), mesuré le 11-10-2026. Relecture de Cowork du 11-10-2026 (e183c98) : le lecteur refusait ces deux
+# fichiers. Un fichier de cours nouveau se déclare ICI, une fois (R-708).
+CONTRATS_DE_COURS = (COURS_MAITRE, COURS_NOUVEAUX)
+
+# LES FICHIERS DE COURS FIGÉS — qu'aucun programme ne change plus : {chemin depuis la racine du dépôt : {"fin" : sa
+# dernière séance, "sha256" : l'empreinte du fichier entier}}. Un fichier figé est attendu jusqu'à la date DÉCLARÉE ici,
+# même quand l'appelant demande plus loin : les séances d'après ne sont pas des trous ; une fin tronquée reste un trou,
+# et crie ; une empreinte différente dit « FICHIER FIGÉ MODIFIÉ » (relecture de Cowork du 12-10-2026, 81998cc : une
+# clôture de Vinci augmentée de 10 % au milieu de la référence passait à « SIGNALÉ : 0 » ; et une date de fin donnée
+# par l'appelant ramenait les 65 « trous de tout le marché »). La clé est le CHEMIN, pas le seul nom : relecture indépendante du
+# 12-10-2026, une copie du maître amputée de cinq séances, posée sous archives/cac40_ohlcv.csv, se taisait. Relecture de Cowork du 12-10-2026 (108efa5) :
+# lue par le module, la référence Google (arrêtée au 10-07-2026, Google mort le 10-09-2026) sortait 65 « trous de tout
+# le marché » du 13-07 au 09-10-2026. FIGÉ SE DÉCLARE, IL NE SE DÉDUIT PAS : un fichier dont toutes les valeurs
+# s'arrêtent le même jour, c'est aussi le maître quand la collecte du soir tombe pour tout le monde — et celui-là doit
+# crier (A-441 : un rapport vieux de cinq jours, et rien ne le signalait). Un fichier ne s'ajoute ici que figé pour de
+# bon, sur décision écrite : cac40_ohlcv.csv reste intact, c'est la référence validée contre FactSet (instructions du
+# projet, § 10).
+# Le témoin du golden est figé par définition (le jeu de données de sa prise, 01-08-2026). Mesuré le 12-10-2026 : la
+# date la plus tardive des deux fichiers est le 2026-07-10 ; les empreintes sont celles de sha256sum sur ces fichiers
+# (celle du témoin commence comme l'empreinte que le golden porte, e472c09da5679ec3).
+# LES FICHIERS DE COURS INCRÉMENTS — ce qui arrive avant d'être versé, pas un historique : chaque valeur n'y est
+# attendue qu'à partir de sa propre première barre, jamais depuis son entrée dans l'indice. Relecture indépendante du
+# 12-10-2026 (pièce B) : l'arrivée du soir, où 10 valeurs commencent le 13-07-2026 et 30 le 31-07-2026, sortait 420
+# « trous » que le maître couvre (ACCOR : 14 barres du 13 au 30-07-2026, source euronext). Un fichier de cours qui
+# n'est ni ici ni figé est un historique : il doit couvrir, dès sa première date, chaque valeur alors dans l'indice.
+FICHIERS_DE_COURS_INCREMENTS = ("donnees/claude_cours_nouveaux.csv",)
+
+FICHIERS_DE_COURS_FIGES = {
+    "donnees/cac40_ohlcv.csv": {
+        "fin": "2026-07-10",
+        "sha256": "10e71dc94aed4ef2b4119a1a1c20545faea80ea8c53a2f1ef260ce96bee45f11"},
+    "temoins/TEMOIN_cac40_ohlcv_JEU_DU_GOLDEN_01-08-2026.csv": {
+        "fin": "2026-07-10",
+        "sha256": "e472c09da5679ec3758912d78e8c96f7a5225f39b84fc9ab02e0449dddfdf24a"},
+}
 
 # l état civil des stratégies — Jean-Luc décide, les programmes lisent
 STRATEGIE = [
@@ -504,12 +555,169 @@ CONSENSUS = [
     "niveau",
 ]
 
+# les cours bruts de la Bourse de Paris archivés par bnains.org, 2000 → 02-2017 — LIRE_LES_ARCHIVES_BNAINS
+# écrit, REPARER_L_HISTORIQUE_LONG et CONTROLER_L_HISTORIQUE_LONG lisent (A-539, 04-10-2026).
+# `code` : le code sous lequel bnains a rangé la ligne (SICOVAM avant 2003, ISIN ensuite).
+COURS_BNAINS = [
+    "valeur", "date", "code", "libelle",
+    "open", "high", "low", "close", "volume",
+]
+
+# les droits de souscription vus dans les archives bnains — LIRE_LES_ARCHIVES_BNAINS écrit,
+# CONTROLER_L_HISTORIQUE_LONG lit : la clôture du droit à son premier jour de cotation, rapportée à
+# celle de l'action le même jour, dit de combien une série ajustée peut changer de rapport aux cours
+# bruts le jour du détachement (A-539, 04-10-2026 ; relecture de Cowork de 21h54). Ce premier jour
+# n'est PAS le jour du détachement : bnains montre souvent le droit une séance plus tard (07-10-2026).
+DROITS_BNAINS = [
+    "valeur", "code", "libelle", "premiere_seance", "derniere_seance", "seances",
+    "cloture_premiere_seance",
+]
+
+# les jours de détachement officiels des droits de souscription — écrit À LA MAIN, une ligne par
+# droit, chacune avec la phrase qui la prouve et son adresse ; CONTROLER_L_HISTORIQUE_LONG lit
+# (A-539, 07-10-2026). La clé de jointure avec DROITS_BNAINS est (valeur, libellé du droit).
+# Les trois dernières colonnes ne se remplissent que pour un droit ABSENT des archives bnains : les
+# chiffres du document (cours de la veille, prix de souscription, actions anciennes pour une
+# nouvelle), dont la valeur théorique du droit se CALCULE (AXA, juin 2006).
+DETACHEMENTS_OFFICIELS = [
+    "valeur", "libelle_du_droit", "jour_du_detachement", "source", "citation",
+    "cours_veille", "prix_souscription", "anciennes_pour_une_nouvelle",
+    # ajouté le 09-10-2026 (A-555 ⑥) : la valeur, en euros PAR ACTION de la société, de ce qui est
+    # distribué en nature (actions d'une autre société) ; remplie seule avec `cours_veille`, les deux
+    # colonnes du droit restant vides ; vide pour un droit ou des actions gratuites
+    "valeur_distribuee",
+    # ajouté le 10-10-2026 (décision de Jean-Luc, 09h39 : la règle officielle) : le dividende, en euros par
+    # action, que les actions NOUVELLES ne toucheront pas et que les anciennes portent encore le jour du
+    # détachement ; le droit vaut alors (cours − prix − dividende) ÷ (n + 1) — Société Générale, 21-02-2008,
+    # 0,90 € : le document donne 5,86 € = (77,72 − 47,50 − 0,90) ÷ 5. Vide le plus souvent.
+    "dividende_non_attache",
+    # ajouté le 10-10-2026 (décision de Jean-Luc, 13h18 : « 1 » à « Écrire le programme qui confronte chaque citation
+    # et chaque chiffre déclaré à son document gardé, et refuse ce qui n'y est pas ») : les phrases que la ligne tient
+    # de ses documents GARDÉS, « fichier :: phrase », séparées par « ¦ » ; le fichier est celui du registre
+    # temoins/DOCUMENTS_DES_DROITS_REGLE_OFFICIELLE_Sam_10-10-2026/DOCUMENTS.csv. Remplie par
+    # etudes/outils/RELEVER_LES_PHRASES_DES_DOCUMENTS_GARDES.py, confrontée par
+    # programmes/CONFRONTER_LES_CHIFFRES_AUX_DOCUMENTS.py. Exemple (Société Générale 2008) :
+    # « SOCIETE_GENERALE_2008_BALO_2008-02-13.pdf :: Le prix de souscription est de 47,50 euros par action ».
+    "phrases_des_documents_gardes",
+    # ajouté le 10-10-2026 (même décision ; relecture indépendante du même jour) : pour chaque chiffre de la ligne
+    # qu'aucune phrase gardée n'écrit, la raison, « nom_de_colonne : chiffre — raison », séparées par « ¦ » ; la raison
+    # COMMENCE par le chiffre déclaré. La confrontation REFUSE un chiffre non prouvé sans raison ou dont la raison ne
+    # commence pas par lui, et une raison pour un chiffre prouvé. Exemple (Kering 2013) :
+    # « valeur_distribuee : 2,50375 — 10-10-2026 : calculée dans la citation, 20,03 € (ouverture de Groupe Fnac …) ÷ 8 ».
+    "chiffres_sans_document",
+]
+
+# les fenêtres où bnains porte des cours FAUX, ajustés d'avance d'un événement à venir — écrit À LA
+# MAIN, une ligne par fenêtre, chacune avec sa source officielle, la phrase qui la prouve et la mesure
+# qui le montre ; CONTROLER_L_HISTORIQUE_LONG les écarte de l'extrait bnains avant tout calcul, et
+# REPARER_L_HISTORIQUE_LONG avec lui (A-539, 07-10-2026). Société Générale, 05-10-2009 : clôture
+# officielle 52,20 €, bnains 49,47 €.
+BARRES_BNAINS_FAUSSES = [
+    "valeur", "premiere_seance", "derniere_seance", "source", "citation", "mesure",
+]
+
+# les clôtures de la même action à la Bourse de Francfort (Yahoo, symbole « .F »), du 03-01-2000 au
+# 28-02-2017 — écrit par etudes/outils/CONFRONTER_A_FRANCFORT.py ; CONTROLER_L_HISTORIQUE_LONG et
+# REPARER_L_HISTORIQUE_LONG les lisent comme TROISIÈME source, pour trancher entre Yahoo et bnains
+# (A-539, 07-10-2026). BNP Paribas, 13-09-2011 : bnains 28,00, Francfort 27,995, Yahoo 27,15.
+COURS_DE_FRANCFORT = ["valeur", "symbole", "date", "close"]
+
+# L'indice CAC 40, une clôture par séance, relevé à DEUX sources : les archives quotidiennes de bnains
+# (ligne « CAC 40 », code FR0003500008) et Yahoo (^FCHI) ; une case vide quand la source n'a rien.
+# Écrit par etudes/outils/LIRE_L_INDICE_CAC40.py ; CONTROLER_L_HISTORIQUE_LONG et REPARER_L_HISTORIQUE_LONG
+# le lisent pour dire, une séance où Yahoo et bnains se contredisent sur plusieurs valeurs, laquelle des
+# deux reproduit l'indice (A-539, 07-10-2026). 07-05-2010 : les clôtures de Paris reproduisent l'indice,
+# celles de Yahoo s'en écartent de 7,5 points.
+INDICE_CAC40 = ["date", "bnains", "yahoo"]
+# Lu aussi, depuis le 10-10-2026, par programmes/CALENDRIER_DE_LA_BOURSE.py (`lire_les_seances`) : c'est le
+# calendrier des séances du passé (R-110 ① : une séance est un jour où l'indice est publié).
+
+# LA NATURE DE CHAQUE TROU — la seule chose qu'on ne calcule pas sur un trou (R-111 ⑤, décision de Jean-Luc du
+# 10-10-2026). Un trou est une séance du calendrier sans cours pour une valeur ; la liste des trous se RECALCULE à
+# chaque lecture par programmes/LIRE_LES_COURS.py, qui seul lit ce fichier. On n'y écrit que ce qu'on a DÉCIDÉ :
+# `nature` vaut SUSPENSION (cotation suspendue par Euronext), DONNEE_PERDUE (la Bourse a coté, la source ne l'a pas
+# gardé) ou INCONNUE (cherché sans trouver) ; `preuve` dit d'où vient la nature (un avis d'Euronext, par exemple) ;
+# `decide_par` et `le` disent qui l'a tranchée et quand (R-109 : Jean-Luc décide). Une ligne par valeur et par
+# séance. Exemple à trancher : Bouygues, du 03 au 10-11-2011, 6 séances sans cours dans l'historique réparé.
+NATURE_DES_TROUS = ["mnemonique", "date", "nature", "preuve", "decide_par", "le"]
+NATURES_DES_TROUS = ("SUSPENSION", "DONNEE_PERDUE", "INCONNUE")
+
+# LES DEUX TABLES DE LA RÈGLE I-3 (17-08-2026 : une table des sociétés avec leurs entrées et sorties de l'indice, une
+# table de leurs identités datées). Décision de Jean-Luc du 11-10-2026 à 22h57 (« Oui » : les construire, sans toucher
+# au référentiel des valeurs que lisent quinze programmes) et du 12-10-2026 à 07h47 (« Oui dépose les »).
+# LES PASSAGES — FABRIQUÉ par etudes/outils/RELEVER_LA_COMPOSITION_DU_CAC40.py, jamais écrit à la main (R-728) : une
+# ligne par suite continue de séances où une ligne de cotation était dans le CAC 40, depuis le 03-01-2000.
+# `isin_bnains` et `libelle_bnains` sont ceux de l'historique archivé par bnains ; `derniere_seance` est vide pour
+# une ligne encore dans l'indice ; `preuve_entree` et `preuve_sortie` disent d'où vient chaque date (l'avis officiel
+# d'Euronext, sinon la note ou la colonne de bnains). Exemple : Aventis, dernière séance le 18-06-2004 (avis 2004-1786,
+# « provisoirement retirée … à l'issue de la séance du 18 juin 2004 »).
+PASSAGES_DANS_LE_CAC40 = ["isin_bnains", "libelle_bnains", "premiere_seance", "derniere_seance", "preuve_entree",
+                          "preuve_sortie"]
+# LES IDENTITÉS — écrit À LA MAIN, une ligne par société et par période où son nom coté, son mnémonique et son ISIN
+# sont restés les mêmes. `numero` est le numéro interne de la société, stable quand elle change de nom ; `debut` vide
+# veut dire « avant le 03-01-2000 », `fin` vide « aujourd'hui » ; `preuve` cite la source ; `etat` dit ce qui reste à
+# faire (« relevé par agent », « à compléter », « à trancher »). Exemple : Engie, numéro 14, trois lignes — Gaz de
+# France (GAZ), GDF SUEZ (GSZ) du 22-07-2008, ENGIE (ENGI) du 31-07-2015, même ISIN FR0010208488.
+IDENTITES_DES_SOCIETES = ["numero", "societe", "debut", "fin", "nom_cote", "mnemonique", "isin", "preuve", "etat"]
+
+# Les ajustements que Yahoo applique à ses cours, jugés un par un contre une source officielle (A-539, 08-10-2026).
+# Écrit À LA MAIN, une ligne par ajustement, chacune avec sa preuve — comme DETACHEMENTS_OFFICIELS. Lu par
+# etudes/outils/MESURER_LES_AJUSTEMENTS_DE_YAHOO.py, qui mesure chaque ajustement et signale celui qui n'a pas de
+# ligne ici. Crédit Agricole, 22-05-2018 : Yahoo déclare une division « 27 pour 26 » ; le dividende était payé en
+# espèces seulement — la division est fausse. La dernière colonne, facteur_a_defaire, n'est remplie que pour un
+# ajustement que la réparation retire (décision de Jean-Luc du 08-10-2026 à 11h14 : « S'il y a des erreurs, il faut
+# les corriger ») : « a/b », chiffres du document officiel ; les cours d'avant la date sont multipliés par a/b et les
+# volumes divisés, ce qui annule ce que Yahoo a fait. Lu aussi par CONTROLER_L_HISTORIQUE_LONG (`lire_a_defaire`).
+AJUSTEMENTS_DE_YAHOO = ["valeur", "date", "ce_que_yahoo_declare", "verdict", "source", "citation", "facteur_a_defaire"]
+# Les dividendes et les divisions que Yahoo déclare pour chaque valeur, relevés par le même outil (une ligne par
+# événement ; montant en euros pour un dividende, rapport nouvelles ÷ anciennes pour une division).
+EVENEMENTS_YAHOO = ["valeur", "symbole", "type", "date", "montant_ou_rapport"]
+
+# Le journal des réparations de l'historique long — programmes/REPARER_L_HISTORIQUE_LONG.py écrit une ligne par geste
+# posé sur une ligne de cours (valeur, date) ; programmes/CONTROLER_L_HISTORIQUE_LONG.py lit (K20 : les lignes
+# « aligné » ; K23 : chaque ligne du fichier se remonte jusqu'à sa source par ce journal). `close_avant` vide : la ligne
+# part d'une barre de Paris (bnains) ; `close_apres` vide : la ligne est retirée ; `facteur` : ce qui a été multiplié.
+# Exemple : ACCOR, 2000-01-03, « défait », 33.8269 → 48.00000567595679, facteur 1.418989. Déclaré le 13-10-2026 (A-578).
+JOURNAL_DES_REPARATIONS = ["valeur", "date", "geste", "close_avant", "close_apres", "facteur", "raison"]
+# La provenance des fichiers (A-578, décision de Jean-Luc du 13-10-2026, « Les deux, dans l'ordre ») — écrit À LA MAIN
+# ou par le programme qui produit le fichier : une ligne par fichier produit, dans un état donné (son empreinte).
+# `fichier` : le chemin depuis la racine du dépôt · `sha256` : l'empreinte du fichier dans cet état · `produit_par` : le
+# chemin du programme qui l'a écrit, ou « téléchargement » pour un fichier pris hors du dépôt · `lu` : les chemins des
+# fichiers lus, séparés par « ; » (vide pour un téléchargement) · `adresse` : d'où vient un téléchargement · `le` : la
+# date de production, AAAA-MM-JJ · `preuve` : la décision ou le commit qui l'atteste. Exemple attendu : l'archive 2000 de
+# bnains, « téléchargement », adresse sur www.bnains.org, empreinte b6c465a7… (donnees/sources_bnains/ARCHIVES_BNAINS.csv).
+PROVENANCE_DES_FICHIERS = ["fichier", "sha256", "produit_par", "lu", "adresse", "le", "preuve"]
+
+# Les fichiers RÉPARÉS : chacun avec le programme qui l'écrit, depuis la racine du dépôt (A-578, 13-10-2026). Un fichier
+# réparé se DÉCLARE, il ne se déduit pas de son en-tête : relecture de Cowork du 13-10-2026 (91d4ac8, cassure I) — le
+# fichier réparé privé de sa colonne `source` et inscrit au registre de provenance comme « téléchargement » faisait passer
+# K23 de 1 623 cas à 0. Programmes/CONTROLER_L_HISTORIQUE_LONG.py juge chaque fichier déclaré ici par le journal des
+# réparations, exige sa colonne `source`, et refuse qu'il soit inscrit au registre sous un autre producteur.
+FICHIERS_REPARES = {
+    "donnees/sources_yahoo/historique_long_repare.csv": "programmes/REPARER_L_HISTORIQUE_LONG.py",
+}
+
 # La table qui relie un fichier à son contrat — un seul endroit.
 CONTRATS_PAR_FICHIER = {
+    "journal_des_reparations.csv": JOURNAL_DES_REPARATIONS,
+    "PROVENANCE_DES_FICHIERS.csv": PROVENANCE_DES_FICHIERS,
+    "bnains_cac40.csv": COURS_BNAINS,
+    "historique_long_repare.csv": COURS_MAITRE,
+    "DROITS_BNAINS.csv": DROITS_BNAINS,
+    "DETACHEMENTS_OFFICIELS.csv": DETACHEMENTS_OFFICIELS,
+    "BARRES_BNAINS_FAUSSES.csv": BARRES_BNAINS_FAUSSES,
+    "COURS_DE_FRANCFORT.csv": COURS_DE_FRANCFORT,
+    "INDICE_CAC40.csv": INDICE_CAC40,
+    "NATURE_DES_TROUS.csv": NATURE_DES_TROUS,
+    "PASSAGES_DANS_LE_CAC40.csv": PASSAGES_DANS_LE_CAC40,
+    "IDENTITES_DES_SOCIETES.csv": IDENTITES_DES_SOCIETES,
+    "AJUSTEMENTS_DE_YAHOO.csv": AJUSTEMENTS_DE_YAHOO,
+    "EVENEMENTS_YAHOO.csv": EVENEMENTS_YAHOO,
     "claude_positions_ouvertes.csv": POSITION,
     "claude_journal_trades.csv": TRADE,
     "historique_mesures.csv": MESURE,
     "cours_maitre.csv": COURS_MAITRE,
+    "cac40_ohlcv.csv": COURS_NOUVEAUX,
     "claude_cours_nouveaux.csv": COURS_NOUVEAUX,
     "cac40_strategies.csv": STRATEGIE,
     "claude_journal_lectures.csv": LECTURE,
