@@ -1,0 +1,63 @@
+# COMPARER GOOGLE ET ABC SUR LEUR RECOUVREMENT — mesure unique, 12-09-2026.
+# Jean-Luc : « le raccord Google -> ABC n a certainement pas ete verifie. »
+# ABC rend 30 seances par valeur ; cours_nouveaux porte Google du 13-07 au 08-09.
+# Le recouvrement est donc ~31-07 -> 08-09. On compare les 40 valeurs au centime.
+name: Comparer Google et ABC
+on:
+  push:
+    paths: ["tests/demande_comparaison_*.txt"]
+permissions:
+  contents: write
+jobs:
+  comparer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Telecharger ABC pour les 40 et comparer a Google
+        run: |
+          python3 - <<'EOF'
+          import csv, re, html, urllib.request, json, os, time
+          ref=[r for r in csv.DictReader(open("donnees/REFERENTIEL_VALEURS_v3_Lun_17-08-2026_10h54.csv",encoding="utf-8-sig"))]
+          google={}
+          for r in csv.DictReader(open("donnees/claude_cours_nouveaux.csv",encoding="utf-8-sig")):
+              if r["date"]<="2026-09-08":
+                  google[(r["valeur"],r["date"])]=r
+          H={"User-Agent":"Mozilla/5.0"}
+          def num(s): return float(s.replace("\xa0","").replace(" ","").replace(",","."))
+          res=[]; ecarts=[]
+          for v in ref:
+              nom=(v.get("onglet_google") or "").strip()
+              mnemo=(v.get("mnemonique") or v.get("mnemo") or "").strip()
+              place=(v.get("place_cotation") or "Paris").strip()
+              if not mnemo: continue
+              code=mnemo+("n" if "amster" in place.lower() else "p")
+              time.sleep(2.5)   # la meme pause que le collecteur : ABC bloque apres 8 requetes rapides
+              try:
+                  p=urllib.request.urlopen(urllib.request.Request(f"https://www.abcbourse.com/cotation/{code}",headers=H),timeout=30).read().decode("utf-8","replace")
+              except Exception as e:
+                  res.append(f"{nom};ERREUR;{e}"); continue
+              n_comp=0; n_ec=0
+              for tr in re.findall(r"<tr[^>]*>(.*?)</tr>",p,re.S):
+                  c=[html.unescape(re.sub(r"<[^>]+>","",x)).strip() for x in re.findall(r"<td[^>]*>(.*?)</td>",tr,re.S)]
+                  if len(c)<7 or not re.match(r"\d{2}/\d{2}/\d{4}",c[0]): continue
+                  j,m,a=c[0].split("/"); d=f"{a}-{m}-{j}"
+                  g=google.get((nom,d))
+                  if not g: continue
+                  n_comp+=1
+                  abc={"open":num(c[1]),"high":num(c[2]),"low":num(c[3]),"volume":num(c[4]),"close":num(c[5])}
+                  for k in ("open","high","low","close"):
+                      if abs(abc[k]-float(g[k]))>0.005:
+                          n_ec+=1; ecarts.append(f"{nom};{d};{k};google={g[k]};abc={abc[k]}")
+                  if abs(abc["volume"]-float(g["volume"]))>0.5:
+                      n_ec+=1; ecarts.append(f"{nom};{d};volume;google={g['volume']};abc={int(abc['volume'])}")
+              res.append(f"{nom};{n_comp} seances comparees;{n_ec} ecart(s)")
+          os.makedirs("tests/resultats",exist_ok=True)
+          open("tests/resultats/comparaison_google_abc.csv","w",encoding="utf-8").write("valeur;seances;ecarts\n"+"\n".join(res)+"\n")
+          open("tests/resultats/ecarts_google_abc.csv","w",encoding="utf-8").write("valeur;date;champ;google;abc\n"+"\n".join(ecarts)+"\n")
+          print(f"{len(res)} valeurs · {sum(1 for r in res if r.endswith(';0 ecart(s)'))} sans ecart · {len(ecarts)} ecart(s) au total")
+          EOF
+      - name: Commiter
+        run: |
+          git config user.name "mesures"; git config user.email "mesures@users.noreply.github.com"
+          git add tests/resultats && git commit -m "comparaison Google/ABC sur le recouvrement" || echo rien
+          git pull --rebase origin main && git push

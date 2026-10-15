@@ -1,0 +1,56 @@
+{
+ "role": "Dire au certificateur (programmes/CERTIFIER_LA_VERSION.py) comment lancer chaque épreuve rangée dans programmes/. Les épreuves de tests/ se lancent toutes de la même façon (depuis la racine, la racine en argument) et ne sont pas déclarées ici. Un programme de programmes/ nommé EPREUVES_* ou TESTS_*, ou qui lit le mot « epreuves » ou « --calibrage » sur sa ligne de commande (son propre jeu d'épreuves, R-731 ①), absent d'ici, fait refuser la certification (code 2) : une épreuve oubliée est une partie du système qu'on croit vérifiée.",
+ "pourquoi_ici": "Écrit une fois (R-708), lu par le seul certificateur. Pas dans programmes/CONTRATS_DES_FICHIERS.py : ce module est copié par les boucles Cowork, et l'épreuve de leur copie (tests/EPREUVES_DE_LA_COPIE_DES_BOUCLES_Jeu_01-10-2026.py, E1) prend tout nom de programme écrit dans son code pour une dépendance à copier ; la table, posée là le 02-10-2026, l'a fait rougir.",
+ "format": "chemin relatif à la racine → dossier de lancement (relatif à la racine), arguments (« {copie} » désigne la racine de la copie éprouvée), pourquoi (relevé dans la fiche du programme le 02-10-2026)",
+ "epreuves": {
+  "programmes/EPREUVES_DU_GARDE_FOU.py": {
+   "dossier": ".",
+   "arguments": [],
+   "pourquoi": "fiche ③ : aucun argument de ligne de commande n'est lu ; le garde-fou est cherché à côté du programme"
+  },
+  "programmes/EPREUVES_DU_SOCLE.py": {
+   "dossier": ".",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "fiche ③ : un seul argument, la racine à éprouver"
+  },
+  "programmes/TESTS_AUDIT.py": {
+   "dossier": "programmes",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "fiche ④ : doit être lancé DEPUIS le dossier programmes/ ; ③ : le dossier à faire examiner"
+  },
+  "programmes/CONTROLER_LES_COURS.py": {
+   "dossier": ".",
+   "arguments": [
+    "epreuves"
+   ],
+   "pourquoi": "fiche ③ : rien sur la ligne de commande, sauf le mot epreuves — 16 cas"
+  },
+  "programmes/PROUVER_L_EXECUTION.py": {
+   "dossier": ".",
+   "arguments": [
+    "epreuves"
+   ],
+   "pourquoi": "fiche : le mot epreuves seul — 14 cas"
+  },
+  "programmes/JUGER_SUR_8_CRITERES.py": {
+   "dossier": ".",
+   "arguments": [
+    "{copie}",
+    "--calibrage"
+   ],
+   "pourquoi": "USAGE : JUGER_SUR_8_CRITERES.py <racine> [--calibrage] — C5-EI au 26-04-2026, 7/8 attendu"
+  },
+  "programmes/TENIR_LES_POSITIONS.py": {
+   "dossier": ".",
+   "arguments": [
+    "{copie}",
+    "--calibrage"
+   ],
+   "pourquoi": "fiche de main : la racine, et --calibrage pour ne faire que le calibrage"
+  }
+ }
+}

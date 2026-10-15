@@ -1,0 +1,66 @@
+# RELEVÉ DU CONSENSUS EASYBOURSE — circuit SÉPARÉ de la collecte des cours.
+# Pourquoi séparé : une panne d'EasyBourse ne doit jamais arrêter la collecte des cours.
+# Pourquoi le même groupe « circuit-du-soir » : les deux poussent sur main ; le second
+# attend la fin du premier, aucun n'est annulé (même règle que collecte_abc.yml).
+# Décision de Jean-Luc du 02-10-2026 à 22h21 (« B ») : brancher après la fusion de
+# travail-certification (faite à 23h26). Simulation uniquement.
+name: Relevé du consensus EasyBourse
+on:
+  workflow_dispatch:
+  # HORAIRE ET DÉCLENCHEMENTS AUTOMATIQUES COUPÉS LE 11-10-2026 (décision de Jean-Luc, 18h59, « 1 ») :
+  # le quota gratuit du dépôt privé est épuisé depuis le 02-10-2026 (A-543) ; chaque passage
+  # échouait aussitôt et envoyait un message d'échec à Jean-Luc. Le lancement à la main reste
+  # possible. À remettre ou à migrer au dépôt public : voir A-543.
+concurrency:
+  group: circuit-du-soir
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  consensus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Relever le consensus des valeurs du référentiel
+        id: releve
+        run: |
+          set +e
+          python3 programmes/COLLECTER_LE_CONSENSUS.py "$GITHUB_WORKSPACE"
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          rm -rf "$GITHUB_WORKSPACE/.consensus_pages"
+      - name: Commiter le relevé
+        if: always()
+        run: |
+          git config user.name "releve-consensus"
+          git config user.email "releve-consensus@users.noreply.github.com"
+          git add donnees/consensus_easybourse.csv \
+            || { echo "::error::git add A ECHOUE — donnees/consensus_easybourse.csv manque"; exit 1; }
+          if git diff --cached --quiet; then
+            echo "rien à commiter"
+          else
+            git commit -m "relevé consensus EasyBourse $(date -u +%Y-%m-%d) — code de sortie ${{ steps.releve.outputs.code }}"
+            RESTE=$(git diff --name-only)
+            if [ -n "$RESTE" ]; then
+              echo "::error::FICHIER(S) SUIVI(S) MODIFIE(S) SANS ETRE ENREGISTRE(S) — la poussee serait refusee : $RESTE"
+              exit 1
+            fi
+            PARTI=0
+            for i in 1 2 3; do
+              if git pull --rebase origin main && git push; then PARTI=1; break; fi
+              echo "essai $i refuse, nouvelle tentative"; sleep 5
+            done
+            if [ "$PARTI" -ne 1 ]; then
+              echo "::error::POUSSEE REFUSEE 3 FOIS — le relevé du jour n est nulle part"
+              exit 1
+            fi
+          fi
+      - name: Rougir si le relevé n'a pas été complet
+        if: always()
+        run: |
+          C="${{ steps.releve.outputs.code }}"
+          if [ "$C" != "0" ]; then
+            echo "::error::RELEVÉ CONSENSUS — code de sortie $C (1 = au moins une valeur non lue, 2 = rien n'a pu être fait). Le détail est dans le pas « Relever »."
+            exit 1
+          fi

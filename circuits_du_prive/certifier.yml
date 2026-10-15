@@ -1,0 +1,65 @@
+# CERTIFIER LA VERSION — Ven 02-10-2026
+# À QUOI IL SERT. Décision de Jean-Luc du 01-10-2026, 20h38 : « toute la mécanique interne
+# doit être vérifiée et certifiée à chaque nouvelle version » ; 23h33 « 1 » : compléter
+# R-731 (relecture et épreuves de tout code) par ce contrôle automatique. Il réalise aussi
+# A-500 (un jeu d'épreuves complet joué tous les jours) et A-457 (les contrôles à chaque
+# dépôt).
+# CE QU'IL FAIT. programmes/CERTIFIER_LA_VERSION.py rejoue toutes les épreuves du dépôt
+# (tests/, et celles de programmes/ déclarées dans tests/LANCEMENT_DES_EPREUVES.json), avec leurs
+# sabotages, mesure chaque ligne et chaque embranchement des programmes qu'elles exécutent,
+# et compare à gouvernance/CERTIFICAT_REFERENCE.json. Code 0 = certifiée ; 1 = une épreuve
+# rouge, une épreuve disparue, ou du code qui n'est plus examiné ; 2 = la certification n'a
+# pas pu se faire. Le pas rougit dans les deux derniers cas : aucun pas ne masque son échec.
+# QUAND. À chaque dépôt sur la version officielle et sur une version en attente (travail-*),
+# chaque soir de bourse à 21h UTC (après le circuit de 18h UTC, dont les épreuves lisent les
+# données), et à la demande.
+# CE QU'IL N'ÉCRIT PAS. Ce circuit ne pousse rien (droits en lecture seule) : un dépôt
+# déclencherait un nouveau passage. Le certificat se lit dans le résumé du passage et dans
+# l'archive « certificat » jointe. La référence ne s'écrit qu'à la main, par
+# `--ecrire-la-reference`, et la remplacer par une moins bonne exige l'accord de Jean-Luc
+# (`--accord`).
+# LIMITE. THÉORIQUE jusqu'au premier passage réel : la durée (environ une heure mesurée sur
+# la machine du Chat) et l'écart possible de mesure entre GitHub et cette machine.
+name: Certifier la version
+on:
+  workflow_dispatch:
+  # HORAIRE ET DÉCLENCHEMENTS AUTOMATIQUES COUPÉS LE 11-10-2026 (décision de Jean-Luc, 18h59, « 1 ») :
+  # le quota gratuit du dépôt privé est épuisé depuis le 02-10-2026 (A-543) ; chaque passage
+  # échouait aussitôt et envoyait un message d'échec à Jean-Luc. Le lancement à la main reste
+  # possible. À remettre ou à migrer au dépôt public : voir A-543.
+concurrency:
+  group: certifier-${{ github.ref }}
+  # Sur main, un passage n'en annule jamais un autre : un passage annulé n'est ni rouge ni
+  # certifié (relecture de Cowork du 02-10-2026). Sur une version en attente, le dernier dépôt
+  # remplace le passage en cours.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+permissions:
+  contents: read
+jobs:
+  certifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0         # des épreuves lisent l'historique
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Installer la mesure et les dépendances des programmes
+        run: python3 -m pip install --quiet "coverage==7.16.2" cryptography pyyaml
+      - name: Certifier
+        run: |
+          set +e
+          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE"
+          code=$?
+          cat rapports/CERTIFICAT_DE_LA_VERSION.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null
+          if [ "$code" != "0" ]; then echo "::error::VERSION NON CERTIFIÉE (code $code) — voir le résumé"; fi
+          exit $code
+      - name: Joindre le certificat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: certificat
+          path: rapports/CERTIFICAT_DE_LA_VERSION.md
+          if-no-files-found: warn

@@ -1,0 +1,55 @@
+# RATTRAPAGE DU MATIN — Jeu 01-10-2026
+# À QUOI IL SERT. Un soir où un pas bloquant du circuit (collecte_abc.yml) tombe après la
+# collecte, aucun signal n'est calculé au dépôt, et les signaux d'une séance ne se
+# calculent que tant qu'elle est la dernière. Jusqu'ici, seules les boucles Cowork de
+# 07h05 et 08h35 rattrapaient ce cas (tableau des fonctions des tâches, ligne 10.38).
+# Décision de Jean-Luc du 01-10-2026 à 00h01 (« 1 ») : un deuxième passage automatique,
+# le lendemain matin, si le circuit du soir n'a pas fini (A-515).
+# CE QU'IL FAIT. ① programmes/FAUT_IL_RATTRAPER.py dit si le circuit a fini la dernière
+# séance de bourse (signaux portant cette séance pour toutes les valeurs, et rapport du
+# radar écrit APRÈS le calcul de ces signaux) · ② sinon, il relance le circuit du soir tel quel, par « Run workflow » ·
+# ③ si la décision n'a pas pu se prendre (calendrier illisible), il relance quand même,
+# par précaution, et rougit. Relancer ne double ni une position ni un trade (mesuré le
+# 01-10-2026, éprouvé par tests/EPREUVES_DU_RATTRAPAGE_Jeu_01-10-2026.py, T1 et T2) ; la
+# mesure de la performance est sautée par la relance (entrée `rattrapage` de
+# collecte_abc.yml). Depuis le 14-10-2026 elle est datée par sa séance (A-579) : la sauter
+# n'est plus nécessaire ; ce passage, coupé, n'est pas modifié.
+# La relance vise toujours la branche par défaut, jamais une version en attente.
+# HORAIRE. 05h15 UTC = 07h15 à Paris l'été, 06h15 l'hiver ; du mardi au samedi, pour les
+# soirs du lundi au vendredi. ABC sert alors la séance de la veille comme dernière séance.
+# LIMITE. Un horaire planifié ne tourne que sur la branche par défaut (main) : ce passage
+# ne vit qu'après la fusion. Le premier passage réel est à regarder (THÉORIQUE jusque-là :
+# le droit du jeton à lancer un autre circuit, et la présence de `gh` sur la machine).
+name: Rattrapage du matin
+on:
+  workflow_dispatch:
+  # HORAIRE ET DÉCLENCHEMENTS AUTOMATIQUES COUPÉS LE 11-10-2026 (décision de Jean-Luc, 18h59, « 1 ») :
+  # le quota gratuit du dépôt privé est épuisé depuis le 02-10-2026 (A-543) ; chaque passage
+  # échouait aussitôt et envoyait un message d'échec à Jean-Luc. Le lancement à la main reste
+  # possible. À remettre ou à migrer au dépôt public : voir A-543.
+permissions:
+  contents: read
+  actions: write               # pour lancer collecte_abc.yml
+jobs:
+  rattrapage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Dire si le circuit du soir a fini la dernière séance
+        id: faut
+        # `set +e` : le code 10 (à rattraper) et le code 1 (indécis) ne sont pas des
+        # pannes de ce pas ; ils sont lus au pas suivant.
+        run: |
+          set +e
+          python3 programmes/FAUT_IL_RATTRAPER.py "$GITHUB_WORKSPACE"
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Relancer le circuit du soir
+        if: steps.faut.outputs.code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run collecte_abc.yml --ref "${{ github.event.repository.default_branch }}" -f rattrapage=true
+      - name: Rougir si la décision n'a pas pu se prendre
+        if: steps.faut.outputs.code != '0' && steps.faut.outputs.code != '10'
+        run: |
+          echo "::error::RATTRAPAGE PAR PRÉCAUTION — la décision n'a pas pu se prendre (code ${{ steps.faut.outputs.code }})"
+          exit 1
