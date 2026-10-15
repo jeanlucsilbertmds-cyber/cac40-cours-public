@@ -1,30 +1,18 @@
-# CERTIFIER LA VERSION DU DÉPÔT PRIVÉ, DEPUIS LE DÉPÔT PUBLIC — Dim 11-10-2026
-# À QUOI IL SERT. La certification rejoue toutes les épreuves du dépôt privé et dit si
-# la version est certifiée (programmes/CERTIFIER_LA_VERSION.py, décision de Jean-Luc du
-# 01-10-2026). Elle tournait au dépôt privé, dont le quota gratuit de GitHub est épuisé
-# depuis le 02-10-2026 (A-543) : elle n'a plus tourné depuis. Ici, au dépôt public, les
-# machines de GitHub ne coûtent rien. Décision de Jean-Luc du 11-10-2026 à 18h59 : remettre
-# le circuit habituel dans l'espace public, la certification d'abord.
-# CE QU'IL FAIT. ① prend le dépôt privé (programmes, épreuves, données) avec le jeton déjà
-# employé par le circuit du soir · ② lance la certification · ③ dépose au dépôt privé le
-# certificat (rapports/CERTIFICAT_DE_LA_VERSION.md) et le journal détaillé du passage
-# (rapports/journal_du_circuit/) · ④ rougit si la version n'est pas certifiée.
-# CE QUI EST PUBLIC. Ce dépôt est lisible par tous : chaque pas passe par
-# programmes/ETAPE_MUETTE.py (celui du dépôt privé), et le journal public ne dit que
-# « étape … : OK » ou « étape … : ÉCHEC ». Le détail est au dépôt privé.
-# QUAND. Chaque soir de bourse à 21h UTC (après le circuit du soir de 18h UTC, dont des
-# épreuves lisent les données) ; à la main ; et une fois quand ce fichier lui-même change.
-# LIMITE. THÉORIQUE jusqu'au premier passage réel. Un passage a duré 74,5 minutes au dépôt
-# privé (A-543). La référence (gouvernance/CERTIFICAT_REFERENCE.json) date du 02-10-2026 :
-# du code ajouté depuis peut faire rougir la certification ; c'est une information, pas une
-# panne.
+# CERTIFIER LA VERSION — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
+# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py (décision de Jean-Luc du 12-10-2026 à
+# 16h46, ordre confirmé le 15-10-2026 à 08h36). La certification rejoue toutes les épreuves et
+# dit si la version du dépôt privé est certifiée. Elle n'exécute QUE le code de ce dépôt public :
+# le pas « poser le code public » refuse de continuer si un seul fichier de programmes/ ou de
+# tests/ diffère du dépôt privé ou n'existe que d'un côté. Les données des épreuves sont lues au
+# dépôt privé, jamais publiées. Chaque pas passe par programmes/ETAPE_MUETTE.py : le journal
+# public ne dit que « OK » ou « ÉCHEC » ; le détail est au dépôt privé.
 name: Certifier la version
 on:
   workflow_dispatch:
-  # DÉCLENCHEMENTS AUTOMATIQUES COUPÉS LE 12-10-2026 (décision de Jean-Luc, 08h05) : ce circuit
-  # exécute le code du dépôt privé depuis le dépôt public, ce que Jean-Luc avait écarté le
-  # 08-10-2026 (A-543 : « Non pas question de prendre ces risques »). La certification passe
-  # à une tâche planifiée Claude, hors GitHub. Ne pas lancer à la main sans son accord.
+  # 21h00 en heure universelle : 23h00 à Paris l'été, 22h00 l'hiver, après le circuit du soir
+  # (dont des épreuves lisent les données). GitHub peut retarder un réveil de plusieurs heures.
+  schedule:
+    - cron: "0 21 * * 1-5"
 concurrency:
   group: certifier-la-version
   cancel-in-progress: false
@@ -43,6 +31,57 @@ jobs:
           repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
           token: ${{ secrets.JETON_DEPOTS }}
           fetch-depth: 0
+      - uses: actions/checkout@v5
+        with:
+          path: _code
+      - name: Poser le code public, s'il est celui du depot prive
+        id: poser_le_code
+        shell: python3 _code/programmes/ETAPE_MUETTE.py {0}
+        run: |
+          D=""
+          L=$(find . -name '*.py' -type l -print | head -5 | paste -sd ' ' -)
+          [ -z "$L" ] || D="$D liens-symboliques:$L"
+          for d in . programmes tests etudes/outils; do
+            while IFS= read -r -d '' f; do
+              n=${f##*/}
+              if [ ! -f "$d/$n" ]; then D="$D $d/$n(absent-du-prive)"; elif ! cmp -s "$f" "$d/$n"; then D="$D $d/$n"; fi
+            done < <(find "_code/$d" -maxdepth 1 -name '*.py' -type f -print0 2>/dev/null)
+            while IFS= read -r -d '' f; do
+              n=${f##*/}
+              [ -f "_code/$d/$n" ] || D="$D $d/$n(absent-du-public)"
+            done < <(find "$d" -maxdepth 1 -name '*.py' -type f -print0)
+          done
+          cmp -s _code/tests/LANCEMENT_DES_EPREUVES.json tests/LANCEMENT_DES_EPREUVES.json || D="$D tests/LANCEMENT_DES_EPREUVES.json"
+          while IFS= read -r -d '' f; do
+            n=${f##*/}
+            if [ ! -f ".github/workflows/$n" ]; then D="$D fiche:$n(absent-du-prive)"; elif ! cmp -s "$f" ".github/workflows/$n"; then D="$D fiche:$n"; fi
+          done < <(find _code/circuits_du_prive -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) -type f -print0 2>/dev/null)
+          while IFS= read -r -d '' f; do
+            n=${f##*/}
+            [ -f "_code/circuits_du_prive/$n" ] || D="$D fiche:$n(absent-du-public)"
+          done < <(find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) -type f -print0)
+          if [ -n "$D" ]; then echo "::error::CODE PUBLIC DIFFERENT DU DEPOT PRIVE :$D"; exit 1; fi
+          find . -path ./_code -prune -o -path ./.git -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
+          find . -path ./_code -prune -o -path ./.git -prune -o -name '*.py' -type f -print0 | grep -zvE '^[.]/[^/]+[.]py$|^[.]/(programmes|tests|etudes/outils)/[^/]+[.]py$' | xargs -0 -r rm -f
+          X=$(python3 -c "import importlib.machinery as m; print('|'.join(s.replace('.', '[.]') for s in m.all_suffixes() if s != '.py'))")
+          find . -path ./_code -prune -o -path ./.git -prune -o -type f -print0 | grep -zE "($X)$" | xargs -0 -r rm -f
+          R=$(find . -path ./_code -prune -o -path ./.git -prune -o -name '*.py' -print | grep -cvE '^[.]/[^/]+[.]py$|^[.]/(programmes|tests|etudes/outils)/[^/]+[.]py$' || true)
+          C=$(find . -path ./_code -prune -o -path ./.git -prune -o -type f -print | grep -cE "($X)$" || true)
+          [ "$R" = "0" ] && [ "$C" = "0" ] || { echo "::error::CODE PRIVE NON PUBLIE ENCORE PRESENT : $R source(s), $C compile(s)"; exit 1; }
+          for d in . programmes tests etudes/outils; do
+            for f in _code/$d/*.py; do [ -e "$f" ] && cp "$f" "$d/"; done
+          done
+          cp _code/tests/LANCEMENT_DES_EPREUVES.json tests/
+          mkdir -p "$RUNNER_TEMP/circuit_public"
+          cp _code/.github/workflows/certifier_la_version.yml "$RUNNER_TEMP/circuit_public/"
+          rm -rf _code
+      - name: Le circuit de certification est-il celui que fabrique le depot prive ?
+        id: circuit_a_jour
+        run: |
+          rm -rf "$RUNNER_TEMP/refait" && mkdir -p "$RUNNER_TEMP/refait"
+          python3 programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py . "$RUNNER_TEMP/refait"
+          cmp "$RUNNER_TEMP/refait/.github/workflows/certifier_la_version.yml" "$RUNNER_TEMP/circuit_public/certifier_la_version.yml" \
+            || { echo "::error::LE CIRCUIT DE CERTIFICATION N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -58,11 +97,9 @@ jobs:
         if: always()
         shell: bash
         run: |
-          # Identite posee pour TOUT le depot, pas seulement pour le commit : le « pull --rebase »
-          # rejoue le commit et exige lui aussi une identite. Passage du 11-10-2026 : sans elle,
-          # « Committer identity unknown », puis la poussee refusee trois fois et le certificat perdu.
           git config user.name certification-publique
           git config user.email certification-publique@users.noreply.github.com
+          git rebase --abort 2>/dev/null || true
           git add rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ \
             || { echo "::error::certificat ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
@@ -74,7 +111,7 @@ jobs:
           echo "::error::POUSSEE REFUSEE 3 FOIS — le certificat reste sur la machine jetable"; exit 1
       - name: Rougir si la version n'est pas certifiee
         id: verdict
-        if: steps.certifier.outcome != 'success'
+        if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'success' }}
         run: |
           echo "::error::VERSION NON CERTIFIEE — lire rapports/CERTIFICAT_DE_LA_VERSION.md au depot prive"
           exit 1
