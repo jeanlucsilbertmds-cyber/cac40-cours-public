@@ -1,70 +1,70 @@
 {
- "calcule_le": "2026-10-14 22:09 (Europe/Paris)",
+ "calcule_le": "2026-10-15 21:51 (Europe/Paris)",
  "strategie": "C5-ETENDU-10",
- "seance": "2026-10-14",
+ "seance": "2026-10-15",
  "univers": 10,
  "valeurs_sans_cette_seance": [],
  "signaux": [],
  "detail_indicateurs": [
   {
    "valeur": "TOTALENERGIES",
-   "cmf": 0.139577,
-   "cmf_veille": 0.162961,
-   "cci": 92.58
+   "cmf": 0.053797,
+   "cmf_veille": 0.139577,
+   "cci": 107.74
   },
   {
    "valeur": "ENGIE",
-   "cmf": 0.011881,
-   "cmf_veille": -0.016799,
-   "cci": 90.23
+   "cmf": -0.067704,
+   "cmf_veille": 0.011881,
+   "cci": 125.63
   },
   {
    "valeur": "VEOLIA",
-   "cmf": -0.01625,
-   "cmf_veille": -6.5e-05,
-   "cci": 190.68
+   "cmf": -0.011584,
+   "cmf_veille": -0.01625,
+   "cci": 192.02
   },
   {
    "valeur": "BOUYGUES",
-   "cmf": -0.262429,
-   "cmf_veille": -0.218036,
-   "cci": -67.29
+   "cmf": -0.19836,
+   "cmf_veille": -0.262429,
+   "cci": -31.09
   },
   {
    "valeur": "EIFFAGE",
-   "cmf": -0.15406,
-   "cmf_veille": -0.123519,
-   "cci": -34.71
+   "cmf": -0.139433,
+   "cmf_veille": -0.15406,
+   "cci": 4.66
   },
   {
    "valeur": "AIRBUS",
-   "cmf": -0.187081,
-   "cmf_veille": -0.18058,
-   "cci": 21.73
+   "cmf": -0.113132,
+   "cmf_veille": -0.187081,
+   "cci": 129.12
   },
   {
    "valeur": "RENAULT",
-   "cmf": -0.217657,
-   "cmf_veille": -0.193563,
-   "cci": 78.88
+   "cmf": -0.228794,
+   "cmf_veille": -0.217657,
+   "cci": 54.63
   },
   {
    "valeur": "UNIBAIL_RODAMCO",
-   "cmf": -0.196798,
-   "cmf_veille": -0.173511,
-   "cci": -16.38
+   "cmf": -0.104305,
+   "cmf_veille": -0.196798,
+   "cci": 28.12
   },
   {
    "valeur": "BUREAU_VERITAS",
-   "cmf": -0.232203,
-   "cmf_veille": -0.315613,
-   "cci": 142.14
+   "cmf": -0.162106,
+   "cmf_veille": -0.232203,
+   "cci": 153.33
   },
   {
    "valeur": "VINCI",
-   "cmf": -0.028672,
-   "cmf_veille": 0.019047,
-   "cci": -45.82
+   "cmf": -0.01399,
+   "cmf_veille": -0.028672,
+   "cci": 7.06
   }
  ],
  "calibrage": {
