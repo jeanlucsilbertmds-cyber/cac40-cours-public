@@ -48,7 +48,17 @@ atexit.register(_effacer_les_copies)   # chaque copie pèse le dépôt : sans ce
 
 
 def copie():
-    """Une copie du dépôt, dont le maître est remis à sa version enregistrée d'avant."""
+    """Une copie du dépôt, dont le maître est remis à sa version enregistrée d'avant.
+
+    UNE SEULE COPIE VIVANTE À LA FOIS (17-10-2026) : chaque « d = copie() » ne sert que jusqu'à la copie suivante,
+    donc les précédentes sont effacées avant d'en faire une nouvelle ; la dernière l'est à la sortie (atexit).
+    Raison : 79 copies d'environ 290 Mo, gardées jusqu'à la fin, remplissaient le disque — l'épreuve échouait sur
+    une copie impossible (« shutil.Error ») pendant la vérification du 17-10-2026 à 16h53 — trace au relevé
+    tests/resultats/RELECTURES_DE_LA_REPARATION_DES_EPREUVES_DU_GARDE_FOU_Sam_17-10-2026.txt (superviseur de 22h09,
+    R-759 : de fond ; même relevé). L'autre voie, copier sans « .git », n'a pas été prise : l'épreuve a besoin des versions.
+    """
+    _effacer_les_copies()
+    del COPIES[:]
     d = tempfile.mkdtemp(prefix="epreuve_")
     COPIES.append(d)
     shutil.copytree(RACINE, d, dirs_exist_ok=True, symlinks=True)

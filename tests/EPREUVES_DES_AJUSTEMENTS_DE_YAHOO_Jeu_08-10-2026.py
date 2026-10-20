@@ -3,12 +3,22 @@
 ① RÔLE — Prouver que etudes/outils/MESURER_LES_AJUSTEMENTS_DE_YAHOO.py a des dents : chaque sabotage du code, et
   chaque verdict retiré ou faussé, doit lui faire rendre un code non nul.
 ② CONTEXTE D'APPEL — À la main : python3 -I tests/EPREUVES_DES_AJUSTEMENTS_DE_YAHOO_Jeu_08-10-2026.py <racine>
-  <dossier des réponses de Yahoo> <fichier de résultats>.
-③ ENTRÉE — Trois arguments : la racine du dépôt, le dossier où l'outil garde les réponses de Yahoo, le chemin du
-  relevé à écrire.
+  [<dossier des réponses de Yahoo> [<fichier de résultats>]] ; et chaque soir par la certification
+  (programmes/CERTIFIER_LA_VERSION.py), qui ne donne que la racine. Depuis le 16-10-2026, sans dossier donné, les
+  réponses sont prises dans le témoin `TEMOIN` (ci-dessous), vérifié par son empreinte, et le relevé est écrit dans
+  le dossier temporaire. Jusque-là l'épreuve exigeait trois arguments et la certification la voyait rouge
+  (IndexError, certificat du 16-10-2026, f5aac6b).
+③ ENTRÉE — Un à trois arguments : la racine du dépôt ; le dossier où l'outil garde les réponses de Yahoo
+  (facultatif : le témoin) ; le chemin du relevé à écrire (facultatif).
 ④ CONDITIONS D'ENTRÉE — Le dossier des réponses de Yahoo est complet (39 fichiers) : sinon l'outil irait sur le réseau.
+  Le témoin, lui, est complet : ce sont les 39 réponses du 08-10-2026 à 10h40 avec lesquelles l'outil refait, à
+  l'octet, donnees/sources_yahoo/EVENEMENTS_YAHOO.csv du dépôt (empreinte 2326139407e4619e…, mesuré le 16-10-2026 ;
+  les cinq autres jeux gardés du 09 et du 10-10 donnent un autre fichier : Yahoo change ses réponses d'un jour à
+  l'autre). Une empreinte du témoin qui diffère arrête l'épreuve (code 2).
 ⑤ SORTIE — AUCUNE valeur rendue : le relevé est écrit et affiché ; une cible de sabotage introuvable lève
-  AssertionError.
+  AssertionError. Code de sortie : 0 si Z0 et Z1 rendent 0, que chaque sabotage mord et que chaque contre-épreuve
+  est confirmée ; 1 sinon ; 2 si le témoin n'est pas celui attendu (jusqu'au 16-10-2026 l'épreuve rendait toujours
+  0 : R-734).
 ⑥ TRAITEMENT — ① une COPIE du dépôt, sans .git ni archives, dans un dossier temporaire (l'outil écrit
   donnees/sources_yahoo/EVENEMENTS_YAHOO.csv : il ne tourne jamais sur le dépôt) · ② l'outil tel quel · ③ chaque
   sabotage du code de `SAB`, sur une copie de l'outil · ④ chaque sabotage du fichier des verdicts de `VER`, et R1
@@ -22,13 +32,31 @@
   d'EVENEMENTS_YAHOO.csv n'en ont pas. · Retirer la vérification finale, relâcher le jugement du pont ou retirer la
   preuve des corrections ne mord pas sur les vrais fichiers (ils sont justes) : ce sont les contre-épreuves C1 à C4
   qui les éprouvent, en les jouant sur un verdict faux (V1, V3, V5) ou sur le fichier réparé d'avant la correction (R1).
-⑩ EFFET — Écrit le relevé ; écrit une copie du dépôt dans un dossier temporaire.
-⑪ TERMINAISON — Un lancement de l'outil par épreuve, chacun fini (aucun appel réseau, réponses gardées).
-  [sort: non]
+⑩ EFFET — Écrit le relevé ; écrit une copie du dépôt dans un dossier temporaire, et le contenu du témoin quand
+  aucun dossier n'est donné (effacé à la fin).
+⑪ TERMINAISON — Un lancement de l'outil par épreuve, chacun fini (aucun appel réseau, réponses gardées) ; sort par
+  sys.exit avec le code dit en ⑤.
+  [sort: oui]
 """
 import csv, datetime, io, os, shutil, subprocess, sys, tempfile, zoneinfo
 
-racine, travail, sortie = sys.argv[1], os.path.abspath(sys.argv[2]), sys.argv[3]
+TEMOIN = "temoins/TEMOIN_REPONSES_DE_YAHOO_DES_39_VALEURS_Jeu_08-10-2026_10h40.tar.gz"
+EMPREINTE_DU_TEMOIN = "f4e034226afeeca18bfeb1a796f5d085af4157176af7bbe9b3b196faa31e9532"   # sha256, 16-10-2026
+racine = sys.argv[1]
+if len(sys.argv) > 2:
+    travail = os.path.abspath(sys.argv[2])
+else:
+    import hashlib, tarfile
+    _t = os.path.join(racine, TEMOIN)
+    _e = hashlib.sha256(open(_t, "rb").read()).hexdigest() if os.path.exists(_t) else "absent"
+    if _e != EMPREINTE_DU_TEMOIN:
+        print(f"NON JUGÉ : le témoin {TEMOIN} n'est pas celui attendu (empreinte {_e[:16]})")
+        sys.exit(2)
+    travail = tempfile.mkdtemp(prefix="reponses_yahoo_")
+    with tarfile.open(_t, "r:gz") as _a:
+        _a.extractall(travail, filter="data")
+sortie = sys.argv[3] if len(sys.argv) > 3 else os.path.join(tempfile.mkdtemp(), "RELEVE_DES_AJUSTEMENTS_DE_YAHOO.txt")
+fautes = 0
 OUTIL = "etudes/outils/MESURER_LES_AJUSTEMENTS_DE_YAHOO.py"
 VERDICTS = "donnees/sources_yahoo/AJUSTEMENTS_DE_YAHOO.csv"
 SAB = {"S1 marche décuplée (Essilor 2024 n'est plus vue)": ("MARCHE = 0.005 ", "MARCHE = 0.05 "),
@@ -94,10 +122,13 @@ def lancer(code_outil):
 lignes = [f"# Épreuves de {OUTIL}, jouées sur une copie du dépôt le "
           f"{datetime.datetime.now(zoneinfo.ZoneInfo('Europe/Paris')):%d-%m-%Y à %Hh%M} (Paris) par un programme.",
           "# Un sabotage mord quand le code de sortie n'est plus 0."]
-lignes.append(f"Z0 outil tel quel, verdicts tels quels : code {lancer(texte)}")
+code = lancer(texte)
+fautes += code != 0
+lignes.append(f"Z0 outil tel quel, verdicts tels quels : code {code}")
 for nom, (a, b) in SAB.items():
     assert texte.count(a) == 1, nom
     code = lancer(texte.replace(a, b))
+    fautes += code == 0
     lignes.append(f"{nom} : code {code} — {'mord' if code else 'NE MORD PAS'}")
 
 
@@ -178,14 +209,23 @@ for nom in list(VER) + [R1, R2]:
     remettre = saboter_donnees(nom.split()[0])
     code = lancer(texte)
     remettre()
+    fautes += code == 0
     lignes.append(f"{nom} : code {code} — {'mord' if code else 'NE MORD PAS'}")
 for nom, ((a, b), cle) in CONTRE.items():
     assert texte.count(a) == 1, nom
     remettre = saboter_donnees(cle)
     code = lancer(texte.replace(a, b))
     remettre()
+    fautes += code != 0
     lignes.append(f"{nom} : code {code} — {'contre-épreuve confirmée' if code == 0 else 'CONTRE-ÉPREUVE ÉCHOUÉE'}")
-lignes.append(f"Z1 outil et verdicts remis en état : code {lancer(texte)}")
+code = lancer(texte)
+fautes += code != 0
+lignes.append(f"Z1 outil et verdicts remis en état : code {code}")
 open(sortie, "w", encoding="utf-8").write("\n".join(lignes) + "\n")
 print("\n".join(lignes))
 shutil.rmtree(os.path.dirname(copie))
+if len(sys.argv) <= 2:
+    shutil.rmtree(travail)
+print(f"relevé : {sortie}")
+print("VERDICT : " + ("tout est conforme" if not fautes else f"NON CONFORME — {fautes} faute(s)"))
+sys.exit(1 if fautes else 0)

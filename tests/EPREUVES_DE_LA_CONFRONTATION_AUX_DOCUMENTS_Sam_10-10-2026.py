@@ -455,7 +455,7 @@ def epreuves(C, P, G):
         c = copie_du_depot()
         noms, lignes = lire_table(c)
         du_depot = {(r["valeur"], r["jour_du_detachement"]): C.phrases_de_la_ligne(r) for r in lignes}
-        ecrire_table(c, noms[:-2], lignes)
+        ecrire_table(c, [x for x in noms if x not in (C.COLONNE, C.COLONNE_RAISONS)], lignes)   # par nom : la table a une colonne de plus depuis le 19-10-2026 (fichiers_cites)
         code1, out1 = lancer(P.main, ici=c)
         noms1, lignes1 = lire_table(c)
         inclus = all(set(C.phrases_de_la_ligne(r)) <= set(du_depot[(r["valeur"], r["jour_du_detachement"])])

@@ -25,8 +25,10 @@
   rend aucune occurrence.
 
 ③ ENTRÉE — La ligne de commande. Un argument obligatoire, le chemin du document
-  à contrôler ; une option facultative, « --verifier ». Sans argument, le
-  programme affiche ce texte et sort en 1.
+  à contrôler ; deux options facultatives, « --verifier », et « --attendu=livraison »
+  ou « --attendu=relecture » (le rôle que le document doit déclarer en tête ;
+  programmes/BOUCLE_DE_CHECK.py la passe d après le nom du fichier d échange).
+  Sans argument, le programme affiche ce texte et sort en 1.
 
 ④ CONDITIONS D ENTRÉE — Le fichier doit exister et se lire en UTF-8. Il doit
   porter le repère « # R-740 » ou « R-740 — LES CINQ PASSES » : les passes se
@@ -1009,6 +1011,149 @@ def pieges_r755(racine):
     return [m.group(1).strip() for m in re.finditer(r"(?m)^- \*\*(.+?)\*\*", sec[j:k])]
 
 
+def gestes_du_protocole(racine):
+    """Rend les gestes du protocole de livraison, lus en tête du registre : leur numéro cerclé et leur titre.
+
+    ① RÔLE — Donner au contrôle la liste des gestes que toute livraison doit déclarer, telle que le registre l écrit
+      aujourd hui (geste ⑨ : « La livraison porte une ligne par geste »).
+    ② CONTEXTE D APPEL — `main`, une fois, quand le document se déclare porteur d un travail soumis à relecture.
+    ③ ENTRÉE — `racine` : le dossier du dépôt.
+    ④ CONDITIONS D ENTRÉE — `gouvernance/REGISTRE_REGLES.md` doit exister et porter la section « # LE PROTOCOLE DE
+      LIVRAISON » ; sinon la liste rendue est vide.
+    ⑤ SORTIE — UNE valeur : la liste des couples (numéro cerclé, titre), dans l ordre du registre, par exemple
+      (« ① », « AVANT D ÉCRIRE — chercher ce qui fait déjà le travail. »).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire le registre · ② isoler la section du protocole, jusqu au séparateur « --- » qui la ferme ·
+      ③ prendre chaque ligne qui s ouvre en gras par un numéro cerclé suivi d un mot EN CAPITALES (les sous-questions
+      du geste ⑦, en minuscules, ne sont pas des gestes) · ④ garder la première occurrence de chaque numéro.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Décision de Jean-Luc du 16-10-2026 à 18h52 : le Chat avait oublié de déclarer les gestes, et rien ne
+      l avait arrêté ; une livraison qui ne les déclare pas est désormais refusée, et Cowork ne relit qu une livraison
+      acceptée par ce contrôle. La liste vit au registre et ce contrôle la LIT (R-708) : un geste ajouté au protocole
+      est exigé dès le passage suivant.
+    ⑨ CE QUI CLOCHE — Elle dépend de la forme d écriture du registre : un geste écrit sans gras en tête de ligne, ou
+      dont le titre commence en minuscules, ne serait pas lu. Une liste vide est traitée par `main` comme un contrôle
+      qui n a pas pu tourner.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main à tous les coups.
+      [sort: non]
+    """
+    chemin = os.path.join(racine, "gouvernance", "REGISTRE_REGLES.md")
+    if not os.path.isfile(chemin):
+        return []
+    t = open(chemin, encoding="utf-8", errors="replace").read()
+    i = t.find("\n# LE PROTOCOLE DE LIVRAISON")
+    if i < 0:
+        return []
+    fin = t.find("\n---", i + 5)
+    sec = t[i:fin if fin > 0 else len(t)]
+    vus, gestes = set(), []
+    for m in re.finditer(r"(?m)^\*\*([\u2460-\u2473]) ([A-ZÉÈÊÀÂÎÔÛÇ][^\n]*?)\*\*", sec):
+        mot = m.group(2).split()[0] if m.group(2).split() else ""
+        if mot.upper() == mot and m.group(1) not in vus:
+            vus.add(m.group(1))
+            gestes.append((m.group(1), m.group(2).strip()))
+    return gestes
+
+
+def gestes_du_relecteur(racine):
+    """Rend les gestes du protocole du relecteur, lus au geste ⑩ du protocole de livraison : numéro cerclé et titre.
+
+    ① RÔLE — Donner au contrôle la liste des gestes que toute relecture doit déclarer, telle que le registre l écrit
+      aujourd hui, sous le titre en gras « LE PROTOCOLE DU RELECTEUR ».
+    ② CONTEXTE D APPEL — `main`, une fois, quand le document se déclare porteur d une relecture.
+    ③ ENTRÉE — `racine` : le dossier du dépôt.
+    ④ CONDITIONS D ENTRÉE — `gouvernance/REGISTRE_REGLES.md` doit exister, porter la section « # LE PROTOCOLE DE
+      LIVRAISON » et, dedans, une ligne qui s ouvre par « LE PROTOCOLE DU RELECTEUR » (en gras, ou en titre) ; sinon la
+      liste rendue est vide.
+    ⑤ SORTIE — UNE valeur : la liste des couples (numéro cerclé, titre), dans l ordre du registre, par exemple
+      (« ① », « PROUVÉ — chaque défaut porte une commande que l auteur peut relancer, avec ce qu elle affiche. »).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire le registre · ② isoler la section du protocole, jusqu au séparateur « --- » · ③ y trouver la
+      ligne « LE PROTOCOLE DU RELECTEUR » · ④ prendre, à partir de la ligne suivante, chaque ligne de liste qui s ouvre
+      par « - ** », un numéro cerclé et un mot EN CAPITALES · ⑤ une fois un geste lu, s arrêter à la première ligne qui
+      s ouvre en gras sans tiret ou par un titre : c est le paragraphe suivant ; avant le premier geste, ces lignes
+      (une décision citée, par exemple) sont passées · ⑥ garder la première occurrence de chaque numéro.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Décision de Jean-Luc du 16-10-2026 à 19h19 (« ok pour ce protocole ») : la relecture de Cowork
+      déclare quatre gestes à chaque tour, pour que la boucle de check fasse le moins d allers-retours possible.
+      Les gestes s écrivent en LISTE (« - ** ») pour que `gestes_du_protocole`, qui lit les lignes ouvertes en gras
+      sans tiret, ne les prenne pas pour des gestes de la livraison. La liste vit au registre et ce contrôle la LIT
+      (R-708).
+    ⑨ CE QUI CLOCHE — Elle dépend de la forme d écriture : un geste du relecteur écrit sans tiret serait pris par
+      `gestes_du_protocole` pour un geste de la livraison, et un geste écrit sans gras ne serait pas lu. Une liste
+      vide est traitée par `main` comme un contrôle qui n a pas pu tourner.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main à tous les coups.
+      [sort: non]
+    """
+    chemin = os.path.join(racine, "gouvernance", "REGISTRE_REGLES.md")
+    if not os.path.isfile(chemin):
+        return []
+    t = open(chemin, encoding="utf-8", errors="replace").read()
+    i = t.find("\n# LE PROTOCOLE DE LIVRAISON")
+    if i < 0:
+        return []
+    fin = t.find("\n---", i + 5)
+    sec = t[i:fin if fin > 0 else len(t)]
+    mj = re.search(r"(?m)^#*[ \t]*\**LE PROTOCOLE DU RELECTEUR", sec)
+    if not mj:
+        return []
+    vus, gestes = set(), []
+    for ligne in sec[mj.start():].split("\n")[1:]:
+        if (ligne.startswith("**") or ligne.startswith("#")) and gestes:
+            break
+        m = re.match(r"^- \*\*([\u2460-\u2473]) ([A-ZÉÈÊÀÂÎÔÛÇ][^\n]*?)\*\*", ligne)
+        if not m:
+            continue
+        mot = m.group(2).split()[0] if m.group(2).split() else ""
+        if mot.upper() == mot and m.group(1) not in vus:
+            vus.add(m.group(1))
+            gestes.append((m.group(1), m.group(2).strip()))
+    return gestes
+
+
+def gestes_non_declares(t, gestes, titre_exige):
+    """Dit, pour un document, si le titre des gestes est là et quels gestes n y ont pas leur ligne.
+
+    ① RÔLE — Faire, en un seul endroit, la vérification commune à la livraison et à la relecture : un titre qui
+      annonce les gestes, puis, sous ce titre et avant le titre suivant de même niveau ou plus haut, une ligne par geste.
+    ② CONTEXTE D APPEL — `main`, une ou deux fois : pour une livraison, avec les gestes de `gestes_du_protocole` ;
+      pour une relecture, avec ceux de `gestes_du_relecteur`.
+    ③ ENTRÉE — `t` : le texte du document · `gestes` : la liste des couples (numéro cerclé, titre) · `titre_exige` :
+      le motif, en expression régulière, que le titre doit contenir, par exemple « GESTES » ou « GESTES DU RELECTEUR ».
+    ④ CONDITIONS D ENTRÉE — `gestes` non vide ; `main` le vérifie avant d appeler.
+    ⑤ SORTIE — DEUX valeurs : le titre trouvé (le texte de la ligne, sans les dièses) ou None, puis la liste des
+      numéros sans leur ligne (vide si le titre manque).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① effacer les blocs capturés (entre ```), en gardant leurs sauts de ligne · ② chercher la première
+      ligne de titre qui contient le motif · ③ borner la zone au titre suivant de même niveau ou plus haut · ④ pour
+      chaque geste, chercher une ligne de la zone qui s ouvre par son numéro (précédé au plus d espaces, d étoiles, de
+      tirets ou de dièses de sous-titre) et porte au moins trois mots sur la même ligne.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Deux implémentations d une même vérification divergent toujours (R-708) : la livraison et la
+      relecture passent par celle-ci. Le motif « [ \t] » et non « \s » : le 16-10-2026, « \s » enjambait la fin de ligne
+      et « ⑤ fait » passait en prenant ses mots à la ligne suivante. Les blocs capturés effacés et les sous-titres
+      admis : relecture indépendante du 16-10-2026, des gestes CITÉS dans une sortie passaient pour déclarés, et des
+      gestes déclarés en sous-titres « ### ① … » étaient refusés.
+    ⑨ CE QUI CLOCHE — Le contrôle voit qu un geste est déclaré, pas qu il a été fait : c est la parole de celui qui
+      déclare, comme le registre le dit au geste ⑨.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main à tous les coups.
+      [sort: non]
+    """
+    t = re.sub(r"```.*?```", lambda m: "\n" * m.group(0).count("\n"), t, flags=re.S)   # une citation ne déclare rien
+    titre = re.search(r"(?m)^(#+) [^\n]*" + titre_exige + r"[^\n]*$", t)
+    if not titre:
+        return None, []
+    niv = len(titre.group(1))
+    suite = re.search(r"(?m)^#{1,%d} " % niv, t[titre.end():])
+    zone = t[titre.end():titre.end() + suite.start()] if suite else t[titre.end():]
+    absents = [g for g, _ in gestes
+               if not re.search(r"(?m)^[ \t*\-#]*" + g + r"\**[ \t]*([^\s]+[ \t]+){2,}[^\s]+", zone)]
+    return titre.group(0).strip("# "), absents
+
+
 def main():
     """Décide si la livraison part ou non, et pose l empreinte du texte accepté.
 
@@ -1063,7 +1208,13 @@ def main():
       s il y en a au moins un, refuser chaque piège de R-755 ③ dont l intitulé, en
       gras, n est pas suivi dans les 1 500 caractères, avant le piège suivant, d une
       sortie capturée à une place qui lui est propre — le contrôle vérifie cette
-      place, pas que la sortie écarte le piège · ⑮ afficher le
+      place, pas que la sortie écarte le piège · ⑭ter (16-10-2026, décision de Jean-Luc de 18h52) pour un document
+      qui se déclare porteur d un travail soumis à relecture, refuser si un des gestes du protocole, lus au registre
+      (`gestes_du_protocole`), n a pas sa ligne sous un titre « … GESTES … » · ⑭quater (16-10-2026, décision de
+      Jean-Luc de 19h19) pour un document qui se déclare porteur d une relecture, refuser si un des gestes du
+      relecteur (`gestes_du_relecteur`) n a pas sa ligne sous un titre « … GESTES DU RELECTEUR … » ; les deux
+      passent par `gestes_non_declares` ; et refuser un rôle qui parle de relecture sans être l un des deux, et, avec
+      « --attendu=livraison » ou « --attendu=relecture », un document qui ne déclare pas ce rôle-là · ⑮ afficher le
       compte rendu et sortir en 1 s il y a un refus · ⑯ calculer l empreinte du corps du document · ⑰ en mode relecture, la
       comparer à la ligne de contrôle et sortir ; sinon réécrire le document avec
       sa nouvelle ligne de contrôle et sortir en 0.
@@ -1157,6 +1308,10 @@ def main():
     # la ligne de queue enfreignait « chacun écrase le sien, jamais celui de l'autre »
     # sans le savoir, et pouvait la pousser sans la voir.
     verifier = "--verifier" in sys.argv
+    # « --attendu=livraison » ou « --attendu=relecture » : le rôle que l appelant sait que ce document doit déclarer
+    # (programmes/BOUCLE_DE_CHECK.py, d après le nom du fichier d échange). Une seule lecture du rôle, ici : relecture
+    # indépendante du 16-10-2026, troisième tour — deux lectures du rôle divergeaient et le verrou se contournait.
+    attendu = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--attendu=")), None)
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     chemin = args[0] if args else None
     if not chemin:
@@ -1164,6 +1319,13 @@ def main():
     if not os.path.isfile(chemin):
         print(f"REFUSÉ — {chemin} introuvable"); sys.exit(1)
     t = open(chemin, encoding="utf-8", errors="replace").read()
+    if attendu is not None:
+        # LE REÇU, AVANT TOUT AUTRE CONTRÔLE — relecture indépendante du 16-10-2026, quatrième tour : un garde-fou ancien
+        # ignore « --attendu » sans rien dire ; cette ligne prouve à l appelant que le rôle sera contrôlé, et il l exige.
+        # Dès la lecture du fichier (cinquième tour) : un refus précoce, faute du repère « # R-740 », sortait avant elle,
+        # et l appelant prenait ce garde-fou pour une version ancienne.
+        _role0 = next((l for l in t.split("\n")[:3] if "Rôle :" in l or "Rôle:" in l), "")
+        print(f"  rôle attendu : {attendu} — lu : « {_role0.strip() or 'aucune ligne « Rôle : »'} »")
     # Q2 de Cowork, 12-09, LA PLUS GRAVE DU TOUR : `pos = min([bas.find(m)…])`
     # lisait la PREMIÈRE occurrence dans tout le document. Il suffisait de citer un
     # bon jeu de passes en tête pour que le contrôle l'accepte et ne descende jamais
@@ -1513,7 +1675,30 @@ def main():
 
     # ④ toute conformité affirmée porte sa preuve
     nus = []
+    # LE NOM D'UN GESTE N'EST PAS UNE AFFIRMATION. Le registre nomme le premier geste du relecteur « ① PROUVÉ » ;
+    # écrit juste après SON numéro, le mot nomme le geste. Relecture de Cowork du 17-10-2026, point 6 : une relecture
+    # juste était refusée parce que sa section des gestes venait en tête, avant toute sortie. Seul le nom que le
+    # registre donne au geste de CE numéro est exempté, lu au registre (R-708) : relecture indépendante du même jour,
+    # tour 11 — exempter tout mot collé à un numéro laissait passer « ③ CONFORME, livré » sans aucune preuve.
+    # Le rôle, lu UNE fois ici, sert aussi plus bas (rôle attendu, gestes) : deux lectures du rôle avaient divergé le
+    # 16-10-2026. Les noms exemptés sont ceux des gestes DE CE RÔLE : relecture indépendante, tour 12 — l'union des
+    # deux listes laissait une livraison écrire « ① PROUVÉ » sans preuve.
+    _role = next((l for l in t.split("\n")[:3] if "Rôle :" in l or "Rôle:" in l), "")
+    _tete = _role.lower()
+    _racine_720 = os.path.dirname(os.path.dirname(os.path.abspath(chemin)))
+    _gestes_720 = (gestes_du_relecteur(_racine_720) if "porter la relecture" in _tete
+                   else gestes_du_protocole(_racine_720) if "soumis à relecture" in _tete else [])
+    _noms_720 = {(g[0], g[1].split(" — ")[0].split()[0].upper()) for g in _gestes_720 if g[1].split()}
+    # LA PORTÉE DE CE CONTRÔLE — décision de Jean-Luc du 17-10-2026 à 16h10 (« 1 ») : c'est un FILET CONTRE L'OUBLI,
+    # pas une preuve. Un contournement par la forme — guillemets, gras, numéro de geste collé à un mot surveillé —
+    # n'est PAS un défaut à réparer, et aucune exemption ne s'ajoute ici ; le fond reste au relecteur. Raison : le
+    # 17-10-2026, la cassure O (« ① PROUVÉ » exempté n'importe où) a été réparée deux fois, chaque réparation
+    # appelant la suivante (une relecture juste refusée, puis le gras admis partout) ; le superviseur (R-759) a
+    # jugé la course sans fin, et ces réparations ont été retirées : cette exemption est revenue telle qu'avant.
     for m in CONFORMITE.finditer(t):
+        _num = re.search(r"([①-⑳])[\s*]*$", t[max(0, m.start() - 6):m.start()])
+        if _num and (_num.group(1), m.group(0).upper()) in _noms_720:
+            continue
         # LE VRAI DÉGÂT DE P2 ÉTAIT LA PREUVE, PAS LA CACHETTE — tranché le 12-09
         # après la cassure inverse de Cowork. Sa P2 disait deux choses : un bloc
         # cachait les affirmations, ET le même bloc comptait comme leur preuve.
@@ -1619,6 +1804,58 @@ def main():
                              "1 500 caractères et avant le piège suivant, une sortie capturée à une place "
                              "qui lui est propre (le contrôle vérifie cette place, pas que la sortie écarte "
                              "le piège : c'est la relecture qui le juge) : " + " · ".join(_manque))
+    # LES GESTES DU PROTOCOLE, DÉCLARÉS UN PAR UN (geste ⑨ du registre) — décision de Jean-Luc du 16-10-2026 à
+    # 18h52 : le Chat avait oublié de les déclarer et rien ne l avait arrêté. Exigé de tout document qui se déclare,
+    # dans ses trois premières lignes, porteur d un « travail soumis à relecture » (R-730 : chaque fichier dit son rôle
+    # en tête) ; la relecture, elle, déclare les gestes du relecteur (bloc suivant). Un titre « … GESTES … », puis, sous ce titre et
+    # avant le titre suivant, une ligne par geste qui s ouvre par son numéro cerclé et porte au moins trois mots.
+    # LE RÔLE DIT CE QU EST LE DOCUMENT (R-730) — relecture indépendante du 16-10-2026 : un rôle reformulé (« la
+    # relecture de celui… ») faisait sauter les deux verrous. Un rôle qui parle de relecture sans être l un des deux
+    # est refusé. Un document sans rôle de relecture (une étude, un rapport) n est pas visé : ce contrôle sert à tout
+    # ce qui est livré ; c est programmes/BOUCLE_DE_CHECK.py qui exige des deux notes d échange leur rôle.
+    _racine_g = os.path.dirname(os.path.dirname(os.path.abspath(chemin)))
+    if attendu is not None and attendu not in ("livraison", "relecture"):
+        refus.append(f"RÔLE ATTENDU INCONNU — « --attendu={attendu} » : « livraison » ou « relecture »")
+    elif attendu == "relecture" and "porter la relecture" not in _tete:
+        refus.append("RÔLE ATTENDU : RELECTURE — une des trois premières lignes porte « Rôle : porter la relecture … » ; "
+                     f"lu : « {_role.strip() or 'aucune ligne « Rôle : »'} »")
+    elif attendu == "livraison" and ("soumis à relecture" not in _tete or "porter la relecture" in _tete):
+        refus.append("RÔLE ATTENDU : LIVRAISON — une des trois premières lignes porte « Rôle : porter le travail soumis à "
+                     f"relecture » ; lu : « {_role.strip() or 'aucune ligne « Rôle : »'} »")
+    if "relecture" in _tete and "porter la relecture" not in _tete and "soumis à relecture" not in _tete:
+        refus.append(f"RÔLE AMBIGU — « {_role.strip()} » : un document de relecture déclare « porter le travail "
+                     "soumis à relecture » (une livraison) ou « porter la relecture … » (une relecture)")
+    if "soumis à relecture" in _tete and "porter la relecture" not in _tete:
+        _gestes = gestes_du_protocole(_racine_g)
+        if not _gestes:
+            refus.append("GESTES DU PROTOCOLE ILLISIBLES (R-734) — la liste n'a pas pu être lue dans "
+                         "gouvernance/REGISTRE_REGLES.md, section « LE PROTOCOLE DE LIVRAISON »")
+        else:
+            _titre, _absents = gestes_non_declares(t, _gestes, "GESTES")
+            if not _titre:
+                refus.append("PROTOCOLE NON DÉCLARÉ (geste ⑨) — aucun titre « … GESTES … » : la livraison déclare "
+                             "chacun des " + str(len(_gestes)) + " gestes, un par ligne")
+            elif _absents:
+                refus.append("PROTOCOLE NON DÉCLARÉ (geste ⑨) — geste(s) sans sa ligne sous le titre "
+                             f"« {_titre} » : " + " ".join(_absents)
+                             + " (un geste sans objet s'écrit « sans objet », avec sa raison)")
+    # LES GESTES DU RELECTEUR (geste ⑩ du registre, « LE PROTOCOLE DU RELECTEUR ») — décision de Jean-Luc du
+    # 16-10-2026 à 19h19. Exigés de tout document qui se déclare, dans ses trois premières lignes, porteur d une
+    # relecture (« Rôle : porter la relecture … », R-730). Titre « … GESTES DU RELECTEUR … », puis une ligne par geste.
+    if "porter la relecture" in _tete:
+        _gr = gestes_du_relecteur(_racine_g)
+        if not _gr:
+            refus.append("GESTES DU RELECTEUR ILLISIBLES (R-734) — la liste n'a pas pu être lue dans "
+                         "gouvernance/REGISTRE_REGLES.md, paragraphe « LE PROTOCOLE DU RELECTEUR » du geste ⑩")
+        else:
+            _titre, _absents = gestes_non_declares(t, _gr, "GESTES DU RELECTEUR")
+            if not _titre:
+                refus.append("PROTOCOLE DU RELECTEUR NON DÉCLARÉ (geste ⑩) — aucun titre « … GESTES DU RELECTEUR … » : "
+                             "la relecture déclare chacun des " + str(len(_gr)) + " gestes, un par ligne")
+            elif _absents:
+                refus.append("PROTOCOLE DU RELECTEUR NON DÉCLARÉ (geste ⑩) — geste(s) sans sa ligne sous le titre "
+                             f"« {_titre} » : " + " ".join(_absents)
+                             + " (un geste sans objet s'écrit « sans objet », avec sa raison)")
     print(f"  fichier : {chemin} · {len(t)} caractères · {len(captures)} sortie(s) capturée(s) · {len(proses)} bloc(s) de prose")
     if refus:
         print(f"\n  ❌ LIVRAISON REFUSÉE — {len(refus)} motif(s) :")

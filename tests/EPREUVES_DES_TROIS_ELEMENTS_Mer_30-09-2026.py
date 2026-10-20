@@ -20,7 +20,8 @@ privée de ses éléments : ❌ · E8 éléments enfouis loin du début : ❌ ·
 « — » final : ❌ · E12 les trois éléments présents mais pas en tête : ❌ · E13 une phrase sans aucune lettre
 (« ... ») : ❌ · E14 une action nouvelle dont le texte porte une barre « | » entourée d'espaces, sans ses
 éléments : ❌ quand même · E11 le chemin réel : le radar du soir
-(audit_ecosysteme.py) affiche le ❌ nouveau, même derrière les trois ❌ anciens.
+(audit_ecosysteme.py) affiche le ❌ nouveau (A-9004), même derrière trois ❌ anciens que l'épreuve pose elle-même
+devant lui (A-9001 à A-9003 ; depuis le 16-10-2026, le vrai BACKLOG n'en ayant plus aucun).
 LES SABOTAGES : S1 change le ❌ en ⚠ · S2 relève le seuil au-delà de A-9001 · S3 accepte tout texte · S5 compte aussi
 les actions closes · S6 met la frontière à A-600 · S7 ne vérifie plus le début · S8 remet au radar « les trois
 premières alertes » · S9 ne borne plus la longueur · S10 n'exige plus le « — » · S11 accepte une phrase vide ·
@@ -151,14 +152,21 @@ def epreuves(r):
     # E14 — texte avec une barre « | » entourée d'espaces, sans éléments : la ligne est vue, ❌ quand même
     out = essai("| A-9001 | " + orig + " | coupure | " + queue)
     res.append(("E14 barre entourée d'espaces, sans éléments : ❌", re.search(r"❌ A-9001 : ne commence pas", out) is not None))
-    # E11 — le chemin réel : le radar du soir montre le ❌ nouveau, même derrière trois ❌ anciens
+    # E11 — le chemin réel : le radar du soir montre le ❌ nouveau, même derrière trois ❌ anciens.
+    # Les trois ❌ anciens sont POSÉS ICI (A-9001 à A-9003), devant le nouveau (A-9004) : l'épreuve ne compte plus
+    # sur l'état du vrai BACKLOG. Raison (16-10-2026) : les trois ❌ réels de 2026-09 (A-425, A-435, A-471) ont été
+    # réparés depuis ; le BACKLOG n'en a plus aucun, le ❌ nouveau tombait parmi les trois premières alertes, et le
+    # sabotage S8 (« les trois premières alertes seulement ») ne mordait plus — rouge au certificat du 14-10-2026
+    # (10eda9a) et du 16-10-2026 (f5aac6b).
     open(os.path.join(r, "BACKLOG_DECISIONS.md"), "w", encoding="utf-8").write(sauve)
     b = os.path.join(r, "BACKLOG_DECISIONS.md")
     L = sauve.split("\n"); i = max(k for k, l in enumerate(L) if l.startswith("| A-"))
-    L[i + 1:i + 1] = ["| A-9001 | " + sans]; open(b, "w", encoding="utf-8").write("\n".join(L))
+    L[i + 1:i + 1] = ["| A-%d | " % n + sans for n in (9001, 9002, 9003, 9004)]
+    open(b, "w", encoding="utf-8").write("\n".join(L))
     p = subprocess.run([sys.executable, os.path.join(r, "programmes", "audit_ecosysteme.py"), r],
                        capture_output=True, text=True, cwd=r, timeout=900)
-    res.append(("E11 radar : le ❌ de A-9001 arrive au rapport", re.search(r"❌ A-9001 : ne commence pas", p.stdout + p.stderr) is not None))
+    res.append(("E11 radar : le ❌ de A-9004 arrive au rapport, derrière trois ❌ posés devant lui",
+                re.search(r"❌ A-9004 : ne commence pas", p.stdout + p.stderr) is not None))
     open(b, "w", encoding="utf-8").write(sauve)
     return res
 

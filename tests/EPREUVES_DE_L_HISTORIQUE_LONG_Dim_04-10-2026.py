@@ -56,7 +56,8 @@ H25 lire_detachements() : un droit sans jour officiel → manque nommé ; un jou
     fichier d'épreuve, ni Suez) ; marche_permise() sans barre bnains, ou à clôture nulle → 0, avec la vraie → +2,47 % pour AXA ;
     un droit absent de bnains, AXA juin 2006, se calcule avec les chiffres du document → +1,95 % ; sans ses chiffres → manque nommé ;
     un chiffre illisible (« 24,47 ») → ValueError ;
-H26 reconstruire() sur les vraies lignes d'AXA de 2006 : le facteur d'avant le 19-06-2006 est celui d'après ÷ 1,0195, et K15 ne
+H26 reconstruire() sur les vraies lignes d'AXA de 2006 (le facteur lu au journal est l'appliqué, f / a / s ; s = 1 pour AXA après
+2006) : le facteur d'avant le 19-06-2006 est celui d'après ÷ 1,0195, et K15 ne
     trouve rien en juin 2006 ; sans les détachements, le facteur est unique et K15 refuse la marche nulle du 19-06-2006 ;
 H27 le fichier réparé du dépôt face aux cours extrêmes mensuels des rapports annuels (AXA 2005-2007, Essilor 2000-2001) :
     rapport constant à moins de 1 % près sur les 40 chiffres d'AXA (0,9771) et les 24 de chaque année d'Essilor ;
@@ -190,20 +191,56 @@ vu chez bnains, ajoute le dividende non attaché, le refuse sur une distribution
 K20 attend le facteur que le journal écrit pour une ligne alignée (T98, T99) · H55 K22 : chaque opération déclarée porte la
 règle officielle à 0,05 % près dans le fichier, le premier jet faux de Vinci 2006 est refusé (T100, T101).
 H56 à H59 (13-10-2026, A-578 ; demande de Jean-Luc à 09h34, « Tu ne vas pas oublier de le faire pour notre historique
-des 20 ans », et décision « Les deux, dans l'ordre ») — K23, le verrou : H56 sur les vrais fichiers, 1 010 gestes du
-journal ne se refont pas avec ce qu'ils écrivent (dont AXA, 03-01-2000, Paris 136,30 €, et 2 « gardé » qui écrivent un
-facteur non appliqué), 611 lignes ont un volume que le journal n'explique pas, aucune chaîne n'est rompue ; une clôture
-retouchée à la main (Accor, 16-03-2000) rompt la sienne · H57 sur des cas fabriqués : une chaîne juste passe (geste
-refait depuis Yahoo, ligne comblée depuis Paris, ligne venue de Paris sans geste), une clôture changée, un maillon
-intermédiaire faux, un volume inexpliqué, un facteur faux ou écrit sans être appliqué, une ligne sans départ, une ligne
-retirée au journal mais présente, une ligne écrite au journal mais absente sont vus ; un journal à l'en-tête faux est
-refusé · H58 la provenance : registre absent, chaîne juste jusqu'à un téléchargement (chemins avec « \ » et « ./ »
-compris), empreinte fausse ou inscrite deux fois, téléchargement sans adresse http(s) ou sans empreinte, programme
-absent ou qui n'est pas un programme, aucun fichier lu, un dossier lu, fichier absent qui n'est pas un téléchargement,
-boucle, boucle sans téléchargement, en-tête faux · H59 de bout en bout par `main` sur l'extrait 2005 : registre juste,
-K23 se tait ; une clôture retouchée, K23 la voit ; registre retiré, K23 le dit (relecture indépendante du 13-10-2026 :
-sans H59, couper K23 dans `main` ne faisait rougir aucune épreuve). Sabotages T102 à T125. Les comptes de H56 sont ceux
-du 13-10-2026 : ils changent quand la réparation écrira ses étapes en entier (A-578 ④) — à réécrire alors, à la main.
+des 20 ans », et décision « Les deux, dans l'ordre ») — K23, le verrou. Depuis le 18-10-2026 (le journal écrit ses
+facteurs complets et son départ ; décision de Jean-Luc du même jour à 20h41 : égalité exacte ; superviseurs R-759 et
+relecture du même jour), K23 REJOUE le journal (`lignes_non_rejouees`), avec les calculs mêmes de la réparation
+(`appliquer`, `arrondir`) : H56 sur les vrais fichiers, le fichier réparé du dépôt se refait en entier, et chacun des
+26 abîmes d'une vraie ligne est vu, seul, et PAR LE CONTRÔLE QU'IL GARDE (la ligne et le motif) — Hermès 14-02-2025,
+ouverture + 0,01 € puis + 0,0001 €, colonne source « bnains » ou « Yahoo », ligne retirée du fichier ; Total
+12-05-2006, volume + 1 000 puis + 1 ; Michelin 16-09-2011, plus bas + 0,0001 € (un arrondi à mi-chemin, qu'une
+tolérance laissait passer) ; Air Liquide 04-01-2000 (comblé), ouverture + 0,00004 €, volume + 0,4, source « yahoo »,
+départ « Paris », facteur de volume 0, clôture avant écrite, ligne retirée du fichier ; Accor 16-03-2000, clôture
+× 1,001 ; Accor 03-01-2000, départ « Ligne », facteur infini, clôture avant fausse, deux gestes inversés, le second
+supprimé ou doublé, un « corrigé » inventé ; Air Liquide 27-04-2012 bâtie sur une barre de Paris prouvée fausse
+(B1 ; le Paris de l'épreuve est celui de `lire_paris`, le même que celui de la réparation) ; un « gardé » d'AXA (13-10-2008) qui ment sur sa clôture ; Engie
+03-01-2000, retirée au journal et remise au fichier · H57 sur des cas fabriqués : une chaîne juste passe (geste depuis
+Yahoo, ligne comblée depuis Paris, « gardé » à 1 et 1) ; dix-neuf règles cassées une à une sont vues, chacune par son
+motif ; un journal à l'en-tête faux, ou portant « inf » ou « nan », est refusé · H58 la provenance : registre absent,
+chaîne juste jusqu'à un téléchargement (chemins avec « \ » et « ./ » compris), empreinte fausse ou inscrite deux
+fois, téléchargement sans adresse http(s) ou sans empreinte, programme absent ou qui n'est pas un programme, aucun
+fichier lu, un dossier lu, fichier absent qui n'est pas un téléchargement, boucle, boucle sans téléchargement, en-tête
+faux · H59 de bout en bout par `main` sur l'extrait 2005 : registre juste, K23 se tait ; une clôture retouchée, K23 la
+voit ; registre retiré, K23 le dit (relecture indépendante du 13-10-2026 : sans H59, couper K23 dans `main` ne
+faisait rougir aucune épreuve) · H61 : le fichier Yahoo d'origine avec une ligne en double, le contrôle s'arrête
+(code 2) au lieu de rejouer sur une base fausse · H62 (19-10-2026, décisions de Jean-Luc de 07h05, « écrit à la main », et de 08h23, une colonne `fichiers_cites` à
+part) : un fichier bâti sur une vraie ligne de BARRES_BNAINS_FAUSSES.csv (Société Générale, 2009) passe ; sans preuve,
+avec des fichiers lus, avec une adresse, `lu` absolu, sans la colonne des fichiers cités, une seule colonne, une
+citation vide, une adresse précédée de texte, un chemin dans `source`, une adresse sans nom d'hôte, ni adresse ni
+fichier, un fichier cité absolu, par « .. », lien symbolique, dossier, absent, qui ne se remonte pas, un fichier sans
+ligne, illisible, absent du dépôt, le fichier réparé inscrit « à la main » sont vus par leur motif ; les formes
+« inscrit » et « qui revient » (chemin absolu, « .. », lien, dossier, lettre de lecteur) font basculer le verdict ;
+un fichier cité absent est refusé même inscrit comme téléchargement ; une SECONDE ligne fausse et un SECOND morceau
+faux (dans `source`, `fichiers_cites` et `lu`) sont vus (relecteur n° 2 du 19-10-2026, M1) ; le parent d'un fichier
+cité qui ne se remonte pas le dit ; sur les vrais
+fichiers, les trois fichiers écrits à la main citent leurs sources, et ni le fichier Yahoo nettoyé ni le référentiel
+ne passeraient « à la main ».
+Sabotages T102 à T172 (T142 à T172, le 19-10-2026 : chacune des conditions de H62, l'ordre de la garde des fichiers
+réparés, et la forme d'une adresse ; T159 : le refus d'un dossier dans `chemin_du_depot`, qui ne mord au verdict que
+par le cas « lu : dossier inscrit » (pour un fichier cité, un dossier est refusé de toute façon par le refus d'un
+fichier absent : T159 n'y change que le message — relecteur n° 3 et superviseur n° 5 du 19-10-2026, N4) ; T155 et T157 remplacent la vérification du chemin par le seul `_chemin`, au lieu
+d'ôter le `if defaut`, qui faisait planter K23 au lieu de le faire passer (sonde du 19-10-2026) ; T160 à T166 :
+une vérification faite sur la première ligne ou le premier morceau seulement (relecteur n° 2 du 19-10-2026, M1 :
+« « ligne par ligne » n'est éprouvé nulle part ») ; T167 : le refus d'un fichier cité absent du dépôt (décision de
+Jean-Luc du 19-10-2026, « 1 » à « Oui, le refuser ») ; T168 : le faux rendu quand un fichier cité ne se remonte pas (le
+message du parent seulement) ; T169 : le seul refus de la lettre de lecteur ; T170 à T172 : une vérification faite
+sur la dernière ligne ou le dernier morceau seulement (relecteur n° 3 du 19-10-2026, N2 et N3) ; T107, T122, T148 à T151 réécrits sur la colonne `fichiers_cites`) ; réécrits le 18-10-2026 sur le rejeu : T102 à
+T105, T109, T112, T114, T116, T119 à T121, T129 à T131 (T131 : l'arrondi de Paris remplacé par `appliquer`, au lieu
+de « tolérance propagée », qui n'existe plus) ; ajoutés : T132 à T139 (origine abîmée, retrait, présence dans l'autre
+sens, clés de l'origine et du journal dans la boucle, vocabulaire des gestes, nombres finis du journal, clôture après
+sur un retrait), puis T140 (le Paris de `lire_paris` d'avant le retrait des barres fausses) et T141 (un geste
+qui part de la ligne ou de Paris sans écrire sa clôture après ou ses facteurs — il mord par une exception : sans ce
+contrôle, le cas fabriqué fait planter la lecture du nombre ; `main` sortirait alors en code 2) ; T114 et T139 réécrits
+après le superviseur n° 3 ; U9, U19, U20, U22, U25, U34 suivis sur la nouvelle écriture de la réparation (même sens).
 
 USAGE : python3 tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py <racine du dépôt> [--saboter | --saboter=S1,S2…]
 CODE : 0 si tout est vert et, avec --saboter, si chaque sabotage fait rougir au moins une épreuve ; 1 sinon ; 2 si
@@ -327,17 +364,15 @@ SABOTAGES = {
     "U16": (REPARATION, "                    a *= 1 + K.marche_permise(b, droit)", "                    a *= 1"),
     "U17": (REPARATION, "                if d < j <= ref_du:", "                if d <= j <= ref_du:"),
     "U18": (REPARATION, "            if abs(s) > abs(m) / 4:", "            if True:"),
-    "U19": (REPARATION, "            for x in [x for x in y if x < d]:\n                o, h, l, c, vol = y[x]\n                y[x] = (o / (1 + m)",
-            "            for x in [x for x in y if x <= d]:\n                o, h, l, c, vol = y[x]\n                y[x] = (o / (1 + m)"),
-    "U20": (REPARATION, "c / (1 + m), vol * (1 + m))", "c / (1 + m), vol)"),
+    "U19": (REPARATION, '            for x in [x for x in y if x < d]:\n                o, h, l, c, vol = y[x]\n                y[x] = K.appliquer(y[x], 1 / (1 + m)', '            for x in [x for x in y if x <= d]:\n                o, h, l, c, vol = y[x]\n                y[x] = K.appliquer(y[x], 1 / (1 + m)'),
+    "U20": (REPARATION, 'K.appliquer(y[x], 1 / (1 + m), 1 + m)', 'K.appliquer(y[x], 1 / (1 + m), 1)'),
     "U21": (CONTROLE, "    i = bisect.bisect_left(dates, jour)       # la première séance comparable à partir du jour",
             "    i = dates.index(jour) if jour in dates else 0"),
-    "U22": (REPARATION, "        fausses = K.oter_les_barres_fausses(os.path.join(racine, K.FAUSSES), bnains)",
-            "        fausses = set()"),
+    "U22": (REPARATION, '        bnains, defauts_b, fausses = K.lire_paris(racine)', '        bnains, defauts_b, fausses = K.lire_cours(os.path.join(racine, K.BNAINS), COURS_BNAINS)[:2] + (set(),)'),
     "U23": (REPARATION, "            if verdict != \"fausse\" or not K.barre_sure(", "            if True or not K.barre_sure("),
     "U24": (REPARATION, "        if not remplacees:\n            return total", "        return total"),
-    "U25": (REPARATION, "            if K.barre_sure(bnains, francfort or {}, valeur, d, douteux):\n                y[d] = barre(b[d], f / a,",
-            "            if K.barre_utilisable(bnains, valeur, d, douteux):\n                y[d] = barre(b[d], f / a,"),
+    "U25": (REPARATION, "            if K.barre_sure(bnains, francfort or {}, valeur, d, douteux):\n                y[d], fp, fv = barre(b[d], f / a,",
+            "            if K.barre_utilisable(bnains, valeur, d, douteux):\n                y[d], fp, fv = barre(b[d], f / a,"),
     "U26": (REPARATION, "        if not K.barre_sure(bnains, francfort or {}, valeur, d, douteux):",
             "        if not K.barre_utilisable(bnains, valeur, d, douteux):"),
     "U27": (REPARATION, "            if abs(ecart) <= K.PROPRE:\n                continue\n            avant = series[v][d][3]",
@@ -358,8 +393,7 @@ SABOTAGES = {
     "U6": (REPARATION, "    if arrets:\n", "    if False:\n"),
     "U7": (REPARATION, "str(int(x)) if float(x).is_integer() else repr(float(x))", "repr(float(x))"),
     "U8": (REPARATION, "            if d not in y:\n                continue\n", ""),
-    "U9": (REPARATION, "        if f is None:\n            journal.append([valeur, d, \"non comblé\"",
-           "        if False:\n            journal.append([valeur, d, \"non comblé\""),
+    "U9": (REPARATION, '        if f is None:\n            noter(journal, valeur, d, "non comblé"', '        if False:\n            noter(journal, valeur, d, "non comblé"'),
     "T55": (CONTROLE, "portes(series, origine, a_defaire, venues_de_bnains, detachements, alignes)\n                                     if origine is not None else []",
             "portes(series, origine, a_defaire, venues_de_bnains, detachements, alignes)\n                                     if False else []"),
     "T56": (CONTROLE, "if not ((v, x[0]) in fausses and abs(x[1] / x[2] / fausses[(v, x[0])] - 1) <= DEFAIT)]",
@@ -375,7 +409,7 @@ SABOTAGES = {
     "U32": (REPARATION, "    for valeur, date, f in a_defaire:\n        y = series.get(valeur, {})",
             "    for valeur, date, f in []:\n        y = series.get(valeur, {})"),
     "U33": (REPARATION, "for x in sorted(x for x in y if x < date):", "for x in sorted(x for x in y if x <= date):"),
-    "U34": (REPARATION, "y[x] = (o * f, h * f, l * f, c * f, vol / f)", "y[x] = (o * f, h * f, l * f, c * f, vol)"),
+    "U34": (REPARATION, 'y[x] = K.appliquer(y[x], f, 1 / f)', 'y[x] = K.appliquer(y[x], f, 1)'),
     "T63": (CONTROLE, "        return distribue / (cours - distribue)\n", "        return 0.0\n"),
     "T64": (CONTROLE, "        if r[\"valeur_distribuee\"]:\n", "        if False:\n"),
     "T65": (CONTROLE, "                droit = (detachements or {}).get(v, {}).get(q)\n", "                droit = None\n"),
@@ -431,33 +465,30 @@ SABOTAGES = {
     "U37": (REPARATION, "ALIGNEMENT = K.MARCHE_EXACTE ", "ALIGNEMENT = 1.0 "),
     "T100": (CONTROLE, "MARCHE_EXACTE = 0.0005 ", "MARCHE_EXACTE = 1.0 "),
     "T101": (CONTROLE, "            if s is not None and abs((1 + s) / (1 + m) - 1) > MARCHE_EXACTE:", "            if False:"),
-    "T102": (CONTROLE, "            if rompue or not _egal(barre[3], c):", "            if False:"),
-    "T103": (CONTROLE, "            refait = (avant is not None and (f is None or f == 1.0) and _egal(apres, avant)) or (",
-             "            refait = True or ("),
-    "T104": (CONTROLE, "                                   or (barre is not None and _egal(apres, barre[3] * f))))",
-             "                                   or False))"),
-    "T105": (CONTROLE, "        return volume and all(_egal(barre[i], base[i] * q) for i in range(3))", "        return True"),
+    "T102": (CONTROLE, '            if etat is not None and etat[3] != float(g["close_avant"]):', '            if False:'),
+    "T103": (CONTROLE, '            if etat[3] != float(g["close_apres"]):', '            if False:'),
+    "T104": (CONTROLE, '                        if barre[i] != etat[i]]', '                        if i == 4 and barre[i] != etat[i]]'),
+    "T105": (CONTROLE, '                        if barre[i] != etat[i]]', '                        if i < 4 and barre[i] != etat[i]]'),
     "T106": (CONTROLE, "            lignes = [r for r in lignes if r[\"sha256\"].strip().lower() == e]\n            if len(lignes) != 1:",
              "            lignes = [r for r in lignes if r[\"sha256\"].strip().lower() == e] or lignes\n            if len(lignes) != 1:"),
-    "T107": (CONTROLE, "            if not re.fullmatch(r\"https?://\\S+\", r[\"adresse\"].strip()):", "            if False:"),
+    "T107": (CONTROLE, '            if not ADRESSE_ENTIERE.fullmatch(r["adresse"].strip()):', '            if False:'),
     "T108": (CONTROLE, "        if not (programme.endswith(\".py\") and os.path.isfile(os.path.join(racine, programme))):",
              "        if not os.path.isfile(os.path.join(racine, programme)):"),
-    "T109": (CONTROLE, "\"qu'elles écrivent, et maillons de provenance manquants (A-578)\", True, k23)]:",
-             "\"qu'elles écrivent, et maillons de provenance manquants (A-578)\", False, k23)]:"),
+    "T109": (CONTROLE, '"manquants (A-578)", True, k23)]:', '"manquants (A-578)", False, k23)]:'),
     "T110": (CONTROLE, "        if lecteur.fieldnames != PROVENANCE_DES_FICHIERS:", "        if False:"),
     "T111": (CONTROLE, "        if not lus:\n", "        if False:\n"),
-    "T112": (CONTROLE, "                if g[\"close_avant\"] and not _egal(float(g[\"close_avant\"]), c):", "                if False:"),
+    "T112": (CONTROLE, '            if barre is not None and etat is None:', '            if barre is not None and etat is None and not gestes:'),
     "T113": (CONTROLE, "        if lecteur.fieldnames != JOURNAL_DES_REPARATIONS:", "        if False:"),
-    "T114": (CONTROLE, "        if repare and a_la_source:\n            journal = lire_journal", "        if False:\n            journal = lire_journal"),
+    "T114": (CONTROLE, '            k23 += lignes_non_rejouees(series, lire_les_sources(fichier), origine, bnains, journal)', '            pass'),
     "T115": (CONTROLE, "                                  else [relatif, ORIGINE.replace(os.sep, \"/\"), BNAINS.replace(os.sep, \"/\")])",
              "                                  else [])"),
-    "T116": (CONTROLE, "or (not gestes and (v, d) in venues_de_bnains)", "or False"),
+    "T116": (CONTROLE, '            base = paris.get(v, {}).get(d) if g["depart"] == "paris" else etat', '            base = (etat or paris.get(v, {}).get(d)) if g["depart"] == "paris" else etat'),
     "T117": (CONTROLE, "        if f in chemin:\n", "        if False:\n"),
     "T118": (CONTROLE, "        if not arrive:\n            cas.add", "        if False:\n            cas.add"),
-    "T119": (CONTROLE, "            if gestes and not gestes[-1][\"close_apres\"]:", "            if False:"),
-    "T120": (CONTROLE, "        if d not in series.get(v, {}) and gestes[-1][\"close_apres\"]:", "        if False:"),
-    "T121": (CONTROLE, "    return abs(a - b) <= max(RECALCUL * abs(b), ARRONDI)", "    return abs(a - b) <= RECALCUL * abs(b)"),
-    "T122": (CONTROLE, "            if os.path.isdir(os.path.join(racine, x)):", "            if False:"),
+    "T119": (CONTROLE, '            if g["depart"] != GESTES_DU_JOURNAL.get(g["geste"]):', '            if False:'),
+    "T120": (CONTROLE, '            if (g["close_avant"] == "") != (etat is None):', '            if False:'),
+    "T121": (CONTROLE, '                        if barre[i] != etat[i]]', '                        if abs(barre[i] - etat[i]) > 1e-5 * max(abs(barre[i]), abs(etat[i]))]'),
+    "T122": (CONTROLE, '            if defaut == "un dossier":', '            if False:'),
     "T123": (CONTROLE, "    return posixpath.normpath(x.strip().replace(\"\\\\\", \"/\"))", "    return x"),
     "T124": (CONTROLE, "            if not re.fullmatch(r\"[0-9a-f]{64}\", r[\"sha256\"].strip().lower()):", "            if False:"),
     "T125": (CONTROLE, "            if len(lignes) != 1:\n                cas.add(f\"{f} : son empreinte",
@@ -466,6 +497,50 @@ SABOTAGES = {
     "T127": (CONTROLE, "        if f in FICHIERS_REPARES and _chemin(r[\"produit_par\"]) != FICHIERS_REPARES[f]:", "        if False:"),
     "T128": (CONTROLE, "                                  else [relatif, ORIGINE.replace(os.sep, \"/\"), BNAINS.replace(os.sep, \"/\")])",
              "                                  else [ORIGINE.replace(os.sep, \"/\"), BNAINS.replace(os.sep, \"/\")])"),
+    "T129": (CONTROLE, '                elif sources.get((v, d)) != venue:', '                elif False:'),
+    "T130": (CONTROLE, '                etat, venue = arrondir(base, fp, fv), SOURCE_PARIS', '                etat, venue = arrondir(base, fp, 1 / fp), SOURCE_PARIS'),
+    "T131": (CONTROLE, '                etat, venue = arrondir(base, fp, fv), SOURCE_PARIS', '                etat, venue = appliquer(base, fp, fv), SOURCE_PARIS'),
+    "T132": (CONTROLE, '            if defauts_o:      # superviseur', '            if False:      # superviseur'),
+    "T133": (CONTROLE, '                etat, venue = None, None\n                continue', '                continue'),
+    "T134": (CONTROLE, '            elif barre is None and etat is not None:', '            elif barre is None and etat is not None and not gestes:'),
+    "T135": (CONTROLE, '\n                       | {(v, d) for v, s in origine.items() for d in s}):', '):'),
+    "T136": (CONTROLE, '    for v, d in sorted({(v, d) for v, s in series.items() for d in s} | set(journal)\n', '    for v, d in sorted({(v, d) for v, s in series.items() for d in s}\n'),
+    "T137": (CONTROLE, '            if g["geste"] not in GESTES_DU_JOURNAL:', '            if False:'),
+    "T138": (CONTROLE, '                if r[c] != "" and not math.isfinite(float(r[c])):', '                if False:'),
+    "T139": (CONTROLE, '            if g["depart"] == "" and ecrits:', '            if False:'),
+    "T140": (CONTROLE, '    return bnains, defauts, oter_les_barres_fausses(os.path.join(racine, FAUSSES), bnains)', '    return bnains, defauts, oter_les_barres_fausses(os.path.join(racine, FAUSSES), {v: dict(x) for v, x in bnains.items()})'),
+    "T141": (CONTROLE, '            if g["depart"] != "" and len(ecrits) < 3:', '            if False:'),
+    "T142": (CONTROLE, '            if r["lu"].strip():\n                cas.add(f"{f} : écrit à la main', '            if False:\n                cas.add(f"{f} : écrit à la main'),
+    "T143": (CONTROLE, '            if r["adresse"].strip():', '            if False:'),
+    "T144": (CONTROLE, '            if not r["preuve"].strip():', '            if False:'),
+    "T145": (CONTROLE, '            defaut, cites = sources_ecrites_a_la_main(racine, f)', '            defaut, cites = None, []'),
+    "T146": (CONTROLE, '                if not remonter(x, chemin + [f]):', '                if False:'),
+    "T147": (CONTROLE, '        if f in FICHIERS_REPARES and _chemin(r["produit_par"]) != FICHIERS_REPARES[f]:', '        if f in FICHIERS_REPARES and _chemin(r["produit_par"]) != FICHIERS_REPARES[f] and r["produit_par"] != ECRIT_A_LA_MAIN:'),
+    "T148": (CONTROLE, '                if not (x.get(citation) or "").strip():', '                if False:'),
+    "T149": (CONTROLE, '                    if not ADRESSE_ENTIERE.fullmatch(m):', '                    if False:'),
+    "T150": (CONTROLE, '            if not set(COLONNES_DES_SOURCES_A_LA_MAIN) <= set(lecteur.fieldnames or []):', '            if False:'),
+    "T151": (CONTROLE, '    if not vu:\n        return "sans aucune ligne", []', '    if False:\n        return "sans aucune ligne", []'),
+    "T152": (CONTROLE, '    if c.startswith("/") or re.match(r"[A-Za-z]:", c):', '    if False:'),
+    "T153": (CONTROLE, '    if ".." in c.split("/"):', '    if False:'),
+    "T154": (CONTROLE, '        if os.path.islink(partiel):', '        if False:'),
+    "T155": (CONTROLE, '                    c, defaut = chemin_du_depot(racine, m)', '                    c, defaut = _chemin(m), None'),
+    "T156": (CONTROLE, '                if not adresses and not chemins:', '                if False:'),
+    "T157": (CONTROLE, '            x, defaut = chemin_du_depot(racine, brut)', '            x, defaut = _chemin(brut), None'),
+    "T158": (CONTROLE, 'ADRESSE_ENTIERE = re.compile(r"https?://[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+(?::[0-9]+)?(?:/\\S*)?")', 'ADRESSE_ENTIERE = re.compile(r"https?://\\S+|.*https?://\\S*")'),
+    "T159": (CONTROLE, '    if os.path.isdir(os.path.join(racine, n)):\n        return n, "un dossier"', '    if False:\n        return n, "un dossier"'),
+    "T160": (CONTROLE, '                if not (x.get(citation) or "").strip():', '                if n == 2 and not (x.get(citation) or "").strip():'),
+    "T161": (CONTROLE, '                for m in adresses:', '                for m in (adresses if n == 2 else []):'),
+    "T162": (CONTROLE, '                for m in adresses:', '                for m in adresses[:1]:'),
+    "T163": (CONTROLE, '                for m in chemins:', '                for m in (chemins if n == 2 else []):'),
+    "T164": (CONTROLE, '                for m in chemins:', '                for m in chemins[:1]:'),
+    "T165": (CONTROLE, '                if not adresses and not chemins:', '                if n == 2 and not adresses and not chemins:'),
+    "T166": (CONTROLE, '        for brut in lus:', '        for brut in lus[:1]:'),
+    "T167": (CONTROLE, '                    if not os.path.isfile(os.path.join(racine, c)):', '                    if False:'),
+    "T168": (CONTROLE, 'qui ne se remonte pas")\n                    arrive = False', 'qui ne se remonte pas")\n                    pass'),
+    "T169": (CONTROLE, '    if c.startswith("/") or re.match(r"[A-Za-z]:", c):', '    if c.startswith("/"):'),
+    "T170": (CONTROLE, '            for x in lecteur:', '            for x in list(lecteur)[-1:]:'),
+    "T171": (CONTROLE, '                for m in adresses:', '                for m in adresses[-1:]:'),
+    "T172": (CONTROLE, '                for m in chemins:', '                for m in chemins[-1:]:'),
     "U38": (REPARATION, "            q = (1 + s) / (1 + m)\n", "            q = (1 + m) / (1 + s)\n"),
     "U39": (REPARATION, "            if abs(s) <= abs(m) / 4 or abs((1 + s) / (1 + m) - 1) <= ALIGNEMENT:",
             "            if abs((1 + s) / (1 + m) - 1) <= ALIGNEMENT:"),
@@ -1030,7 +1105,9 @@ def epreuves(K, R):
             and K.autour_du_detachement(dix, "2009-02-01") == (None, [])
     except Exception:
         res["H24"] = False
-    # H26 : reconstruire divise le facteur aux détachements entre une date et la référence (AXA, juin 2006)
+    # H26 : reconstruire divise le facteur aux détachements entre une date et la référence (AXA, juin 2006). Depuis le
+    # 18-10-2026, le facteur écrit au journal (j[5]) est celui APPLIQUÉ aux prix, f / a / s, divisions comprises : H26
+    # reste juste parce qu'AXA n'a aucune division après 2006 (s = 1 ; superviseur du 18-10-2026, E1 ④).
     try:
         ev = json.load(open(EVENEMENTS, encoding="utf-8"))
         detache = {"AXA": K.lire_detachements(DROITS, OFFICIELS)[0]["AXA"]}
@@ -1730,8 +1807,8 @@ def epreuves(K, R):
         with open(j, "w", encoding="utf-8", newline="") as fh:
             w = csv.writer(fh, lineterminator="\n")
             w.writerow(R.CHAMPS_JOURNAL)
-            w.writerow(["Z", "2005-03-01", "aligné", 1, 1, q, "essai"])
-            w.writerow(["Z", "2005-03-02", "ajusté", 1, 1, 0.5, "essai"])
+            w.writerow(["Z", "2005-03-01", "aligné", 1, 1, q, "essai", 1 / q, "ligne"])
+            w.writerow(["Z", "2005-03-02", "ajusté", 1, 1, 0.5, "essai", 2.0, "ligne"])
         al = K.lire_alignes(j)
         res["H54"] = al == {("Z", "2005-03-01"): q} and K.portes(juste, org, a_def, frozenset(), None, al) == [] \
             and len(K.portes(juste, org, a_def, frozenset(), None, None)) == 1 \
@@ -1758,69 +1835,196 @@ def epreuves(K, R):
             and K.marche_mesuree(f["EURONEXT"], b.get("EURONEXT", {}), ev, "EURONEXT", "2021-04-30", set()) is None
     except Exception:
         res["H55"] = False
-    # H56 : K23 sur les vrais fichiers — le compte mesuré le 13-10-2026 (A-578), et une ligne retouchée à la main se voit
+    # H56 : K23, le rejeu, sur les vrais fichiers (A-578 ; superviseurs R-759 et relecture du 18-10-2026) — le fichier
+    # réparé du dépôt se refait en entier, à l'égalité exacte ; et chaque abîme d'UNE vraie ligne est vu, seul, PAR LE
+    # CONTRÔLE QU'IL GARDE : on vérifie la ligne ET le motif (un abîme vu par un autre contrôle laissait un sabotage
+    # sans dents — relecture du 18-10-2026, X1).
     try:
-        s_, _, vb = K.lire_cours(REPARE)
-        p_, _, _ = K.lire_cours(os.path.join(RACINE, K.BNAINS), K.COURS_BNAINS)
+        s_, _, _ = K.lire_cours(REPARE)
+        src_ = K.lire_les_sources(REPARE)
+        p_, _, _ = K.lire_paris(RACINE)               # le Paris même de la réparation et de `main` (R-708)
+        brut_, _, _ = K.lire_cours(os.path.join(RACINE, K.BNAINS), K.COURS_BNAINS)     # avec les barres fausses
         o_, _, _ = K.lire_cours(os.path.join(RACINE, K.ORIGINE))
         j_ = K.lire_journal(os.path.join(RACINE, K.JOURNAL))
-        etapes = K.etapes_non_recalculables(j_, p_)
-        lignes = K.lignes_non_remontees(s_, vb, o_, p_, j_)
-        axa = [c for c in etapes if c.startswith("AXA 2000-01-03 ")]
-        s_["ACCOR"]["2000-03-16"] = tuple(x * 1.001 if i < 4 else x for i, x in enumerate(s_["ACCOR"]["2000-03-16"]))
-        retouche = [c for c in K.lignes_non_remontees(s_, vb, o_, p_, j_) if c.startswith("ACCOR 2000-03-16 ")]
-        res["H56"] = len(etapes) == 1010 and len(lignes) == 611 and len(axa) == 1 and "136.3" in axa[0] \
-            and len([c for c in etapes if "« gardé »" in c]) == 2 \
-            and not [c for c in lignes if "rompue" in c or "absente" in c] \
-            and len(retouche) == 1 and "rompue" in retouche[0]
-    except Exception:
+        rejeu = lambda s=s_, src=src_, j=j_: K.lignes_non_rejouees(s, src, o_, p_, j)
+        tout = rejeu()
+
+        def cellule(valeur, date, i, f):
+            s = {v: dict(x) for v, x in s_.items()}
+            b = list(s[valeur][date])
+            b[i] = f(b[i])
+            s[valeur][date] = tuple(b)
+            return rejeu(s=s)
+
+        def sans(valeur, date):
+            s = {v: dict(x) for v, x in s_.items()}
+            del s[valeur][date]
+            return rejeu(s=s)
+
+        def geste(valeur, date, nom, champ, nouveau):
+            j = dict(j_)
+            j[(valeur, date)] = [dict(g, **{champ: nouveau}) if g["geste"] == nom else g for g in j_[(valeur, date)]]
+            return rejeu(j=j)
+
+        def ordre(valeur, date, f):
+            j = dict(j_)
+            j[(valeur, date)] = f(list(j_[(valeur, date)]))
+            return rejeu(j=j)
+        def sur_barre_fausse(valeur, date):       # relecture n° 2 du 18-10-2026, B1 : la ligne refaite depuis une barre
+            s = {v: dict(x) for v, x in s_.items()}   # de Paris prouvée fausse, avec un geste « corrigé » cohérent
+            e, pb = s_[valeur][date], brut_[valeur][date]
+            n = K.arrondir(pb, e[3] / pb[3], e[4] / pb[4])
+            s[valeur][date] = n
+            j = dict(j_)
+            j[(valeur, date)] = j_.get((valeur, date), []) + [dict(
+                valeur=valeur, date=date, geste="corrigé", close_avant=repr(e[3]), close_apres=repr(n[3]),
+                facteur=repr(e[3] / pb[3]), raison="abîme", facteur_volume=repr(e[4] / pb[4]), depart="paris")]
+            return rejeu(s=s, src={**src_, (valeur, date): K.SOURCE_PARIS}, j=j)
+        accor, al, hermes = ("ACCOR", "2000-01-03"), ("AIR LIQUIDE", "2000-01-04"), ("HERMES INTL", "2025-02-14")
+        engie = ("ENGIE", "2000-01-03")                 # « retiré » : Yahoo y mettait les cours de Suez (RETRAITS)
+        ajoute = lambda g: dict(g, geste="corrigé", raison="geste inventé", facteur="1.0", facteur_volume="1.0")
+        abimes = {      # nom : (cas obtenus, ligne attendue, fragment attendu du motif)
+            "Hermès ouverture + 0,01 €": (cellule(*hermes, 0, lambda x: x + 0.01), hermes, "ouverture : le fichier a"),
+            "Hermès ouverture + 0,0001 €": (cellule(*hermes, 0, lambda x: x + 0.0001), hermes, "ouverture : le fichier a"),
+            "Total volume + 1 000": (cellule("TOTALENERGIES", "2006-05-12", 4, lambda x: x + 1000),
+                                     ("TOTALENERGIES", "2006-05-12"), "volume : le fichier a"),
+            "Total volume + 1": (cellule("TOTALENERGIES", "2006-05-12", 4, lambda x: x + 1),
+                                 ("TOTALENERGIES", "2006-05-12"), "volume : le fichier a"),
+            "Michelin plus bas + 0,0001 € (arrondi à mi-chemin)": (
+                cellule("MICHELIN", "2011-09-16", 2, lambda x: round(x + 0.0001, 4)), ("MICHELIN", "2011-09-16"),
+                "plus bas : le fichier a"),
+            "Air Liquide comblé, ouverture + 0,00004 €": (cellule(*al, 0, lambda x: x + 0.00004), al,
+                                                          "ouverture : le fichier a"),
+            "Air Liquide comblé, volume + 0,4": (cellule(*al, 4, lambda x: x + 0.4), al, "volume : le fichier a"),
+            "Accor 2000-03-16, clôture × 1,001": (
+                cellule("ACCOR", "2000-03-16", 3, lambda x: x * 1.001), ("ACCOR", "2000-03-16"), "clôture : le fichier a"),
+            "source yahoo → bnains (Hermès)": (rejeu(src={**src_, hermes: K.SOURCE_PARIS}), hermes, "colonne source"),
+            "source bnains → yahoo (Air Liquide comblé)": (rejeu(src={**src_, al: K.SOURCE_YAHOO}), al, "colonne source"),
+            "source « Yahoo » (Hermès)": (rejeu(src={**src_, hermes: "Yahoo"}), hermes, "colonne source « Yahoo »"),
+            "« gardé » d'AXA, clôture après 25.0": (geste("AXA", "2008-10-13", "gardé", "close_apres", "25.0"),
+                                                    ("AXA", "2008-10-13"), "clôture après 25.0"),
+            "départ « Paris » au lieu de « paris »": (geste(*al, "comblé", "depart", "Paris"), al, "doit partir de"),
+            "départ « Ligne » au lieu de « ligne »": (geste(*accor, "ajusté", "depart", "Ligne"), accor,
+                                                      "doit partir de"),
+            "facteur de volume 0 (Air Liquide comblé)": (geste(*al, "comblé", "facteur_volume", "0"), al,
+                                                         "volume : le fichier a"),
+            "facteur infini (Accor défait)": (geste(*accor, "défait", "facteur", "inf"), accor, "clôture après"),
+            "Accor, clôture avant fausse": (geste(*accor, "ajusté", "close_avant", "1.0"), accor,
+                                            "la ligne rejouée vaut"),
+            "Air Liquide comblé, clôture avant écrite": (geste(*al, "comblé", "close_avant", "1.0"), al,
+                                                         "alors que la ligne n’existe pas"),
+            "Accor, ordre des deux gestes inversé": (ordre(*accor, lambda g: g[::-1]), accor, "la ligne rejouée vaut"),
+            "Accor, second geste supprimé": (ordre(*accor, lambda g: g[:1]), accor, ": le fichier a"),
+            "Accor, second geste doublé": (ordre(*accor, lambda g: g[:2] + g[1:2] + g[2:]), accor,
+                                           "la ligne rejouée vaut"),
+            "Accor, geste « corrigé » inventé, parti de la ligne": (ordre(*accor, lambda g: g + [ajoute(g[-1])]), accor,
+                                                                   "doit partir de « paris »"),
+            "Air Liquide comblé, retiré du fichier": (sans(*al), al, "le journal l'écrit, le fichier ne l'a pas"),
+            "Hermès retirée du fichier, sans geste": (sans(*hermes), hermes, "ligne de l'origine absente du fichier"),
+            "Air Liquide 2012-04-27 bâtie sur une barre de Paris prouvée fausse": (
+                sur_barre_fausse("AIR LIQUIDE", "2012-04-27"), ("AIR LIQUIDE", "2012-04-27"),
+                "part de Paris, qui n'a pas de barre ce jour"),
+            "Engie retirée au journal, remise au fichier": (
+                rejeu(s={**s_, "ENGIE": dict(s_["ENGIE"], **{engie[1]: o_["ENGIE"][engie[1]]})}), engie,
+                "le journal la retire, le fichier l'a"),
+        }
+        vus = {nom: len(c) == 1 and c[0].startswith(f"{l[0]} {l[1]} : ") and frag in c[0]
+               for nom, (c, l, frag) in abimes.items()}
+        res["H56"] = tout == [] and len(abimes) == 26 and all(vus.values()) \
+            and [g["geste"] for g in j_[accor]][:2] == ["défait", "ajusté"] and al not in o_.get("AIR LIQUIDE", {}) \
+            and engie[1] in o_["ENGIE"] and [g["geste"] for g in j_[engie]] == ["retiré"] \
+            and "2012-04-27" in brut_["AIR LIQUIDE"] and "2012-04-27" not in p_["AIR LIQUIDE"]
+        if not res["H56"]:
+            print(f"      H56 : {len(tout)} cas sur le dépôt {tout[:2]} ; abîmes non vus : "
+                  f"{[(n, abimes[n][0][:2]) for n, ok in vus.items() if not ok]}")
+    except Exception as e:
+        print(f"      H56 : {type(e).__name__} : {e}")
         res["H56"] = False
-    # H57 : K23 sur des cas fabriqués — chaîne, étape, barre
+    # H57 : K23, le rejeu, sur des cas fabriqués — une chaîne juste, et chaque règle du rejeu cassée une à une, vue par
+    # le contrôle qui la garde (ligne ET motif) ; un journal à l'en-tête faux, ou à un nombre infini, est refusé
     try:
         org = {"Z": {"2005-01-03": (9.0, 11.0, 8.0, 10.0, 1000.0)}}
-        par = {"Z": {"2005-01-04": (98.0, 104.0, 96.0, 100.0, 500.0)}}
-        geste = lambda ge, av, ap, f: {"valeur": "Z", "date": "", "geste": ge, "close_avant": av, "close_apres": ap,
-                                        "facteur": f, "raison": "épreuve"}
-        jr = {("Z", "2005-01-03"): [geste("défait", "10.0", "20.0", "2.0")],
-              ("Z", "2005-01-04"): [geste("comblé", "", "50.0", "0.5")]}
+        par = {"Z": {"2005-01-04": (98.0, 104.0, 96.0, 100.0, 500.0), "2005-01-07": (100.0, 104.0, 98.0, 102.0, 500.0)}}
+        geste = lambda ge, av, ap, f, fv, dep: {"valeur": "Z", "date": "", "geste": ge, "close_avant": av,
+                                                "close_apres": ap, "facteur": f, "raison": "épreuve",
+                                                "facteur_volume": fv, "depart": dep}
+        jr = {("Z", "2005-01-03"): [geste("défait", "10.0", "20.0", "2.0", "0.5", "ligne")],
+              ("Z", "2005-01-04"): [geste("comblé", "", "50.0", "0.5", "2.0", "paris")]}
         juste = {"Z": {"2005-01-03": (18.0, 22.0, 16.0, 20.0, 500.0), "2005-01-04": (49.0, 52.0, 48.0, 50.0, 1000.0)}}
-        bon = K.lignes_non_remontees(juste, {("Z", "2005-01-04")}, org, par, jr) + K.etapes_non_recalculables(jr, par)
-        faux = {"Z": dict(juste["Z"], **{"2005-01-03": (18.0, 22.0, 16.0, 21.0, 500.0)})}
-        rompu = K.lignes_non_remontees(faux, {("Z", "2005-01-04")}, org, par, jr)
-        vol = {"Z": dict(juste["Z"], **{"2005-01-04": (49.0, 52.0, 48.0, 50.0, 999.0)})}
-        inexplique = K.lignes_non_remontees(vol, {("Z", "2005-01-04")}, org, par, jr)
-        mauvais = {("Z", "2005-01-03"): [geste("défait", "10.0", "20.0", "3.0")]}
-        garde = {("Z", "2005-01-03"): [geste("gardé", "10.0", "10.0", "")]}      # sans facteur : rien à refaire
-        sans = K.lignes_non_remontees({"Z": {"2005-01-05": (1.0, 1.0, 1.0, 1.0, 1.0)}}, set(), org, par, {})
-        pont = K.lignes_non_remontees(juste, {("Z", "2005-01-04")}, org, par,
-                                      {**jr, ("Z", "2005-01-03"): [geste("défait", "11.0", "20.0", "2.0")]})
-        jfaux = os.path.join(tempfile.mkdtemp(), "journal.csv")
-        open(jfaux, "w", encoding="utf-8").write("valeur,date,geste\n")
-        try:
-            K.lire_journal(jfaux)
-            entete_j = False
-        except ValueError:
-            entete_j = True
-        paris_seul = K.lignes_non_remontees({"Z": {"2005-01-04": (98.0, 104.0, 96.0, 100.0, 500.0)}},
-                                            {("Z", "2005-01-04")}, org, par, {})
-        paris_faux = K.lignes_non_remontees({"Z": {"2005-01-04": (98.0, 104.0, 96.0, 101.0, 500.0)}},
-                                            {("Z", "2005-01-04")}, org, par, {})
-        retire = K.lignes_non_remontees(juste, {("Z", "2005-01-04")}, org, par,
-                                        {**jr, ("Z", "2005-01-03"): [geste("retiré", "10.0", "", "")]})
-        en_trop = K.lignes_non_remontees(juste, {("Z", "2005-01-04")}, org, par,
-                                         {**jr, ("Z", "2005-01-07"): [geste("comblé", "", "51.0", "0.5")]})
-        non_applique = K.etapes_non_recalculables({("Z", "2005-01-03"): [geste("défait", "10.0", "10.0", "1.038462")]},
-                                                  par)
-        res["H57"] = bon == [] and len(rompu) == 1 and "rompue" in rompu[0] and entete_j \
-            and paris_seul == [] and len(paris_faux) == 1 and "rompue" in paris_faux[0] \
-            and retire == ["Z 2005-01-03 : le journal la retire (« retiré »), le fichier l'a"] \
-            and en_trop == ["Z 2005-01-07 : le journal l'écrit (« comblé », 51.0), le fichier ne l'a pas"] \
-            and len(non_applique) == 1 \
-            and len(pont) == 1 and "rompue" in pont[0] \
-            and len(inexplique) == 1 and "inexpliqués" in inexplique[0] \
-            and len(K.etapes_non_recalculables(mauvais, par)) == 1 and K.etapes_non_recalculables(garde, par) == [] \
-            and len(sans) == 1 and "absente" in sans[0]
-    except Exception:
+        src = {("Z", "2005-01-03"): K.SOURCE_YAHOO, ("Z", "2005-01-04"): K.SOURCE_PARIS}
+        r_ = lambda s=juste, sr=src, j=jr, o=org: K.lignes_non_rejouees(s, sr, o, par, j)
+        avec = lambda cle, *g: {**jr, ("Z", cle): list(g)}
+
+        def refuse(texte):
+            f = os.path.join(tempfile.mkdtemp(), "journal.csv")
+            open(f, "w", encoding="utf-8").write(texte)
+            try:
+                K.lire_journal(f)
+                return False
+            except ValueError:
+                return True
+        entete = ",".join(K.JOURNAL_DES_REPARATIONS) + "\n"
+        cas = {     # nom : (cas obtenus, date attendue, fragment attendu du motif)
+            "clôture du fichier fausse": (r_(s={"Z": dict(juste["Z"], **{"2005-01-03": (18.0, 22.0, 16.0, 21.0,
+                                                                                         500.0)})}),
+                                          "2005-01-03", "clôture : le fichier a"),
+            "volume du fichier faux": (r_(s={"Z": dict(juste["Z"], **{"2005-01-04": (49.0, 52.0, 48.0, 50.0, 999.0)})}),
+                                       "2005-01-04", "volume : le fichier a"),
+            "clôture avant fausse": (r_(j=avec("2005-01-03", geste("défait", "11.0", "20.0", "2.0", "0.5", "ligne"))),
+                                     "2005-01-03", "la ligne rejouée vaut"),
+            "clôture après fausse": (r_(j=avec("2005-01-03", geste("défait", "10.0", "21.0", "2.0", "0.5", "ligne"))),
+                                     "2005-01-03", "le rejeu donne"),
+            "facteur non appliqué": (r_(j=avec("2005-01-03", geste("défait", "10.0", "20.0", "3.0", "0.5", "ligne"))),
+                                     "2005-01-03", "clôture après 20.0"),
+            "départ vide sur un geste qui écrit": (
+                r_(j=avec("2005-01-03", geste("défait", "10.0", "20.0", "2.0", "0.5", ""))), "2005-01-03",
+                "doit partir de"),
+            "départ écrit sur un retrait": (r_(j=avec("2005-01-03", geste("retiré", "10.0", "", "", "", "ligne"))),
+                                            "2005-01-03", "doit partir de"),
+            "clôture après écrite sur un retrait": (
+                r_(j=avec("2005-01-03", geste("retiré", "10.0", "20.0", "1.0", "1.0", ""))), "2005-01-03",
+                "retire la ligne mais écrit close_apres"),
+            "facteur écrit sur un retrait": (r_(j=avec("2005-01-03", geste("retiré", "10.0", "", "7.0", "", ""))),
+                                             "2005-01-03", "retire la ligne mais écrit facteur"),
+            "geste parti de la ligne sans clôture après": (
+                r_(j=avec("2005-01-03", geste("défait", "10.0", "", "2.0", "0.5", "ligne"))), "2005-01-03",
+                "mais n'écrit pas close_apres"),
+            "geste inconnu": (r_(j=avec("2005-01-03", geste("bidon", "10.0", "20.0", "2.0", "0.5", "ligne"))),
+                              "2005-01-03", "geste inconnu"),
+            "clôture avant écrite, ligne absente": (
+                r_(j=avec("2005-01-04", geste("comblé", "1.0", "50.0", "0.5", "2.0", "paris"))), "2005-01-04",
+                "alors que la ligne n’existe pas"),
+            "Paris sans barre ce jour": (r_(j={**jr, ("Z", "2005-01-06"): [geste("comblé", "", "51.0", "0.5", "2.0",
+                                                                                  "paris")]}),
+                                         "2005-01-06", "Paris, qui n'a pas de barre"),
+            "ligne retirée au journal, présente au fichier": (
+                r_(j=avec("2005-01-03", geste("retiré", "10.0", "", "", "", ""))), "2005-01-03",
+                "le journal la retire, le fichier l'a"),
+            "ligne écrite au journal, absente du fichier": (
+                r_(j={**jr, ("Z", "2005-01-07"): [geste("comblé", "", "51.0", "0.5", "2.0", "paris")]}), "2005-01-07",
+                "le journal l'écrit, le fichier ne l'a pas"),
+            "ligne du fichier sans origine ni geste": (
+                r_(s={"Z": dict(juste["Z"], **{"2005-01-05": (1.0, 1.0, 1.0, 1.0, 1.0)})}), "2005-01-05",
+                "sans origine ni geste"),
+            "ligne de l'origine absente du fichier, sans geste": (
+                r_(s={"Z": {"2005-01-04": juste["Z"]["2005-01-04"]}}, j={("Z", "2005-01-04"): jr[("Z", "2005-01-04")]}),
+                "2005-01-03", "ligne de l'origine absente du fichier"),
+            "colonne source qui ment": (r_(sr={**src, ("Z", "2005-01-04"): K.SOURCE_YAHOO}), "2005-01-04",
+                                        "colonne source"),
+            "colonne source hors vocabulaire": (r_(sr={**src, ("Z", "2005-01-03"): "Yahoo"}), "2005-01-03",
+                                                "colonne source « Yahoo »"),
+        }
+        garde = r_(s={"Z": dict(juste["Z"], **{"2005-01-03": (9.0, 11.0, 8.0, 10.0, 1000.0)})},
+                   j=avec("2005-01-03", geste("gardé", "10.0", "10.0", "1.0", "1.0", "ligne")))
+        un_seul = {nom: len(c) == 1 and c[0].startswith(f"Z {d} : ") and frag in c[0] for nom, (c, d, frag) in cas.items()}
+        res["H57"] = r_() == [] and garde == [] and len(cas) == 19 and all(un_seul.values()) and refuse("valeur,date,geste\n") \
+            and refuse(entete + "Z,2005-01-03,défait,10.0,20.0,inf,épreuve,0.5,ligne\n") \
+            and refuse(entete + "Z,2005-01-03,défait,10.0,20.0,2.0,épreuve,nan,ligne\n") \
+            and not refuse(entete + "Z,2005-01-03,défait,10.0,20.0,2.0,épreuve,0.5,ligne\n")
+        if not res["H57"]:
+            print(f"      H57 : juste {r_()} · gardé {garde} · non vus : {[(n, cas[n][0]) for n, ok in un_seul.items() if not ok]}")
+    except Exception as e:
+        print(f"      H57 : {type(e).__name__} : {e}")
         res["H57"] = False
     # H58 : K23, la provenance — registre absent, chaîne juste, chaque maillon faux, boucles, en-tête faux
     try:
@@ -1870,7 +2074,7 @@ def epreuves(K, R):
             and "donnees/C.zip : absent du dépôt, et le registre en fait 0 téléchargement(s), au lieu d'un" in pas_tele \
             and [c for c in cycle if "boucle" in c] == ["donnees/A.csv : boucle dans la provenance "
                                                          "(donnees/A.csv → donnees/B.csv → donnees/A.csv)"] \
-            and "donnees/A.csv : aucune de ses sources n'arrive à un téléchargement" in seul \
+            and "donnees/A.csv : aucune de ses sources n'arrive à un premier maillon (téléchargement ou fichier écrit à la main)" in seul \
             and len(doublon) == 1 and "inscrite 2 fois" in doublon[0] \
             and "donnees/A.csv : lit donnees, qui est un dossier" in dossier and entete
     except Exception:
@@ -1911,7 +2115,7 @@ def epreuves(K, R):
         os.remove(os.path.join(r, K.PROVENANCE))
         _, out_s, l_sans = resultats_du_controle(K, r, K.FICHIER)
         res["H59"] = l_juste["K23"].split()[1:3] == ["ok", "0"] and l_retouche["K23"].split()[1:3] == ["REFUS", "1"] \
-            and "ACCOR " + lignes[i][1] + " : chaîne du journal rompue" in out_r \
+            and "ACCOR " + lignes[i][1] + " : clôture : le fichier a " in out_r \
             and l_sans["K23"].split()[1:3] == ["REFUS", "4"] and "aucun registre de provenance" in out_s
     except Exception:
         res["H59"] = False
@@ -1930,6 +2134,187 @@ def epreuves(K, R):
             and l_c["K23"].split()[1] == "REFUS"
     except Exception:
         res["H60"] = False
+    # H61 : K23 ne rejoue pas sur une origine abîmée (superviseur du 18-10-2026, R-734) — le fichier Yahoo d'origine
+    # avec une ligne en double : le contrôle s'arrête, code 2, au lieu de rejouer sur une base fausse
+    try:
+        r = tempfile.mkdtemp()
+        for nom in os.listdir(RACINE):
+            if nom != "donnees":
+                os.symlink(os.path.join(RACINE, nom), os.path.join(r, nom))
+        os.makedirs(os.path.join(r, "donnees", "sources_yahoo"))
+        for nom in os.listdir(os.path.join(RACINE, "donnees")):
+            if nom != "sources_yahoo":
+                os.symlink(os.path.join(RACINE, "donnees", nom), os.path.join(r, "donnees", nom))
+        for nom in os.listdir(os.path.join(RACINE, "donnees", "sources_yahoo")):
+            if nom != os.path.basename(K.ORIGINE):
+                os.symlink(os.path.join(RACINE, "donnees", "sources_yahoo", nom),
+                           os.path.join(r, "donnees", "sources_yahoo", nom))
+        lignes = open(os.path.join(RACINE, K.ORIGINE), encoding="utf-8").read().split("\n")
+        open(os.path.join(r, K.ORIGINE), "w", encoding="utf-8").write("\n".join(lignes[:2] + lignes[1:]))
+        code, out = lancer(K.main, [r])
+        res["H61"] = code == 2 and "défaut(s) de lecture" in out and "K23 ne peut pas rejouer" in out
+        shutil.rmtree(r, ignore_errors=True)
+    except Exception as e:
+        print(f"      H61 : {type(e).__name__} : {e}")
+        res["H61"] = False
+    # H62 : K23, le premier maillon « écrit à la main » (décisions de Jean-Luc du 19-10-2026 à 07h05 et 08h23 ;
+    # superviseurs R-759 du même jour) — un fichier bâti sur une VRAIE ligne de BARRES_BNAINS_FAUSSES.csv (Société
+    # Générale, 2009) passe ; chaque condition cassée une à une est vue par son motif ; sur les vrais fichiers, les trois
+    # fichiers écrits à la main citent leurs sources, et ni le fichier Yahoo nettoyé ni le référentiel ne passeraient.
+    # Les cas « inscrit » et « qui revient » donnent des dents AU VERDICT aux refus du chemin absolu, du « .. », du lien
+    # et du dossier (pour le dossier, par le seul cas « lu : dossier inscrit » : un fichier cité qui est un dossier est
+    # refusé de toute façon, comme fichier absent) : sans eux, chacun de ces refus retiré laissait le fichier refusé pour une autre raison (absent du
+    # registre), et le sabotage ne mordait que par le texte du message (superviseur n° 3 du 19-10-2026, H5 : « S5, S6
+    # et S7 n'ont de dents que par les formes « inscrites » et « qui revient » »).
+    try:
+        r = tempfile.mkdtemp()
+        dehors = tempfile.mkdtemp()
+        X = os.path.join(dehors, "X.csv")
+        open(X, "w").write("x\n")
+        for d in ("donnees", "programmes", "donnees/sources_yahoo"):
+            os.makedirs(os.path.join(r, d), exist_ok=True)
+        vraies = list(csv.reader(open(os.path.join(RACINE, "donnees", "sources_bnains", "BARRES_BNAINS_FAUSSES.csv"),
+                                      encoding="utf-8", newline="")))
+        sg = [l for l in vraies if l[0] == "SOCIETE GENERALE" and l[1].startswith("2009")]
+        tete = vraies[0]
+
+        def ecrire(n, lignes, encodage="utf-8"):
+            with open(os.path.join(r, n), "w", encoding=encodage, newline="") as f:
+                csv.writer(f, lineterminator="\n").writerows(lignes)
+        open(os.path.join(r, "programmes/P.py"), "w").write("# p\n")
+        open(os.path.join(r, "donnees/A.csv"), "w").write("a\n")
+        open(os.path.join(r, "donnees/B.csv"), "w").write("b\n")
+        os.symlink(X, os.path.join(r, "donnees/L.csv"))
+        e = lambda n: hashlib.sha256(open(os.path.join(r, n), "rb").read()).hexdigest()
+
+        def avec(entete=None, sans_ligne=False, encodage="utf-8", **champs):
+            l = dict(zip(tete, sg[0]))
+            l.update(champs)
+            t = entete or tete
+            ecrire("donnees/M.csv", [t] + ([] if sans_ligne else [[l.get(c, "") for c in t]]), encodage)
+
+        def registre(m_champs=None, autres=(), a_lu="donnees/M.csv"):
+            m = ["donnees/M.csv", (m_champs or {}).get(1) or e("donnees/M.csv"), K.ECRIT_A_LA_MAIN, "", "", "2026-10-19",
+                 "décision du 19-10"]
+            for i, x in (m_champs or {}).items():
+                m[i] = x
+            a_ = ["donnees/A.csv", e("donnees/A.csv"), "programmes/P.py", a_lu, "", "2026-10-19", "épreuve"]
+            with open(os.path.join(r, K.PROVENANCE), "w", encoding="utf-8", newline="") as f:
+                w = csv.writer(f, lineterminator="\n")
+                w.writerow(K.PROVENANCE_DES_FICHIERS)
+                w.writerows([a_, m] + list(autres))
+            return K.maillons_manquants(r, ["donnees/A.csv"])
+        b_ = ["donnees/B.csv", e("donnees/B.csv"), K.TELECHARGEMENT, "", "https://exemple.org/B.csv", "2026-10-19", "épr"]
+        x_ = [X, e(X), K.TELECHARGEMENT, "", "https://exemple.org/X.csv", "2026-10-19", "épr"]
+        l_ = ["donnees/L.csv", e("donnees/L.csv"), K.TELECHARGEMENT, "", "https://exemple.org/L.csv", "2026-10-19", "épr"]
+        d_ = ["donnees", "0" * 64, K.TELECHARGEMENT, "", "https://exemple.org/donnees", "2026-10-19", "épr"]
+        cas = {}
+        avec()
+        cas["juste"] = (registre(), None)
+        cas["sans preuve"] = (registre({6: ""}), "sans preuve")
+        cas["avec des fichiers lus"] = (registre({3: "donnees/B.csv"}), "des fichiers lus")
+        cas["avec une adresse"] = (registre({4: "https://exemple.org/M.csv"}), "une adresse")
+        cas["lu : chemin absolu"] = (registre(a_lu=X), f"lit « {X} », un chemin absolu")
+        cas["lu : chemin absolu inscrit"] = (registre(a_lu=X, autres=[x_]), f"lit « {X} », un chemin absolu")
+        cas["lu : « .. » qui revient, inscrit"] = (registre(a_lu="donnees/../donnees/B.csv", autres=[b_]), "sort par « .. »")
+        cas["lu : lien inscrit"] = (registre(a_lu="donnees/L.csv", autres=[l_]), "un lien symbolique")
+        cas["lu : dossier inscrit"] = (registre(a_lu="donnees", autres=[d_]), "lit donnees, qui est un dossier")
+        avec(entete=[c for c in tete if c != K.COLONNES_DES_SOURCES_A_LA_MAIN[2]])
+        cas["sans la colonne des fichiers cités"] = (registre(), "sans les colonnes source, citation, fichiers_cites")
+        avec(entete=["valeur", "source"])
+        cas["une seule des colonnes"] = (registre(), "sans les colonnes source, citation, fichiers_cites")
+        avec(citation="")
+        cas["citation vide"] = (registre(), "ligne 2 sans citation")
+        avec(source="voir http://exemple.org")
+        cas["adresse précédée de texte"] = (registre(), "pas une adresse http(s) entière")
+        avec(source="donnees/B.csv")
+        cas["chemin dans la source"] = (registre(), "pas une adresse http(s) entière")
+        avec(source="http://.")
+        cas["adresse sans nom d'hôte"] = (registre(), "pas une adresse http(s) entière")
+        avec(source="", fichiers_cites="")
+        cas["ni adresse ni fichier"] = (registre(), "ni adresse en source ni fichier en fichiers_cites")
+        avec(fichiers_cites=X)
+        cas["fichier cité absolu"] = (registre(), "un chemin absolu")
+        cas["fichier cité absolu inscrit"] = (registre(autres=[x_]), "un chemin absolu")
+        avec(fichiers_cites="../hors.csv")
+        cas["fichier cité par « .. »"] = (registre(), "sort par « .. »")
+        avec(fichiers_cites="donnees/../donnees/B.csv")
+        cas["fichier cité par « .. » qui revient, inscrit"] = (registre(autres=[b_]), "sort par « .. »")
+        avec(fichiers_cites="donnees/L.csv")
+        cas["fichier cité, lien symbolique"] = (registre(), "un lien symbolique")
+        cas["fichier cité, lien inscrit"] = (registre(autres=[l_]), "un lien symbolique")
+        avec(fichiers_cites="donnees")
+        cas["fichier cité, dossier"] = (registre(), "un dossier")
+        cas["fichier cité, dossier inscrit"] = (registre(autres=[d_]), "un dossier")
+        avec(fichiers_cites="donnees/ABSENT.csv")
+        cas["fichier cité absent"] = (registre(), "« donnees/ABSENT.csv », absent du dépôt")
+        fant_ = ["donnees/ABSENT.csv", "ab" * 32, K.TELECHARGEMENT, "", "https://exemple.org/F.csv", "2026-10-19", "épr"]
+        cas["fichier cité absent, inscrit téléchargement"] = (registre(autres=[fant_]), "« donnees/ABSENT.csv », absent du dépôt")
+        avec(fichiers_cites="donnees/B.csv")
+        cas["fichier cité qui ne se remonte pas"] = (registre(), "cite comme source donnees/B.csv, qui ne se remonte pas")
+        cas["fichier cité qui ne se remonte pas : le parent le dit"] = (cas["fichier cité qui ne se remonte pas"][0], "donnees/A.csv : aucune de ses sources n'arrive")
+        cas["fichier cité qui se remonte"] = (registre(autres=[b_]), None)
+        # « Ligne par ligne » et « morceau par morceau », dans LES DEUX SENS : chaque défaut est placé en 1re position
+        # puis en 2e, l'autre juste (relecteur n° 3 du 19-10-2026, N2 : un contrôle qui ne vérifiait que la dernière
+        # ligne restait vert ; superviseur n° 5 : la grille « chaque position » laisse passer 0 des 34 boucles et
+        # vérifications sabotées qu'il a essayées, « le milieu de 3 » en laissait passer 2).
+        def deux(fausse, **champs):
+            juste = dict(zip(tete, sg[0])); faux = dict(juste); faux.update(champs)
+            lignes = [juste, faux] if fausse == 2 else [faux, juste]
+            ecrire("donnees/M.csv", [tete] + [[l.get(c, "") for c in tete] for l in lignes])
+        def morceaux(fausse, bon, mauvais):
+            return " ; ".join([bon, mauvais] if fausse == 2 else [mauvais, bon])
+        for k in (1, 2):
+            deux(k, citation="")
+            cas[f"2 lignes, la {k}e sans citation"] = (registre(), f"ligne {k + 1} sans citation")
+            deux(k, source="voir le rapport")
+            cas[f"2 lignes, la {k}e adresse fausse"] = (registre(), f"ligne {k + 1} : source « voir le rapport »")
+            deux(k, fichiers_cites=X)
+            cas[f"2 lignes, la {k}e cite un absolu inscrit"] = (registre(autres=[x_]), f"ligne {k + 1} : fichiers_cites")
+            deux(k, fichiers_cites="donnees")
+            cas[f"2 lignes, la {k}e cite un dossier inscrit"] = (registre(autres=[d_]),
+                                                                f"ligne {k + 1} : fichiers_cites « donnees », un dossier")
+            deux(k, source="", fichiers_cites="")
+            cas[f"2 lignes, la {k}e sans adresse ni fichier"] = (registre(), f"ligne {k + 1} : ni adresse")
+            avec(source=morceaux(k, "https://www.bnains.org/x", "voir le rapport"))
+            cas[f"2 adresses, la {k}e fausse"] = (registre(), "« voir le rapport », pas une adresse")
+            avec(fichiers_cites=morceaux(k, "donnees/B.csv", X))
+            cas[f"2 fichiers cités, le {k}e absolu inscrit"] = (registre(autres=[b_, x_]), "un chemin absolu")
+            avec()
+            cas[f"lu : 2 morceaux, le {k}e absolu inscrit"] = (registre(a_lu=morceaux(k, "donnees/M.csv", X), autres=[x_]),
+                                                              f"lit « {X} », un chemin absolu")
+        c_ = ["C:/x.csv", "ab" * 32, K.TELECHARGEMENT, "", "https://exemple.org/x.csv", "2026-10-19", "épr"]
+        cas["lu : lettre de lecteur inscrite"] = (registre(a_lu="C:/x.csv", autres=[c_]), "lit « C:/x.csv », un chemin absolu")
+        avec(sans_ligne=True)
+        cas["sans aucune ligne"] = (registre(), "sans aucune ligne")
+        avec(encodage="utf-16")
+        cas["illisible"] = (registre(), "illisible")
+        avec()
+        m_sha = e("donnees/M.csv")
+        os.remove(os.path.join(r, "donnees/M.csv"))
+        cas["absent du dépôt"] = (registre({1: m_sha}), "absent du dépôt")
+        repare = K.FICHIER.replace(os.sep, "/")
+        ecrire(repare, [tete] + sg)
+        with open(os.path.join(r, K.PROVENANCE), "w", encoding="utf-8", newline="") as f:
+            csv.writer(f, lineterminator="\n").writerows(
+                [K.PROVENANCE_DES_FICHIERS, [repare, e(repare), K.ECRIT_A_LA_MAIN, "", "", "2026-10-19", "décision"]])
+        cas["le fichier réparé inscrit à la main"] = (K.maillons_manquants(r, [repare]), "déclaré écrit par")
+        vus = {n: (c == [] if frag is None else any(frag in x for x in c)) for n, (c, frag) in cas.items()}
+        noms = ("donnees/sources_bnains/BARRES_BNAINS_FAUSSES.csv", "donnees/sources_bnains/DETACHEMENTS_OFFICIELS.csv",
+                "donnees/sources_yahoo/AJUSTEMENTS_DE_YAHOO.csv", "donnees/sources_yahoo/yahoo_ohlcv_propre.csv",
+                "donnees/REFERENTIEL_VALEURS_v3_Lun_17-08-2026_10h54.csv")
+        reels = {n: K.sources_ecrites_a_la_main(RACINE, n) for n in noms}
+        res["H62"] = len(sg) == 1 and len(cas) == 50 and all(vus.values()) \
+            and all(reels[n][0] is None for n in noms[:3]) \
+            and reels[noms[2]][1] == ["donnees/sources_bnains/DETACHEMENTS_OFFICIELS.csv"] \
+            and reels[noms[3]][0] == reels[noms[4]][0] == "sans les colonnes source, citation, fichiers_cites"
+        if not res["H62"]:
+            print(f"      H62 : non vus {[(n, cas[n][0]) for n, ok in vus.items() if not ok]} · réels {reels}")
+        shutil.rmtree(r, ignore_errors=True)
+        shutil.rmtree(dehors, ignore_errors=True)
+    except Exception as ex:
+        print(f"      H62 : {type(ex).__name__} : {ex}")
+        res["H62"] = False
     return res
 
 

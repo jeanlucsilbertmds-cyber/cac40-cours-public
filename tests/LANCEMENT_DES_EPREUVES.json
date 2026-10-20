@@ -52,5 +52,28 @@
    ],
    "pourquoi": "fiche de main : la racine, et --calibrage pour ne faire que le calibrage"
   }
+ },
+ "format_des_options": "delais : « chemin et arguments sans {copie}, séparés par une espace » → secondes (1 à 21 600) et pourquoi ; series_hors_de_la_nuit : chemin de l'épreuve → releve (motif du relevé, un seul fichier doit y répondre), essais_refaits_chaque_nuit (0 à 50) et pourquoi. Lu par options_de_lancement (programmes/CERTIFIER_LA_VERSION.py), ajouté le 16-10-2026.",
+ "delais": {
+  "tests/EPREUVES_DE_LA_LECTURE_DES_COURS_Sam_10-10-2026.py --saboter": {
+   "secondes": 10800,
+   "pourquoi": "92 sabotages, 62 minutes mesurées SANS la mesure de couverture sur la machine du Chat le 16-10-2026 (tous mordent) ; la mesure ralentit jusqu'à quatre fois (relecture du 16-10-2026 : 32 s sans, 129 s avec, sur l'épreuve du détecteur) ; arrêtée à 1 500 s au certificat du 16-10-2026 (f5aac6b). Trois heures, le passage entier étant porté à 330 minutes."
+  },
+  "tests/EPREUVES_DU_DOSSIER_DE_LANCEMENT_Lun_28-09-2026.py --saboter": {
+   "secondes": 5400,
+   "pourquoi": "Arrêtée au délai par défaut de 1 500 s (code 124) à la vérification complète du 17-10-2026 à 16h53, sous la mesure de couverture. Sans cette mesure, elle dure 851 s le 17-10-2026 avec ses cinq variantes — deux lancements des épreuves du garde-fou par variante, S3 et S4 arrêtés tôt par le témoin (relevé tests/resultats/DUREE_DE_L_EPREUVE_DU_DOSSIER_DE_LANCEMENT_Sam_17-10-2026.txt, qui cite aussi les lignes du certificat). Le ralentissement dû à la mesure de couverture n'est pas mesuré pour cette épreuve ; 5 400 s laisse un peu plus de six fois la durée mesurée. Ce délai aggrave le dépassement du plafond de la nuit (BACKLOG A-589 ①)."
+  }
+ },
+ "series_hors_de_la_nuit": {
+  "tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py": {
+   "releve": "tests/resultats/SERIE_DE_SABOTAGES_DE_L_HISTORIQUE_LONG_*.txt",
+   "pourquoi": "Décision de Jean-Luc du 16-10-2026 à 14h30 (« Uniquement quand il y a un changement. Très bien, avec une alarme si on oublie. ») : 167 sabotages, environ 6 heures (27 en 62 minutes mesurés le 16-10-2026) ; rejoués par tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py quand l'épreuve ou un fichier qu'elle lit change ; chaque nuit, la certification vérifie que le relevé vaut encore. Chaque nuit, 3 essais tirés au hasard sont refaits et doivent rendre, mot pour mot, la ligne du relevé (relecture de Cowork du 16-10-2026, cassure M2 : rien ne prouvait que la série avait tourné ; décision de Jean-Luc du 16-10-2026 à 18h53, « 1 » à « 3 essais par nuit (Recommandé) »).",
+   "essais_refaits_chaque_nuit": 3
+  },
+  "tests/EPREUVES_DE_LA_BOUCLE_DE_CHECK_Ven_16-10-2026.py": {
+   "releve": "tests/resultats/SERIE_DE_SABOTAGES_DE_LA_BOUCLE_DE_CHECK_*.txt",
+   "pourquoi": "Décision de Jean-Luc du 16-10-2026 à 22h52 (« 1 » à « La sortie de la nuit de la vérification d'une heure ») : les sabotages du programme de la boucle de check (leur nombre se lit au dictionnaire SABOTAGES de l'épreuve : un compte recopié ici a divergé, 51 écrits pour 59 joués — relecture de Cowork du 17-10-2026), plus d'une heure sur la machine du Chat le 16-10-2026 sans la mesure de couverture (environ 90 secondes par sabotage) ; ajoutés aux 3 heures de la série de la lecture des cours, ils feraient dépasser le passage de nuit de 330 minutes. Même méthode que la série des 20 ans : rejoués par tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py quand l'épreuve ou un fichier qu'elle lit change ; chaque nuit, la certification vérifie le relevé et refait 3 essais tirés au hasard, qui doivent rendre la ligne du relevé mot pour mot.",
+   "essais_refaits_chaque_nuit": 3
+  }
  }
 }

@@ -48,6 +48,15 @@ LIRE = open("programmes/LIRE_LE_CODE.py", encoding="utf-8").read()
 # la decision de Jean-Luc du 22-09-2026, ce que le code fait est calcule dans
 # `programmes/LIRE_LE_CODE.py` ; le garde-fou, lui, compare ce calcul a la marque.
 SABOTAGES = [
+    ("garde : le nom d un geste pris pour une affirmation", "GARDE",
+     '        if _num and (_num.group(1), m.group(0).upper()) in _noms_720:\n',
+     '        if False:\n'),
+    ("garde : les gestes des deux rôles mêlés", "GARDE",
+     '    _gestes_720 = (gestes_du_relecteur(_racine_720) if "porter la relecture" in _tete\n',
+     '    _gestes_720 = (gestes_du_relecteur(_racine_720) + gestes_du_protocole(_racine_720) if True\n'),
+    ("garde : tout mot collé à un numéro exempté", "GARDE",
+     '        if _num and (_num.group(1), m.group(0).upper()) in _noms_720:\n',
+     '        if _num:\n'),
     ("lire : la levée systématique", "LIRE",
      '    leve = (_leve_toujours(corps) and not generateur\n',
      '    leve = (False and not generateur\n'),
@@ -111,6 +120,46 @@ SABOTAGES = [
     ("garde-fou : la portée, tous les programmes", "GARDE",
      '                  if x.endswith(".py"))\n',
      '                  if x.endswith(".py") and False)\n'),
+    # 16-10-2026 — le protocole du relecteur (décision de Jean-Luc de 19h19)
+    ("garde-fou : la relecture déclare ses gestes", "GARDE",
+     '    if "porter la relecture" in _tete:\n',
+     '    if False:\n'),
+    ("garde-fou : le paragraphe suivant ferme la liste du relecteur", "GARDE",
+     '        if (ligne.startswith("**") or ligne.startswith("#")) and gestes:\n            break\n',
+     '        if False:\n            break\n'),
+    ("garde-fou : une ligne en minuscules n est pas un geste du relecteur", "GARDE",
+     '            continue\n        mot = m.group(2).split()[0] if m.group(2).split() else ""\n'
+     '        if mot.upper() == mot and m.group(1) not in vus:\n',
+     '            continue\n        mot = m.group(2).split()[0] if m.group(2).split() else ""\n'
+     '        if m.group(1) not in vus:\n'),
+    ("garde-fou : le titre des gestes du relecteur", "GARDE",
+     'gestes_non_declares(t, _gr, "GESTES DU RELECTEUR")',
+     'gestes_non_declares(t, _gr, "GESTES")'),
+    # 16-10-2026, 20h — réparations de la relecture indépendante
+    ("garde-fou : le rôle attendu relecture", "GARDE",
+     '    elif attendu == "relecture" and "porter la relecture" not in _tete:\n',
+     '    elif False:\n'),
+    ("garde-fou : le rôle attendu livraison", "GARDE",
+     '    elif attendu == "livraison" and ("soumis à relecture" not in _tete or "porter la relecture" in _tete):\n',
+     '    elif False:\n'),
+    ("garde-fou : le rôle attendu inconnu", "GARDE",
+     '    if attendu is not None and attendu not in ("livraison", "relecture"):\n',
+     '    if False:\n'),
+    ("garde-fou : le rôle ambigu refusé", "GARDE",
+     '    if "relecture" in _tete and "porter la relecture" not in _tete and "soumis à relecture" not in _tete:\n',
+     '    if False:\n'),
+    ("garde-fou : une citation ne déclare rien", "GARDE",
+     '    t = re.sub(r"```.*?```", lambda m: "\\n" * m.group(0).count("\\n"), t, flags=re.S)   # une citation ne déclare rien\n',
+     ''),
+    ("garde-fou : les sous-titres déclarent", "GARDE",
+     'r"(?m)^[ \\t*\\-#]*" + g',
+     'r"(?m)^[ \\t*\\-]*" + g'),
+    ("garde-fou : une décision avant la liste du relecteur", "GARDE",
+     '        if (ligne.startswith("**") or ligne.startswith("#")) and gestes:\n',
+     '        if ligne.startswith("**") or ligne.startswith("#"):\n'),
+    ("garde-fou : « porter la relecture » l emporte", "GARDE",
+     '    if "soumis à relecture" in _tete and "porter la relecture" not in _tete:\n',
+     '    if "soumis à relecture" in _tete:\n'),
 ]
 nus = []
 # LE TÉMOIN D'ABORD (relecteur du 30-09-2026) : sans correction retirée, aucun cas ne doit

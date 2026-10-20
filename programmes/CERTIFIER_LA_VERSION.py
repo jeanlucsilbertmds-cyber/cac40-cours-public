@@ -68,8 +68,10 @@
   racine, et `gouvernance/CERTIFICAT_REFERENCE.json` sur demande. Ne modifie aucun autre
   fichier de la racine.
 ⑪ TERMINAISON — Sort par sys.exit, en 0, 1 ou 2. Chaque épreuve est bornée à
-  `DUREE_MAX_EPREUVE` secondes : une épreuve qui ne revient pas est arrêtée et comptée
-  rouge.
+  `DUREE_MAX_EPREUVE` secondes, ou au délai que la table de lancement lui déclare
+  (« delais », depuis le 16-10-2026) : une épreuve qui ne revient pas est arrêtée et comptée
+  rouge. Une série de sabotages déclarée « series_hors_de_la_nuit » n'est pas jouée : son
+  relevé est vérifié (`verifier_une_serie`, décision de Jean-Luc du 16-10-2026 à 14h30).
   [sort: oui]
 ⑫ DÉFINITIONS
   une épreuve : un programme qui fait tourner un programme du système sur un cas dont la
@@ -96,6 +98,15 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 DUREE_MAX_EPREUVE = 1500       # secondes, par lancement d'épreuve
+# LES ÉPREUVES TOURNENT SANS LA CONFIGURATION GIT DE LA MACHINE (signature des commits, identité, …) : une épreuve ne
+# dépend que du dépôt. Défini ici, une fois, et lu par `jouer` ET par tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py
+# (R-708 : deux définitions d'une même chose divergent toujours). Cassure N de Cowork, 17-10-2026 : le joueur de séries
+# ne le faisait pas, et 14 sabotages de la boucle de check ont « mordu » parce qu'un `git commit` du montage était
+# refusé — un plantage compté comme une morsure. Les fichiers de configuration (GLOBAL, NOSYSTEM) ET les réglages passés
+# par l'environnement (COUNT, PARAMETERS) : relecture indépendante du même jour, tour 11 — « GIT_CONFIG_COUNT=1
+# GIT_CONFIG_KEY_0=commit.gpgsign » faisait encore refuser un commit, et cette machine en porte trois.
+SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+                                           "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_PARAMETERS": ""}
 REFERENCE = "gouvernance/CERTIFICAT_REFERENCE.json"
 RAPPORT = "rapports/CERTIFICAT_DE_LA_VERSION.md"
 LANCEMENT = "tests/LANCEMENT_DES_EPREUVES.json"   # comment lancer les épreuves rangées dans programmes/
@@ -111,6 +122,52 @@ if os.environ.get("COVERAGE_PROCESS_START"):
     try:
         import coverage, atexit, hashlib, json
         coverage.process_startup()
+        _avant = {{}}
+
+        def _noter(chemin):
+            # Un fichier mesuré que le processus efface lui-même (shutil.rmtree, os.remove) ne serait plus là à la
+            # fin : l'empreinte de chaque programme (.py sous un dossier programmes/) est prise juste AVANT
+            # l'effacement (16-10-2026 : l'épreuve de la lecture des cours efface sa copie avant de finir, et
+            # LIRE_LES_COURS.py paraissait « jamais examiné »). Aucun appel à coverage ici : appelée pendant
+            # qu'il range ses propres fichiers, son API casse sa base (« no such table: meta », mesuré le
+            # 16-10-2026).
+            try:
+                cible = os.path.realpath(os.fsdecode(chemin))   # coverage nomme ses fichiers par leur chemin réel
+                if os.path.isfile(cible):
+                    fichiers = [cible]
+                else:
+                    fichiers = [os.path.join(r, n) for r, _, ns in os.walk(cible) for n in ns]
+                for f in fichiers:
+                    if f.endswith(".py") and {sep!r} in f and os.path.isfile(f) and not os.path.islink(f):
+                        _avant[f] = hashlib.sha256(open(f, "rb").read()).hexdigest()
+            except Exception:
+                pass
+
+        def _ecoute(evenement, arguments):
+            if evenement in ("shutil.rmtree", "os.remove") and arguments and isinstance(arguments[0], (str, bytes, os.PathLike)):
+                _noter(arguments[0])
+
+        sys.addaudithook(_ecoute)
+        _lectures = os.environ.get("CERTIF_LECTURES")
+        if _lectures:
+            # Les fichiers OUVERTS EN LECTURE par une épreuve dont la série de sabotages est jouée hors de la nuit
+            # (relecture de Cowork du 16-10-2026, cassure M1 : le relevé ne doit pas choisir ce qu'il surveille).
+            _lus = open(os.path.join(_lectures, "lus.%d.%s" % (os.getpid(), os.urandom(4).hex())), "a", encoding="utf-8")
+
+            def _lu(evenement, arguments):
+                if evenement != "open" or not arguments or not isinstance(arguments[0], (str, bytes)):
+                    return
+                mode = arguments[1] if len(arguments) > 1 else "r"
+                drapeaux = arguments[2] if len(arguments) > 2 and isinstance(arguments[2], int) else 0
+                if (mode is None and drapeaux & 3) or (mode is not None and any(c in str(mode) for c in "wax+")):
+                    return
+                try:
+                    _lus.write(os.path.realpath(os.fsdecode(arguments[0])) + "\\n")
+                    _lus.flush()
+                except Exception:
+                    pass
+
+            sys.addaudithook(_lu)
 
         def _manifeste():
             try:
@@ -120,8 +177,13 @@ if os.environ.get("COVERAGE_PROCESS_START"):
                     return
                 vus = {{}}
                 for f in c.get_data().measured_files():
+                    # seuls les fichiers que CE processus a mesurés : un processus qui efface une copie qu'un autre a
+                    # exécutée ne doit pas en donner l'empreinte (relecture du 16-10-2026, cassure 2 : un leurre
+                    # remis en état puis effacé par le parent était crédité trois fois sur quatre)
                     if {sep!r} in f and os.path.isfile(f):
                         vus[f] = hashlib.sha256(open(f, "rb").read()).hexdigest()
+                    elif {sep!r} in f and f in _avant:
+                        vus[f] = _avant[f]
                 with open(os.path.join(d, "manifeste.%d.%s.json" % (os.getpid(), os.urandom(4).hex())), "w") as s:
                     json.dump(vus, s)
             except Exception:
@@ -343,12 +405,17 @@ def lire_la_mesure(dossier, reglages, manifestes, racine):
     brut = CoverageData(basename=os.path.join(os.path.dirname(reglages), "mesure", "donnees"))
     if os.path.exists(brut.data_filename()):
         brut.read()
-    vus = {}
+    toutes = collections.defaultdict(set)
     for f in os.listdir(manifestes):
         try:
-            vus.update(json.load(open(os.path.join(manifestes, f), encoding="utf-8")))
-        except (ValueError, OSError):
+            for chemin, e in json.load(open(os.path.join(manifestes, f), encoding="utf-8")).items():
+                toutes[chemin].add(e)
+        except (ValueError, OSError, AttributeError):
             pass
+    # Un chemin qui a porté deux contenus différents (une copie sabotée puis remise en état au même endroit) n'est
+    # crédité à rien : la mesure réunit les lignes de tous les processus par chemin, et ne sait plus lesquelles
+    # viennent de quel contenu (relecture du 16-10-2026, cassure 2 ; le défaut existait avant le crochet).
+    vus = {chemin: next(iter(e)) for chemin, e in toutes.items() if len(e) == 1}
     reels = programmes_de(racine)
     empreintes = {rel: empreinte_fichier(a) for rel, a in reels.items()}
     arcs, lignes = collections.defaultdict(set), collections.defaultdict(set)
@@ -393,7 +460,8 @@ def lire_la_mesure(dossier, reglages, manifestes, racine):
 
 
 def calibrer_la_mesure(dossier, py):
-    """Vérifie que la mesure voit un programme lancé à deux niveaux de `-E`, et qu'un leurre ne fait rien créditer.
+    """Vérifie que la mesure voit un programme lancé à deux niveaux de `-E`, ou chargé d'une copie effacée avant la fin
+    du processus, et qu'un leurre ne fait rien créditer, même effacé.
 
     ① RÔLE — Prouver, avant de conclure quoi que ce soit, que la mesure n'est ni aveugle ni
       trompée.
@@ -402,12 +470,15 @@ def calibrer_la_mesure(dossier, py):
     ④ CONDITIONS D'ENTRÉE — `armer_la_mesure` a tourné.
     ⑤ SORTIE — DEUX valeurs : vrai si la mesure est juste, et la raison sinon.
       [rend: 2]
-    ⑥ TRAITEMENT — ① une sonde `sonde/depot/programmes/SONDE_DE_MESURE.py` à deux
+    ⑥ TRAITEMENT — ① une sonde `sonde/depot/programmes/SONDE_DE_MESURE.py` à trois
       fonctions ; `appelee` est appelée par un processus `python -E` lancé par un autre ·
-      ② un leurre `sonde/leurre/programmes/SONDE_DE_MESURE.py`, de même nom mais au contenu
-      différent, qui appelle `jamais_appelee` · ③ la mesure de la sonde doit dire `appelee`
-      examinée et `jamais_appelee` non examinée — si le leurre était crédité,
-      `jamais_appelee` le serait.
+      ② une copie identique `sonde/copie/programmes/SONDE_DE_MESURE.py`, d'où un processus
+      appelle `appelee_dans_une_copie_effacee` puis efface la copie (shutil.rmtree) avant de
+      finir — comme les épreuves qui effacent leur dossier jetable (16-10-2026) · ③ un leurre
+      `sonde/leurre/programmes/SONDE_DE_MESURE.py`, de même nom mais au contenu différent, qui
+      appelle `jamais_appelee` et s'efface de même · ④ la mesure de la sonde doit dire
+      `appelee` et `appelee_dans_une_copie_effacee` examinées, `jamais_appelee` non
+      examinée — si le leurre était crédité, `jamais_appelee` le serait.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Un motif se calibre sur un cas qui doit sortir et sur un cas qui ne doit pas
       sortir (instructions du projet, § 4) ; une mesure aussi.
@@ -417,17 +488,21 @@ def calibrer_la_mesure(dossier, py):
       [sort: non]
     """
     sonde = os.path.join(dossier, "sonde")
-    for d in ("depot/programmes", "leurre/programmes", "mesure", "manifestes"):
+    for d in ("depot/programmes", "copie/programmes", "leurre/programmes", "mesure", "manifestes"):
         os.makedirs(os.path.join(sonde, d))
-    vrai = "def appelee():\n    return 1\n\n\ndef jamais_appelee():\n    return 2\n"
+    vrai = ("def appelee():\n    return 1\n\n\ndef jamais_appelee():\n    return 2\n\n\n"
+            "def appelee_dans_une_copie_effacee():\n    return 3\n")
     open(os.path.join(sonde, "depot", "programmes", "SONDE_DE_MESURE.py"), "w").write(vrai)
+    open(os.path.join(sonde, "copie", "programmes", "SONDE_DE_MESURE.py"), "w").write(vrai)
     open(os.path.join(sonde, "leurre", "programmes", "SONDE_DE_MESURE.py"), "w").write(
         vrai + "\n\njamais_appelee()\nappelee()\n")
     reg = os.path.join(sonde, "sonde.rc")
     open(reg, "w").write(f"[run]\nparallel = True\nbranch = True\n"
                          f"data_file = {os.path.join(sonde, 'mesure', 'donnees')}\ninclude = */programmes/*\n")
     env = dict(os.environ, COVERAGE_PROCESS_START=reg, CERTIF_MANIFESTES=os.path.join(sonde, "manifestes"))
-    for ou, appel in (("depot", "S.appelee()"), ("leurre", "pass")):
+    effacer = "; import shutil; shutil.rmtree('programmes')"
+    for ou, appel in (("depot", "S.appelee()"), ("copie", "S.appelee_dans_une_copie_effacee()" + effacer),
+                      ("leurre", "pass" + effacer)):
         interieur = f"import sys; sys.path.insert(0, 'programmes'); import SONDE_DE_MESURE as S; {appel}"
         exterieur = (f"import subprocess, sys; subprocess.run([sys.executable, '-E', '-c', {interieur!r}], "
                      "check=True, timeout=120)")
@@ -436,8 +511,10 @@ def calibrer_la_mesure(dossier, py):
     vu = lire_la_mesure(sonde, reg, os.path.join(sonde, "manifestes"),
                         os.path.join(sonde, "depot")).get(os.path.join("programmes", "SONDE_DE_MESURE.py"), {})
     shutil.rmtree(sonde, ignore_errors=True)
-    if vu.get("fonctions") != 2 or "appelee" in vu.get("fonctions_non_examinees", ["appelee"]):
+    if vu.get("fonctions") != 3 or "appelee" in vu.get("fonctions_non_examinees", ["appelee"]):
         return False, "la mesure est aveugle : la sonde lancée par deux sous-processus n'a pas été vue"
+    if "appelee_dans_une_copie_effacee" in vu.get("fonctions_non_examinees", []):
+        return False, "la mesure est aveugle : une copie identique effacée avant la fin du processus n'a pas été vue"
     if vu.get("fonctions_non_examinees") != ["jamais_appelee"]:
         return False, "la mesure est trompée : un leurre de même nom a fait créditer la sonde"
     return True, ""
@@ -581,21 +658,196 @@ def lister_les_epreuves(copie):
     return lancements, non_declarees
 
 
-def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments):
+def options_de_lancement(copie):
+    """Lit, dans la table de lancement, les délais propres à certains lancements et les séries jouées hors de la nuit.
+
+    ① RÔLE — Dire quels lancements ont un délai à eux, et quelles séries de sabotages ne se rejouent pas la nuit.
+    ② CONTEXTE D'APPEL — `main`, une fois, après `lister_les_epreuves`.
+    ③ ENTRÉE — `copie` : la copie du dépôt.
+    ④ CONDITIONS D'ENTRÉE — `tests/LANCEMENT_DES_EPREUVES.json` se lit ; « delais » et « series_hors_de_la_nuit »
+      sont facultatifs. Un délai qui n'est pas un entier de 1 à 21 600 secondes, ou une série sans « releve », lève
+      ValueError (et `main` rend 2).
+    ⑤ SORTIE — DEUX valeurs : {« chemin arguments » : secondes} (les arguments sans « {copie} », séparés par une
+      espace) ; {chemin de l'épreuve : {« releve » : motif du relevé, relatif à la racine, « essais » : nombre
+      d'essais de la série refaits chaque nuit}}.
+      [rend: 2]
+    ⑥ TRAITEMENT — json ; contrôle de forme.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Décision de Jean-Luc du 16-10-2026 à 14h30 : la série des 167 sabotages de l'épreuve des 20 ans
+      (environ 6 heures) se rejoue quand son code change, et la nuit vérifie seulement que rien n'a changé ; la
+      série de la lecture des cours (62 minutes mesurées le 16-10-2026) reçoit un délai à elle. Les deux rougissaient
+      au certificat du 16-10-2026 (f5aac6b), arrêtées à 1 500 s. 21 600 s : les six heures d'un passage de GitHub.
+    ⑨ CE QUI CLOCHE — Un délai déclaré pour un lancement qui n'existe plus n'est pas signalé.
+    ⑩ EFFET — Lit la table.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    table = json.load(open(os.path.join(copie, LANCEMENT), encoding="utf-8"))
+    for nom in ("delais", "series_hors_de_la_nuit"):
+        if not isinstance(table.get(nom) or {}, dict):
+            raise ValueError(f"« {nom} » n'est pas une table nom → valeur")   # relecture du 16-10-2026, cassure 6
+    delais = {}
+    for cle, e in (table.get("delais") or {}).items():
+        sec = e.get("secondes") if isinstance(e, dict) else None
+        if not isinstance(sec, int) or isinstance(sec, bool) or not 1 <= sec <= 21600:
+            raise ValueError(f"délai illisible pour « {cle} » : {sec!r}")
+        delais[cle] = sec
+    series = {}
+    for chemin, e in (table.get("series_hors_de_la_nuit") or {}).items():
+        motif = e.get("releve") if isinstance(e, dict) else None
+        if not isinstance(motif, str) or not motif:
+            raise ValueError(f"série hors de la nuit sans relevé : {chemin}")
+        essais = e.get("essais_refaits_chaque_nuit")
+        if not isinstance(essais, int) or isinstance(essais, bool) or not 0 <= essais <= 50:
+            raise ValueError(f"série hors de la nuit sans nombre d'essais refaits (0 à 50) : {chemin}")
+        series[chemin] = {"releve": motif, "essais": essais}
+    return delais, series
+
+
+def verifier_une_serie(copie, chemin, motif, lus=None):
+    """Remplace, pour une série jouée hors de la nuit, le lancement « --saboter » par la vérification de son relevé.
+
+    ① RÔLE — L'alarme décidée par Jean-Luc le 16-10-2026 : la série n'est pas rejouée ; son relevé doit valoir pour
+      les fichiers du jour.
+    ② CONTEXTE D'APPEL — `main`, à la place de `jouer`, pour le lancement « --saboter » d'une épreuve déclarée dans
+      « series_hors_de_la_nuit ».
+    ③ ENTRÉE — `copie` · `chemin` : l'épreuve, relative · `motif` : le motif du relevé (glob), relatif · `lus` :
+      l'ensemble des fichiers du dépôt que l'épreuve a lus cette nuit en mode normal (`fichiers_lus`), ou None.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — TROIS valeurs, comme `jouer` : le code (0 le relevé vaut ; 1 un fichier a changé ou la série n'était
+      pas conforme ; 2 aucun relevé, plusieurs relevés, ou relevé illisible), la durée (0), une ligne de raison.
+      [rend: 3]
+    ⑥ TRAITEMENT — un seul fichier doit répondre au motif (une seule version vivante) ;
+      programmes/SERIES_DE_SABOTAGES.py, `verifier_la_serie`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir `options_de_lancement`, ⑧. Le relevé et sa vérification sont écrits une fois (R-708).
+    ⑨ CE QUI CLOCHE — Voir programmes/SERIES_DE_SABOTAGES.py, ⑨.
+    ⑩ EFFET — Lit des fichiers.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import glob
+    trouves = sorted(glob.glob(os.path.join(copie, motif)))
+    if len(trouves) != 1:
+        return 2, 0, [f"série hors de la nuit : {len(trouves)} relevé(s) pour {motif}, il en faut un seul"]
+    sp = importlib.util.spec_from_file_location("SERIES_DE_SABOTAGES",
+                                                os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                             "SERIES_DE_SABOTAGES.py"))
+    serie = importlib.util.module_from_spec(sp)
+    sp.loader.exec_module(serie)
+    code, raison = serie.verifier_la_serie(copie, chemin, os.path.relpath(trouves[0], copie).replace(os.sep, "/"), lus)
+    return code, 0, [raison]
+
+
+def fichiers_lus(lectures, copie, racine):
+    """Rend les fichiers du dépôt qu'une épreuve a ouverts en lecture, d'après les notes de ses processus.
+
+    ① RÔLE — Dire, par la mesure et non par le relevé, ce que l'épreuve d'une série hors de la nuit lit.
+    ② CONTEXTE D'APPEL — `main`, après le lancement normal d'une épreuve déclarée « series_hors_de_la_nuit ».
+    ③ ENTRÉE — `lectures` : le dossier des notes · `copie` : la copie du dépôt où l'épreuve a tourné · `racine` : le
+      dépôt certifié.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : l'ensemble des chemins relatifs (« / ») des fichiers ouverts sous la copie, qui existent
+      aussi dans le dépôt certifié, hors de .git ; un fichier compilé (__pycache__) est ramené à son .py.
+      [rend: 1]
+    ⑥ TRAITEMENT — lire chaque note ; garder les chemins sous la copie ; ramener les .pyc ; écarter ce qui n'existe
+      pas dans le dépôt certifié (les dossiers jetables de l'épreuve, les fichiers écrits par d'autres épreuves).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relecture de Cowork du 16-10-2026, cassure M1 : un relevé qui ne porte que trois empreintes passait,
+      et une clôture changée dans l'historique long n'imposait plus de rejouer la série. La liste vient désormais de
+      ce que l'épreuve lit, chaque nuit.
+    ⑨ CE QUI CLOCHE — Un programme lancé hors du Python jetable (un autre interpréteur) n'est pas noté.
+    ⑩ EFFET — Lit les notes.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import re
+    racine_copie = os.path.realpath(copie) + os.sep
+    lus = set()
+    for f in os.listdir(lectures):
+        try:
+            texte = open(os.path.join(lectures, f), encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        for p in texte.splitlines():
+            if not p.startswith(racine_copie):
+                continue
+            rel = p[len(racine_copie):].replace(os.sep, "/")
+            m = re.match(r"^(.*/)?__pycache__/([^/.]+)\.[^/]+\.pyc$", rel)
+            if m:
+                rel = (m.group(1) or "") + m.group(2) + ".py"
+            if not rel.startswith(".git/") and os.path.isfile(os.path.join(racine, rel)):
+                lus.add(rel)
+    return lus
+
+
+def refaire_des_essais(copie, py, reglages, manifestes, chemin, motif, nombre, delai):
+    """Refait, chaque nuit, quelques essais d'une série jouée hors de la nuit, et les confronte à son relevé.
+
+    ① RÔLE — Prouver que la série a vraiment tourné : un relevé écrit sans la jouer ne peut pas deviner, essai par
+      essai, la liste exacte des épreuves qui tombent.
+    ② CONTEXTE D'APPEL — `main`, après `verifier_une_serie`, quand le relevé vaut et que la table de lancement
+      demande au moins un essai refait (« essais_refaits_chaque_nuit »).
+    ③ ENTRÉE — `copie`, `py`, `reglages`, `manifestes` : comme `jouer` · `chemin` : l'épreuve, relative · `motif` : le
+      motif de son relevé · `nombre` : combien d'essais refaire · `delai` : en secondes.
+    ④ CONDITIONS D'ENTRÉE — Un seul relevé répond au motif (vérifié par `verifier_une_serie`) ; l'épreuve accepte
+      « --saboter=S1,S2,… » et écrit pour chaque sabotage une ligne « <nom> mord : [...] ».
+    ⑤ SORTIE — TROIS valeurs, comme `jouer` : le code (0 chaque essai refait rend, mot pour mot, la ligne du relevé,
+      et l'épreuve rend 0 ; 1 sinon), la durée en secondes, et les lignes qui le disent.
+      [rend: 3]
+    ⑥ TRAITEMENT — lire les lignes du relevé ; tirer `nombre` sabotages au hasard (`random.SystemRandom`) ; jouer
+      l'épreuve avec ces seuls sabotages, sous la mesure ; comparer chaque ligne rendue à celle du relevé.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Relecture de Cowork du 16-10-2026, cassure M2 : « rien ne prouve que la série a été jouée ». Décision
+      de Jean-Luc du 16-10-2026 à 18h53 : trois essais par nuit (« 1 » à « 3 essais par nuit (Recommandé) »).
+    ⑨ CE QUI CLOCHE — L'épreuve rejoue d'abord ses épreuves normales avant les sabotages choisis : le coût d'une nuit
+      est donc ce passage normal plus les essais. · Une sortie qui changerait d'une machine à l'autre pour une raison
+      sans rapport (un chemin, une heure) ferait rougir à tort : la ligne fautive est donnée.
+    ⑩ EFFET — Lance l'épreuve ; lit le relevé.
+    ⑪ TERMINAISON — Rend la main ; l'épreuve est arrêtée à `delai` secondes.
+      [sort: non]
+    """
+    import glob
+    import random
+    import re
+    releve = sorted(glob.glob(os.path.join(copie, motif)))[0]
+    attendues = {}
+    for l in open(releve, encoding="utf-8", errors="replace").read().splitlines():
+        m = re.match(r"^(\S+) (mord|NE MORD PAS|NE S'APPLIQUE PLUS)\b", l)
+        if m:
+            attendues[m.group(1)] = l
+    if not attendues:
+        return 1, 0, [f"série de {chemin} : aucun essai lisible au relevé, rien à refaire"]
+    choix = random.SystemRandom().sample(sorted(attendues), min(nombre, len(attendues)))
+    code, duree, sortie = jouer(copie, py, reglages, manifestes, chemin, ".", ["{copie}", "--saboter=" + ",".join(choix)],
+                                delai, None, None)
+    rendues = {l.split(" ", 1)[0]: l for l in sortie if re.match(r"^\S+ (mord|NE MORD PAS|NE S'APPLIQUE PLUS)\b", l)}
+    ecarts = [n for n in choix if rendues.get(n) != attendues[n]]
+    if code != 0 or ecarts:
+        return 1, duree, [f"ESSAIS REFAITS NON CONFORMES AU RELEVÉ ({', '.join(choix)}) : code {code}"] + [
+            f"{n} relevé « {attendues[n][:80]} » · refait « {(rendues.get(n) or 'absent')[:80]} »" for n in ecarts[:2]]
+    return 0, duree, [f"{len(choix)} essai(s) refait(s) cette nuit, identiques au relevé : {', '.join(choix)}"]
+
+
+def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUREE_MAX_EPREUVE, lectures=None,
+          garder=3):
     """Joue une épreuve sous la mesure et rend son code, sa durée et ses dernières lignes.
 
     ① RÔLE — Un lancement d'épreuve.
     ② CONTEXTE D'APPEL — `main`, une fois par lancement.
     ③ ENTRÉE — `copie` · `py` : le Python jetable · `reglages` · `manifestes` · `chemin` :
       l'épreuve, relative à la copie · `dossier` : le dossier de lancement, relatif à la
-      copie · `arguments` : où `{copie}` est remplacé par le chemin de la copie.
+      copie · `arguments` : où `{copie}` est remplacé par le chemin de la copie · `delai` : en
+      secondes, `DUREE_MAX_EPREUVE` sauf délai déclaré à la table de lancement (« delais ») · `lectures` : un
+      dossier où chaque processus note les fichiers qu'il ouvre en lecture, ou None · `garder` : le nombre de
+      dernières lignes de sortie rendues (None : toutes).
     ④ CONDITIONS D'ENTRÉE — La mesure est armée.
-    ⑤ SORTIE — TROIS valeurs : le code de sortie (124 si l'épreuve a dépassé
-      `DUREE_MAX_EPREUVE`), la durée en secondes, les trois dernières lignes de sa sortie.
+    ⑤ SORTIE — TROIS valeurs : le code de sortie (124 si l'épreuve a dépassé son délai), la
+      durée en secondes, les trois dernières lignes de sa sortie.
       [rend: 3]
     ⑥ TRAITEMENT — lancer `py <épreuve> <arguments>` dans le dossier, avec les variables qui
       arment la mesure et désignent le dossier des empreintes, et sans la configuration Git de
-      la machine (`GIT_CONFIG_GLOBAL`, `GIT_CONFIG_NOSYSTEM`).
+      la machine (`SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE`).
     ⑦ UNITÉ — Des secondes.
     ⑧ POURQUOI — Le même Python pour toutes les épreuves : la mesure les suit toutes. Sans la
       configuration Git de la machine : le 02-10-2026 à 19h37, la machine du Chat signait ses
@@ -605,21 +857,23 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments):
     ⑨ CE QUI CLOCHE — Une épreuve qui écrit dans la copie peut gêner la suivante ; toutes
       sont écrites pour travailler sur leurs propres copies.
     ⑩ EFFET — Lance un processus.
-    ⑪ TERMINAISON — Rend la main ; l'épreuve est arrêtée à `DUREE_MAX_EPREUVE` secondes.
+    ⑪ TERMINAISON — Rend la main ; l'épreuve est arrêtée à `delai` secondes.
       [sort: non]
     """
-    env = dict(os.environ, COVERAGE_PROCESS_START=reglages, CERTIF_MANIFESTES=manifestes,
-               GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+    env = dict(os.environ, COVERAGE_PROCESS_START=reglages, CERTIF_MANIFESTES=manifestes)
+    env.update(SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE)
+    if lectures:
+        env["CERTIF_LECTURES"] = lectures
     args = [a.replace("{copie}", copie) for a in arguments]
     debut = time.time()
     try:
         r = subprocess.run([py, os.path.join(copie, chemin)] + args, cwd=os.path.join(copie, dossier), env=env,
-                           capture_output=True, text=True, errors="replace", timeout=DUREE_MAX_EPREUVE)
+                           capture_output=True, text=True, errors="replace", timeout=delai)
         code, sortie = r.returncode, (r.stdout + r.stderr)
     except subprocess.TimeoutExpired:
-        code, sortie = 124, f"ARRÊTÉE : plus de {DUREE_MAX_EPREUVE} s"
-    lignes = [l for l in sortie.strip().splitlines() if l.strip()][-3:]
-    return code, round(time.time() - debut), lignes
+        code, sortie = 124, f"ARRÊTÉE : plus de {delai} s"
+    lignes = [l for l in sortie.strip().splitlines() if l.strip()]
+    return code, round(time.time() - debut), (lignes if garder is None else lignes[-garder:])
 
 
 def comparer(tableau, lancements, reference, sources):
@@ -811,19 +1065,38 @@ def main():
         calibree, raison = calibrer_la_mesure(jetable, py)
         try:
             lancements, non_declarees = lister_les_epreuves(copie)
+            delais, series = options_de_lancement(copie)
         except (OSError, ValueError, KeyError, TypeError, SyntaxError) as e:
             # SyntaxError : une épreuve de tests/ qui ne se lit pas ; sans cette prise, le certificateur
             # tombait sur une trace et rendait 1, sans rapport (passe ② du 02-10-2026, cas S21).
             lancements, non_declarees = [], [f"épreuves illisibles ({type(e).__name__}: {e})"]
+            delais, series = {}, {}
         if not calibree or non_declarees:
             raison = raison if not calibree else "épreuve(s) non déclarée(s) : " + ", ".join(non_declarees)
             ecrire_le_rapport(racine, horodatage, [], {}, [], "CERTIFICATION IMPOSSIBLE — " + raison,
                               "échouée" if not calibree else "réussie", non_declarees, [])
             print("CERTIFICATION IMPOSSIBLE — " + raison)
             return 2
-        resultats = []
+        resultats, lus_par_epreuve = [], {}
         for chemin, dossier, arguments in lancements:
-            code, duree, lignes = jouer(copie, py, reglages, manifestes, chemin, dossier, arguments)
+            cle = " ".join([chemin] + [a for a in arguments if a != "{copie}"])
+            if chemin in series and "--saboter" in arguments:
+                code, duree, lignes = verifier_une_serie(copie, chemin, series[chemin]["releve"],
+                                                         lus_par_epreuve.get(chemin, set()))
+                if code == 0 and series[chemin]["essais"]:
+                    code, duree, autres = refaire_des_essais(copie, py, reglages, manifestes, chemin,
+                                                             series[chemin]["releve"], series[chemin]["essais"],
+                                                             delais.get(cle, DUREE_MAX_EPREUVE))
+                    lignes = (lignes + autres)[-3:]
+            else:
+                lectures = None
+                if chemin in series:
+                    lectures = os.path.join(jetable, "lectures", os.path.basename(chemin))
+                    os.makedirs(lectures, exist_ok=True)
+                code, duree, lignes = jouer(copie, py, reglages, manifestes, chemin, dossier, arguments,
+                                            delais.get(cle, DUREE_MAX_EPREUVE), lectures)
+                if lectures:
+                    lus_par_epreuve[chemin] = fichiers_lus(lectures, copie, racine)
             resultats.append((chemin, arguments, code, duree, lignes))
             print(f"  {'vert ' if code == 0 else 'ROUGE'} {chemin} {' '.join(a for a in arguments if a != '{copie}')} "
                   f"· code {code} · {duree} s", flush=True)

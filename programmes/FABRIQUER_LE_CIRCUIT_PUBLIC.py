@@ -339,7 +339,8 @@ permissions:
 jobs:
   certifier:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    # 330 minutes (16-10-2026) : la série de la lecture des cours reçoit 3 heures à elle ; GitHub coupe à 6 heures.
+    timeout-minutes: 330
     defaults:
       run:
         shell: python3 programmes/ETAPE_MUETTE.py {0}
@@ -403,6 +404,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      # Les logiciels que les programmes cherchent par shutil.which : pdftotext (les PDF) et soffice
+      # (les .doc). Absents de la machine de GitHub, ils ont fait rougir trois epreuves au premier
+      # certificat public (16-10-2026, f5aac6b). continue-on-error : si l'installation tombe, la
+      # certification tourne quand meme, et les epreuves qui en ont besoin rougissent en le disant.
+      - name: Installer les logiciels que lisent les programmes
+        id: logiciels
+        continue-on-error: true
+        run: |
+          command -v pdftotext >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils; }
+          command -v soffice >/dev/null || command -v libreoffice >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-writer-nogui; }
+          pdftotext -v
+          soffice --version || libreoffice --version
       - name: Installer la mesure et les dependances des programmes
         id: installer
         run: python3 -m pip install --quiet "coverage==7.16.2" cryptography pyyaml

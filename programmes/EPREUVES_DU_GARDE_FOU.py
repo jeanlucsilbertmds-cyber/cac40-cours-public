@@ -24,13 +24,14 @@
   pouvoir créer des dossiers temporaires et lancer des processus Python.
 ⑤ SORTIE — **Un code de sortie, et un compte rendu affiché.** 0 si tous les cas
   de la liste `CAS` rendent le verdict attendu ET si chaque refus du garde-fou est surveillé par
-  au moins une épreuve · 1 sinon. Un contrôle qui n a pas pu tourner rend un
+  au moins une épreuve · 1 sinon · 2 quand le sabotage du programme n a pas pu
+  mesurer (le témoin, 17-10-2026). Un contrôle qui n a pas pu tourner rend un
   code non nul (R-734).
 ⑥ TRAITEMENT — ① afficher l en-tête et le nombre de cas · ② s arrêter si le
   garde-fou est introuvable · ③ soumettre chaque cas au garde-fou, dans un
-  dépôt jetable fabriqué par `batir`, et compter ceux qui rendent le code
+  dépôt jetable fabriqué par `_batir` et effacé par `lancer_un_cas`, et compter ceux qui rendent le code
   attendu · ④ neutraliser tour à tour chacun des refus du garde-fou et vérifier qu au moins une épreuve rougit ·
-  ⑤ rendre 1 si un cas est tombé à côté ou si un refus n est surveillé par rien.
+  ⑤ rendre 2 si le sabotage ne peut rien conclure (témoin ou cibles introuvables), 1 si un cas est tombé à côté ou si un refus n est surveillé par rien.
 ⑦ UNITÉ — Aucune grandeur physique : ce programme ne touche à aucune donnée de
   marché, aucun cours, aucune position. Les chiffres affichés sont des NOMBRES
   DE CAS, des NUMÉROS DE LIGNE dans le fichier du garde-fou, et des CODES DE
@@ -73,14 +74,16 @@
   d où l on lançait CE programme. Lancé depuis `programmes/`, le sabotage
   concluait à tort que ce refus n était surveillé par aucune épreuve (code 1).
   Le garde-fou est désormais lancé depuis `dossier_neutre()`.
-⑩ EFFET — **N écrit rien dans le dépôt.** Crée des dossiers temporaires qu il
-  ne supprime jamais : un par cas joué, un par copie sabotée du garde-fou, un
-  par document rejoué pendant le sabotage — 79 au total sur l exécution mesurée
-  le 19-09-2026, quand la liste comptait neuf cas. Il lance des
+⑩ EFFET — **N écrit rien dans le dépôt.** Crée des dossiers temporaires — un
+  par cas joué, un par copie du garde-fou, un par document rejoué pendant le
+  sabotage — et les efface après usage depuis le 17-10-2026, le dossier de
+  lancement partagé (`dossier_neutre`) compris, effacé à la fin normale du
+  processus depuis le 18-10-2026. Un dossier créé par
+  `_batir` fuit si `_batir` lui-même échoue (BACKLOG A-589). Il lance des
   processus Python et affiche un compte rendu.
 ⑪ TERMINAISON — **SORT DU PROGRAMME**, par la dernière ligne du fichier qui
-  transforme la valeur rendue en code de sortie : 0 si tout tient, 1 sinon.
-  Les processus lancés le sont sans délai maximal : un garde-fou qui bouclerait
+  transforme la valeur rendue en code de sortie : 0 si tout tient, 1 sinon, 2 si
+  le sabotage du programme n a pas pu mesurer. Les processus lancés le sont sans délai maximal : un garde-fou qui bouclerait
   retiendrait le programme indéfiniment.
 ⑫ DÉFINITIONS
   le garde-fou : le programme `CONTROLER_MA_LIVRAISON.py`, qui accepte ou
@@ -99,11 +102,16 @@
   un cas : une épreuve de ce programme, c'est-à-dire un défaut déjà rencontré rejoué à l'identique pour vérifier qu'il n'est pas revenu.
   un garde-fou : une limite qui, franchie, fait cesser a la strategie de prendre position tout en continuant a la mesurer.
 """
+import ast
+import atexit
+import io
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import tokenize
 
 ICI = os.path.dirname(os.path.abspath(__file__))
 GARDE = os.path.join(ICI, "CONTROLER_MA_LIVRAISON.py")
@@ -119,6 +127,18 @@ Quand l'appeler : après chaque dépôt.
 **PRODUIT PAR : les épreuves · RELIT : personne**
 
 Un texte quelconque qui décrit ce qui a été fait.
+
+## LES GESTES DU PROTOCOLE, UN PAR UN
+① cherché ce qui existe : rien.
+② écrit selon les directives.
+③ cinq passes, ci-dessous.
+④ deux tours, sans trouvaille.
+⑤ cinq questions posées, réponses ici.
+⑥ garde-fou lancé, accepté.
+⑦ relu comme un lecteur neuf.
+⑧ soumis à l expert, rien.
+⑨ gestes déclarés, cette liste.
+⑩ soumis à Cowork ensuite.
 
 ---
 
@@ -431,6 +451,57 @@ def sans(bloc, quoi):
 # dépôt jetable est donc un vrai dépôt Git dont la version de départ tient lieu de
 # version officielle. Un montage dit ce qu on écrit AVANT cette version (registre,
 # épreuves) et ce qu on change APRÈS (le travail livré).
+# ── LES GESTES DU PROTOCOLE — 16-10-2026 (décision de Jean-Luc de 18h52) ──
+# Le garde-fou lit les gestes en tête du registre (`gestes_du_protocole`) et refuse une livraison qui ne les déclare
+# pas un par un. Chaque dépôt jetable reçoit donc un registre qui porte la section du protocole, avec ses dix gestes
+# écrits comme dans le vrai (un numéro cerclé, un titre en capitales), et une sous-question en minuscules qui ne doit
+# PAS être prise pour un geste (le geste ⑦ du vrai registre en porte deux).
+GESTES_FAUX = ("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩")
+REGISTRE_PROTOCOLE = ("# REGISTRE\n\n# LE PROTOCOLE DE LIVRAISON\n\n"
+                      + "".join(f"**{g} GESTE NUMÉRO {i} — texte.**\n" + ("**① une sous-question ?**\n" if g == "⑦" else "")
+                                for i, g in enumerate(GESTES_FAUX, 1))
+                      + "**LE PROTOCOLE DU RELECTEUR — texte.**\n"
+                      + "".join(f"- **{g} GESTE DU RELECTEUR {i} — texte.**\n" for i, g in enumerate(GESTES_FAUX[:4], 1))
+                      + "- **⑤ Une remarque, pas un geste : son premier mot n est pas en capitales.**\n"
+                      + "**AUTRE PARAGRAPHE.**\n- **⑥ HORS DU PROTOCOLE DU RELECTEUR.**\n"
+                      + "\n---\n")
+# Le protocole du relecteur (16-10-2026, décision de Jean-Luc de 19h19) : quatre gestes en LISTE au geste ⑩, une
+# ligne dont le premier mot n est pas en capitales, qui n en est pas un, puis un paragraphe suivant dont la liste ne doit PAS être lue.
+REGISTRE_SANS_RELECTEUR = REGISTRE_PROTOCOLE[:REGISTRE_PROTOCOLE.index("**LE PROTOCOLE DU RELECTEUR")] + "\n---\n"
+REGISTRE_SANS_PROTOCOLE = "# REGISTRE\n\nAucun protocole ici.\n"
+GESTES_DE_CORRECT = "## LES GESTES DU PROTOCOLE, UN PAR UN"
+RELU_SANS_GESTES = CORRECT.replace("Rôle : porter le travail soumis à relecture.",
+                                   "Rôle : porter la relecture de celui qui n'a pas produit.").replace(
+    CORRECT[CORRECT.index(GESTES_DE_CORRECT):CORRECT.index("\n---\n\n# R-740")], "")
+GESTES_DU_RELECTEUR_DE_CORRECT = ("## LES GESTES DU RELECTEUR, UN PAR UN\n① chaque défaut porte sa commande.\n"
+                                  "② la famille cherchée avec un motif calibré.\n③ chaque défaut mis à l épreuve.\n"
+                                  "④ chaque défaut classé bloquant.\n")
+RELU_CORRECT = RELU_SANS_GESTES.replace("\n---\n\n# R-740", "\n" + GESTES_DU_RELECTEUR_DE_CORRECT + "\n---\n\n# R-740", 1)
+# Relecture indépendante du 16-10-2026 : trois contournements du verrou et trois refus à tort, chacun devenu un cas.
+RELU_ROLE_REFORMULE = RELU_SANS_GESTES.replace("Rôle : porter la relecture de celui qui n'a pas produit.",
+                                               "Rôle : la relecture de celui qui n'a pas produit.")
+RELU_ROLE_EN_LIGNE_4 = RELU_SANS_GESTES.replace("DÉCIDÉ · Rôle : porter la relecture de celui qui n'a pas produit.\n",
+                                                "DÉCIDÉ.\n", 1).replace("\n\n", "\n\nRôle : porter la relecture de celui qui n'a pas produit.\n", 1)
+RELU_GESTES_CITES = RELU_SANS_GESTES.replace("\n---\n\n# R-740", "\n```\n" + GESTES_DU_RELECTEUR_DE_CORRECT + "```\n\n---\n\n# R-740", 1)
+# Relecture de Cowork du 17-10-2026, point 6 : les gestes du relecteur nommés en tête, avant toute sortie.
+GESTES_NOMMES = ("## LES GESTES DU RELECTEUR, UN PAR UN\n- **① PROUVÉ** — chaque défaut porte sa commande.\n"
+                 "- **② FAMILLE** — la famille cherchée avec un motif calibré.\n"
+                 "- **③ MIS À L'ÉPREUVE** — chaque défaut mis à l épreuve.\n- **④ CLASSÉ** — chaque défaut classé.\n")
+REGISTRE_RELECTEUR_NOMME = {"fichiers": {"gouvernance/REGISTRE_REGLES.md": REGISTRE_PROTOCOLE.replace(
+    "- **① GESTE DU RELECTEUR 1 — texte.**", "- **① PROUVÉ — texte.**")}}
+RELU_GESTES_NOMMES_EN_TETE = RELU_SANS_GESTES.replace("\n\n", "\n\n" + GESTES_NOMMES + "\n", 1)
+RELU_PROUVE_DANS_LA_PHRASE = RELU_SANS_GESTES.replace("\n\n", "\n\n" + GESTES_NOMMES.replace(
+    "- **① PROUVÉ** — chaque défaut porte sa commande.", "- **① PROUVÉ** — tout est prouvé, sans commande.") + "\n", 1)
+LIVRAISON_PROUVE_EN_TETE = CORRECT.replace("\n\n", "\n\n- **① PROUVÉ** — rien à montrer.\n\n", 1)
+RELU_CONFORME_COLLE_A_UN_NUMERO = RELU_GESTES_NOMMES_EN_TETE.replace("\n\n", "\n\n③ CONFORME, livré.\n\n", 1)
+RELU_SOUS_TITRES = RELU_CORRECT.replace("① chaque", "### ① chaque").replace("② la", "### ② la").replace(
+    "③ chaque", "### ③ chaque").replace("④ chaque", "### ④ chaque")
+RELU_ROLE_LONG = RELU_CORRECT.replace("Rôle : porter la relecture de celui qui n'a pas produit.",
+                                      "Rôle : porter la relecture du travail soumis à relecture.")
+REGISTRE_DECISION_AVANT = REGISTRE_PROTOCOLE.replace("**LE PROTOCOLE DU RELECTEUR — texte.**\n",
+                                                     "**LE PROTOCOLE DU RELECTEUR — texte.**\n**DÉCIDÉ PAR JEAN-LUC — texte.**\n")
+REGISTRE_RELECTEUR_EN_TITRE = REGISTRE_PROTOCOLE.replace("**LE PROTOCOLE DU RELECTEUR — texte.**\n",
+                                                         "### LE PROTOCOLE DU RELECTEUR\n")
 _PIEGE_SORTIE = "```\n$ python3 programmes/EPREUVES_DU_SOCLE.py .\n  toutes les épreuves passent\n```\n"
 # Le troisième porte une apostrophe, comme un vrai piège du registre : le 30-09-2026 à 06h35,
 # le garde-fou ne savait pas le reconnaître et refusait toute livraison qui modifie un programme.
@@ -438,11 +509,11 @@ PIEGES_FAUX_REGISTRE = ("un lecteur du même fichier oublié", "une épreuve san
                         "un témoin qui n'emprunte pas le chemin du calcul réel")
 CORRECT_PIEGES = CORRECT + "\n**PIÈGES DE R-755 ③**\n\n" + "".join(
     f"**{pg}** — écarté :\n{_PIEGE_SORTIE}\n" for pg in PIEGES_FAUX_REGISTRE)
-REGISTRE_R755 = ("# REGISTRE\n\n### R-755 — UN TRAVAIL DE CODE SE LIVRE AVEC SES ÉPREUVES\n\n"
+REGISTRE_R755 = (REGISTRE_PROTOCOLE + "\n### R-755 — UN TRAVAIL DE CODE SE LIVRE AVEC SES ÉPREUVES\n\n"
                  "③ **Le relecteur reçoit la liste des pièges :**\n"
                  + "".join(f"- **{pg}** — exemple ;\n" for pg in PIEGES_FAUX_REGISTRE)
                  + "Un piège nouveau trouvé en relecture s ajoute à cette liste.\n\n### R-756 — SUITE\n")
-REGISTRE_SANS_LISTE = REGISTRE_R755.split("③")[0] + "### R-756 — SUITE\n"
+REGISTRE_SANS_LISTE = REGISTRE_R755.split("③ **Le relecteur")[0] + "### R-756 — SUITE\n"
 EPREUVE_DE_CAS = "# éprouve programmes/cas.py\n"
 CAS_CODE_CHANGE = PROG_CORRECT.replace("    return len(liste)\n", "    return len(list(liste))\n")
 CAS_TEXTE_CHANGE = PROG_CORRECT.replace("Servir d épreuve au garde-fou.", "Servir d épreuve au garde-fou, texte changé.")
@@ -639,6 +710,74 @@ CAS = [
      "R-734 : sans la liste de R-755 ③, le contrôle ne peut pas tourner — refus",
      {"cas.py": PROG_CORRECT}, {**MONTAGE_EPROUVE, "fichiers": {"gouvernance/REGISTRE_REGLES.md": REGISTRE_SANS_LISTE,
                                                "tests/EPREUVE_DE_CAS.py": EPREUVE_DE_CAS}}),
+
+    # ── les gestes du protocole, déclarés un par un — 16-10-2026, décision de Jean-Luc de 18h52 ──
+    ("gestes : titre absent", CORRECT.replace(GESTES_DE_CORRECT, "## UNE LISTE"), 1,
+     "geste ⑨ : la livraison déclare les gestes sous un titre qui les annonce"),
+    ("gestes : le ⑦ manque", CORRECT.replace("⑦ relu comme un lecteur neuf.\n", ""), 1,
+     "geste ⑨ : chaque geste a sa ligne — le 16-10-2026, le Chat en avait oublié, et rien ne l avait arrêté"),
+    ("gestes : le ⑤ sans texte", CORRECT.replace("⑤ cinq questions posées, réponses ici.", "⑤ fait"), 1,
+     "geste ⑨ : une ligne par geste dit ce qui a été fait, « sans objet » avec sa raison"),
+    ("gestes : le ⑩ hors de sa section", CORRECT.replace("⑩ soumis à Cowork ensuite.\n", "") + "\n⑩ soumis à Cowork ensuite.\n", 1,
+     "geste ⑨ : un geste déclaré loin de la liste ne compte pas"),
+    ("gestes : relecture sans gestes", RELU_SANS_GESTES, 1,
+     "geste ⑩ : une relecture déclare les quatre gestes du relecteur (décision de Jean-Luc du 16-10-2026, 19h19)"),
+    ("gestes : relecture qui les déclare", RELU_CORRECT, 0,
+     "geste ⑩ : quatre lignes sous le titre suffisent ; les gestes de la livraison ne sont pas exigés d une relecture"),
+    ("gestes : relecture qui nomme ses gestes en tête", RELU_GESTES_NOMMES_EN_TETE, 0,
+     "R-720 : « ① PROUVÉ » nomme le geste, il n affirme rien (relecture de Cowork du 17-10-2026, point 6)",
+     {"cas.py": PROG_CORRECT}, REGISTRE_RELECTEUR_NOMME),
+    ("gestes : « prouvé » dans la phrase d un geste", RELU_PROUVE_DANS_LA_PHRASE, 1,
+     "R-720 : seul le nom collé au numéro est exempté ; « tout est prouvé » plus loin reste une affirmation",
+     {"cas.py": PROG_CORRECT}, REGISTRE_RELECTEUR_NOMME),
+    ("gestes : « ③ CONFORME », un mot qui n est pas le nom du geste ③", RELU_CONFORME_COLLE_A_UN_NUMERO, 1,
+     "R-720 : seul le nom que le registre donne au geste de ce numéro est exempté (relecture indépendante, tour 11)",
+     {"cas.py": PROG_CORRECT}, REGISTRE_RELECTEUR_NOMME),
+    ("gestes : une livraison qui écrit « ① PROUVÉ »", LIVRAISON_PROUVE_EN_TETE, 1,
+     "R-720 : « PROUVÉ » est le nom d un geste du RELECTEUR ; dans une livraison, c est une affirmation (tour 12)",
+     {"cas.py": PROG_CORRECT}, REGISTRE_RELECTEUR_NOMME),
+    ("gestes : relecture sans le ③", RELU_CORRECT.replace("③ chaque défaut mis à l épreuve.\n", ""), 1,
+     "geste ⑩ : chaque geste du relecteur a sa ligne — une fausse alerte coûte un tour"),
+    ("gestes : relecture sous un titre de livraison", RELU_CORRECT.replace("## LES GESTES DU RELECTEUR, UN PAR UN",
+                                                                         GESTES_DE_CORRECT), 1,
+     "geste ⑩ : le titre dit qu il s agit des gestes du relecteur"),
+    ("gestes : relecture, registre sans protocole du relecteur", RELU_CORRECT, 1,
+     "R-734 : sans la liste des gestes du relecteur, le contrôle ne peut pas tourner — refus",
+     {"cas.py": PROG_CORRECT}, {"fichiers": {"gouvernance/REGISTRE_REGLES.md": REGISTRE_SANS_RELECTEUR}}),
+    ("rôle : reformulé, sans gestes", RELU_ROLE_REFORMULE, 1,
+     "R-730 : il n y a que deux rôles ; un rôle reformulé faisait sauter le verrou (relecture du 16-10-2026, C1)"),
+    ("rôle : en quatrième ligne", RELU_ROLE_EN_LIGNE_4, 0,
+     "sans rôle en tête, le document n est pas une note d échange pour ce contrôle ; c est programmes/BOUCLE_DE_CHECK.py "
+     "qui exige le rôle des deux notes (relecture du 16-10-2026, C2 puis point 12)"),
+    ("gestes : cités dans un bloc capturé", RELU_GESTES_CITES, 1,
+     "une citation ne déclare rien (relecture du 16-10-2026, C3)"),
+    ("gestes : déclarés en sous-titres", RELU_SOUS_TITRES, 0,
+     "« ### ① … » est une déclaration (relecture du 16-10-2026, F1)"),
+    ("rôle : relecture d un travail soumis à relecture", RELU_ROLE_LONG, 0,
+     "« porter la relecture » l emporte : c est une relecture (relecture du 16-10-2026, F3)"),
+    ("gestes : registre, une décision avant la liste du relecteur", RELU_CORRECT, 0,
+     "une ligne en gras avant le premier geste ne ferme pas la liste (relecture du 16-10-2026, F4)",
+     {"cas.py": PROG_CORRECT}, {"fichiers": {"gouvernance/REGISTRE_REGLES.md": REGISTRE_DECISION_AVANT}}),
+    ("gestes : registre, protocole du relecteur en titre", RELU_CORRECT, 0,
+     "le paragraphe peut s ouvrir par un titre (relecture du 16-10-2026, point 16 D)",
+     {"cas.py": PROG_CORRECT}, {"fichiers": {"gouvernance/REGISTRE_REGLES.md": REGISTRE_RELECTEUR_EN_TITRE}}),
+    # « --attendu » : la boucle de check dit au garde-fou le rôle exigé (16-10-2026, troisième tour de la relecture)
+    ("rôle attendu : relecture, déclarée", RELU_CORRECT, 0, "le rôle lu est celui attendu",
+     {"cas.py": PROG_CORRECT}, {"arguments": ["--attendu=relecture"]}),
+    ("rôle attendu : relecture, non déclarée", RELU_SANS_GESTES.replace(
+        "Rôle : porter la relecture de celui qui n'a pas produit.", "rôle — porter la relecture."), 1,
+     "V1 du troisième tour : sans « Rôle : », la boucle croyait au rôle et le garde-fou ne l exigeait pas",
+     {"cas.py": PROG_CORRECT}, {"arguments": ["--attendu=relecture"]}),
+    ("rôle attendu : livraison, document de relecture", RELU_CORRECT, 1, "une relecture n est pas une livraison",
+     {"cas.py": PROG_CORRECT}, {"arguments": ["--attendu=livraison"]}),
+    ("rôle attendu : valeur inconnue", CORRECT, 1, "un rôle attendu inconnu est une erreur dite",
+     {"cas.py": PROG_CORRECT}, {"arguments": ["--attendu=etude"]}),
+    ("gestes : livraison, registre sans protocole du relecteur", CORRECT, 0,
+     "le protocole du relecteur n est exigé que d une relecture : une livraison n en dépend pas",
+     {"cas.py": PROG_CORRECT}, {"fichiers": {"gouvernance/REGISTRE_REGLES.md": REGISTRE_SANS_RELECTEUR}}),
+    ("gestes : registre sans protocole", CORRECT, 1,
+     "R-734 : sans la liste des gestes, le contrôle ne peut pas tourner — refus",
+     {"cas.py": PROG_CORRECT}, {"fichiers": {"gouvernance/REGISTRE_REGLES.md": REGISTRE_SANS_PROTOCOLE}}),
 ]
 
 
@@ -695,9 +834,9 @@ def batir(texte, programmes=_DEFAUT, montage=None):
       garde-fou examine** : un dossier jetable qui porte le document à contrôler
       sous `echanges/A_RELIRE.md` et, sauf demande contraire, un dossier
       `programmes` dont le garde-fou confrontera les fiches à leur code.
-    ② CONTEXTE D APPEL — Deux appelants, dans ce fichier : `jouer`, une fois par
-      cas, et `saboter_le_programme`, une fois par cas qui doit être refusé et
-      par refus neutralisé.
+    ② CONTEXTE D APPEL — Aucun appelant dans ce fichier depuis le 17-10-2026 :
+      `lancer_un_cas` appelle son corps, `_batir`, pour effacer le dépôt après
+      usage. Elle reste pour qui veut un dépôt jetable à garder.
     ③ ENTRÉE — `texte` : le document à contrôler, une chaîne. `programmes` : un
       dictionnaire dont chaque clé est un nom de fichier et chaque valeur le
       texte Python à y écrire ; `None` pour ne créer AUCUN dossier `programmes` ;
@@ -722,8 +861,8 @@ def batir(texte, programmes=_DEFAUT, montage=None):
       appris à en écrire, le sabotage aurait vu tous ses documents refusés pour
       cette seule raison, et conclu à tort que chaque refus était surveillé.
       Deux implémentations d une même chose divergent toujours (R-708).
-    ⑨ CE QUI CLOCHE — Le dossier créé n est jamais supprimé, comme ceux que
-      `jouer` créait avant cette fonction.
+    ⑨ CE QUI CLOCHE — Le dossier créé n est pas supprimé : appelée seule, elle
+      le laisse à son appelant. `lancer_un_cas` efface le sien (17-10-2026).
     ⑩ EFFET — Crée un dossier temporaire et y écrit un fichier, plus un par
       programme fourni et par fichier du montage ; y LANCE `git` pour créer le dépôt
       jetable.
@@ -736,6 +875,32 @@ def batir(texte, programmes=_DEFAUT, montage=None):
       une fiche : le texte explicatif écrit en tête d une fonction, qui porte ses
         onze ou douze éléments
     """
+    return _batir(texte, programmes, montage)[1]
+
+
+def _batir(texte, programmes=_DEFAUT, montage=None):
+    """Le corps de `batir`, qui rend aussi la racine du dépôt jetable, pour que son appelant l'efface.
+
+    ① RÔLE — Fabriquer le dépôt jetable que décrit la fiche de `batir`, et rendre sa racine.
+    ② CONTEXTE D APPEL — `batir`, et `lancer_un_cas` une fois par cas lancé.
+    ③ ENTRÉE — `texte`, `programmes`, `montage` : les mêmes que pour la fonction publique
+      qui l'appelle, décrits dans sa fiche.
+    ④ CONDITIONS D ENTRÉE — Celles de `batir` : pouvoir créer un dossier temporaire, et `git`
+      installé sauf avec `sans_git`.
+    ⑤ SORTIE — DEUX valeurs : la racine du dépôt jetable, puis le chemin du document.
+      [rend: 2]
+    ⑥ TRAITEMENT — Celui de `batir`, puis rendre la racine avec le chemin.
+    ⑦ UNITÉ — Aucune grandeur : des chemins et des textes.
+    ⑧ POURQUOI — Effacer la racine que l'on a créée, et non une racine déduite du chemin du
+      document (superviseur, R-759, 17-10-2026 vers 23h) : une déduction fausse effacerait
+      autre chose, ou rien.
+    ⑨ CE QUI CLOCHE — Si `git` échoue (`check=True`), le dossier déjà créé n'est effacé par
+      personne (BACKLOG A-589 ⑩).
+    ⑩ EFFET — Celui de `batir` : un dossier temporaire, ses fichiers, un dépôt `git`.
+    ⑪ TERMINAISON — Rend la main après avoir écrit ; aucun de ses appels ne peut bloquer au-delà
+      d'une écriture de fichier ou d'une commande `git` locale.
+      [sort: non]
+    """
     if programmes is _DEFAUT:
         programmes = {"cas.py": PROG_CORRECT}
     d = tempfile.mkdtemp(prefix="epreuve_")
@@ -747,7 +912,8 @@ def batir(texte, programmes=_DEFAUT, montage=None):
         for nom, source in {**SCRIPTS_CITES, **programmes}.items():
             open(os.path.join(d, "programmes", nom), "w", encoding="utf-8").write(source)
     montage = montage or {}
-    _ecrire(d, montage.get("fichiers", {}))
+    # un registre qui porte le protocole, sauf si le montage en pose un autre (16-10-2026 : `gestes_du_protocole`)
+    _ecrire(d, {"gouvernance/REGISTRE_REGLES.md": REGISTRE_PROTOCOLE, **montage.get("fichiers", {})})
     if not montage.get("sans_git"):
         # la version de départ tient lieu de version officielle (origin/main)
         g = ["git", "-C", d, "-c", "user.name=epreuve", "-c", "user.email=epreuve@local"]
@@ -758,7 +924,7 @@ def batir(texte, programmes=_DEFAUT, montage=None):
         if montage.get("commiter_apres"):
             for a in (["add", "-A"], ["commit", "-q", "-m", "travail"]):
                 subprocess.run(g + a, capture_output=True, check=True)
-    return p
+    return d, p
 
 
 _NEUTRE = []
@@ -771,8 +937,8 @@ def dossier_neutre():
       l endroit d où l on lance ces épreuves.** Ce dossier porte un sous-dossier
       `programmes` avec les deux scripts que le document de référence cite, et
       rien d autre.
-    ② CONTEXTE D APPEL — Depuis `jouer`, une fois par cas, et depuis
-      `saboter_le_programme`, une fois par cas rejoué contre une copie sabotée.
+    ② CONTEXTE D APPEL — Depuis `lancer_un_cas`, une fois par cas lancé, pour
+      `jouer` comme pour `saboter_le_programme` (17-10-2026).
       Seul le premier appel crée le dossier ; les suivants rendent le même.
     ③ ENTRÉE — Aucune.
     ④ CONDITIONS D ENTRÉE — Pouvoir créer un dossier temporaire et y écrire.
@@ -796,10 +962,13 @@ def dossier_neutre():
       garde-fou recopiait tout le dépôt et y lançait les vraies épreuves du
       socle. Un dossier neutre, identique à chaque lancement, retire les deux
       dépendances.
-    ⑨ CE QUI CLOCHE — Le dossier créé n est jamais supprimé, comme ceux de
-      `batir`.
-    ⑩ EFFET — Au premier appel : crée un dossier temporaire et y écrit un
-      fichier par script cité. Ensuite : aucun.
+    ⑨ CE QUI CLOCHE — Le dossier est partagé par tous les cas du processus : il
+      n est effacé qu à la fin normale du processus (`atexit`, 18-10-2026, après
+      la relecture de Cowork de 01h10 : 38 dossiers laissés, un par processus).
+      Un arrêt forcé le laisse encore (BACKLOG A-589 ⑤).
+    ⑩ EFFET — Au premier appel : crée un dossier temporaire, y écrit un
+      fichier par script cité, et inscrit son effacement à la fin du processus.
+      Ensuite : aucun.
     ⑪ TERMINAISON — Rend la main après au plus quelques écritures de fichiers.
       Aucun de ses appels ne peut bloquer.
       [sort: non]
@@ -816,6 +985,8 @@ def dossier_neutre():
             with open(os.path.join(d, "programmes", nom), "w", encoding="utf-8") as f:
                 f.write(source)
         _NEUTRE.append(d)
+        # effacé à la fin normale du processus, qui seul l'utilise (superviseur, R-759, 18-10-2026, rendu vers 01h16)
+        atexit.register(shutil.rmtree, d, True)
     return _NEUTRE[0]
 
 
@@ -825,9 +996,8 @@ def jouer(nom, texte, attendu, motif, programmes=_DEFAUT, montage=None):
     ① RÔLE — **Soumettre un document au garde-fou et dire si le verdict est celui
       qu on attendait.** C est l unité de mesure du programme : un cas, un verdict.
     ② CONTEXTE D APPEL — Depuis la fonction principale, une fois par cas de la
-      liste `CAS`. Le sabotage des refus, lui, relance le garde-fou directement
-      sans passer par elle, mais construit son dépôt jetable par la même
-      fonction `batir`.
+      liste `CAS`. Le sabotage des refus ne passe pas par elle, mais lance ses
+      cas par le même lanceur, `lancer_un_cas` (17-10-2026).
     ③ ENTRÉE — `nom` : le libellé du cas, affiché en tête de la ligne de résultat,
       par exemple « sortie fabriquée » · `texte` : le contenu du document à
       soumettre · `attendu` : le code de sortie que le garde-fou doit rendre, 0
@@ -842,10 +1012,10 @@ def jouer(nom, texte, attendu, motif, programmes=_DEFAUT, montage=None):
     ⑤ SORTIE — **UNE valeur : vrai si le garde-fou a rendu le code attendu, faux
       sinon.** Le détail part à l affichage, pas dans la valeur rendue.
       [rend: 1]
-    ⑥ TRAITEMENT — ①② faire fabriquer par `batir` le dépôt jetable qui porte le
-      document sous `echanges/A_RELIRE.md` et ses programmes · ③ lancer le
-      garde-fou sur ce fichier dans un processus séparé, depuis le dossier
-      `dossier_neutre()` · ④ comparer le code rendu
+    ⑥ TRAITEMENT — ①②③ faire lancer le cas par `lancer_un_cas` : dépôt
+      jetable qui porte le document sous `echanges/A_RELIRE.md` et ses
+      programmes, garde-fou lancé dans un processus séparé, avec les arguments du
+      montage, depuis le dossier `dossier_neutre()` · ④ comparer le code rendu
       au code attendu · ⑤ afficher une ligne de résultat portant le nom du cas, le
       code obtenu et le code attendu · ⑥ si le cas tombe à côté, afficher le motif
       puis les lignes de la sortie du garde-fou qui contiennent un point médian ou
@@ -868,8 +1038,8 @@ def jouer(nom, texte, attendu, motif, programmes=_DEFAUT, montage=None):
       SABOTAGE du refus « aucun programme » en dépendait : lancé depuis
       `programmes/`, il concluait à tort que ce refus n était surveillé par
       aucune épreuve (mesure du 28-09-2026, refus ligne 1110).
-    ⑩ EFFET — **Crée un dossier temporaire par appel, par `batir`, et ne le
-      supprime jamais.** Y écrit le document et les programmes du cas. Lance un processus Python. Quand
+    ⑩ EFFET — Crée un dossier temporaire par appel, par `lancer_un_cas`, qui
+      l efface au retour (17-10-2026). Y écrit le document et les programmes du cas. Lance un processus Python. Quand
       le garde-fou accepte le document, il réécrit ce fichier temporaire.
     ⑪ TERMINAISON — Rend la main après le verdict. **Le processus lancé l est sans
       délai maximal** : si le garde-fou ne se terminait pas, cette fonction ne
@@ -887,12 +1057,10 @@ def jouer(nom, texte, attendu, motif, programmes=_DEFAUT, montage=None):
       un cas : une épreuve de ce programme, c'est-à-dire un défaut déjà rencontré rejoué à l'identique pour vérifier qu'il n'est pas revenu.
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
-    p = batir(texte, programmes, montage)
-    r = subprocess.run([sys.executable, GARDE, p],
-                       capture_output=True, text=True, errors="replace",
-                       cwd=dossier_neutre())
-    ok = r.returncode == attendu
-    print(f"  {'OK ' if ok else '❌ '} {nom:<38} code {r.returncode} "
+    r = lancer_un_cas(GARDE, texte, programmes, montage)
+    code = r.returncode
+    ok = code == attendu
+    print(f"  {'OK ' if ok else '❌ '} {nom:<38} code {code} "
           f"(attendu {attendu})")
     if not ok:
         print(f"       {motif}")
@@ -900,6 +1068,295 @@ def jouer(nom, texte, attendu, motif, programmes=_DEFAUT, montage=None):
             if "·" in l or "REFUS" in l:
                 print(f"       {l.strip()[:86]}")
     return ok
+
+
+def lancer_un_cas(garde, texte, programmes=_DEFAUT, montage=None):
+    """Lance un garde-fou sur un cas, exactement comme partout ailleurs, et rend le processus terminé.
+
+    ① RÔLE — Le SEUL lanceur d'un cas : `jouer` et `saboter_le_programme` l'appellent tous deux, avec le même
+      dépôt jetable, les mêmes arguments du montage et le même dossier de lancement.
+    ② CONTEXTE D APPEL — `jouer` (le vrai garde-fou) et `saboter_le_programme` (une copie, sabotée ou non).
+    ③ ENTRÉE — `garde` : le chemin du garde-fou à lancer · `texte`, `programmes`, `montage` : ceux du cas,
+      transmis à `_batir` ; les arguments du montage (`montage["arguments"]`) suivent le document.
+    ④ CONDITIONS D ENTRÉE — Pouvoir créer un dossier temporaire et lancer un processus Python.
+    ⑤ SORTIE — UNE valeur : le processus terminé (`subprocess.CompletedProcess`) — son code de sortie
+      (`returncode`) et ses sorties (`stdout`, `stderr`), que `jouer` affiche quand un cas tombe.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① `_batir` le dépôt jetable · ② lancer le garde-fou sur le document, avec les arguments du
+      montage, depuis `dossier_neutre()` · ③ effacer le dépôt jetable, même si le lancement échoue · ④ rendre
+      le processus.
+    ⑦ UNITÉ — Un code de sortie et des textes.
+    ⑧ POURQUOI — Deux lanceurs d'une même chose divergent toujours (R-708) : jusqu'au 17-10-2026, le sabotage
+      relançait les cas SANS les arguments du montage ; les trois cas « --attendu » ajoutés le 16-10-2026
+      rendaient alors un autre code que 1 même sur le garde-fou intact, et chaque refus neutralisé était déclaré « surveillé » — la mesure était
+      aveugle (superviseur, R-759, 17-10-2026 ; l'épreuve du dossier de lancement avait perdu ses dents).
+      Il rend le processus entier, pas son seul code : la première version ne rendait que le code, et
+      `jouer` lisait encore la sortie d'une variable disparue — plantage au premier cas qui tombe, vu par le
+      relecteur neuf du 17-10-2026 à 22h50.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Un dépôt jetable par appel, créé puis effacé ; le garde-fou réécrit le document s'il l'accepte.
+    ⑪ TERMINAISON — Rend la main ; le lancement n'a pas de délai maximal (voir `saboter_le_programme`, ⑪).
+      [sort: non]
+    """
+    d, p = _batir(texte, programmes, montage)
+    try:
+        r = subprocess.run([sys.executable, garde, p] + list((montage or {}).get("arguments", [])),
+                       capture_output=True, text=True, errors="replace",
+                       cwd=dossier_neutre())
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    return r
+
+
+def copie_du_garde_fou(lignes):
+    """Écrit le texte `lignes` du garde-fou dans un dépôt jetable, avec ses voisins, et rend sa racine et son chemin.
+
+    ① RÔLE — Donner à `saboter_le_programme` une copie du garde-fou qui démarre comme le vrai.
+    ② CONTEXTE D APPEL — `saboter_le_programme`, une fois intacte (le témoin) puis une fois par
+      refus neutralisé.
+    ③ ENTRÉE — `lignes` : le texte du garde-fou, ligne par ligne.
+    ④ CONDITIONS D ENTRÉE — Pouvoir créer un dossier temporaire et y écrire.
+    ⑤ SORTIE — DEUX valeurs : la racine de la copie, à effacer par l'appelant, puis le chemin du
+      garde-fou copié.
+      [rend: 2]
+    ⑥ TRAITEMENT — Créer un dossier `programmes`, y écrire la copie, puis ses voisins s'ils
+      existent : `LIRE_LE_CODE.py`, `QUI_TOUCHE_CE_FICHIER.py`, `FABRIQUER_LE_SOCLE.py`, et
+      `emp.py` au-dessus.
+    ⑦ UNITÉ — Aucune grandeur : des chemins et des textes.
+    ⑧ POURQUOI — Une copie posée seule ne démarre pas (commentaire du 22-09-2026 dans
+      `saboter_le_programme`) ; écrite une fois pour la copie intacte et les copies sabotées,
+      parce que deux implémentations d'une même chose divergent toujours (R-708).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Un dossier temporaire, que l'appelant efface.
+    ⑪ TERMINAISON — Rend la main après quelques écritures de fichiers ; aucun appel ne peut
+      bloquer.
+      [sort: non]
+    """
+    d = tempfile.mkdtemp(prefix="sabot_")
+    os.makedirs(os.path.join(d, "programmes"), exist_ok=True)
+    g = os.path.join(d, "programmes", "GARDE.py")
+    open(g, "w", encoding="utf-8").write("\n".join(lignes))
+    for voisin, ou in ((os.path.join(ICI, "LIRE_LE_CODE.py"), os.path.join(d, "programmes", "LIRE_LE_CODE.py")),
+                       (os.path.join(ICI, "QUI_TOUCHE_CE_FICHIER.py"),
+                        os.path.join(d, "programmes", "QUI_TOUCHE_CE_FICHIER.py")),
+                       (os.path.join(ICI, "FABRIQUER_LE_SOCLE.py"),
+                        os.path.join(d, "programmes", "FABRIQUER_LE_SOCLE.py")),
+                       (os.path.join(os.path.dirname(ICI), "emp.py"), os.path.join(d, "emp.py"))):
+        if os.path.exists(voisin):
+            shutil.copy(voisin, ou)
+    return d, g
+
+
+def un_cas_de_refus_passe(garde):
+    """Dit si un cas qui doit être refusé PASSE devant ce garde-fou : le seul jugement du sabotage du programme.
+
+    ① RÔLE — Le corps unique du sabotage du programme : la sélection des cas (ceux qui doivent
+      être refusés), le lanceur (`lancer_un_cas`, avec le montage du cas) et le critère (un
+      code 0).
+    ② CONTEXTE D APPEL — `saboter_le_programme`, une fois sur la copie intacte (le témoin), puis
+      une fois par copie sabotée.
+    ③ ENTRÉE — `garde` : le chemin d'un garde-fou à lancer.
+    ④ CONDITIONS D ENTRÉE — Celles de `lancer_un_cas` : pouvoir créer un dossier temporaire et
+      lancer un processus Python.
+    ⑤ SORTIE — UNE valeur : vrai dès qu'un cas qui doit être refusé rend le code 0, faux sinon.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque cas de `CAS` dont le code attendu est 1, le lancer ; s'arrêter au
+      premier qui rend 0.
+    ⑦ UNITÉ — Des codes de sortie de processus.
+    ⑧ POURQUOI — Le témoin et la boucle passent par ce MÊME corps (superviseur, R-759,
+      17-10-2026 vers 23h) : si la sélection, le lanceur ou le critère se dérèglent, le témoin —
+      la copie intacte — voit un cas passer et la mesure s'arrête, au lieu de tout déclarer
+      surveillé. Mesuré sur le vrai code par le second relecteur neuf : sélection retirée,
+      critère inversé, montage retiré — les trois arrêtés par le témoin. Un contrôle préalable
+      écrit à part ne voyait aucun des trois (premier relecteur neuf et superviseur).
+    ⑨ CE QUI CLOCHE — Le jugement (`tombe = …` dans l'appelant) n'est pas couvert : `tombe =
+      True` resterait vert. Une copie qui refuserait tout passe le témoin : le verdict est
+      alors rouge, avec un diagnostic faux (BACKLOG A-589 ② et ③).
+    ⑩ EFFET — Ceux de `lancer_un_cas` : un dépôt jetable par cas lancé, effacé au retour.
+    ⑪ TERMINAISON — Rend la main quand un cas passe ou que tous ont été lancés ; chaque
+      lancement est sans délai maximal, comme dans `lancer_un_cas`.
+      [sort: non]
+    """
+    for cas in CAS:
+        if cas[2] != 1:
+            continue
+        if lancer_un_cas(garde, cas[1], *cas[4:6]).returncode == 0:
+            return True
+    return False
+
+
+def cibles_du_garde_fou(src):
+    """Trouve, dans l'arbre du garde-fou, les lignes qui ajoutent un motif à la liste que son verdict lit.
+
+    ① RÔLE — Choisir les refus à saboter par une PROPRIÉTÉ du programme, et non par une chaîne de
+      caractères : la liste créée vide (`= []`) dont le test seul (`if <liste>:`) mène à `sys.exit(1)`,
+      puis chaque instruction isolée `<liste>.append(…)`. **Une cible est une LIGNE du code, pas un
+      refus** : une ligne qui tourne plusieurs fois avec des motifs différents en porte plusieurs (voir ⑨).
+    ② CONTEXTE D APPEL — `saboter_le_programme`, une fois, sur le texte du garde-fou ;
+      `epreuves_des_cibles`, sur cinq copies de ce texte.
+    ③ ENTRÉE — `src` : le texte du garde-fou, une chaîne.
+    ④ CONDITIONS D ENTRÉE — Le texte doit s'analyser comme du Python.
+    ⑤ SORTIE — DEUX valeurs : la liste triée des numéros de ligne des cibles, comptés à partir de 0,
+      ou None quand la mesure ne peut rien conclure ; puis le motif, une phrase.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① relever les listes créées vides · ② relever les verdicts : un `if` dont le test est
+      le nom d'une de ces listes et dont le corps contient `sys.exit(1)` ; il en faut exactement un ·
+      ③ pour chaque usage de ce nom hors du verdict et de toute affectation `<liste> = []` : un `append` en instruction
+      isolée est une cible, tout autre usage est un intrus · ④ un intrus, ou zéro cible : None.
+    ⑦ UNITÉ — Des numéros de ligne, comptés à partir de 0.
+    ⑧ POURQUOI — Le 18-10-2026 à 01h10, Cowork a renommé la liste `refus` en `rejets` dans une copie du
+      garde-fou : la recherche par la chaîne « refus.append » trouvait 0 cible, et tout restait vert
+      (« SABOTAGE DU PROGRAMME — 0 refus neutralisés », code 0). Le superviseur (R-759, rendu vers 01h16) a
+      refusé la seule règle « zéro cible → code 2 » : un refus versé par une autre liste puis
+      `refus.extend(…)` laissait 23 cibles sur 24, un refus jamais saboté, et tout vert. Par l'arbre, le
+      renommage est suivi, et tout usage du nom de la liste hors d'un `append` isolé arrête la mesure —
+      ce qui ne couvre pas un `append` isolé appelé plusieurs fois (⑨). Mesuré par le superviseur sur
+      le vrai garde-fou : 24 cibles, les mêmes lignes que par la chaîne.
+    ⑨ CE QUI CLOCHE — **① Une ligne n'est pas un refus (A1, relecteur neuf du 18-10-2026, rendu vers
+      01h39).** Dans le vrai garde-fou, le `refus.append` de la boucle des passes ①, ② et ③ porte trois
+      refus ; seul celui de la passe ② est surveillé par un cas, et la ligne est déclarée « surveillée ».
+      Mesuré : refus de la passe ① retiré seul, 70/70 ; de la passe ②, 69/70 ; de la passe ③, 70/70 —
+      deux refus aveugles ET verts, antérieurs à cette fonction (la chaîne avait le même défaut).
+      **② Une fonction d'aide imbriquée (A2)** dont le corps est un seul `refus.append`, appelée pour
+      plusieurs refus, échappe de la même façon : mesuré, 24 cibles, tout vert, alors qu'un refus ajouté
+      par elle n'est vu par aucun cas. Réparation au BACKLOG A-590. **③ Des arrêts à tort** : un verdict
+      écrit autrement (`if len(refus) > 0:`), une simple lecture (`print(len(refus))`), ou une variable
+      homonyme dans une autre fonction arrêtent la mesure — prudent (code 2), mais coûteux. **④ Les
+      refus faits par un `sys.exit(1)` direct** restent hors de la mesure (BACKLOG A-589 ④).
+    ⑩ EFFET — Aucun : lit un texte.
+    ⑪ TERMINAISON — Rend la main après un parcours de l'arbre ; aucun appel ne peut bloquer.
+      [sort: non]
+    """
+    arbre = ast.parse(src)
+
+    def sort_en_1(bloc):
+        """Dit si un bloc de code contient un appel `….exit(1)`.
+
+        ① RÔLE — Reconnaître le corps d'un verdict qui fait rendre 1 au garde-fou.
+        ② CONTEXTE D APPEL — `cibles_du_garde_fou`, pour chaque instruction du corps d'un `if <liste>:`.
+        ③ ENTRÉE — `bloc` : un nœud de l'arbre du programme.
+        ④ CONDITIONS D ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : vrai si un appel dont l'attribut est `exit` a pour premier argument 1.
+          [rend: 1]
+        ⑥ TRAITEMENT — Parcourir les nœuds du bloc et chercher cet appel.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Le verdict est la liste dont le test mène à la sortie 1 (superviseur, R-759, 18-10-2026).
+        ⑨ CE QUI CLOCHE — Un `sys.exit(1)` placé dans une fonction appelée par le corps n'est pas vu.
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main après un parcours du bloc.
+          [sort: non]
+        """
+        return any(isinstance(x, ast.Call) and getattr(x.func, "attr", "") == "exit" and x.args
+                   and isinstance(x.args[0], ast.Constant) and x.args[0].value == 1 for x in ast.walk(bloc))
+    listes = {c.id for n in ast.walk(arbre) if isinstance(n, ast.Assign) and isinstance(n.value, ast.List)
+              and not n.value.elts for c in n.targets if isinstance(c, ast.Name)}
+    verdicts = [n for n in ast.walk(arbre) if isinstance(n, ast.If) and isinstance(n.test, ast.Name)
+                and n.test.id in listes and any(sort_en_1(s) for s in n.body)]
+    if len(verdicts) != 1:
+        return None, f"{len(verdicts)} verdict(s) « if <liste>: … sys.exit(1) » trouvé(s), il en faut un"
+    verdict = verdicts[0]
+    nom = verdict.test.id
+    dedans = {id(x) for s in verdict.body for x in ast.walk(s)} | {id(verdict.test)}
+    parent = {c: n for n in ast.walk(arbre) for c in ast.iter_child_nodes(n)}
+    cibles, intrus = [], []
+    for n in ast.walk(arbre):
+        if not (isinstance(n, ast.Name) and n.id == nom) or id(n) in dedans:
+            continue
+        p = parent[n]
+        if isinstance(n.ctx, ast.Store) and isinstance(p, ast.Assign) and isinstance(p.value, ast.List) \
+                and not p.value.elts:
+            continue
+        if isinstance(p, ast.Attribute) and p.attr == "append" and isinstance(parent[p], ast.Call) \
+                and isinstance(parent[parent[p]], ast.Expr):
+            cibles.append(parent[p].lineno - 1)
+            continue
+        intrus.append(n.lineno)
+    if intrus:
+        return None, f"la liste « {nom} » est écrite ou lue hors d'un append isolé, lignes {intrus[:5]}"
+    if not cibles:
+        return None, f"aucun « {nom}.append » : rien à saboter"
+    return sorted(cibles), f"liste « {nom} »"
+
+
+def epreuves_des_cibles():
+    """Éprouve `cibles_du_garde_fou` sur cinq copies du vrai garde-fou, et rend le nombre d'écarts.
+
+    ① RÔLE — Prouver que la recherche des cibles suit un renommage et s'arrête devant une écriture
+      détournée, sur le texte réel du garde-fou.
+    ② CONTEXTE D APPEL — `main`, une fois, avant le sabotage du programme.
+    ③ ENTRÉE — Aucune : lit le garde-fou désigné par `GARDE`.
+    ④ CONDITIONS D ENTRÉE — Le garde-fou porte exactement une ligne `refus = []` et une ligne `if refus:`
+      (sinon les copies ne se fabriquent pas, et c'est compté comme un écart).
+    ⑤ SORTIE — UNE valeur : le nombre d'écarts, un entier ; 0 si les cinq cas rendent l'attendu.
+      [rend: 1]
+    ⑥ TRAITEMENT — Fabriquer cinq textes — intact ; `refus` renommé `rejets` (jetons de nom seulement) ;
+      un alias `ajoute = refus.append` ; un `refus.extend([])` ; le verdict réécrit `if len(refus) > 0:` —
+      et comparer : l'intact rend les mêmes lignes que la chaîne « refus.append » ; le renommé, le
+      même NOMBRE de lignes seulement — alors qu'un renommage par jetons ne déplace aucune ligne
+      (mesuré par Cowork le 18-10-2026 à 02h05 : 1905 lignes avant et après, mêmes lignes) ; comparer
+      les mêmes lignes est donc possible dès aujourd'hui (BACKLOG A-590 ④) ; les trois autres rendent
+      None. Un commentaire qui citerait « refus.append » ferait rougir l'intact à tort (BACKLOG A-590).
+    ⑦ UNITÉ — Un nombre d'écarts.
+    ⑧ POURQUOI — Les cinq copies reprennent celles que le superviseur a mesurées le 18-10-2026 (rendu
+      vers 01h16), jouées ici en cas directs, dans le même processus, sans sabotage du sabotage. Une
+      seule diffère : l'écriture par `extend` est jouée avec `refus.extend([])`, et non avec un refus
+      versé dans une autre liste puis ajouté ; la recherche s'arrête sur l'`extend` lui-même.
+    ⑨ CE QUI CLOCHE — Les copies se fabriquent sur le texte du garde-fou : s'il change de forme, l'épreuve
+      rougit par un écart de fabrication, ce qui est voulu.
+    ⑩ EFFET — Affiche une ligne par cas.
+    ⑪ TERMINAISON — Rend la main après cinq analyses ; aucun appel ne peut bloquer.
+      [sort: non]
+    """
+    src = open(GARDE, encoding="utf-8", errors="replace").read()
+    lignes = src.split("\n")
+    par_chaine = [i for i, l in enumerate(lignes) if "refus.append" in l]
+    creation = [i for i, l in enumerate(lignes) if re.fullmatch(r"\s*refus = \[\]", l)]
+    verdict = [i for i, l in enumerate(lignes) if re.fullmatch(r"\s*if refus:", l)]
+    if len(creation) != 1 or len(verdict) != 1:
+        print(f"  ❌ cibles : copies impossibles à fabriquer ({len(creation)} création(s), {len(verdict)} verdict(s))")
+        return 1
+    c, v = creation[0], verdict[0]
+    marge = lignes[c][:len(lignes[c]) - len(lignes[c].lstrip())]
+    jetons = [(j.type, "rejets" if j.type == tokenize.NAME and j.string == "refus" else j.string)
+              for j in tokenize.generate_tokens(io.StringIO(src).readline)]
+
+    def inserer(texte):
+        """Rend le texte du garde-fou avec une ligne ajoutée juste après la création de la liste des refus.
+
+        ① RÔLE — Fabriquer les copies « alias » et « extend » de `epreuves_des_cibles`.
+        ② CONTEXTE D APPEL — `epreuves_des_cibles`, deux fois.
+        ③ ENTRÉE — `texte` : l'instruction à ajouter, sans sa marge.
+        ④ CONDITIONS D ENTRÉE — La ligne de création a été trouvée une fois (vérifié par l'appelant).
+        ⑤ SORTIE — UNE valeur : le texte complet de la copie.
+          [rend: 1]
+        ⑥ TRAITEMENT — Ajouter la ligne, avec la marge de la création, juste après elle.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Deux copies se fabriquent de la même façon : écrite une fois (R-708).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        return "\n".join(lignes[:c + 1] + [marge + texte] + lignes[c + 1:])
+    cas = [("intact", src, par_chaine),
+           ("liste renommée", tokenize.untokenize(jetons), par_chaine),
+           ("alias de append", inserer("ajoute = refus.append"), None),
+           ("écriture par extend", inserer("refus.extend([])"), None),
+           ("verdict réécrit", "\n".join(lignes[:v] + [lignes[v].replace("if refus:", "if len(refus) > 0:")]
+                                          + lignes[v + 1:]), None)]
+    ecarts = 0
+    for nom, texte, attendu in cas:
+        try:
+            obtenu = cibles_du_garde_fou(texte)[0]
+        except SyntaxError as e:
+            obtenu = f"texte invalide : {e}"
+        ok = obtenu == attendu if attendu is None else (obtenu is not None and len(obtenu) == len(attendu))
+        if nom == "intact":
+            ok = obtenu == attendu
+        ecarts += not ok
+        print(f"  {'OK ' if ok else '❌ '} cibles : {nom:<22} "
+              f"{'arrêt (None)' if obtenu is None else str(len(obtenu)) + ' cible(s)' if isinstance(obtenu, list) else obtenu}")
+    return ecarts
 
 
 def saboter_le_programme():
@@ -914,17 +1371,22 @@ def saboter_le_programme():
     ④ CONDITIONS D ENTRÉE — Le fichier du garde-fou doit être lisible. Il faut
       pouvoir créer des dossiers temporaires et lancer des processus Python.
     ⑤ SORTIE — **UNE valeur : la liste des NUMÉROS DE LIGNE des refus qu aucune
-      épreuve ne voit**, comptés à partir de 1. Liste vide si tous sont surveillés.
+      épreuve ne voit**, comptés à partir de 1. Liste vide si tous sont surveillés ; None si
+      la mesure ne peut rien conclure : le témoin (un cas qui doit être refusé passe devant la copie
+      intacte), ou les cibles introuvables (`cibles_du_garde_fou`).
       [rend: 1]
-    ⑥ TRAITEMENT — ① lire le texte du garde-fou · ② relever les lignes qui
-      contiennent le texte `refus.append` · ③ pour chacune,
+    ⑥ TRAITEMENT — ① lire le texte du garde-fou · ② relever les refus par
+      `cibles_du_garde_fou`, dans l arbre du programme ; si elle ne peut rien
+      conclure, rendre None · ③ pour chacun,
       recopier le programme en remplaçant cette ligne et ses lignes de continuation
       par une instruction vide de même indentation, puis écrire la copie dans un
       dossier jetable · ④ lui soumettre chaque cas qui doit être refusé, dans un
-      dépôt jetable fabriqué par `batir` comme pour `jouer`, en lançant la copie
+      dépôt jetable fabriqué par `_batir` comme pour `jouer`, par `lancer_un_cas`, en lançant la copie
       depuis `dossier_neutre()` — c est ici que ce dossier change un verdict : le
       cas « aucun programme à confronter » rejoue ses commandes depuis le dossier
-      de lancement —, en s arrêtant au premier qui ne rend plus le code 1 · ⑤ afficher pour ce refus
+      de lancement —, en s arrêtant au premier qui PASSE (code 0), par `un_cas_de_refus_passe` ;
+      avant tout cela, le TÉMOIN : la copie INTACTE passe par le même corps, et si un cas y passe,
+      la mesure est aveugle et la fonction rend None (superviseur, R-759, 17-10-2026) · ⑤ afficher pour ce refus
       s il est surveillé ou non · ⑥ rendre la liste des refus non surveillés.
     ⑦ UNITÉ — Des NUMÉROS DE LIGNE dans le fichier du garde-fou, comptés à partir
       de 1 alors que la lecture du fichier les compte à partir de 0, d où le +1 à
@@ -942,28 +1404,33 @@ def saboter_le_programme():
       voie le refus pour qu il soit surveillé. Mesuré le 19-09-2026, avec neuf
       refus et huit cas fautifs : soixante et un lancements au lieu de
       soixante-douze.
-    ⑨ CE QUI CLOCHE — Trois points.
-      **① La cible est choisie sur du texte, pas sur une propriété.** Une ligne est
-      prise pour cible parce qu elle contient les douze caractères `refus.append`.
-      Mesuré le 19-09-2026 : les neuf occurrences du garde-fou sont bien neuf
-      instructions. Le jour où ce texte apparaîtrait dans un commentaire ou dans
-      une chaîne affichée, il serait neutralisé comme les autres, et le compte de
-      refus annoncé serait faux.
-      **② Un plantage du programme saboté se lit comme un refus légitime.** Un
-      refus est déclaré surveillé dès qu un cas rend un code différent de 1 ; or
-      Python rend précisément le code 1 sur une exception non rattrapée — mesuré :
+    ⑨ CE QUI CLOCHE — Quatre points.
+      **① La cible était choisie sur du texte** — réparé le 18-10-2026 : elle est
+      choisie dans l arbre du programme par `cibles_du_garde_fou`. Avant, une
+      ligne était prise pour cible parce qu elle contenait les douze caractères
+      `refus.append` ; Cowork a renommé la liste dans une copie, et le sabotage
+      a trouvé 0 cible, tout vert (relecture du 18-10-2026 à 01h10).
+      **② Un plantage du programme saboté se lit comme un refus légitime.** Python rend
+      le code 1 sur une exception non rattrapée — mesuré :
       `python3 -c "raise ValueError('x')"` rend 1. Une copie sabotée qui ne
-      compilerait plus serait donc rangée parmi les refus que rien ne surveille,
-      ce qui est le bon verdict pour une mauvaise raison.
+      compilerait plus est donc rangée parmi les refus que rien ne surveille,
+      ce qui est le bon verdict pour une mauvaise raison. Le critère du 17-10-2026
+      (un refus est surveillé si un cas PASSE, code 0) n y change rien : il ne
+      diffère de l ancien (code différent de 1) que pour un code ni 0 ni 1, que le
+      garde-fou ne rend jamais (second relecteur neuf, 17-10-2026 vers 23h40).
+      **④ Une ligne neutralisée peut porter plusieurs refus** (18-10-2026) : voir la
+      fiche ⑨ de `cibles_du_garde_fou` — deux refus du vrai garde-fou sont aveugles
+      ET verts aujourd hui, le sabotage les dit « surveillés » (BACKLOG A-590).
       **③ Le verdict dépend entièrement du document de référence.** Tant qu il
       est refusé pour un motif qui lui est propre, tous les documents le sont
       aussi, et neutraliser un refus ne change plus rien au code rendu. Mesuré le
       19-09-2026 : 7 des 9 refus déclarés non surveillés pour cette seule raison.
       **Mesuré le 20-09-2026 : les 10 refus du garde-fou sont surveillés.**
-    ⑩ EFFET — **Écrit une copie sabotée du garde-fou par refus, chacune dans son
-      dossier temporaire, et un dépôt jetable par cas essayé**, par `batir` ;
-      au premier appel de `dossier_neutre()`, un dossier de lancement de plus.
-      Aucun n est supprimé. Ne touche ni au fichier du garde-fou, ni au dépôt.
+    ⑩ EFFET — **Écrit une copie du garde-fou (intacte, puis une par refus),
+      chacune dans son dossier temporaire, et un dépôt jetable par cas essayé**,
+      tous effacés après usage depuis le 17-10-2026 ; au premier appel de
+      `dossier_neutre()`, un dossier de lancement de plus, effacé à la fin du processus. Ne touche ni au
+      fichier du garde-fou, ni au dépôt.
     ⑪ TERMINAISON — Rend la liste puis la main. **Les processus lancés le sont sans
       délai maximal** : une copie sabotée qui bouclerait retiendrait cette fonction
       indéfiniment.
@@ -981,8 +1448,22 @@ def saboter_le_programme():
 """
     src = open(GARDE, encoding="utf-8", errors="replace").read()
     lignes = src.split("\n")
-    cibles = [i for i, l in enumerate(lignes) if "refus.append" in l]
-    print(f"\n  SABOTAGE DU PROGRAMME — {len(cibles)} refus neutralisés un à un")
+    cibles, motif = cibles_du_garde_fou(src)
+    if cibles is None:
+        print(f"\n  ❌ CIBLES INTROUVABLES — {motif} ; le sabotage ne peut rien conclure.")
+        return None
+    print(f"\n  SABOTAGE DU PROGRAMME — {len(cibles)} refus neutralisés un à un ({motif})")
+    # LE TÉMOIN (superviseur, R-759, 17-10-2026, 23h) : la copie INTACTE passe par le même corps que les copies
+    # sabotées ; si un cas qui doit être refusé y passe, la mesure est aveugle et ne peut rien conclure (R-734).
+    racine, intacte = copie_du_garde_fou(lignes)
+    try:
+        aveugle = un_cas_de_refus_passe(intacte)
+    finally:
+        shutil.rmtree(racine, ignore_errors=True)
+    if aveugle:
+        print("  ❌ MESURE AVEUGLE — TÉMOIN : sur la copie intacte du garde-fou, un cas qui doit être refusé passe ;"
+              " le sabotage ne peut rien conclure.")
+        return None
     nus = []
     for i in cibles:
         mod = list(lignes)
@@ -1002,31 +1483,13 @@ def saboter_le_programme():
         # le code 1 comme un refus, et le sabotage conclut a tort que le refus
         # neutralise n est surveille par personne. On recree donc autour d elle la
         # forme du depot : un dossier `programmes`, et `emp.py` au-dessus.
-        d = tempfile.mkdtemp(prefix="sabot_")
-        os.makedirs(os.path.join(d, "programmes"), exist_ok=True)
-        g = os.path.join(d, "programmes", "GARDE.py")
-        open(g, "w", encoding="utf-8").write("\n".join(mod))
-        for voisin, ou in ((os.path.join(ICI, "LIRE_LE_CODE.py"),
-                            os.path.join(d, "programmes", "LIRE_LE_CODE.py")),
-                           (os.path.join(ICI, "QUI_TOUCHE_CE_FICHIER.py"),
-                            os.path.join(d, "programmes", "QUI_TOUCHE_CE_FICHIER.py")),
-                           (os.path.join(ICI, "FABRIQUER_LE_SOCLE.py"),
-                            os.path.join(d, "programmes", "FABRIQUER_LE_SOCLE.py")),
-                           (os.path.join(os.path.dirname(ICI), "emp.py"),
-                            os.path.join(d, "emp.py"))):
-            if os.path.exists(voisin):
-                shutil.copy(voisin, ou)
-        tombe = False
-        for cas in CAS:
-            if cas[2] != 1:
-                continue
-            p = batir(cas[1], *cas[4:6])
-            r = subprocess.run([sys.executable, g, p],
-                               capture_output=True, text=True, errors="replace",
-                               cwd=dossier_neutre())
-            if r.returncode != 1:
-                tombe = True
-                break
+        # Un refus est vu quand un cas qui devait être refusé PASSE (code 0) une fois ce refus retiré ; un
+        # plantage rend 1, comme un refus, et ne compte donc pas comme un refus levé (superviseur, R-759).
+        racine, g = copie_du_garde_fou(mod)
+        try:
+            tombe = un_cas_de_refus_passe(g)
+        finally:
+            shutil.rmtree(racine, ignore_errors=True)
         etat = "surveillé" if tombe else "*** AUCUNE ÉPREUVE NE LE VOIT ***"
         print(f"  {'OK ' if tombe else '❌ '} refus ligne {i + 1:<5} {etat}")
         if not tombe:
@@ -1045,15 +1508,16 @@ def main():
     ③ ENTRÉE — Aucun paramètre, et aucun argument de ligne de commande n est lu.
     ④ CONDITIONS D ENTRÉE — Aucune. L absence du fichier du garde-fou est traitée
       par la fonction elle-même, pas exigée de l appelant.
-    ⑤ SORTIE — **UNE valeur, un entier : 0 si tout tient, 1 sinon.** Le compte
-      rendu complet part à l affichage.
+    ⑤ SORTIE — **UNE valeur, un entier : 0 si tout tient, 1 sinon, 2 si le
+      sabotage du programme n a pas pu mesurer (le témoin).** Le compte rendu
+      complet part à l affichage.
       [rend: 1]
     ⑥ TRAITEMENT — ① afficher le nom du garde-fou éprouvé et le nombre de cas ·
       ② rendre 1 si le fichier du garde-fou est introuvable · ③ jouer tous les cas
-      de la liste `CAS` et compter ceux qui rendent le verdict attendu · ④ afficher ce compte ·
-      ⑤ neutraliser les refus un par un · ⑥ afficher la liste des refus non
-      surveillés s il y en a · ⑦ rendre 1 si un cas est tombé à côté ou si un refus
-      n est surveillé par rien, sinon 0.
+      de la liste `CAS` et compter ceux qui rendent le verdict attendu · ④ afficher ce compte,
+      puis éprouver la recherche des cibles (`epreuves_des_cibles`) · ⑤ neutraliser les refus un par un · ⑥ afficher la liste des refus non
+      surveillés s il y en a · ⑦ rendre 2 si le sabotage n a rien pu conclure (témoin ou cibles introuvables), 1 si un cas est tombé à côté, si la recherche
+      des cibles s écarte de l attendu ou si un refus n est surveillé par rien, sinon 0.
     ⑦ UNITÉ — Un NOMBRE DE CAS, un NOMBRE DE REFUS, des NUMÉROS DE LIGNE dans le
       fichier du garde-fou, et un CODE DE SORTIE.
     ⑧ POURQUOI — **Les deux mesures sont jouées en entier avant de conclure, et
@@ -1062,7 +1526,14 @@ def main():
       commencer. **Et le verdict est un code de sortie, pas une phrase** : un
       contrôle qui n a pas pu tourner rend un code non nul (R-734), ce qui permet
       à une tâche automatique de rougir sans que personne lise l affichage.
-    ⑨ CE QUI CLOCHE — Deux points.
+    ⑨ CE QUI CLOCHE — Trois points.
+      **⓪ Le code 2 masque le code 1, et c est systématique** (second relecteur neuf,
+      17-10-2026 vers 23h40) : quand le VRAI garde-fou laisse passer un cas qui doit
+      être refusé, `jouer` le voit tomber, puis le témoin rejoue ce même cas sur la
+      copie intacte, le voit passer, et le programme annonce « MESURE AVEUGLE »,
+      code 2, au lieu de « NE COUVRE PAS ». Le résultat reste rouge et le compte des
+      cas tombés reste affiché au-dessus, mais le verdict envoie réparer les
+      épreuves au lieu du garde-fou (BACKLOG A-589).
       **① Le code 1 porte trois causes différentes** : garde-fou introuvable, cas
       tombé à côté, refus non surveillé. Mesuré le 19-09-2026, il en portait deux à
       la fois — 8 cas justes sur 9, et 7 refus sur 9 sans surveillance — et le code
@@ -1074,8 +1545,8 @@ def main():
       référence, et depuis le 20-09-2026 ceux qui prouvent qu une fiche juste
       n est pas accusée à tort.
     ⑩ EFFET — **N écrit elle-même aucun fichier** : elle affiche. Ses deux appels
-      créent en revanche des dossiers temporaires qui ne sont pas supprimés — 79
-      sur l exécution mesurée le 19-09-2026.
+      créent des dossiers temporaires, effacés après usage depuis le 17-10-2026 ;
+      le dossier de lancement partagé (`dossier_neutre`), à la fin du processus.
     ⑪ TERMINAISON — Rend un entier, que la dernière ligne du fichier transforme en
       code de sortie du processus. Ses deux appels lancent des processus sans délai
       maximal : si l un d eux ne se terminait pas, elle ne reviendrait pas non plus.
@@ -1096,11 +1567,15 @@ def main():
         return 1
     bons = sum(jouer(*c) for c in CAS)
     print(f"\n  {bons}/{len(CAS)} épreuves passent")
+    ecarts_cibles = epreuves_des_cibles()
     nus = saboter_le_programme()
+    if nus is None:
+        print("  ❌ LE SABOTAGE DU PROGRAMME N A PAS PU MESURER (R-734).")
+        return 2
     if nus:
         print(f"\n  ❌ {len(nus)} refus NE SONT SURVEILLÉS PAR AUCUNE ÉPREUVE : "
               f"lignes {', '.join(str(x) for x in nus)}")
-    if bons < len(CAS) or nus:
+    if bons < len(CAS) or nus or ecarts_cibles:
         print("  ❌ LE JEU D ÉPREUVES NE COUVRE PAS LE GARDE-FOU.")
         return 1
     return 0

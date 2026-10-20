@@ -34,7 +34,19 @@ AUTRE.py qu'aucune épreuve n'exécute (relecture de Cowork du 02-10-2026, secon
 sa ligne « import os » → 1 · S24 il porte un octet qui n'est pas de l'UTF-8 → 2, « que Python ne sait pas lire » · S25 une
 épreuve se met à l'exécuter → 0 : un progrès n'est pas un recul (le cas qui ne doit PAS rougir) · S26 une épreuve est jouée sans la configuration Git
 de la machine → 0 (le 02-10-2026, la signature des commits de la machine du Chat faisait rougir une épreuve ici seulement) ·
-S27 AUTRE.py, qu'aucune épreuve n'exécute, est supprimé → 1 (cas K19 de Cowork, troisième tour).
+S27 AUTRE.py, qu'aucune épreuve n'exécute, est supprimé → 1 (cas K19 de Cowork, troisième tour). · S28 COPIE
+EFFACÉE : l'épreuve exécute CALCUL.py depuis une copie IDENTIQUE qu'elle efface avant de finir → 0 (ajouté le
+16-10-2026 : l'épreuve de la lecture des cours efface ainsi sa copie, et LIRE_LES_COURS.py paraissait « jamais
+examiné » au certificat f5aac6b) · S29 LEURRE EFFACÉ : la même chose avec une copie MODIFIÉE → 1. · S30 DÉLAI
+DÉCLARÉ : sous un certificateur borné à 5 s, une épreuve de 8 s dont la table de lancement déclare 60 s → 0 · S31 SÉRIE
+HORS DE LA NUIT : l'épreuve rend 1 avec --saboter, mais la table déclare sa série jouée ailleurs et son relevé vaut
+→ 0 (la série n'est pas jouée) · S32 la même, CALCUL.py changé après le relevé → 1 · S33 la même, sans relevé → 1
+(décision de Jean-Luc du 16-10-2026 à 14h30) · S34 LEURRE REMIS EN ÉTAT PUIS EFFACÉ : un enfant exécute `triple` dans
+une copie modifiée, le parent y remet le vrai contenu puis l'efface → 1 (relecture du 16-10-2026) · S35 SÉRIE HORS
+DE LA NUIT, DONNÉE LUE SANS EMPREINTE : l'épreuve lit donnees/choix.txt, que le relevé ne couvre pas → 1 (relecture de
+Cowork du 16-10-2026, cassure M1 : la liste à surveiller vient de ce que l'épreuve lit, jamais du relevé) · S36 UN ESSAI
+REFAIT, identique au relevé → 0 · S37 UN ESSAI REFAIT, différent du relevé (relevé écrit sans jouer la série) → 1
+(cassure M2 ; décision de Jean-Luc du 16-10-2026 à 18h53 : trois essais refaits par nuit).
 
 LES SABOTAGES (avec --saboter) : chaque correction du certificateur est retirée, une à la fois, dans une copie ; l'épreuve
 qui la surveille DOIT changer de résultat. Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas une
@@ -76,6 +88,33 @@ LEURRE = ("import os, subprocess, sys, tempfile\n"
           "subprocess.run([sys.executable, '-E', '-c', entete + 'C.triple(2)'], cwd=t, check=True, timeout=120)\n"
           "subprocess.run([sys.executable, '-E', '-c', entete + 'C.double(2); C.signe(3); C.signe(-3)'], cwd=racine,\n"
           "               check=True, timeout=120)\n")
+# S34 : un enfant exécute une copie MODIFIÉE ; le parent y remet le vrai contenu, puis l'efface (relecture du
+# 16-10-2026, cassure 2 : ce leurre était crédité trois fois sur quatre). Deux gardes s'y opposent, chacune suffit :
+# le parent ne donne l'empreinte que de ce qu'il a mesuré ; un chemin à deux contenus n'est crédité à rien. Aucun
+# sabotage d'une seule garde ne peut donc faire rougir S34 : c'est voulu, et dit ici.
+REMIS = ("import os, shutil, subprocess, sys, tempfile\n"
+         "racine = sys.argv[1]\n"
+         "t = tempfile.mkdtemp()\n"
+         "os.makedirs(os.path.join(t, 'programmes'))\n"
+         "vrai = open(os.path.join(racine, 'programmes', 'CALCUL.py')).read()\n"
+         "open(os.path.join(t, 'programmes', 'CALCUL.py'), 'w').write(vrai + '\\n# leurre\\n')\n"
+         "entete = \"import sys; sys.path.insert(0, 'programmes'); import CALCUL as C; \"\n"
+         "subprocess.run([sys.executable, '-E', '-c', entete + 'C.triple(2)'], cwd=t, check=True, timeout=120)\n"
+         "open(os.path.join(t, 'programmes', 'CALCUL.py'), 'w').write(vrai)\n"
+         "shutil.rmtree(os.path.join(t, 'programmes'))\n"
+         "subprocess.run([sys.executable, '-E', '-c', entete + 'C.double(2); C.signe(3); C.signe(-3)'], cwd=racine,\n"
+         "               check=True, timeout=120)\n")
+# S28, S29 : l'épreuve exécute CALCUL.py dans une copie qu'elle efface elle-même avant de finir (16-10-2026).
+EFFACEE = ("import os, subprocess, sys, tempfile\n"
+           "racine = sys.argv[1]\n"
+           "t = tempfile.mkdtemp()\n"
+           "os.makedirs(os.path.join(t, 'programmes'))\n"
+           "open(os.path.join(t, 'programmes', 'CALCUL.py'), 'w').write(\n"
+           "    open(os.path.join(racine, 'programmes', 'CALCUL.py')).read() + {ajout!r})\n"
+           "code = (\"import sys, shutil; sys.path.insert(0, 'programmes'); import CALCUL as C; \" + {appels!r}\n"
+           "        + \"; shutil.rmtree('programmes')\")\n"
+           "r = subprocess.run([sys.executable, '-E', '-c', code], cwd=t, timeout=120)\n"
+           "sys.exit(r.returncode)\n")
 
 
 def epreuve(appels):
@@ -221,6 +260,10 @@ def saboter_le_certificateur(tmp, certificateur, remplacements):
     chemin = os.path.join(tmp, "CERTIFIER_SABOTE.py")
     with open(chemin, "w", encoding="utf-8") as f:
         f.write(t)
+    # le certificateur charge programmes/SERIES_DE_SABOTAGES.py depuis son propre dossier (16-10-2026)
+    voisin = os.path.join(os.path.dirname(os.path.abspath(certificateur)), "SERIES_DE_SABOTAGES.py")
+    if os.path.isfile(voisin):
+        shutil.copy(voisin, os.path.join(tmp, "SERIES_DE_SABOTAGES.py"))
     return chemin
 
 
@@ -228,8 +271,8 @@ AVEUGLE = [
     ('env = dict(os.environ, COVERAGE_PROCESS_START=reg, CERTIF_MANIFESTES=os.path.join(sonde, "manifestes"))',
      'env = {k: v for k, v in os.environ.items() if not k.startswith("COVERAGE")}; '
      'env["CERTIF_MANIFESTES"] = os.path.join(sonde, "manifestes")'),
-    ('env = dict(os.environ, COVERAGE_PROCESS_START=reglages, CERTIF_MANIFESTES=manifestes,',
-     'env = dict({k: v for k, v in os.environ.items() if not k.startswith("COVERAGE")}, CERTIF_MANIFESTES=manifestes,'),
+    ('env = dict(os.environ, COVERAGE_PROCESS_START=reglages, CERTIF_MANIFESTES=manifestes)',
+     'env = dict({k: v for k, v in os.environ.items() if not k.startswith("COVERAGE")}, CERTIF_MANIFESTES=manifestes)'),
 ]
 CREDULE = [("if rel not in reels or vus.get(f) != empreintes[rel]:", "if rel not in reels:")]
 
@@ -284,6 +327,42 @@ def cas(nom, cert, tmp):
         return c == 2, f"écriture de la référence par un certificateur crédule : {c} (attendu 2)"
     if nom == "S6":
         cert = saboter_le_certificateur(tmp, cert, [("DUREE_MAX_EPREUVE = 1500", "DUREE_MAX_EPREUVE = 5")])
+    if nom == "S30":
+        cert = saboter_le_certificateur(tmp, cert, [("DUREE_MAX_EPREUVE = 1500", "DUREE_MAX_EPREUVE = 5")])
+        racine, e = base(tmp, cert)
+        ecrire(racine, "tests/EPREUVE_LENTE.py", "import time\ntime.sleep(8)\n")
+        ecrire(racine, "tests/LANCEMENT_DES_EPREUVES.json",
+               '{"epreuves": {}, "delais": {"tests/EPREUVE_LENTE.py": {"secondes": 60}}}\n')
+        c = certifier(cert, racine)
+        return e == 0 and c == 0, f"référence {e}, épreuve de 8 s sous un délai déclaré de 60 s : {c} (attendu 0 puis 0)"
+    if nom in ("S31", "S32", "S33", "S35", "S36", "S37"):
+        racine, e = base(tmp, cert)
+        lit = ("import os\nopen(os.path.join(sys.argv[1], 'donnees', 'choix.txt')).read()\n" if nom == "S35" else "")
+        if nom == "S35":
+            ecrire(racine, "donnees/choix.txt", "1\n")
+        # « --saboter » seul (la série entière) rend 1 : elle ne doit pas être jouée la nuit ; « --saboter=S1 » (un
+        # essai refait, S36 et S37) écrit sa ligne et rend 0.
+        ecrire(racine, "tests/EPREUVE_CALCUL.py", "import sys\nSABOTAGES = {'S1': 1}\nif '--saboter' in sys.argv:\n"
+                                                  "    sys.exit(1)\nif '--saboter=S1' in sys.argv:\n"
+                                                  "    print(\"S1 mord : ['E1']\")\n" + lit + epreuve(TOUS))
+        essais = 1 if nom in ("S36", "S37") else 0
+        ecrire(racine, "tests/LANCEMENT_DES_EPREUVES.json",
+               '{"epreuves": {}, "series_hors_de_la_nuit": {"tests/EPREUVE_CALCUL.py": '
+               '{"releve": "tests/resultats/SERIE_DE_CALCUL_*.txt", "essais_refaits_chaque_nuit": %d}}}\n' % essais)
+        if nom != "S33":
+            import importlib.util
+            sp = importlib.util.spec_from_file_location("SERIE_", os.path.join(os.path.dirname(CERTIFICATEUR),
+                                                                              "SERIES_DE_SABOTAGES.py"))
+            serie = importlib.util.module_from_spec(sp)
+            sp.loader.exec_module(serie)
+            serie.ecrire_le_releve(racine, "tests/resultats/SERIE_DE_CALCUL_1.txt", "tests/EPREUVE_CALCUL.py",
+                                   ["programmes/CALCUL.py"], ["S1 mord : ['E2']" if nom == "S37" else "S1 mord : ['E1']"],
+                                   True, ["cas de l'épreuve"])
+        if nom == "S32":
+            ecrire(racine, "programmes/CALCUL.py", CALCUL + "\n# changé après la série\n")
+        c = certifier(cert, racine)
+        attendu = 0 if nom in ("S31", "S36") else 1
+        return e == 0 and c == attendu, f"référence {e}, certification {c} (attendu 0 puis {attendu})"
     if nom == "S3":
         racine = fabriquer(tmp)
         c = certifier(cert, racine)
@@ -368,7 +447,8 @@ def cas(nom, cert, tmp):
     if nom == "S26":
         racine, e = base(tmp, cert)
         ecrire(racine, "tests/EPREUVE_GIT.py", "import os, sys\n"
-               "sys.exit(0 if os.environ.get('GIT_CONFIG_GLOBAL') == os.devnull and os.environ.get('GIT_CONFIG_NOSYSTEM') == '1' else 1)\n")
+               "sys.exit(0 if os.environ.get('GIT_CONFIG_GLOBAL') == os.devnull and os.environ.get('GIT_CONFIG_NOSYSTEM') == '1'"
+               " and os.environ.get('GIT_CONFIG_COUNT') == '0' else 1)\n")
         c = certifier(cert, racine)
         return e == 0 and c == 0, f"référence {e}, certification {c} (attendu 0, 0)"
     if nom == "S13":
@@ -385,7 +465,8 @@ def cas(nom, cert, tmp):
         c = certifier(cert, racine)
         dit = "VERSION CERTIFIÉE" in lire(racine, RAPPORT)
         return c == 0 and dit, f"certification : {c}, « VERSION CERTIFIÉE » au rapport : {dit} (attendu 0, vrai)"
-    attendu, apres = {"S1": 1, "S2": 1, "S4": 2, "S6": 1, "S7": 1, "S8": 0, "S10": 1, "S11": 1}.get(nom), ""
+    attendu, apres = {"S1": 1, "S2": 1, "S4": 2, "S6": 1, "S7": 1, "S8": 0, "S10": 1, "S11": 1,
+                      "S28": 0, "S29": 1, "S34": 1}.get(nom), ""
     if nom == "S1":
         ecrire(racine, "tests/EPREUVE_CALCUL.py", epreuve("assert C.double(2) == 5"))
     elif nom == "S2":
@@ -400,6 +481,12 @@ def cas(nom, cert, tmp):
         ecrire(racine, "programmes/CALCUL.py", "# deux lignes\n# ajoutées\n" + CALCUL)
     elif nom == "S10":
         ecrire(racine, "tests/EPREUVE_CALCUL.py", LEURRE)
+    elif nom == "S34":
+        ecrire(racine, "tests/EPREUVE_CALCUL.py", REMIS)
+    elif nom == "S28":
+        ecrire(racine, "tests/EPREUVE_CALCUL.py", EFFACEE.format(ajout="", appels=TOUS))
+    elif nom == "S29":
+        ecrire(racine, "tests/EPREUVE_CALCUL.py", EFFACEE.format(ajout="\n# leurre\n", appels=TOUS))
     elif nom == "S11":
         ecrire(racine, "programmes/CALCUL.py", CALCUL.split("\n\n\ndef signe")[0] + "\n")
         ecrire(racine, "programmes/lib/SIGNE.py", "def signe(x):\n    if x >= 0:\n        return 1\n    return -1\n")
@@ -422,11 +509,32 @@ def cas(nom, cert, tmp):
     return c == attendu, f"certification : {c} (attendu {attendu})"
 
 
-NOMS = ["Z0"] + [f"S{i}" for i in range(1, 28)]
+NOMS = ["Z0"] + [f"S{i}" for i in range(1, 38)]
 
 # Chaque correction du certificateur, retirée une à la fois : (nom, [(ancien, nouveau)], cas qui DOIT changer de résultat).
 SABOTAGES = [
     ("crédit sans empreinte", CREDULE, "S10"),
+    ("copie effacée non vue", [("        sys.addaudithook(_ecoute)\n", "")], "S28"),
+    ("délai propre ignoré", [("delais.get(cle, DUREE_MAX_EPREUVE), lectures)", "DUREE_MAX_EPREUVE, lectures)")], "S30"),
+    ("série jouée la nuit malgré sa déclaration",
+     [('            if chemin in series and "--saboter" in arguments:\n', "            if False:\n")], "S31"),
+    ("relevé cru sans regarder les fichiers",
+     [("    code, raison = serie.verifier_la_serie(", "    code, raison = 0, \"cru\" or serie.verifier_la_serie(")], "S32"),
+    ("lectures de la nuit non transmises", [("lus_par_epreuve.get(chemin, set()))", "None)")], "S35"),
+    ("lectures de la nuit non relevées", [('        env["CERTIF_LECTURES"] = lectures\n', "        pass\n")], "S31"),
+    ("essais refaits non comparés au relevé", [("    ecarts = [n for n in choix if rendues.get(n) != attendues[n]]\n",
+                                                "    ecarts = []\n")], "S37"),
+    ("aucun essai refait malgré la table", [('                if code == 0 and series[chemin]["essais"]:\n',
+                                             "                if False:\n")], "S37"),
+    ("relevé absent cru", [('        return 2, 0, [f"série hors de la nuit : {len(trouves)} relevé(s)',
+                            '        return 0, 0, [f"série hors de la nuit : {len(trouves)} relevé(s)')], "S33"),
+    ("empreinte prise à la fin seulement", [("                        vus[f] = _avant[f]\n", "                        pass\n")], "S28"),
+    # Le même retrait, la sonde privée de son cas de copie effacée (elle appelle la fonction dans le dépôt) :
+    # S28 doit rougir par lui-même, pas seulement par le calibrage.
+    ("copie effacée non vue, sonde sans son cas de copie",
+     [("        sys.addaudithook(_ecoute)\n", ""),
+      ('("copie", "S.appelee_dans_une_copie_effacee()" + effacer)', '("depot", "S.appelee_dans_une_copie_effacee()")')],
+     "S28"),
     ("programmes/ sans sous-dossiers",
      [("                trouves[os.path.relpath(a, racine)] = a",
        "                trouves.update({os.path.relpath(a, racine): a} if d == os.path.join(racine, \"programmes\") else {})")],
@@ -452,8 +560,8 @@ SABOTAGES = [
     ("épreuves jouées avec la configuration Git de la machine",
      # le sabotage ÔTE l'isolement, au lieu de seulement ne plus le poser : quand la certification rejoue ces
      # épreuves, l'isolement est déjà dans l'environnement hérité, et le sabotage restait vert (02-10-2026, 20h06)
-     [('               GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")',
-       '               GIT_CONFIG_GLOBAL="", GIT_CONFIG_NOSYSTEM="")')], "S26"),
+     [('SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",',
+       'SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE = {"GIT_CONFIG_GLOBAL": "", "GIT_CONFIG_NOSYSTEM": "",')], "S26"),
     ("ligne non éprouvée supprimée tolérée (programme vidé)", [("        if otees:\n", "        if False:\n")], "S22"),
     ("ligne non éprouvée supprimée tolérée (une ligne en moins)", [("        if otees:\n", "        if False:\n")], "S23"),
     ("programme non éprouvé supprimé toléré", [("        if nom not in sources and r.get(\"lignes_non_examinees\"):\n",
@@ -506,7 +614,7 @@ def jouer(travail):
 
 
 def main():
-    """Joue les vingt-huit cas, puis, avec --saboter, chaque sabotage ; rend 0, 1 ou 2.
+    """Joue les trente-huit cas, puis, avec --saboter, chaque sabotage ; rend 0, 1 ou 2.
 
     ① RÔLE — Le programme entier (voir la fiche en tête).
     ② CONTEXTE D'APPEL — La ligne de commande ; le certificateur, à chaque certification.

@@ -31,7 +31,10 @@
      sous-dossier de programmes/, un paquet compilé programmes/COMMUN/__init__.pyc, que Python préférerait à
      COMMUN.py — relecture du 15-10-2026, A1) ; E5 le pas « poser les
      programmes » du circuit du soir, exécuté de même : vert quand tout est identique, rouge sur un programme
-     seulement au privé et sur un programme différent.
+     seulement au privé et sur un programme différent ; E6 chaque logiciel que le code publié cherche par
+     shutil.which (relevé dans le code : pdftotext, soffice, libreoffice le 16-10-2026) est vérifié par
+     « command -v » dans un pas placé avant la certification (ajouté le 16-10-2026 : pdftotext et soffice
+     manquaient à la machine de GitHub, trois épreuves rouges au certificat f5aac6b).
 ⑦ UNITÉ — —
 ⑧ POURQUOI — Décision de Jean-Luc du 08-10-2026 (A-543 : « Non pas question de prendre ces risques ») : un dépôt
   public ne doit pas exécuter le code du dépôt privé. Décision du 12-10-2026 à 16h46 (« Oui, construire ») et
@@ -46,7 +49,9 @@
 ⑪ TERMINAISON — Rend la main ; chaque processus est borné (120 secondes pour le fabricant, 60 pour un pas).
   [sort: oui]
 """
+import ast
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -99,6 +104,10 @@ SABOTAGES = {
     "S7_declenchement_sur_proposition": [(FAB, "  workflow_dispatch:\n  # 21h00", "  workflow_dispatch:\n  pull_request:\n  # 21h00")],
     "S8_donnees_des_epreuves_publiees": [(FAB, 'if f.endswith(".py") and os.path.isfile(os.path.join(d, f))]',
                                           'if os.path.isfile(os.path.join(d, f))]')],
+    "S20_sans_lecteur_de_doc": [(FAB, "          command -v soffice >/dev/null || command -v libreoffice >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-writer-nogui; }\n", "")],
+    "S21_sans_lecteur_de_pdf": [(FAB, "          command -v pdftotext >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils; }\n", "")],
+    "S22_logiciel_par_une_variable": [("programmes/COMMUN.py", "\nimport csv\n", "\nimport csv\nimport shutil as _sh_e6\n_x_e6 = 'gs'\n_sh_e6.which(_x_e6)\n")],
+    "S23_logiciel_ecrit_autrement": [("programmes/COMMUN.py", "\nimport csv\n", "\nimport csv\nfrom shutil import which as which\nwhich( 'convert' )\n")],
 }
 
 
@@ -206,13 +215,13 @@ def lien_vers_le_prive(w):
 
 
 def epreuve(sab):
-    """Joue E1 à E5 sur une copie du dépôt sabotée par `sab` ; rend (vert ?, détail).
+    """Joue E1 à E6 sur une copie du dépôt sabotée par `sab` ; rend (vert ?, détail).
 
     ① RÔLE — Une passe complète des épreuves. ② CONTEXTE D'APPEL — la boucle principale, une fois par sabotage.
     ③ ENTRÉE — `sab` : le nom du sabotage (Z0 : aucun). ④ CONDITIONS D'ENTRÉE — DEPOT est un dépôt privé.
     ⑤ SORTIE — DEUX valeurs : vrai si tout est conforme ; le détail (les quatre premières fautes).
       [rend: 2]
-    ⑥ TRAITEMENT — copier, saboter, fabriquer vers un faux public, confronter E1 à E5.
+    ⑥ TRAITEMENT — copier, saboter, fabriquer vers un faux public, confronter E1 à E6.
     ⑦ UNITÉ — — ⑧ POURQUOI — Voir la fiche du fichier. ⑨ CE QUI CLOCHE — Voir la fiche du fichier.
     ⑩ EFFET — Écrit et efface un dossier jetable. ⑪ TERMINAISON — Rend la main ; le fabricant est borné à 120 s.
       [sort: non]
@@ -278,6 +287,37 @@ def epreuve(sab):
                 si = str(p_.get("if", ""))
                 if ("always()" in si or "!= 'success'" in si) and p_.get("shell") != "bash" and pose not in si:
                     fautes.append(f"E3 {nom} : le pas « {p_.get('id')} » peut tourner sur un code non posé")
+        # E6 — chaque logiciel que le code publié cherche par shutil.which est vérifié (« command -v ») par un pas
+        # placé AVANT la certification. Raison : pdftotext et soffice manquaient à la machine de GitHub, trois
+        # épreuves ont rougi au premier certificat public (16-10-2026, f5aac6b). Lu dans le code, jamais listé ici.
+        # Lu dans l'arbre syntaxique, pas par un motif : « sh.which(…) », « which(…) » importé seul, une espace dans
+        # les parenthèses, un second argument (relecture du 16-10-2026, cassure 7). Un nom qui n'est pas écrit en
+        # clair (une variable) est une faute : on ne peut pas savoir quoi installer.
+        noms = set()
+        for dossier in ("", "programmes", "tests", "etudes/outils"):
+            for f in os.listdir(os.path.join(r, dossier)):
+                if f.endswith(".py") and os.path.isfile(os.path.join(r, dossier, f)):
+                    try:
+                        arbre = ast.parse(open(os.path.join(r, dossier, f), encoding="utf-8", errors="replace").read())
+                    except SyntaxError:
+                        continue
+                    for n in ast.walk(arbre):
+                        if isinstance(n, ast.Call) and (getattr(n.func, "attr", None) == "which"
+                                                        or getattr(n.func, "id", None) == "which"):
+                            if n.args and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
+                                noms.add(n.args[0].value)
+                            else:
+                                fautes.append(f"E6 logiciel cherché par un nom non écrit en clair : {dossier}/{f}, "
+                                              f"ligne {n.lineno}")
+        etapes = y.get("jobs", {}).get("certifier", {}).get("steps") or []
+        rang = next((k for k, p_ in enumerate(etapes) if p_.get("id") == "certifier"), None)
+        if rang is None:
+            fautes.append("E6 pas « certifier » introuvable")
+        else:
+            avant = "\n".join(str(p_.get("run", "")) for p_ in etapes[:rang])
+            for n in sorted(noms):
+                if not re.search(r"command -v %s\b" % re.escape(n), avant):
+                    fautes.append(f"E6 logiciel non vérifié avant la certification : {n}")
         # E4
         s = pas(cert, "certifier", "poser_le_code")
         if s is None:
@@ -313,7 +353,7 @@ def epreuve(sab):
                 c, _ = jouer(s, prep)
                 if (c == 0) != (attendu == 0):
                     fautes.append(f"E5 {nom} : code {c}, attendu {'0' if attendu == 0 else 'non nul'}")
-        return not fautes, ("; ".join(fautes[:4]) if fautes else "E1 à E5 conformes")
+        return not fautes, ("; ".join(fautes[:4]) if fautes else "E1 à E6 conformes")
     finally:
         shutil.rmtree(d, ignore_errors=True)
 

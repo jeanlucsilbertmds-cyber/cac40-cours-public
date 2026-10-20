@@ -36,15 +36,18 @@ T2 programmes/TENIR_LES_POSITIONS.py lancé deux fois sur une copie du dépôt (
    aucun fichier ;
 W1 le pas qui décide, JOUÉ sous bash -e comme sur GitHub, avec un faux programme qui rend 0, 10 puis 1 : il passe
    et écrit le bon code ;
-W2 le passage du matin : du mardi au samedi, droit de lancer un circuit, relance dès que le code n'est pas 0, vers la
-   branche par défaut et avec rattrapage=true, rougit quand il n'est ni 0 ni 10 ;
+W2 le passage du matin : S'IL A UN HORAIRE, du mardi au samedi ; droit de lancer un circuit, relance dès que le code
+   n'est pas 0, vers la branche par défaut et avec rattrapage=true, rougit quand il n'est ni 0 ni 10. Son horaire est
+   COUPÉ depuis le 11-10-2026 (décision de Jean-Luc, 18h59, « 1 » : quota du dépôt privé épuisé, A-543) : W2 exigeait
+   un horaire et rougissait depuis ; le réveil du matin qui tourne est celui du circuit public (« 41 5 * * 2-6 »),
+   éprouvé par tests/EPREUVES_DE_L_HORAIRE_DU_CIRCUIT_Mar_13-10-2026.py (S16). Modifié le 16-10-2026 ;
 W3 le circuit du soir : une entrée « rattrapage » ; la commande de la mesure, JOUÉE avec « true », « false » et vide
    (l'horaire du soir), n'est sautée qu'avec « true » ; un seul circuit à la fois.
 LES SABOTAGES : F1 la séance attendue est le jour même (R1) · F2 les signaux ne comptent plus (R3) · F3 le radar ne compte
 plus (R2) · F4 le radar comparé au calcul par la date seule (R12) · F5 un calendrier illisible décide « rien » (R5) · F6 des
 signaux illisibles passent pour à jour (R9) · F7 la forme de la séance n'est plus exigée (R9) · P1 l'anti-doublon des
 positions est retiré (T1) · F8 un radar antérieur au calcul des signaux est accepté (R12) · F9 les valeurs sans la séance
-ne comptent plus (R13) · W4 le passage tourne du lundi au vendredi (W2) · W5 un code indécis ne relance plus (W2) · W6
+ne comptent plus (R13) · W4 un horaire du lundi au vendredi est remis au passage (W2) · W5 un code indécis ne relance plus (W2) · W6
 `set +e` retiré (W1) · W7 un code écrit en dur (W1) · W8 la relance sans rattrapage=true (W2) · W9 la mesure n'est plus
 sautée (W3) · W10 deux circuits à la fois (W3) · F10 heure et minutes inversées (R15, D1) · F11 une liste absente
 tenue pour vide (R13) · F12 la même minute refusée (R16) · W11 la mesure sautée sans entrée, chaque soir (W3) · F13 une
@@ -84,7 +87,7 @@ SABOTAGES = {
     "F13_une_valeur_toleree": [(FAUT, "    elif manquent is None or manquent:\n", "    elif manquent is None or len(manquent) > 1:\n")],
     "F14_heure_cherchee_partout": [("programmes/CONTRATS_DES_FICHIERS.py", 'h = _re.match(r"\\s+(\\d{2})h(\\d{2})\\b", t[m.end(1):])', 'h = _re.search(r"(\\d{2})h(\\d{2})", t[m.end(1):])')],
     "W12_un_groupe_par_passage": [(".github/workflows/collecte_abc.yml", "  group: circuit-du-soir\n", "  group: circuit-du-soir-${{ github.run_id }}\n")],
-    "W4_lundi_au_vendredi": [(WF, '"15 5 * * 2-6"', '"15 5 * * 1-5"')],
+    "W4_lundi_au_vendredi": [(WF, "  workflow_dispatch:\n", '  workflow_dispatch:\n  schedule:\n    - cron: "15 5 * * 1-5"\n')],
     "W5_indecis_sans_relance": [(WF, "        if: steps.faut.outputs.code != '0'\n", "        if: steps.faut.outputs.code == '10'\n")],
     "W6_sans_set_plus_e": [(WF, "          set +e\n", "")],
     "W7_code_en_dur": [(WF, 'echo "code=$?" >> "$GITHUB_OUTPUT"', 'echo "code=0" >> "$GITHUB_OUTPUT"')],
@@ -296,9 +299,10 @@ def epreuves(depot, tmp):
     res.append(("W1 le pas qui décide, joué sous bash -e : il passe et écrit code=0, 10 puis 1", ok_w1))
     relance = next(x for x in wf["jobs"]["rattrapage"]["steps"] if "gh workflow run" in str(x.get("run", "")))
     rougit = [x for x in wf["jobs"]["rattrapage"]["steps"] if "exit 1" in str(x.get("run", ""))]
-    res.append(("W2 horaire mardi-samedi, droit de lancer, relance si code ≠ 0 vers la branche par défaut avec "
+    res.append(("W2 horaire, s'il y en a un, mardi-samedi, droit de lancer, relance si code ≠ 0 vers la branche par défaut avec "
                 "rattrapage=true, rougit si ni 0 ni 10",
-                wf[True]["schedule"][0]["cron"].split()[4] == "2-6" and wf["permissions"].get("actions") == "write"
+                all(h["cron"].split()[4] == "2-6" for h in ((wf[True] or {}).get("schedule") or []))
+                and wf["permissions"].get("actions") == "write"
                 and relance.get("if") == "steps.faut.outputs.code != '0'"
                 and "collecte_abc.yml" in relance["run"] and "github.event.repository.default_branch" in relance["run"]
                 and "-f rattrapage=true" in relance["run"]

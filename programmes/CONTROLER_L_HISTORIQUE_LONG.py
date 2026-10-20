@@ -8,7 +8,7 @@ défauts trouvés par Cowork le 04-10-2026. Il ne répare rien et n'écrit rien.
 Simulation uniquement.
 
 ① RÔLE — Passer un historique long au crible des contrôles K1 à K22 (`controler`) et K23 (la remontée jusqu'à
-  la source, A-578 : `etapes_non_recalculables`, `lignes_non_remontees`, `maillons_manquants`), dire pour chacun ce
+  la source, A-578 : `lignes_non_rejouees`, `maillons_manquants`), dire pour chacun ce
   qu'il a trouvé, et refuser dès qu'un contrôle bloquant trouve quelque chose. Il porte aussi les
   DÉFINITIONS dont la réparation se sert — ce qu'est une séance manquante, un écart entre les deux
   sources, un jour douteux (les deux sources se contredisent pour cinq valeurs au moins), une séance
@@ -37,9 +37,10 @@ Simulation uniquement.
 ⑥ TRAITEMENT — ① lire le fichier (`lire_cours`) et l'extrait bnains, et en ôter les barres prouvées
   fausses (`oter_les_barres_fausses`) · ② calculer le calendrier, les
   écarts et les jours douteux · ③ passer les contrôles K1 à K22 (`controler`), puis K23 : pour un fichier réparé
-  (déclaré dans CONTRATS.FICHIERS_REPARES, qui doit alors porter la colonne source ; ou qui la porte), chaque ligne remontée par le journal des réparations jusqu'à sa ligne de Yahoo ou de Paris,
-  chaque geste refait, et la provenance du fichier Yahoo d'origine et de l'extrait de Paris déclarée jusqu'à un
-  téléchargement (donnees/PROVENANCE_DES_FICHIERS.csv), et celle du fichier réparé lui-même, qui doit y être écrit par
+  (déclaré dans CONTRATS.FICHIERS_REPARES, qui doit alors porter la colonne source ; ou qui la porte), chaque ligne refaite
+  en rejouant le journal des réparations depuis sa ligne de Yahoo ou de Paris (`lignes_non_rejouees`), et la provenance du fichier Yahoo d'origine et de l'extrait de Paris déclarée jusqu'à un
+  premier maillon — un téléchargement, ou un fichier écrit à la main qui cite ses sources (donnees/PROVENANCE_DES_FICHIERS.csv),
+  et celle du fichier réparé lui-même, qui doit y être écrit par
   le programme déclaré ; pour un autre fichier, sa seule provenance · ④ afficher chaque
   contrôle : nombre trouvé, exemples, REFUS ou non · ⑤ sortir.
 ⑦ UNITÉ — Des NOMBRES DE LIGNES (une ligne = une valeur un jour de séance), des RAPPORTS de prix
@@ -62,7 +63,9 @@ Simulation uniquement.
   remonte et ne se refait pas jusqu'à sa source. Il ne tient que si l'on lance ce contrôle : ni le versement au
   fichier maître (A-538) ni le juge des stratégies (A-577) ne l'appellent encore — à brancher quand ils seront
   écrits (A-578).
-⑩ EFFET — Lit dix fichiers, plus le journal des réparations et le registre de provenance (K23). N'écrit rien.
+⑩ EFFET — Lit dix fichiers, plus le journal des réparations et le registre de provenance (K23) ; K23 lit en entier
+  chaque fichier présent qu'il remonte (pour son empreinte), et lit ligne à ligne chaque fichier écrit à la main
+  jusqu'au premier défaut. N'écrit rien.
   Affiche le compte rendu.
 ⑪ TERMINAISON — Toujours : chaque contrôle parcourt un nombre fini de lignes. Aucun de mes appels
   ne peut boucler.
@@ -72,7 +75,9 @@ import bisect, csv, datetime, hashlib, json, math, os, re, statistics, sys, unic
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from CONTRATS_DES_FICHIERS import (BARRES_BNAINS_FAUSSES, COURS_BNAINS, COURS_DE_FRANCFORT,   # les champs, déclarés une fois (R-708)
                                    DETACHEMENTS_OFFICIELS, DROITS_BNAINS, INDICE_CAC40, AJUSTEMENTS_DE_YAHOO,
-                                   JOURNAL_DES_REPARATIONS, PROVENANCE_DES_FICHIERS, FICHIERS_REPARES)
+                                   JOURNAL_DES_REPARATIONS, PROVENANCE_DES_FICHIERS, FICHIERS_REPARES,
+                                   TELECHARGEMENT, ECRIT_A_LA_MAIN, COLONNES_DES_SOURCES_A_LA_MAIN,
+                                   GESTES_DU_JOURNAL, SOURCE_YAHOO, SOURCE_PARIS)
 
 BNAINS = os.path.join("donnees", "sources_bnains", "bnains_cac40.csv")
 DROITS = os.path.join("donnees", "sources_bnains", "DROITS_BNAINS.csv")
@@ -92,9 +97,10 @@ ECART_DE_COTATION = 7   # un droit est vu chez bnains au plus 7 jours de calendr
 FICHIER = os.path.join("donnees", "sources_yahoo", "historique_long_repare.csv")
 JOURNAL = os.path.join("donnees", "sources_yahoo", "journal_des_reparations.csv")   # écrit par la réparation
 PROVENANCE = os.path.join("donnees", "PROVENANCE_DES_FICHIERS.csv")   # K23 : d'où vient chaque fichier (A-578)
-TELECHARGEMENT = "téléchargement"   # K23 : le premier maillon d'une chaîne, pris hors du dépôt, à une adresse dite
-RECALCUL = 1e-5         # K23 : une étape se refait à 0,001 % près (le journal écrit ses nombres arrondis)
-ARRONDI = 1e-4          # K23 : … ou à 0,0001 près en absolu — le fichier écrit ses prix à 4 décimales (`_egal`)
+# K23 : les deux sortes de premier maillon d'une chaîne (TELECHARGEMENT, ECRIT_A_LA_MAIN) sont déclarées au contrat
+# (R-708)
+DECIMALES = 4           # K23 : les barres prises à Paris sont écrites à 4 décimales, le volume entier (`arrondir`, seul
+                        # calcul, appelé par `barre` de REPARER et par le rejeu — R-708)
 MARCHE_EXACTE = 0.0005  # la marche d'une opération déclarée, dans le fichier, vaut la règle officielle à 0,05 % près
                         # (K22 ; et le seuil d'`aligner` dans la réparation). Mesuré le 10-10-2026 sur le fichier
                         # aligné : au pire 0,017 % (Saint-Gobain 2009), le bruit des médianes de cinq séances.
@@ -177,7 +183,7 @@ def lire_cours(chemin, champs=CHAMPS):
                 defauts.append(f"{r['valeur']} {r['date']} en double (ligne {n})")
                 continue
             s[r["date"]] = barre
-            if r.get("source") == "bnains":
+            if r.get("source") == SOURCE_PARIS:
                 venues_de_bnains.add((r["valeur"], r["date"]))
     return series, defauts, venues_de_bnains
 
@@ -373,6 +379,37 @@ def oter_les_barres_fausses(chemin, bnains):
                 del barres[d]
                 retirees.add((r["valeur"], d))
     return retirees
+
+
+def lire_paris(racine):
+    """Lit l'extrait de Paris (bnains) et en ôte les barres prouvées fausses : le seul Paris de la réparation et du contrôle.
+
+    ① RÔLE — Donner à la réparation, au contrôle et à ses épreuves les mêmes barres de Paris.
+    ② CONTEXTE D'APPEL — `main` de ce programme ; `reparer` de programmes/REPARER_L_HISTORIQUE_LONG.py ; l'épreuve H56.
+    ③ ENTRÉE — `racine` : la racine du dépôt.
+    ④ CONDITIONS D'ENTRÉE — L'extrait bnains et donnees/sources_bnains/BARRES_BNAINS_FAUSSES.csv existent (OSError
+      sinon).
+    ⑤ SORTIE — TROIS valeurs : les barres de Paris sans les barres prouvées fausses (`lire_cours`, valeur → {date :
+      barre}) ; les défauts de lecture ; la liste des barres ôtées (`oter_les_barres_fausses`).
+      [rend: 3]
+    ⑥ TRAITEMENT — `lire_cours` de l'extrait, puis `oter_les_barres_fausses`.
+    ⑦ UNITÉ — Des euros et des nombres de titres, cours bruts de Paris.
+    ⑧ POURQUOI — Relecture n° 2 et superviseur n° 3 du 18-10-2026 (R-759) : le rejeu de K23 partait des barres de Paris
+      lues AVANT le retrait des fausses, la réparation de celles d'APRÈS ; une ligne bâtie sur une barre déclarée fausse
+      (Air Liquide, 27-04-2012) passait K1 à K23. L'assemblage existait à trois endroits (les deux `main` et
+      l'épreuve) : deux implémentations d'une même chose divergent toujours (R-708).
+    ⑨ CE QUI CLOCHE — programmes/RECONSTRUIRE_L_HISTORIQUE_LONG.py et etudes/outils/MESURER_LES_AJUSTEMENTS_DE_YAHOO.py
+      assemblent encore Paris à leur façon, et l'épreuve tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py aussi, pour
+      d'autres contrôles que K23 (une dizaine d'appels à `oter_les_barres_fausses`) ; tous équivalents aujourd'hui (→
+      BACKLOG, A-597). · `main` n'est éprouvé sur aucune fenêtre fausse : l'extrait 2005 des épreuves n'en a pas ; c'est
+      H56 qui garde cette fonction, et un `main` qui relirait bnains directement pour K23 passerait toutes les épreuves
+      (relecteur n° 3 du 18-10-2026, sabotage X5 ; → A-597).
+    ⑩ EFFET — Lit les deux fichiers.
+    ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    bnains, defauts, _ = lire_cours(os.path.join(racine, BNAINS), COURS_BNAINS)
+    return bnains, defauts, oter_les_barres_fausses(os.path.join(racine, FAUSSES), bnains)
 
 
 def lire_francfort(chemin):
@@ -1742,7 +1779,7 @@ def lire_alignes(chemin):
     ⑧ POURQUOI — `aligner` (REPARER_L_HISTORIQUE_LONG, décision de Jean-Luc du 10-10-2026 à 09h39) change des lignes
       de Yahoo que K20 compare au fichier d'origine.
     ⑨ CE QUI CLOCHE — Un journal absent rend un dictionnaire vide : une ligne alignée serait alors signalée par K20,
-      jamais acceptée à tort. · Le facteur est écrit arrondi à 6 décimales : l'écart est sous `DEFAIT`.
+      jamais acceptée à tort. · Le facteur est écrit en pleine précision depuis le 18-10-2026 (il l'était à 6 décimales, écart sous `DEFAIT`).
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
       [sort: non]
@@ -2072,6 +2109,8 @@ def lire_journal(chemin):
     ⑦ UNITÉ — —
     ⑧ POURQUOI — L'ordre des gestes est celui où la réparation les a posés : la chaîne se refait dans cet ordre.
     ⑨ CE QUI CLOCHE — L'ordre n'est garanti que par la façon dont la réparation écrit le journal, ligne après ligne.
+      · Un nombre infini ou indéfini (« inf », « nan ») dans une colonne de nombres lève ValueError : il passait le
+      rejeu (superviseur n° 2 du 18-10-2026, D4 : « inf ≤ inf » est vrai), comme il passait `lire_cours` le 04-10-2026.
     ⑩ EFFET — Lit le fichier.
     ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
       [sort: non]
@@ -2082,165 +2121,192 @@ def lire_journal(chemin):
         if lecteur.fieldnames != JOURNAL_DES_REPARATIONS:
             raise ValueError(f"{chemin} : en-tête {lecteur.fieldnames} au lieu de {JOURNAL_DES_REPARATIONS}")
         for r in lecteur:
+            for c in ("close_avant", "close_apres", "facteur", "facteur_volume"):
+                if r[c] != "" and not math.isfinite(float(r[c])):
+                    raise ValueError(f"{chemin} : {r['valeur']} {r['date']} « {r['geste']} », {c} = {r[c]} : nombre "
+                                     f"infini ou indéfini")
             sortie.setdefault((r["valeur"], r["date"]), []).append(r)
     return sortie
 
 
-def _egal(a, b):
-    """Dit si deux nombres sont égaux à la précision d'écriture du journal et des fichiers.
+def appliquer(b, fp, fv):
+    """Rend une barre dont les quatre prix sont multipliés par un facteur et le volume par un autre.
 
-    ① RÔLE — Une seule tolérance pour toutes les comparaisons de K23.
-    ② CONTEXTE D'APPEL — `etapes_non_recalculables`, `lignes_non_remontees`.
-    ③ ENTRÉE — `a`, `b` : deux nombres.
+    ① RÔLE — Le seul calcul d'un geste parti de la ligne, pour la réparation qui le pose ET pour K23 qui le rejoue.
+    ② CONTEXTE D'APPEL — `defaire`, `ajuster`, `aligner` de programmes/REPARER_L_HISTORIQUE_LONG.py ;
+      `lignes_non_rejouees`.
+    ③ ENTRÉE — `b` : (open, high, low, close, volume) · `fp` : le facteur des prix · `fv` : le facteur du volume.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : vrai si |a − b| ≤ max(RECALCUL × |b|, ARRONDI).
+    ⑤ SORTIE — UNE valeur : (open × fp, high × fp, low × fp, close × fp, volume × fv).
       [rend: 1]
-    ⑥ TRAITEMENT — —
-    ⑦ UNITÉ — Celle des deux nombres.
-    ⑧ POURQUOI — Le fichier réparé écrit ses prix à 4 décimales : sur un cours bas, l'arrondi dépasse 0,001 % (relecture
-      indépendante du 13-10-2026 : AXA, 27-02-2009, plus bas 6,8982 écrit contre 6,8981 calculé, quatre faux refus) ;
-      d'où un plancher absolu, ARRONDI, deux fois le demi-dernier chiffre écrit.
-    ⑨ CE QUI CLOCHE — Le plancher vaut pour les volumes aussi, où il est sans effet (des nombres de titres).
+    ⑥ TRAITEMENT — ⑤, sans arrondi.
+    ⑦ UNITÉ — Des euros et des nombres de titres ; facteurs sans unité.
+    ⑧ POURQUOI — Décision de Jean-Luc du 18-10-2026 à 20h41 (« 1 » à « Supprimer la tolérance : le contrôle exige
+      l'égalité exacte ») : la réparation et le contrôle font le même calcul, dans cette fonction, et K23 compare à
+      l'égalité exacte. Trois tolérances écrites à la main en un jour ont chacune laissé passer une faute (Hermès
+      + 0,01 €, Michelin + 0,0001 €, un facteur infini — superviseur n° 2, R-759). Deux implémentations d'une même
+      chose divergent toujours (R-708).
+    ⑨ CE QUI CLOCHE — Avant le 18-10-2026, la réparation divisait (prix ÷ (1 + m), volume ÷ f) quand le journal écrit
+      l'inverse du facteur : le passage à cette fonction a changé 16 961 lignes du fichier réparé au 16e chiffre
+      (4,4e-16 au plus, en relatif — mesuré par le superviseur n° 2).
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    return abs(a - b) <= max(RECALCUL * abs(b), ARRONDI)
+    return tuple(x * fp for x in b[:4]) + (b[4] * fv,)
 
 
-def etapes_non_recalculables(journal, paris):
-    """Rend les gestes du journal qu'on ne peut pas refaire à la main avec ce qu'ils écrivent.
+def arrondir(b, fp, fv):
+    """Rend une barre de Paris ramenée par deux facteurs, prix arrondis à `DECIMALES` décimales, volume à l'unité.
 
-    ① RÔLE — K23, première partie : chaque étape d'une réparation doit se refaire avec les seuls chiffres qu'elle
-      écrit, plus la barre de Paris du jour quand elle en part.
-    ② CONTEXTE D'APPEL — `main`, pour K23 ; les épreuves.
-    ③ ENTRÉE — `journal` : rendu par `lire_journal` · `paris` : les cours de Paris (bnains) tels que lus, AVANT d'en
-      ôter les barres prouvées fausses — valeur → {date: (open, high, low, close, volume)}.
-    ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : la liste des cas, un texte par geste, triés.
+    ① RÔLE — Le seul calcul d'un geste parti de Paris, pour la réparation qui le pose ET pour K23 qui le rejoue.
+    ② CONTEXTE D'APPEL — `barre` de programmes/REPARER_L_HISTORIQUE_LONG.py ; `lignes_non_rejouees`.
+    ③ ENTRÉE — `b` : la barre brute de bnains (open, high, low, close, volume) · `fp` · `fv` : les facteurs.
+    ④ CONDITIONS D'ENTRÉE — `fv` fini : un facteur infini lèverait OverflowError (`lire_journal` les refuse avant).
+    ⑤ SORTIE — UNE valeur : (round(open × fp, DECIMALES), … les quatre prix …, float(round(volume × fv))).
       [rend: 1]
-    ⑥ TRAITEMENT — Pour chaque geste qui écrit une clôture après (`close_apres`) : il se refait si elle vaut la clôture
-      avant × le facteur, ou la clôture de Paris du jour × le facteur, ou la clôture avant quand AUCUN facteur autre que 1
-      n'est écrit. Sinon, c'est un cas. Un geste sans clôture après retire la ligne : rien à refaire ici
-      (`lignes_non_remontees` vérifie que la ligne est bien absente).
-    ⑦ UNITÉ — Des euros.
-    ⑧ POURQUOI — Demande de Jean-Luc du 13-10-2026 (« le chaînage du raisonnement de la source en connaissant toutes
-      les étapes ») et sa décision du même jour (« Les deux, dans l'ordre ») : A-578. Mesuré le 13-10-2026 : 1 008
-      gestes « reconstruit », « comblé », « corrigé », « remplacé » ne se refont pas — le facteur écrit n'y comprend pas
-      la division appliquée en même temps (la relecture indépendante du même jour les refait tous en ajoutant les
-      divisions de evenements.json, que le geste ne cite pas) ; et 2 gestes « gardé » écrivent un facteur qu'ils
-      n'appliquent pas. Exemple : AXA, 03-01-2000, Paris 136,30 €, résultat 32,1919 €, facteur écrit 0,944736 pour un
-      rapport réel de 0,236184. Un geste qui écrit un facteur et laisse la clôture inchangée n'est pas accepté : la
-      relecture a montré qu'un « défait » non appliqué passait ainsi.
-    ⑨ CE QUI CLOCHE — Une étape recalculable n'est pas pour autant JUSTE : un facteur faux écrit au journal et appliqué
-      passe ici ; la justesse est l'affaire de K1 à K22.
-    ⑩ EFFET — —
-    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
-      [sort: non]
-    """
-    cas = []
-    for (v, d), gestes in journal.items():
-        barre = paris.get(v, {}).get(d)
-        for g in gestes:
-            if not g["close_apres"]:
-                continue
-            apres = float(g["close_apres"])
-            avant = float(g["close_avant"]) if g["close_avant"] else None
-            f = float(g["facteur"]) if g["facteur"] else None
-            refait = (avant is not None and (f is None or f == 1.0) and _egal(apres, avant)) or (
-                f is not None and ((avant is not None and _egal(apres, avant * f))
-                                   or (barre is not None and _egal(apres, barre[3] * f))))
-            if not refait:
-                cas.append(f"{v} {d} « {g['geste']} » : {g['close_avant'] or '—'} → {g['close_apres']}, facteur écrit "
-                           f"{g['facteur'] or '—'}" + (f", Paris {barre[3]}" if barre else ", pas de barre de Paris"))
-    return sorted(cas)
-
-
-def lignes_non_remontees(series, venues_de_bnains, origine, paris, journal):
-    """Rend les lignes du fichier qu'on ne remonte pas jusqu'à leur ligne source par le journal.
-
-    ① RÔLE — K23, deuxième partie : chaque ligne du fichier réparé doit se remonter jusqu'à sa ligne d'origine (Yahoo
-      ou Paris), clôture ET les quatre autres colonnes ; et le journal ne doit rien dire qui contredise le fichier.
-    ② CONTEXTE D'APPEL — `main`, pour K23, quand le fichier contrôlé porte la colonne `source` ; les épreuves.
-    ③ ENTRÉE — `series` : le fichier contrôlé (`lire_cours`) · `venues_de_bnains` : ses lignes de source « bnains » ·
-      `origine` : le fichier Yahoo avant réparation · `paris` : les cours de Paris tels que lus · `journal` :
-      `lire_journal`.
-    ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : la liste des cas, un texte par ligne, triés.
-      [rend: 1]
-    ⑥ TRAITEMENT — Pour chaque ligne du fichier : ① un dernier geste qui retire la ligne (sans clôture après) alors
-      qu'elle est là : cas · ② sa ligne de départ — la barre de Paris quand le premier geste n'a pas de clôture avant, ou
-      quand la ligne vient de Paris sans aucun geste ; sinon la ligne Yahoo d'origine ; absente : cas · ③ la chaîne des
-      clôtures du journal part de la clôture de départ, chaque clôture avant égale la clôture précédente, et la dernière
-      égale la clôture du fichier ; sinon cas · ④ ouverture, plus haut et plus bas valent ceux de la ligne de départ,
-      ou de la barre de Paris du jour, multipliés par le même rapport que la clôture, et le volume divisé par ce
-      rapport ; sinon cas. Puis, pour chaque ligne du journal ABSENTE du fichier : un dernier geste qui écrit une clôture
-      après est un cas (le journal dit la ligne écrite, le fichier ne l'a pas).
+    ⑥ TRAITEMENT — ⑤.
     ⑦ UNITÉ — Des euros et des nombres de titres.
-    ⑧ POURQUOI — Même demande et même décision que `etapes_non_recalculables`. Mesuré le 13-10-2026 : toutes les
-      clôtures se remontent ; 611 lignes ont des prix expliqués par Paris mais un volume que le journal n'explique pas —
-      la réparation calcule le volume avec son propre facteur (`k`, dans `barre` de REPARER_L_HISTORIQUE_LONG), que le
-      journal n'écrit pas (exemple : EssilorLuxottica, volume × 2). Relecture indépendante du même jour : une ligne
-      « retirée » au journal mais présente au fichier, et une ligne « comblée » au journal mais absente du fichier,
-      passaient ; elles sont refusées.
-    ⑨ CE QUI CLOCHE — Le geste ne dit pas laquelle des deux barres il a prise : l'une OU l'autre suffit ici, si bien
-      qu'une barre faite de la clôture de Yahoo et du reste de Paris passe (relecture du 13-10-2026, Crédit Agricole,
-      01-02-2013) ; le journal devra écrire la barre prise (A-578 ④). · La colonne `source` n'est confrontée au journal
-      que pour choisir le départ.
+    ⑧ POURQUOI — Comme `appliquer`. La précision écrite (4 décimales, volume entier) est déclarée ICI et nulle part
+      ailleurs (relecture du 18-10-2026 : elle était réglée à deux endroits, et un volume de 0,4 titre passait).
+    ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — —
-    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+    ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    def explique(base, barre):
-        """Dit si une barre est une barre de départ multipliée par un seul rapport, volume divisé par ce rapport.
+    return tuple(round(x * fp, DECIMALES) for x in b[:4]) + (float(round(b[4] * fv)),)
 
-        ① RÔLE — Juger les quatre colonnes autres que la clôture.
-        ② CONTEXTE D'APPEL — `lignes_non_remontees`, deux fois par ligne au plus (départ, puis Paris).
-        ③ ENTRÉE — `base` : la barre de départ, ou None · `barre` : la barre du fichier.
-        ④ CONDITIONS D'ENTRÉE — —
-        ⑤ SORTIE — UNE valeur : vrai ou faux ; faux sans barre de départ ou si sa clôture n'est pas positive.
-          [rend: 1]
-        ⑥ TRAITEMENT — rapport = clôture du fichier ÷ clôture de départ ; ouverture, plus haut, plus bas multipliés ;
-          volume divisé (un volume de départ nul doit rester nul).
-        ⑦ UNITÉ — Des euros et des nombres de titres.
-        ⑧ POURQUOI — Un ajustement multiplie les prix et divise le volume par le même nombre (R-108).
-        ⑨ CE QUI CLOCHE — La réparation calcule parfois le volume avec son propre facteur, que le journal n'écrit pas.
-        ⑩ EFFET — —
-        ⑪ TERMINAISON — Rend la main.
-          [sort: non]
-        """
-        if base is None or base[3] <= 0:
-            return False
-        q = barre[3] / base[3]
-        volume = _egal(barre[4], base[4] / q) if base[4] > 0 else barre[4] == 0
-        return volume and all(_egal(barre[i], base[i] * q) for i in range(3))
+
+def lire_les_sources(chemin):
+    """Rend, pour chaque ligne d'un fichier de cours, le texte exact de sa colonne `source`.
+
+    ① RÔLE — Donner à K23 la colonne `source` telle qu'écrite, sans l'interpréter.
+    ② CONTEXTE D'APPEL — `main`, pour K23 ; les épreuves.
+    ③ ENTRÉE — `chemin` : le fichier contrôlé, qui porte la colonne `source`.
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe (OSError sinon).
+    ⑤ SORTIE — UNE valeur : (valeur, date) → le texte de la colonne `source`, vide si la cellule l'est.
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire ; ranger.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — `lire_cours` ne retient que les lignes dont la source vaut « bnains » : toute autre valeur s'y lit
+      « yahoo ». Relecture du 18-10-2026 : « Yahoo », vide, « bnain », « paris » passaient K23. Le rejeu compare donc
+      le texte exact à la provenance qu'il refait.
+    ⑨ CE QUI CLOCHE — Une ligne en double garde la dernière source lue ; `lire_cours` signale le doublon (K1).
+    ⑩ EFFET — Lit le fichier.
+    ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    with open(chemin, encoding="utf-8", newline="") as f:
+        return {(r["valeur"], r["date"]): r.get("source") or "" for r in csv.DictReader(f)}
+
+
+def lignes_non_rejouees(series, sources, origine, paris, journal):
+    """Rend les lignes du fichier réparé que le journal des réparations ne refait pas, à l'égalité exacte, depuis leur source.
+
+    ① RÔLE — K23, le rejeu : chaque ligne du fichier réparé doit se refaire, colonne par colonne et au chiffre près, en
+      rejouant dans l'ordre les gestes que le journal écrit pour elle, depuis la ligne de Yahoo d'origine ou la barre
+      de Paris ; et chaque ligne d'origine absente du fichier doit avoir un geste qui la retire.
+    ② CONTEXTE D'APPEL — `main`, pour K23, quand le fichier contrôlé porte la colonne `source` ; les épreuves.
+    ③ ENTRÉE — `series` : le fichier contrôlé · `sources` : `lire_les_sources` du même fichier · `origine` : le
+      fichier Yahoo avant réparation · `paris` : les cours de Paris (bnains) SANS les barres prouvées fausses
+      (`lire_paris`, le même Paris que la réparation) · `journal` : `lire_journal`.
+    ④ CONDITIONS D'ENTRÉE — Le journal a les colonnes de JOURNAL_DES_REPARATIONS et des nombres finis (`lire_journal`
+      l'a vérifié) ; `origine` est lu sans défaut (`main` arrête sinon).
+    ⑤ SORTIE — UNE valeur : la liste triée des cas, un texte par ligne qui ne se refait pas ; vide si tout se refait.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque (valeur, date) du fichier, du journal ou de l'origine : l'état part de la ligne Yahoo
+      d'origine (ou de rien). Pour chaque geste, dans l'ordre : ① le geste est dans GESTES_DU_JOURNAL et son départ
+      est celui que le contrat lui donne · ② il écrit sa clôture après et ses deux facteurs si et seulement si son
+      départ n'est pas vide (un facteur non appliqué va dans la raison) ·
+      ③ `close_avant` est vide si et seulement si la ligne n'existe pas à ce moment · ④ `close_avant` égale la clôture
+      de l'état · ⑤ un geste sans clôture après retire la ligne · ⑥ sinon il part de l'état (« ligne », `appliquer`) ou
+      de la barre de Paris du jour (« paris », `arrondir`, la barre doit exister), et sa clôture égale `close_apres`.
+      À la fin : la ligne du fichier existe si et seulement si l'état existe, égale l'état sur les cinq colonnes, et sa
+      colonne `source` vaut SOURCE_PARIS si un geste parti de Paris a écrit la ligne depuis son dernier retrait (depuis
+      l'origine s'il n'y en a pas), SOURCE_YAHOO sinon. Toutes les comparaisons sont des égalités exactes.
+    ⑦ UNITÉ — Des euros et des nombres de titres ; facteurs sans unité.
+    ⑧ POURQUOI — Demande de Jean-Luc du 13-10-2026 à 09h34 (« Tu ne vas pas oublier de le faire pour notre historique
+      des 20 ans ») et sa décision du même jour (« Les deux, dans l'ordre ») : chaque cours de l'historique long doit
+      se remonter et se recalculer jusqu'à sa source (A-578). Cette fonction remplace, le 18-10-2026, les deux
+      fonctions `etapes_non_recalculables` et `lignes_non_remontees`, qui devinaient le départ et le facteur de volume
+      faute de les lire : elles refusaient 1 010 gestes et 611 lignes. L'égalité exacte : décision de Jean-Luc du
+      18-10-2026 à 20h41 (voir `appliquer`). Ce que les relectures du même jour ont fait ajouter : l'origine dans la
+      boucle (une ligne Yahoo supprimée du fichier sans geste passait — Hermès 14-02-2025) ; le texte exact de la
+      source (« Yahoo » passait) ; le vocabulaire des gestes (un geste inventé passait).
+    ⑨ CE QUI CLOCHE — Le rejeu prouve que le journal EXPLIQUE le fichier, pas que ses facteurs sont JUSTES : un facteur
+      mesuré sur des séances voisines ne se recalcule pas depuis le journal ; la justesse relève de K1 à K22, et de
+      l'épreuve qui relance la réparation et retrouve le fichier et le journal à l'octet. · Deux gestes de même départ
+      se confondent : « comblé » renommé « corrigé », ou « écarté » renommé « retiré », passe ; un « gardé » (facteurs 1
+      et 1) supprimé ou doublé passe ; un geste neutre inventé (« non comblé », ou « retiré » sur une ligne qui n'existe
+      nulle part) passe — sans effet sur aucun nombre (relecture n° 2 du 18-10-2026 ; → BACKLOG, A-597). · Paris est
+      donné APRÈS le retrait des barres prouvées fausses (`lire_paris`) : une fenêtre déclarée fausse après la
+      réparation fera refuser ses lignes avec « Paris, qui n'a pas de barre ce jour » — refus juste, message trompeur.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main : chaque ligne a un nombre fini de gestes. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
     cas = []
-    for v, s in series.items():
-        for d, barre in s.items():
-            gestes = journal.get((v, d), [])
-            if gestes and not gestes[-1]["close_apres"]:
-                cas.append(f"{v} {d} : le journal la retire (« {gestes[-1]['geste']} »), le fichier l'a")
+    for v, d in sorted({(v, d) for v, s in series.items() for d in s} | set(journal)
+                       | {(v, d) for v, s in origine.items() for d in s}):
+        etat = origine.get(v, {}).get(d)
+        venue, motif = SOURCE_YAHOO if etat is not None else None, None
+        gestes = journal.get((v, d), [])
+        for g in gestes:
+            if g["geste"] not in GESTES_DU_JOURNAL:
+                motif = f"« {g['geste']} » : geste inconnu du contrat (GESTES_DU_JOURNAL)"
+                break
+            if g["depart"] != GESTES_DU_JOURNAL.get(g["geste"]):
+                motif = (f"« {g['geste']} » doit partir de « {GESTES_DU_JOURNAL.get(g['geste'])} », le journal écrit "
+                         f"« {g['depart']} »")
+                break
+            ecrits = [c for c in ("close_apres", "facteur", "facteur_volume") if g[c] != ""]
+            if g["depart"] == "" and ecrits:
+                motif = f"« {g['geste']} » retire la ligne mais écrit {', '.join(ecrits)}"
+                break
+            if g["depart"] != "" and len(ecrits) < 3:
+                manque = [c for c in ("close_apres", "facteur", "facteur_volume") if c not in ecrits]
+                motif = f"« {g['geste']} » part de « {g['depart']} » mais n'écrit pas {', '.join(manque)}"
+                break
+            if (g["close_avant"] == "") != (etat is None):
+                motif = (f"« {g['geste']} » : clôture avant {g['close_avant'] or 'vide'}, alors que la ligne "
+                         f"{'n’existe pas' if etat is None else 'existe'} à ce moment")
+                break
+            if etat is not None and etat[3] != float(g["close_avant"]):
+                motif = f"« {g['geste']} » : clôture avant {g['close_avant']}, la ligne rejouée vaut {etat[3]}"
+                break
+            if g["depart"] == "":
+                etat, venue = None, None
                 continue
-            de_paris = (gestes and not gestes[0]["close_avant"]) or (not gestes and (v, d) in venues_de_bnains)
-            depart = (paris if de_paris else origine).get(v, {}).get(d)
-            if depart is None:
-                cas.append(f"{v} {d} : ligne de départ absente ({'Paris' if de_paris else 'Yahoo d’origine'})")
-                continue
-            c, rompue = depart[3], False
-            for g in gestes:
-                if g["close_avant"] and not _egal(float(g["close_avant"]), c):
-                    rompue = True
-                if g["close_apres"]:
-                    c = float(g["close_apres"])
-            if rompue or not _egal(barre[3], c):
-                cas.append(f"{v} {d} : chaîne du journal rompue (départ {depart[3]}, fin {c}, fichier {barre[3]})")
-            elif not (explique(depart, barre) or explique(paris.get(v, {}).get(d), barre)):
-                cas.append(f"{v} {d} : ouverture, plus haut, plus bas ou volume inexpliqués (fichier {barre}, départ "
-                           f"{depart})")
-    for (v, d), gestes in journal.items():
-        if d not in series.get(v, {}) and gestes[-1]["close_apres"]:
-            cas.append(f"{v} {d} : le journal l'écrit (« {gestes[-1]['geste']} », {gestes[-1]['close_apres']}), le "
-                       f"fichier ne l'a pas")
+            base = paris.get(v, {}).get(d) if g["depart"] == "paris" else etat
+            if base is None:
+                motif = (f"« {g['geste']} » part de " + ("Paris, qui n'a pas de barre ce jour" if g["depart"] == "paris"
+                                                          else "la ligne, qui n'existe pas à ce moment"))
+                break
+            fp, fv = float(g["facteur"]), float(g["facteur_volume"])
+            if g["depart"] == "paris":
+                etat, venue = arrondir(base, fp, fv), SOURCE_PARIS
+            else:
+                etat = appliquer(base, fp, fv)
+            if etat[3] != float(g["close_apres"]):
+                motif = f"« {g['geste']} » : clôture après {g['close_apres']}, le rejeu donne {etat[3]}"
+                break
+        barre = series.get(v, {}).get(d)
+        if motif is None:
+            if barre is not None and etat is None:
+                motif = "le journal la retire, le fichier l'a" if gestes else "ligne sans origine ni geste au journal"
+            elif barre is None and etat is not None:
+                motif = ("le journal l'écrit, le fichier ne l'a pas" if gestes
+                         else "ligne de l'origine absente du fichier, sans geste qui la retire")
+            elif barre is not None and etat is not None:
+                faux = [c for i, c in enumerate(("ouverture", "plus haut", "plus bas", "clôture", "volume"))
+                        if barre[i] != etat[i]]
+                if faux:
+                    motif = f"{', '.join(faux)} : le fichier a {barre}, le rejeu donne {etat}"
+                elif sources.get((v, d)) != venue:
+                    motif = (f"colonne source « {sources.get((v, d))} », le rejeu part de "
+                             f"{'Paris' if venue == SOURCE_PARIS else 'Yahoo'} (« {venue} »)")
+        if motif:
+            cas.append(f"{v} {d} : {motif}")
     return sorted(cas)
 
 
@@ -2290,14 +2356,162 @@ def _chemin(x):
     return posixpath.normpath(x.strip().replace("\\", "/"))
 
 
+ADRESSE_ENTIERE = re.compile(r"https?://[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?::[0-9]+)?(?:/\S*)?")
+# K23 : la seule forme d'une adresse acceptée — pour un téléchargement (`adresse`) et pour chaque morceau de la colonne
+# `source` d'un fichier écrit à la main. CE QU'ELLE VÉRIFIE : « http:// » ou « https:// » en tête, rien avant ; puis au
+# moins deux suites de lettres, chiffres ou tirets séparées par des points ; un port facultatif ; puis rien, ou « / »
+# suivi de caractères sans espace. CE QU'ELLE NE VÉRIFIE PAS : que le nom d'hôte soit valable (« https://-.- » et
+# « http://1.2 » passent) ; une adresse dont « ? » suit directement l'hôte (« https://www.bnains.org?x=1 ») est refusée à
+# tort ; une adresse qui contient « ; » est coupée en deux par la lecture de la colonne `source`. Superviseur n° 3 du
+# 19-10-2026 : une seule règle d'adresse dans K23 (R-708) ; « http://. » et « xhttps://y » passaient la règle d'avant.
+# Superviseur n° 4 du même jour : la resserrer encore ne gagne rien sur les 82 adresses réelles et refuserait à tort
+# une adresse IP ou un nom de domaine en alphabet non latin — un fraudeur passe toute règle avec « https://exemple.org » ;
+# c'est un filet de forme (décision de Jean-Luc du 17-10-2026 à 16h10), pas une preuve.
+
+
+def chemin_du_depot(racine, x):
+    """Dit si un texte est le chemin relatif d'un fichier du dépôt, et le rend normalisé.
+
+    ① RÔLE — K23 : la seule vérification qu'un chemin écrit au registre (`lu`) ou dans un fichier écrit à la main
+      (`fichiers_cites`) désigne un fichier du dépôt, et rien d'autre.
+    ② CONTEXTE D'APPEL — `remonter` (les fichiers lus d'un programme) ; `sources_ecrites_a_la_main` (les fichiers cités).
+    ③ ENTRÉE — `racine` : la racine du dépôt · `x` : le texte d'un chemin, tel qu'écrit.
+    ④ CONDITIONS D'ENTRÉE — `x` n'est pas vide (les appelants ôtent les morceaux vides).
+    ⑤ SORTIE — DEUX valeurs : le chemin normalisé (`_chemin`) et None ; ou None et le défaut, en un texte. Un dossier
+      rend le chemin ET le défaut « un dossier », pour que l'appelant le nomme.
+      [rend: 2]
+    ⑥ TRAITEMENT — Refuser un chemin absolu (« / » en tête, ou une lettre de lecteur), un composant « .. », tout
+      composant qui est un lien symbolique ; signaler un dossier (« . » compris) ; rendre le reste. Un test « hors de la
+      racine » a été retiré le 19-10-2026 : sur 23 331 chemins essayés, il n'était jamais atteint, les deux refus d'avant
+      le couvrant (superviseur n° 4, M7).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relecture du 19-10-2026 (D2) : « /etc/hostname », « ../hors.csv » et un lien vers l'extérieur passaient
+      pour des fichiers du dépôt, et le verdict dépendait de la machine ; superviseur n° 3 du même jour : le même défaut
+      vivait dans `lu`, d'où une seule fonction pour les deux (deux implémentations d'une même chose divergent toujours,
+      R-708).
+    ⑨ CE QUI CLOCHE — L'existence du fichier n'est pas vérifiée ici, et ses deux appelants la traitent différemment :
+      pour un fichier lu, `remonter` la vérifie par son empreinte, et un fichier absent n'y passe que comme
+      téléchargement ; pour un fichier cité, `sources_ecrites_a_la_main` refuse un fichier absent avant de le rendre
+      (réponse de Jean-Luc du 19-10-2026, « 1 — Oui, le refuser »). · Sous Windows ou macOS, la casse d'un nom ne compte pas : le
+      verdict dépend donc de la machine (sous Linux, « Donnees/B.csv » est refusé). · Une barre inverse est ramenée à
+      « / », comme `_chemin` le fait déjà pour `lu`.
+    ⑩ EFFET — Regarde le disque (liens, dossier).
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    c = x.strip().replace("\\", "/")
+    if c.startswith("/") or re.match(r"[A-Za-z]:", c):
+        return None, "un chemin absolu"
+    if ".." in c.split("/"):
+        return None, "un chemin qui sort par « .. »"
+    n = _chemin(c)
+    partiel = racine
+    for morceau in n.split("/"):
+        partiel = os.path.join(partiel, morceau)
+        if os.path.islink(partiel):
+            return None, "un lien symbolique"
+    if os.path.isdir(os.path.join(racine, n)):
+        return n, "un dossier"
+    return n, None
+
+
+def sources_ecrites_a_la_main(racine, f):
+    """Dit si un fichier écrit à la main cite sa source ligne par ligne, et rend les fichiers du dépôt qu'il cite.
+
+    ① RÔLE — K23 : la propriété qui distingue un fichier vraiment écrit à partir de documents d'un fichier sans origine
+      qu'on inscrirait « écrit à la main » pour passer.
+    ② CONTEXTE D'APPEL — `remonter`, dans `maillons_manquants`, pour une ligne du registre ECRIT_A_LA_MAIN ; les épreuves.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `f` : le chemin normalisé du fichier, depuis la racine.
+    ④ CONDITIONS D'ENTRÉE — Le fichier est présent (`remonter` l'a vérifié par son empreinte).
+    ⑤ SORTIE — DEUX valeurs : le défaut, en un texte, ou None ; la liste triée des fichiers du dépôt cités.
+      [rend: 2]
+    ⑥ TRAITEMENT — Lire l'en-tête d'abord : un fichier qui n'est pas un CSV portant les trois colonnes
+      COLONNES_DES_SOURCES_A_LA_MAIN est refusé sans lire le reste · puis chaque enregistrement : `citation` non vide ;
+      `source` vide, ou des adresses séparées par « ; », chacune ENTIÈRE (ADRESSE_ENTIERE) ; `fichiers_cites` vide, ou
+      des chemins séparés par « ; », chacun un fichier du dépôt (`chemin_du_depot`) ET présent sur le disque — un
+      fichier cité absent est refusé, même inscrit comme téléchargement ; au moins une adresse ou un fichier
+      cité · un fichier sans enregistrement est refusé · les fichiers cités sont rendus, pour que `remonter` les remonte à
+      leur tour. Aucun chemin n'est cherché dans un texte libre.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Décision de Jean-Luc du 19-10-2026 à 07h05 (« 1 » à « Ajouter au registre une origine « écrit à la
+      main », avec sa preuve ») ; le critère qu'il a reçu : « un cours doit pouvoir se remonter jusqu'à ce qui l'a fait
+      naître ; pour ces fichiers, c'est un document cité ligne par ligne ». Superviseur du même jour (R-759) : sans cette
+      propriété, yahoo_ohlcv_propre.csv, bnains_cac40.csv et evenements.json, inscrits « à la main », passaient. Décision
+      de Jean-Luc du même jour à 08h23 (« 1 » à « Une colonne à part pour les fichiers cités. La colonne source ne garde
+      que les adresses web, et une nouvelle colonne liste les fichiers du dépôt, séparés par « ; ». Le contrôle les vérifie
+      comme il vérifie déjà les fichiers lus, sans rien deviner ») : chercher des chemins dans le texte libre de `source`
+      laissait des trous (12 sur la première réparation, superviseur n° 2 ; « fichier.csv voir http://x » passait,
+      relecteur n° 1). Le refus d'un fichier cité absent : question posée à Jean-Luc le 19-10-2026 (« Un fichier cité par
+      une ligne tapée à la main doit-il obligatoirement être dans le dépôt ? »), réponse « 1 — Oui, le refuser » (lue à
+      18h11) : un fichier cité doit pouvoir s'ouvrir ; un document téléchargé et non gardé se cite par son adresse web.
+      Le refus vit ici et non dans `chemin_du_depot`, que partagent les fichiers lus : un fichier lu peut être un
+      téléchargement absent du dépôt (superviseur n° 4 : placé là, il faisait passer le brouillon du registre de 45 à
+      106 défauts).
+    ⑨ CE QUI CLOCHE — La forme seule est vérifiée : une citation « x » passe, une adresse qui ne dit pas ce que la citation
+      prétend passe ; le fond reste au relecteur (décision de Jean-Luc du 17-10-2026 à 16h10). · Des colonnes ajoutées par
+      fraude à un fichier passeraient ; elles changeraient son empreinte et ce que lisent les programmes. · Le contrôle de
+      l'en-tête CHANGE le verdict : sans lui, un fichier privé de la colonne `source` ou de la colonne `fichiers_cites`
+      passerait dès que ses lignes remplissent l'autre ; seul un fichier privé de `citation` tomberait quand même
+      (superviseur n° 4 du 19-10-2026, M5 ; la phrase d'avant, juste avec deux colonnes, ne l'était plus avec trois).
+      · Un fichier du dépôt cité par une adresse web (par exemple son adresse GitHub) passe sans être remonté ni comparé
+      à son empreinte : le refuser demanderait d'épeler les noms des dépôts et des hôtes, une énumération (relecteur
+      n° 2 et superviseur n° 4 du 19-10-2026, M2 ; BACKLOG A-599). · Un fichier cité dit seulement « cette ligne
+      s'appuie sur ce fichier » : rien ne vérifie que le fichier cité porte bien la ligne qui l'appuie (par exemple, que
+      DETACHEMENTS_OFFICIELS.csv porte la ligne Accor/Edenred que cite la ligne ACCOR 2010 des ajustements de Yahoo —
+      superviseur n° 3 du 19-10-2026, H1).
+    ⑩ EFFET — Lit le fichier ligne à ligne, jusqu'au premier défaut ; regarde le disque pour chaque fichier cité.
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    source, citation, cites_col = COLONNES_DES_SOURCES_A_LA_MAIN
+    cites, vu = set(), False
+    try:
+        with open(os.path.join(racine, f), encoding="utf-8-sig", newline="") as fl:
+            lecteur = csv.DictReader(fl)
+            if not set(COLONNES_DES_SOURCES_A_LA_MAIN) <= set(lecteur.fieldnames or []):
+                return f"sans les colonnes {', '.join(COLONNES_DES_SOURCES_A_LA_MAIN)}", []
+            for x in lecteur:
+                vu, n = True, lecteur.line_num
+                if not (x.get(citation) or "").strip():
+                    return f"ligne {n} sans {citation}", []
+                adresses = [m.strip() for m in (x.get(source) or "").split(";") if m.strip()]
+                for m in adresses:
+                    if not ADRESSE_ENTIERE.fullmatch(m):
+                        return f"ligne {n} : {source} « {m[:60]} », pas une adresse http(s) entière", []
+                chemins = [m.strip() for m in (x.get(cites_col) or "").split(";") if m.strip()]
+                for m in chemins:
+                    c, defaut = chemin_du_depot(racine, m)
+                    if defaut:
+                        return f"ligne {n} : {cites_col} « {m[:60]} », {defaut}", []
+                    if not os.path.isfile(os.path.join(racine, c)):
+                        return f"ligne {n} : {cites_col} « {m[:60]} », absent du dépôt", []
+                    cites.add(c)
+                if not adresses and not chemins:
+                    return f"ligne {n} : ni adresse en {source} ni fichier en {cites_col}", []
+    except (UnicodeDecodeError, csv.Error):
+        return f"illisible comme un CSV portant les colonnes {', '.join(COLONNES_DES_SOURCES_A_LA_MAIN)}", []
+    if not vu:
+        return "sans aucune ligne", []
+    return None, sorted(cites)
+
+
 def maillons_manquants(racine, fichiers):
-    """Rend ce qui manque pour remonter chaque fichier jusqu'à un premier maillon pris hors du dépôt.
+    """Rend ce qui manque pour remonter chaque fichier jusqu'à un premier maillon : un téléchargement, ou un fichier écrit à la main.
 
     ① RÔLE — K23, la provenance : chaque fichier dont viennent les lignes contrôlées doit se remonter, par le registre de
-      provenance, jusqu'à au moins un téléchargement dont l'adresse et l'empreinte sont dites, sans boucle.
+      provenance, jusqu'à au moins un premier maillon, sans boucle : un téléchargement dont l'adresse et l'empreinte sont
+      dites, ou un fichier écrit à la main qui cite sa source ligne par ligne (`sources_ecrites_a_la_main`).
     ② CONTEXTE D'APPEL — `main`, pour K23 ; les épreuves.
     ③ ENTRÉE — `racine` : la racine du dépôt · `fichiers` : les chemins, depuis la racine, à remonter.
     ④ CONDITIONS D'ENTRÉE — Le registre, s'il existe, a l'en-tête PROVENANCE_DES_FICHIERS, sinon ValueError.
+      · DANS K23, « AU DÉPÔT » VEUT DIRE « DANS LE DOSSIER CONTRÔLÉ » (`racine`) : K23 regarde le disque, il ne demande
+      pas à git ce que le dépôt garde. Sur une copie fraîche du dépôt, c'est la même chose. Sur une machine qui porte
+      des fichiers que git ne garde pas (une archive retéléchargée sous hors_depot/, un dossier ignoré), un programme,
+      un fichier lu ou un fichier cité peut passer à tort. LE VERDICT QUI FAIT FOI EST CELUI D'UNE COPIE FRAÎCHE. Décision
+      de Jean-Luc du 19-10-2026 à 19h56 (« 1 » à « L'écrire une fois et fermer le trou plus tard ») ; le trou se ferme
+      quand K23 sera branché au circuit, qui travaille toujours sur une copie fraîche (BACKLOG A-599, rattaché à A-578).
+      Relecteur n° 3 et superviseur n° 5 du même jour (N1) : fermer le trou en demandant à git la liste des fichiers
+      gardés faisait tomber 7 épreuves sur 61.
     ⑤ SORTIE — UNE valeur : la liste des cas, un texte par maillon manquant, triés et sans doublon.
       [rend: 1]
     ⑥ TRAITEMENT — Registre absent : un cas par fichier. Sinon, chaque fichier est remonté (`remonter`) : ① ses lignes
@@ -2305,21 +2519,26 @@ def maillons_manquants(racine, fichiers):
       absent : exactement une ligne de téléchargement ; un fichier déclaré réparé (CONTRATS.FICHIERS_REPARES) doit y
       être produit par le programme déclaré · ② un téléchargement porte une adresse http(s) et une empreinte de
       64 caractères hexadécimaux ; s'il est présent au dépôt, son empreinte est celle du fichier ; il ARRÊTE la remontée
-      · ③ sinon, la ligne nomme un programme (.py) présent au dépôt et au moins un fichier lu, chacun un fichier, chacun
-      remonté à son tour ; au moins une branche doit arriver à un téléchargement · ④ un fichier rencontré une seconde
-      fois sur le même chemin est une boucle : cas.
+      · ②bis un fichier écrit à la main (après la garde des fichiers réparés) est présent, sans fichier lu, sans
+      adresse, avec une preuve, et cite sa source ligne par ligne ; chaque fichier du dépôt qu'il cite est remonté à son
+      tour ; sinon il ARRÊTE la remontée · ③ sinon, la ligne nomme un programme (.py) présent au dépôt et au moins un
+      fichier lu, chacun un fichier, chacun remonté à son tour ; au moins une branche doit arriver à un premier maillon
+      · ④ un fichier rencontré une seconde fois sur le même chemin est une boucle : cas.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Même demande et même décision que `etapes_non_recalculables`. Constat du 13-10-2026 : le fichier
+    ⑧ POURQUOI — Même demande et même décision que `lignes_non_rejouees`. Constat du 13-10-2026 : le fichier
       Yahoo d'origine est déjà nettoyé ; le téléchargement brut et les cinq programmes qui l'ont produit ne sont pas au
       dépôt (A-538 ④) ; rien ne déclare d'où il vient. Relecture indépendante du même jour : une boucle sans aucun
       téléchargement passait (« A lu par A »), et plusieurs lignes du même fichier, un programme qui n'en était pas un,
       une empreinte vide, une adresse « x », un dossier lu, aussi ; tous sont refusés. Relecture de Cowork du même soir
-      (91d4ac8, cassure I) : le fichier réparé inscrit comme « téléchargement » passait ; refusé.
+      (91d4ac8, cassure I) : le fichier réparé inscrit comme « téléchargement » passait ; refusé. Le premier maillon
+      « écrit à la main » : décision de Jean-Luc du 19-10-2026 à 07h05 ; quatre fichiers lus par la réparation sont
+      écrits à partir de documents (inventaire du 18-10-2026), et le registre ne savait pas le dire.
     ⑨ CE QUI CLOCHE — Un téléchargement absent du dépôt n'est pas vérifiable ici : son empreinte est écrite, pas
       recalculée. · Aucune garde ne vérifie qu'une adresse inscrite rend bien le fichier : l'empreinte dit qu'on parle
       du même fichier, pas d'où il vient (Cowork, 91d4ac8). · Le registre dit qu'un programme a produit un fichier ; il ne prouve pas que ce programme, relancé,
       le referait (R-731 et les épreuves de chaque programme le prouvent). · Un registre FAUX mais cohérent passe : le
-      registre s'écrit, il se relit (A-578).
+      registre s'écrit, il se relit (A-578). · La preuve d'un fichier écrit à la main n'est pas
+      vérifiée ici : une preuve « x » passe.
     ⑩ EFFET — Lit le registre et les fichiers qu'il nomme.
     ⑪ TERMINAISON — Rend la main ou lève. La remontée s'arrête : un fichier déjà sur le chemin n'est pas suivi.
       [sort: non]
@@ -2336,18 +2555,23 @@ def maillons_manquants(racine, fichiers):
     cas = set()
 
     def remonter(f, chemin):
-        """Rend vrai si un fichier se remonte jusqu'à un téléchargement ; inscrit dans `cas` ce qui manque.
+        """Rend vrai si un fichier se remonte jusqu'à un premier maillon ; inscrit dans `cas` ce qui manque.
 
         ① RÔLE — Remonter un fichier d'un maillon, puis ses sources.
         ② CONTEXTE D'APPEL — `maillons_manquants`, une fois par fichier demandé ; elle-même, pour chaque fichier lu.
         ③ ENTRÉE — `f` : un chemin normalisé · `chemin` : les fichiers déjà traversés pour arriver ici.
         ④ CONDITIONS D'ENTRÉE — `registre` et `cas` existent (fonction englobante).
-        ⑤ SORTIE — UNE valeur : vrai si au moins une branche arrive à un téléchargement valide.
+        ⑤ SORTIE — UNE valeur : vrai si au moins une branche arrive à un premier maillon valide (téléchargement, ou
+          fichier écrit à la main dont toutes les sources se remontent).
           [rend: 1]
         ⑥ TRAITEMENT — ⑥ ①-④ de `maillons_manquants`.
         ⑦ UNITÉ — —
         ⑧ POURQUOI — ⑧ de `maillons_manquants`.
         ⑨ CE QUI CLOCHE — Un fichier lu par deux branches est remonté deux fois : sans boucle, le coût reste fini.
+          · Le vrai ou faux rendu ne décide jamais du verdict : chaque refus est déjà inscrit dans `cas` quand il est
+          rendu ; il ne décide que du message du parent (« aucune de ses sources n'arrive… », « cite comme source …,
+          qui ne se remonte pas »). Mesuré par le superviseur n° 4 du 19-10-2026 : `remonter` forcé à toujours rendre
+          vrai, aucun des 54 verdicts ne change. L'épreuve H62 exige ce message (« le parent le dit »).
         ⑩ EFFET — Ajoute à `cas` ; lit les fichiers nommés.
         ⑪ TERMINAISON — Rend la main : un fichier déjà sur `chemin` arrête la branche, et le registre est fini.
           [sort: non]
@@ -2374,8 +2598,28 @@ def maillons_manquants(racine, fichiers):
             cas.add(f"{f} : déclaré écrit par {FICHIERS_REPARES[f]} (CONTRATS.FICHIERS_REPARES), inscrit au registre "
                     f"comme produit par « {r['produit_par']} »")
             return False
+        if r["produit_par"] == ECRIT_A_LA_MAIN:          # après la garde des fichiers réparés, jamais avant
+            if r["lu"].strip():
+                cas.add(f"{f} : écrit à la main, mais le registre lui donne des fichiers lus")
+                return False
+            if r["adresse"].strip():
+                cas.add(f"{f} : écrit à la main, mais le registre lui donne une adresse — une adresse dit un téléchargement")
+                return False
+            if not r["preuve"].strip():
+                cas.add(f"{f} : écrit à la main, sans preuve (la décision ou le commit qui l'atteste)")
+                return False
+            defaut, cites = sources_ecrites_a_la_main(racine, f)
+            if defaut:
+                cas.add(f"{f} : écrit à la main, {defaut}")
+                return False
+            arrive = True
+            for x in cites:
+                if not remonter(x, chemin + [f]):
+                    cas.add(f"{f} : cite comme source {x}, qui ne se remonte pas")
+                    arrive = False
+            return arrive
         if r["produit_par"] == TELECHARGEMENT:
-            if not re.fullmatch(r"https?://\S+", r["adresse"].strip()):
+            if not ADRESSE_ENTIERE.fullmatch(r["adresse"].strip()):
                 cas.add(f"{f} : téléchargement sans adresse http(s)")
                 return False
             if not re.fullmatch(r"[0-9a-f]{64}", r["sha256"].strip().lower()):
@@ -2386,18 +2630,22 @@ def maillons_manquants(racine, fichiers):
         if not (programme.endswith(".py") and os.path.isfile(os.path.join(racine, programme))):
             cas.add(f"{f} : produit par {r['produit_par']}, qui n'est pas un programme du dépôt")
             return False
-        lus = [_chemin(x) for x in r["lu"].split(";") if x.strip()]
+        lus = [x for x in r["lu"].split(";") if x.strip()]
         if not lus:
             cas.add(f"{f} : produit par {programme}, sans aucun fichier lu déclaré")
             return False
         arrive = False
-        for x in lus:
-            if os.path.isdir(os.path.join(racine, x)):
+        for brut in lus:
+            x, defaut = chemin_du_depot(racine, brut)
+            if defaut == "un dossier":
                 cas.add(f"{f} : lit {x}, qui est un dossier")
+                continue
+            if defaut:
+                cas.add(f"{f} : lit « {brut.strip()} », {defaut}")
                 continue
             arrive = remonter(x, chemin + [f]) or arrive
         if not arrive:
-            cas.add(f"{f} : aucune de ses sources n'arrive à un téléchargement")
+            cas.add(f"{f} : aucune de ses sources n'arrive à un premier maillon (téléchargement ou fichier écrit à la main)")
         return arrive
 
     for f in fichiers:
@@ -2430,13 +2678,11 @@ def main(argv):
     fichier = os.path.join(racine, argv[1] if len(argv) > 1 else FICHIER)
     try:
         series, defauts, venues_de_bnains = lire_cours(fichier)
-        bnains, defauts_b, _ = lire_cours(os.path.join(racine, BNAINS), COURS_BNAINS)
+        bnains, defauts_b, fausses = lire_paris(racine)
         a_defaire = lire_a_defaire(os.path.join(racine, VERDICTS_YAHOO))
         evenements = sans_les_divisions_fausses(json.load(open(os.path.join(racine, EVENEMENTS), encoding="utf-8")),
                                                 a_defaire)
         detachements, sans_date = lire_detachements(os.path.join(racine, DROITS), os.path.join(racine, OFFICIELS))
-        paris = {v: dict(s) for v, s in bnains.items()}      # K23 : Paris tel que lu, avant d'en ôter les barres fausses
-        fausses = oter_les_barres_fausses(os.path.join(racine, FAUSSES), bnains)
         francfort = lire_francfort(os.path.join(racine, FRANCFORT))
         indice = lire_indice(os.path.join(racine, INDICE))
         origine, defauts_o, _ = lire_cours(os.path.join(racine, ORIGINE))
@@ -2452,9 +2698,11 @@ def main(argv):
         k23 += maillons_manquants(racine, [relatif] if not repare     # le fichier lui-même, et ses deux sources
                                   else [relatif, ORIGINE.replace(os.sep, "/"), BNAINS.replace(os.sep, "/")])
         if repare and a_la_source:
+            if defauts_o:      # superviseur du 18-10-2026 : le rejeu part de ce fichier ; abîmé, il ne prouve rien (R-734)
+                raise ValueError(f"{ORIGINE} : {len(defauts_o)} défaut(s) de lecture, dont {defauts_o[0]} — K23 ne peut "
+                                 f"pas rejouer le journal sur une origine abîmée")
             journal = lire_journal(os.path.join(racine, JOURNAL))
-            k23 += etapes_non_recalculables(journal, paris) + lignes_non_remontees(series, venues_de_bnains, origine,
-                                                                                    paris, journal)
+            k23 += lignes_non_rejouees(series, lire_les_sources(fichier), origine, bnains, journal)
     except (OSError, ValueError) as e:
         print(f"ARRÊT — le contrôle n'a pas pu tourner : {type(e).__name__} : {e}")
         return 2
@@ -2470,8 +2718,8 @@ def main(argv):
     for num, titre, bloquant, cas in controler(series, defauts, bnains, evenements, venues_de_bnains, detachements,
                                                sans_date, fausses, francfort, indice, origine, a_defaire,
                                                citations, alignes) + [
-            ("K23", "lignes qui ne se remontent pas jusqu'à leur source, étapes du journal qui ne se refont pas avec ce "
-                    "qu'elles écrivent, et maillons de provenance manquants (A-578)", True, k23)]:
+            ("K23", "lignes que le journal des réparations ne refait pas depuis leur source, et maillons de provenance "
+                    "manquants (A-578)", True, k23)]:
         etat = ("REFUS" if cas else "ok") if bloquant else "signalé"
         print(f"{num:>4} {etat:<7} {len(cas):>6} — {titre}")
         for c in cas[:8]:

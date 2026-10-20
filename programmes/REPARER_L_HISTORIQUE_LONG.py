@@ -15,7 +15,9 @@ Simulation uniquement.
   ramenés à la convention de Yahoo (cours ajustés des divisions et des augmentations de capital,
   pas des dividendes). La huitième colonne, source, dit pour chaque ligne d'où elle vient : yahoo ou
   bnains. Le journal des réparations dit, pour chaque ligne touchée, le geste, l'ancienne et la
-  nouvelle clôture, le facteur appliqué et la raison.
+  nouvelle clôture, d'où part le geste (la ligne, ou la barre de Paris), les facteurs appliqués aux prix
+  et au volume, et la raison : K23 refait chaque ligne en le rejouant, à l'égalité exacte (contrat
+  JOURNAL_DES_REPARATIONS).
 ② CONTEXTE D'APPEL — À la main, après programmes/LIRE_LES_ARCHIVES_BNAINS.py :
   python3 programmes/REPARER_L_HISTORIQUE_LONG.py <racine>. Puis
   programmes/CONTROLER_L_HISTORIQUE_LONG.py juge le résultat. Aucun circuit ne le lance. Ses
@@ -72,6 +74,13 @@ Simulation uniquement.
   ces barres sont dans BARRES_BNAINS_FAUSSES.csv et ne servent plus. · Un jour
   douteux dans une fenêtre reconstruite devient une séance manquante, déclarée au journal. · Les
   séances que rien ne comble restent manquantes : décision de Jean-Luc (A-539, action ⑤). → BACKLOG.
+  · Le 18-10-2026, les gestes partis de la ligne (« défait », « ajusté », « aligné ») passent par
+  `K.appliquer`, qui multiplie par le facteur que le journal écrit, au lieu de diviser : des lignes
+  du fichier réparé ont changé au 16e chiffre (4,4e-16 au plus, en relatif ; pour « ajusté », sur les
+  prix ; pour « défait » et « aligné », sur le volume — superviseur n° 2 et relecture du même jour),
+  pour que K23 compare à l'égalité exacte (décision de Jean-Luc, 20h41). · Les noms « yahoo » et
+  « bnains » de la colonne source sont écrits ici en clair, quand le contrat les déclare
+  (SOURCE_YAHOO, SOURCE_PARIS) : une divergence ferait refuser chaque ligne par K23, bruyamment.
 ⑩ EFFET — Écrit donnees/sources_yahoo/historique_long_repare.csv et
   donnees/sources_yahoo/journal_des_reparations.csv, en les remplaçant. Ne touche à aucun autre
   fichier — ni au fichier Yahoo déposé, ni au fichier maître des cours.
@@ -82,12 +91,12 @@ import bisect, csv, json, os, statistics, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import CONTROLER_L_HISTORIQUE_LONG as K          # les définitions partagées avec le contrôle (R-708)
-from CONTRATS_DES_FICHIERS import COURS_MAITRE, COURS_BNAINS
+from CONTRATS_DES_FICHIERS import COURS_MAITRE, COURS_BNAINS, JOURNAL_DES_REPARATIONS, GESTES_DU_JOURNAL
 
 ENTREE = K.ORIGINE        # le fichier Yahoo avant réparation, nommé une fois (R-708), dans le contrôle qui le relit (K18)
 SORTIE = os.path.join("donnees", "sources_yahoo", "historique_long_repare.csv")
 JOURNAL = K.JOURNAL      # nommé une fois, dans le contrôle qui le relit (K20, R-708)
-CHAMPS_JOURNAL = ["valeur", "date", "geste", "close_avant", "close_apres", "facteur", "raison"]
+CHAMPS_JOURNAL = JOURNAL_DES_REPARATIONS   # l'en-tête du journal, déclaré une fois au contrat (R-708, superviseur du 18-10-2026)
 # Les fenêtres à reconstruire depuis bnains (A-539, action ②) : valeur, début, fin, puis la PÉRIODE
 # DE RÉFÉRENCE où Yahoo et bnains s'accordent et sur laquelle le facteur est mesuré.
 RECONSTRUCTIONS = (
@@ -134,19 +143,54 @@ def barre(b, f, k, s):
     ③ ENTRÉE — `b` : (open, high, low, close, volume) bruts · `f` : facteur de prix · `k` : facteur
       de volume · `s` : divisions postérieures (`K.divisions`).
     ④ CONDITIONS D'ENTRÉE — `s` > 0.
-    ⑤ SORTIE — UNE valeur : (open, high, low, close, volume), prix × f / s, volume × s × k arrondi à
-      l'unité.
-      [rend: 1]
+    ⑤ SORTIE — TROIS valeurs : la barre `K.arrondir(b, f / s, s × k)` — prix × f / s arrondis à K.DECIMALES
+      décimales, volume × s × k arrondi à l'unité ; le facteur de prix appliqué, f / s ; le facteur de volume
+      appliqué, s × k.
+      [rend: 3]
     ⑥ TRAITEMENT — ⑤.
-    ⑦ UNITÉ — EUROS et NOMBRE DE TITRES, convention de Yahoo.
-    ⑧ POURQUOI — —
+    ⑦ UNITÉ — EUROS et NOMBRE DE TITRES, convention de Yahoo ; facteurs sans unité.
+    ⑧ POURQUOI — Le journal écrit les facteurs que la barre a APPLIQUÉS, rendus ici, jamais recalculés à côté (R-708,
+      superviseur du 18-10-2026). Avant, le journal n'écrivait que f : 1 010 gestes et 611 lignes ne se refaisaient pas
+      (K23, A-578). L'arrondi est fait par `K.arrondir`, la fonction même que le rejeu appelle (décision de Jean-Luc du
+      18-10-2026 à 20h41 : égalité exacte). Le fichier réparé est resté identique à l'octet en passant de x × f / s à
+      x × (f / s) (mesuré le 18-10-2026).
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    return tuple(round(x * f / s, 4) for x in b[:4]) + (float(round(b[4] * s * k)),)
+    fp, fv = f / s, s * k
+    return K.arrondir(b, fp, fv), fp, fv
 
+
+
+def noter(journal, valeur, date, geste, avant, apres, facteur, raison, facteur_volume):
+    """Ajoute au journal une ligne, dans l'ordre des colonnes du contrat, avec le départ que le contrat donne au geste.
+
+    ① RÔLE — Le seul écrivain d'une ligne du journal des réparations.
+    ② CONTEXTE D'APPEL — Chaque geste de ce programme, une fois par ligne de cours touchée.
+    ③ ENTRÉE — `journal` : la liste à compléter · `valeur`, `date` · `geste` : un nom de GESTES_DU_JOURNAL ·
+      `avant`, `apres` : les clôtures, ou "" · `facteur`, `facteur_volume` : les facteurs appliqués, ou "" · `raison`.
+    ④ CONDITIONS D'ENTRÉE — `geste` est dans GESTES_DU_JOURNAL, sinon KeyError : un geste inconnu du contrat arrête la
+      réparation au lieu d'écrire une ligne que K23 refuserait.
+    ⑤ SORTIE — Aucune valeur.
+      [rend: rien]
+    ⑥ TRAITEMENT — Ranger les valeurs par nom de colonne ; DÉDUIRE `depart` de GESTES_DU_JOURNAL ; ajouter la ligne
+      dans l'ordre de JOURNAL_DES_REPARATIONS.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur n° 2 du 18-10-2026 (R-759) : le départ était écrit à la main à neuf endroits, et l'ordre
+      des colonnes répété à treize ; il se déduit désormais du contrat, qui le déclare une fois (R-708).
+    ⑨ CE QUI CLOCHE — Les autres lignes de ce programme qui relisent le journal en mémoire le lisent par position
+      (`l[2]` pour le geste) : elles supposent que le contrat garde valeur, date, geste en tête. L'une est MUETTE : la
+      garde `trous` de `reparer` (barres écartées que le comblement n'a pas remplacées) deviendrait vide si la colonne
+      `geste` bougeait, et son ARRÊT disparaîtrait sans un mot (superviseur n° 3 du 18-10-2026 ; → BACKLOG, A-597).
+    ⑩ EFFET — Modifie `journal`.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    ligne = {"valeur": valeur, "date": date, "geste": geste, "close_avant": avant, "close_apres": apres,
+             "facteur": facteur, "raison": raison, "facteur_volume": facteur_volume, "depart": GESTES_DU_JOURNAL[geste]}
+    journal.append([ligne[c] for c in JOURNAL_DES_REPARATIONS])
 
 def defaire(series, a_defaire, journal):
     """Retire de la série de Yahoo un ajustement qu'il n'aurait pas dû faire ; rend le nombre de lignes touchées.
@@ -162,7 +206,8 @@ def defaire(series, a_defaire, journal):
     ⑤ SORTIE — UNE valeur : le nombre de lignes touchées.
       [rend: 1]
     ⑥ TRAITEMENT — Pour chaque (valeur, date, facteur) : chaque ligne d'avant la date voit ses quatre prix
-      multipliés par le facteur et son volume divisé par lui, et le journal le dit (« défait »).
+      multipliés par le facteur et son volume multiplié par 1 / facteur (`K.appliquer`), et le journal le dit
+      (« défait »).
     ⑦ UNITÉ — Des EUROS et des NOMBRES DE TITRES ; le facteur est un rapport sans unité.
     ⑧ POURQUOI — Décision de Jean-Luc du 08-10-2026 à 11h14 : « S'il y a des erreurs, il faut les corriger ».
       Mesuré le même jour : avant ces dates, Yahoo porte les clôtures × 0,963 et les volumes × 1,0385 pour Crédit
@@ -185,9 +230,10 @@ def defaire(series, a_defaire, journal):
         y = series.get(valeur, {})
         for x in sorted(x for x in y if x < date):
             o, h, l, c, vol = y[x]
-            y[x] = (o * f, h * f, l * f, c * f, vol / f)
-            journal.append([valeur, x, "défait", c, y[x][3], round(f, 6),
-                            f"ajustement de Yahoo du {date} défait (AJUSTEMENTS_DE_YAHOO.csv) : prix × {f:.6f}, volume ÷ {f:.6f}"])
+            y[x] = K.appliquer(y[x], f, 1 / f)
+            noter(journal, valeur, x, "défait", c, y[x][3], f,
+                  f"ajustement de Yahoo du {date} défait (AJUSTEMENTS_DE_YAHOO.csv) : prix × {f:.6f}, volume ÷ {f:.6f}",
+                  1 / f)
             n += 1
     return n
 
@@ -254,23 +300,28 @@ def reconstruire(series, sources, bnains, evenements, douteux, journal, detachem
                     a *= 1 + K.marche_permise(b, droit)
             avant = y[d][3] if d in y else ""
             if K.barre_sure(bnains, francfort or {}, valeur, d, douteux):
-                y[d] = barre(b[d], f / a, k * a, K.divisions(evenements, valeur, d))
+                y[d], fp, fv = barre(b[d], f / a, k * a, K.divisions(evenements, valeur, d))
                 sources[(valeur, d)] = "bnains"
-                journal.append([valeur, d, "reconstruit", avant, y[d][3], round(f / a, 6), raison])
+                noter(journal, valeur, d, "reconstruit", avant, y[d][3], fp,
+                      raison,
+                      fv)
                 continue
             if d not in y:
                 continue
             f_ici = K.facteur_local(origine, bnains, evenements, valeur, d, douteux | {d}, ())[0]
             if f_ici is not None and abs(f_ici / (f / a) - 1) <= K.PROPRE:
-                journal.append([valeur, d, "gardé", avant, avant, round(f_ici, 6),
-                                "fenêtre reconstruite, bnains n'a pas de barre utilisable ce jour, et Yahoo "
-                                "s'accorde avec bnains sur les séances voisines"])
+                noter(journal, valeur, d, "gardé", avant, avant, 1.0,
+                      "fenêtre reconstruite, bnains n'a pas de barre utilisable ce jour, et Yahoo "
+                      "s'accorde avec bnains sur les séances voisines (facteur mesuré sur elles, non "
+                      f"appliqué : {f_ici!r})",
+                      1.0)
                 continue
             del y[d]
             sources.pop((valeur, d), None)
-            journal.append([valeur, d, "retiré", avant, "", "",
-                            "fenêtre reconstruite, bnains n'a pas de barre utilisable ce jour"
-                            + (" (jour douteux)" if d in douteux else "") + ", et Yahoo est faux autour"])
+            noter(journal, valeur, d, "retiré", avant, "", "",
+                  "fenêtre reconstruite, bnains n'a pas de barre utilisable ce jour"
+                  + (" (jour douteux)" if d in douteux else "") + ", et Yahoo est faux autour",
+                  "")
     return arrets
 
 
@@ -317,7 +368,9 @@ def retirer(series, sources, bnains, evenements, journal):
         print(f"  ③ {valeur} avant le {debut} : {len(partie)} lignes, identiques à {temoin} chez bnains "
               f"(facteur {f:.4f}, accord {accord:.1%} sur {len(communes)} séances) — retirées")
         for d in sorted(partie):
-            journal.append([valeur, d, "retiré", y[d][3], "", round(f, 6), raison])
+            noter(journal, valeur, d, "retiré", y[d][3], "", "",
+                  f"{raison} (facteur de la comparaison à {temoin}, non appliqué : {f!r})",
+                  "")
             del y[d]
             sources.pop((valeur, d), None)
     return arrets
@@ -380,10 +433,11 @@ def recaler(series, sources, bnains, evenements, detachements, douteux, journal)
             f, k, _ = K.rapports(y, b, evenements, valeur, [a])
             for x in fausses:
                 avant = y[x][3]
-                y[x] = barre(b[x], f, k, K.divisions(evenements, valeur, x))
+                y[x], fp, fv = barre(b[x], f, k, K.divisions(evenements, valeur, x))
                 sources[(valeur, x)] = "bnains"
-                journal.append([valeur, x, "recalé", avant, y[x][3], round(f, 6),
-                                f"Yahoo change de facteur avant le détachement du {d} ; ramenée au facteur du {a}"])
+                noter(journal, valeur, x, "recalé", avant, y[x][3], fp,
+                      f"Yahoo change de facteur avant le détachement du {d} ; ramenée au facteur du {a}",
+                      fv)
                 recalees += 1
     return recalees
 
@@ -443,10 +497,11 @@ def ajuster(series, bnains, evenements, detachements, douteux, journal):
                 continue
             for x in [x for x in y if x < d]:
                 o, h, l, c, vol = y[x]
-                y[x] = (o / (1 + m), h / (1 + m), l / (1 + m), c / (1 + m), vol * (1 + m))
-                journal.append([valeur, x, "ajusté", c, y[x][3], round(1 / (1 + m), 6),
-                                f"Yahoo n'a pas ajusté le droit détaché le {d} (marche mesurée {100 * s:+.2f} %, "
-                                f"valeur du droit {100 * m:+.2f} %) ; ligne divisée par {1 + m:.6f}"])
+                y[x] = K.appliquer(y[x], 1 / (1 + m), 1 + m)
+                noter(journal, valeur, x, "ajusté", c, y[x][3], 1 / (1 + m),
+                      f"Yahoo n'a pas ajusté le droit détaché le {d} (marche mesurée {100 * s:+.2f} %, "
+                      f"valeur du droit {100 * m:+.2f} %) ; ligne divisée par {1 + m:.6f}",
+                      1 + m)
             ajustes += 1
     return ajustes, non_mesurables
 
@@ -499,10 +554,11 @@ def aligner(series, bnains, evenements, detachements, douteux, journal):
             q = (1 + s) / (1 + m)
             for x in [x for x in y if x < d]:
                 o, h, l, c, vol = y[x]
-                y[x] = (o * q, h * q, l * q, c * q, vol / q)
-                journal.append([valeur, x, "aligné", c, y[x][3], round(q, 6),
-                                f"Yahoo a ajusté le droit détaché le {d} de {100 * s:+.3f} %, la règle officielle donne "
-                                f"{100 * m:+.3f} % ; ligne multipliée par {q:.6f} (décision de Jean-Luc du 10-10-2026, 09h39)"])
+                y[x] = K.appliquer(y[x], q, 1 / q)
+                noter(journal, valeur, x, "aligné", c, y[x][3], q,
+                      f"Yahoo a ajusté le droit détaché le {d} de {100 * s:+.3f} %, la règle officielle donne "
+                      f"{100 * m:+.3f} % ; ligne multipliée par {q:.6f} (décision de Jean-Luc du 10-10-2026, 09h39)",
+                      1 / q)
             alignes += 1
     return alignes, mesures
 
@@ -554,11 +610,12 @@ def corriger(series, sources, bnains, evenements, jours, douteux, detachements, 
             if abs(ecart) <= K.PROPRE:
                 continue
             avant = series[v][d][3]
-            series[v][d] = barre(bnains[v][d], f, k, K.divisions(evenements, v, d))
+            series[v][d], fp, fv = barre(bnains[v][d], f, k, K.divisions(evenements, v, d))
             sources[(v, d)] = "bnains"
-            journal.append([v, d, "corrigé", avant, series[v][d][3], round(f, 6),
-                            f"l'indice CAC 40 donne tort aux clôtures de Yahoo ce jour-là ; Yahoo à {100 * ecart:+.2f} % "
-                            f"de Paris (bnains) ; barre bnains au facteur du jour"])
+            noter(journal, v, d, "corrigé", avant, series[v][d][3], fp,
+                  f"l'indice CAC 40 donne tort aux clôtures de Yahoo ce jour-là ; Yahoo à {100 * ecart:+.2f} % "
+                  f"de Paris (bnains) ; barre bnains au facteur du jour",
+                  fv)
             n += 1
     return n
 
@@ -608,11 +665,12 @@ def trancher(series, sources, bnains, francfort, evenements, douteux, detachemen
             if verdict != "fausse" or not K.barre_sure(bnains, francfort, valeur, d, ici):
                 continue
             avant = series[valeur][d][3]
-            series[valeur][d] = barre(bnains[valeur][d], f, k, K.divisions(evenements, valeur, d))
+            series[valeur][d], fp, fv = barre(bnains[valeur][d], f, k, K.divisions(evenements, valeur, d))
             sources[(valeur, d)] = "bnains"
-            journal.append([valeur, d, "remplacé", avant, series[valeur][d][3], round(f, 6),
-                            f"clôture de Yahoo démentie par Paris (bnains) et Francfort : Yahoo à "
-                            f"{100 * ecart:+.2f} % de bnains, Francfort à {100 * ecart_f:+.2f} % ; barre bnains au facteur local"])
+            noter(journal, valeur, d, "remplacé", avant, series[valeur][d][3], fp,
+                  f"clôture de Yahoo démentie par Paris (bnains) et Francfort : Yahoo à "
+                  f"{100 * ecart:+.2f} % de bnains, Francfort à {100 * ecart_f:+.2f} % ; barre bnains au facteur local",
+                  fv)
             remplacees += 1
         total += remplacees
         if not remplacees:
@@ -655,14 +713,16 @@ def combler(series, sources, bnains, evenements, douteux, journal, detachements=
         f, k, accord, n = K.facteur_local(series, bnains, evenements, valeur, d, douteux, venues,
                                           (detachements or {}).get(valeur, {}))
         if f is None:
-            journal.append([valeur, d, "non comblé", "", "", "",
-                            f"{n} séances voisines, accord {accord:.0%} : le facteur change à côté"])
+            noter(journal, valeur, d, "non comblé", "", "", "",
+                  f"{n} séances voisines, accord {accord:.0%} : le facteur change à côté",
+                  "")
             continue
-        series[valeur][d] = barre(bnains[valeur][d], f, k, K.divisions(evenements, valeur, d))
+        series[valeur][d], fp, fv = barre(bnains[valeur][d], f, k, K.divisions(evenements, valeur, d))
         sources[(valeur, d)] = "bnains"
         venues.add((valeur, d))
-        journal.append([valeur, d, "comblé", "", series[valeur][d][3], round(f, 6),
-                        f"séance manquante chez Yahoo ; facteur mesuré sur {n} séances voisines"])
+        noter(journal, valeur, d, "comblé", "", series[valeur][d][3], fp,
+              f"séance manquante chez Yahoo ; facteur mesuré sur {n} séances voisines",
+              fv)
         comblees += 1
     return comblees
 
@@ -708,12 +768,11 @@ def reparer(racine):
     """
     try:
         series, defauts, _ = K.lire_cours(os.path.join(racine, ENTREE))
-        bnains, defauts_b, _ = K.lire_cours(os.path.join(racine, K.BNAINS), COURS_BNAINS)
+        bnains, defauts_b, fausses = K.lire_paris(racine)   # le même Paris que le rejeu de K23 (R-708)
         a_defaire = K.lire_a_defaire(os.path.join(racine, K.VERDICTS_YAHOO))
         evenements = K.sans_les_divisions_fausses(json.load(open(os.path.join(racine, K.EVENEMENTS), encoding="utf-8")),
                                                   a_defaire)
         detachements, _ = K.lire_detachements(os.path.join(racine, K.DROITS), os.path.join(racine, K.OFFICIELS))
-        fausses = K.oter_les_barres_fausses(os.path.join(racine, K.FAUSSES), bnains)
         francfort = K.lire_francfort(os.path.join(racine, K.FRANCFORT))
         indice = K.lire_indice(os.path.join(racine, K.INDICE))
     except (OSError, ValueError) as e:
@@ -757,7 +816,9 @@ def reparer(racine):
           f"{trancher(series, sources, bnains, francfort, evenements, douteux, detachements, journal)}")
     for valeur, d, raison in BARRES_YAHOO_ECARTEES:
         if d in series.get(valeur, {}):
-            journal.append([valeur, d, "écarté", series[valeur][d][3], "", "", raison])
+            noter(journal, valeur, d, "écarté", series[valeur][d][3], "", "",
+                  raison,
+                  "")
             del series[valeur][d]
             del sources[(valeur, d)]
     print(f"  ③sexies barres de Yahoo écartées sur décision de Jean-Luc, laissées au comblement : "

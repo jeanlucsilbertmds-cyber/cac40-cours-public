@@ -151,7 +151,7 @@ def verdicts(lignes):
     o = os.path.join(tempfile.mkdtemp(), "v.csv")
     with open(o, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f, lineterminator="\n")
-        w.writerow(["valeur", "date", "ce_que_yahoo_declare", "verdict", "source", "citation", "facteur_a_defaire"])
+        w.writerow(sys.modules["CONTRATS_DES_FICHIERS"].AJUSTEMENTS_DE_YAHOO)   # l'en-tête lu au contrat, jamais recopié (R-708)
         w.writerows(lignes)
     return o
 

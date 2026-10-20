@@ -605,6 +605,7 @@ DETACHEMENTS_OFFICIELS = [
     # commence pas par lui, et une raison pour un chiffre prouvé. Exemple (Kering 2013) :
     # « valeur_distribuee : 2,50375 — 10-10-2026 : calculée dans la citation, 20,03 € (ouverture de Groupe Fnac …) ÷ 8 ».
     "chiffres_sans_document",
+    "fichiers_cites",
 ]
 
 # les fenêtres où bnains porte des cours FAUX, ajustés d'avance d'un événement à venir — écrit À LA
@@ -613,7 +614,7 @@ DETACHEMENTS_OFFICIELS = [
 # REPARER_L_HISTORIQUE_LONG avec lui (A-539, 07-10-2026). Société Générale, 05-10-2009 : clôture
 # officielle 52,20 €, bnains 49,47 €.
 BARRES_BNAINS_FAUSSES = [
-    "valeur", "premiere_seance", "derniere_seance", "source", "citation", "mesure",
+    "valeur", "premiere_seance", "derniere_seance", "source", "citation", "mesure", "fichiers_cites",
 ]
 
 # les clôtures de la même action à la Bourse de Francfort (Yahoo, symbole « .F »), du 03-01-2000 au
@@ -668,25 +669,68 @@ IDENTITES_DES_SOCIETES = ["numero", "societe", "debut", "fin", "nom_cote", "mnem
 # ajustement que la réparation retire (décision de Jean-Luc du 08-10-2026 à 11h14 : « S'il y a des erreurs, il faut
 # les corriger ») : « a/b », chiffres du document officiel ; les cours d'avant la date sont multipliés par a/b et les
 # volumes divisés, ce qui annule ce que Yahoo a fait. Lu aussi par CONTROLER_L_HISTORIQUE_LONG (`lire_a_defaire`).
-AJUSTEMENTS_DE_YAHOO = ["valeur", "date", "ce_que_yahoo_declare", "verdict", "source", "citation", "facteur_a_defaire"]
+AJUSTEMENTS_DE_YAHOO = ["valeur", "date", "ce_que_yahoo_declare", "verdict", "source", "citation", "facteur_a_defaire",
+                        "fichiers_cites"]
 # Les dividendes et les divisions que Yahoo déclare pour chaque valeur, relevés par le même outil (une ligne par
 # événement ; montant en euros pour un dividende, rapport nouvelles ÷ anciennes pour une division).
 EVENEMENTS_YAHOO = ["valeur", "symbole", "type", "date", "montant_ou_rapport"]
 
 # Le journal des réparations de l'historique long — programmes/REPARER_L_HISTORIQUE_LONG.py écrit une ligne par geste
 # posé sur une ligne de cours (valeur, date) ; programmes/CONTROLER_L_HISTORIQUE_LONG.py lit (K20 : les lignes
-# « aligné » ; K23 : chaque ligne du fichier se remonte jusqu'à sa source par ce journal). `close_avant` vide : la ligne
-# part d'une barre de Paris (bnains) ; `close_apres` vide : la ligne est retirée ; `facteur` : ce qui a été multiplié.
-# Exemple : ACCOR, 2000-01-03, « défait », 33.8269 → 48.00000567595679, facteur 1.418989. Déclaré le 13-10-2026 (A-578).
-JOURNAL_DES_REPARATIONS = ["valeur", "date", "geste", "close_avant", "close_apres", "facteur", "raison"]
+# « aligné » ; K23 : chaque ligne du fichier se refait en rejouant ce journal, `lignes_non_rejouees`). `close_avant`
+# vide : la ligne n'existe pas avant le geste ; `close_apres` vide : le geste retire la ligne (ou ne l'écrit pas) ;
+# `depart` : d'où part le geste — « ligne » (l'état de la ligne à ce moment), « paris » (la barre brute de bnains du
+# jour, hors barres prouvées fausses : `lire_paris`), vide quand le geste n'écrit pas de ligne ;
+# `facteur` : le facteur EFFECTIVEMENT appliqué aux quatre prix du
+# départ, en pleine précision ; `facteur_volume` : celui appliqué au volume du départ. Un geste qui n'applique rien
+# (« gardé ») écrit 1 et 1 ; un facteur seulement mesuré, non appliqué, va dans la `raison`. Exemple : ACCOR,
+# 2000-01-03, « défait », 33.8269 → 48.00000567595679, facteur 1.4189891972352415, facteur_volume 0.704727, départ
+# « ligne ». Déclaré le 13-10-2026 (A-578) ; `facteur_volume` et `depart` ajoutés, `facteur` en pleine précision, le
+# 18-10-2026 : la réparation appliquait des divisions et un facteur de volume que le journal n'écrivait pas, et K23
+# refusait 1 010 gestes et 611 lignes qu'on ne pouvait pas refaire (superviseur R-759 du même jour).
+JOURNAL_DES_REPARATIONS = ["valeur", "date", "geste", "close_avant", "close_apres", "facteur", "raison",
+                           "facteur_volume", "depart"]
+# Les gestes du journal, et d'où chacun part — un seul endroit (R-708). programmes/REPARER_L_HISTORIQUE_LONG.py en DÉDUIT
+# la colonne `depart` au moment d'écrire ; K23 (CONTROLER_L_HISTORIQUE_LONG, `lignes_non_rejouees`) refuse un geste
+# absent d'ici ou écrit avec un autre départ. « ligne » : le geste part de l'état de la ligne ; « paris » : de la barre
+# brute de bnains du jour ; vide : le geste retire la ligne ou ne l'écrit pas. Mesuré sur le journal du 18-10-2026 :
+# chaque geste n'y a qu'un seul départ (superviseur n° 2, R-759). Raison : un geste renommé ou inventé passait (relecture
+# du 18-10-2026). Exemple : « comblé » → « paris ».
+GESTES_DU_JOURNAL = {"défait": "ligne", "ajusté": "ligne", "aligné": "ligne", "gardé": "ligne",
+                     "reconstruit": "paris", "recalé": "paris", "corrigé": "paris", "remplacé": "paris", "comblé": "paris",
+                     "retiré": "", "écarté": "", "non comblé": ""}
+# Les deux valeurs de la colonne `source` de l'historique long réparé : la ligne vient de Yahoo (le fichier d'origine),
+# ou d'une barre de Paris (bnains). Toute autre valeur est refusée par K23 (relecture du 18-10-2026 : « Yahoo », vide,
+# « bnain » passaient). Exemple : AIR LIQUIDE, 2000-01-04, comblé depuis Paris → « bnains ».
+SOURCE_YAHOO, SOURCE_PARIS = "yahoo", "bnains"
 # La provenance des fichiers (A-578, décision de Jean-Luc du 13-10-2026, « Les deux, dans l'ordre ») — écrit À LA MAIN
 # ou par le programme qui produit le fichier : une ligne par fichier produit, dans un état donné (son empreinte).
 # `fichier` : le chemin depuis la racine du dépôt · `sha256` : l'empreinte du fichier dans cet état · `produit_par` : le
-# chemin du programme qui l'a écrit, ou « téléchargement » pour un fichier pris hors du dépôt · `lu` : les chemins des
-# fichiers lus, séparés par « ; » (vide pour un téléchargement) · `adresse` : d'où vient un téléchargement · `le` : la
-# date de production, AAAA-MM-JJ · `preuve` : la décision ou le commit qui l'atteste. Exemple attendu : l'archive 2000 de
-# bnains, « téléchargement », adresse sur www.bnains.org, empreinte b6c465a7… (donnees/sources_bnains/ARCHIVES_BNAINS.csv).
+# chemin du programme qui l'a écrit, ou TELECHARGEMENT pour un fichier pris hors du dépôt, ou ECRIT_A_LA_MAIN · `lu` :
+# les chemins des fichiers lus, séparés par « ; » (vide pour un téléchargement et pour un fichier écrit à la main) ·
+# `adresse` : d'où vient un téléchargement (vide pour un fichier écrit à la main) · `le` : la date de production,
+# AAAA-MM-JJ · `preuve` : la décision ou le commit qui l'atteste (obligatoire pour un fichier écrit à la main). Exemple
+# attendu : l'archive 2000 de bnains, « téléchargement », adresse sur www.bnains.org, empreinte b6c465a7…
+# (donnees/sources_bnains/ARCHIVES_BNAINS.csv).
 PROVENANCE_DES_FICHIERS = ["fichier", "sha256", "produit_par", "lu", "adresse", "le", "preuve"]
+# Les deux sortes de premier maillon d'une chaîne de provenance, valeurs de `produit_par` (K23, `maillons_manquants`) :
+# TELECHARGEMENT — un fichier pris hors du dépôt, à une adresse http(s), avec son empreinte ; ECRIT_A_LA_MAIN — un fichier
+# écrit par une personne ou un agent à partir de documents, présent au dépôt, sans fichier lu ni adresse, avec sa preuve,
+# et qui cite sa source LIGNE PAR LIGNE dans les colonnes COLONNES_DES_SOURCES_A_LA_MAIN : `source`, des adresses
+# http(s) entières séparées par « ; » (ou vide) ; `citation`, non vide ; `fichiers_cites`, des chemins de fichiers du
+# dépôt séparés par « ; » (ou vide), chacun PRÉSENT au dépôt et remonté à son tour (un fichier cité absent est refusé,
+# même inscrit comme téléchargement : réponse de Jean-Luc du 19-10-2026, « 1 — Oui, le refuser ») ; au moins une
+# adresse ou un fichier cité par ligne. La
+# colonne `fichiers_cites` (dernière colonne de DETACHEMENTS_OFFICIELS, BARRES_BNAINS_FAUSSES et AJUSTEMENTS_DE_YAHOO) :
+# décision de Jean-Luc du 19-10-2026 à 08h23 (« 1 » à « Une colonne à part pour les fichiers cités ») ; chercher des
+# chemins dans le texte libre de `source` laissait des trous (superviseur n° 2 du même jour). Décision de Jean-Luc du 19-10-2026 à
+# 07h05 (« 1 » à « Ajouter au registre une origine « écrit à la main », avec sa preuve ») ; la condition des colonnes
+# vient du superviseur du même jour (R-759) : sans elle, le fichier Yahoo nettoyé, d'origine perdue, inscrit « à la
+# main », passait K23. Exemple : donnees/sources_bnains/BARRES_BNAINS_FAUSSES.csv, chaque ligne avec sa source et sa
+# citation. « Au dépôt » veut dire, dans K23, « dans le dossier contrôlé » : le verdict qui fait foi est celui d'une
+# copie fraîche du dépôt (décision de Jean-Luc du 19-10-2026 à 19h56 ; voir le ④ de `maillons_manquants`).
+TELECHARGEMENT, ECRIT_A_LA_MAIN = "téléchargement", "écrit à la main"
+COLONNES_DES_SOURCES_A_LA_MAIN = ("source", "citation", "fichiers_cites")
 
 # Les fichiers RÉPARÉS : chacun avec le programme qui l'écrit, depuis la racine du dépôt (A-578, 13-10-2026). Un fichier
 # réparé se DÉCLARE, il ne se déduit pas de son en-tête : relecture de Cowork du 13-10-2026 (91d4ac8, cassure I) — le
