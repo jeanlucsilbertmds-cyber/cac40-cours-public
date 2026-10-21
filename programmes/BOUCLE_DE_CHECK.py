@@ -420,7 +420,8 @@ def arret_ecrit(note):
     ⑥ TRAITEMENT — Lecture des lignes de tête, chacune normalisée par `normaliser`.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — « RIEN DE NEUF — je propose de clore » est la fin de la boucle ; « RIEN DE NOUVEAU » est le mot de la
-      maison (registre, ligne 37) ; « ARRÊT — DÉCISION DE JEAN-LUC », « ARRÊT — TOURNE EN ROND » et « ARRÊT — SILENCE »
+      maison (le geste ④ du registre le prescrivait avant sa révision du 21-10-2026 ; le mode d'emploi des échanges,
+      au point « Fin » de la boucle de check, l'admet encore : « RIEN DE NOUVEAU » vaut aussi) ; « ARRÊT — DÉCISION DE JEAN-LUC », « ARRÊT — TOURNE EN ROND » et « ARRÊT — SILENCE »
       sont les arrêts que l'autre côté a reconnus. Au DÉBUT de la ligne seulement : relecture indépendante du
       16-10-2026, second tour, point 4 — une livraison qui déclare « le dernier tour du relecteur : RIEN DE NOUVEAU »
       arrêtait la boucle avant toute relecture. Une liste FERMÉE : troisième tour, point 4 — « Arrêt du circuit du
