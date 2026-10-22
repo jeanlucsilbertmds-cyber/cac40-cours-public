@@ -74,7 +74,10 @@
   rien lancer ; il refuse les liens symboliques et voit les fichiers cachés. Un pas qui
   tourne après un échec (`always()`) ne tourne que si le code public est posé. Le circuit du soir, lui, n'efface rien : ses pas lisent tout le
   dépôt (le pilote, le radar) et son contrôle porte sur `programmes/*.py` seulement ;
-  relevé le 08-10-2026, il ne lance aucun programme hors de `programmes/`. Le circuit de la certification est
+  relevé le 08-10-2026, il ne lance aucun programme hors de `programmes/`. Le pas « Poser » du soir
+  refuse tout fichier compilé (.pyc, .so, .pyd) OÙ QU'IL SOIT dans le clone, même hors de
+  `programmes/` : plus large que nécessaire, laissé tel quel (relecteur du 21-10-2026, mineur 1). Il les
+  reconnaît à leur SUFFIXE : une archive `.zip` ou un code compilé sous un autre nom n'est pas vu (voir ⑨ du garde). Le circuit de la certification est
   écrit dans ce programme, et non fabriqué depuis un fichier du privé :
   `.github/workflows/certifier.yml`, au privé, ne tourne plus (quota épuisé) et n'est
   pas la source de celui-ci.
@@ -257,11 +260,23 @@ CLONAGES = """      - uses: actions/checkout@v5
             n=$(basename "$f")
             [ -f "_code/programmes/$n" ] || D="$D $n(absent-du-public)"
           done
+          for x in programmes/*; do [ -d "$x" ] && D="$D $x(dossier)"; done
+          for x in $(find . -path ./_code -prune -o -path ./.git -prune -o \\( -name '*.pyc' -o -name '*.so' -o -name '*.pyd' \\) -print); do D="$D $x(compile)"; done
           if [ -n "$D" ]; then echo "::error::PROGRAMMES PUBLICS DIFFERENTS DU DEPOT PRIVE :$D"; exit 1; fi
           cp _code/programmes/*.py programmes/
-          mkdir -p "$RUNNER_TEMP/circuit_public"
+          mkdir -p "$RUNNER_TEMP/circuit_public" "$RUNNER_TEMP/garde"
           cp _code/.github/workflows/circuit_du_soir.yml "$RUNNER_TEMP/circuit_public/"
-          rm -rf _code
+          cp _code/programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py "$RUNNER_TEMP/garde/sitecustomize.py"
+          rm -rf "$RUNNER_TEMP/code" && mv _code "$RUNNER_TEMP/code"
+          { echo "PYTHONPATH=$RUNNER_TEMP/garde"; echo "PYTHONDONTWRITEBYTECODE=1"; echo "GARDE_DONNEES=$GITHUB_WORKSPACE"; echo "GARDE_CODE=$RUNNER_TEMP/code"; } >> "$GITHUB_ENV"
+      - name: Le garde du code mord-il ?
+        id: garde_du_code
+        run: |
+          printf 'print("piege du garde")\\n' > _piege_du_garde.py
+          c=0; python3 -c "import sys; sys.path.insert(0, '.'); import _piege_du_garde" || c=$?
+          rm -rf _piege_du_garde.py __pycache__/_piege_du_garde.*
+          [ "$c" -eq 97 ] || { echo "::error::LE GARDE DU CODE NE MORD PAS (code $c au lieu de 97) — du code du depot prive pourrait tourner"; exit 1; }
+          echo "garde du code : en place"
       - name: Le circuit public est-il celui que fabrique le depot prive ?
         id: circuit_a_jour
         continue-on-error: true

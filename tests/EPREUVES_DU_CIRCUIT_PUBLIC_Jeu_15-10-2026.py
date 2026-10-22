@@ -34,7 +34,10 @@
      seulement au privé et sur un programme différent ; E6 chaque logiciel que le code publié cherche par
      shutil.which (relevé dans le code : pdftotext, soffice, libreoffice le 16-10-2026) est vérifié par
      « command -v » dans un pas placé avant la certification (ajouté le 16-10-2026 : pdftotext et soffice
-     manquaient à la machine de GitHub, trois épreuves rouges au certificat f5aac6b).
+     manquaient à la machine de GitHub, trois épreuves rouges au certificat f5aac6b) ; E7 le garde du code
+     (programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py) : le pas « Le garde du code mord-il ? » est vert avec le garde, rouge sans
+     lui et rouge avec un garde dont la porte des imports est morte ; un module publié s'importe ; les pièges
+     A à D sont arrêtés (ajouté le 21-10-2026 sur le prototype du superviseur).
 ⑦ UNITÉ — —
 ⑧ POURQUOI — Décision de Jean-Luc du 08-10-2026 (A-543 : « Non pas question de prendre ces risques ») : un dépôt
   public ne doit pas exécuter le code du dépôt privé. Décision du 12-10-2026 à 16h46 (« Oui, construire ») et
@@ -108,6 +111,19 @@ SABOTAGES = {
     "S21_sans_lecteur_de_pdf": [(FAB, "          command -v pdftotext >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils; }\n", "")],
     "S22_logiciel_par_une_variable": [("programmes/COMMUN.py", "\nimport csv\n", "\nimport csv\nimport shutil as _sh_e6\n_x_e6 = 'gs'\n_sh_e6.which(_x_e6)\n")],
     "S23_logiciel_ecrit_autrement": [("programmes/COMMUN.py", "\nimport csv\n", "\nimport csv\nfrom shutil import which as which\nwhich( 'convert' )\n")],
+    "S24_soir_sous_dossiers_admis": [(FAB, '          for x in programmes/*; do [ -d "$x" ] && D="$D $x(dossier)"; done\n', '')],
+    "S25_soir_compiles_admis": [(FAB, "\\\\( -name '*.pyc' -o -name '*.so' -o -name '*.pyd' \\\\) -print); do D=\"$D $x(compile)\"; done\n",
+                                 "\\\\( -name '*.pyc' -o -name '*.so' -o -name '*.pyd' \\\\) -print); do true; done\n")],
+    "S26_garde_non_pose": [(FAB, '          cp _code/programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py "$RUNNER_TEMP/garde/sitecustomize.py"\n', '')],
+    "S27_environnement_du_garde_non_ecrit": [(FAB, '{ echo "PYTHONPATH=$RUNNER_TEMP/garde"; ', '{ ')],
+    "S28_garde_qui_ne_mord_pas_accepte": [(FAB, '[ "$c" -eq 97 ] ||', 'true ||')],
+    "S29_garde_sans_comparaison": [("programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py", "        if not pareil:\n            refuser(quoi, rel)\n", "        pass\n")],
+    "S31_garde_porte_exec_morte": [("programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py", '        if evenement == "exec":\n', '        if False:\n')],
+    "S33_garde_porte_popen_morte": [("programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py", '        elif evenement == "subprocess.Popen":\n', '        elif False:\n')],
+    "S34_garde_porte_pyc_morte": [("programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py", '        elif evenement == "open" and arguments', '        elif False and arguments')],
+    "S35_garde_qui_refuse_tout": [("programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py", "        if not pareil:\n            refuser(quoi, rel)\n", "        refuser(quoi, rel)\n")],
+    "S36_pas_du_garde_revenu_au_lancement": [(FAB, '          c=0; python3 -c "import sys; sys.path.insert(0, \'.\'); import _piege_du_garde" || c=$?\n', '          c=0; python3 _piege_du_garde.py || c=$?\n')],
+    "S30_code_laisse_dans_le_clone": [(FAB, 'rm -rf "$RUNNER_TEMP/code" && mv _code "$RUNNER_TEMP/code"', 'cp -r _code "$RUNNER_TEMP/code"')],
 }
 
 
@@ -214,14 +230,106 @@ def lien_vers_le_prive(w):
     open(os.path.join(w, "_code", "programmes", "L.py"), "w").write("x=1\n")
 
 
+def jouer_soir(poser, mord, prep, garde):
+    """Joue le pas « Poser » puis le pas « Le garde du code mord-il ? » du circuit du soir ; rend leur état.
+
+    ① RÔLE — Éprouver les pas du circuit du soir qui posent le code public et le garde (20-10-2026).
+    ② CONTEXTE D'APPEL — `epreuve`, une fois par cas de E5 et E7.
+    ③ ENTRÉE — `poser`, `mord` : les textes des deux pas · `prep` : une fonction qui modifie l'espace avant le
+      premier pas · `garde` : le texte du programme du garde (programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py de la copie éprouvée).
+    ④ CONDITIONS D'ENTRÉE — bash et python3 existent.
+    ⑤ SORTIE — CINQ valeurs : le code du pas « Poser » ; les codes du pas du garde (None si « Poser » est tombé) ;
+      vrai si le code public est rangé hors du clone ($RUNNER_TEMP/code) et `_code` effacé ; les lignes écrites
+      dans GITHUB_ENV ; la liste des fautes du témoin et des pièges (vide si tout va bien, vide aussi si
+      « Poser » est tombé). Les codes du pas du garde sont TROIS : avec le garde, sans le garde, avec un garde MUTANT dont la porte « exec » est morte
+      (None si non joué).
+      [rend: 5]
+    ⑥ TRAITEMENT — Fabriquer, à la racine et sous _code/, deux programmes (A.py, B.py) et le garde,
+      identiques ; appliquer `prep` ; jouer « Poser » par bash -e avec RUNNER_TEMP, GITHUB_ENV et GITHUB_WORKSPACE ;
+      relever GITHUB_ENV ; jouer le pas du garde dans l'environnement que GITHUB_ENV donne, comme GitHub au pas
+      suivant ; le rejouer avec un garde mutant ; puis, dans ce même environnement : un témoin (importer un
+      module publié doit rendre 0) et quatre pièges qui doivent rendre 97 sans écrire leur marqueur — A lancé
+      par `python3 etudes/X.py`, B importé par `python3 -c`, C lancé par un parent qui démarre l'enfant avec
+      `-I` (le parent doit être arrêté), D un `.pyc` UNCHECKED_HASH glissé à côté d'un module publié (joué
+      en dernier, il salit le cache).
+    ⑦ UNITÉ — — ⑧ POURQUOI — Le pas du garde n'a de sens que dans l'environnement que « Poser » a écrit :
+      les jouer à part ne prouverait rien. ⑨ CE QUI CLOCHE — GITHUB_ENV est lu ligne à ligne, sans la forme
+      « nom<<délimiteur » que GitHub accepte aussi (le pas ne l'emploie pas).
+    ⑩ EFFET — Écrit et efface un dossier jetable. ⑪ TERMINAISON — Rend la main ; chaque pas est borné à 60 secondes.
+      [sort: non]
+    """
+    w = tempfile.mkdtemp(prefix="soir_")
+    try:
+        ws, rt = os.path.join(w, "ws"), os.path.join(w, "rt")
+        for d in ("programmes", "etudes", "_code/programmes", "_code/.github/workflows"):
+            os.makedirs(os.path.join(ws, d))
+        os.makedirs(rt)
+        for base in ("", "_code/"):
+            for f, c in (("programmes/A.py", "a=1\n"), ("programmes/B.py", "b=2\n"),
+                         ("programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py", garde)):
+                open(os.path.join(ws, base + f), "w", encoding="utf-8").write(c)
+        open(os.path.join(ws, "_code/.github/workflows/circuit_du_soir.yml"), "w").write("x\n")
+        prep(ws)
+        env_f = os.path.join(rt, "github_env")
+        open(env_f, "w").close()
+        env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "GARDE_DONNEES", "GARDE_CODE")}
+        env.update(RUNNER_TEMP=rt, GITHUB_ENV=env_f, GITHUB_WORKSPACE=ws)
+        c1 = subprocess.run(["bash", "-e", "-c", poser], cwd=ws, env=env, capture_output=True, text=True, timeout=60).returncode
+        lignes = [l.rstrip("\n") for l in open(env_f, encoding="utf-8")]
+        range_ = os.path.isdir(os.path.join(rt, "code")) and not os.path.exists(os.path.join(ws, "_code"))
+        if c1 != 0:
+            return c1, None, range_, lignes, []
+        for l in lignes:
+            if "=" in l:
+                k, v = l.split("=", 1)
+                env[k] = v
+        c2 = subprocess.run(["bash", "-e", "-c", mord], cwd=ws, env=env, capture_output=True, text=True, timeout=60).returncode
+        sans = {k: v for k, v in env.items() if k != "PYTHONPATH"}
+        c3 = subprocess.run(["bash", "-e", "-c", mord], cwd=ws, env=sans, capture_output=True, text=True, timeout=60).returncode
+        gf = os.path.join(rt, "garde", "sitecustomize.py")
+        mutant = garde.replace('        if evenement == "exec":\n', '        if False:\n', 1)
+        c4 = None
+        if mutant != garde and os.path.isfile(gf):
+            open(gf, "w", encoding="utf-8").write(mutant)
+            c4 = subprocess.run(["bash", "-e", "-c", mord], cwd=ws, env=env, capture_output=True, text=True, timeout=60).returncode
+            open(gf, "w", encoding="utf-8").write(garde)
+        import py_compile, importlib.util
+        for n in "ABC":
+            open(os.path.join(ws, "etudes", "PIEGE_%s.py" % n), "w").write("open('MARQUEUR_%s', 'w')\n" % n)
+        fautes = []
+        t = subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, 'programmes'); import A"],
+                           cwd=ws, env=env, capture_output=True, text=True, timeout=60)
+        if t.returncode != 0:
+            fautes.append("témoin : un module publié, importé, est refusé (code %d)" % t.returncode)
+        source = os.path.join(w, "source_piegee.py")
+        open(source, "w").write("open('MARQUEUR_D', 'w')\n")
+        def compile_piege():
+            a = os.path.join(ws, "programmes", "A.py")
+            py_compile.compile(source, cfile=importlib.util.cache_from_source(a), dfile=a,
+                               invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+        for n, prep2, cmd in (
+                ("A", None, [sys.executable, "etudes/PIEGE_A.py"]),
+                ("B", None, [sys.executable, "-c", "import sys; sys.path.insert(0, 'etudes'); import PIEGE_B"]),
+                ("C", None, [sys.executable, "-c", "import subprocess, sys; subprocess.run([sys.executable, '-I', 'etudes/PIEGE_C.py']); sys.exit(0)"]),
+                ("D", compile_piege, [sys.executable, "-c", "import sys; sys.path.insert(0, 'programmes'); import A"])):
+            if prep2:
+                prep2()
+            x = subprocess.run(cmd, cwd=ws, env=env, capture_output=True, text=True, timeout=60)
+            if x.returncode != 97 or os.path.exists(os.path.join(ws, "MARQUEUR_" + n)):
+                fautes.append("piège %s : code %d, marqueur %s" % (n, x.returncode, os.path.exists(os.path.join(ws, "MARQUEUR_" + n))))
+        return c1, (c2, c3, c4), range_, lignes, fautes
+    finally:
+        shutil.rmtree(w, ignore_errors=True)
+
+
 def epreuve(sab):
-    """Joue E1 à E6 sur une copie du dépôt sabotée par `sab` ; rend (vert ?, détail).
+    """Joue E1 à E7 sur une copie du dépôt sabotée par `sab` ; rend (vert ?, détail).
 
     ① RÔLE — Une passe complète des épreuves. ② CONTEXTE D'APPEL — la boucle principale, une fois par sabotage.
     ③ ENTRÉE — `sab` : le nom du sabotage (Z0 : aucun). ④ CONDITIONS D'ENTRÉE — DEPOT est un dépôt privé.
     ⑤ SORTIE — DEUX valeurs : vrai si tout est conforme ; le détail (les quatre premières fautes).
       [rend: 2]
-    ⑥ TRAITEMENT — copier, saboter, fabriquer vers un faux public, confronter E1 à E6.
+    ⑥ TRAITEMENT — copier, saboter, fabriquer vers un faux public, confronter E1 à E7.
     ⑦ UNITÉ — — ⑧ POURQUOI — Voir la fiche du fichier. ⑨ CE QUI CLOCHE — Voir la fiche du fichier.
     ⑩ EFFET — Écrit et efface un dossier jetable. ⑪ TERMINAISON — Rend la main ; le fabricant est borné à 120 s.
       [sort: non]
@@ -342,18 +450,50 @@ def epreuve(sab):
                     fautes.append(f"E4 {nom} : code {c}, attendu {'0' if attendu == 0 else 'non nul'}")
                 if c == 0 and restes:
                     fautes.append(f"E4 {nom} : code privé non publié encore présent : {', '.join(restes)}")
-        # E5
+        # E5 — le pas « poser les programmes » du circuit du soir : vert quand tout est identique ; rouge sur un
+        # programme seulement au privé, un programme différent, un sous-dossier de programmes/ (un paquet qui
+        # masquerait un module publié, porte T4 du 20-10-2026) et un fichier compilé dans le clone ; quand il passe,
+        # le code public est rangé hors du clone et l'environnement du garde est écrit.
+        # E7 — le garde du code (programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py), posé par ce pas : le pas « Le garde du code mord-il ? »
+        # est vert avec le garde, rouge sans lui et rouge avec un garde dont la porte des imports est morte ; un
+        # module publié s'importe (témoin) ; quatre pièges du clone absents de la copie publique (A lancé, B importé,
+        # C lancé par un enfant en -I, D .pyc glissé) sont arrêtés (code 97) avant d'avoir rien écrit (portes T1 à
+        # T6 du 20-10-2026 ; prototype du superviseur du 21-10-2026).
         s = pas(soir, "collecte", "poser_les_programmes")
-        if s is None:
-            fautes.append("E5 pas « poser_les_programmes » introuvable")
+        m = pas(soir, "collecte", "garde_du_code")
+        garde = open(os.path.join(r, "programmes", "N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py"), encoding="utf-8").read() \
+            if os.path.isfile(os.path.join(r, "programmes", "N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py")) else ""
+        if s is None or m is None or not garde:
+            fautes.append("E5/E7 pas « poser_les_programmes » ou « garde_du_code », ou programme du garde, introuvable")
         else:
+            def sous_dossier(w):
+                os.makedirs(os.path.join(w, "programmes", "B"))
+                open(os.path.join(w, "programmes", "B", "__init__.py"), "w").write("b=9\n")
             for nom, prep, attendu in (("identique", lambda w: None, 0),
                                        ("programme seulement au privé", ecrire("programmes/C.py", "c=1\n"), 1),
-                                       ("programme différent", ecrire("_code/programmes/A.py", "a=9\n"), 1)):
-                c, _ = jouer(s, prep)
-                if (c == 0) != (attendu == 0):
-                    fautes.append(f"E5 {nom} : code {c}, attendu {'0' if attendu == 0 else 'non nul'}")
-        return not fautes, ("; ".join(fautes[:4]) if fautes else "E1 à E6 conformes")
+                                       ("programme différent", ecrire("_code/programmes/A.py", "a=9\n"), 1),
+                                       ("sous-dossier dans programmes/", sous_dossier, 1),
+                                       ("fichier compilé dans le clone", ecrire("etudes/X.pyc", "x"), 1)):
+                c1, c2, range_, lignes, arrete = jouer_soir(s, m, prep, garde)
+                if (c1 == 0) != (attendu == 0):
+                    fautes.append(f"E5 {nom} : code {c1}, attendu {'0' if attendu == 0 else 'non nul'}")
+                if attendu == 0 and c1 == 0:
+                    if not range_:
+                        fautes.append("E5 le code public n'est pas rangé hors du clone, ou _code reste")
+                    for v in ("PYTHONPATH=", "PYTHONDONTWRITEBYTECODE=1", "GARDE_DONNEES=", "GARDE_CODE="):
+                        if not any(l.startswith(v) for l in lignes):
+                            fautes.append(f"E5 environnement du garde incomplet : {v} manque")
+                    if c2[0] != 0:
+                        fautes.append(f"E7 le pas « Le garde du code mord-il ? » rend {c2[0]}, attendu 0")
+                    if c2[1] == 0:
+                        fautes.append("E7 le pas « Le garde du code mord-il ? » reste vert SANS le garde : il ne prouve rien")
+                    if c2[2] is None:
+                        fautes.append("E7 garde mutant inapplicable : ancre de la porte « exec » absente")
+                    elif c2[2] == 0:
+                        fautes.append("E7 le pas « Le garde du code mord-il ? » reste vert avec la porte des imports morte")
+                    for f_ in arrete:
+                        fautes.append("E7 " + f_)
+        return not fautes, ("; ".join(fautes[:4]) if fautes else "E1 à E7 conformes")
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
