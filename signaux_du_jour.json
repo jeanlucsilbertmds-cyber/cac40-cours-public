@@ -1,78 +1,70 @@
 {
- "calcule_le": "2026-10-22 21:58 (Europe/Paris)",
+ "calcule_le": "2026-10-23 21:56 (Europe/Paris)",
  "strategie": "C5-ETENDU-10",
- "seance": "2026-10-22",
+ "seance": "2026-10-23",
  "univers": 10,
  "valeurs_sans_cette_seance": [],
- "signaux": [
-  {
-   "valeur": "BOUYGUES",
-   "date_signal": "2026-10-22",
-   "cmf": 0.01681,
-   "cci": -131.65,
-   "close": 40.14
-  }
- ],
+ "signaux": [],
  "detail_indicateurs": [
   {
    "valeur": "TOTALENERGIES",
-   "cmf": 0.10078,
-   "cmf_veille": 0.201087,
-   "cci": 66.58
+   "cmf": 0.104646,
+   "cmf_veille": 0.10078,
+   "cci": 137.42
   },
   {
    "valeur": "ENGIE",
-   "cmf": 0.028664,
-   "cmf_veille": 0.049296,
-   "cci": 3.84
+   "cmf": -0.008611,
+   "cmf_veille": 0.028664,
+   "cci": -69.08
   },
   {
    "valeur": "VEOLIA",
-   "cmf": -0.049988,
-   "cmf_veille": -0.028232,
-   "cci": 24.09
+   "cmf": 0.023722,
+   "cmf_veille": -0.049988,
+   "cci": 38.71
   },
   {
    "valeur": "BOUYGUES",
-   "cmf": 0.01681,
-   "cmf_veille": -0.01664,
-   "cci": -131.65
+   "cmf": 0.043805,
+   "cmf_veille": 0.01681,
+   "cci": -127.73
   },
   {
    "valeur": "EIFFAGE",
-   "cmf": 0.061604,
-   "cmf_veille": 0.031883,
-   "cci": -143.08
+   "cmf": 0.034262,
+   "cmf_veille": 0.061604,
+   "cci": -125.69
   },
   {
    "valeur": "AIRBUS",
-   "cmf": 0.136759,
-   "cmf_veille": 0.174868,
-   "cci": 81.78
+   "cmf": 0.126863,
+   "cmf_veille": 0.136759,
+   "cci": 28.3
   },
   {
    "valeur": "RENAULT",
-   "cmf": 0.030575,
-   "cmf_veille": -0.054282,
-   "cci": -10.5
+   "cmf": -0.016242,
+   "cmf_veille": 0.030575,
+   "cci": -116.89
   },
   {
    "valeur": "UNIBAIL_RODAMCO",
-   "cmf": 0.275213,
-   "cmf_veille": 0.241326,
-   "cci": 88.69
+   "cmf": 0.178101,
+   "cmf_veille": 0.275213,
+   "cci": 110.28
   },
   {
    "valeur": "BUREAU_VERITAS",
-   "cmf": 0.182221,
-   "cmf_veille": 0.086105,
-   "cci": 166.33
+   "cmf": 0.343027,
+   "cmf_veille": 0.182221,
+   "cci": 136.92
   },
   {
    "valeur": "VINCI",
-   "cmf": 0.122255,
-   "cmf_veille": 0.107837,
-   "cci": -131.61
+   "cmf": 0.18019,
+   "cmf_veille": 0.122255,
+   "cci": -115.48
   }
  ],
  "calibrage": {
