@@ -1132,7 +1132,7 @@ def gestes_non_declares(t, gestes, titre_exige):
       tirets ou de dièses de sous-titre) et porte au moins trois mots sur la même ligne.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Deux implémentations d une même vérification divergent toujours (R-708) : la livraison et la
-      relecture passent par celle-ci. Le motif « [ \t] » et non « \s » : le 16-10-2026, « \s » enjambait la fin de ligne
+      relecture passent par celle-ci. Le motif « [ \t] » et non « \\s » : le 16-10-2026, « \\s » enjambait la fin de ligne
       et « ⑤ fait » passait en prenant ses mots à la ligne suivante. Les blocs capturés effacés et les sous-titres
       admis : relecture indépendante du 16-10-2026, des gestes CITÉS dans une sortie passaient pour déclarés, et des
       gestes déclarés en sous-titres « ### ① … » étaient refusés.

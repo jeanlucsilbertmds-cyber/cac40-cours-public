@@ -389,11 +389,11 @@ jobs:
           while IFS= read -r -d '' f; do
             n=${f##*/}
             if [ ! -f ".github/workflows/$n" ]; then D="$D fiche:$n(absent-du-prive)"; elif ! cmp -s "$f" ".github/workflows/$n"; then D="$D fiche:$n"; fi
-          done < <(find _code/circuits_du_prive -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) -type f -print0 2>/dev/null)
+          done < <(find _code/circuits_du_prive -maxdepth 1 \\( -name '*.yml' -o -name '*.yaml' \\) -type f -print0 2>/dev/null)
           while IFS= read -r -d '' f; do
             n=${f##*/}
             [ -f "_code/circuits_du_prive/$n" ] || D="$D fiche:$n(absent-du-public)"
-          done < <(find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) -type f -print0)
+          done < <(find .github/workflows -maxdepth 1 \\( -name '*.yml' -o -name '*.yaml' \\) -type f -print0)
           if [ -n "$D" ]; then echo "::error::CODE PUBLIC DIFFERENT DU DEPOT PRIVE :$D"; exit 1; fi
           find . -path ./_code -prune -o -path ./.git -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
           find . -path ./_code -prune -o -path ./.git -prune -o -name '*.py' -type f -print0 | grep -zvE '^[.]/[^/]+[.]py$|^[.]/(programmes|tests|etudes/outils)/[^/]+[.]py$' | xargs -0 -r rm -f

@@ -63,7 +63,16 @@
   tourne quand on la demande ; GitHub et la machine du Chat peuvent mesurer différemment :
   la dérive ④ couvre le cas où le code est identique, pas les suivants. ⑥ Deux lignes de
   même texte dans un même programme se comptent ensemble : déplacer l'examen de l'une à
-  l'autre n'est pas vu.
+  l'autre n'est pas vu. ⑦ Les lectures d'une épreuve sont notées par l'événement d'audit
+  « open », qui ne porte pas le dossier ouvert (dir_fd) : un fichier ouvert par
+  `os.open(nom, dir_fd=…)` est noté au mauvais endroit (superviseur R-759 du 25-10-2026 ;
+  shutil.rmtree n'ouvre ainsi que des dossiers, que la liste des lus écarte). ⑧ « La
+  mesure ne fait aucun geste que le processus mesuré peut voir » vaut pour un processus
+  qui REMPLACE des fonctions (open, os.open…) ; un crochet d'audit du processus mesuré
+  (sys.addaudithook) voit encore l'ouverture du manifeste et les lectures d'empreinte :
+  un événement d'audit ne se contourne pas (relecture de Cowork du 26-10-2026, P1 ; seul
+  programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py pose un tel crochet, et il ne
+  réagit qu'au code exécuté et aux .pyc).
 ⑩ EFFET — Écrit dans un dossier jetable, puis `rapports/CERTIFICAT_DE_LA_VERSION.md` dans la
   racine, et `gouvernance/CERTIFICAT_REFERENCE.json` sur demande. Ne modifie aucun autre
   fichier de la racine.
@@ -120,42 +129,66 @@ MODULE_DE_MESURE = '''import os, sys
 sys.path.append({ici!r})
 if os.environ.get("COVERAGE_PROCESS_START"):
     try:
-        import coverage, atexit, hashlib, json
+        import coverage, atexit, hashlib, io, json, stat
         coverage.process_startup()
         _avant = {{}}
+        # LA MESURE NE FAIT AUCUN GESTE QUE LE PROCESSUS MESURÉ PEUT VOIR (superviseur R-759 du 25-10-2026). ① Elle ouvre
+        # ses fichiers par sa propre fonction, prise ICI, avant que l'épreuve ne démarre : une épreuve qui remplace
+        # builtins.open pour compter ses écritures comptait celle du manifeste (E17k5 de l'épreuve du cours propre, rouge
+        # sous la certification seulement, le 25-10-2026). ② Ses propres lectures ne sont jamais notées comme celles de
+        # l'épreuve (`_dans_la_mesure`) : l'empreinte prise avant un effacement, et celle du manifeste, passaient pour
+        # des lectures (« 100 fichier(s) lu(s) par l'épreuve sans empreinte » pour l'historique long, le même jour).
+        _ouvrir = io.open
+        _dans_la_mesure = [False]
 
-        def _noter(chemin):
+        def _noter(chemin, dir_fd=None, une_entree=False):
             # Un fichier mesuré que le processus efface lui-même (shutil.rmtree, os.remove) ne serait plus là à la
             # fin : l'empreinte de chaque programme (.py sous un dossier programmes/) est prise juste AVANT
             # l'effacement (16-10-2026 : l'épreuve de la lecture des cours efface sa copie avant de finir, et
             # LIRE_LES_COURS.py paraissait « jamais examiné »). Aucun appel à coverage ici : appelée pendant
             # qu'il range ses propres fichiers, son API casse sa base (« no such table: meta », mesuré le
             # 16-10-2026).
+            # ③ Un chemin relatif à un dossier ouvert (dir_fd : shutil.rmtree efface ainsi chaque entrée) se résout par
+            # ce dossier, jamais par le dossier courant ; un LIEN effacé n'efface pas sa cible : rien à noter ; et
+            # « os.remove » efface une seule entrée, jamais un dossier (25-10-2026 : le cas H61 de l'historique long
+            # efface un lien « etudes », et le vrai dossier etudes/ était parcouru).
+            _dans_la_mesure[0] = True
             try:
-                cible = os.path.realpath(os.fsdecode(chemin))   # coverage nomme ses fichiers par leur chemin réel
+                nom = os.fsdecode(chemin)
+                if dir_fd is not None and not os.path.isabs(nom):
+                    nom = os.path.join(os.readlink("/proc/self/fd/%d" % dir_fd), nom)
+                if stat.S_ISLNK(os.lstat(nom).st_mode):
+                    return
+                cible = os.path.realpath(nom)   # coverage nomme ses fichiers par leur chemin réel
                 if os.path.isfile(cible):
                     fichiers = [cible]
+                elif une_entree:
+                    return
                 else:
                     fichiers = [os.path.join(r, n) for r, _, ns in os.walk(cible) for n in ns]
                 for f in fichiers:
                     if f.endswith(".py") and {sep!r} in f and os.path.isfile(f) and not os.path.islink(f):
-                        _avant[f] = hashlib.sha256(open(f, "rb").read()).hexdigest()
+                        with _ouvrir(f, "rb") as h:
+                            _avant[f] = hashlib.sha256(h.read()).hexdigest()
             except Exception:
                 pass
+            finally:
+                _dans_la_mesure[0] = False
 
         def _ecoute(evenement, arguments):
             if evenement in ("shutil.rmtree", "os.remove") and arguments and isinstance(arguments[0], (str, bytes, os.PathLike)):
-                _noter(arguments[0])
+                fd = arguments[1] if len(arguments) > 1 and isinstance(arguments[1], int) and arguments[1] >= 0 else None
+                _noter(arguments[0], fd, evenement == "os.remove")
 
         sys.addaudithook(_ecoute)
         _lectures = os.environ.get("CERTIF_LECTURES")
         if _lectures:
             # Les fichiers OUVERTS EN LECTURE par une épreuve dont la série de sabotages est jouée hors de la nuit
             # (relecture de Cowork du 16-10-2026, cassure M1 : le relevé ne doit pas choisir ce qu'il surveille).
-            _lus = open(os.path.join(_lectures, "lus.%d.%s" % (os.getpid(), os.urandom(4).hex())), "a", encoding="utf-8")
+            _lus = _ouvrir(os.path.join(_lectures, "lus.%d.%s" % (os.getpid(), os.urandom(4).hex())), "a", encoding="utf-8")
 
             def _lu(evenement, arguments):
-                if evenement != "open" or not arguments or not isinstance(arguments[0], (str, bytes)):
+                if evenement != "open" or not arguments or not isinstance(arguments[0], (str, bytes)) or _dans_la_mesure[0]:
                     return
                 mode = arguments[1] if len(arguments) > 1 else "r"
                 drapeaux = arguments[2] if len(arguments) > 2 and isinstance(arguments[2], int) else 0
@@ -170,6 +203,7 @@ if os.environ.get("COVERAGE_PROCESS_START"):
             sys.addaudithook(_lu)
 
         def _manifeste():
+            _dans_la_mesure[0] = True
             try:
                 c = coverage.Coverage.current()
                 d = os.environ.get("CERTIF_MANIFESTES")
@@ -181,13 +215,16 @@ if os.environ.get("COVERAGE_PROCESS_START"):
                     # exécutée ne doit pas en donner l'empreinte (relecture du 16-10-2026, cassure 2 : un leurre
                     # remis en état puis effacé par le parent était crédité trois fois sur quatre)
                     if {sep!r} in f and os.path.isfile(f):
-                        vus[f] = hashlib.sha256(open(f, "rb").read()).hexdigest()
+                        with _ouvrir(f, "rb") as h:
+                            vus[f] = hashlib.sha256(h.read()).hexdigest()
                     elif {sep!r} in f and f in _avant:
                         vus[f] = _avant[f]
-                with open(os.path.join(d, "manifeste.%d.%s.json" % (os.getpid(), os.urandom(4).hex())), "w") as s:
+                with _ouvrir(os.path.join(d, "manifeste.%d.%s.json" % (os.getpid(), os.urandom(4).hex())), "w") as s:
                     json.dump(vus, s)
             except Exception:
                 pass
+            finally:
+                _dans_la_mesure[0] = False
 
         atexit.register(_manifeste)
     except Exception:
