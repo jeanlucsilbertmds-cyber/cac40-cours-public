@@ -1,70 +1,70 @@
 {
- "calcule_le": "2026-10-23 21:56 (Europe/Paris)",
+ "calcule_le": "2026-10-26 22:28 (Europe/Paris)",
  "strategie": "C5-ETENDU-10",
- "seance": "2026-10-23",
+ "seance": "2026-10-26",
  "univers": 10,
  "valeurs_sans_cette_seance": [],
  "signaux": [],
  "detail_indicateurs": [
   {
    "valeur": "TOTALENERGIES",
-   "cmf": 0.104646,
-   "cmf_veille": 0.10078,
-   "cci": 137.42
+   "cmf": 0.143229,
+   "cmf_veille": 0.104646,
+   "cci": 161.65
   },
   {
    "valeur": "ENGIE",
-   "cmf": -0.008611,
-   "cmf_veille": 0.028664,
-   "cci": -69.08
+   "cmf": -0.041885,
+   "cmf_veille": -0.008611,
+   "cci": 70.4
   },
   {
    "valeur": "VEOLIA",
-   "cmf": 0.023722,
-   "cmf_veille": -0.049988,
-   "cci": 38.71
+   "cmf": -0.020685,
+   "cmf_veille": 0.023722,
+   "cci": 96.59
   },
   {
    "valeur": "BOUYGUES",
-   "cmf": 0.043805,
-   "cmf_veille": 0.01681,
-   "cci": -127.73
+   "cmf": 0.067228,
+   "cmf_veille": 0.043805,
+   "cci": 44.86
   },
   {
    "valeur": "EIFFAGE",
-   "cmf": 0.034262,
-   "cmf_veille": 0.061604,
-   "cci": -125.69
+   "cmf": 0.028721,
+   "cmf_veille": 0.034262,
+   "cci": 28.0
   },
   {
    "valeur": "AIRBUS",
-   "cmf": 0.126863,
-   "cmf_veille": 0.136759,
-   "cci": 28.3
+   "cmf": 0.128144,
+   "cmf_veille": 0.126863,
+   "cci": 41.27
   },
   {
    "valeur": "RENAULT",
-   "cmf": -0.016242,
-   "cmf_veille": 0.030575,
-   "cci": -116.89
+   "cmf": -0.11172,
+   "cmf_veille": -0.016242,
+   "cci": -94.98
   },
   {
    "valeur": "UNIBAIL_RODAMCO",
-   "cmf": 0.178101,
-   "cmf_veille": 0.275213,
-   "cci": 110.28
+   "cmf": 0.119253,
+   "cmf_veille": 0.178101,
+   "cci": 145.48
   },
   {
    "valeur": "BUREAU_VERITAS",
-   "cmf": 0.343027,
-   "cmf_veille": 0.182221,
-   "cci": 136.92
+   "cmf": 0.417932,
+   "cmf_veille": 0.343027,
+   "cci": 130.31
   },
   {
    "valeur": "VINCI",
-   "cmf": 0.18019,
-   "cmf_veille": 0.122255,
-   "cci": -115.48
+   "cmf": 0.123282,
+   "cmf_veille": 0.18019,
+   "cci": 86.41
   }
  ],
  "calibrage": {
