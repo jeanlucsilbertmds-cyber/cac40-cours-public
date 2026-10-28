@@ -7,7 +7,8 @@
   trades clos ce soir, et le verdict du radar. Tout ce qui doit alerter vient en
   première ligne : circuit non passé, séance attendue non lue (le dernier jour de
   bourse, week-ends et jours fériés sautés), valeurs sans cours, source illisible, ❌ du
-  radar, alerte nouvelle, fin prochaine du calendrier de la Bourse.
+  radar, alerte nouvelle, fin prochaine du calendrier de la Bourse, certification de la
+  nuit non déposée.
 ② CONTEXTE D'APPEL — La tâche planifiée « MESSAGE DU SOIR » (décision de Jean-Luc du
   30-09-2026, 17h34-17h42 : un seul message chaque soir, construit sur ce que fait
   GitHub, testé en forçant le passage) le lance après le circuit de GitHub, puis
@@ -17,8 +18,9 @@
   l'horloge de Paris, par `CONTRATS_DES_FICHIERS.fabrique_du_jour` pour le rapport.
 ④ CONDITIONS D'ENTRÉE — La racine doit porter `rapports/audit_du_jour.md`,
   `donnees/signaux_du_jour.json`, `donnees/claude_positions_ouvertes.csv` et
-  `donnees/claude_journal_trades.csv` ; `CONTRATS_DES_FICHIERS.py` doit se trouver
-  à côté de ce programme. Un
+  `donnees/claude_journal_trades.csv` ; `CONTRATS_DES_FICHIERS.py`,
+  `CALENDRIER_DE_LA_BOURSE.py` et `FABRIQUER_LE_CIRCUIT_PUBLIC.py` doivent se trouver
+  à côté de ce programme ; l'historique git doit être complet (pas un clone superficiel). Un
   fichier absent ou illisible (quelle qu'en soit la raison) n'arrête pas le
   message : il y est nommé en première ligne.
 ⑤ SORTIE — Le message sur la sortie standard : une première ligne de bilan, coupée à
@@ -26,14 +28,16 @@
   une source manquait ou n'était pas lisible (R-734 : un contrôle qui n'a pas pu
   conclure ne rend jamais 0) ; 2 si le circuit du soir n'a pas tourné ou si la
   séance lue n'est pas celle qu'on attend (en retard, postérieure, ou hors jour de
-  bourse) ; 0 sinon.
+  bourse), ou si le certificat de la nuit n'a pas été déposé ; 0 sinon.
 ⑥ TRAITEMENT — ① dire si le rapport du radar est du jour (`fabrique_du_jour`) et en
   lire le score, les ❌ et les ⚠️ · ② relire la version précédente du même rapport
   dans l'historique git, pour dire ce qui est nouveau · ③ lire les signaux et
   confronter leurs champs au contrat, et la séance à la séance attendue selon le
   calendrier de la Bourse · ④ lire les positions ouvertes et les trades
   clos à la date de la séance, chacun compté une fois quelle que soit sa comptabilité
-  · ⑤ écrire le bilan, puis le détail.
+  · ④bis lire dans l'historique git le dernier dépôt du certificat de la version par
+  son auteur `certification-publique`, et dire s'il est plus ancien que la nuit
+  attendue · ⑤ écrire le bilan, puis le détail.
 ⑦ UNITÉ — Des dates AAAA-MM-JJ, affichées JJ-MM ; des euros pour les trades.
 ⑧ POURQUOI — Le 30-09-2026, relevé par le Chat : la tâche de 22h ne fait plus
   tourner le radar depuis le 09-09 (clone refusé), et le seul message du soir venait
@@ -48,8 +52,13 @@
   fermeture exceptionnelle non annoncée n'y figure pas. Tant que le circuit du soir
   n'est pas passé (le matin, ou un soir de panne), la séance de la veille de bourse
   suffit : le retard du jour même est alors dit par « Circuit du soir NON passé ». ③ Deux alertes sont « la même » selon `cle` : un ❌ comparé en entier, un ⚠️
-  par son titre, chiffres retirés.
-⑩ EFFET — Lit des fichiers et lance `git` en lecture. N'écrit rien.
+  par son titre, chiffres retirés. ④ La certification est jugée par son FRUIT, le
+  certificat déposé, et non par ses causes de panne (superviseurs R-759 du 28-10-2026,
+  A-629) : voir `juger_la_certification`. Le réveil de la certification et son délai
+  maximal sont lus dans le gabarit de programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, comme
+  une donnée, sans exécuter ce programme.
+⑩ EFFET — Lit des fichiers et lance `git` en lecture. N'écrit aucun fichier du dépôt ; Python
+  peut laisser le cache compilé des modules qu'il importe à côté (`__pycache__`), sauf lancé avec -B.
 ⑪ TERMINAISON — Sort du programme par `sys.exit`, en 0, 1 ou 2. Chaque appel à `git`
   est borné à 60 secondes.
   [sort: oui]
@@ -62,6 +71,10 @@ RAPPORT = "rapports/audit_du_jour.md"
 SIGNAUX = "donnees/signaux_du_jour.json"
 POSITIONS = "donnees/claude_positions_ouvertes.csv"
 JOURNAL = "donnees/claude_journal_trades.csv"
+CERTIFICAT = "rapports/CERTIFICAT_DE_LA_VERSION.md"
+IDENTITE_CERTIFICATION = "certification-publique <certification-publique@users.noreply.github.com>"
+# L'identité git du pas « deposer » de la certification, écrite par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py
+# (CERTIFICATION) : épinglée par l'épreuve E52 des épreuves du message, qui rougit si le gabarit change.
 BANNIERE = 200
 
 
@@ -197,15 +210,15 @@ def cle(ligne):
 def lire_git(racine, *args):
     """Lance `git` en lecture dans la racine et rend sa sortie, ou None.
 
-    ① RÔLE — Relire le rapport du radar de la veille dans l'historique du dépôt.
-    ② CONTEXTE D'APPEL — `precedent`, deux fois au plus.
+    ① RÔLE — Relire l'historique du dépôt : le rapport du radar de la veille, les passages de la certification.
+    ② CONTEXTE D'APPEL — `precedent`, deux fois au plus ; `juger_la_certification`, quatre fois au plus.
     ③ ENTRÉE — `racine` : le clone · `args` : les arguments de `git`.
     ④ CONDITIONS D'ENTRÉE — `git` doit être installé ; la racine doit être un dépôt.
     ⑤ SORTIE — UNE valeur : le texte rendu par `git`, ou None s'il a échoué.
       [rend: 1]
     ⑥ TRAITEMENT — ① lancer `git -C racine args` · ② rendre sa sortie si le code est 0.
     ⑦ UNITÉ — Des SECONDES pour le délai maximal de 60.
-    ⑧ POURQUOI — Le rapport est réécrit chaque soir ; seul l'historique garde la veille.
+    ⑧ POURQUOI — Le rapport est réécrit chaque soir ; seul l'historique garde la veille et les passages.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Lance un processus en lecture.
     ⑪ TERMINAISON — Rend la main ; un appel qui dépasse 60 secondes rend None.
@@ -298,6 +311,140 @@ def une_fois(lignes, champs):
     return [(v[0], v[1]) for v in groupes.values()]
 
 
+def reveil_de_la_certification():
+    """Lit le réveil de la certification et son délai maximal là où ils sont écrits, et les rend.
+
+    ① RÔLE — Ne jamais recopier le réveil de la certification (R-708 : deux implémentations d'une même chose
+      divergent toujours) : il est écrit une fois, dans le gabarit CERTIFICATION de
+      programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, qui fabrique la fiche du dépôt public.
+    ② CONTEXTE D'APPEL — `juger_la_certification`, une fois.
+    ③ ENTRÉE — Aucune : le fabricant est lu à côté de ce programme.
+    ④ CONDITIONS D'ENTRÉE — Le fabricant affecte CERTIFICATION à un texte écrit en dur (seul ou suivi de
+      « % … ») ; ce texte porte UNE ligne `cron: "M H * * a-b"` et UNE ligne `timeout-minutes: N`, sous ces
+      formes exactes. Toute autre forme lève ValueError, jamais devinée.
+    ⑤ SORTIE — CINQ valeurs : la minute et l'heure du réveil en temps universel, le premier et le dernier jour
+      de la semaine au sens de cron (0 dimanche … 6 samedi), le délai maximal d'un passage en minutes.
+      [rend: 5]
+    ⑥ TRAITEMENT — lire le fichier comme du texte ; en tirer l'arbre syntaxique ; prendre le texte affecté à
+      CERTIFICATION ; y chercher les deux lignes ; exiger leurs formes strictes.
+    ⑦ UNITÉ — Minutes et heures en temps universel ; jours de cron ; minutes pour le délai.
+    ⑧ POURQUOI — Superviseur R-759 du 28-10-2026, condition C3 : ne pas recopier le réveil. Relecture du tour
+      2, IMP-1 : le fabricant n'est pas exécuté, car un programme importé pourrait écrire à l'écran ou
+      arrêter le message ; son texte est lu comme une donnée.
+    ⑨ CE QUI CLOCHE — On lit l'intention du dépôt privé, pas la fiche publique qui tourne ; si les deux
+      divergent, la certification échoue à son pas « circuit_a_jour », et son dernier passage n'a pas de
+      certificat : la règle (a) de `juger_la_certification` le dit.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main, ou lève (OSError, SyntaxError, ValueError).
+      [sort: non]
+    """
+    import ast
+    ici = os.path.dirname(os.path.abspath(__file__))
+    arbre = ast.parse(open(os.path.join(ici, "FABRIQUER_LE_CIRCUIT_PUBLIC.py"), encoding="utf-8").read())
+    valeurs = [n.value for n in arbre.body if isinstance(n, ast.Assign)
+               and any(getattr(x, "id", "") == "CERTIFICATION" for x in n.targets)]
+    if len(valeurs) != 1:
+        raise ValueError(f"réveil de la certification illisible : {len(valeurs)} affectation(s) de CERTIFICATION")
+    v = valeurs[0].left if isinstance(valeurs[0], ast.BinOp) else valeurs[0]
+    if not (isinstance(v, ast.Constant) and isinstance(v.value, str)):
+        raise ValueError("réveil de la certification illisible : CERTIFICATION n'est pas un texte écrit en dur")
+    lignes = re.findall(r"cron:[^\n]*", v.value)
+    forme = [re.fullmatch(r'cron: "(\d{1,2}) (\d{1,2}) \* \* ([0-6])-([0-6])"', x) for x in lignes]
+    if len(lignes) != 1 or not forme[0]:
+        raise ValueError(f"réveil de la certification illisible : {lignes!r}"[:150])
+    delais = re.findall(r"timeout-minutes: *(\d+) *\n", v.value)
+    if len(delais) != 1:
+        raise ValueError(f"délai de la certification illisible : {len(delais)} ligne(s) « timeout-minutes »")
+    mi, h, a, b = (int(x) for x in forme[0].groups())
+    if mi > 59 or h > 23 or a > b:
+        raise ValueError(f"réveil de la certification hors bornes : {lignes[0]}")
+    return mi, h, a, b, int(delais[0])
+
+
+def juger_la_certification(racine, maintenant):
+    """Juge la certification de la nuit par son fruit, le certificat déposé, et rend ce que le message en dit.
+
+    ① RÔLE — Dire, chaque soir, si la certification a tourné et déposé son certificat. Le 27 et le 28-10-2026,
+      elle a refusé de tourner deux nuits de suite sans que personne le sache avant le lendemain midi (A-629).
+    ② CONTEXTE D'APPEL — `composer`, une fois.
+    ③ ENTRÉE — `racine` : le clone lu, avec son historique · `maintenant` : l'heure de Paris du message.
+    ④ CONDITIONS D'ENTRÉE — Un clone COMPLET : un clone superficiel est refusé (voir ⑥ ①).
+    ⑤ SORTIE — TROIS valeurs : l'alerte de la bannière ou None · la source illisible ou None · la ligne du
+      détail.
+      [rend: 3]
+    ⑥ TRAITEMENT — ① refuser un clone superficiel : son plus ancien commit n'a pas de parent, git le croit
+      auteur de tous les fichiers, et un passage raté semblerait avoir déposé le certificat (relecture du
+      28-10-2026, B1) · ② lire le DERNIER commit d'auteur `IDENTITE_CERTIFICATION`, quel que soit le fichier :
+      chaque passage qui atteint son pas « deposer » (lancé en `if: always()`) en fait un, même raté ; un
+      passage arrêté avant n'en laisse aucun, et la règle (b) le voit · ③ exiger que son
+      committer soit le même, sinon il a été recopié ou réécrit ailleurs et sa date ne dit rien · ④ refuser une
+      date dans le futur · ⑤ règle (a) : ce commit doit toucher le certificat, sinon le dernier passage n'a rien
+      certifié · ⑥ règle (b) : il doit dater d'après le dernier réveil qui a eu le temps de finir (heure du
+      réveil plus son délai maximal, avant maintenant, lus par `reveil_de_la_certification`), sinon ce
+      réveil n'a rien déposé · ⑦ lire le verdict du certificat ;
+      illisible, il rend la source illisible.
+    ⑦ UNITÉ — Dates de Paris ; le réveil en temps universel.
+    ⑧ POURQUOI — Superviseurs R-759 du 28-10-2026 : juger par le fruit et non par une cause de panne ; règles
+      (a) et (b) rejouées sur les soirs du 12 au 28-10 : les alertes tombent le 13, le 14, le 15, le 20, le 27
+      et le 28, et nulle part ailleurs.
+    ⑨ CE QUI CLOCHE — Un réveil qui n'est pas parti, suivi d'un lancement manuel APRÈS l'heure du réveil, ne se
+      voit pas. Un conflit de poussée qui empêche le dépôt du certificat se dit « absente », sans cause. Le
+      verdict « VERSION NON CERTIFIÉE » n'alerte pas : décision de Jean-Luc en attente. Un dépôt de la nuit
+      retardé par GitHub au-delà de 20h45 le lendemain se dit « absente ».
+    ⑩ EFFET — Lance `git` en lecture ; lit le fabricant du circuit public comme une donnée.
+    ⑪ TERMINAISON — Rend la main ; chaque appel à `git` est borné à 60 secondes.
+      [sort: non]
+    """
+    if lire_git(racine, "rev-parse", "--is-shallow-repository") != "false\n":
+        return None, f"{CERTIFICAT} (clone superficiel ou historique illisible : certification non jugée)", \
+            "Certificat de la version : non jugé (clone superficiel ou historique illisible)"
+    try:
+        mi, h, a, b, delai = reveil_de_la_certification()
+    except Exception as e:
+        return None, f"programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py ({type(e).__name__}: {e})"[:200], \
+            "Certificat de la version : non jugé (réveil de la certification illisible)"
+    # le motif d'auteur de git est une expression rationnelle de base : seuls ses caractères spéciaux sont échappés
+    motif = "".join("\\" + c if c in ".[]*^$\\" else c for c in IDENTITE_CERTIFICATION)
+    trace = lire_git(racine, "log", "-1", "--basic-regexp", "--author=^" + motif + "$", "--format=%H%x09%an <%ae>%x09%cn <%ce>%x09%at")
+    if trace is None:
+        return None, f"{CERTIFICAT} (historique git illisible : certification non jugée)", \
+            "Certificat de la version : non jugé (historique git illisible)"
+    # le dernier réveil qui a eu le temps de finir : un jour du réveil, à son heure, plus son délai maximal,
+    # avant maintenant (relecture du tour 2, IMP-2 : un réveil du matin ; et le message lancé pendant la nuit)
+    jour = maintenant.astimezone(ZoneInfo("UTC")).date()
+    while True:
+        seuil = datetime(jour.year, jour.month, jour.day, h, mi, tzinfo=ZoneInfo("UTC"))
+        if a <= (jour.isoweekday() % 7) <= b and seuil + timedelta(minutes=delai) <= maintenant:
+            break
+        jour -= timedelta(days=1)
+    if not trace.strip():
+        return "🚨 Certification absente (aucun passage)", None, \
+            "Certificat de la version : aucun passage de la certification dans l'historique"
+    sha, auteur, committer, at = trace.strip().split("\t")
+    if committer != auteur:
+        return None, f"{CERTIFICAT} (dernier passage {sha[:7]} réécrit par {committer} : certification non jugée)"[:200], \
+            "Certificat de la version : non jugé (dernier passage recopié ou réécrit)"
+    quand = datetime.fromtimestamp(int(at), ZoneInfo("Europe/Paris"))
+    if quand > maintenant + timedelta(minutes=10):
+        return None, f"{CERTIFICAT} (dernier passage daté du futur : {quand:%d-%m %Hh%M})", \
+            "Certificat de la version : non jugé (date dans le futur)"
+    touche = lire_git(racine, "show", "--format=", "--name-only", sha)
+    if touche is None:
+        return None, f"{CERTIFICAT} (historique git illisible : certification non jugée)", \
+            "Certificat de la version : non jugé (historique git illisible)"
+    if CERTIFICAT not in touche.split("\n"):
+        return f"🚨 Certification sans certificat (passage du {quand:%d-%m %Hh%M})", None, \
+            f"Certificat de la version : le dernier passage, le {quand:%d-%m à %Hh%M}, n'a déposé que son journal"
+    v = re.search(r"^\*\*(VERSION[^*\n]*)\*\*", lire_git(racine, "show", sha + ":" + CERTIFICAT) or "", re.M)
+    if not v:
+        return None, f"{CERTIFICAT} (verdict illisible au dépôt {sha[:7]})", \
+            f"Certificat de la version : déposé le {quand:%d-%m à %Hh%M}, verdict illisible"
+    detail = f"Certificat de la version : déposé le {quand:%d-%m à %Hh%M} · {v.group(1).strip()}"
+    if quand < seuil:
+        return f"🚨 Certification absente (dernier passage {quand:%d-%m})", None, detail
+    return None, None, detail
+
+
 def composer(racine):
     """Compose le message du soir et rend aussi son code de sortie.
 
@@ -311,8 +458,9 @@ def composer(racine):
     ⑥ TRAITEMENT — ① date du rapport par `date_ecrite`, circuit passé ou non par
       `fabrique_du_jour`, score, alertes, et ce qui
       est nouveau · ② signaux, confrontés au contrat · ③ positions et trades, confrontés
-      au contrat et comptés une fois · ④ bilan : ce qui alerte d'abord, coupé à 200
-      caractères · ⑤ détail.
+      au contrat et comptés une fois · ④bis certification de la nuit, par
+      `juger_la_certification` · ④ bilan : ce qui alerte d'abord, l'alerte de la certification
+      après celles du radar, coupé à 200 caractères · ⑤ détail.
     ⑦ UNITÉ — Dates AAAA-MM-JJ affichées JJ-MM ; euros pour les trades.
     ⑧ POURQUOI — Un seul message, qui commence par ce qui doit alerter.
     ⑨ CE QUI CLOCHE — Voir la fiche du fichier.
@@ -402,7 +550,8 @@ def composer(racine):
     try:
         K, cal, ou_cal = calendrier(racine)
         attendue = K.dernier_jour_de_bourse(_auj, cal)
-        plancher = attendue if passe else K.dernier_jour_de_bourse(_auj - timedelta(days=1), cal)
+        veille_de_bourse = K.dernier_jour_de_bourse(_auj - timedelta(days=1), cal)
+        plancher = attendue if passe else veille_de_bourse
         sans_bourse = not K.est_jour_de_bourse(_auj, cal)
     except Exception as e:
         # Le chemin d'un fichier absent se coupe par la FIN : c'est là qu'est le nom.
@@ -452,6 +601,11 @@ def composer(racine):
                         ("strategie", "valeur", "date_entree", "date_sortie"))
     except Exception as e:
         illisibles.append(f"{JOURNAL} ({type(e).__name__}: {e})"[:160])
+    # ④bis la certification de la nuit, jugée par son fruit (A-629)
+    alerte_certif, ill_certif, ligne_certif = juger_la_certification(
+        racine, datetime.now(ZoneInfo("Europe/Paris")))
+    if ill_certif:
+        illisibles.append(ill_certif)
     # ④ le bilan : ce qui alerte d'abord
     if illisibles:
         alertes.insert(0, f"🚨 Message incomplet : {len(illisibles)} source(s) illisible(s)")
@@ -464,6 +618,8 @@ def composer(racine):
         alertes.append(f"🚨 {connus} ❌ au radar, veille non relue")   # « connu » serait faux
     elif connus:
         alertes.append(f"⚠️ {connus} ❌ connu(s) au radar")
+    if alerte_certif:   # après le radar : la bannière garde d'abord ce qui touche la séance et le radar
+        alertes.append(alerte_certif)
     sig = "aucun signal" if not signaux else f"{len(signaux)} signal(s) : " + ", ".join(str(x.get("valeur", "?")) for x in signaux if isinstance(x, dict))
     etat = f"séance {jj(seance if seance_d else None)} · {sig} · {len(ouvertes)} position(s) ouverte(s)"
     tete = "🚨" if any(a.startswith("🚨") for a in alertes) else ("⚠️" if alertes else "✅")
@@ -485,6 +641,7 @@ def composer(racine):
         detail.append("  NOUVEAU " + x if x in nouv_r else "  " + x[:160])
     for x in nouv_o:
         detail.append("  NOUVEAU " + x)
+    detail.append(ligne_certif)
     detail.append("Cockpit : publication pas encore vérifiée par ce message.")
     if K is None:
         detail.append("Séance attendue : inconnue (calendrier de la Bourse illisible)")
@@ -496,7 +653,7 @@ def composer(racine):
                           " page officielle d'Euronext et ÉTENDRE le fichier (ne jamais le remplacer).")
     for x in illisibles:
         detail.append("Illisible : " + x)
-    code = 1 if illisibles else (2 if (not passe or alerte_seance) else 0)
+    code = 1 if illisibles else (2 if (not passe or alerte_seance or alerte_certif is not None) else 0)
     return bilan + "\n" + "\n".join(detail), code
 
 

@@ -20,7 +20,7 @@ C4 jours de bourse de retard (du jeudi 24-09 au mercredi 30-09 : 4, et non 6 jou
 C5 hors couverture : le 01-01-2027 et le 31-12-2025 lèvent HorsCalendrier ;
 C6 les refus de lire() : en-tête faux, état inconnu, date « 20260501 », « 2026-W18-5 » ou « 2026-02-30 », deux bornes
    basses, borne haute absente, bornes inversées, un jour écrit deux fois, une fermeture hors bornes, une fermeture un
-   samedi ou un dimanche, une fermeture avant la borne basse, quatre colonnes, fichier absent ;
+   samedi ou un dimanche, une fermeture avant la borne basse, une colonne de trop, fichier absent ;
 C7 les tolérances de lire() : marque d'ordre d'octets d'Excel, ligne vide, bornes écrites dans l'autre ordre ;
 C8 lancé seul : code 0 et « 5 fermeture(s) » sur le dépôt ; code 1 sans calendrier.
 LES SABOTAGES : K1 week-end non sauté · K2 fermetures ignorées · K3 jours du calendrier comptés · K4 couverture non
@@ -63,8 +63,8 @@ SABOTAGES = {
     "K20_borne_basse_toleree": [("        if not depuis[0] <= d <= jusqu_au[0]:", "        if not d <= jusqu_au[0]:")],
     "K18_demi_seance_fermee": [('            if l[1] == "FERME":\n                fermes.add(d)\n', "            fermes.add(d)\n")],
 }
-ENTETE = "date,etat,source"
-B = ["2026-01-01,COUVERT_DEPUIS,e", "2026-12-31,COUVERT_JUSQU_AU,e"]
+ENTETE = "date,etat,source,citation,fichiers_cites"   # le contrat CALENDRIER depuis le 27-10-2026 (cinq colonnes)
+B = ["2026-01-01,COUVERT_DEPUIS,e,,", "2026-12-31,COUVERT_JUSQU_AU,e,,"]
 
 
 def ecrire(d, lignes, bom=False):
@@ -175,20 +175,20 @@ def epreuves(mod_path, tmp):
     dos = lambda: os.path.join(tmp, "c%d" % next(n))
     refus = {
         "en-tête faux": [ENTETE + "s"] + B,
-        "état inconnu": [ENTETE] + B + ["2026-05-01,OUVERT,e"],
-        "date 20260501": [ENTETE] + B + ["20260501,FERME,e"],
-        "date 2026-W18-5": [ENTETE] + B + ["2026-W18-5,FERME,e"],
-        "date 2026-02-30": [ENTETE] + B + ["2026-02-30,FERME,e"],
-        "deux bornes basses": [ENTETE] + B + ["2026-02-01,COUVERT_DEPUIS,e"],
+        "état inconnu": [ENTETE] + B + ["2026-05-01,OUVERT,e,,"],
+        "date 20260501": [ENTETE] + B + ["20260501,FERME,e,,"],
+        "date 2026-W18-5": [ENTETE] + B + ["2026-W18-5,FERME,e,,"],
+        "date 2026-02-30": [ENTETE] + B + ["2026-02-30,FERME,e,,"],
+        "deux bornes basses": [ENTETE] + B + ["2026-02-01,COUVERT_DEPUIS,e,,"],
         "borne haute absente": [ENTETE, B[0]],
-        "bornes inversées": [ENTETE, "2026-12-31,COUVERT_DEPUIS,e", "2026-01-01,COUVERT_JUSQU_AU,e"],
-        "un jour FERME et DEMI_SEANCE": [ENTETE] + B + ["2026-12-24,FERME,e", "2026-12-24,DEMI_SEANCE,e"],
-        "un jour FERME deux fois": [ENTETE] + B + ["2026-12-25,FERME,e", "2026-12-25,FERME,e"],
-        "fermeture hors bornes": [ENTETE] + B + ["2027-01-01,FERME,e"],
-        "fermeture un samedi": [ENTETE] + B + ["2026-10-03,FERME,e"],
-        "fermeture un dimanche": [ENTETE] + B + ["2026-10-04,FERME,e"],
-        "fermeture avant la borne basse": [ENTETE] + B + ["2025-12-25,FERME,e"],
-        "quatre colonnes": [ENTETE] + B + ["2026-05-01,FERME,e,x"],
+        "bornes inversées": [ENTETE, "2026-12-31,COUVERT_DEPUIS,e,,", "2026-01-01,COUVERT_JUSQU_AU,e,,"],
+        "un jour FERME et DEMI_SEANCE": [ENTETE] + B + ["2026-12-24,FERME,e,,", "2026-12-24,DEMI_SEANCE,e,,"],
+        "un jour FERME deux fois": [ENTETE] + B + ["2026-12-25,FERME,e,,", "2026-12-25,FERME,e,,"],
+        "fermeture hors bornes": [ENTETE] + B + ["2027-01-01,FERME,e,,"],
+        "fermeture un samedi": [ENTETE] + B + ["2026-10-03,FERME,e,,"],
+        "fermeture un dimanche": [ENTETE] + B + ["2026-10-04,FERME,e,,"],
+        "fermeture avant la borne basse": [ENTETE] + B + ["2025-12-25,FERME,e,,"],
+        "une colonne de trop": [ENTETE] + B + ["2026-05-01,FERME,e,,,x"],
     }
     rates = [k for k, L in refus.items() if leve(K.lire, ecrire(dos(), L)) != "ValueError"]
     vide = dos(); os.makedirs(vide)
@@ -196,8 +196,8 @@ def epreuves(mod_path, tmp):
         rates.append("fichier absent")
     res.append(("C6 refus de lire()" + (" — acceptés à tort : " + ", ".join(rates) if rates else ""), not rates))
     try:
-        c1 = K.lire(ecrire(dos(), [ENTETE] + B + ["", "2026-05-01,FERME,e"], bom=True))
-        c2 = K.lire(ecrire(dos(), [ENTETE, B[1], "2026-05-01,FERME,e", B[0]]))
+        c1 = K.lire(ecrire(dos(), [ENTETE] + B + ["", "2026-05-01,FERME,e,,"], bom=True))
+        c2 = K.lire(ecrire(dos(), [ENTETE, B[1], "2026-05-01,FERME,e,,", B[0]]))
         ok7 = c1["fermes"] == {D("2026-05-01")} and (c2["depuis"], c2["jusqu_au"]) == (D("2026-01-01"), D("2026-12-31"))
     except Exception:
         ok7 = False

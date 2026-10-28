@@ -1111,6 +1111,137 @@ def charger_cours(*chemins):
     return {v: [d[k] for k in sorted(d)] for v, d in brut.items()}
 
 
+def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
+    """Lit les cours par le lecteur unique et rend, en plus des séries, l'appartenance au CAC 40 et les trous.
+
+    ① RÔLE — Donner au juge des stratégies les cours tels que les lit le lecteur unique
+      (`programmes/LIRE_LES_COURS.py`), avec ce que ce lecteur sait et que `charger_cours`
+      ignore : les périodes où chaque valeur était dans le CAC 40, et les séances où elle
+      n'a pas de cours (les trous).
+    ② CONTEXTE D'APPEL — Deux appelants : `main`, pour juger les fiches (A-577, étape 1) ;
+      `main` de `programmes/JOUER_LES_VERSIONS.py`, qui se compare au juge et lit donc comme
+      lui (27-10-2026). Le circuit du soir garde `charger_cours` jusqu'à l'étape 7 de A-577
+      (décision de Jean-Luc du 26-10-2026 à 19h43).
+    ③ ENTRÉE — `base` : la racine du dépôt · `fichier` : le fichier des cours, relatif à la
+      racine (`donnees/cours_maitre.csv` ou l'historique long) · `mnemo` : la table de
+      `table_mnemoniques`, du mnémonique à la clé de la valeur · `jusqu_au` : la date jusqu'à
+      laquelle les séances doivent avoir leurs cours, passée telle quelle au lecteur.
+    ④ CONDITIONS D'ENTRÉE — Celles de `LIRE_LES_COURS.lire`. Chaque mnémonique lu doit être
+      dans `mnemo`.
+    ⑤ SORTIE — DEUX valeurs : les séries, au format de `charger_cours` (clé de la valeur →
+      séances triées, prix en nombres) ; et la lecture, un dictionnaire : « passages »
+      (clé → liste des (entrée, sortie ou None), dates AAAA-MM-JJ), « trous » (clé → liste
+      triée des séances sans cours, AAAA-MM-JJ), « composition » (vrai : n'acheter qu'une
+      valeur dans l'indice le jour de l'achat).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① lire par le lecteur unique · ② REFUSER la lecture (ValueError) quand le
+      lecteur a mis des lignes à part (`LIRE_LES_COURS.lignes_mises_a_part`, une propriété de
+      conservation, pas une liste de sortes), quand le fichier est un fichier figé modifié ou
+      allongé, ou quand une valeur lue n'a aucun passage dans l'indice · ③ pour chaque
+      mnémonique, traduire en clé, convertir chaque barre en nombres, trier · ④ relever ses
+      passages dans l'indice et ses trous.
+    ⑦ UNITÉ — Des euros par titre, des titres échangés, des dates AAAA-MM-JJ, des séances.
+    ⑧ POURQUOI — A-577 ① et ② : la pratique reconnue n'ouvre un trade que si la valeur est
+      dans l'indice à la date d'entrée (Norgate avec Wealth-Lab), et ne calcule pas un
+      indicateur à travers un trou (pandas, min_periods). Mesuré : rejoué sur l'historique
+      long, Eiffage avait 86 trades sur 87 datés d'avant son entrée (22-12-2025). Deux lectures
+      des mêmes cours divergent toujours (R-708) : le juge lit par le lecteur unique au lieu
+      d'en refaire une partie.
+    ⑨ CE QUI CLOCHE — Une barre que le lecteur rend mais dont un prix ne se lit pas lève une
+      ValueError : `charger_cours` la sautait sans le dire. · Le circuit du soir lit encore
+      autrement (`charger_cours`), jusqu'à l'étape 7 de A-577 ; `programmes/JUGER_SUR_8_CRITERES.py`
+      aussi (relevé le 27-10-2026).
+    ⑩ EFFET — Lit des fichiers. N'écrit rien.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError (lecture refusée, voir ⑥ ②, message
+      commençant par « le lecteur unique ») ou l'erreur du lecteur (OSError, ValueError) ou de la
+      traduction (KeyError pour un mnémonique hors de `mnemo`).
+      [sort: non]
+    """
+    lecteur = charger_module(os.path.join(base, "programmes", "LIRE_LES_COURS.py"), "lecteur_unique")
+    c = lecteur.lire(base, fichier) if jusqu_au is None else lecteur.lire(base, fichier, jusqu_au)
+    # LA LECTURE SE REFUSE ICI, UNE FOIS, POUR TOUS LES APPELANTS (superviseur R-759 du 27-10-2026) : le même test,
+    # recopié dans `main` et dans `programmes/JOUER_LES_VERSIONS.py`, aurait divergé (R-708). Mesuré le 27-10-2026 :
+    # une ligne datée « 26/10/2026 » passait l'ancienne liste de défauts, qui oubliait les dates illisibles.
+    a_part = lecteur.lignes_mises_a_part(c)
+    if a_part:
+        raise ValueError("le lecteur unique a mis %d ligne(s) de cours à part dans %s : rien n'est jugé" % (a_part, fichier))
+    if c.get("fige_modifie") or c.get("fige_allonge"):
+        raise ValueError("le lecteur unique dit que le fichier figé %s a changé : rien n'est jugé" % fichier)
+    sans = sorted(m for m in c["barres"] if not c["dans_l_indice"].get(m))
+    if sans:   # un fichier déclaré incrément n'a aucun passage : toute valeur serait refusée sans un mot (relecture, 27-10)
+        raise ValueError("le lecteur unique ne connaît aucun passage dans le CAC 40 pour %s : rien n'est jugé"
+                         % ", ".join(sans))
+    iso = lambda d: d.isoformat() if hasattr(d, "isoformat") else str(d)
+    cours, passages, trous = {}, {}, {}
+    for m, barres in c["barres"].items():
+        v = mnemo[m.upper()]
+        cours[v] = [{"date": iso(d), "open": float(r["open"]), "high": float(r["high"]),
+                     "low": float(r["low"]), "close": float(r["close"]), "volume": float(r["volume"])}
+                    for d, r in sorted(barres.items())]
+        passages[v] = [(iso(a), iso(b) if b else None) for a, b in c["dans_l_indice"].get(m, [])]
+        trous[v] = sorted(iso(d) for d, _ in lecteur.trous(c, m))
+    return cours, {"passages": passages, "trous": trous, "composition": True}
+
+
+def dans_l_indice(passages, jour):
+    """Dit si une valeur était dans le CAC 40 un jour donné.
+
+    ① RÔLE — Répondre, pour une date d'achat, oui ou non.
+    ② CONTEXTE D'APPEL — `jouer`, à chaque signal, quand la lecture demande la composition.
+    ③ ENTRÉE — `passages` : la liste des (entrée, sortie ou None) d'une valeur, rendue par
+      `lire_par_le_lecteur` · `jour` : une date AAAA-MM-JJ.
+    ④ CONDITIONS D'ENTRÉE — Les dates sont écrites AAAA-MM-JJ : leur ordre de texte est l'ordre
+      du calendrier.
+    ⑤ SORTIE — UNE valeur : vrai si le jour tombe dans un passage, bornes comprises.
+      [rend: 1]
+    ⑥ TRAITEMENT — Parcourir les passages.
+    ⑦ UNITÉ — Des dates.
+    ⑧ POURQUOI — Les deux dates d'un passage sont des séances DANS l'indice (fiche de
+      `LIRE_LES_COURS.lire_les_passages`).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return any(a <= jour and (b is None or jour <= b) for a, b in passages)
+
+
+def couper_aux_trous(serie, trous):
+    """Coupe une série de séances en morceaux sans trou.
+
+    ① RÔLE — Rendre les morceaux d'une série entre lesquels manque au moins une séance, pour
+      qu'aucun indicateur ne se calcule à travers un trou.
+    ② CONTEXTE D'APPEL — `jouer`, une fois par valeur, quand une lecture est donnée.
+    ③ ENTRÉE — `serie` : les séances triées d'une valeur · `trous` : la liste triée des
+      séances sans cours de cette valeur (AAAA-MM-JJ).
+    ④ CONDITIONS D'ENTRÉE — Les deux listes sont triées par date.
+    ⑤ SORTIE — UNE valeur : la liste des morceaux, chacun une liste de séances consécutives ;
+      la série entière, en un morceau, quand aucun trou ne tombe entre deux de ses séances.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque paire de séances voisines, chercher un trou strictement entre
+      les deux ; s'il y en a un, commencer un nouveau morceau.
+    ⑦ UNITÉ — Des séances.
+    ⑧ POURQUOI — A-577 ② : un indicateur sur N jours exige N vraies observations ; une ligne
+      de cours ne compte pas pour une séance quand des séances manquent entre deux lignes.
+    ⑨ CE QUI CLOCHE — Un trou avant la première séance ou après la dernière ne coupe rien : il
+      n'est entre aucune paire.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import bisect
+    morceaux, courant = [], []
+    for b in serie:
+        if courant:
+            k = bisect.bisect_right(trous, courant[-1]["date"])
+            if k < len(trous) and trous[k] < b["date"]:
+                morceaux.append(courant)
+                courant = []
+        courant.append(b)
+    if courant:
+        morceaux.append(courant)
+    return morceaux
+
 def table_mnemoniques(chemin):
     """mnemonique -> cle de valeur. La cle est le MNEMONIQUE, jamais le nom
     (chapitre IDENTITE DES VALEURS, regle I-1).
@@ -1446,7 +1577,7 @@ def porte_0(fiche):
     return (not manq), manq, _b
 
 
-def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None):
+def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=None):
     """Comptabilite JETONS ILLIMITES : TOUS les signaux joues. La selection d'un
     signal par jour ne concerne QUE la comptabilite UN JETON, ou il faut bien
     choisir puisqu'on ne detient qu'une position (A-79, 01-08-2026).
@@ -1463,11 +1594,13 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None):
       · `programmes/JUGER_SUR_8_CRITERES.py` ligne 1202.
     ③ ENTRÉE — `fiche` : la ligne de stratégie, où sont lus `tp`, `sl`, `horizon`,
       `univers` et `_fonction_signal` · `cours` : les séries par valeur, rendues par
-      `charger_cours` · `mnemo` : la table qui traduit les codes courts en noms
+      `charger_cours` ou par `lire_par_le_lecteur` · `mnemo` : la table qui traduit les codes courts en noms
       rapprochés · `mod_signal` : le module qui produit les signaux ·
       `mod_positions` : le module qui décide des sorties et des frais · `periode` :
       le couple des bornes rendu par la porte 0, ou `None` pour ne pas borner.
-      `main` passe toujours les bornes de la fiche.
+      `main` passe toujours les bornes de la fiche. · `lecture` : le second rendu de
+      `lire_par_le_lecteur` (passages dans l'indice, trous, composition), ou `None` pour
+      jouer la série entière sans composition, comme avant le 26-10-2026 (A-577, étape 1).
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0 : l'objectif de
       gain, la perte acceptée et l'horizon doivent être lisibles, faute de quoi la
       fonction lève. Le module de signal doit exposer la fonction nommée par
@@ -1476,13 +1609,18 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None):
     ⑤ SORTIE — DEUX valeurs : la liste des opérations, et la liste des valeurs
       demandées par la fiche mais absentes des cours. Chaque opération porte la
       valeur, la date du signal, le prix d'entrée, le prix de sortie, le motif de
-      sortie, le gain net en euros et, depuis le 28-09-2026, la date de sortie.
+      sortie (TP, SL, leurs variantes de saut, HORIZON), le gain net en euros et, depuis le
+      28-09-2026, la date de sortie.
       Mesuré le 20-09-2026 sur la fiche
       `C5E10-QA-V1` : 62 opérations, aucune valeur inconnue.
       [rend: 2]
     ⑥ TRAITEMENT — ① lire l'objectif de gain, la perte acceptée et l'horizon dans
       la fiche · ② traduire l'univers demandé, en séparant les valeurs connues des
-      inconnues · ③ demander au module de signal les séances qui déclenchent un
+      inconnues · ②bis avec une lecture, couper chaque série à ses trous
+      (`couper_aux_trous`) et demander les signaux morceau par morceau ; l'achat et les
+      sorties, eux, se jouent sur la série entière, à travers les trous (décision de Jean-Luc
+      du 27-10-2026, 13h30) ; refuser un signal dont la séance d'achat est hors de l'indice
+      (`dans_l_indice`) · ③ demander au module de signal les séances qui déclenchent un
       achat · ④ écarter un signal sur la dernière séance, faute de lendemain pour
       entrer · ⑤ écarter un signal hors de la période déclarée · ⑥ entrer à
       l'ouverture du lendemain et poser les deux prix de sortie · ⑦ parcourir les
@@ -1540,6 +1678,11 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None):
       valeurs de l'univers ont réellement été jouées. Une fiche dont neuf valeurs
       sur dix seraient introuvables produirait un résultat sur une seule valeur,
       avec une ligne d'alerte de même taille que pour une seule absente.
+      ⑤ À TRAVERS UN TROU, L'HORIZON SE COMPTE EN SÉANCES QUI ONT UN COURS : une position
+      qui traverse un trou de six séances (Bouygues, novembre 2011) est tenue six séances
+      de calendrier de plus. Et un signal donné la veille d'un trou achète à la séance
+      suivante qui a un cours, après le trou. Mesuré le 27-10-2026 : 41 séances sans cours
+      au milieu des séries de l'historique des 20 ans, 32 coupures ; aucune dans le maître.
     ⑩ EFFET — Aucun sur le disque : ni lecture ni écriture de fichier, aucun accès
       réseau. Elle APPELLE le module de signal et le module de positions, donc tout
       ce que ces modules font, elle le fait. Elle ne modifie pas les cours reçus.
@@ -1614,55 +1757,69 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None):
 
     ops = []
     for v in univers:
-        s = cours[v]
-        for sg in fn(s):
-            i = sg["i"]
-            if i + 1 >= len(s):
-                continue
-            d_sig = s[i]["date"]
-            if periode and not (periode[0] <= d_sig <= periode[1]):
-                continue
-            pe = s[i + 1]["open"]
-            tp_abs, sl_abs = pe * (1 + tp), pe * (1 - sl)
-            # LA SEANCE D'ACHAT COMPTE (R-608, decision de Jean-Luc du 27-09-2026 a
-            # 19h40 ; defaut 4 de A-491). Les seuils se testent des s[i + 1], la
-            # seance ou l'on achete a l'ouverture : avant, ils ne l'etaient qu'a
-            # partir de s[i + 2]. Exemple reel du tableau de reference : Vinci,
-            # achete le 07-06-2024 a 113,60, plus bas du jour 110,75 sous la vente
-            # forcee 110,76 -> vendu le jour meme. L'echeance, elle, ne change pas :
-            # la h-ieme seance APRES l'achat, s[i + 1 + h].
-            suite = s[i + 1:i + 2 + h]
-            px = motif = d_sortie = None
-            for b in suite:
-                r = mod_positions.tester_seance(b, tp_abs, sl_abs)
-                if r:
-                    px, motif = r
-                    d_sortie = b["date"]
-                    break
-            if px is None:
-                apres = suite[1:]          # l'echeance se compte APRES la seance d'achat
-                if not apres:
+        # AVEC UNE LECTURE (A-577, étape 1) : les SIGNAUX se calculent morceau par morceau — aucun
+        # indicateur ne traverse un trou ; la POSITION, elle, vit sur la série entière : l'achat se fait à
+        # la séance suivante qui a un cours, et les sorties se testent sur les séances qui ont un cours,
+        # à travers les trous (décision de Jean-Luc du 27-10-2026 à 13h30, « 1 la garder » : une position
+        # ouverte avant un trou est gardée ; la vente forcée ne se fait qu'à la fin des données, comme
+        # RealTest, « when the data ends before the test does »). Un achat n'a lieu que si la valeur est
+        # dans le CAC 40 le jour de l'achat. Sans lecture : la série entière, comme avant.
+        serie = cours[v]
+        morceaux = [serie] if lecture is None else couper_aux_trous(serie, lecture["trous"].get(v, []))
+        rang = {b["date"]: k for k, b in enumerate(serie)}
+        for s in morceaux:
+            for sg in fn(s):
+                i = sg["i"]
+                d_sig = s[i]["date"]
+                j = rang[d_sig] + 1           # la séance d'achat, dans la série entière
+                if j >= len(serie):
+                    continue                  # un signal sans lendemain : la fin des données
+                if periode and not (periode[0] <= d_sig <= periode[1]):
                     continue
-                px, motif, d_sortie = apres[-1]["close"], "HORIZON", apres[-1]["date"]
-            # LES FRAIS NE S'ECRIVENT PAS EN DUR. Le proprietaire du chiffre
-            # est MODULE_POSITIONS : 0,15 % de la valeur echangee a l'entree ET
-            # a la sortie, soit 307,50 EUR sur une sortie a +5 %, non 300 fixes.
-            # Un nombre recopie qui contredit son module, c'est R-708.
-            q = 100000.0 / pe
-            _fo = getattr(mod_positions, "frais_ordre", None)
-            if callable(_fo):
-                f_tot = _fo(q, pe) + _fo(q, px)      # les DEUX ordres
-            else:
-                raise RuntimeError("MODULE_POSITIONS n'expose pas frais_ordre : "
-                                   "le juge des stratégies ne recopie pas un taux de frais")
-            ops.append({"valeur": v, "date_signal": d_sig, "pe": pe, "px": px,
-                        "motif": motif, "net": q * (px - pe) - f_tot,
-                        "date_sortie": d_sortie})
+                if lecture is not None and lecture.get("composition") and \
+                        not dans_l_indice(lecture["passages"].get(v, []), serie[j]["date"]):
+                    continue
+                pe = serie[j]["open"]
+                tp_abs, sl_abs = pe * (1 + tp), pe * (1 - sl)
+                # LA SEANCE D'ACHAT COMPTE (R-608, decision de Jean-Luc du 27-09-2026 a
+                # 19h40 ; defaut 4 de A-491). Les seuils se testent des s[i + 1], la
+                # seance ou l'on achete a l'ouverture : avant, ils ne l'etaient qu'a
+                # partir de s[i + 2]. Exemple reel du tableau de reference : Vinci,
+                # achete le 07-06-2024 a 113,60, plus bas du jour 110,75 sous la vente
+                # forcee 110,76 -> vendu le jour meme. L'echeance, elle, ne change pas :
+                # la h-ieme seance APRES l'achat, serie[j + h].
+                suite = serie[j:j + 1 + h]
+                px = motif = d_sortie = None
+                for b in suite:
+                    r = mod_positions.tester_seance(b, tp_abs, sl_abs)
+                    if r:
+                        px, motif = r
+                        d_sortie = b["date"]
+                        break
+                if px is None:
+                    apres = suite[1:]          # l'echeance se compte APRES la seance d'achat
+                    if not apres:
+                        continue
+                    px, motif, d_sortie = apres[-1]["close"], "HORIZON", apres[-1]["date"]
+                # LES FRAIS NE S'ECRIVENT PAS EN DUR. Le proprietaire du chiffre
+                # est MODULE_POSITIONS : 0,15 % de la valeur echangee a l'entree ET
+                # a la sortie, soit 307,50 EUR sur une sortie a +5 %, non 300 fixes.
+                # Un nombre recopie qui contredit son module, c'est R-708.
+                q = 100000.0 / pe
+                _fo = getattr(mod_positions, "frais_ordre", None)
+                if callable(_fo):
+                    f_tot = _fo(q, pe) + _fo(q, px)      # les DEUX ordres
+                else:
+                    raise RuntimeError("MODULE_POSITIONS n'expose pas frais_ordre : "
+                                       "le juge des stratégies ne recopie pas un taux de frais")
+                ops.append({"valeur": v, "date_signal": d_sig, "pe": pe, "px": px,
+                            "motif": motif, "net": q * (px - pe) - f_tot,
+                            "date_sortie": d_sortie})
     return ops, inconnus
 
 
 def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
-          _bornes=None, mod_pos_sig=None):
+          _bornes=None, mod_pos_sig=None, lecture=None):
     """Rend les mesures qui disent si le gain veut dire quelque chose.
 
     AUCUN SEUIL N'EST ECRIT EN DUR : le point mort se calcule depuis les
@@ -1686,7 +1843,11 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       peut valoir `None` · `mod_pos` : le module de positions · `mnemo` : la table
       des codes courts, vide par défaut · `_bornes` : le couple des bornes de
       période rendu par la porte 0 · `mod_pos_sig` : un tuple d'un seul élément,
-      le module de signal, dont seul le premier élément est employé.
+      le module de signal, dont seul le premier élément est employé · `lecture` : le
+      second rendu de `lire_par_le_lecteur`, ou `None` ; il est passé tel quel à `jouer`
+      quand la stabilité paramétrique rejoue la fiche (`_rejouer`), pour que les voisins se
+      jouent comme la fiche (27-10-2026). L'étalon de hasard, lui, ne le reçoit pas (BACKLOG
+      A-577, en attente de Jean-Luc).
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0. Le module de
       jugement doit exposer les huit fonctions appelées ici ; le module de
       statistiques peut manquer, ses deux mesures étant alors perdues.
@@ -2051,7 +2212,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
             f2["sl"] = str(p["sl"])
             f2["horizon"] = str(int(round(p["horizon"])))
             o2, _ = jouer(f2, cours, mnemo, mod_pos_sig[0], mod_pos,
-                          periode=_bornes)
+                          periode=_bornes, lecture=lecture)
             r2 = resumer(o2)
             return {"net": r2.get("net", 0.0), "wr": r2.get("wr", 0.0)}
         st = S.calculer_stabilite_parametrique(
@@ -2713,9 +2874,19 @@ def main():
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée
         dans les fichiers du projet
     """
-    base = sys.argv[1] if len(sys.argv) > 1 else "/mnt/project"
-    cible = sys.argv[2] if len(sys.argv) > 2 else None
+    _args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    base = _args[0] if _args else "/mnt/project"
+    cible = _args[1] if len(_args) > 1 else None
+    # --cours=<fichier, relatif à la racine> : juger sur un autre fichier de cours que le maître, par exemple
+    # l'historique des 20 ans (A-577, étape 1). Sans l'option, le maître, comme avant.
+    _autre = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--cours=")), None)
     print("JUGE DES STRATÉGIES . %s . %s\n" % (VERSION, horodatage()))
+    # UNE OPTION INCONNUE OU MAL ÉCRITE ARRÊTE TOUT (relecture et superviseur du 27-10-2026) : « --cours fichier »,
+    # sans « = », était ignoré, et « fichier » devenait la fiche visée — aucune fiche jugée, code 0.
+    _mal = [a for a in sys.argv[1:] if a.startswith("--") and not (a.startswith("--cours=") and len(a) > len("--cours="))]
+    if _mal:
+        print("ARRET : option inconnue ou mal ecrite : %s (seule « --cours=<fichier> » existe). Rien n'est juge." % _mal)
+        return 1
 
     # LE JUGE DES STRATÉGIES LIT LE REGISTRE DES STRATEGIES, PLUS LE SAS.
     # Le sas — registre_candidates.csv — a ete ABSORBE le 29-08-2026 : il
@@ -2729,7 +2900,7 @@ def main():
     # LES COURS VIENNENT DU SEUL FICHIER MAITRE, designe par `fichiers_de_cours` :
     # une seule facon de le trouver dans tout le systeme (A-442, R-708).
     try:
-        f_cours = fichiers_de_cours(base)[0]
+        f_cours = os.path.join(base, _autre) if _autre else fichiers_de_cours(base)[0]
     except FileNotFoundError as _e:
         print(_e)
         return 1
@@ -2770,8 +2941,25 @@ def main():
         print("ARRET : introuvable - %s. Rien n'est produit." % ", ".join(manquants))
         return 1
 
-    cours = charger_cours(f_cours)
     mnemo = table_mnemoniques(f_ref)
+    # LES COURS PASSENT PAR LE LECTEUR UNIQUE (A-577, étape 1, 26-10-2026) : avec eux, les périodes de chaque
+    # valeur dans le CAC 40 et ses trous. Une lecture qui a dû mettre des lignes à part ne juge rien.
+    try:
+        cours, lecture = lire_par_le_lecteur(base, os.path.relpath(f_cours, base), mnemo)
+    except ValueError as _e:
+        if not str(_e).startswith("le lecteur unique"):
+            raise
+        print("ARRET : %s" % _e)
+        return 1
+    # LE COMPTE VIENT DES MORCEAUX QUE REND `couper_aux_trous`, la règle même de la coupure (R-708) : compter les
+    # séances sans cours d'une valeur, c'était compter aussi celles d'avant sa première séance et d'après sa
+    # dernière, qui ne coupent rien (relecture du 27-10-2026 : 5 615 comptées, 221 coupaient une série).
+    _morceaux = {v: couper_aux_trous(s, lecture["trous"].get(v, [])) for v, s in cours.items()}
+    _coupures = sum(len(m) - 1 for m in _morceaux.values())
+    _enjambees = sum(1 for v, m in _morceaux.items() for i in range(1, len(m)) for d in lecture["trous"].get(v, [])
+                     if m[i - 1][-1]["date"] < d < m[i][0]["date"])
+    print("LECTURE : par le lecteur unique ; achats limites aux valeurs du CAC 40 le jour de l'achat ;"
+          " %d coupures des series, sur %d seances sans cours" % (_coupures, _enjambees))
     mod_sig = charger_module(f_sig, "sig")
     mod_pos = charger_module(f_pos, "pos")
     f_jug = trouver(base, "MODULE_JUGEMENT.py")
@@ -2880,6 +3068,11 @@ def main():
             return 1
         print("  -> OK, l'instrument est calibre.\n")
 
+    if cible and not any(f["id"] == cible for f in passees):
+        # Une fiche visée qui n'existe pas, ou que la porte 0 refuse, ne se juge pas en silence (R-734, superviseur
+        # du 27-10-2026) : une faute de frappe dans l'identifiant rendait 0 sans rien juger.
+        print("ARRET : la fiche visee %s n'est pas parmi les fiches qui passent la porte 0. Rien n'est juge." % cible)
+        return 1
     for f in passees:
         if cible and f["id"] != cible:
             continue
@@ -2901,7 +3094,7 @@ def main():
             raise RuntimeError("fiche sans bornes apres la porte 0 : la porte "
                                "et le jugement ne lisent plus la meme chose")
         print("    periode de la fiche : %s -> %s" % _bornes)
-        ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes)
+        ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture)
         if inconnus:
             print("    ALERTE - valeurs demandees et absentes des cours : %s" % inconnus)
         r = resumer(ops)
@@ -2922,7 +3115,7 @@ def main():
         # que dans des scripts jetables — donc nulle part.
         if mod_jug:
             juger(f, ops, cours, seances, mod_jug, mod_stats, mod_pos, mnemo,
-                  _bornes, (mod_sig,))
+                  _bornes, (mod_sig,), lecture=lecture)
         print()
 
     print("Pas de verdict oui / non : la grille qui le rendra (A-210) n'est pas encore figée.")

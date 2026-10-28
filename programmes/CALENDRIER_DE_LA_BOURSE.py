@@ -12,7 +12,9 @@
   séances est lu par programmes/LIRE_LES_COURS.py (R-111), une fois par lecture des cours.
 ③ ENTRÉE — Le fichier donnees/CALENDRIER_EURONEXT.csv du dépôt, colonnes déclarées au
   contrat CALENDRIER de programmes/CONTRATS_DES_FICHIERS.py : `date` (AAAA-MM-JJ),
-  `etat` (FERME, DEMI_SEANCE, COUVERT_DEPUIS, COUVERT_JUSQU_AU), `source`. Pour le
+  `etat` (FERME, DEMI_SEANCE, COUVERT_DEPUIS, COUVERT_JUSQU_AU), puis `source`, `citation`,
+  `fichiers_cites` — les trois colonnes d'un fichier écrit à la main (depuis le 27-10-2026,
+  pour la provenance des 20 ans, K23 ; ce programme ne les lit pas). Pour le
   calendrier des séances, aussi donnees/sources_indice/INDICE_CAC40.csv, contrat
   INDICE_CAC40 : `date`, `bnains`, `yahoo` (une clôture de l'indice par source).
 ④ CONDITIONS D'ENTRÉE — Le fichier porte exactement une ligne COUVERT_DEPUIS et une ligne
@@ -166,8 +168,8 @@ def lire(racine):
     for n, l in enumerate(lignes[1:], start=2):
         if not l:
             continue
-        if len(l) != 3:
-            raise ValueError(f"ligne {n} : {len(l)} colonnes au lieu de 3")
+        if len(l) != len(contrats.CALENDRIER):   # le nombre vient du contrat, jamais écrit ici (R-708)
+            raise ValueError(f"ligne {n} : {len(l)} colonnes au lieu de {len(contrats.CALENDRIER)}")
         try:
             d = _date_stricte(l[0])
         except ValueError:

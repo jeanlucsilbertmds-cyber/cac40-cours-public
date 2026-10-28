@@ -78,6 +78,7 @@ from CONTRATS_DES_FICHIERS import (BARRES_BNAINS_FAUSSES, COURS_BNAINS, COURS_DE
                                    JOURNAL_DES_REPARATIONS, PROVENANCE_DES_FICHIERS, FICHIERS_REPARES,
                                    TELECHARGEMENT, ECRIT_A_LA_MAIN, COLONNES_DES_SOURCES_A_LA_MAIN,
                                    GESTES_DU_JOURNAL, SOURCE_YAHOO, SOURCE_PARIS)
+import CALENDRIER_DE_LA_BOURSE as CAL   # les séances officielles d'Euronext, lues une seule façon (R-110, R-708)
 
 BNAINS = os.path.join("donnees", "sources_bnains", "bnains_cac40.csv")
 DROITS = os.path.join("donnees", "sources_bnains", "DROITS_BNAINS.csv")
@@ -105,7 +106,6 @@ MARCHE_EXACTE = 0.0005  # la marche d'une opération déclarée, dans le fichier
                         # (K22 ; et le seuil d'`aligner` dans la réparation). Mesuré le 10-10-2026 sur le fichier
                         # aligné : au pire 0,017 % (Saint-Gobain 2009), le bruit des médianes de cinq séances.
 CHAMPS = ["valeur", "date", "open", "high", "low", "close", "volume"]
-SEUIL_CALENDRIER = 25   # une date est une séance quand au moins 25 valeurs y ont une ligne (Cowork, 04-10-2026)
 FENETRE = 41            # séances de la médiane glissante du rapport entre les deux sources, centrée
 MINIMUM = 10            # points au moins dans la fenêtre, sinon pas d'écart calculé (bords de série)
 ECART = 0.01            # un jour « en écart » s'écarte de plus de 1 % de la médiane glissante
@@ -188,42 +188,41 @@ def lire_cours(chemin, champs=CHAMPS):
     return series, defauts, venues_de_bnains
 
 
-def calendrier(series, bnains=None):
-    """Rend les dates de séance du fichier.
+def calendrier(series, seances):
+    """Rend les dates de séance que le fichier doit couvrir : le calendrier OFFICIEL d'Euronext.
 
-    ① RÔLE — Dire quels jours la Bourse était ouverte, sans calendrier extérieur.
-    ② CONTEXTE D'APPEL — `controler` ; REPARER_L_HISTORIQUE_LONG ; les épreuves (calibrage, sans
-      `bnains`).
-    ③ ENTRÉE — `series` : comme rendu par `lire_cours` · `bnains` : l'extrait, ou None.
-    ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : l'ensemble des dates.
+    ① RÔLE — Dire quels jours la Bourse était ouverte, entre la première et la dernière date du fichier.
+    ② CONTEXTE D'APPEL — `controler` ; REPARER_L_HISTORIQUE_LONG (`reconstruire`, `combler`) ; les épreuves.
+    ③ ENTRÉE — `series` : comme rendu par `lire_cours` · `seances` : le rendu de
+      `CALENDRIER_DE_LA_BOURSE.lire_les_seances(racine)`, lu une fois par l'appelant.
+    ④ CONDITIONS D'ENTRÉE — Les dates des séries sont écrites AAAA-MM-JJ ; `seances` couvre la période du
+      fichier, sinon `CALENDRIER_DE_LA_BOURSE.seances_entre` dit ce qui manque.
+    ⑤ SORTIE — UNE valeur : l'ensemble des dates AAAA-MM-JJ ; vide quand les séries n'ont aucune date.
       [rend: 1]
-    ⑥ TRAITEMENT — ① garder les dates où au moins `SEUIL_CALENDRIER` valeurs ont une ligne dans
-      le fichier · ② avec `bnains`, y ajouter les dates où le fichier a AU MOINS UNE ligne et où
-      bnains a au moins `SEUIL_CALENDRIER` valeurs.
+    ⑥ TRAITEMENT — ① la première et la dernière date de toutes les séries · ② les séances officielles entre les
+      deux, bornes comprises.
     ⑦ UNITÉ — Des DATES.
-    ⑧ POURQUOI — ① est la règle de Cowork du 04-10-2026 (qualite_yahoo.py, contrôle 7) : le
-      calendrier d'Euronext du dépôt ne commence qu'en 2024 ; elle donne les 222 séances
-      manquantes. ② vient de la relecture indépendante du Chat du 04-10-2026 : début 2000, 25
-      valeurs cotent à peine ; retirer Engie fait tomber le 04-01-2000 et le 14-02-2000 à 24, et
-      leurs séances manquantes disparaissaient à la fois de la réparation et du contrôle. bnains,
-      qui archive chaque séance, dit qu'elles en sont. Mesuré le même jour : dix séances de 2000
-      et 2001 où Yahoo n'a que 5 à 24 valeurs (13-03-2000, 24-01-2001…) deviennent des séances ;
-      les demi-séances des 24 et 31 décembre (2010, 2012, 2015), où Yahoo n'a AUCUNE ligne, n'en
-      deviennent pas : Yahoo ne les porte jamais, et le fichier garde sa convention.
-    ⑨ CE QUI CLOCHE — Après le 28-02-2017, seule la règle ① s'applique.
+    ⑧ POURQUOI — Une seule définition des séances dans tout le dépôt : deux définitions d'une même chose divergent
+      toujours (R-708), et un calendrier tiré des cours prend une séance où toutes les valeurs manquent pour un jour
+      de fermeture (R-110, rappelée par `programmes/CALENDRIER_DE_LA_BOURSE.py`). Jusqu'au 27-10-2026, cette fonction
+      calculait les séances depuis les cours (au moins 25 valeurs avec une ligne, ou bnains) : elle
+      écartait les cinq demi-séances des 24 et 31-12-2010, des 24 et 31-12-2012 et du 31-12-2015, où Yahoo n'a
+      aucune ligne, avec pour raison « Yahoo ne les porte jamais » — démentie (BACKLOG A-555 (b) : Yahoo les porte
+      en 2018 et 2019). Mesuré le 27-10-2026 : 6 839 séances calculées contre 6 844 officielles du 03-01-2000 au
+      02-10-2026, l'écart étant ces cinq jours seulement. Décision de Jean-Luc du 27-10-2026 : les combler depuis
+      bnains, avec toute leur trace (A-555 (b)).
+    ⑨ CE QUI CLOCHE — Une série plus courte que le fichier se voit attribuer les séances du fichier entier, comme
+      avant : ses séances avant sa première ligne ou après sa dernière sont écartées par `trous`, qui ne regarde
+      qu'au milieu de chaque série.
     ⑩ EFFET — —
-    ⑪ TERMINAISON — Rend la main.
+    ⑪ TERMINAISON — Rend la main, ou lève l'erreur de `CALENDRIER_DE_LA_BOURSE.seances_entre`.
       [sort: non]
     """
-    compte, compte_b = {}, {}
-    for s in series.values():
-        for d in s:
-            compte[d] = compte.get(d, 0) + 1
-    for s in (bnains or {}).values():
-        for d in s:
-            compte_b[d] = compte_b.get(d, 0) + 1
-    return {d for d, n in compte.items() if n >= SEUIL_CALENDRIER or compte_b.get(d, 0) >= SEUIL_CALENDRIER}
+    dates = [d for s in series.values() for d in s]
+    if not dates:
+        return set()
+    a, z = datetime.date.fromisoformat(min(dates)), datetime.date.fromisoformat(max(dates))
+    return {d.isoformat() for d, _ in CAL.seances_entre(a, z, seances)}
 
 
 def trous(series, cal):
@@ -1183,7 +1182,7 @@ def autour_du_detachement(dates, jour):
 
 def controler(series, defauts, bnains, evenements, venues_de_bnains=frozenset(), detachements=None, sans_date=(),
               fausses=frozenset(), francfort=None, indice=None, origine=None, a_defaire=(), citations=None,
-              alignes=None):
+              alignes=None, seances=None):
     """Passe les contrôles K1 à K21 ; rend leur compte rendu.
 
     ① RÔLE — Tout ce que le programme juge.
@@ -1197,7 +1196,9 @@ def controler(series, defauts, bnains, evenements, venues_de_bnains=frozenset(),
       juge rien) · `origine` : le fichier Yahoo avant réparation, ou None (K18 et K20 ne jugent rien) ·
       `a_defaire` : `lire_a_defaire`, ou vide (K20 ne juge rien) · `citations` : `lire_citations`, ou None
       (K21b ne juge que les jours acceptés sans opération ou en double ; K21c rien) · `alignes` :
-      `lire_alignes`, ou None (K20 attend alors chaque ligne sans geste « aligné »).
+      `lire_alignes`, ou None (K20 attend alors chaque ligne sans geste « aligné ») · `seances` : le rendu de
+      `CALENDRIER_DE_LA_BOURSE.lire_les_seances`, pour `calendrier` (K6 et K7 : depuis le 27-10-2026, les séances
+      manquantes se comptent sur le calendrier officiel) ; sans lui, `calendrier` lève une erreur.
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : une liste de quadruplets (numéro, intitulé, bloquant, liste des cas),
       un par contrôle, dans l'ordre K1 à K21.
@@ -1270,7 +1271,7 @@ def controler(series, defauts, bnains, evenements, venues_de_bnains=frozenset(),
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    cal = calendrier(series, bnains)
+    cal = calendrier(series, seances)
     ecart = ecarts(series, bnains)
     douteux = jours_douteux(ecart)
     arbitrages = arbitre_de_l_indice(series, bnains, evenements, indice) if indice is not None else []
@@ -2717,7 +2718,7 @@ def main(argv):
     refus = []
     for num, titre, bloquant, cas in controler(series, defauts, bnains, evenements, venues_de_bnains, detachements,
                                                sans_date, fausses, francfort, indice, origine, a_defaire,
-                                               citations, alignes) + [
+                                               citations, alignes, seances=CAL.lire_les_seances(racine)) + [
             ("K23", "lignes que le journal des réparations ne refait pas depuis leur source, et maillons de provenance "
                     "manquants (A-578)", True, k23)]:
         etat = ("REFUS" if cas else "ok") if bloquant else "signalé"

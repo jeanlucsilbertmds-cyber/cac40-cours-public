@@ -74,12 +74,23 @@ ALERTE_S = 1800     # alerte 30 minutes avant une échéance sans preuve
 def lire(chemin):
     """Lit le fichier de jalons.
 
-    ① rôle : rendre les lignes du fichier de jalons · ② contexte : appelée à chaque passage de passage_unique ·
-    ③ entrée : chemin du CSV · ④ conditions : fichier lisible, séparateur « ; » · ⑤ sortie : UNE valeur, la
-    liste des lignes (dictionnaires) · ⑥ traitement : csv.DictReader · ⑦ unité : — · ⑧ pourquoi : relire à
-    chaque passage permet d'ajouter un jalon sans relancer · ⑨ ce qui cloche : une colonne manquante lève
-    KeyError plus loin, rattrapée par passage_unique · ⑩ effet : — · ⑪ terminaison : lecture d'un fichier
+    ① rôle : rendre les lignes du fichier de jalons
+    ② contexte : appelée à chaque passage de passage_unique
+    ③ entrée : `chemin`, le chemin du CSV
+    ④ conditions : fichier lisible, séparateur « ; »
+    ⑤ sortie : UNE valeur, la
+    liste des lignes (dictionnaires)
+      [rend: 1]
+    ⑥ traitement : csv.DictReader
+    ⑦ unité : —
+    ⑧ pourquoi : relire à
+    chaque passage permet d'ajouter un jalon sans relancer
+    ⑨ ce qui cloche : une colonne manquante lève
+    KeyError plus loin, rattrapée par passage_unique
+    ⑩ effet : —
+    ⑪ terminaison : lecture d'un fichier
     local, revient toujours.
+      [sort: non]
     """
     with open(chemin, newline="", encoding="utf-8-sig") as f:
         return list(csv.DictReader(f, delimiter=";"))
@@ -88,14 +99,25 @@ def lire(chemin):
 def passage_unique(chemin, maintenant, ecrire=True):
     """Fait un passage : annonce, compte, et dit si tout est prouvé.
 
-    ① rôle : un examen complet du planning à l'instant donné · ② contexte : appelée par main toutes les
-    10 minutes ; les épreuves l'appellent avec une heure fabriquée · ③ entrée : chemin du CSV, heure
-    (datetime avec fuseau) · ④ conditions : échéances au format AAAA-MM-JJ HH:MM · ⑤ sortie : UNE valeur,
+    ① rôle : un examen complet du planning à l'instant donné
+    ② contexte : appelée par main toutes les
+    10 minutes ; les épreuves l'appellent avec une heure fabriquée
+    ③ entrée : `chemin`, le chemin du CSV ; `maintenant`, l'heure (datetime avec fuseau) ; `ecrire`, faux pour
+    n'écrire ni la marque des rendez-vous ni la liste des jalons vus
+    ④ conditions : échéances au format AAAA-MM-JJ HH:MM
+    ⑤ sortie : UNE valeur,
     un couple (lignes à afficher, fini) où fini vaut True si toutes les preuves existent, ou None si le
-    fichier est illisible · ⑥ traitement : rendez-vous, puis jalons, puis état · ⑦ unité : heure de Paris ·
-    ⑧ pourquoi : séparer le passage de la boucle permet de l'éprouver sans attendre · ⑨ ce qui cloche :
-    une preuve vide compte comme tenue · ⑩ effet : écrit la marque des rendez-vous annoncés · ⑪ terminaison :
+    fichier est illisible
+      [rend: 2]
+    ⑥ traitement : rendez-vous, puis jalons, puis état
+    ⑦ unité : heure de Paris
+    ⑧ pourquoi : séparer le passage de la boucle permet de l'éprouver sans attendre
+    ⑨ ce qui cloche :
+    une preuve vide compte comme tenue
+    ⑩ effet : écrit la marque des rendez-vous annoncés
+    ⑪ terminaison :
     pas de boucle ouverte, revient toujours.
+      [sort: non]
     """
     h = maintenant.strftime("%Hh%M")
     u = lambda d: d.astimezone(datetime.timezone.utc)   # comparer en UTC : juste au changement d'heure (avis du superviseur, 25-10-2026)
@@ -165,13 +187,24 @@ def passage_unique(chemin, maintenant, ecrire=True):
 def main():
     """Boucle : un passage toutes les 10 minutes jusqu'à FINI ou ARRET.
 
-    ① rôle : faire tourner les passages · ② contexte : lancée par le Chat sous la surveillance (§13) ·
-    ③ entrée : sys.argv[1], le chemin du CSV · ④ conditions : un argument, fichier existant · ⑤ sortie :
-    UNE valeur, le code de sortie (0 FINI, 2 fichier absent, 3 illisible) · ⑥ traitement : passage_unique
-    puis pause · ⑦ unité : secondes pour la pause · ⑧ pourquoi : la surveillance a besoin de lignes
-    régulières pour rester utile · ⑨ ce qui cloche : la boucle ne finit que par FINI ou par la coupure
-    de la surveillance · ⑩ effet : affiche les lignes · ⑪ terminaison : volontairement sans fin tant
+    ① rôle : faire tourner les passages
+    ② contexte : lancée par le Chat sous la surveillance (§13)
+    ③ entrée : sys.argv[1], le chemin du CSV
+    ④ conditions : un argument, fichier existant
+    ⑤ sortie :
+    UNE valeur, le code de sortie (0 FINI, 2 fichier absent, 3 illisible)
+      [rend: 1]
+    ⑥ traitement : passage_unique
+    puis pause
+    ⑦ unité : secondes pour la pause
+    ⑧ pourquoi : la surveillance a besoin de lignes
+    régulières pour rester utile
+    ⑨ ce qui cloche : la boucle ne finit que par FINI ou par la coupure
+    de la surveillance
+    ⑩ effet : affiche les lignes
+    ⑪ terminaison : volontairement sans fin tant
     qu'un jalon manque ; la surveillance la coupe à 30 minutes.
+      [sort: non]
     """
     if len(sys.argv) != 2 or not os.path.exists(sys.argv[1]):
         print("ARRET fichier de jalons absent ou non donné", flush=True)

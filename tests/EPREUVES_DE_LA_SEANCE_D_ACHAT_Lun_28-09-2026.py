@@ -31,7 +31,7 @@ SABOTAGES = {
     "Z0": [],
     "S1_circuit_saute_la_seance_d_achat": [(TEN, 'apres = sorted((b for b in s if b["date"] >= d_ent),',
                                             'apres = sorted((b for b in s if b["date"] > d_ent),')],
-    "S2_banc_saute_la_seance_d_achat": [(BAN, "            suite = s[i + 1:i + 2 + h]", "            suite = s[i + 2:i + 2 + h]")],
+    "S2_banc_saute_la_seance_d_achat": [(BAN, "                suite = serie[j:j + 1 + h]", "                suite = serie[j + 1:j + 1 + h]")],
     "S3_banc_n_exige_plus_les_sorties": [(BAN, "        ok = ok and _ok_t\n", "        ok = ok\n")],
     "S4_banc_relit_l_horizon_a_sa_facon": [(BAN, '    if "horizon" not in manq and lire_horizon(fiche.get("horizon")) is None:',
                                             '    if "horizon" not in manq and not str(fiche.get("horizon")).strip().lstrip("-").isdigit():')],
@@ -143,7 +143,11 @@ def epreuves(sab):
     # E6 le juge des stratégies S'ARRETE si ses sorties s'ecartent du tableau : on remet le defaut, il doit refuser
     d = copie(sab)
     p = os.path.join(d, BAN); t = open(p, encoding="utf-8").read()
-    t = t.replace("            suite = s[i + 1:i + 2 + h]", "            suite = s[i + 2:i + 2 + h]")
+    # La ligne visée suit le juge : depuis le 27-10-2026, les sorties se testent sur la série entière (`serie[j:…]`,
+    # décision de Jean-Luc du 27-10-2026 à 13h30). Une cible absente laisserait E6 vert sans rien saboter : elle est exigée
+    # sur les programmes tels quels (Z0) ; dans une copie où un sabotage l'a déjà changée (S2), le défaut y est déjà.
+    assert sab or t.count("                suite = serie[j:j + 1 + h]") == 1, "E6 : la ligne des sorties du juge a changé"
+    t = t.replace("                suite = serie[j:j + 1 + h]", "                suite = serie[j + 1:j + 1 + h]")
     open(p, "w", encoding="utf-8").write(t)
     c, o = run(d, BAN, d)
     dire("E6 defaut remis dans le juge des stratégies : il s'arrete", c == 1 and "ARRET TOTAL" in o, f"code {c}")

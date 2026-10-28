@@ -350,8 +350,16 @@ def main():
     import JUGE_DES_STRATEGIES as J
     if os.path.dirname(os.path.abspath(J.__file__)) != os.path.join(base, "programmes"):
         return arreter("le juge importé n'est pas celui du dépôt : %s" % J.__file__)
-    cours = J.charger_cours(J.fichiers_de_cours(base)[0])
     mnemo = J.table_mnemoniques(J.trouver(base, "REFERENTIEL_VALEURS"))
+    # LES COURS PASSENT PAR LE LECTEUR UNIQUE, COMME DANS `main` DU JUGE (A-577, étape 1, 27-10-2026) : ce
+    # programme se compare au juge, il lit donc comme lui — sinon le juge affiche 89 opérations et ce
+    # programme 100 sur la même fiche (C5E10-OBS-V1, mesuré le 27-10-2026). Deux lectures divergent (R-708).
+    try:   # le juge refuse lui-même une lecture qui a écarté des lignes (`lire_par_le_lecteur`, 27-10-2026)
+        cours, lecture = J.lire_par_le_lecteur(base, os.path.relpath(J.fichiers_de_cours(base)[0], base), mnemo)
+    except ValueError as e:
+        if not str(e).startswith("le lecteur unique"):
+            raise
+        return arreter(str(e))
     mod_sig = J.charger_module(J.trouver(base, "MODULE_C5_ETENDU_10"), "sig")
     mod_pos = J.charger_module(J.trouver(base, "MODULE_POSITIONS.py"), "pos")
     fiches = [f for f in csv.DictReader(open(J.trouver(base, "cac40_strategies.csv"),
@@ -388,7 +396,7 @@ def main():
         if not ok0:
             raise ValueError("la porte 0 refuse : %s" % manq)
         f.setdefault("_fonction_signal", "signaux_c5etendu10")
-        ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=bornes)
+        ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=bornes, lecture=lecture)
         if inconnus:
             raise ValueError("valeurs absentes des cours : %s" % inconnus)
         return J.resumer(ops), bornes

@@ -32,11 +32,19 @@ if "--saboter" in sys.argv:
 def epreuves():
     """Joue les cas et rend le nombre d'échecs.
 
-    ① rôle : jouer chaque cas · ② contexte : appelée une fois par le programme · ③ entrée : — ·
-    ④ conditions : dossier temporaire inscriptible · ⑤ sortie : UNE valeur, le nombre d'échecs ·
-    ⑥ traitement : un fichier de jalons par cas, un passage, une comparaison · ⑦ unité : — ·
-    ⑧ pourquoi : un cas par repère du programme · ⑨ ce qui cloche : — · ⑩ effet : affiche ·
+    ① rôle : jouer chaque cas
+    ② contexte : appelée une fois par le programme
+    ③ entrée : —
+    ④ conditions : dossier temporaire inscriptible
+    ⑤ sortie : UNE valeur, le nombre d'échecs
+      [rend: 1]
+    ⑥ traitement : un fichier de jalons par cas, un passage, une comparaison
+    ⑦ unité : —
+    ⑧ pourquoi : un cas par repère du programme
+    ⑨ ce qui cloche : —
+    ⑩ effet : affiche
     ⑪ terminaison : revient toujours.
+      [sort: non]
     """
     P = ZoneInfo("Europe/Paris")
     t = datetime.datetime(2026, 10, 26, 12, 0, tzinfo=P)
@@ -48,6 +56,22 @@ def epreuves():
     open(vide, "w").close()
 
     def fichier(nom, lignes):
+        """Écrit un fichier de jalons d'épreuve et rend son chemin.
+
+        ① rôle : fabriquer le fichier de jalons d'un cas
+        ② contexte : appelée par `epreuves`, une fois par cas
+        ③ entrée : `nom`, le nom du fichier ; `lignes`, les lignes de jalons sans l'en-tête
+        ④ conditions : le dossier temporaire `d` existe
+        ⑤ sortie : UNE valeur, le chemin du fichier écrit
+          [rend: 1]
+        ⑥ traitement : écrire l'en-tête « jalon;echeance;preuve;libelle », puis les lignes
+        ⑦ unité : —
+        ⑧ pourquoi : chaque cas a son propre fichier, pour que ses marques ne se mêlent pas à celles d'un autre
+        ⑨ ce qui cloche : —
+        ⑩ effet : écrit un fichier dans le dossier temporaire
+        ⑪ terminaison : revient toujours
+          [sort: non]
+        """
         f = os.path.join(d, nom)
         open(f, "w").write("jalon;echeance;preuve;libelle\n" + "\n".join(lignes) + "\n")
         return f

@@ -96,6 +96,11 @@ from CONTRATS_DES_FICHIERS import COURS_MAITRE, COURS_BNAINS, JOURNAL_DES_REPARA
 ENTREE = K.ORIGINE        # le fichier Yahoo avant réparation, nommé une fois (R-708), dans le contrôle qui le relit (K18)
 SORTIE = os.path.join("donnees", "sources_yahoo", "historique_long_repare.csv")
 JOURNAL = K.JOURNAL      # nommé une fois, dans le contrôle qui le relit (K20, R-708)
+# CE QUE LA RÉPARATION LIT, pour la colonne `lu` de ses deux lignes au registre de provenance : les chemins sont ceux
+# que le contrôle et le calendrier nomment déjà (R-708), jamais réécrits ici. Le calendrier d'Euronext et l'indice y
+# entrent depuis le 27-10-2026 : `combler` et `reconstruire` lisent le calendrier officiel (A-555 (b)).
+LU = (K.ORIGINE, K.BNAINS, K.FAUSSES, K.DROITS, K.OFFICIELS, K.FRANCFORT, K.INDICE, K.EVENEMENTS, K.VERDICTS_YAHOO,
+      K.CAL.FICHIER, K.CAL.INDICE)
 CHAMPS_JOURNAL = JOURNAL_DES_REPARATIONS   # l'en-tête du journal, déclaré une fois au contrat (R-708, superviseur du 18-10-2026)
 # Les fenêtres à reconstruire depuis bnains (A-539, action ②) : valeur, début, fin, puis la PÉRIODE
 # DE RÉFÉRENCE où Yahoo et bnains s'accordent et sur laquelle le facteur est mesuré.
@@ -238,7 +243,8 @@ def defaire(series, a_defaire, journal):
     return n
 
 
-def reconstruire(series, sources, bnains, evenements, douteux, journal, detachements=None, francfort=None):
+def reconstruire(series, sources, bnains, evenements, douteux, journal, detachements=None, francfort=None,
+                 seances=None):
     """Reconstruit depuis bnains chaque fenêtre de `RECONSTRUCTIONS` ; rend la liste des arrêts.
 
     ① RÔLE — Action ② de A-539.
@@ -246,7 +252,8 @@ def reconstruire(series, sources, bnains, evenements, douteux, journal, detachem
     ③ ENTRÉE — `series` : les séries Yahoo, modifiées EN PLACE · `sources` : (valeur, date) → source,
       modifié en place · `bnains` · `evenements` · `douteux` · `journal` : liste où ajouter ·
       `detachements` : valeur → {jour officiel de détachement : droit} (`K.lire_detachements`), ou None ·
-      `francfort` : `K.lire_francfort`, ou None.
+      `francfort` : `K.lire_francfort`, ou None · `seances` : le calendrier officiel
+      (`CALENDRIER_DE_LA_BOURSE.lire_les_seances`, lu par `reparer`), pour `K.calendrier` (depuis le 27-10-2026).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des raisons d'arrêt, vide si tout s'est fait.
       [rend: 1]
@@ -280,7 +287,7 @@ def reconstruire(series, sources, bnains, evenements, douteux, journal, detachem
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    arrets, cal = [], K.calendrier(series, bnains)
+    arrets, cal = [], K.calendrier(series, seances)
     for valeur, du, au, ref_du, ref_au, raison in RECONSTRUCTIONS:
         y, b = series.get(valeur, {}), bnains.get(valeur, {})
         ref = sorted(d for d in y if ref_du <= d <= ref_au and d in b and d not in douteux)
@@ -677,7 +684,7 @@ def trancher(series, sources, bnains, francfort, evenements, douteux, detachemen
             return total
 
 
-def combler(series, sources, bnains, evenements, douteux, journal, detachements=None, francfort=None):
+def combler(series, sources, bnains, evenements, douteux, journal, detachements=None, francfort=None, seances=None):
     """Comble chaque séance manquante que bnains peut combler sûrement ; rend le nombre de séances comblées.
 
     ① RÔLE — Action ④ de A-539.
@@ -685,14 +692,16 @@ def combler(series, sources, bnains, evenements, douteux, journal, detachements=
     ③ ENTRÉE — `series` : les séries, modifiées EN PLACE · `sources` : (valeur, date) → source,
       modifié en place · `bnains` : l'extrait · `evenements` : le contenu de evenements.json ·
       `douteux` : les jours douteux · `journal` : liste où ajouter · `detachements` : les jours de
-      détachement officiels (`K.lire_detachements`), ou None · `francfort` : `K.lire_francfort`, ou None.
+      détachement officiels (`K.lire_detachements`), ou None · `francfort` : `K.lire_francfort`, ou None ·
+      `seances` : le calendrier officiel, lu par `reparer` (depuis le 27-10-2026).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le nombre de séances comblées.
       [rend: 1]
-    ⑥ TRAITEMENT — Pour chaque séance manquante (`K.trous`, sur le calendrier de la série ACTUELLE
-      et de bnains, `K.calendrier`) :
-      ① passer si la barre bnains n'est pas sûre (`K.barre_sure` : utilisable, ou d'un jour douteux mais
-      confirmée par Francfort) · ② mesurer le facteur
+    ⑥ TRAITEMENT — Pour chaque séance manquante (`K.trous`, sur le calendrier OFFICIEL entre la première et
+      la dernière date des séries, `K.calendrier`) :
+      ① si la barre bnains n'est pas sûre (`K.barre_sure` : utilisable, ou d'un jour douteux mais
+      confirmée par Francfort), écrire au journal « non comblé » avec la raison (pas de barre ; barre
+      inutilisable ; jour douteux que Francfort ne confirme pas), et passer · ② mesurer le facteur
       local (`K.facteur_local`), du côté du détachement officiel où tombe la séance ; s'il n'est pas sûr, la séance reste manquante et le journal le dit ·
       ③ sinon ajouter la barre, venue de bnains.
     ⑦ UNITÉ — Des LIGNES.
@@ -707,8 +716,20 @@ def combler(series, sources, bnains, evenements, douteux, journal, detachements=
     """
     comblees = 0
     venues = {cle for cle, src in sources.items() if src == "bnains"}
-    for valeur, d in K.trous(series, K.calendrier(series, bnains)):
+    for valeur, d in K.trous(series, K.calendrier(series, seances)):
         if not K.barre_sure(bnains, francfort or {}, valeur, d, douteux):
+            # TOUTE SÉANCE LAISSÉE MANQUANTE A SA LIGNE AU JOURNAL (décision de Jean-Luc du 27-10-2026, A-555 (b) :
+            # « tu gardes toute la mécanique de trace »). Avant, la séance était sautée sans un mot : SAFRAN le
+            # 31-12-2015, barre bnains incohérente (clôture 63,37 sous le plus bas 63,39), ne se voyait que par K7.
+            # La raison suit l'ordre de `K.barre_sure` : pas de barre ; barre inutilisable même hors des jours douteux ;
+            # barre d'un jour douteux que Francfort ne confirme pas.
+            if d not in (bnains.get(valeur) or {}):
+                raison = "séance manquante chez Yahoo ; pas de barre chez bnains ce jour-là"
+            elif not K.barre_utilisable(bnains, valeur, d, frozenset()):
+                raison = "séance manquante chez Yahoo ; barre bnains inutilisable (incohérente, plate ou sans échange)"
+            else:
+                raison = "séance manquante chez Yahoo ; jour douteux, et Francfort ne confirme pas la barre bnains"
+            noter(journal, valeur, d, "non comblé", "", "", "", raison, "")
             continue
         f, k, accord, n = K.facteur_local(series, bnains, evenements, valeur, d, douteux, venues,
                                           (detachements or {}).get(valeur, {}))
@@ -791,7 +812,9 @@ def reparer(racine):
     print(f"  barres bnains prouvées fausses, écartées : {len(fausses)} · jours douteux : {len(douteux)}, dont "
           f"{len(douteux & tort_de_yahoo)} où l'indice donne tort à Yahoo et non à bnains · séances où l'indice donne "
           f"tort à Yahoo : {len(tort_de_yahoo)}")
-    arrets = reconstruire(series, sources, bnains, evenements, douteux, journal, detachements, francfort)
+    seances = K.CAL.lire_les_seances(racine)   # le calendrier officiel, lu une fois (R-708)
+    arrets = reconstruire(series, sources, bnains, evenements, douteux, journal, detachements, francfort,
+                          seances=seances)
     arrets += retirer(series, sources, bnains, evenements, journal)
     if arrets:
         for a in arrets:
@@ -823,7 +846,8 @@ def reparer(racine):
             del sources[(valeur, d)]
     print(f"  ③sexies barres de Yahoo écartées sur décision de Jean-Luc, laissées au comblement : "
           f"{sum(1 for l in journal if l[2] == 'écarté')}")
-    comblees = combler(series, sources, bnains, evenements, douteux, journal, detachements, francfort)
+    comblees = combler(series, sources, bnains, evenements, douteux, journal, detachements, francfort,
+                       seances=seances)
     trous = [f"{v} {d}" for v, d, _ in BARRES_YAHOO_ECARTEES if (v, d) in {(j[0], j[1]) for j in journal if j[2] == "écarté"}
              and d not in series.get(v, {})]
     if trous:      # relecture du 09-10-2026 : une barre écartée que bnains ne comble pas laissait un trou muet
@@ -840,12 +864,69 @@ def reparer(racine):
             w.writerow(entete)
             w.writerows(lignes)
         os.replace(cible + ".partiel", cible)
+    inscrire_au_registre(racine, (SORTIE, JOURNAL))
     gestes = {}
     for l in journal:
         gestes[l[2]] = gestes.get(l[2], 0) + 1
     print(f"  ④ séances comblées : {comblees}")
     print(f"journal : {dict(sorted(gestes.items()))} · écrit : {SORTIE} ({sum(len(s) for s in series.values())} lignes) · {JOURNAL}")
     return 0
+
+
+def inscrire_au_registre(racine, chemins):
+    """Met à jour, au registre de provenance, les lignes des fichiers que la réparation vient d'écrire.
+
+    ① RÔLE — Que la trace de chaque fichier écrit suive le fichier : son empreinte, le jour où il a été refait, et ce
+      qu'il a lu.
+    ② CONTEXTE D'APPEL — `reparer`, une fois, juste après l'écriture du fichier réparé et du journal.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `chemins` : les fichiers écrits, depuis la racine.
+    ④ CONDITIONS D'ENTRÉE — Le registre `K.PROVENANCE` existe ; chaque chemin y a EXACTEMENT UNE ligne, produite par
+      ce programme : la ligne se met à jour, elle ne se crée pas (la créer, c'est une décision et sa preuve).
+    ⑤ SORTIE — AUCUNE valeur rendue.
+      [rend: rien]
+    ⑥ TRAITEMENT — ① lire le registre tel quel · ② pour chaque chemin : sa ligne unique, l'empreinte SHA-256 du fichier
+      écrit, la date du jour (Paris), la colonne `lu` refaite depuis `LU` · ③ réécrire le registre entier, par un fichier
+      partiel remplacé d'un coup, avec ses fins de ligne d'origine.
+    ⑦ UNITÉ — Des empreintes, des dates AAAA-MM-JJ, des chemins.
+    ⑧ POURQUOI — Une empreinte recopiée à la main se périme sans bruit (R-728) : le 27-10-2026, le superviseur
+      (R-759) relevait que la ligne du journal des réparations n'est relue par aucun contrôle — refaite à la main, elle
+      serait restée fausse sans un mot. Et Jean-Luc, le même jour : « tu gardes toute la mécanique de trace pour qu'on
+      sache d'où vient ces cours quand dans 6 mois on se pose la question ». La colonne `preuve` n'est pas touchée : elle
+      dit une décision, qu'un programme ne connaît pas.
+    ⑨ CE QUI CLOCHE — La colonne `preuve` peut donc dire une décision plus ancienne que l'empreinte : la mettre à jour
+      reste un geste de celui qui relance la réparation.
+    ⑩ EFFET — Réécrit le registre de provenance.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError (ligne absente, en double, ou d'un autre producteur).
+      [sort: non]
+    """
+    import hashlib, io
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    chemin = os.path.join(racine, K.PROVENANCE)
+    brut = open(chemin, encoding="utf-8", newline="").read()
+    fin = "\r\n" if "\r\n" in brut else "\n"
+    lignes = list(csv.reader(io.StringIO(brut)))
+    entete = lignes[0]
+    i_f, i_s, i_p, i_l, i_le = (entete.index(c) for c in ("fichier", "sha256", "produit_par", "lu", "le"))
+    # le producteur déclaré au contrat (CONTRATS.FICHIERS_REPARES), jamais déduit de l'emplacement de ce fichier : les
+    # épreuves chargent ce programme depuis un autre dossier que la racine qu'elles réparent (relevé le 27-10-2026)
+    moi = K.FICHIERS_REPARES[SORTIE.replace(os.sep, "/")]
+    jour = datetime.now(ZoneInfo("Europe/Paris")).strftime("%Y-%m-%d")
+    for c in chemins:
+        c = c.replace(os.sep, "/")
+        les_siennes = [l for l in lignes[1:] if l and l[i_f] == c]
+        if len(les_siennes) != 1 or les_siennes[0][i_p] != moi:
+            raise ValueError(f"registre de provenance : {c} y a {len(les_siennes)} ligne(s), produite(s) par "
+                             f"{[l[i_p] for l in les_siennes]}, au lieu d'une seule produite par {moi}")
+        l = les_siennes[0]
+        l[i_s] = hashlib.sha256(open(os.path.join(racine, c), "rb").read()).hexdigest()
+        l[i_le] = jour
+        l[i_l] = ";".join(sorted(x.replace(os.sep, "/") for x in LU))
+    sortie = io.StringIO()
+    csv.writer(sortie, lineterminator=fin).writerows(lignes)
+    with open(chemin + ".partiel", "w", encoding="utf-8", newline="") as f:
+        f.write(sortie.getvalue())
+    os.replace(chemin + ".partiel", chemin)
 
 
 def main(argv):

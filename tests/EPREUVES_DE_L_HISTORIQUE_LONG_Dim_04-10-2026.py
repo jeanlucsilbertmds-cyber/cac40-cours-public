@@ -32,8 +32,13 @@ H11 divisions() sur le vrai evenements.json : AXA le 15-05-2001 → 4, le 16-05-
 H18 « nan » en volume et « inf » en clôture → K1 (ligne illisible) ; une barre à zéro → K2 et code 1, pas 2 ;
 H20 K11 : 10 séances manquantes de suite dans une série → refus, 9 → non ; K12 : une série coupée au 01-09-2005 →
     refus ; K13 : une valeur retirée entière → refus ; K14 : une série amputée de ses deux premiers mois → signalée ;
-H21 calendrier : une séance où le fichier n'a plus que 22 valeurs reste une séance parce que bnains en a 34, et la
-    réparation y comble les valeurs manquantes ;
+H21 calendrier : une séance où le fichier n'a AUCUNE ligne (le 10-03-2005, retiré du fichier d'essai) reste une
+    séance, parce que le calendrier officiel le dit, et la réparation y comble chaque valeur que bnains porte, ou
+    écrit au journal pourquoi elle ne la comble pas (27-10-2026 : les cinq demi-séances, où Yahoo n'a aucune ligne,
+    étaient tues par l'ancien calendrier, tiré des cours) ;
+H63 la trace (27-10-2026, décision de Jean-Luc : « toute la mécanique de trace ») : après la réparation, chaque séance
+    encore manquante a sa ligne « non comblé » au journal, et le registre de provenance porte l'empreinte du fichier
+    réparé et du journal écrits ;
 H22 la couture d'AXA, sur les vraies lignes de 2008-2009, au jour de détachement OFFICIEL (10-11-2009, communiqué
     d'AXA du 09-11-2009) : la fenêtre déclarée finit le 09-11-2009 et K15 ne trouve rien ; finie le 10-11-2009 (la
     fin retenue du 04 au 06-10-2026), K15 refuse la marche nulle du jour de détachement, où le droit permet +2,5 %, et
@@ -78,8 +83,10 @@ H31 le fichier réparé du dépôt : tous les contrôles l'acceptent (code 0, «
     officielle des ouvertures de TotalEnergies du 17-11 au 14-12-2016 (44,72 €, à 0,2 % près) ;
 H32 la réparation entière, lancée sur une copie des vrais fichiers, rend code 0, ajuste douze droits et en défait trois
     (« ajustés : 12 », « défaits : 3 », le 09-10-2026), et refait À L'OCTET
-    le fichier réparé et le journal du dépôt ; K1 à K22 acceptent le résultat, K23 seul le refuse, parce que la copie ne porte pas le carnet de provenance
-    `donnees/PROVENANCE_DES_FICHIERS.csv` (13-10-2026 ; la raison vérifiée le 25-10-2026 par le superviseur R-759) ;
+    le fichier réparé et le journal du dépôt ; K1 à K22 acceptent le résultat, K23 seul le refuse. Depuis le 27-10-2026,
+    la copie porte le carnet de provenance `donnees/PROVENANCE_DES_FICHIERS.csv` (la réparation y inscrit ses deux
+    fichiers) et le calendrier d'Euronext : K23 la refuse parce qu'elle ne porte pas les programmes qui produisent ses
+    fichiers (« qui n'est pas un programme du dépôt ») ; avant, parce qu'elle ne portait pas le carnet (13-10-2026) ;
 H33 facteur_local() la veille d'un détachement officiel (Crédit Agricole, 03-01-2007, absent de Yahoo) : sans les jours
     officiels, pas sûr (None) ; avec eux, le facteur d'avant, 0,9090 ; le surlendemain, celui d'après, 0,9227 ; loin du
     détachement, le facteur ordinaire ;
@@ -118,8 +125,11 @@ H39 défaire les deux erreurs de Yahoo (décision de Jean-Luc du 08-10-2026, « 
 H24 autour_du_detachement() : au milieu d'une série → l'ancrage et les 5 séances d'avant ; quand la série commence
     dans la fenêtre → pas d'ancrage (None) et les séances qui existent ; un jour absent → (None, []) ;
 H17 CALIBRAGE sur les vrais fichiers entiers du dépôt : passé sur le fichier Yahoo déposé, le contrôle retrouve les
-    barres plates d'AXA de Cowork année par année (22, 49, 122, 173, 153, 124, 92), ses 222 séances manquantes, et
-    ses 150 740 séances communes moins la séance d'Hermès du 21-10-2004, que le lecteur écarte comme conflit.
+    barres plates d'AXA de Cowork année par année (22, 49, 122, 173, 153, 124, 92), ses 150 740 séances communes moins
+    la séance d'Hermès du 21-10-2004, que le lecteur écarte comme conflit, et, sur le calendrier officiel (depuis le
+    27-10-2026), 530 séances manquantes : les 222 de Cowork aux séances où au moins 25 valeurs ont une ligne, 181 aux
+    cinq demi-séances des 24 et 31-12-2010, 24 et 31-12-2012 et 31-12-2015, le reste aux séances de 2000 et 2001 où
+    Yahoo cote peu de valeurs.
 LES ÉPREUVES DE LA RÉPARATION :
 H2  sur l'extrait 2005, fenêtre EssilorLuxottica de janvier-février, référence mars-octobre (Yahoo y est juste) :
     code 0 ; chaque clôture reconstruite est à moins de 0,2 % de la clôture Yahoo d'origine, et vient de bnains sauf
@@ -133,8 +143,8 @@ H5  fenêtre AXA dont la référence est en 2005, où Yahoo est faux → code 1,
 H6  le témoin Suez multiplié par 1,1 chez bnains → code 1, « pas prouvées », aucun fichier écrit ;
 H19 un fichier déjà débarrassé des lignes d'Engie d'avant le 08-07-2005 : rien à retirer, code 0 ;
 H15 dans la fenêtre EssilorLuxottica, un jour sans barre bnains est GARDÉ quand Yahoo est juste autour, et RETIRÉ
-    quand Yahoo est faux autour ; un jour où Yahoo n'a rien et bnains une barre sans volume reste manquant, et le
-    contrôle dit pourquoi ;
+    quand Yahoo est faux autour — retiré, il reste manquant, et le journal le dit aussi (« non comblé », 27-10-2026) ; un jour où Yahoo n'a rien et bnains une barre sans volume reste manquant, le journal
+    le dit (« non comblé », depuis le 27-10-2026) et le contrôle dit pourquoi ;
 H12 texte() : 33.80 → « 33.8 », 902383.0 → « 902383 » ;
 H13 lignes de commande : sans argument → 2 (les deux) ; fichier absent → 2 (les deux) ; colonne volume absente → 2
     (contrôle) ; fichier des droits, ou des jours officiels, à l'en-tête faux → 2 (contrôle) ; extrait bnains au défaut
@@ -267,6 +277,20 @@ INDICE = os.path.join(RACINE, "donnees", "sources_indice", "INDICE_CAC40.csv")
 RAPPORTS = os.path.join(RACINE, "donnees", "sources_rapports_annuels", "COURS_MENSUELS_DES_RAPPORTS_ANNUELS.csv")
 REPARE = os.path.join(RACINE, "donnees", "sources_yahoo", "historique_long_repare.csv")
 VERDICTS = os.path.join(RACINE, "donnees", "sources_yahoo", "AJUSTEMENTS_DE_YAHOO.csv")
+EURONEXT = os.path.join(RACINE, "donnees", "CALENDRIER_EURONEXT.csv")
+PROVENANCE = os.path.join(RACINE, "donnees", "PROVENANCE_DES_FICHIERS.csv")
+DEMI_SEANCES = ("2010-12-24", "2010-12-31", "2012-12-24", "2012-12-31", "2015-12-31")
+_sp = importlib.util.spec_from_file_location("CALENDRIER_DE_LA_BOURSE", os.path.join(PROGRAMMES, "CALENDRIER_DE_LA_BOURSE.py"))
+CAL = importlib.util.module_from_spec(_sp)
+_sp.loader.exec_module(CAL)
+# LE CALENDRIER OFFICIEL DU DÉPÔT, lu une fois : depuis le 27-10-2026, le contrôle et la réparation le reçoivent en argument
+# au lieu de calculer les séances depuis les cours (A-555 (b), décision de Jean-Luc du 27-10-2026).
+SEANCES = CAL.lire_les_seances(RACINE)
+
+
+def cal_(f):
+    """Rend la fonction `f` du contrôle ou de la réparation, avec le calendrier officiel en argument `seances`."""
+    return lambda *a, **k: f(*a, seances=SEANCES, **k)
 _AXA_REEL = {}
 _REEL = {}
 
@@ -314,7 +338,8 @@ SABOTAGES = {
     "T12": (CONTROLE, "        if manquants:\n", "        if False:\n"),
     "T13": (CONTROLE, "            if len(fen) >= MINIMUM:", "            if len(fen) >= 1:"),
     "T14": (CONTROLE, "        if s:\n            a, z = min(s), max(s)", "        if True:\n            a, z = min(s), max(s)"),
-    "T15": (CONTROLE, " or compte_b.get(d, 0) >= SEUIL_CALENDRIER}", "}"),
+    "T15": (CONTROLE, "    return {d.isoformat() for d, _ in CAL.seances_entre(a, z, seances)}",
+            "    return {d.isoformat() for d, _ in CAL.seances_entre(a, z, seances) if any(d.isoformat() in x for x in series.values())}"),
     "T16": (CONTROLE, "                if not all(math.isfinite(x) for x in barre):", "                if False:"),
     "T17": (CONTROLE, "if s[p][3] <= 0 or s[q][3] <= 0 or abs(", "if abs("),
     "T18": (CONTROLE, "if (not avant and not coupe_avant) or (not apres and not coupe_apres) or len(voisins)", "if len(voisins)"),
@@ -545,6 +570,9 @@ SABOTAGES = {
     "T170": (CONTROLE, '            for x in lecteur:', '            for x in list(lecteur)[-1:]:'),
     "T171": (CONTROLE, '                for m in adresses:', '                for m in adresses[-1:]:'),
     "T172": (CONTROLE, '                for m in chemins:', '                for m in chemins[-1:]:'),
+    # 27-10-2026 : la trace de chaque séance non comblée, et l'empreinte que la réparation inscrit au registre (H63)
+    "T173": (REPARATION, '            noter(journal, valeur, d, "non comblé", "", "", "", raison, "")\n', '            pass\n'),
+    "T174": (REPARATION, '        l[i_s] = hashlib.sha256(open(os.path.join(racine, c), "rb").read()).hexdigest()', '        pass'),
     "U38": (REPARATION, "            q = (1 + s) / (1 + m)\n", "            q = (1 + m) / (1 + s)\n"),
     "U39": (REPARATION, "            if abs(s) <= abs(m) / 4 or abs((1 + s) / (1 + m) - 1) <= ALIGNEMENT:",
             "            if abs((1 + s) / (1 + m) - 1) <= ALIGNEMENT:"),
@@ -559,12 +587,13 @@ def charger(sabotage=None):
         dossier = PROGRAMMES
     else:
         dossier = tempfile.mkdtemp()
-        for f in ("CONTRATS_DES_FICHIERS.py", "CONTROLER_L_HISTORIQUE_LONG.py", "REPARER_L_HISTORIQUE_LONG.py"):
+        for f in ("CONTRATS_DES_FICHIERS.py", "CALENDRIER_DE_LA_BOURSE.py", "CONTROLER_L_HISTORIQUE_LONG.py",
+                  "REPARER_L_HISTORIQUE_LONG.py"):
             shutil.copy(os.path.join(PROGRAMMES, f), dossier)
         chemin, cible, remplace = sabotage
         copie = os.path.join(dossier, os.path.basename(chemin))
         open(copie, "w", encoding="utf-8").write(open(chemin, encoding="utf-8").read().replace(cible, remplace))
-    for nom in ("CONTRATS_DES_FICHIERS", "CONTROLER_L_HISTORIQUE_LONG", "REPARER_L_HISTORIQUE_LONG"):
+    for nom in ("CONTRATS_DES_FICHIERS", "CALENDRIER_DE_LA_BOURSE", "CONTROLER_L_HISTORIQUE_LONG", "REPARER_L_HISTORIQUE_LONG"):
         sys.modules.pop(nom, None)
     sys.path.insert(0, dossier)
     try:
@@ -601,6 +630,8 @@ def racine_d_essai(abimer_yahoo=None, abimer_bnains=None):
     shutil.copy(FRANCFORT, os.path.join(r, "donnees", "sources_francfort", "COURS_DE_FRANCFORT.csv"))
     os.makedirs(os.path.join(r, "donnees", "sources_indice"))
     shutil.copy(INDICE, os.path.join(r, "donnees", "sources_indice", "INDICE_CAC40.csv"))
+    shutil.copy(EURONEXT, os.path.join(r, "donnees", "CALENDRIER_EURONEXT.csv"))   # le calendrier officiel (27-10-2026)
+    shutil.copy(PROVENANCE, os.path.join(r, "donnees", "PROVENANCE_DES_FICHIERS.csv"))   # la réparation y inscrit ses fichiers
     open(os.path.join(r, "donnees", "cours_maitre.csv"), "w").write("valeur,date,open,high,low,close,volume,source\n")
     return r
 
@@ -741,14 +772,9 @@ def epreuves(K, R):
         venues = {("X", d) for d in dates[16:21]}
         s3, b3, _ = synthese(K, lambda i: 0.9 if i < 15 or 16 <= i <= 20 else 1.0, "2005-03-16")
         f3 = K.facteur_local(s3, b3, ev, "X", "2005-03-16", set(), venues)
-        old = K.SEUIL_CALENDRIER
-        K.SEUIL_CALENDRIER = 1
         s4, b4, _ = synthese(K, lambda i: 0.9 if i < 15 else 1.0, "2005-03-16")
         s4["Y"] = {d: (100.0, 101.0, 99.0, 100.0, 1000.0) for d in dates}
-        try:
-            rang = {num: cas for num, _, _, cas in K.controler(s4, [], b4, ev)}
-        finally:
-            K.SEUIL_CALENDRIER = old
+        rang = {num: cas for num, _, _, cas in cal_(K.controler)(s4, [], b4, ev)}
         s5, b5, _ = synthese(K, lambda i: 1.0, "2005-03-16")
         un_cote = K.facteur_local(s5, b5, ev, "X", "2005-03-16", set(), {("X", d) for d in dates[16:]})
         loin_y = {d: (100.0, 101.0, 99.0, 100.0, 1000.0) for d in
@@ -777,10 +803,23 @@ def epreuves(K, R):
         s, d, _ = K.lire_cours(os.path.join(RACINE, "donnees", "sources_yahoo", "yahoo_ohlcv_propre.csv"))
         b, _, _ = K.lire_cours(os.path.join(RACINE, K.BNAINS), K.COURS_BNAINS)
         ev = json.load(open(EVENEMENTS, encoding="utf-8"))
-        rang = {num: cas for num, _, _, cas in K.controler(s, d, b, ev)}
+        rang = {num: cas for num, _, _, cas in cal_(K.controler)(s, d, b, ev)}
         res["H17"] = [c for c in rang["K5"] if c.startswith("AXA")] == [
             "AXA 2001 : 22", "AXA 2002 : 49", "AXA 2003 : 122", "AXA 2004 : 173", "AXA 2005 : 153", "AXA 2006 : 124",
-            "AXA 2007 : 92"] and len(K.trous(s, K.calendrier(s))) == 222 and len(K.ecarts(s, b)) == 150740 - 1
+            "AXA 2007 : 92"] and len(K.ecarts(s, b)) == 150740 - 1
+        # Sur le calendrier officiel (27-10-2026), les séances manquantes se décomposent : les 222 de Cowork, aux séances
+        # où au moins 25 valeurs ont une ligne ; 181 aux cinq demi-séances, où Yahoo n'en a aucune ; le reste aux séances
+        # où Yahoo cote peu de valeurs (2000 et 2001). Mesuré le 27-10-2026 : 222 + 181 + 127 = 530.
+        cal = K.calendrier(s, SEANCES)
+        t_ = K.trous(s, cal)
+        lignes_du_jour = {}
+        for x in s.values():
+            for d_ in x:
+                lignes_du_jour[d_] = lignes_du_jour.get(d_, 0) + 1
+        pleins = sum(1 for _, d_ in t_ if lignes_du_jour.get(d_, 0) >= 25)
+        demi = sum(1 for _, d_ in t_ if d_ in DEMI_SEANCES)
+        print(f"      H17 : séances manquantes {len(t_)} — {pleins} aux séances pleines, {demi} aux demi-séances")
+        res["H17"] = res["H17"] and set(DEMI_SEANCES) <= cal and (pleins, demi, len(t_)) == (222, 181, 530)
     except Exception:
         res["H17"] = False
     # H2 et H14 : la réparation sur l'extrait
@@ -888,8 +927,9 @@ def epreuves(K, R):
         lancer(R.reparer, r3)
         rien = [j for j in hors_defait(r3) if j["valeur"] == "ESSILORLUXOTTICA" and j["date"] == "2005-02-15"]
         code3, out3, _ = resultats_du_controle(K, r3, R.SORTIE)
-        res["H15"] = len(garde) == 1 and garde[0]["geste"] == "gardé" and len(retire) == 1 and retire[0]["geste"] == "retiré" \
-            and rien == [] and "ESSILORLUXOTTICA 2005-02-15 (bnains : barre sans échange ou incohérente)" in out3
+        res["H15"] = len(garde) == 1 and garde[0]["geste"] == "gardé" and [j["geste"] for j in retire] == ["retiré", "non comblé"] \
+            and [j["geste"] for j in rien] == ["non comblé"] and "inutilisable" in rien[0]["raison"] \
+            and "ESSILORLUXOTTICA 2005-02-15 (bnains : barre sans échange ou incohérente)" in out3
     except Exception:
         res["H15"] = False
     # H12 : texte
@@ -983,20 +1023,36 @@ def epreuves(K, R):
             and "signalé" in k["K14"] and "ACCOR commence le 2005-03-01" in out
     except Exception:
         res["H20"] = False
-    # H21 : une séance où le fichier n'a plus que 22 valeurs reste une séance, parce que bnains en a 34
+    # H21 : une séance où le fichier n'a AUCUNE ligne reste une séance, parce que le calendrier officiel le dit, et la
+    # réparation la comble depuis bnains (27-10-2026 : les cinq demi-séances, où Yahoo n'a aucune ligne, étaient tues).
+    # H63 : toute séance laissée manquante a sa ligne « non comblé » au journal, et le registre de provenance porte
+    # l'empreinte des deux fichiers écrits (décision de Jean-Luc du 27-10-2026 : « toute la mécanique de trace »).
     try:
-        douze = ("ACCOR", "AIR LIQUIDE", "AXA", "BNP PARIBAS", "BOUYGUES", "CARREFOUR", "DANONE", "EIFFAGE",
-                 "HERMES INTL", "KERING", "LVMH", "ORANGE")
-        r = racine_d_essai(abimer_yahoo=lambda l: [x for x in l if not (x[1] == "2005-03-10" and x[0] in douze)])
+        jour = "2005-03-10"
+        r = racine_d_essai(abimer_yahoo=lambda l: [x for x in l if x[1] != jour])
         s, _, _ = K.lire_cours(os.path.join(r, "donnees/sources_yahoo/yahoo_ohlcv_propre.csv"))
         b, _, _ = K.lire_cours(os.path.join(r, "donnees/sources_bnains/bnains_cac40.csv"), K.COURS_BNAINS)
         R.RECONSTRUCTIONS, R.RETRAITS = (), ()
         code, out = lancer(R.reparer, r)
         rep = {(l["valeur"], l["date"]): l["source"] for l in lire(r, R.SORTIE)}
-        res["H21"] = "2005-03-10" not in K.calendrier(s) and "2005-03-10" in K.calendrier(s, b) and code == 0 \
-            and sum(rep.get((v, "2005-03-10")) == "bnains" for v in douze) >= 11
-    except Exception:
-        res["H21"] = False
+        journal = lire(r, R.JOURNAL)
+        attendues = {v for v in s if jour in b.get(v, {})}
+        comblees = {v for v in attendues if rep.get((v, jour)) == "bnains"}
+        non = {l["valeur"] for l in journal if l["geste"] == "non comblé" and l["date"] == jour}
+        print(f"      H21 : {len(attendues)} valeurs attendues le {jour}, {len(comblees)} comblées, {len(non)} non comblées")
+        res["H21"] = code == 0 and not any(jour in x for x in s.values()) and jour in K.calendrier(s, SEANCES) \
+            and len(comblees) >= 20 and attendues - comblees <= non and not comblees & non
+        apres, _, _ = K.lire_cours(os.path.join(r, R.SORTIE))
+        manquantes = set(K.trous(apres, K.calendrier(apres, SEANCES)))
+        tracees = {(l["valeur"], l["date"]) for l in journal if l["geste"] == "non comblé"}
+        carnet = {l["fichier"]: l for l in lire(r, os.path.join("donnees", "PROVENANCE_DES_FICHIERS.csv"))}
+        empreinte = lambda c: hashlib.sha256(open(os.path.join(r, c), "rb").read()).hexdigest()
+        print(f"      H63 : {len(manquantes)} séances manquantes après la réparation, {len(tracees)} au journal")
+        res["H63"] = code == 0 and manquantes == tracees and all(
+            carnet[c.replace(os.sep, "/")]["sha256"] == empreinte(c) for c in (R.SORTIE, R.JOURNAL))
+    except Exception as ex:
+        print(f"      H21/H63 : {type(ex).__name__} : {ex}")
+        res["H21"] = res["H63"] = False
     # H23 : recaler aux jours de détachement OFFICIELS, sur les vraies lignes de 2007 à 2010
     try:
         ev = json.load(open(EVENEMENTS, encoding="utf-8"))
@@ -1017,14 +1073,14 @@ def epreuves(K, R):
             sources, journal = {(v, d): "yahoo" for v, s in y.items() for d in s}, []
             n = R.recaler(y, sources, b, ev, detache, set(), journal)
             venues = {k for k, x in sources.items() if x == "bnains"}
-            rang = {num: cas for num, _, _, cas in K.controler(y, [], b, ev, venues, detache)}
+            rang = {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, venues, detache)}
             return n, {(j[0], j[1]): j[4] for j in journal}, rang["K15"]
 
         def brut(oter=True):              # sans recalage : le contrôle seul, sur les vraies lignes
             y, b = reel(six, "2007-01-01", "2010-12-31")
             if oter:
                 K.oter_les_barres_fausses(FAUSSES, b)
-            return {num: cas for num, _, _, cas in K.controler(y, [], b, ev, frozenset(), detache)}["K15"]
+            return {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, frozenset(), detache)}["K15"]
 
         def fois(valeur, jour, k):        # une barre Yahoo multipliée par k
             def abimer(s):
@@ -1083,7 +1139,7 @@ def epreuves(K, R):
         except ValueError as e:
             leve = "illisibles" in str(e)
         series = {"DANONE": {"2009-06-01": (1, 1, 1, 1, 1)}, "PERNOD RICARD": {"2009-06-01": (1, 1, 1, 1, 1)}}
-        k16 = {num: cas for num, _, _, cas in K.controler(series, [], {}, {}, frozenset(), manques["tot"][0],
+        k16 = {num: cas for num, _, _, cas in cal_(K.controler)(series, [], {}, {}, frozenset(), manques["tot"][0],
                                                             manques["tot"][1])}["K16"]
         res["H25"] = sorted(v for v, _ in manques["tot"][1]) == ["DANONE", "MICHELIN", "PERNOD RICARD", "SUEZ"] \
             and any("PERNOD RICARD" in m and "2009-04-01 impossible" in m for _, m in manques["tot"][1]) \
@@ -1121,9 +1177,9 @@ def epreuves(K, R):
             sources, journal = {("AXA", d): "yahoo" for d in y["AXA"]}, []
             R.RECONSTRUCTIONS = (("AXA", "2006-01-01", "2006-12-31", "2008-01-01", "2009-11-09", "épreuve"),)
             with contextlib.redirect_stdout(io.StringIO()):
-                arrets = R.reconstruire(y, sources, b, ev, set(), journal, detachements)
+                arrets = cal_(R.reconstruire)(y, sources, b, ev, set(), journal, detachements)
             venues = {k for k, v in sources.items() if v == "bnains"}
-            k15 = {num: cas for num, _, _, cas in K.controler(y, [], b, ev, venues, detache)}["K15"]
+            k15 = {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, venues, detache)}["K15"]
             return arrets, {j[1]: j[5] for j in journal if j[2] == "reconstruit"}, k15
         avec, sans = fenetre_2006(detache), fenetre_2006(None)
         res["H26"] = avec[0] == [] and round(avec[1]["2006-06-16"] * 1.019456, 4) == round(avec[1]["2006-06-19"], 4) \
@@ -1174,8 +1230,8 @@ def epreuves(K, R):
                 erreurs.append(str(e))
         ev = json.load(open(EVENEMENTS, encoding="utf-8"))
         tot = {"TOTALENERGIES": {d: x for d, x in y["TOTALENERGIES"].items() if "2016-06-01" <= d <= "2017-02-28"}}
-        k_sans = {num: cas for num, _, _, cas in K.controler(tot, [], b, ev)}
-        k_avec = {num: cas for num, _, _, cas in K.controler(tot, [], b, ev, fausses=otees)}
+        k_sans = {num: cas for num, _, _, cas in cal_(K.controler)(tot, [], b, ev)}
+        k_avec = {num: cas for num, _, _, cas in cal_(K.controler)(tot, [], b, ev, fausses=otees)}
         res["H28"] = sg[0] == "2009-09-14" and sg[-1] == "2009-10-07" and len(sg) == 18 \
             and "2009-09-11" in b["SOCIETE GENERALE"] and "2009-10-08" in b["SOCIETE GENERALE"] \
             and total[0] == "2016-08-16" and total[-1] == "2016-12-20" and len(total) == 90 \
@@ -1193,10 +1249,10 @@ def epreuves(K, R):
         K.oter_les_barres_fausses(FAUSSES, b)
         detache = {v: x for v, x in K.lire_detachements(DROITS, OFFICIELS)[0].items() if v in cinq}
         origine = {v: dict(x) for v, x in y.items()}
-        k15_avant = {num: cas for num, _, _, cas in K.controler(y, [], b, ev, frozenset(), detache)}["K15"]
+        k15_avant = {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, frozenset(), detache)}["K15"]
         journal = []
         n, non_mesurables = R.ajuster(y, b, ev, detache, set(), journal)
-        k15_apres = {num: cas for num, _, _, cas in K.controler(y, [], b, ev, frozenset(), detache)}["K15"]
+        k15_apres = {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, frozenset(), detache)}["K15"]
         m_bnp = K.marche_permise({}, ("document", 57.90, 40.0, 10.0))
         m_sg = K.marche_permise({}, ("document", 125.50, 108.0, 20.0))
         touches = {(j[0], j[1]) for j in journal}
@@ -1218,8 +1274,8 @@ def epreuves(K, R):
         y, b = reel(["AIR LIQUIDE"], "2016-01-01", "2016-12-31")
         K.oter_les_barres_fausses(FAUSSES, b)
         detache = {"AIR LIQUIDE": K.lire_detachements(DROITS, OFFICIELS)[0]["AIR LIQUIDE"]}
-        rang = {num: cas for num, _, _, cas in K.controler(y, [], b, ev, frozenset(), detache)}
-        rang_sans = {num: cas for num, _, _, cas in K.controler(y, [], b, ev, frozenset(), None)}
+        rang = {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, frozenset(), detache)}
+        rang_sans = {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, frozenset(), None)}
         res["H30"] = "2016-09-14" not in b["AIR LIQUIDE"] and rang["K15"] == [] \
             and not [c for c in rang["K15b"] if "2016-09" in c] \
             and [c for c in rang_sans["K15b"] if "2016-09" in c] == ["AIR LIQUIDE 2016-05-31→2016-09-15 rapport +2.7 %"]
@@ -1246,14 +1302,15 @@ def epreuves(K, R):
     try:
         r = tempfile.mkdtemp()
         for chemin in (R.ENTREE, K.BNAINS, K.EVENEMENTS, K.DROITS, K.OFFICIELS, K.FAUSSES, K.FRANCFORT, K.INDICE,
-                       K.VERDICTS_YAHOO):
+                       K.VERDICTS_YAHOO, K.CAL.FICHIER, K.PROVENANCE):   # + calendrier et registre : 27-10-2026
             os.makedirs(os.path.dirname(os.path.join(r, chemin)), exist_ok=True)
             shutil.copy(os.path.join(RACINE, chemin), os.path.join(r, chemin))
         R.RECONSTRUCTIONS, R.RETRAITS = reconstructions_vraies, retraits_vrais
         code_r, out_r = lancer(R.reparer, r)
         code_k, out_k = lancer(K.main, [r])
         empreinte = lambda c: hashlib.sha256(open(c, "rb").read()).hexdigest()
-        res["H32"] = code_r == 0 and code_k == 1 and "VERDICT : REFUSÉ par K23\n" in out_k and "ajustés : 14" in out_r and "défaits : 3," in out_r \
+        res["H32"] = code_r == 0 and code_k == 1 and "VERDICT : REFUSÉ par K23\n" in out_k \
+            and "programmes/REPARER_L_HISTORIQUE_LONG.py, qui n'est pas un programme du dépôt" in out_k and "ajustés : 14" in out_r and "défaits : 3," in out_r \
             and empreinte(os.path.join(r, R.SORTIE)) == empreinte(REPARE) \
             and empreinte(os.path.join(r, R.JOURNAL)) == empreinte(os.path.join(RACINE, R.JOURNAL))
     except Exception:
@@ -1295,11 +1352,11 @@ def epreuves(K, R):
         ev = json.load(open(EVENEMENTS, encoding="utf-8"))
         F = K.lire_francfort(FRANCFORT)
         y, b = reel(["BNP PARIBAS", "SOCIETE GENERALE"], "2011-06-01", "2011-12-31")
-        k17_avant = {num: cas for num, _, _, cas in K.controler(y, [], b, ev, frozenset(), None, (), frozenset(), F)}["K17"]
+        k17_avant = {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, frozenset(), None, (), frozenset(), F)}["K17"]
         sources, journal = {(v, d): "yahoo" for v, s_ in y.items() for d in s_}, []
         n = R.trancher(y, sources, b, F, ev, set(), {}, journal)
         venues = {k for k, x in sources.items() if x == "bnains"}
-        k17_apres = {num: cas for num, _, _, cas in K.controler(y, [], b, ev, venues, None, (), frozenset(), F)}["K17"]
+        k17_apres = {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, venues, None, (), frozenset(), F)}["K17"]
         remplacees = {(j[0], j[1]): j[4] for j in journal if j[2] == "remplacé"}
         res["H35"] = n == len(remplacees) and n >= 2 and k17_apres == [] \
             and any(c.startswith("BNP PARIBAS 2011-09-13") for c in k17_avant) \
@@ -1344,8 +1401,8 @@ def epreuves(K, R):
         sources, journal = {(v, d): "yahoo" for v, s_ in y.items() for d in s_}, []
         n = R.corriger(y, sources, b, ev, jours, set(), {}, journal)
         venues = {k for k, x in sources.items() if x == "bnains"}
-        apres = {num: cas for num, _, _, cas in K.controler(y, [], b, ev, venues, None, (), frozenset(), F, I, origine)}
-        avant = {num: cas for num, _, _, cas in K.controler(origine, [], b, ev, frozenset(), None, (), frozenset(), F, I,
+        apres = {num: cas for num, _, _, cas in cal_(K.controler)(y, [], b, ev, venues, None, (), frozenset(), F, I, origine)}
+        avant = {num: cas for num, _, _, cas in cal_(K.controler)(origine, [], b, ev, frozenset(), None, (), frozenset(), F, I,
                                                             origine)}
         corr = {(j[0], j[1]): j[4] for j in journal if j[2] == "corrigé"}
         res["H37"] = len(jours) == 15 and n == len(corr) and n >= 100 \
@@ -1395,7 +1452,7 @@ def epreuves(K, R):
         f = 27 / 26
         juste = all(abs(y[aca][d][3] / org[aca][d][3] / f - 1) < 1e-12 and abs(y[aca][d][4] * f / org[aca][d][4] - 1) < 1e-12
                     for d in avant) and all(y[aca][d] == org[aca][d] for d in org[aca] if d >= "2018-05-22")
-        k20 = lambda s: {num: cas for num, _, _, cas in K.controler(s, [], {}, ev2, origine=org, a_defaire=[x for x in a_def if x[0] == aca])}["K20"]
+        k20 = lambda s: {num: cas for num, _, _, cas in cal_(K.controler)(s, [], {}, ev2, origine=org, a_defaire=[x for x in a_def if x[0] == aca])}["K20"]
         sans_vol = {aca: {d: (x[0], x[1], x[2], x[3], org[aca][d][4]) for d, x in y[aca].items()}}
         # les trois cassures de la relecture indépendante du 08-10-2026 : mauvais côté, moitié des lignes, clôture seule
         apres = {aca: {d: (tuple(c * f for c in x[:4]) + (x[4] / f,) if d >= "2018-05-22" else x) for d, x in y[aca].items()}}
@@ -1433,9 +1490,9 @@ def epreuves(K, R):
             sources = {("AXA", d): "yahoo" for d in y}
             R.RECONSTRUCTIONS = ((("AXA", "2008-06-01", fin) + tuple(axa_fenetre[0][3:])),)
             with contextlib.redirect_stdout(io.StringIO()):
-                arrets = R.reconstruire(series, sources, {"AXA": b}, ev, set(), journal)
+                arrets = cal_(R.reconstruire)(series, sources, {"AXA": b}, ev, set(), journal)
             venues = {k for k, v in sources.items() if v == "bnains"}
-            rang = {num: cas for num, _, _, cas in K.controler(series, [], {"AXA": b}, ev, venues, detachements)}
+            rang = {num: cas for num, _, _, cas in cal_(K.controler)(series, [], {"AXA": b}, ev, venues, detachements)}
             return arrets, sources, rang["K15"], rang["K15b"], series, venues, b
         juste = couture(axa_fenetre[0][2], detache)
         faux = couture("2009-11-10", detache)
@@ -1443,10 +1500,10 @@ def epreuves(K, R):
         serie = dict(juste[4]["AXA"])
         o, h, l, c, v = serie["2009-03-12"]
         serie["2009-03-12"] = (o * 1.03, h * 1.03, l * 1.03, c * 1.03, v)        # deux lignes de bnains, l'une décalée
-        interne = {num: cas for num, _, _, cas in K.controler({"AXA": serie}, [], {"AXA": juste[6]}, ev, juste[5], detache)}
+        interne = {num: cas for num, _, _, cas in cal_(K.controler)({"AXA": serie}, [], {"AXA": juste[6]}, ev, juste[5], detache)}
         basse = {d: ((o * 0.95, h * 0.95, l * 0.95, c * 0.95, x) if ("AXA", d) in juste[5] else (o, h, l, c, x))
                  for d, (o, h, l, c, x) in juste[4]["AXA"].items()}                # relecture de Cowork de 21h54
-        trop_bas = {num: cas for num, _, _, cas in K.controler({"AXA": basse}, [], {"AXA": juste[6]}, ev, juste[5], detache)}
+        trop_bas = {num: cas for num, _, _, cas in cal_(K.controler)({"AXA": basse}, [], {"AXA": juste[6]}, ev, juste[5], detache)}
         res["H22"] = axa_fenetre[0][2] == "2009-11-09" and juste[0] == [] and juste[1][("AXA", "2009-11-09")] == "bnains" \
             and juste[1][("AXA", "2009-11-10")] == "yahoo" \
             and juste[2] == [] and faux[2] == ["AXA 2009-11-09→2009-11-10 rapport +0.0 %, le droit détaché n'en permet que +2.3 %",
@@ -1641,7 +1698,7 @@ def epreuves(K, R):
             _, n7, _, _ = K.dates_declarees(b, {}, {})
         finally:
             K.JOURS_ACCEPTES = garde
-        k = {x[0]: x for x in K.controler({}, [], b, ev, frozenset(), det2, (), frozenset(), None, None, None, (),
+        k = {x[0]: x for x in cal_(K.controler)({}, [], b, ev, frozenset(), det2, (), frozenset(), None, None, None, (),
                                           K.lire_citations(o))}
         try:
             K.lire_detachements(DROITS, table("20110705"))

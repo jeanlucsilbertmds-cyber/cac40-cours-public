@@ -443,7 +443,8 @@ def lire(racine, fichier=FICHIER_DES_COURS, jusqu_au=None):
       elle diffère de l'empreinte déclarée (None sinon) ; « au_dela_du_fige » : la date demandée par l'appelant quand
       elle passe la dernière séance déclarée (None sinon) — les séances d'entre les deux ne sont pas des trous ;
       « fin_du_fige » : la dernière séance déclarée (None pour un fichier non figé) ; « dans_l_indice » : le rendu de
-      `lire_les_passages`, vide pour un fichier déclaré incrément (CONTRATS.FICHIERS_DE_COURS_INCREMENTS).
+      `lire_les_passages`, vide pour un fichier déclaré incrément (CONTRATS.FICHIERS_DE_COURS_INCREMENTS) ;
+      « lignes_lues » : le nombre de lignes de données du fichier (depuis le 27-10-2026, pour `lignes_mises_a_part`).
       [rend: 1]
     ⑥ TRAITEMENT — ① la table des écritures · ② le calendrier des séances · ③ chaque ligne : son nom rapproché en
       mnémonique (sinon « inconnues »), sa date lue (sinon « dates_illisibles »), son état au calendrier (hors séance ou
@@ -551,7 +552,8 @@ def lire(racine, fichier=FICHIER_DES_COURS, jusqu_au=None):
             "hors_seance": hors_seance, "hors_calendrier": hors_cal, "debut": debut, "fin": fin, "seances": sc,
             "hors_univers": hors, "natures": natures, "natures_sans_trou": sans_trou, "fichier": fichier,
             "source_ecrite": "source" in entete, "fige": fige, "fige_allonge": allonge, "fige_modifie": modifie,
-            "au_dela_du_fige": au_dela, "fin_du_fige": fin_declaree, "dans_l_indice": dans_l_indice}
+            "au_dela_du_fige": au_dela, "fin_du_fige": fin_declaree, "dans_l_indice": dans_l_indice,
+            "lignes_lues": len(lignes)}
 
 
 def _periode(cours, m):
@@ -623,6 +625,34 @@ def _attendues(cours, m):
             if a <= b:
                 jours |= {d for d, _ in CAL.seances_entre(a, b, cours["seances"])}
     return sorted(jours)
+
+
+def lignes_mises_a_part(cours):
+    """Rend le nombre de lignes du fichier que la lecture n'a pas rangées, et qui ne sont pas des doublons exacts.
+
+    ① RÔLE — Dire, en un nombre, si une lecture a écarté quelque chose — par une PROPRIÉTÉ de conservation, sans
+      énumérer les sortes d'écart : un appelant qui énumère oublie la sorte suivante.
+    ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py` (`lire_par_le_lecteur`), qui refuse de juger sur une
+      lecture qui a écarté des lignes ; toute autre lecture qui doit tout garder.
+    ③ ENTRÉE — `cours` : le rendu de `lire`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : lignes lues − barres rangées − doublons exacts ; 0 quand rien n'a été écarté.
+      [rend: 1]
+    ⑥ TRAITEMENT — Une soustraction.
+    ⑦ UNITÉ — Des LIGNES du fichier.
+    ⑧ POURQUOI — Relecture et superviseur (R-759) du 27-10-2026 : le juge des stratégies comptait les écarts par une
+      liste de clés (« inconnues », « conflits », « hors_seance », « hors_calendrier ») et ne voyait pas une date
+      illisible — mesuré : une ligne datée « 26/10/2026 » mise à part, et le juge jugeait quand même. Toute ligne
+      écartée (nom sans mnémonique, date illisible, jour hors du calendrier ou fermé, les deux exemplaires d'une
+      séance en conflit) manque à cette égalité, quelle que soit la sorte. Mesuré le 27-10-2026 : 0 sur le fichier
+      maître (28 110 lignes) et sur l'historique des 20 ans.
+    ⑨ CE QUI CLOCHE — Ne dit rien d'un fichier figé modifié ou allongé (« fige_modifie », « fige_allonge ») : ce sont
+      des affaires de fichier, pas de lignes, que l'appelant regarde à part.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return cours["lignes_lues"] - sum(len(b) for b in cours["barres"].values()) - len(cours["doublons"])
 
 
 def trous(cours, m):

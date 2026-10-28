@@ -561,7 +561,8 @@ def faux_juge(base, **reglages):
     ② CONTEXTE D'APPEL — `cas_jouer_dedans`.
     ③ ENTRÉE — `base` : la racine que JOUER croira être le dépôt · `reglages` : `ailleurs` (vrai : le faux juge
       dit venir d'un autre dossier), `porte` (ok, manques, bornes) ou une fonction de la fiche, `inconnus`,
-      `n` (nombre d'opérations), `registre` (chemin du registre à lire).
+      `n` (nombre d'opérations), `registre` (chemin du registre à lire), `refus_lecture` (vrai : le lecteur
+      refuse la lecture, comme le vrai juge quand des lignes sont mises à part, 27-10-2026).
       Les situations que de vraies données atteignent (porte 0, valeurs absentes) sont AUSSI jouées en
       sous-processus par `cas_jouer_dehors` ; elles restent ici pour éprouver la logique seule.
     ④ CONDITIONS D'ENTRÉE — —
@@ -582,13 +583,26 @@ def faux_juge(base, **reglages):
     bornes = ("2024-01-02", "2026-07-10")
     J.fichiers_de_cours = lambda b: ["cours"]
     J.charger_cours = lambda f: {"TTE": [{"date": "2026-08-%02d" % k} for k in range(1, 31)]}
+    # JOUER_LES_VERSIONS lit les cours par le lecteur unique, comme le juge, depuis le 27-10-2026 (A-577, étape 1) :
+    # le faux juge rend les mêmes séances et une lecture neutre — aucun passage, aucun trou, aucun défaut.
+    def lire_par_le_lecteur(b, f, m, jusqu_au=None):
+        if reglages.get("refus_lecture"):
+            raise ValueError("le lecteur unique a mis 1 ligne(s) de cours à part dans %s : rien n'est jugé" % f)
+        return J.charger_cours(f), {"passages": {}, "trous": {}, "composition": False}
+    J.lire_par_le_lecteur = lire_par_le_lecteur
     J.table_mnemoniques = lambda f: {"TTE": "TTE"}
     J.cle_valeur = lambda m: m
     J.charger_module = lambda f, nom: None
     J.trouver = lambda b, motif: reglages.get("registre") if motif == "cac40_strategies.csv" else "fichier"
     porte = reglages.get("porte", (True, [], bornes))
     J.porte_0 = porte if callable(porte) else (lambda f: porte)
-    J.jouer = lambda f, cours, mnemo, sig, pos, periode=None: (["op"], reglages.get("inconnus", []))
+    def jouer(f, cours, mnemo, sig, pos, periode=None, lecture=None):
+        # JOUER doit jouer comme `main` du juge, avec la lecture (superviseur du 27-10-2026 : un `lecture=` oublié ne
+        # se voyait qu'au calibrage sur le maître, jamais ici).
+        if lecture is None:
+            raise RuntimeError("faux juge : jouer appelé sans la lecture")
+        return ["op"], reglages.get("inconnus", [])
+    J.jouer = jouer
     n = reglages.get("n", 1)
     J.resumer = lambda ops: {"n": n, "wr": 100.0, "net": 10.0, "wr_exact": 100.0}
     J.pourcent = lambda t: float(t)
@@ -679,6 +693,7 @@ def cas_jouer_dedans(racine):
     un_cas("JOUER (faux juge), la porte 0 refuse", "la porte 0 refuse", leve=True, porte=(False, ["tp illisible"], None))
     un_cas("JOUER (faux juge), valeurs absentes des cours", "valeurs absentes des cours", leve=True, inconnus=["XYZ"])
     un_cas("JOUER (faux juge), la fiche ne produit aucune opération", "la fiche elle-même ne produit aucune opération", n=0)
+    un_cas("JOUER (faux juge), le lecteur refuse la lecture", "le lecteur unique a mis 1 ligne(s)", refus_lecture=True)
     un_cas("JOUER (faux juge), le juge seul dit autre chose", "ne rendent pas la même chose pour la fiche",
            ligne_juge="2 operations . 50.0 % de reussite . +5.00 EUR")
     un_cas("JOUER (faux juge), période différente pour une version", "période différente pour F-E01-2", leve=True,

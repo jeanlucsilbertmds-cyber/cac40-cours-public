@@ -173,16 +173,28 @@ FABRIQUES_DU_SOIR = (
 # Elle rougissait (E1) depuis l'ajout de FICHIERS_REPARES le 13-10-2026 (A-578) ; trouvé le
 # 15-10-2026 avant le versement de l'historique long, réparé sur décision de Jean-Luc (« 2 »,
 # 08h57 : réparer les épreuves rouges avant de verser). Les boucles copient deux fichiers de plus.
+# LE LECTEUR UNIQUE (ajouté le 27-10-2026) : depuis l'étape 1 de A-577 (commit 39e4909), le juge
+# charge programmes/LIRE_LES_COURS.py par son nom, pour lire les cours ; l'épreuve rougissait
+# (E1 : « JUGE_DES_STRATEGIES.py dépend de programmes/LIRE_LES_COURS.py »). Les fonctions du juge
+# qu'appelle programmes/TENIR_LES_POSITIONS.py — `charger_cours`, `fichiers_de_cours`, `cle_valeur`,
+# relevées le 27-10-2026 — ne passent pas par le lecteur : les boucles ne tombaient pas. Elles
+# copient un fichier de plus, et c'est Cowork qui l'ajoute à la ligne `cp` de leur texte.
+# LE CALENDRIER DE LA BOURSE (ajouté le 27-10-2026) : programmes/CONTROLER_L_HISTORIQUE_LONG.py l'importe
+# depuis qu'il lit le calendrier officiel (A-555 (b)), et le lecteur unique le charge par son nom — ce
+# que l'épreuve E1 ne voyait pas, un nom composé à l'exécution (relecture du 27-10-2026, défaut 7 ;
+# limite déjà écrite au ⑨ de `dependances`). Un fichier de plus pour la ligne `cp` des boucles.
 COPIE_DES_BOUCLES = (
     "programmes/TENIR_LES_POSITIONS.py",
     "programmes/MODULE_POSITIONS.py",
     "programmes/JUGE_DES_STRATEGIES.py",
+    "programmes/LIRE_LES_COURS.py",
     "programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py",
     "programmes/CONTRATS_DES_FICHIERS.py",
     "programmes/COMMUN.py",
     "programmes/MODULE_JUGEMENT.py",
     "programmes/REPARER_L_HISTORIQUE_LONG.py",
     "programmes/CONTROLER_L_HISTORIQUE_LONG.py",
+    "programmes/CALENDRIER_DE_LA_BOURSE.py",
     "donnees/cac40_strategies.csv",
 )
 
@@ -539,8 +551,15 @@ LECTURE = [
 # reprend au circuit la connaissance des jours fériés que seules les boucles Cowork
 # avaient). `etat` vaut FERME, DEMI_SEANCE (la bourse est ouverte), COUVERT_DEPUIS
 # ou COUVERT_JUSQU_AU (les bornes au-delà desquelles le fichier ne sait rien).
+# DEPUIS LE 27-10-2026, SES DEUX DERNIÈRES COLONNES SONT CELLES D'UN FICHIER ÉCRIT À LA MAIN
+# (COLONNES_DES_SOURCES_A_LA_MAIN : source, citation, fichiers_cites) : le contrôle et la réparation
+# de l'historique long lisent désormais le calendrier officiel (A-555 (b), décision de Jean-Luc du
+# 27-10-2026 : combler les cinq demi-séances avec toute leur trace), et un fichier lu par la chaîne
+# des 20 ans doit se remonter jusqu'à sa source (K23, A-578). `source` porte la page officielle,
+# relue le 27-10-2026 ; `citation`, ce qu'elle dit du jour, puis l'histoire du premier relevé
+# (08-09-2026, texte des boucles, ligne 179).
 CALENDRIER = [
-    "date", "etat", "source",
+    "date", "etat", "source", "citation", "fichiers_cites",
 ]
 
 # qui est vivant — FABRIQUER_LE_SOCLE écrit, le radar lit

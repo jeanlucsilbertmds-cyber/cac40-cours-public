@@ -176,7 +176,7 @@ def charger(sabotage=None):
     """Charge la confrontation, le relevé et la garde — les vrais fichiers, ou des copies dont l'un est saboté."""
     dossier = tempfile.mkdtemp()
     for f in ("CONTRATS_DES_FICHIERS.py", "CONTROLER_L_HISTORIQUE_LONG.py", "COMMUN.py",
-              "CONFRONTER_LES_CHIFFRES_AUX_DOCUMENTS.py"):
+              "CONFRONTER_LES_CHIFFRES_AUX_DOCUMENTS.py", "CALENDRIER_DE_LA_BOURSE.py"):   # importé par le contrôle (27-10-2026)
         shutil.copy(os.path.join(PROGRAMMES, f), dossier)
     shutil.copy(RELEVE, dossier)
     shutil.copy(GARDE, dossier)
@@ -184,7 +184,7 @@ def charger(sabotage=None):
         chemin, cible, remplace = sabotage
         copie = os.path.join(dossier, os.path.basename(chemin))
         open(copie, "w", encoding="utf-8").write(open(chemin, encoding="utf-8").read().replace(cible, remplace))
-    noms = ("CONTRATS_DES_FICHIERS", "COMMUN", "CONTROLER_L_HISTORIQUE_LONG", "CONFRONTER_LES_CHIFFRES_AUX_DOCUMENTS",
+    noms = ("CONTRATS_DES_FICHIERS", "COMMUN", "CALENDRIER_DE_LA_BOURSE", "CONTROLER_L_HISTORIQUE_LONG", "CONFRONTER_LES_CHIFFRES_AUX_DOCUMENTS",
             "RELEVER_LES_PHRASES_DES_DOCUMENTS_GARDES", "GARDER_LES_DOCUMENTS_DES_DROITS")
     for nom in noms:
         sys.modules.pop(nom, None)

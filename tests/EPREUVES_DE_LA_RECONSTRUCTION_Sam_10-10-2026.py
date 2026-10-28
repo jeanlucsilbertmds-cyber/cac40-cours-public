@@ -81,8 +81,13 @@ PAGES = os.path.join(RACINE, "temoins", "PAGES_BNAINS_DES_ACTIONS")
 # Mesuré le 24-10-2026 : la table des écarts est identique, celle des opérations ne change que d'une cellule
 # (ESSILORLUXOTTICA 2007-07-16, lignes après l'opération : 2486 → 2487) ; refaite par le programme sur une copie
 # du dépôt (superviseur R-759 du même jour : de fond).
-RESUME = ("lignes : 244994 · confirmée par Google : 25955 · ligne isolée : 781 · reconstruite : 144876 · "
-          "reconstruite au facteur appliqué : 5761 · sans cours brut : 67621")
+# MIS À JOUR LE 27-10-2026. Les cinq demi-séances des 24 et 31-12-2010, 24 et 31-12-2012 et 31-12-2015 ont été comblées
+# depuis bnains au fichier réparé (180 lignes, décision de Jean-Luc du 27-10-2026, A-555 (b)) ; R6 rougissait depuis.
+# Mesuré le 27-10-2026 sur une copie du dépôt : 180 lignes et 178 reconstruites de plus, 2 au facteur appliqué de plus ;
+# la table des écarts gagne deux lignes (Air Liquide les 24 et 31-12-2010), celle des opérations ne change que dans ses
+# colonnes de lignes avant et après l'opération ; les deux tables refaites par le programme.
+RESUME = ("lignes : 245174 · confirmée par Google : 25955 · ligne isolée : 781 · reconstruite : 145054 · "
+          "reconstruite au facteur appliqué : 5763 · sans cours brut : 67621")
 
 SABOTAGES = {
     "S1": (RECONSTRUCTION, "MEME_FACTEUR = 1e-3 ", "MEME_FACTEUR = 1.0 "),
@@ -116,7 +121,7 @@ def charger(sabotage=None):
     """Charge la reconstruction et le relevé — les vrais fichiers, ou des copies dont l'un est saboté."""
     dossier = tempfile.mkdtemp()
     for f in ("CONTRATS_DES_FICHIERS.py", "CONTROLER_L_HISTORIQUE_LONG.py", "RECONSTRUIRE_L_HISTORIQUE_LONG.py",
-              "COMMUN.py"):
+              "COMMUN.py", "CALENDRIER_DE_LA_BOURSE.py"):   # le contrôle l'importe depuis le 27-10-2026
         shutil.copy(os.path.join(PROGRAMMES, f), dossier)
     shutil.copy(RELEVE, dossier)
     if sabotage:
@@ -124,7 +129,7 @@ def charger(sabotage=None):
         copie = os.path.join(dossier, os.path.basename(chemin))
         open(copie, "w", encoding="utf-8").write(open(chemin, encoding="utf-8").read().replace(cible, remplace))
     for nom in ("CONTRATS_DES_FICHIERS", "CONTROLER_L_HISTORIQUE_LONG", "RECONSTRUIRE_L_HISTORIQUE_LONG", "COMMUN",
-                "RELEVER_LES_DIVISIONS_BNAINS"):
+                "RELEVER_LES_DIVISIONS_BNAINS", "CALENDRIER_DE_LA_BOURSE"):
         sys.modules.pop(nom, None)
     sys.path.insert(0, dossier)
     try:

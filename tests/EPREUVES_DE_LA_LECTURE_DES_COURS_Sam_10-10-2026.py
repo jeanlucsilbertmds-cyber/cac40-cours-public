@@ -24,8 +24,9 @@
 ⑧ POURQUOI — Décision de Jean-Luc du 10-10-2026, « Oui, vas-y » : construire le calendrier et le module. R-731 : tout
   code passe des épreuves sabotées ; un cas au moins vient d'une vraie ligne (R-732).
   LES ÉPREUVES :
-  L1 ÉTALON : sur l'historique réparé, les trous de tout le marché sont exactement 24-12-2010, 31-12-2010,
-     24-12-2012, 31-12-2012, 31-12-2015 (mesure de Cowork rapportée en R-110 ①) ;
+  L1 ÉTALON : privé de ses lignes des cinq demi-séances, l'historique réparé a pour trous de tout le marché exactement
+     24-12-2010, 31-12-2010, 24-12-2012, 31-12-2012, 31-12-2015 (mesure de Cowork rapportée en R-110 ①) ; tel quel, il
+     n'en a plus aucun : elles sont comblées depuis bnains depuis le 27-10-2026 (A-555 (b)) ;
   L2 sur l'historique réparé, hors trous de tout le marché, Bouygues (EN) a exactement six trous, du 03 au 10-11-2011
      (03, 04, 07, 08, 09, 10), et AXA (CS) vingt, du 13-10-2000 au 30-04-2007 (table de réception, ligne A1) ;
   L3 sur le fichier maître : Air Liquide (AI) a 709 barres, écrites « AIR LIQUIDE » 644 fois et « AIR_LIQUIDE » 65 ;
@@ -68,7 +69,7 @@
   L21 `main` rend 2 pour un fichier des cours mal formé : en-tête faux, case de 200 000 caractères, ligne à neuf cases ;
   L22 un référentiel avec un mnémonique vide est refusé ;
   L23 « jusqu_au » est respecté : lire l'historique réparé jusqu'au 09-10-2026 fait des cinq séances du 05 au
-     09-10-2026 des trous de tout le marché ;
+     09-10-2026 des trous de tout le marché, et de rien d'autre depuis le comblement du 27-10-2026 ;
   L24 sans date, la lecture attend les cours jusqu'à la veille, heure de Paris ;
   L25 une liste d'Euronext qui s'arrête dans moins de 30 jours est signalée ; une qui s'arrête en 2099 ne l'est pas ;
   L26 (ajoutée le 11-10-2026, relecture de Cowork e183c98, cassure A) les trois fichiers de cours du dépôt se lisent :
@@ -90,7 +91,8 @@
   L28 (ajoutée le 12-10-2026, cassure B de Cowork e183c98 ; décision de Jean-Luc A8 et « Oui, clore et passer à B ») :
      dans l'historique réparé, une valeur dans l'indice avant sa première barre a ses trous — Airbus 292 (du 10-07-2000,
      entrée sous EADS, au 31-08-2001), STMicroelectronics 423 (du 03-01-2000 au 31-08-2001), Unibail-Rodamco-Westfield
-     4 049 (du 18-06-2007 au 13-04-2023), Thales 1 (03-01-2000) ; Stellantis aucun : les années de Peugeot S.A. ne
+     4 054 (du 18-06-2007 au 13-04-2023 ; 4 049 avant le 27-10-2026 : ses cinq demi-séances, qui n'étaient pas comptées
+     parce qu'elles étaient des trous de tout le marché, le sont depuis qu'elles ne le sont plus), Thales 1 (03-01-2000) ; Stellantis aucun : les années de Peugeot S.A. ne
      lui sont pas prêtées ; ArcelorMittal, hors univers, aucun ; le maître n'a aucun trou avant sa première date ; une
      table des identités où une société a deux noms d'aujourd'hui, ou où deux sociétés ont le même mnémonique, est
      refusée, et l'absence de la table des passages aussi, et un renommage qui laisse une valeur sans passage (STMPA
@@ -108,6 +110,8 @@
      d'une société inconnue des identités, aussi ; deux passages fermés d'Edenred (code inconnu des identités) qui se
      croisent, ou dont l'un entre le jour où l'autre sort, aussi ; une date illisible est dite avec son passage ; la
      vraie table, lignes dans l'ordre inverse, rend les mêmes passages (relecture indépendante du même soir).
+  L32 (ajoutée le 27-10-2026) : `lignes_mises_a_part` vaut 0 sur le maître et l'historique réparé, 1 pour une ligne
+     d'un nom inconnu, d'une date illisible ou d'un samedi ajoutée au maître, 0 pour un doublon exact ;
   L31 (ajoutée le 13-10-2026, cassure H de Cowork 15e647c) : un code ISIN mal écrit est refusé, avec sa raison — le
      premier passage de STMicroelectronics avec une espace après son code, ou en minuscules (il passait pour une
      société sortie, et les 423 trous disparaissaient) ; le code d'Accor aux identités avec une clé fausse ; la clé
@@ -296,6 +300,9 @@ SABOTAGES = {
     "S77_code_de_deux_societes_admis": [(LC, "        if r[\"isin\"] and societe_du_code.setdefault(r[\"isin\"], r[\"numero\"]) != r[\"numero\"]:", "        if False:")],
     "S78_passage_non_borne_a_la_fin": [(LC, "min(b or cours[\"fin\"], cours[\"fin\"])\n", "(b or cours[\"fin\"])\n")],
     "S63_tout_fichier_d_arrivee_fige": [(LC, "    fige = chemin in CONTRATS.FICHIERS_DE_COURS_FIGES\n", "    fige = chemin in CONTRATS.FICHIERS_DE_COURS_FIGES or chemin.startswith(\"donnees/c\") and \"maitre\" not in chemin\n"), (LC, "CAL._date_stricte(CONTRATS.FICHIERS_DE_COURS_FIGES[chemin][\"fin\"]) if fige", "CAL._date_stricte(\"2026-07-10\") if fige"), (LC, "        modifie = empreinte if empreinte != CONTRATS.FICHIERS_DE_COURS_FIGES[chemin][\"sha256\"] else None\n", "        modifie = None\n")],
+    "S93_lignes_mises_a_part_muettes": [(LC, "    return cours[\"lignes_lues\"] - sum(len(b) for b in cours[\"barres\"].values()) - len(cours[\"doublons\"])",
+                                         "    return 0")],
+    "S94_doublons_comptes_ecartes": [(LC, " - len(cours[\"doublons\"])\n\n\ndef trous", "\n\n\ndef trous")],
     "S25_date_des_cours_libre": [(LC, "            d = CAL._date_stricte(r[\"date\"])\n        except ValueError:\n            illisibles", "            d = CAL.date.fromisoformat(r[\"date\"])\n        except ValueError:\n            illisibles")],
 }
 MARCHE = ["2010-12-24", "2010-12-31", "2012-12-24", "2012-12-31", "2015-12-31"]
@@ -513,8 +520,23 @@ def epreuves(dossier, tmp):
             reel[fichier] = M.lire(DEPOT, fichier, FIN[fichier])
         return reel[fichier]
 
-    essai("L1 ÉTALON : trous de tout le marché de l'historique réparé = les cinq séances de R-110 ①",
-          lambda: [d.isoformat() for d in M.trous_de_tout_le_marche(lire_reel(H))] == MARCHE)
+    def sans_les_demi_seances():
+        """L'historique réparé privé de ses lignes des cinq demi-séances, comblées le 27-10-2026 (A-555 (b)) : le fichier
+        tel qu'il était avant le comblement, pour que l'étalon de R-110 ① garde un cas réel."""
+        os.makedirs(tmp, exist_ok=True)
+        f_ = os.path.join(tmp, "historique_sans_les_demi_seances.csv")
+        if not os.path.exists(f_):
+            with open(os.path.join(DEPOT, H), encoding="utf-8") as a, open(f_, "w", encoding="utf-8") as b:
+                for l in a:
+                    if l.split(",")[1:2] and l.split(",")[1] in MARCHE:
+                        continue
+                    b.write(l)
+        return M.lire(DEPOT, os.path.relpath(f_, DEPOT), FIN[H])
+
+    essai("L1 ÉTALON : l'historique réparé n'a plus de trou de tout le marché ; privé des cinq demi-séances, il a celles "
+          "de R-110 ①",
+          lambda: M.trous_de_tout_le_marche(lire_reel(H)) == []
+          and [d.isoformat() for d in M.trous_de_tout_le_marche(sans_les_demi_seances())] == MARCHE)
     essai("L2 hors trous du marché : Bouygues six trous du 03 au 10-11-2011 ; AXA vingt",
           lambda: [d.isoformat() for d, _ in M.trous(lire_reel(H), "EN") if d.isoformat() not in MARCHE] == BOUYGUES
           and len([d for d, _ in M.trous(lire_reel(H), "CS") if d.isoformat() not in MARCHE]) == 20)
@@ -1005,7 +1027,7 @@ def epreuves(dossier, tmp):
         return r is not None and r.startswith("ValueError : référentiel, ligne") and "pas de mnémonique" in r
     essai("L22 un mnémonique vide dans le référentiel est refusé", l22)
     essai("L23 l'historique réparé lu jusqu'au 09-10-2026 : les cinq séances du 05 au 09-10 sont des trous du marché",
-          lambda: [d.isoformat() for d in M.trous_de_tout_le_marche(M.lire(DEPOT, H, D("2026-10-09")))] == MARCHE + SEMAINE)
+          lambda: [d.isoformat() for d in M.trous_de_tout_le_marche(M.lire(DEPOT, H, D("2026-10-09")))] == SEMAINE)
     hier = datetime.now(ZoneInfo("Europe/Paris")).date() - timedelta(days=1)
     essai("L24 sans date, la lecture attend les cours jusqu'à la veille (Paris), calculée ici à part",
           lambda: M.jusqu_au_par_defaut() == hier and M.lire(DEPOT, CM)["fin"] == M.lire(DEPOT, CM, hier)["fin"])
@@ -1032,7 +1054,7 @@ def epreuves(dossier, tmp):
         fin = max(D("2026-10-09"), hier + timedelta(days=11))
         courte = [x for x in euronext if x.split(",")[1] not in ("FERME", "DEMI_SEANCE", "COUVERT_JUSQU_AU")
                   or (x.split(",")[1] != "COUVERT_JUSQU_AU" and D(x.split(",")[0]) <= fin)]
-        courte.append(fin.isoformat() + ",COUVERT_JUSQU_AU,épreuve")
+        courte.append(fin.isoformat() + ",COUVERT_JUSQU_AU,épreuve,,")   # cinq colonnes depuis le 27-10-2026
         dit = lambda e: any(x.startswith("  CALENDRIER : la liste d'Euronext s'arrête")
                             for x in M.resume(M.lire(racine(tmp, "l25_%d" % len(e), cours=une, indice=indice_long,
                                                             euronext=e), CM, FIN[CM]))[0])
@@ -1237,7 +1259,7 @@ def epreuves(dossier, tmp):
                              if soir["barres"].get(m) and d < min(soir["barres"][m])]
         return (len(air) == 292 and air[0] == D("2000-07-10") and air[-1] == D("2001-08-31")
                 and len(stm) == 423 and stm[0] == D("2000-01-03") and stm[-1] == D("2001-08-31")
-                and len(urw) == 4049 and urw[0] == D("2007-06-18") and urw[-1] == D("2023-04-13")
+                and len(urw) == 4054 and urw[0] == D("2007-06-18") and urw[-1] == D("2023-04-13")
                 and hors("STLAP") == [] and hors("HO") == [D("2000-01-03")] and M.trous(h, "MT") == []
                 and maitre_avant == [] and refus[0] == "ValueError" and refus[1] == "ValueError"
                 and refus[2] in ("FileNotFoundError", "OSError", "ValueError") and refus[3] == "ValueError"
@@ -1245,7 +1267,7 @@ def epreuves(dossier, tmp):
                 and admis["dans_l_indice"].get("GTO") == [] and admis["dans_l_indice"].get("ALU") == []
                 and M.trous(b, "AI") == [] and avant_la_premiere == [] and meme_increment()
                 and len(borne) == len(pas) and borne != pas)
-    essai("L28 avant sa première barre, une valeur dans l'indice a ses trous (AIR 292, STMPA 423, URW 4 049, HO 1) ; "
+    essai("L28 avant sa première barre, une valeur dans l'indice a ses trous (AIR 292, STMPA 423, URW 4 054, HO 1) ; "
           "Stellantis n'hérite pas de Peugeot ; tables fausses refusées", l28)
     def l29():
         """Une valeur de l'univers sortie de l'indice reste attendue jusqu'à la fin du fichier.
@@ -1380,6 +1402,37 @@ def epreuves(dossier, tmp):
                 and r[2] is not None and "IDENTITES_DES_SOCIETES.csv : code ISIN mal écrit « FR0000120405 »" in r[2])
     essai("L31 code ISIN mal écrit — une espace, des minuscules (STMicroelectronics, cas de Cowork), une clé fausse "
           "(Accor) : refusé, avec sa raison", l31)
+
+    def l32():
+        """`lignes_mises_a_part` : 0 sur les deux vrais fichiers ; une ligne de chaque sorte écartée la compte une fois.
+
+        ① RÔLE — L32 (ajoutée le 27-10-2026 : le juge des stratégies refuse de juger sur une lecture qui a écarté des
+          lignes, et c'est cette fonction qui le dit, par conservation).
+        ② CONTEXTE D'APPEL — `essai`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — Le dépôt porte le fichier maître et l'historique réparé.
+        ⑤ SORTIE — UNE valeur : vrai si chaque compte est juste.
+          [rend: 1]
+        ⑥ TRAITEMENT — ① les deux vrais fichiers : 0 · ② le maître plus une ligne d'un nom inconnu, puis d'une date
+          illisible (« 26/10/2026 », le cas de la relecture), puis d'un samedi : 1 chaque fois · ③ un doublon exact : 0.
+        ⑦ UNITÉ — Des lignes.
+        ⑧ POURQUOI — Une propriété, pas une liste : chaque sorte d'écart manque à l'égalité.
+        ⑨ CE QUI CLOCHE — Le conflit (deux lignes différentes pour une séance) n'a pas de cas ici.
+        ⑩ EFFET — Écrit des racines jetables.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        if M.lignes_mises_a_part(lire_reel(H)) or M.lignes_mises_a_part(lire_reel(CM)):
+            return False
+        vraies = lignes_de(CM)
+        derniere = vraies[-1]
+        comptes = []
+        for n, l in (("inconnu", "SOCIETE INVENTEE,2026-10-08,1,1,1,1,1,abc"), ("illisible", "VINCI,26/10/2026,1,1,1,1,1,abc"),
+                     ("samedi", "VINCI,2026-10-03,1,1,1,1,1,abc"), ("doublon", derniere)):
+            comptes.append(M.lignes_mises_a_part(M.lire(racine(tmp, "l32_" + n, cours=vraies + [l]), CM, FIN[CM])))
+        return comptes == [1, 1, 1, 0]
+    essai("L32 lignes mises à part : 0 sur les vrais fichiers ; un nom inconnu, une date illisible, un samedi : 1 ; "
+          "un doublon exact : 0", l32)
     return res
 
 
