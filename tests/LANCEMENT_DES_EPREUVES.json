@@ -69,9 +69,26 @@
   "tests/EPREUVES_DU_DOSSIER_DE_LANCEMENT_Lun_28-09-2026.py --saboter": {
    "secondes": 5400,
    "pourquoi": "Arrêtée au délai par défaut de 1 500 s (code 124) à la vérification complète du 17-10-2026 à 16h53, sous la mesure de couverture. Sans cette mesure, elle dure 851 s le 17-10-2026 avec ses cinq variantes — deux lancements des épreuves du garde-fou par variante, S3 et S4 arrêtés tôt par le témoin (relevé tests/resultats/DUREE_DE_L_EPREUVE_DU_DOSSIER_DE_LANCEMENT_Sam_17-10-2026.txt, qui cite aussi les lignes du certificat). Le ralentissement dû à la mesure de couverture n'est pas mesuré pour cette épreuve ; 5 400 s laisse un peu plus de six fois la durée mesurée. Ce délai aggrave le dépassement du plafond de la nuit (BACKLOG A-589 ①)."
+  },
+  "tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py --saboter": {
+   "secondes": 5400,
+   "pourquoi": "Arrêtée au délai par défaut de 1 500 s (code 124) à la certification du 25-10-2026 lancée à 14h03, sous la mesure de couverture, après que son jeu de données a été figé (journal témoin, registre témoin, cours coupés au 25-09 dans chaque copie ; superviseurs R-759 du 25-10-2026). Sans cette mesure, elle dure 1 069 s le 25-10-2026, mesurés par les dates du fichier de sortie, une autre certification tournant sur le second processeur. La mesure ralentit jusqu'à quatre fois (relecture du 16-10-2026). 5 400 s laisse environ cinq fois la durée mesurée. Ce délai aggrave le dépassement du plafond de la nuit (BACKLOG A-589 ①)."
+  },
+  "tests/EPREUVES_DE_LA_CONFRONTATION_AUX_DOCUMENTS_Sam_10-10-2026.py --saboter": {
+   "secondes": 5400,
+   "pourquoi": "Arrêtée au délai par défaut de 1 500 s (code 124) à la certification du 25-10-2026 lancée à 14h43, sur la machine du Chat, sous la mesure de couverture. Elle avait duré 1060 s à la certification du 25-10-2026 lancée à 04h46, et 898 s au certificat du 24-10-2026 de la version officielle. Entre les deux, le dépôt est passé de 1 904 à 3 292 fichiers (versement de la version officielle du 25-10-2026), et les épreuves de cette certification ont duré 1,4 à 2,7 fois plus longtemps, y compris celles qui n'ont pas changé (mesuré). 5 400 s laisse environ quatre fois la durée mesurée. Ce délai aggrave le dépassement du plafond de la nuit (BACKLOG A-589 ①)."
+  },
+  "tests/SABOTER_LES_CORRECTIONS_DU_GARDE_FOU_Mar_22-09-2026.py": {
+   "secondes": 5400,
+   "pourquoi": "Arrêtée au délai par défaut de 1 500 s (code 124) à la certification du 25-10-2026 lancée à 14h43, sur la machine du Chat, sous la mesure de couverture. Elle avait duré 1341 s à la certification du 25-10-2026 lancée à 04h46. Entre les deux, le dépôt est passé de 1 904 à 3 292 fichiers (versement de la version officielle du 25-10-2026), et les épreuves de cette certification ont duré 1,4 à 2,7 fois plus longtemps, y compris celles qui n'ont pas changé (mesuré). 5 400 s laisse environ quatre fois la durée mesurée. Ce délai aggrave le dépassement du plafond de la nuit (BACKLOG A-589 ①)."
   }
  },
  "series_hors_de_la_nuit": {
+  "tests/EPREUVES_DU_COURS_PROPRE_DE_YAHOO_Jeu_22-10-2026.py": {
+   "releve": "tests/resultats/SERIE_DE_SABOTAGES_DU_COURS_PROPRE_DE_YAHOO_*.txt",
+   "pourquoi": "Décisions de Jean-Luc du 23-10-2026 à 16h29 (« Oui, je suis d'accord avec ces quatre points ») et 16h33 (« 1 ») : le fichier des 20 ans est figé et surveillé chaque nuit par les empreintes de toute sa chaîne ; chaque nuit, l'essai court de cette épreuve (sans sabotages) ; la série de sabotages (leur nombre se lit dans le dictionnaire SABOTAGES de l'épreuve, et leur durée dans le relevé) seulement quand le programme, l'épreuve ou un fichier qu'elle lit change, rejouée par tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py (BACKLOG A-599 ⑭). Aucun essai refait la nuit : la décision dit « sans sabotages » ; la certification vérifie chaque nuit que le relevé vaut encore (empreintes des fichiers lus).",
+   "essais_refaits_chaque_nuit": 0
+  },
   "tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py": {
    "releve": "tests/resultats/SERIE_DE_SABOTAGES_DE_L_HISTORIQUE_LONG_*.txt",
    "pourquoi": "Décision de Jean-Luc du 16-10-2026 à 14h30 (« Uniquement quand il y a un changement. Très bien, avec une alarme si on oublie. ») : 167 sabotages, environ 6 heures (27 en 62 minutes mesurés le 16-10-2026) ; rejoués par tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py quand l'épreuve ou un fichier qu'elle lit change ; chaque nuit, la certification vérifie que le relevé vaut encore. Chaque nuit, 3 essais tirés au hasard sont refaits et doivent rendre, mot pour mot, la ligne du relevé (relecture de Cowork du 16-10-2026, cassure M2 : rien ne prouvait que la série avait tourné ; décision de Jean-Luc du 16-10-2026 à 18h53, « 1 » à « 3 essais par nuit (Recommandé) »).",

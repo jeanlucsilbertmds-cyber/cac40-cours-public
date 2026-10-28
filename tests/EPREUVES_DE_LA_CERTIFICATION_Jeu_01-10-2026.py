@@ -46,7 +46,18 @@ une copie modifiée, le parent y remet le vrai contenu puis l'efface → 1 (rele
 DE LA NUIT, DONNÉE LUE SANS EMPREINTE : l'épreuve lit donnees/choix.txt, que le relevé ne couvre pas → 1 (relecture de
 Cowork du 16-10-2026, cassure M1 : la liste à surveiller vient de ce que l'épreuve lit, jamais du relevé) · S36 UN ESSAI
 REFAIT, identique au relevé → 0 · S37 UN ESSAI REFAIT, différent du relevé (relevé écrit sans jouer la série) → 1
-(cassure M2 ; décision de Jean-Luc du 16-10-2026 à 18h53 : trois essais refaits par nuit).
+(cassure M2 ; décision de Jean-Luc du 16-10-2026 à 18h53 : trois essais refaits par nuit). · LA MESURE NE FAIT AUCUN
+GESTE QUE L'ÉPREUVE PEUT VOIR (superviseur R-759 du 25-10-2026) : S38 SÉRIE HORS DE LA NUIT, LIEN EFFACÉ : l'épreuve efface
+un dossier jetable qui porte un lien « etudes » vers le vrai etudes/ du dépôt (un .py sous etudes/x/programmes/) → 0 (le
+cas H61 de l'historique long faisait parcourir le vrai dossier, et ses .py passaient pour lus) · S39 la même, un vrai .py
+du dépôt effacé sans être lu → 0 (l'empreinte prise avant l'effacement n'est pas une lecture de l'épreuve) · S40 une
+épreuve dont l'enfant remplace builtins.open et s'arrête net (code 3) à la première écriture → 0 (le manifeste de la
+mesure comptait pour une écriture : E17k5 de l'épreuve du cours propre). S38 se ferme par trois gardes, chacune suffit
+(le lien n'est pas suivi ; « os.remove » n'efface jamais un dossier ; les lectures de la mesure ne sont pas notées) :
+son sabotage retire les trois (mesuré le 25-10-2026 : sans la deuxième, il restait vert). · S41 COPIE EFFACÉE PAR SON
+DOSSIER OUVERT : l'enfant exécute une copie identique de CALCUL.py puis l'efface par os.remove(nom, dir_fd=…), lancé
+depuis un dossier programmes/ qui porte un leurre de même nom → 0 (la mesure prend l'empreinte du fichier effacé, pas du
+leurre ; cas conseillé par le superviseur R-759 du 25-10-2026, écrit et éprouvé par Cowork le 26-10-2026, P2).
 
 LES SABOTAGES (avec --saboter) : chaque correction du certificateur est retirée, une à la fois, dans une copie ; l'épreuve
 qui la surveille DOIT changer de résultat. Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas une
@@ -104,6 +115,41 @@ REMIS = ("import os, shutil, subprocess, sys, tempfile\n"
          "shutil.rmtree(os.path.join(t, 'programmes'))\n"
          "subprocess.run([sys.executable, '-E', '-c', entete + 'C.double(2); C.signe(3); C.signe(-3)'], cwd=racine,\n"
          "               check=True, timeout=120)\n")
+# S40 : l'enfant remplace builtins.open et io.open, comme LANCEUR_COUPURE de l'épreuve du cours propre, et s'arrête
+# net (code 3) à la première ouverture en écriture ; il n'écrit rien lui-même. Seule la mesure pourrait écrire.
+ENFANT_QUI_COUPE = ("import builtins, io, os, sys\n"
+                    "vrai = builtins.open\n"
+                    "def faux(p, *a, **kw):\n"
+                    "    m = a[0] if a else kw.get('mode', 'r')\n"
+                    "    if any(c in m for c in 'wax+'):\n"
+                    "        os._exit(3)\n"
+                    "    return vrai(p, *a, **kw)\n"
+                    "builtins.open = faux\n"
+                    "io.open = faux\n"
+                    "sys.path.insert(0, 'programmes')\n"
+                    "import CALCUL as C\n")
+COUPE_A_L_ECRITURE = ("import subprocess, sys\n"
+                      "racine = sys.argv[1]\n"
+                      "code = {enfant!r} + {appels!r}\n"
+                      "r = subprocess.run([sys.executable, '-E', '-B', '-c', code], cwd=racine, timeout=120)\n"
+                      "sys.exit(r.returncode)\n")
+# S41 : l'enfant exécute une copie IDENTIQUE de CALCUL.py, puis l'efface par son dossier ouvert (os.remove(nom,
+# dir_fd=…)), lancé depuis un dossier programmes/ qui porte un leurre de même nom (relecture de Cowork du 26-10-2026, P2,
+# cas conseillé par le superviseur R-759 du 25-10-2026). La mesure doit prendre l'empreinte du fichier effacé, pas celle du
+# leurre : sinon triple n'est crédité à rien et la version recule.
+EFFACEE_PAR_SON_DOSSIER = ("import os, subprocess, sys, tempfile\n"
+                           "racine = sys.argv[1]\n"
+                           "t = os.path.join(tempfile.mkdtemp(), 'programmes')\n"
+                           "os.makedirs(t)\n"
+                           "open(os.path.join(t, 'CALCUL.py'), 'w').write(\n"
+                           "    open(os.path.join(racine, 'programmes', 'CALCUL.py')).read())\n"
+                           "leurre = os.path.join(tempfile.mkdtemp(), 'programmes')\n"
+                           "os.makedirs(leurre)\n"
+                           "open(os.path.join(leurre, 'CALCUL.py'), 'w').write('# leurre\\n')\n"
+                           "code = ('import os, sys; sys.path.insert(0, %r); import CALCUL as C; ' % t + {appels!r}\n"
+                           "        + '; fd = os.open(%r, os.O_RDONLY); os.remove(\\'CALCUL.py\\', dir_fd=fd)' % t)\n"
+                           "r = subprocess.run([sys.executable, '-E', '-B', '-c', code], cwd=leurre, timeout=120)\n"
+                           "sys.exit(r.returncode)\n")
 # S28, S29 : l'épreuve exécute CALCUL.py dans une copie qu'elle efface elle-même avant de finir (16-10-2026).
 EFFACEE = ("import os, subprocess, sys, tempfile\n"
            "racine = sys.argv[1]\n"
@@ -301,7 +347,7 @@ def base(tmp, cert, appels=TOUS):
 def cas(nom, cert, tmp):
     """Joue le cas `nom` avec le certificateur `cert` et rend (réussi, détail).
 
-    ① RÔLE — Le corps des vingt-huit épreuves Z0, S1 à S27.
+    ① RÔLE — Le corps des épreuves Z0, S1 à S41.
     ② CONTEXTE D'APPEL — `main`, une fois par cas, et une fois par sabotage.
     ③ ENTRÉE — `nom` : « Z0 », « S1 »… · `cert` : le certificateur · `tmp` : un dossier vide, propre au cas.
     ④ CONDITIONS D'ENTRÉE — —
@@ -335,11 +381,18 @@ def cas(nom, cert, tmp):
                '{"epreuves": {}, "delais": {"tests/EPREUVE_LENTE.py": {"secondes": 60}}}\n')
         c = certifier(cert, racine)
         return e == 0 and c == 0, f"référence {e}, épreuve de 8 s sous un délai déclaré de 60 s : {c} (attendu 0 puis 0)"
-    if nom in ("S31", "S32", "S33", "S35", "S36", "S37"):
+    if nom in ("S31", "S32", "S33", "S35", "S36", "S37", "S38", "S39"):
         racine, e = base(tmp, cert)
         lit = ("import os\nopen(os.path.join(sys.argv[1], 'donnees', 'choix.txt')).read()\n" if nom == "S35" else "")
         if nom == "S35":
             ecrire(racine, "donnees/choix.txt", "1\n")
+        if nom in ("S38", "S39"):
+            ecrire(racine, "etudes/x/programmes/A.py", "def a():\n    return 1\n")
+        if nom == "S38":     # un lien vers le vrai etudes/, effacé par shutil.rmtree (comme le cas H61 de l'historique long)
+            lit = ("import os, shutil, tempfile\nt = tempfile.mkdtemp()\n"
+                   "os.symlink(os.path.join(sys.argv[1], 'etudes'), os.path.join(t, 'etudes'))\nshutil.rmtree(t)\n")
+        if nom == "S39":     # un vrai .py du dépôt effacé sans être lu
+            lit = "import os\nos.remove(os.path.join(sys.argv[1], 'etudes', 'x', 'programmes', 'A.py'))\n"
         # « --saboter » seul (la série entière) rend 1 : elle ne doit pas être jouée la nuit ; « --saboter=S1 » (un
         # essai refait, S36 et S37) écrit sa ligne et rend 0.
         ecrire(racine, "tests/EPREUVE_CALCUL.py", "import sys\nSABOTAGES = {'S1': 1}\nif '--saboter' in sys.argv:\n"
@@ -361,8 +414,13 @@ def cas(nom, cert, tmp):
         if nom == "S32":
             ecrire(racine, "programmes/CALCUL.py", CALCUL + "\n# changé après la série\n")
         c = certifier(cert, racine)
-        attendu = 0 if nom in ("S31", "S36") else 1
+        attendu = 0 if nom in ("S31", "S36", "S38", "S39") else 1
         return e == 0 and c == attendu, f"référence {e}, certification {c} (attendu 0 puis {attendu})"
+    if nom == "S40":
+        racine, e = base(tmp, cert)
+        ecrire(racine, "tests/EPREUVE_CALCUL.py", COUPE_A_L_ECRITURE.format(enfant=ENFANT_QUI_COUPE, appels=TOUS))
+        c = certifier(cert, racine)
+        return e == 0 and c == 0, f"référence {e}, certification {c} (attendu 0 puis 0)"
     if nom == "S3":
         racine = fabriquer(tmp)
         c = certifier(cert, racine)
@@ -466,7 +524,7 @@ def cas(nom, cert, tmp):
         dit = "VERSION CERTIFIÉE" in lire(racine, RAPPORT)
         return c == 0 and dit, f"certification : {c}, « VERSION CERTIFIÉE » au rapport : {dit} (attendu 0, vrai)"
     attendu, apres = {"S1": 1, "S2": 1, "S4": 2, "S6": 1, "S7": 1, "S8": 0, "S10": 1, "S11": 1,
-                      "S28": 0, "S29": 1, "S34": 1}.get(nom), ""
+                      "S28": 0, "S29": 1, "S34": 1, "S41": 0}.get(nom), ""
     if nom == "S1":
         ecrire(racine, "tests/EPREUVE_CALCUL.py", epreuve("assert C.double(2) == 5"))
     elif nom == "S2":
@@ -487,6 +545,8 @@ def cas(nom, cert, tmp):
         ecrire(racine, "tests/EPREUVE_CALCUL.py", EFFACEE.format(ajout="", appels=TOUS))
     elif nom == "S29":
         ecrire(racine, "tests/EPREUVE_CALCUL.py", EFFACEE.format(ajout="\n# leurre\n", appels=TOUS))
+    elif nom == "S41":
+        ecrire(racine, "tests/EPREUVE_CALCUL.py", EFFACEE_PAR_SON_DOSSIER.format(appels=TOUS))
     elif nom == "S11":
         ecrire(racine, "programmes/CALCUL.py", CALCUL.split("\n\n\ndef signe")[0] + "\n")
         ecrire(racine, "programmes/lib/SIGNE.py", "def signe(x):\n    if x >= 0:\n        return 1\n    return -1\n")
@@ -509,7 +569,7 @@ def cas(nom, cert, tmp):
     return c == attendu, f"certification : {c} (attendu {attendu})"
 
 
-NOMS = ["Z0"] + [f"S{i}" for i in range(1, 38)]
+NOMS = ["Z0"] + [f"S{i}" for i in range(1, 42)]
 
 # Chaque correction du certificateur, retirée une à la fois : (nom, [(ancien, nouveau)], cas qui DOIT changer de résultat).
 SABOTAGES = [
@@ -571,6 +631,17 @@ SABOTAGES = [
      [("elif reference is not None and reculs and not accord:", "elif False:")], "S9"),
     ("une ligne non examinée de plus tolérée",
      [("if pires:", "if False:")], "S12"),
+    # 25-10-2026, superviseur R-759 : la mesure ne fait aucun geste que l'épreuve peut voir
+    ("le manifeste ouvert par l'open de l'épreuve",
+     [('                with _ouvrir(os.path.join(d, "manifeste.', '                with open(os.path.join(d, "manifeste.')], "S40"),
+    ("les lectures de la mesure notées comme celles de l'épreuve",
+     [("isinstance(arguments[0], (str, bytes)) or _dans_la_mesure[0]:", "isinstance(arguments[0], (str, bytes)):")], "S39"),
+    ("le lien suivi, l'entrée effacée prise pour un dossier, et les lectures de la mesure notées",
+     [("                if stat.S_ISLNK(os.lstat(nom).st_mode):\n                    return\n", ""),
+      ("                elif une_entree:\n                    return\n", ""),
+      ("isinstance(arguments[0], (str, bytes)) or _dans_la_mesure[0]:", "isinstance(arguments[0], (str, bytes)):")], "S38"),
+    ("le chemin relatif à un dossier ouvert résolu par le dossier courant",
+     [("                if dir_fd is not None and not os.path.isabs(nom):\n", "                if False:\n")], "S41"),
 ]
 
 
@@ -614,7 +685,7 @@ def jouer(travail):
 
 
 def main():
-    """Joue les trente-huit cas, puis, avec --saboter, chaque sabotage ; rend 0, 1 ou 2.
+    """Joue les quarante-deux cas, puis, avec --saboter, chaque sabotage ; rend 0, 1 ou 2.
 
     ① RÔLE — Le programme entier (voir la fiche en tête).
     ② CONTEXTE D'APPEL — La ligne de commande ; le certificateur, à chaque certification.

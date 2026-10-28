@@ -6,28 +6,22 @@ donnees/LISEZ_MOI_LES_COURS.md). Paris et Francfort cotent la même action : hor
 deux cours restent proches, et un écart durable de plusieurs pour cent est impossible sur un marché réel.
 
 Comment s'en servir :
-1. python3 -I etudes/outils/CONFRONTER_A_FRANCFORT.py <racine du dépôt> <dossier de travail>
-2. Le dossier de travail reçoit les cours de Francfort téléchargés (un CSV par valeur) ; s'ils y sont déjà, ils ne
-   sont pas retéléchargés. Deux sorties : donnees/sources_francfort/COURS_DE_FRANCFORT.csv, les clôtures de
-   Francfort du 03-01-2000 au 28-02-2017 (la période de bnains), que la réparation et le contrôle lisent ; et
-   donnees/sources_francfort/CONFRONTATION_DES_SEANCES_COMBLEES.csv.
+1. python3 -I etudes/outils/CONFRONTER_A_FRANCFORT.py <racine du dépôt>
+2. Les réponses brutes de Yahoo absentes de donnees/sources_francfort/bruts_yahoo_24-10-2026/ sont téléchargées et
+   rangées telles quelles ; chacune doit ensuite être inscrite au carnet de provenance, sinon l'outil s'arrête. Une
+   sortie : donnees/sources_francfort/CONFRONTATION_DES_SEANCES_COMBLEES.csv. Depuis le 24-10-2026, le fichier des
+   cours de Francfort que la réparation et le contrôle lisent est fabriqué par programmes/FABRIQUER_LES_COURS_DE_
+   FRANCFORT.py, depuis les mêmes réponses (décision de Jean-Luc du 24-10-2026 à 22h41).
 Simulation uniquement.
 """
 import csv, datetime, glob, json, os, statistics, sys, time, urllib.request
 
-# Les cotations de Francfort chez Yahoo (symbole « .F »), cherchées le 07-10-2026 ; Pernod Ricard n'a que Xetra
-# (« .DE ») et seulement depuis décembre 2007.
-SYMBOLES = {
-    "ACCOR": "ACR.F", "AIR LIQUIDE": "AIL.F", "AIRBUS": "AIR.F", "AXA": "AXA.F", "BNP PARIBAS": "BNP.F",
-    "BOUYGUES": "BYG.F", "BUREAU VERITAS": "4BV.F", "CAPGEMINI": "CGM.F", "CARREFOUR": "CAR.F",
-    "CREDIT AGRICOLE SA": "XCA.F", "DANONE": "BSN.F", "DASSAULT SYSTEMES": "DSY.F", "EIFFAGE": "EF3.F",
-    "ENGIE": "GZF.F", "ESSILORLUXOTTICA": "ESL.F", "EUROFINS SCIENTIFIC": "ESF0.DE", "EURONEXT": "ENXB.F",
-    "HERMES INTL": "HMI.F", "KERING": "PPX.F", "L'OREAL": "LOR.F", "LEGRAND": "LRC.F", "LVMH": "MOH.F",
-    "MICHELIN": "MCHA.F", "ORANGE": "FTE.F", "PERNOD RICARD": "PER.DE", "PUBLICIS GROUPE": "PUB.F",
-    "RENAULT": "RNL.F", "SAFRAN": "SEJ1.F", "SAINT-GOBAIN": "GOB.F", "SANOFI": "SNW.F",
-    "SCHNEIDER ELECTRIC": "SND.F", "SOCIETE GENERALE": "SGE.F", "STMICROELECTRONICS": "SGM.F", "THALES": "CSF.F",
-    "TOTALENERGIES": "TOTB.F", "UNIBAIL-RODAMCO-WESTFIELD": "1BR1.F", "VEOLIA": "VVD.F", "VINCI": "SQU.F",
-}
+# Les symboles, le chemin des réponses brutes et leur lecture vivent dans programmes/FABRIQUER_LES_COURS_DE_FRANCFORT.py,
+# qui fabrique donnees/sources_francfort/COURS_DE_FRANCFORT.csv depuis ces réponses : cet outil les télécharge et les
+# lit par les mêmes fonctions (décision de Jean-Luc du 24-10-2026 à 22h41 ; R-708).
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "programmes"))
+import FABRIQUER_LES_COURS_DE_FRANCFORT as FCF  # noqa: E402
+SYMBOLES = FCF.SYMBOLES
 
 
 def main(argv):
@@ -35,14 +29,14 @@ def main(argv):
 
     ① RÔLE — Dire, pour chaque séance que la réparation a comblée depuis bnains, si une troisième source la confirme.
     ② CONTEXTE D'APPEL — À la main, après programmes/REPARER_L_HISTORIQUE_LONG.py. Aucun circuit ne le lance.
-    ③ ENTRÉE — `argv` : la racine du dépôt, puis le dossier de travail des cours de Francfort.
+    ③ ENTRÉE — `argv` : la racine du dépôt.
     ④ CONDITIONS D'ENTRÉE — donnees/sources_yahoo/historique_long_repare.csv et journal_des_reparations.csv existent ;
-      le réseau joint query2.finance.yahoo.com, ou le dossier de travail contient déjà les cours.
+      le réseau joint query2.finance.yahoo.com, ou les réponses brutes sont déjà rangées et inscrites au carnet.
     ⑤ SORTIE — UNE valeur : 0 quand le fichier est écrit, 2 sinon.
       [rend: 1]
-    ⑥ TRAITEMENT — ① pour chaque valeur sans fichier dans le dossier de travail, télécharger ses clôtures de
-      Francfort de 2000 à 2026 · ①bis écrire celles du 03-01-2000 au 28-02-2017, arrondies à 4 décimales, dans
-      donnees/sources_francfort/COURS_DE_FRANCFORT.csv · ② pour chaque séance comblée (geste « comblé » du journal) : « muet » si Francfort
+    ⑥ TRAITEMENT — ① pour chaque valeur sans réponse brute rangée, télécharger sa réponse de 2000 à 2026 et la ranger
+      telle quelle · ①bis lire les clôtures par programmes/FABRIQUER_LES_COURS_DE_FRANCFORT.py, chaque réponse
+      vérifiée contre le carnet (s'arrête en 2 si l'une n'y est pas) · ② pour chaque séance comblée (geste « comblé » du journal) : « muet » si Francfort
       n'a pas de cours ce jour-là ou répète celui de la veille ; sinon, rapport Francfort ÷ fichier réparé ce
       jour-là, rapporté à sa médiane sur les dix séances communes de chaque côté ; « confirmée » si l'écart ne
       dépasse pas max(1 %, 3 × l'écart médian des voisins) ; sinon « confirmée, Francfort en retard d'une séance »
@@ -58,36 +52,32 @@ def main(argv):
     ⑨ CE QUI CLOCHE — Francfort est peu liquide les premières années : son bruit, mesuré sur les voisins, élargit la
       tolérance. · Les cours de Francfort chez Yahoo sont ajustés de certaines opérations et pas d'autres : ils ne
       servent qu'à comparer des séances voisines, jamais à dater un ajustement.
-    ⑩ EFFET — Écrit dans le dossier de travail, donnees/sources_francfort/COURS_DE_FRANCFORT.csv et
-      donnees/sources_francfort/CONFRONTATION_DES_SEANCES_COMBLEES.csv.
+    ⑩ EFFET — Écrit les réponses brutes absentes (donnees/sources_francfort/bruts_yahoo_24-10-2026/) et
+      donnees/sources_francfort/CONFRONTATION_DES_SEANCES_COMBLEES.csv ; n'écrit plus COURS_DE_FRANCFORT.csv.
     ⑪ TERMINAISON — Rend la main. Un téléchargement peut attendre 30 secondes au plus par valeur.
       [sort: non]
     """
-    if len(argv) != 2:
-        print("USAGE : CONFRONTER_A_FRANCFORT.py <racine> <dossier de travail>")
+    if len(argv) != 1:
+        print("USAGE : CONFRONTER_A_FRANCFORT.py <racine>")
         return 2
-    racine, travail = argv
-    os.makedirs(travail, exist_ok=True)
+    racine = argv[0]
     fin = int(datetime.datetime(2026, 12, 31).timestamp())
     for valeur, symbole in sorted(SYMBOLES.items()):
-        cible = os.path.join(travail, f"{valeur}__{symbole}.csv")
+        cible = os.path.join(racine, FCF.chemin_de(symbole))
         if os.path.exists(cible):
             continue
-        url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbole}?period1=946684800&period2={fin}&interval=1d"
+        os.makedirs(os.path.dirname(cible), exist_ok=True)
+        url = FCF.ADRESSE.format(symbole=symbole, fin=fin)
         try:
-            r = json.load(urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=30))
-            r = r["chart"]["result"][0]
+            octets = urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}),
+                                            timeout=30).read()
+            json.loads(octets)["chart"]["result"][0]
         except Exception as e:
             print(f"{valeur} {symbole} : téléchargement impossible ({e})")
             continue
-        q = r["indicators"]["quote"][0]
-        with open(cible, "w", encoding="utf-8", newline="") as f:
-            w = csv.writer(f, lineterminator="\n")
-            w.writerow(["date", "open", "high", "low", "close", "volume"])
-            for i, t in enumerate(r.get("timestamp") or []):
-                if q["close"][i] is not None:
-                    jour = (datetime.datetime.utcfromtimestamp(t) + datetime.timedelta(hours=2)).date().isoformat()
-                    w.writerow([jour, q["open"][i], q["high"][i], q["low"][i], q["close"][i], q["volume"][i]])
+        with open(cible, "wb") as f:                     # la réponse telle quelle : c'est elle que le carnet inscrit
+            f.write(octets)
+        print(f"téléchargé : {FCF.chemin_de(symbole)} · {len(octets)} octets · {url}")
         time.sleep(1)
     try:
         R, H, L = {}, {}, {}
@@ -99,19 +89,11 @@ def main(argv):
     except (OSError, ValueError, KeyError) as e:
         print(f"ARRÊT — {type(e).__name__} : {e}")
         return 2
-    F, cours = {}, []
-    for fic in sorted(glob.glob(os.path.join(travail, "*__*.csv"))):
-        valeur, symbole = os.path.basename(fic)[:-4].split("__")
-        F[valeur] = {r["date"]: float(r["close"]) for r in csv.DictReader(open(fic, encoding="utf-8"))
-                     if float(r["close"]) > 0}
-        cours += [[valeur, symbole, d, repr(round(c, 4))] for d, c in sorted(F[valeur].items()) if d <= "2017-02-28"]
-    chemin = os.path.join(racine, "donnees", "sources_francfort", "COURS_DE_FRANCFORT.csv")
-    os.makedirs(os.path.dirname(chemin), exist_ok=True)
-    with open(chemin, "w", encoding="utf-8", newline="") as f:
-        w = csv.writer(f, lineterminator="\n")
-        w.writerow(["valeur", "symbole", "date", "close"])
-        w.writerows(cours)
-    print(f"{len(cours)} clôtures de Francfort écrites : {os.path.relpath(chemin, racine)}")
+    try:
+        F = {v: c for v, s, c in FCF.clotures_de_toutes_les_valeurs(racine)}
+    except FCF.Refus as e:
+        print(f"ARRÊT — {e} : chaque réponse téléchargée doit être inscrite au carnet de provenance")
+        return 2
     lignes = []
     for r in comblees:
         v, d = r["valeur"], r["date"]

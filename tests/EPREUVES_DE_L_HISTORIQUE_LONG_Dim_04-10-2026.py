@@ -71,13 +71,15 @@ H29 ajuster() sur les vraies lignes 2006-2021 d'Air Liquide, BNP Paribas, Michel
     Euronext 2021 non mesurable ; K15 refusait la marche nulle de BNP Paribas au 30-09-2009 avant, plus après ;
 H30 K15 et un détachement qui n'est pas une séance comparable (Air Liquide, 14-09-2016, barre bnains fausse) : la marche
     du 31-05 au 15-09-2016 est permise ; sans les détachements, elle est signalée (+2,7 %) ;
-H31 le fichier réparé du dépôt : K1 à K22 l'acceptent, seul K23 le refuse (code 1, « REFUSÉ par K23 » — depuis le
-    13-10-2026, A-578 : il ne se remonte pas encore jusqu'à sa source) ; il retrouve la clôture officielle de Société Générale du
+H31 le fichier réparé du dépôt : tous les contrôles l'acceptent (code 0, « aucun contrôle bloquant n'a rien trouvé »),
+    K23 compris depuis le 24-10-2026, quand sa chaîne a été remontée jusqu'à ses sources (du 13 au 24-10-2026, K23 seul
+    le refusait, A-578) ; il retrouve la clôture officielle de Société Générale du
     05-10-2009 (52,20 €, à 0,2 % près), celle de BNP Paribas du 28-09-2009 (56,57 €, à 0,05 % près) et la moyenne
     officielle des ouvertures de TotalEnergies du 17-11 au 14-12-2016 (44,72 €, à 0,2 % près) ;
 H32 la réparation entière, lancée sur une copie des vrais fichiers, rend code 0, ajuste douze droits et en défait trois
     (« ajustés : 12 », « défaits : 3 », le 09-10-2026), et refait À L'OCTET
-    le fichier réparé et le journal du dépôt ; K1 à K22 acceptent le résultat, K23 seul le refuse (13-10-2026) ;
+    le fichier réparé et le journal du dépôt ; K1 à K22 acceptent le résultat, K23 seul le refuse, parce que la copie ne porte pas le carnet de provenance
+    `donnees/PROVENANCE_DES_FICHIERS.csv` (13-10-2026 ; la raison vérifiée le 25-10-2026 par le superviseur R-759) ;
 H33 facteur_local() la veille d'un détachement officiel (Crédit Agricole, 03-01-2007, absent de Yahoo) : sans les jours
     officiels, pas sûr (None) ; avec eux, le facteur d'avant, 0,9090 ; le surlendemain, celui d'après, 0,9227 ; loin du
     détachement, le facteur ordinaire ;
@@ -184,7 +186,8 @@ dans la phrase citée, pas un jour voisin ni une date hors des « » · H49 un e
 H50 K20 juge une correction défaite remplacée le même jour par une opération déclarée, « document » ou « distribution »,
 et refuse le même fichier si l'opération est déclarée un autre jour ou n'est pas posée. · H51 (10-10-2026) K21 ramène
 les rendements de bnains par les divisions de Yahoo : Sagem, 10-07-2000, division par 3 et action gratuite pour cinq le
-même jour, contredite sans elles, confirmée avec ; K1 à K22 les passent, K23 seul refuse le fichier (13-10-2026) (sabotages T93, T94). · H52 et H53
+même jour, contredite sans elles, confirmée avec ; tous les contrôles passent le fichier, K23 compris depuis le 24-10-2026
+(du 13 au 24-10-2026, K23 seul le refusait) (sabotages T93, T94). · H52 et H53
 (10-10-2026, décision de Jean-Luc à 09h39 : la règle officielle) : la lecture prend les chiffres du document pour un droit
 vu chez bnains, ajoute le dividende non attaché, le refuse sur une distribution, lit « du 10 au 23 novembre 2009 » ;
 `aligner` ramène quatre droits de Yahoo à la règle officielle et seulement eux (sabotages T95 à T97, U37 à U39) · H54
@@ -222,8 +225,9 @@ ligne, illisible, absent du dépôt, le fichier réparé inscrit « à la main �
 un fichier cité absent est refusé même inscrit comme téléchargement ; une SECONDE ligne fausse et un SECOND morceau
 faux (dans `source`, `fichiers_cites` et `lu`) sont vus (relecteur n° 2 du 19-10-2026, M1) ; le parent d'un fichier
 cité qui ne se remonte pas le dit ; sur les vrais
-fichiers, les trois fichiers écrits à la main citent leurs sources, et ni le fichier Yahoo nettoyé ni le référentiel
-ne passeraient « à la main ».
+fichiers, les trois fichiers écrits à la main citent leurs sources, et le fichier Yahoo nettoyé ne passerait pas « à la
+main » ; le référentiel passe depuis qu'il porte ses trois colonnes de preuve (décision de Jean-Luc du 24-10-2026 à
+16h06 ; superviseur R-759 du même jour : il reste un témoin réel, d'un fichier écrit à la main qui passe).
 Sabotages T102 à T172 (T142 à T172, le 19-10-2026 : chacune des conditions de H62, l'ordre de la garde des fichiers
 réparés, et la forme d'une adresse ; T159 : le refus d'un dossier dans `chemin_du_depot`, qui ne mord au verdict que
 par le cas « lu : dossier inscrit » (pour un fichier cité, un dossier est refusé de toute façon par le refus d'un
@@ -1234,7 +1238,7 @@ def epreuves(K, R):
         bnp = rep_[("BNP PARIBAS", "2009-09-28")][1] * (1 + K.marche_permise({}, ("document", 57.90, 40.0, 10.0)))   # 56,57
         ouv = [rep_[k][0] for k in sorted(rep_) if k[0] == "TOTALENERGIES" and k[1] < "2016-12-15"][-20:]
         total = sum(ouv) / 20                                                    # officiel : (41,87 + 0,61) / 0,95
-        res["H31"] = code == 1 and "VERDICT : REFUSÉ par K23\n" in out \
+        res["H31"] = code == 0 and "VERDICT : aucun contrôle bloquant n'a rien trouvé\n" in out \
             and abs(sg / 52.20 - 1) < 0.002 and abs(bnp / 56.57 - 1) < 0.0005 and abs(total / ((41.87 + 0.61) / 0.95) - 1) < 0.002
     except Exception:
         res["H31"] = False
@@ -1721,7 +1725,7 @@ def epreuves(K, R):
         avec, _, _, j2 = K.dates_declarees(b, seul, cit, ev)
         code_k, out_k = lancer(K.main, [RACINE])
         res["H51"] = [x.split(" :")[0] for x in sans] == ["SAFRAN 2000-07-10"] and avec == [] and j1 == j2 == 1 \
-            and code_k == 1 and "VERDICT : REFUSÉ par K23\n" in out_k and "K21 ok" in out_k
+            and code_k == 0 and "VERDICT : aucun contrôle bloquant n'a rien trouvé\n" in out_k and "K21 ok" in out_k
     except Exception:
         res["H51"] = False
     # H52 : la règle officielle à la lecture (décision de Jean-Luc du 10-10-2026, 09h39) — un droit vu chez bnains dont
@@ -2160,7 +2164,8 @@ def epreuves(K, R):
     # H62 : K23, le premier maillon « écrit à la main » (décisions de Jean-Luc du 19-10-2026 à 07h05 et 08h23 ;
     # superviseurs R-759 du même jour) — un fichier bâti sur une VRAIE ligne de BARRES_BNAINS_FAUSSES.csv (Société
     # Générale, 2009) passe ; chaque condition cassée une à une est vue par son motif ; sur les vrais fichiers, les trois
-    # fichiers écrits à la main citent leurs sources, et ni le fichier Yahoo nettoyé ni le référentiel ne passeraient.
+    # fichiers écrits à la main citent leurs sources, et le fichier Yahoo nettoyé ne passerait pas ; le référentiel passe
+    # depuis qu'il porte ses trois colonnes de preuve (décision de Jean-Luc du 24-10-2026 à 16h06).
     # Les cas « inscrit » et « qui revient » donnent des dents AU VERDICT aux refus du chemin absolu, du « .. », du lien
     # et du dossier (pour le dossier, par le seul cas « lu : dossier inscrit » : un fichier cité qui est un dossier est
     # refusé de toute façon, comme fichier absent) : sans eux, chacun de ces refus retiré laissait le fichier refusé pour une autre raison (absent du
@@ -2305,9 +2310,9 @@ def epreuves(K, R):
                 "donnees/REFERENTIEL_VALEURS_v3_Lun_17-08-2026_10h54.csv")
         reels = {n: K.sources_ecrites_a_la_main(RACINE, n) for n in noms}
         res["H62"] = len(sg) == 1 and len(cas) == 50 and all(vus.values()) \
-            and all(reels[n][0] is None for n in noms[:3]) \
+            and all(reels[n][0] is None for n in noms[:3] + noms[4:]) and reels[noms[4]][1] \
             and reels[noms[2]][1] == ["donnees/sources_bnains/DETACHEMENTS_OFFICIELS.csv"] \
-            and reels[noms[3]][0] == reels[noms[4]][0] == "sans les colonnes source, citation, fichiers_cites"
+            and reels[noms[3]][0] == "sans les colonnes source, citation, fichiers_cites"
         if not res["H62"]:
             print(f"      H62 : non vus {[(n, cas[n][0]) for n, ok in vus.items() if not ok]} · réels {reels}")
         shutil.rmtree(r, ignore_errors=True)

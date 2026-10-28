@@ -36,6 +36,16 @@ import csv, glob, os, re, shutil, subprocess, sys, tempfile
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
 DEPOT = os.path.abspath(_args[0] if _args else ".")
 ARCH = "archives/claude_journal_trades_SANS_COLONNE_COMPTABILITE_27-09-2026_voir_A-491.csv"
+# LE JOURNAL TÉMOIN FIGÉ : le vrai journal des trades tel qu'il était du 27-09 au 20-10-2026 (commit 7083c48), sur
+# lequel ces chiffres ont été calibrés. Chaque copie le pose à la place du vrai journal, que le circuit du soir fait
+# grandir : depuis le premier trade Vinci clos, le 20-10-2026, l'épreuve rougissait sans défaut du programme
+# (superviseur R-759 du 25-10-2026). Seuls E3b et E3c lisent encore le vrai journal : ils jugent des propriétés.
+TEMOIN = "temoins/TEMOIN_claude_journal_trades_DU_27-09-2026_JEU_DES_COMPTABILITES.csv"
+# LE REGISTRE TÉMOIN FIGÉ : `donnees/cac40_strategies.csv` tel qu'il est depuis le 10-10-2026 (commit c021921). Un horizon
+# changé au registre vivant suffisait à refermer la position mal écrite de E10 et à lui ôter ses dents (second
+# superviseur R-759 du 25-10-2026, mesuré avec l'horizon d'OBS à une séance). Avec le journal témoin et les cours coupés,
+# c'est TOUT le jeu de données des cas qui font tourner le teneur qui est figé ; E3b et E3c restent sur le vivant.
+REGISTRE_TEMOIN = "temoins/TEMOIN_cac40_strategies_DU_10-10-2026_JEU_DES_COMPTABILITES.csv"
 TEN, MES = "programmes/TENIR_LES_POSITIONS.py", "programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py"
 CON, COK = "programmes/CONTRATS_DES_FICHIERS.py", "programmes/GENERATEUR_COCKPIT_Sam_15-08-2026_21h50.py"
 AUD = "programmes/audit_ecosysteme.py"
@@ -77,9 +87,13 @@ SABOTAGES = {
 VERTS = {"V1_ordre_des_comptabilites_inverse": [(CON, "COMPTABILITES = (UN_JETON, JETONS_ILLIMITES)", "COMPTABILITES = (JETONS_ILLIMITES, UN_JETON)")]}
 SABOTAGES.update(VERTS)
 
-def copie(sab):
+def copie(sab, vivant=False):
     d = tempfile.mkdtemp(prefix="d3_")
     shutil.copytree(DEPOT, d, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git", "_site_travail", "__pycache__"))
+    if not vivant:
+        shutil.copyfile(os.path.join(d, TEMOIN), os.path.join(d, "donnees/claude_journal_trades.csv"))
+        shutil.copyfile(os.path.join(d, REGISTRE_TEMOIN), os.path.join(d, "donnees/cac40_strategies.csv"))
+        couper_les_cours(d, DERNIERE_SEANCE_DU_JEU)
     for f, a, b in SABOTAGES[sab]:
         p = os.path.join(d, f); t = open(p, encoding="utf-8").read()
         assert t.count(a) == 1, (sab, f, a[:50]); open(p, "w", encoding="utf-8").write(t.replace(a, b))
@@ -88,6 +102,19 @@ def copie(sab):
 def run(d, *args):
     r = subprocess.run([sys.executable, *args], cwd=d, capture_output=True, text=True)
     return r.returncode, r.stdout + r.stderr
+
+# LA DERNIÈRE SÉANCE DU JEU DE L'ÉPREUVE, le jour où elle a été écrite (27-09-2026) : chaque copie qui n'est pas
+# « vivante » coupe les cours après elle. Sans cela, la position mal écrite de E10 se referme sur les séances suivantes, son trade entre au journal,
+# et c'est le contrôle du journal qui la refuse : le sabotage S9 (positions sans contrôle) n'était plus vu (mesuré le
+# 25-10-2026 : clôture le 2026-10-22, refus par « journal des trades, ligne 6 … INCONNUE »).
+DERNIERE_SEANCE_DU_JEU = "2026-09-25"
+
+def couper_les_cours(d, jusqu_a):
+    p = os.path.join(d, "donnees/cours_maitre.csv")
+    with open(p, encoding="utf-8", newline="") as fh:
+        lignes = list(csv.reader(fh))
+    with open(p, "w", encoding="utf-8", newline="") as fh:
+        csv.writer(fh).writerows([lignes[0]] + [l for l in lignes[1:] if l[1] <= jusqu_a])
 
 def journal(d):
     return list(csv.DictReader(open(os.path.join(d, "donnees/claude_journal_trades.csv"), encoding="utf-8-sig")))
@@ -117,13 +144,14 @@ def epreuves(sab):
     c, o = run(d, "-c", "import sys;sys.path.insert(0,'programmes');import CONTRATS_DES_FICHIERS as c;"
                       "e=[x for x in c.confronter_tous('.') if 'journal_trades' in x];print(e);sys.exit(1 if e else 0)")
     dire("E2 journal conforme au contrat", c == 0, o.strip()[:120])
-    # E3 mesure sur le vrai journal : chiffres attendus
+    # E3 mesure sur le journal témoin figé : chiffres attendus
     c, o = run(d, MES, d); m = mesure_lignes(o)
     att = {("C5E10-QA-V1", "un jeton"): (1, "-2796.25"), ("C5E10-QA-V1", "jetons illimites"): (1, "-2796.25"),
            ("C5E10-OBS-V1", "un jeton"): (1, "-2796.25"), ("C5E10-OBS-V1", "jetons illimites"): (2, "897.75")}
-    dire("E3 mesure du vrai journal = chiffres attendus", c == 0 and m == att, str(m))
-    dire("E3b aucune ligne orpheline sur le vrai journal", "AUCUNE" not in o, "")
-    dire("E3c aucune alerte de nom partage sur le vrai registre", "ALERTE : le nom" not in o, "")
+    dire("E3 mesure du journal témoin = chiffres attendus", c == 0 and m == att, str(m))
+    dv = copie(sab, vivant=True); cv, ov = run(dv, MES, dv); shutil.rmtree(dv)
+    dire("E3b aucune ligne orpheline sur le vrai journal", "AUCUNE" not in ov, "")
+    dire("E3c aucune alerte de nom partage sur le vrai registre", "ALERTE : le nom" not in ov, "")
     # E11 radar : une serie par strategie et comptabilite, rattachee a l'identifiant du registre
     c, o = run(d, AUD, d)
     series = re.findall(r"\[13-Creux\] (\S+) · ([a-z ]+) : série de pertes en cours : (\d+)", o)
@@ -207,14 +235,18 @@ def epreuves(sab):
     c, o = run(d, AUD, d)
     dire("E18 noms du registre perdus : le radar le dit", "❌ [13-Creux] TRADES NON RATTACHÉS" in o, "")
     shutil.rmtree(d)
-    # E10 une position au livre mal ecrit : refus, rien d'ecrit
-    d = copie(sab); poser_positions(d)
+    # E10 une position au livre mal ecrit : refus PAR LE CONTRÔLE DES POSITIONS, rien d'ecrit (second superviseur
+    # R-759 du 25-10-2026 : « INCONNUE » seul pouvait venir du contrôle du journal, si la position se refermait)
+    d = copie(sab); poser_positions(d); j_avant = open(os.path.join(d, "donnees/claude_journal_trades.csv"), "rb").read()
     p = os.path.join(d, "donnees/claude_positions_ouvertes.csv"); t = open(p, encoding="utf-8").read()
     t = t.replace("2026-08-20,2026-08-21,103.15,107.276,100.57125,2026-09-18,OUVERTE,un_jeton",
                   "2026-09-23,2026-09-24,103.15,150,50,,OUVERTE,un jeton", 1)
     open(p, "w", encoding="utf-8").write(t); avant = open(p, "rb").read()
     c, o = run(d, TEN, d)
-    dire("E10 position au livre mal ecrit : refus, code 1, rien ecrit", c == 1 and "INCONNUE" in o and open(p, "rb").read() == avant, f"code {c}")
+    dire("E10 position au livre mal ecrit : refus par le controle des positions, code 1, rien ecrit", c == 1
+         and any("positions ouvertes, ligne" in l and "INCONNUE" in l for l in o.splitlines())
+         and open(p, "rb").read() == avant
+         and open(os.path.join(d, "donnees/claude_journal_trades.csv"), "rb").read() == j_avant, f"code {c}")
     shutil.rmtree(d)
     # E6 ancien journal (sans colonne) : le teneur refuse d'ecrire, rien ne change
     d = copie(sab); shutil.copyfile(os.path.join(d, ARCH), os.path.join(d, "donnees/claude_journal_trades.csv")); poser_positions(d)

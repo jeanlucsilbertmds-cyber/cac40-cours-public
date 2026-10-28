@@ -76,7 +76,12 @@ PAGES = os.path.join(RACINE, "temoins", "PAGES_BNAINS_DES_ACTIONS")
 # programme de contrôle ou les détachements officiels du 10-10 ne le change pas. R6 rougissait depuis la fusion
 # (trouvé le 15-10-2026 avant le versement ; réparé sur décision de Jean-Luc, « 2 », 08h57) ; les deux tables de la
 # reconstruction ont été refaites par le programme, sur une copie du dépôt, et seule la ligne d'Air Liquide y change.
-RESUME = ("lignes : 244993 · confirmée par Google : 25955 · ligne isolée : 781 · reconstruite : 144875 · "
+# MIS À JOUR LE 24-10-2026. Le versement du 02-10 sur la version en attente (commit 30bc173, 23-10-2026) a ajouté une
+# barre ESSILORLUXOTTICA du 02-10-2026 au fichier réparé : une ligne et une reconstruite de plus ; R6 rougissait depuis.
+# Mesuré le 24-10-2026 : la table des écarts est identique, celle des opérations ne change que d'une cellule
+# (ESSILORLUXOTTICA 2007-07-16, lignes après l'opération : 2486 → 2487) ; refaite par le programme sur une copie
+# du dépôt (superviseur R-759 du même jour : de fond).
+RESUME = ("lignes : 244994 · confirmée par Google : 25955 · ligne isolée : 781 · reconstruite : 144876 · "
           "reconstruite au facteur appliqué : 5761 · sans cours brut : 67621")
 
 SABOTAGES = {

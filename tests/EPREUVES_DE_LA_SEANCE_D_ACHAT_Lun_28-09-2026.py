@@ -45,6 +45,11 @@ SABOTAGES = {
     "S10_banc_n_exige_plus_le_compte_du_tableau": [(BAN, "        _ok_t = not _ecarts and len(_ref) == len(ops)", "        _ok_t = not _ecarts")],
     "S12_echeance_passee_tue_au_second_passage": [(TEN, '            inc_e = inc_e + [x for x in _ip if "deja passee" in x or _k in _fermees]', '            pass')],
     "S13_repli_tu_au_second_passage": [(TEN, '            inc_e = inc_e + [x for x in _ip if "deja passee" in x or _k in _fermees]', '            inc_e = inc_e + [x for x in _ip if "deja passee" in x]')],
+    # S14 et S15 (25-10-2026, superviseur R-759) : E3 garde le journal existant et n'admet qu'une ligne nouvelle
+    "S14_le_soir_perd_le_journal_existant": [(TEN, '        _ecrire_csv(f_jou, journal + r["trades"], TRADE)',
+                                              '        _ecrire_csv(f_jou, r["trades"], TRADE)')],
+    "S15_le_soir_ecrit_deux_fois_le_trade": [(TEN, '        _ecrire_csv(f_jou, journal + r["trades"], TRADE)',
+                                              '        _ecrire_csv(f_jou, journal + r["trades"] + r["trades"], TRADE)')],
     "S11_hasard_saute_la_seance_d_achat": [("programmes/MODULE_JUGEMENT.py", "            for b in s[i + 1:i + 2 + horizon]:", "            for b in s[i + 2:i + 2 + horizon]:")],
 }
 
@@ -98,10 +103,24 @@ def epreuves(sab):
                "print(t.lire_horizon is c.lire_horizon)")
     dire("E5 le programme du soir importe lire_horizon de COMMUN", o.strip().endswith("True"), o.strip()[-40:])
     shutil.rmtree(d)
-    # E3 de bout en bout : Vinci achete le 07-06-2024, vente forcee touchee le jour meme (vrais cours du maitre)
+    # E3 de bout en bout : Vinci achete le 07-06-2024, vente forcee touchee le jour meme (vrais cours du maitre).
+    # L'EPREUVE FABRIQUE TOUT CE QUE LE PROGRAMME LIT, sauf les cours (superviseur R-759 du 25-10-2026 : « RUSTINE »
+    # pour un simple filtre ; avant, elle lisait le vrai journal et les vrais signaux du soir, et rougissait depuis
+    # que le circuit a clos son premier trade Vinci, le 20-10-2026) : les positions, le journal (une ligne témoin
+    # figée, celle du vrai trade Vinci du 20-10-2026, un jeton) et les signaux (la séance du 07-06-2024, aucun signal).
+    # Les colonnes viennent du contrat (R-708 : deux implementations d'une meme chose divergent toujours).
     d = copie(sab)
-    col = ["strategie", "valeur", "date_signal", "date_entree", "prix_entree", "tp", "sl", "horizon_fin",
-           "statut", "comptabilite", "regles_pre_trade", "explication"]
+    _ecrire = sys.dont_write_bytecode; sys.dont_write_bytecode = True
+    sys.path.insert(0, os.path.join(DEPOT, "programmes"))
+    import CONTRATS_DES_FICHIERS as _contrat
+    sys.path.pop(0); sys.dont_write_bytecode = _ecrire
+    col = list(_contrat.POSITION)
+    temoin = dict(zip(_contrat.TRADE, ["C5E10-OBS-V1", "VINCI", "2026-10-09", "107.80000", "2026-10-20", "105.10500",
+                                        "SL", "-2796.25", "105.10500", "-2796.25", "un_jeton", "", ""]))
+    with open(os.path.join(d, "donnees/claude_journal_trades.csv"), "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(_contrat.TRADE)); w.writeheader(); w.writerow(temoin)
+    with open(os.path.join(d, "donnees/signaux_du_jour.json"), "w", encoding="utf-8") as fh:
+        json.dump({"seance": "2024-06-07", "signaux": []}, fh)
     with open(os.path.join(d, "donnees/claude_positions_ouvertes.csv"), "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=col); w.writeheader()
         # PAR LE VRAI CHEMIN : la position attend son entree (signal Vinci du 06-06-2024), le soir
@@ -112,10 +131,14 @@ def epreuves(sab):
                         statut="EN_ATTENTE_ENTREE", comptabilite="jetons_illimites", regles_pre_trade="", explication="epreuve"))
     c, o = run(d, TEN, d)
     j = list(csv.DictReader(open(os.path.join(d, "donnees/claude_journal_trades.csv"), encoding="utf-8-sig")))
-    v = [x for x in j if x["valeur"] == "VINCI"]
-    dire("E3 de bout en bout : Vinci vendu le 07-06-2024 a 110,76", c == 0 and len(v) == 1
+    # tout le journal : la ligne témoin gardée telle quelle, puis la seule ligne nouvelle — achetée à l'ouverture
+    # du 07-06-2024 (113,60) et vendue le jour même à la vente forcée (110,76)
+    v = j[1:]
+    dire("E3 de bout en bout : Vinci vendu le 07-06-2024 a 110,76, le journal existant garde", c == 0 and len(j) == 2
+         and dict(j[0]) == temoin and v[0]["valeur"] == "VINCI"
+         and (v[0]["date_entree"], round(float(v[0]["prix_entree"]), 2)) == ("2024-06-07", 113.60)
          and (v[0]["date_sortie"], v[0]["motif_sortie"], round(float(v[0]["prix_sortie"]), 2)) == ("2024-06-07", "SL", 110.76),
-         f"code {c} · {[(x['date_sortie'], x['motif_sortie'], x['prix_sortie']) for x in v]}")
+         f"code {c} · {[(x['valeur'], x['date_entree'], x['date_sortie'], x['motif_sortie'], x['prix_sortie']) for x in j]}")
     shutil.rmtree(d)
     # E6 le juge des stratégies S'ARRETE si ses sorties s'ecartent du tableau : on remet le defaut, il doit refuser
     d = copie(sab)
