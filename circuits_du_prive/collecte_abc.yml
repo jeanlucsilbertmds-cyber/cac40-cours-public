@@ -359,6 +359,15 @@ jobs:
           grep '^❌' rapports/audit_du_jour.md || echo "echecs  : aucun"
           if [ "$CODE" -ne 0 ]; then echo "::error::Passer le radar A ECHOUE (code $CODE)"; exit 1; fi
 
+      - name: Calculer la meteo du marche
+        id: meteo
+        # VOYANT « MOYENNE DES 200 SÉANCES » DU CAC 40 (A-615), décision de Jean-Luc du 29-10-2026
+        # à 13h39 (« Faire la moyenne »), après l'étude PLAN_PREVOIR_ET_SE_PROTEGER_CAC40_INDICE.
+        # Lit la page de l'indice chez ABC (PX1p) et écrit rapports/meteo_du_marche.md.
+        # `continue-on-error` : un voyant ne doit pas arrêter la collecte, MAIS SON ÉCHEC EST DIT.
+        continue-on-error: true
+        run: python3 programmes/METEO_DU_MARCHE.py "$GITHUB_WORKSPACE" || { echo "::error::Calculer la météo du marché A ÉCHOUÉ — lire rapports/meteo_du_marche.md"; exit 1; }
+
       - name: Commiter mesures, PILOTE et rapport du radar
         id: commiter_mesures_pilote_et_rapport_du_
         run: |
@@ -374,6 +383,7 @@ jobs:
           # radar ne sont plus arrives au depot du 18 au 22-09-2026.
           git add donnees/historique_mesures.csv gouvernance/PILOTE.md rapports/audit_du_jour.md \
                   rapports/AUDIT_ECOSYSTEME.md \
+                  rapports/meteo_du_marche.md donnees/meteo_du_marche.csv donnees/indice_cac40_quotidien.csv \
             || { echo "::error::git add A ECHOUE — un fichier manque ou a change de nom"; exit 1; }
           # C EST LE DERNIER ENREGISTREMENT DU PASSAGE : un fichier suivi encore
           # modifie ici est perdu, qu il y ait autre chose a enregistrer ou non.

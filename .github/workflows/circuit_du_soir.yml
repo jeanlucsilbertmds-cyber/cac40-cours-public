@@ -323,11 +323,17 @@ jobs:
           grep '^❌' rapports/audit_du_jour.md || echo "echecs  : aucun"
           if [ "$CODE" -ne 0 ]; then echo "::error::Passer le radar A ECHOUE (code $CODE)"; exit 1; fi
 
+      - name: Calculer la meteo du marche
+        id: meteo
+        continue-on-error: true
+        run: python3 programmes/METEO_DU_MARCHE.py "$GITHUB_WORKSPACE" || { echo "::error::Calculer la météo du marché A ÉCHOUÉ — lire rapports/meteo_du_marche.md"; exit 1; }
+
       - name: Commiter mesures, PILOTE et rapport du radar
         id: commiter_mesures_pilote_et_rapport_du_
         run: |
           git add donnees/historique_mesures.csv gouvernance/PILOTE.md rapports/audit_du_jour.md \
                   rapports/AUDIT_ECOSYSTEME.md \
+                  rapports/meteo_du_marche.md donnees/meteo_du_marche.csv donnees/indice_cac40_quotidien.csv \
             || { echo "::error::git add A ECHOUE — un fichier manque ou a change de nom"; exit 1; }
           OUBLIES=$(git diff --name-only)
           if [ -n "$OUBLIES" ]; then
