@@ -58,6 +58,11 @@
     "donnees/cac40_strategies.csv"
    ],
    "pourquoi": "fiche ③ : un argument, le chemin du registre des stratégies ; le référentiel des valeurs est cherché dans le même dossier que lui (décision de Jean-Luc du 20-10-2026 à 17h51, voie A : éprouver la moulinette)"
+  },
+  "programmes/EPREUVES_TENIR_UN_PLANNING.py": {
+   "dossier": ".",
+   "arguments": [],
+   "pourquoi": "fiche ③ : aucun argument de position ; le veilleur est chargé à côté de l'épreuve (déclarée le 29-10-2026 : le certificat de la nuit du 28 au 29-10 disait « CERTIFICATION IMPOSSIBLE — épreuve(s) non déclarée(s) : programmes/EPREUVES_TENIR_UN_PLANNING.py », épreuve présente depuis le 25-10-2026, A-624, jamais vue faute de certification les nuits du 27 et du 28)"
   }
  },
  "format_des_options": "delais : « chemin et arguments sans {copie}, séparés par une espace » → secondes (1 à 21 600) et pourquoi ; series_hors_de_la_nuit : chemin de l'épreuve → releve (motif du relevé, un seul fichier doit y répondre), essais_refaits_chaque_nuit (0 à 50) et pourquoi. Lu par options_de_lancement (programmes/CERTIFIER_LA_VERSION.py), ajouté le 16-10-2026.",
