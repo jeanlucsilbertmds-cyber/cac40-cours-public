@@ -103,7 +103,7 @@ CE QU'IL AJOUTE, ET QUI MANQUAIT
   retranche 300,00 €, soit 6,00 € d'écart par opération. La fonction
   `point_mort_en_fractions` a été corrigée le 29-08-2026 pour aller chercher
   le taux chez son propriétaire, mais `etalon_hasard` retranchait encore le
-  forfait (RÉGLÉ LE 28-09-2026, A-435 ④ : il appelle `mod_positions.pnl_net`) : mesuré, un aller-retour de 100,00 € à 104,00 € rend 3 694,00 €
+  forfait (RÉGLÉ LE 28-09-2026, A-435 ④ : il appelait `mod_positions.pnl_net` ; depuis le 28-10-2026, il joue par `JUGE_DES_STRATEGIES.jouer_une_entree`, qui demande `MODULE_POSITIONS.frais_ordre` pour les deux ordres, comme la stratégie) : mesuré, un aller-retour de 100,00 € à 104,00 € rend 3 694,00 €
   par `MODULE_POSITIONS.pnl_net` et 3 700,00 € par la formule d'`etalon_hasard`.
   L'étalon de hasard était donc comparé à une stratégie dont les gains avaient
   été calculés avec une autre convention de frais (RÉGLÉ LE 28-09-2026). Un chiffre qui existe ailleurs
@@ -1316,7 +1316,7 @@ def borne_basse_gain(ops, n_tirages=2000, graine=GRAINE):
 # ─────────────────────────────────────────────────────────────────────
 
 def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
-                  mode="valeur", n_tirages=200, graine=GRAINE):
+                  mode="valeur", n_tirages=200, graine=GRAINE, entree=None, admis=None, periode=None):
     """Rejoue le MEME nombre d'operations au hasard, et rend la distribution.
 
     TROIS MODES, ET LA LITTERATURE DIT DE FAIRE LES TROIS :
@@ -1355,40 +1355,63 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       fois en mode « date », avec 120 tirages chacune et l'univers déclaré par
       la fiche de la stratégie. Aucun autre appel dans le dépôt — recherche dans
       tous les fichiers `.py` de `programmes/` le 19-09-2026, une seule ligne.
-    ③ ENTRÉE — `ops` : les opérations réelles, dont seule la case `date_signal`
-      est lue, et dont le NOMBRE fixe combien d'entrées seront tirées ·
+      Depuis le 28-10-2026, ce juge lui passe aussi sa mécanique (`entree`), sa règle
+      d'achat (`admis`) et la période de la fiche ; les épreuves de `tests/` l'appellent
+      de même (frais du hasard, séance d'achat, étalon dans l'indice). DEUX ÉTUDES CLOSES
+      l'appellent encore à l'ancienne, sans `entree` ni `admis` : `etudes/PLAN_REBOND_APRES_PIC_EXCEPTIONNEL_DE_BAISSE_
+      Mer_28-10-2026/programmes/rebond.py` et `etudes/PLAN_REBOND_CHUTE_BRUTE_HORS_KRACH_Mer_28-10-2026/programmes/
+      rebond_brut.py` ; elles s'arrêtent en le disant (ValueError), et se rejouent au commit de leur gel : 09e43c2 (et
+      cec1b96) pour la première, 812e705 pour la seconde (superviseur R-759 du 29-10-2026 ; leurs GEL.md ne sont pas
+      touchés, ils appartiennent à une autre conversation).
+    ③ ENTRÉE — `ops` : les opérations réelles ; en mode « valeur », seule la case
+      `date_signal` est lue, en mode « date », seule la case `valeur` ; leur NOMBRE fixe
+      combien d'entrées seront tirées ·
       `cours` : l'historique, une liste de séances par valeur, chaque séance
       portant sa date, son ouverture, son plus haut, son plus bas et sa clôture ·
       `univers` : les valeurs dans lesquelles tirer · `tp` : l'objectif de gain
       en FRACTION · `sl` : la perte acceptée en FRACTION et en valeur positive ·
       `horizon` : le nombre de séances pendant lesquelles la position est tenue ·
-      `mod_positions` : le module qui décide si une séance fait sortir, et le
-      juge des stratégies y passe `programmes/MODULE_POSITIONS.py` · `mode` : « valeur » par
+      `mod_positions` : le module des positions, que le juge des stratégies passe
+      (`programmes/MODULE_POSITIONS.py`) ; depuis le 28-10-2026 il n'est plus lu ici,
+      la mécanique `entree` le porte · `mode` : « valeur » par
       défaut · `n_tirages` : 200 par défaut, et l'appelant passe 120 ·
-      `graine` : 20260828 par défaut.
+      `graine` : 20260828 par défaut · `entree` : la mécanique de la
+      stratégie, qui rend l'opération d'un achat à la séance `j` de la valeur `v`
+      ou None (`JUGE_DES_STRATEGIES.jouer_une_entree`), appelée `entree(v, j)` · `admis` : sa règle
+      d'achat, vrai si l'achat est permis (`JUGE_DES_STRATEGIES.achat_admis`) ·
+      `periode` : le couple des bornes de la fiche, ou None. `mod_positions` n'est
+      plus lu ici depuis le 28-10-2026 : la mécanique le porte.
     ④ CONDITIONS D'ENTRÉE — L'univers passé doit être celui de la FICHE et non
       celui du projet entier. Chaque valeur retenue doit porter plus de séances
-      que l'horizon plus trois. Le module passé doit porter une fonction
-      `tester_seance(seance, prix_objectif, prix_stop)`.
+      que l'horizon plus trois (exigence levée le 28-10-2026 : un achat sans assez
+      de séances n'est plus écarté d'avance : comme dans `jouer`, un achat tombé sur la
+      dernière séance sans seuil touché rend None et n'est pas joué, et un achat suivi de
+      moins de h séances est vendu à la dernière clôture, motif HORIZON). `entree` et
+      `admis` sont obligatoires : sans eux, ValueError. En mode « date », chaque
+      opération doit porter sa case `valeur`.
     ⑤ SORTIE — UNE valeur : un dictionnaire, et il prend DEUX formes
       différentes. Quand l'univers ou les opérations sont insuffisants, ou
       qu'aucun tirage n'a pu être exploité : deux cases, un nombre de tirages à
-      zéro et un motif en clair. Sinon huit cases : le mode, le nombre de
+      zéro et un motif en clair. Sinon, jusqu'au 28-10-2026, neuf cases : le mode, le nombre de
       tirages retenus, trois taux de réussite — médian, au quatre-vingt-quinzième
-      centile, maximal — trois gains aux mêmes rangs, et la graine.
+      centile, maximal — trois gains aux mêmes rangs, et la graine ; depuis le
+      28-10-2026, douze cases : s'y ajoutent le nombre d'opérations réelles et le
+      plus petit et le plus grand nombre d'opérations jouées par un tirage.
       [rend: 1]
-    ⑥ TRAITEMENT — ① ne garder que les valeurs assez longues · ② dresser, pour
-      chaque date de séance, la liste des valeurs disponibles ce jour-là ·
-      ③ fixer la suite de tirages avec la graine · ④ répéter autant de fois que
-      demandé : pour chaque opération réelle, tirer une entrée — en mode
-      « valeur », une valeur parmi celles cotées à la date du signal réel ;
-      sinon, une valeur et une date au hasard · ⑤ acheter à l'ouverture de la
-      séance suivante · ⑥ parcourir, DEPUIS LA SÉANCE D'ACHAT (R-608, depuis le
-      28-09-2026), les séances jusqu'à l'horizon et sortir dès qu'une séance touche
-      l'objectif ou le stop, sinon sortir à la clôture de la h-ième séance après
-      l'achat · ⑦ cumuler le gain net et le nombre de gagnantes ·
-      ⑧ trier les taux et les gains des tirages, et rendre trois rangs de
-      chacun.
+    ⑥ TRAITEMENT (depuis le 28-10-2026) — ① refuser sans `entree` ni `admis` ·
+      ② dresser les achats que la stratégie aurait pu faire : une séance d'achat
+      `j` permise par `admis`, dont la veille — la séance du signal — tombe dans la
+      période, rangés par date de signal et par valeur · ③ fixer la suite de
+      tirages avec la graine · ④ répéter autant de fois que demandé : pour chaque
+      opération réelle, tirer un achat — en mode « valeur », la date du signal
+      réel est gardée et la valeur est tirée parmi les achats permis ce jour-là ;
+      sinon, la valeur réelle est gardée et la date est tirée parmi ses achats
+      permis dans la période · ⑤ le jouer par `entree`, la mécanique de la
+      stratégie ; None = non joué, et compté · ⑥ cumuler le gain net, le nombre de
+      gagnantes et le nombre joué · ⑦ trier les taux et les gains, rendre trois
+      rangs de chacun. Jusqu'au 28-10-2026, l'étalon jouait avec sa propre copie de
+      l'achat-sortie, tirait hors de l'indice et hors de la période, et le mode
+      « date » tirait aussi la valeur.
     ⑦ UNITÉ — `tp` et `sl` sont des FRACTIONS. Les taux sont des POURCENTS entre
       0 et 100. Les gains sont en EUROS. L'horizon est un nombre de SÉANCES.
     ⑧ POURQUOI — On rend le GAIN et pas seulement le taux de réussite, parce
@@ -1415,8 +1438,9 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       croit avoir obtenu le troisième test alors qu'il a obtenu le deuxième.
       Aucun appelant d'aujourd'hui ne demande ce mode, le juge des stratégies n'appelant que
       « valeur » et « date ».
-      ② RÉGLÉ LE 28-09-2026 (A-435 ④) : le gain net se calcule par
-      `mod_positions.pnl_net`, comme celui de la stratégie ; épreuve dans
+      ② RÉGLÉ LE 28-09-2026 (A-435 ④) : le gain net se calculait par
+      `mod_positions.pnl_net` ; depuis le 28-10-2026, par la mécanique même de la stratégie
+      (`jouer_une_entree`, frais par `MODULE_POSITIONS.frais_ordre`) ; épreuve dans
       tests/EPREUVES_DES_FRAIS_DU_HASARD_Lun_28-09-2026.py. Ce qui était mesuré :
       les frais sont un forfait de 300 € écrit dans ce fichier, alors que la
       stratégie à laquelle l'étalon sera comparé paie 0,15 % de la valeur
@@ -1433,25 +1457,26 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       de 100,0 %, parce qu'un objectif de +400 % ne se touche jamais et que la
       sortie se fait alors à la clôture. La fonction `_exiger_des_fractions` du
       même fichier ferme ce contrat pour le point mort, pas ici.
-      ④ Des tirages sont abandonnés en silence. Une entrée tirée sur la dernière
-      séance d'une valeur, ou une date sans aucune valeur cotée, est passée sans
-      être comptée. Le nombre d'opérations réellement jouées par tirage n'est pas
-      rendu : deux tirages qui auraient joué 6 et 3 opérations sont comparés
-      comme s'ils étaient équivalents, et seul le taux de réussite est ramené à
-      l'effectif, pas le gain.
+      ④ EN PARTIE LE 28-10-2026 (le nombre joué par tirage est rendu ; le gain, lui, n'est toujours pas ramené à
+      l'effectif joué : consigné au BACKLOG) — Des tirages sont abandonnés en silence. Une entrée tirée sur la dernière
+      séance d'une valeur, ou une date sans aucun achat permis, n'est pas jouée ;
+      depuis le 28-10-2026 le nombre joué par tirage est rendu et affiché, mais deux
+      tirages qui auraient joué 6 et 3 opérations restent comparés sur leur gain total,
+      et seul le taux de réussite est ramené à l'effectif, pas le gain.
       ⑤ Aucun contrôle de calibrage ne la couvre. Recherche du nom
       `etalon_hasard` dans le corps de `_calibrage` le 19-09-2026 : absent. La
       vérification citée dans ce texte — le hasard rend 43 % là où le point mort
       est à 43,1 % — n'est rejouable par rien.
     ⑩ EFFET — Aucun sur les données reçues : elle lit. Aucun fichier, aucun
-      réseau, rien d'affiché. Elle EXÉCUTE la fonction `tester_seance` du module
-      qu'on lui passe, jusqu'à une fois par séance de détention et par tirage.
-      Elle construit en mémoire un index de toutes les dates de l'historique.
+      réseau, rien d'affiché. Elle EXÉCUTE `entree` une fois par opération et par
+      tirage, et `admis` une fois par séance de l'univers dont la veille tombe dans la
+      période. Elle construit en mémoire l'index des achats permis, par date de signal et
+      par valeur.
     ⑪ TERMINAISON — Rend toujours la main dans les cas que son appelant lui
-      donne. PEUT LEVER si le module passé ne porte pas `tester_seance` ; le
-      juge des stratégies rattrape et affiche « HASARD non mesure ». Un de ses appels
-      peut ne pas revenir : `tester_seance` de `MODULE_POSITIONS` rend toujours
-      la main.
+      donne. PEUT LEVER : ValueError sans `entree` ni `admis` ; et tout ce que lève
+      `entree` (le module des positions sans `tester_seance` ou `frais_ordre`) ; le
+      juge des stratégies rattrape et affiche « HASARD non mesure ». Ses appels à
+      `entree` et `admis` rendent la main : ils ne lisent que la série reçue.
       [sort: non]
     ⑫ DÉFINITIONS
       l'étalon de hasard : le résultat qu'obtiendraient des entrées tirées au
@@ -1474,59 +1499,61 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       un motif : un morceau de nom passé à une fonction de recherche, par exemple trouve("REGISTRE_REGLES"), au lieu du nom complet du fichier.
       un signal : le repérage, sur la dernière séance connue, d'une configuration de cours qui déclenche une simulation d'achat.
 """
-    dispo = [v for v in univers if v in cours and len(cours[v]) > horizon + 3]
+    # DEPUIS LE 28-10-2026, L'ÉTALON NE JOUE PLUS LUI-MÊME : il tire au sort, et la mécanique d'achat-sortie est
+    # celle de la stratégie, `JUGE_DES_STRATEGIES.jouer_une_entree`, que `juger` lui passe (R-708 ; superviseur
+    # R-759 du 28-10-2026). Sans elle, il refuse plutôt que de garder une seconde mécanique.
+    if entree is None or admis is None:
+        raise ValueError("etalon_hasard : il faut la mécanique de la stratégie (entree) et sa règle d'achat (admis), "
+                         "passées par le juge des stratégies — l'étalon ne recopie pas la mécanique (R-708). Une étude "
+                         "close qui l'appelle encore à l'ancienne se rejoue au commit de son gel (09e43c2, 812e705 : "
+                         "voir la fiche ② de cette fonction)")
+    dispo = [v for v in univers if v in cours]
     if not dispo or not ops:
         return {"n_tirages": 0, "motif": "univers ou operations insuffisants"}
-    cal = {}
+    # LES ACHATS QUE LA STRATÉGIE AURAIT PU FAIRE : une séance d'achat j permise (dans l'indice ce jour-là, quand la
+    # lecture le demande), dont la veille — la séance du signal — tombe dans la période de la fiche, comme dans `jouer`.
+    par_date, par_valeur = {}, {}
     for v in dispo:
-        for i, b in enumerate(cours[v]):
-            cal.setdefault(b["date"], []).append((v, i))
+        s = cours[v]
+        for j in range(1, len(s)):
+            d_sig = s[j - 1]["date"]
+            if periode and not (periode[0] <= d_sig <= periode[1]):
+                continue
+            if not admis(v, j):
+                continue
+            par_date.setdefault(d_sig, []).append((v, j))
+            par_valeur.setdefault(v, []).append(j)
     r = random.Random(graine)
-    taux, gains = [], []
+    taux, gains, joues = [], [], []
     for _ in range(n_tirages):
         g = n = 0
         somme = 0.0
         for o in ops:
             if mode == "valeur":
-                cands = cal.get(o["date_signal"], [])
+                # mode « valeur » : la DATE réelle du signal est gardée, la VALEUR est tirée parmi les achats permis ce jour-là
+                cands = par_date.get(o["date_signal"], [])
                 if not cands:
                     continue
-                v, i = cands[r.randrange(len(cands))]
+                v, j = cands[r.randrange(len(cands))]
             else:
-                v = dispo[r.randrange(len(dispo))]
-                i = r.randrange(0, len(cours[v]) - horizon - 2)
-            s = cours[v]
-            if i + 1 >= len(s):
-                continue
-            pe = s[i + 1]["open"]
-            tp_a, sl_a = pe * (1 + tp), pe * (1 - sl)
-            px = None
-            # LA SEANCE D'ACHAT COMPTE AUSSI POUR LE HASARD (R-608 ; defaut 4 de A-491,
-            # 28-09-2026, trouve par le relecteur du Chat) : le hasard se joue avec la
-            # meme mecanique que la strategie qu'il juge, celle de `jouer` dans le juge des stratégies —
-            # seuils des s[i + 1], echeance h seances APRES l'achat.
-            for b in s[i + 1:i + 2 + horizon]:
-                res = mod_positions.tester_seance(b, tp_a, sl_a)
-                if res:
-                    px = res[0]
-                    break
-            if px is None:
-                suite = s[i + 2:i + 2 + horizon]      # l'echeance se compte APRES l'achat
-                if not suite:
+                # mode « date » : la VALEUR réelle est gardée, la DATE est tirée parmi ses achats permis dans la période
+                # (jusqu'au 28-10-2026, ce mode tirait aussi la valeur, contrairement à ce texte : superviseur R-759)
+                v = o["valeur"]
+                js = par_valeur.get(v, [])
+                if not js:
                     continue
-                px = suite[-1]["close"]
-            # LES FRAIS DU HASARD SONT CEUX DE LA STRATÉGIE (R-708, A-435 ④, 28-09-2026) :
-            # le forfait de 300 € d'ici rendait 3 700,00 € sur un aller-retour de 100 à
-            # 104 € que le module des positions compte 3 694,00 € : +6 € pour le hasard sur
-            # ce gain, −3,75 € sur une perte à −2,5 % (l'écart vaut 1,50 € par point de pourcentage de rendement).
-            # Le calcul vit chez son propriétaire.
-            net = mod_positions.pnl_net(pe, px)
+                j = js[r.randrange(len(js))]
+            op = entree(v, j)
+            if op is None:          # achat non permis, ou tombé sur la dernière séance sans seuil touché : non joué, et compté
+                continue
+            net = op["net"]
             n += 1
             g += 1 if net > 0 else 0
             somme += net
         if n:
             taux.append(100.0 * g / n)
             gains.append(somme)
+            joues.append(n)
     if not taux:
         return {"n_tirages": 0, "motif": "aucun tirage exploitable"}
     taux.sort()
@@ -1538,7 +1565,9 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
             "gain_median": round(gains[len(gains) // 2], 0),
             "gain_95pct": round(gains[int(0.95 * len(gains))], 0),
             "gain_max": round(gains[-1], 0),
-            "graine": graine}
+            "graine": graine,
+            "operations_reelles": len(ops),
+            "jouees_par_tirage_min": min(joues), "jouees_par_tirage_max": max(joues)}
 
 
 # ─────────────────────────────────────────────────────────────────────

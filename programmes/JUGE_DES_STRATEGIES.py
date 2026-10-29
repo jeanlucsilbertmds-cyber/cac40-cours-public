@@ -1627,7 +1627,9 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       séances DEPUIS LA SÉANCE D'ACHAT COMPRISE (R-608, depuis le 28-09-2026), dans
       la limite de l'horizon, et sortir à la première qui touche un seuil · ⑧ sortir
       à la clôture de la h-ième séance APRÈS l'achat si aucun seuil n'a été touché · ⑨ demander au module de positions les frais des DEUX ordres
-      et retrancher · ⑩ ranger l'opération.
+      et retrancher · ⑩ ranger l'opération. Depuis le 28-10-2026, les gestes de la composition et ⑥ à ⑨ vivent dans
+      `achat_admis` et `jouer_une_entree`, que l'étalon de hasard appelle aussi (R-708) ; mesuré : les opérations
+      rendues sont identiques à l'octet (18 cas, 4 264 opérations, même empreinte avant et après).
     ⑦ UNITÉ — Les seuils sont des FRACTIONS du prix d'entrée. L'horizon se compte
       en SÉANCES de bourse. La quantité est un NOMBRE DE TITRES, fractionnaire. Les
       prix et les gains sont des EUROS, pour 100 000 € engagés par opération.
@@ -1776,46 +1778,111 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
                     continue                  # un signal sans lendemain : la fin des données
                 if periode and not (periode[0] <= d_sig <= periode[1]):
                     continue
-                if lecture is not None and lecture.get("composition") and \
-                        not dans_l_indice(lecture["passages"].get(v, []), serie[j]["date"]):
+                # L'ACHAT ET LA SORTIE SE JOUENT DANS `jouer_une_entree`, LA SEULE MÉCANIQUE : l'étalon de hasard
+                # l'appelle aussi (R-708 ; superviseur R-759 du 28-10-2026 : deux copies avaient déjà divergé
+                # deux fois le 28-09-2026, sur les frais et sur la séance d'achat).
+                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture)
+                if op is None:
                     continue
-                pe = serie[j]["open"]
-                tp_abs, sl_abs = pe * (1 + tp), pe * (1 - sl)
-                # LA SEANCE D'ACHAT COMPTE (R-608, decision de Jean-Luc du 27-09-2026 a
-                # 19h40 ; defaut 4 de A-491). Les seuils se testent des s[i + 1], la
-                # seance ou l'on achete a l'ouverture : avant, ils ne l'etaient qu'a
-                # partir de s[i + 2]. Exemple reel du tableau de reference : Vinci,
-                # achete le 07-06-2024 a 113,60, plus bas du jour 110,75 sous la vente
-                # forcee 110,76 -> vendu le jour meme. L'echeance, elle, ne change pas :
-                # la h-ieme seance APRES l'achat, serie[j + h].
-                suite = serie[j:j + 1 + h]
-                px = motif = d_sortie = None
-                for b in suite:
-                    r = mod_positions.tester_seance(b, tp_abs, sl_abs)
-                    if r:
-                        px, motif = r
-                        d_sortie = b["date"]
-                        break
-                if px is None:
-                    apres = suite[1:]          # l'echeance se compte APRES la seance d'achat
-                    if not apres:
-                        continue
-                    px, motif, d_sortie = apres[-1]["close"], "HORIZON", apres[-1]["date"]
-                # LES FRAIS NE S'ECRIVENT PAS EN DUR. Le proprietaire du chiffre
-                # est MODULE_POSITIONS : 0,15 % de la valeur echangee a l'entree ET
-                # a la sortie, soit 307,50 EUR sur une sortie a +5 %, non 300 fixes.
-                # Un nombre recopie qui contredit son module, c'est R-708.
-                q = 100000.0 / pe
-                _fo = getattr(mod_positions, "frais_ordre", None)
-                if callable(_fo):
-                    f_tot = _fo(q, pe) + _fo(q, px)      # les DEUX ordres
-                else:
-                    raise RuntimeError("MODULE_POSITIONS n'expose pas frais_ordre : "
-                                       "le juge des stratégies ne recopie pas un taux de frais")
-                ops.append({"valeur": v, "date_signal": d_sig, "pe": pe, "px": px,
-                            "motif": motif, "net": q * (px - pe) - f_tot,
-                            "date_sortie": d_sortie})
+                ops.append({"valeur": v, "date_signal": d_sig, "pe": op["pe"], "px": op["px"],
+                            "motif": op["motif"], "net": op["net"], "date_sortie": op["date_sortie"]})
     return ops, inconnus
+
+
+def achat_admis(v, serie, j, lecture):
+    """Dit si la séance `j` de la série d'une valeur peut être une séance d'achat.
+
+    ① RÔLE — La seule règle qui dit si un achat est permis ce jour-là : la valeur doit être dans le CAC 40 le
+      jour de l'ACHAT, quand la lecture le demande.
+    ② CONTEXTE D'APPEL — `jouer_une_entree`, à chaque entrée ; l'étalon de hasard (`MODULE_JUGEMENT.etalon_hasard`),
+      par la fonction que `juger` lui passe, pour ne tirer que parmi les achats permis.
+    ③ ENTRÉE — `v` : la valeur · `serie` : sa série entière de séances · `j` : le rang de la séance d'achat dans
+      `serie` · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None.
+    ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)`.
+    ⑤ SORTIE — UNE valeur : vrai si l'achat est permis. [rend: 1]
+      [rend: 1]
+    ⑥ TRAITEMENT — sans lecture, ou si la lecture ne demande pas la composition : vrai ; sinon, le jour de l'achat
+      doit tomber dans un passage de la valeur (`dans_l_indice`).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le 27-10-2026, le juge a appris à n'acheter que dans l'indice ; l'étalon de hasard tirait encore
+      hors de l'indice : sur C5E10-QA-V1, 306 achats possibles, dont 42 hors de l'indice (relecteur du 27-10-2026,
+      point 2). Une seule écriture de la règle, pour les deux (R-708). Décision de Jean-Luc du 28-10-2026 à 23h03 :
+      réparer tout de suite.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if lecture is None or not lecture.get("composition"):
+        return True
+    return dans_l_indice(lecture["passages"].get(v, []), serie[j]["date"])
+
+
+def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None):
+    """Joue UNE entrée : achat à l'ouverture de la séance `j`, puis sortie ; la seule mécanique d'achat-sortie.
+
+    ① RÔLE — Rendre l'opération qu'aurait faite un achat à l'ouverture de la séance `j` de la série d'une valeur :
+      seuils testés dès la séance d'achat, échéance à la h-ième séance après l'achat, frais des deux ordres.
+    ② CONTEXTE D'APPEL — `jouer`, à chaque signal retenu ; l'étalon de hasard (`MODULE_JUGEMENT.etalon_hasard`),
+      par la fonction que `juger` lui passe, à chaque achat tiré au sort.
+    ③ ENTRÉE — `v` : la valeur · `serie` : sa série entière · `j` : le rang de la séance d'achat · `tp`, `sl` : les
+      seuils en FRACTIONS · `h` : l'horizon en séances · `mod_positions` : le module des positions (`tester_seance`,
+      `frais_ordre`) · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None.
+    ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; le module des positions expose `tester_seance` et `frais_ordre`.
+    ⑤ SORTIE — UNE valeur : None si l'achat n'est pas permis (`achat_admis`) ou s'il tombe sur la DERNIÈRE séance
+      sans qu'un seuil y soit touché (aucune séance après lui pour l'échéance) ; un achat suivi de moins de h séances
+      est vendu à la dernière clôture, motif HORIZON ; sinon un dictionnaire de cinq cases : `pe`, `px`, `motif`, `net`
+      (euros, frais payés), `date_sortie`. [rend: 1]
+      [rend: 1]
+    ⑥ TRAITEMENT — ① refuser un achat non permis · ② entrer à l'ouverture de `serie[j]` · ③ tester les séances
+      `serie[j:j + 1 + h]`, séance d'achat comprise (R-608), et sortir à la première qui touche un seuil · ④ sinon
+      sortir à la clôture de la h-ième séance APRÈS l'achat · ⑤ retrancher les frais des deux ordres.
+    ⑦ UNITÉ — Seuils en FRACTIONS du prix d'entrée ; horizon en SÉANCES ; prix et gains en EUROS, pour 100 000 €
+      engagés.
+    ⑧ POURQUOI — Ce corps vivait dans `jouer`, et l'étalon de hasard en avait sa copie ; le superviseur R-759 du
+      28-10-2026 a jugé « rustine » de seulement partager le test de l'indice : les deux copies avaient déjà divergé
+      deux fois le 28-09-2026 (A-435 ④ sur les frais, R-608 sur la séance d'achat). Le code est celui de `jouer`,
+      déplacé sans changement : les opérations du juge restent identiques à l'octet (empreinte avant et après).
+      LES FRAIS NE S'ÉCRIVENT PAS EN DUR : leur propriétaire est MODULE_POSITIONS, 0,15 % de la valeur échangée à
+      l'entrée ET à la sortie, soit 307,50 € sur une sortie à +5 %, non 300 € fixes (R-708).
+    ⑨ CE QUI CLOCHE — Le capital de 100 000 € est écrit ici, comme il l'était dans `jouer` : MODULE_POSITIONS porte le
+      sien. Ne pas le changer garde les opérations identiques ; consigné au BACKLOG.
+    ⑩ EFFET — Appelle le module des positions.
+    ⑪ TERMINAISON — Rend la main ; lève RuntimeError si le module des positions n'expose pas `frais_ordre`.
+      [sort: non]
+    """
+    if not achat_admis(v, serie, j, lecture):
+        return None
+    pe = serie[j]["open"]
+    tp_abs, sl_abs = pe * (1 + tp), pe * (1 - sl)
+    # LA SEANCE D'ACHAT COMPTE (R-608, decision de Jean-Luc du 27-09-2026 a
+    # 19h40 ; defaut 4 de A-491). Les seuils se testent des s[i + 1], la
+    # seance ou l'on achete a l'ouverture : avant, ils ne l'etaient qu'a
+    # partir de s[i + 2]. Exemple reel du tableau de reference : Vinci,
+    # achete le 07-06-2024 a 113,60, plus bas du jour 110,75 sous la vente
+    # forcee 110,76 -> vendu le jour meme. L'echeance, elle, ne change pas :
+    # la h-ieme seance APRES l'achat, serie[j + h].
+    suite = serie[j:j + 1 + h]
+    px = motif = d_sortie = None
+    for b in suite:
+        r = mod_positions.tester_seance(b, tp_abs, sl_abs)
+        if r:
+            px, motif = r
+            d_sortie = b["date"]
+            break
+    if px is None:
+        apres = suite[1:]          # l'echeance se compte APRES la seance d'achat
+        if not apres:
+            return None
+        px, motif, d_sortie = apres[-1]["close"], "HORIZON", apres[-1]["date"]
+    q = 100000.0 / pe
+    _fo = getattr(mod_positions, "frais_ordre", None)
+    if callable(_fo):
+        f_tot = _fo(q, pe) + _fo(q, px)      # les DEUX ordres
+    else:
+        raise RuntimeError("MODULE_POSITIONS n'expose pas frais_ordre : "
+                           "le juge des stratégies ne recopie pas un taux de frais")
+    return {"pe": pe, "px": px, "motif": motif, "net": q * (px - pe) - f_tot, "date_sortie": d_sortie}
 
 
 def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
@@ -2267,8 +2334,14 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
         univ = [v for v in univ if v in cours]
         for mode, lib in (("valeur", "l'ACTION au hasard"),
                           ("date", "les DATES au hasard")):
+            # LE HASARD JOUE AVEC LA MÉCANIQUE DE LA STRATÉGIE ET SA RÈGLE D'ACHAT, SUR SA PÉRIODE (R-708 ; décision de
+            # Jean-Luc du 28-10-2026 à 23h03 ; superviseur R-759) : jusque-là il tirait hors de l'indice, sur tout
+            # l'historique, avec sa propre copie de l'achat-sortie.
             hz = J.etalon_hasard(ops, cours, univ, tp, sl, h, mod_pos,
-                                 mode=mode, n_tirages=120)
+                                 mode=mode, n_tirages=120,
+                                 entree=lambda v, j: jouer_une_entree(v, cours[v], j, tp, sl, h, mod_pos, lecture),
+                                 admis=lambda v, j: achat_admis(v, cours[v], j, lecture),
+                                 periode=_bornes)
             if hz.get("n_tirages"):
                 # UN ETALON SE LIT EN PROPORTION DE TIRAGES BATTUS, jamais sur
                 # la seule mediane : le seuil retenu par la litterature est
@@ -2283,6 +2356,10 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
                               "au-dessus du" if _net > hz["gain_95pct"] else "sous le",
                               "au-dessus du" if _net > hz["gain_max"] else "sous le")
                       .replace(",", " "))
+                # L'EFFECTIF JOUÉ SE DIT (relecture du 28-10-2026) : un tirage qui joue moins d'opérations que la stratégie
+                # n'est pas comparable au même gain total.
+                print("      operations jouees par tirage : %s a %s, pour %s reelles"
+                      % (hz.get("jouees_par_tirage_min"), hz.get("jouees_par_tirage_max"), hz.get("operations_reelles")))
     except Exception as ex:
         print("    HASARD               non mesure : %s" % ex)
     print("    ─────────────────────────────────────────────────────")

@@ -11,7 +11,9 @@ et tout autre programme les LIT (instructions du projet, § 10). Le hasard de r�
 aller-retour de 100 à 104 € avec 100 000 € engagés, il comptait 3 700,00 € quand le module des positions
 compte 3 694,00 € — +6 € pour le hasard sur ce gain, −3,75 € sur une perte à −2,5 % : l'écart vaut
 1,50 € par point de pourcentage de rendement (A-435 ④, relevé le 19-09-2026 ; signe mesuré par le relecteur le 28-09-2026).
-Réparé le 28-09-2026 : le hasard appelle mod_positions.pnl_net.
+Réparé le 28-09-2026 : le hasard appelle mod_positions.pnl_net. Depuis le 28-10-2026, le hasard achète et sort par
+JUGE_DES_STRATEGIES.jouer_une_entree, la mécanique même de la stratégie (R-708, superviseur R-759) : les frais sont
+ceux de MODULE_POSITIONS.frais_ordre, et le sabotage remet le forfait DANS cette mécanique.
 
 L'ÉPREUVE joue le hasard sur une seule valeur fabriquée, où chaque tirage achète à 100 € et touche
 l'objectif de +4 % le jour même (R-608) : le gain médian doit valoir EXACTEMENT
@@ -27,17 +29,18 @@ DEPOT = os.path.abspath(_args[0] if _args else ".")
 JUG = "programmes/MODULE_JUGEMENT.py"
 SABOTAGES = {
     "Z0": [],
-    "S1_forfait_de_300": [(JUG, "            net = mod_positions.pnl_net(pe, px)\n",
-                           "            net = (CAPITAL / pe) * (px - pe) - FRAIS\n")],
+    "S1_forfait_de_300": [("programmes/JUGE_DES_STRATEGIES.py", "        f_tot = _fo(q, pe) + _fo(q, px)      # les DEUX ordres\n",
+                           "        f_tot = 300.0\n")],
 }
 CODE = (
-    "import sys; sys.path.insert(0, 'programmes'); import MODULE_JUGEMENT as J, MODULE_POSITIONS as P\n"
+    "import sys; sys.path.insert(0, 'programmes'); import MODULE_JUGEMENT as J, MODULE_POSITIONS as P, JUGE_DES_STRATEGIES as B\n"
     "s = []\n"
     "for k in range(60):\n"
     "    d = '2025-%02d-%02d' % (1 + k // 28, 1 + k % 28)\n"
     "    s.append(dict(date=d, open=100.0, high=104.5, low=99.9, close=100.0))\n"
     "ops = [{'valeur': 'A', 'date_signal': s[k]['date']} for k in range(0, 30, 3)]\n"
-    "r = J.etalon_hasard(ops, {'A': s}, ['A'], 0.04, 0.025, 20, P, mode='valeur', n_tirages=3)\n"
+    "r = J.etalon_hasard(ops, {'A': s}, ['A'], 0.04, 0.025, 20, P, mode='valeur', n_tirages=3, "
+    "entree=lambda v, j: B.jouer_une_entree(v, s, j, 0.04, 0.025, 20, P, None), admis=lambda v, j: B.achat_admis(v, s, j, None))\n"
     "print(round(r['gain_median'], 2), round(len(ops) * P.pnl_net(100.0, 104.0), 2))\n")
 
 

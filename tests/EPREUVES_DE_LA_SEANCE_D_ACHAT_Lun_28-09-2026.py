@@ -31,14 +31,14 @@ SABOTAGES = {
     "Z0": [],
     "S1_circuit_saute_la_seance_d_achat": [(TEN, 'apres = sorted((b for b in s if b["date"] >= d_ent),',
                                             'apres = sorted((b for b in s if b["date"] > d_ent),')],
-    "S2_banc_saute_la_seance_d_achat": [(BAN, "                suite = serie[j:j + 1 + h]", "                suite = serie[j + 1:j + 1 + h]")],
+    "S2_banc_saute_la_seance_d_achat": [(BAN, "    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")],
     "S3_banc_n_exige_plus_les_sorties": [(BAN, "        ok = ok and _ok_t\n", "        ok = ok\n")],
     "S4_banc_relit_l_horizon_a_sa_facon": [(BAN, '    if "horizon" not in manq and lire_horizon(fiche.get("horizon")) is None:',
                                             '    if "horizon" not in manq and not str(fiche.get("horizon")).strip().lstrip("-").isdigit():')],
     "S5_circuit_recopie_lire_horizon": [(TEN, "from COMMUN import lire_horizon                 # la seule lecture d'un horizon (R-708)",
                                          "lire_horizon = lambda x: (lambda h: int(h) if h.isdecimal() and int(h) > 0 else None)(str(x).strip().lower().rstrip('j'))")],
-    "S6_echeance_comptee_des_l_achat": [(BAN, "                apres = suite[1:]          # l'echeance se compte APRES la seance d'achat",
-                                         "                apres = suite[:-1]")],
+    "S6_echeance_comptee_des_l_achat": [(BAN, "        apres = suite[1:]          # l'echeance se compte APRES la seance d'achat",
+                                         "        apres = suite[:-1]")],
     "S7_pas_de_second_passage_le_soir_de_l_achat": [(TEN, "    if _juste_entrees:\n", "    if False:\n")],
     "S8_banc_ne_compare_plus_les_dates": [(BAN, ' or _o.get("date_sortie") != _r["date_sortie"]:', ':')],
     "S9_banc_ne_compare_plus_les_familles": [(BAN, ' or _fam(_o["motif"]) != _fam(_r["motif"])', '')],
@@ -50,7 +50,11 @@ SABOTAGES = {
                                               '        _ecrire_csv(f_jou, r["trades"], TRADE)')],
     "S15_le_soir_ecrit_deux_fois_le_trade": [(TEN, '        _ecrire_csv(f_jou, journal + r["trades"], TRADE)',
                                               '        _ecrire_csv(f_jou, journal + r["trades"] + r["trades"], TRADE)')],
-    "S11_hasard_saute_la_seance_d_achat": [("programmes/MODULE_JUGEMENT.py", "            for b in s[i + 1:i + 2 + horizon]:", "            for b in s[i + 2:i + 2 + horizon]:")],
+    # S11 (28-10-2026) : depuis la réparation de l'étalon, le hasard achète et sort par `jouer_une_entree`, la mécanique
+    # de la stratégie (R-708) : la séance d'achat du hasard EST celle de la stratégie, et S2 la fait rougir en E10
+    # (mesuré le 29-10-2026, relevé de 00h15 : « ROUGE E10 … 100.0 »). Acheter un jour trop tard ne se voit pas ici, toutes les
+    # entrées de E10 perdant ; ce sabotage-ci débranche donc l'étalon de la mécanique, et E10 doit rougir.
+    "S11_hasard_debranche_de_la_mecanique": [("programmes/MODULE_JUGEMENT.py", "            op = entree(v, j)\n", "            op = None\n")],
 }
 
 def copie(sab):
@@ -146,8 +150,9 @@ def epreuves(sab):
     # La ligne visée suit le juge : depuis le 27-10-2026, les sorties se testent sur la série entière (`serie[j:…]`,
     # décision de Jean-Luc du 27-10-2026 à 13h30). Une cible absente laisserait E6 vert sans rien saboter : elle est exigée
     # sur les programmes tels quels (Z0) ; dans une copie où un sabotage l'a déjà changée (S2), le défaut y est déjà.
-    assert sab or t.count("                suite = serie[j:j + 1 + h]") == 1, "E6 : la ligne des sorties du juge a changé"
-    t = t.replace("                suite = serie[j:j + 1 + h]", "                suite = serie[j + 1:j + 1 + h]")
+    # Depuis le 28-10-2026, la ligne vit dans `jouer_une_entree`, la mécanique partagée avec l'étalon de hasard (R-708).
+    assert sab or t.count("    suite = serie[j:j + 1 + h]") == 1, "E6 : la ligne des sorties du juge a changé"
+    t = t.replace("    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")
     open(p, "w", encoding="utf-8").write(t)
     c, o = run(d, BAN, d)
     dire("E6 defaut remis dans le juge des stratégies : il s'arrete", c == 1 and "ARRET TOTAL" in o, f"code {c}")
@@ -172,7 +177,7 @@ def epreuves(sab):
     # E10 le hasard de reference joue la meme mecanique : seance d'achat qui touche la vente
     # forcee, lendemain qui saute au-dessus de l'objectif -> avec R-608, 0 % de gagnants
     d = copie(sab)
-    code = ("import sys; sys.path.insert(0, 'programmes'); import MODULE_JUGEMENT as j, MODULE_POSITIONS as p\n"
+    code = ("import sys; sys.path.insert(0, 'programmes'); import MODULE_JUGEMENT as j, MODULE_POSITIONS as p, JUGE_DES_STRATEGIES as b\n"
             "s = []\n"
             "for k in range(90):\n"
             "    d = '2025-%02d-%02d' % (1 + k // 28, 1 + k % 28)\n"
@@ -180,7 +185,9 @@ def epreuves(sab):
             "dict(date=d, open=110.0, high=111.0, low=109.0, close=110.0) if k % 3 == 2 else "
             "dict(date=d, open=100.0, high=100.5, low=99.5, close=100.0))\n"
             "ops = [{'valeur': 'A', 'date_signal': s[k]['date']} for k in range(0, 60, 3)]\n"
-            "print(j.etalon_hasard(ops, {'A': s}, ['A'], 0.04, 0.025, 20, p, mode='valeur', n_tirages=3).get('taux_median'))\n")
+            "print(j.etalon_hasard(ops, {'A': s}, ['A'], 0.04, 0.025, 20, p, mode='valeur', n_tirages=3, "
+            "entree=lambda v, k: b.jouer_une_entree(v, s, k, 0.04, 0.025, 20, p, None), "
+            "admis=lambda v, k: b.achat_admis(v, s, k, None)).get('taux_median'))\n")
     c, o = run(d, "-c", code)
     dire("E10 le hasard de reference teste la seance d'achat", c == 0 and (o.strip().splitlines() or [""])[-1] == "0.0", o.strip()[-30:])
     shutil.rmtree(d)
