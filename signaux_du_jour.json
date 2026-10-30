@@ -1,70 +1,110 @@
 {
- "calcule_le": "2026-10-29 22:01 (Europe/Paris)",
+ "calcule_le": "2026-10-30 21:40 (Europe/Paris)",
  "strategie": "C5-ETENDU-10",
- "seance": "2026-10-29",
+ "seance": "2026-10-30",
  "univers": 10,
  "valeurs_sans_cette_seance": [],
  "signaux": [],
  "detail_indicateurs": [
   {
    "valeur": "TOTALENERGIES",
-   "cmf": 0.103478,
-   "cmf_veille": 0.125298,
-   "cci": 128.9
+   "cmf": 0.086145,
+   "cmf_veille": 0.103478,
+   "cci": 144.04,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   },
   {
    "valeur": "ENGIE",
-   "cmf": 0.074063,
-   "cmf_veille": 0.057941,
-   "cci": 157.67
+   "cmf": 0.071239,
+   "cmf_veille": 0.074063,
+   "cci": 69.16,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   },
   {
    "valeur": "VEOLIA",
-   "cmf": 0.005444,
-   "cmf_veille": 0.007602,
-   "cci": 136.82
+   "cmf": 0.048874,
+   "cmf_veille": 0.005444,
+   "cci": 128.85,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   },
   {
    "valeur": "BOUYGUES",
-   "cmf": 0.185161,
-   "cmf_veille": 0.120463,
-   "cci": 110.78
+   "cmf": 0.117862,
+   "cmf_veille": 0.185161,
+   "cci": 32.56,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   },
   {
    "valeur": "EIFFAGE",
-   "cmf": 0.147949,
-   "cmf_veille": 0.100756,
-   "cci": 97.87
+   "cmf": 0.111406,
+   "cmf_veille": 0.147949,
+   "cci": 70.68,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   },
   {
    "valeur": "AIRBUS",
-   "cmf": 0.042913,
-   "cmf_veille": 0.04774,
-   "cci": 94.33
+   "cmf": 0.011332,
+   "cmf_veille": 0.042913,
+   "cci": -22.03,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   },
   {
    "valeur": "RENAULT",
-   "cmf": 0.102387,
-   "cmf_veille": -0.026609,
-   "cci": 120.96
+   "cmf": 0.130871,
+   "cmf_veille": 0.102387,
+   "cci": 102.26,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   },
   {
    "valeur": "UNIBAIL_RODAMCO",
-   "cmf": 0.347219,
-   "cmf_veille": 0.405284,
-   "cci": 121.86
+   "cmf": 0.337765,
+   "cmf_veille": 0.347219,
+   "cci": 75.61,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   },
   {
    "valeur": "BUREAU_VERITAS",
-   "cmf": 0.403881,
-   "cmf_veille": 0.464253,
-   "cci": 76.52
+   "cmf": 0.431314,
+   "cmf_veille": 0.403881,
+   "cci": 83.9,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   },
   {
    "valeur": "VINCI",
-   "cmf": 0.282461,
-   "cmf_veille": 0.209528,
-   "cci": 143.7
+   "cmf": 0.22453,
+   "cmf_veille": 0.282461,
+   "cci": 93.13,
+   "dans_l_indice": true,
+   "signal_hors_de_l_indice": false,
+   "seances_sans_trou": 724,
+   "depuis": "2024-01-02"
   }
  ],
  "calibrage": {
