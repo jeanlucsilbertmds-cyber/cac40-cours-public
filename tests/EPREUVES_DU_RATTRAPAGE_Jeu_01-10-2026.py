@@ -244,7 +244,9 @@ def epreuves(depot, tmp):
                 "(sur le vrai corps du rapport), et dit l'absence", ok_d))
     c, o = decision(depot, None, JEU, tmp)
     res.append(("R11 sans argument : 1", c == 1))
-    # T1 — tenir() deux fois, sur des cas connus du calibrage du programme
+    # T1 — tenir() deux fois, sur des cas connus du calibrage du programme. Les valeurs y sont fabriquées (« A », « L ») :
+    # elles se jouent au courtage seul, aucune liste de valeurs taxées ne les porte (A-550, 29-10-2026).
+    HIST = "HIST_COURTAGE_SANS_TTF"
     try:
         sp = importlib.util.spec_from_file_location("pos_%d" % id(tmp), os.path.join(depot, POS))
         T = importlib.util.module_from_spec(sp); sp.loader.exec_module(T)
@@ -257,12 +259,12 @@ def epreuves(depot, tmp):
         cours = {"A": ca, "B": [dict(x, open=50.0, high=51.0, low=49.0, close=50.0) for x in ca]}
         sig = [{"strategie": "S", "valeur": "B", "date_signal": "2026-05-05"}]
         reg = {"S": {"tp": 0.04, "sl": 0.025, "horizon": 20}}
-        r1 = T.tenir([att("A", "2026-05-04")], cours, sig, None, mod, reglages=reg)
-        r2 = T.tenir(copy.deepcopy(r1["positions"]), cours, sig, None, mod, reglages=reg)
+        r1 = T.tenir([att("A", "2026-05-04")], cours, sig, None, mod, reglages=reg, bareme=HIST)
+        r2 = T.tenir(copy.deepcopy(r1["positions"]), cours, sig, None, mod, reglages=reg, bareme=HIST)
         cl = [{"date": "2026-05-%02d" % (4 + k), "open": 100.0, "high": 100.5, "low": 99.5, "close": 100.0} for k in range(12)]
         reg5 = {"S": {"tp": 0.04, "sl": 0.025, "horizon": 5}}
-        q1 = T.tenir([att("L", "2026-05-04")], {"L": cl}, [], None, mod, reglages=reg5)
-        q2 = T.tenir(copy.deepcopy(q1["positions"]), {"L": cl}, [], None, mod, reglages=reg5)
+        q1 = T.tenir([att("L", "2026-05-04")], {"L": cl}, [], None, mod, reglages=reg5, bareme=HIST)
+        q2 = T.tenir(copy.deepcopy(q1["positions"]), {"L": cl}, [], None, mod, reglages=reg5, bareme=HIST)
         ok1 = (len(r1["trades"]) == 1 and len(r1["positions"]) == 2 and r2["trades"] == [] and r2["positions"] == r1["positions"]
                and len(q1["trades"]) == 1 and q2["trades"] == [] and q2["positions"] == q1["positions"])
     except Exception as e:

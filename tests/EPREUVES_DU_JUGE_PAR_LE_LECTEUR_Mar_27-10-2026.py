@@ -55,8 +55,9 @@ SAB = {
     "S4 la composition ignorée": ('    if lecture is None or not lecture.get("composition"):\n        return True',
                                   '    if True:\n        return True'),
     "S5 les séries jamais coupées": ('if k < len(trous) and trous[k] < b["date"]:', "if False:"),
-    "S6 les sorties testées dans le seul morceau": ("                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture)",
-                                                    "                op = jouer_une_entree(v, s, i + 1, tp, sl, h, mod_positions, lecture) if i + 1 < len(s) else None"),
+    # (29-10-2026, A-550 : l'appel porte le barème, le sabotage le garde)
+    "S6 les sorties testées dans le seul morceau": ("                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme)",
+                                                    "                op = jouer_une_entree(v, s, i + 1, tp, sl, h, mod_positions, lecture, bareme) if i + 1 < len(s) else None"),
     "S7 le signal de fin de morceau perdu": ("                j = rang[d_sig] + 1           #",
                                              "                j = rang[d_sig] + 1 if i + 1 < len(s) else len(serie)           #"),
     "S8 les lignes mises à part ignorées": ("    if a_part:\n", "    if False:\n"),
@@ -207,6 +208,12 @@ def cas(copie, racine):
     mn = {"XXX": "XXX"}
     res = []
 
+    def jouer_au_courtage_seul(*a, **k):
+        # La valeur « XXX » est fabriquée : aucune liste de valeurs taxées ne la porte, et le barème réel lèverait, à
+        # juste titre. Ces cas éprouvent la LECTURE (trous, indice) : ils se jouent au courtage seul (A-550, 29-10-2026).
+        k.setdefault("bareme", "HIST_COURTAGE_SANS_TTF")
+        return B.jouer(*a, **k)
+
     def un(nom, f):
         try:
             ok, detail = f()
@@ -221,13 +228,13 @@ def cas(copie, racine):
 
     def t1():
         lec = {"passages": {"XXX": [("2025-01-14", None)]}, "trous": {}, "composition": True}
-        o, _ = B.jouer(fiche, {"XXX": suite}, mn, Signal("2025-01-09", "2025-01-13"), pos, lecture=lec)
+        o, _ = jouer_au_courtage_seul(fiche, {"XXX": suite}, mn, Signal("2025-01-09", "2025-01-13"), pos, lecture=lec)
         got = [x["date_signal"] for x in o]
         return got == ["2025-01-13"], "signaux joués %s (attendu : le seul 2025-01-13, acheté le 14, jour d'entrée)" % got
 
     def t2():
         lec = {"passages": {}, "trous": {"XXX": ["2025-01-13"]}, "composition": False}
-        o, _ = B.jouer(fiche, {"XXX": trouee}, mn, Signal("2025-01-08"), pos, lecture=lec)
+        o, _ = jouer_au_courtage_seul(fiche, {"XXX": trouee}, mn, Signal("2025-01-08"), pos, lecture=lec)
         got = [(x["motif"], x["date_sortie"]) for x in o]
         # Décision de Jean-Luc du 27-10-2026 à 13h30 (« 1 la garder ») : la position traverse le trou du 13-01 ;
         # l'échéance, trois séances qui ont un cours après l'achat du 09, tombe le 15.
@@ -236,13 +243,13 @@ def cas(copie, racine):
     def t3():
         lec = {"passages": {}, "trous": {}, "composition": False}
         sig = Signal("2025-01-06", "2025-01-08", "2025-01-10")
-        o1, _ = B.jouer(fiche, {"XXX": suite}, mn, sig, pos)
-        o2, _ = B.jouer(fiche, {"XXX": suite}, mn, sig, pos, lecture=lec)
+        o1, _ = jouer_au_courtage_seul(fiche, {"XXX": suite}, mn, sig, pos)
+        o2, _ = jouer_au_courtage_seul(fiche, {"XXX": suite}, mn, sig, pos, lecture=lec)
         return o1 == o2 and len(o1) == 3, "%d opérations sans lecture, %d avec une lecture neutre" % (len(o1), len(o2))
 
     def t4():
         lec = {"passages": {}, "trous": {"XXX": ["2025-01-13"]}, "composition": False}
-        o, _ = B.jouer(fiche, {"XXX": trouee}, mn, Signal("2025-01-17"), pos, lecture=lec)
+        o, _ = jouer_au_courtage_seul(fiche, {"XXX": trouee}, mn, Signal("2025-01-17"), pos, lecture=lec)
         got = [(x["motif"], x["date_sortie"]) for x in o]
         return got == [("HORIZON", "2025-01-21")], "sorties %s (attendu : HORIZON le 2025-01-21, fin des données)" % got
 
@@ -250,14 +257,14 @@ def cas(copie, racine):
         # La valeur sort de l'indice : sa dernière séance DANS l'indice est le 13-01 (les deux bornes d'un passage sont
         # des séances dans l'indice). Acheté le 13 : gardé ; acheté le 14 (signal du 13) : refusé.
         lec = {"passages": {"XXX": [("2025-01-06", "2025-01-13")]}, "trous": {}, "composition": True}
-        o, _ = B.jouer(fiche, {"XXX": suite}, mn, Signal("2025-01-10", "2025-01-13"), pos, lecture=lec)
+        o, _ = jouer_au_courtage_seul(fiche, {"XXX": suite}, mn, Signal("2025-01-10", "2025-01-13"), pos, lecture=lec)
         got = [x["date_signal"] for x in o]
         return got == ["2025-01-10"], "signaux joués %s (attendu : le seul 2025-01-10, acheté le 13, dernier jour dans l'indice)" % got
 
     def t6():
         # L'échéance atteinte pile à la dernière séance d'un morceau : c'est une sortie à l'échéance, pas un trou.
         lec = {"passages": {}, "trous": {"XXX": ["2025-01-13"]}, "composition": False}
-        o, _ = B.jouer(fiche, {"XXX": trouee}, mn, Signal("2025-01-06"), pos, lecture=lec)
+        o, _ = jouer_au_courtage_seul(fiche, {"XXX": trouee}, mn, Signal("2025-01-06"), pos, lecture=lec)
         got = [(x["motif"], x["date_sortie"]) for x in o]
         return got == [("HORIZON", "2025-01-10")], "sorties %s (attendu : HORIZON le 2025-01-10, troisième séance après l'achat)" % got
 
@@ -266,7 +273,7 @@ def cas(copie, racine):
         # Le signal à la dernière séance d'un morceau (le 10-01, veille du trou) achète à la séance suivante qui a un
         # cours, le 14-01, et sort à l'échéance le 17 (relecture du 27-10-2026 : il disparaissait sans un mot).
         lec = {"passages": {}, "trous": {"XXX": ["2025-01-13"]}, "composition": False}
-        o, _ = B.jouer(fiche, {"XXX": trouee}, mn, Signal("2025-01-10"), pos, lecture=lec)
+        o, _ = jouer_au_courtage_seul(fiche, {"XXX": trouee}, mn, Signal("2025-01-10"), pos, lecture=lec)
         got = [(x["date_signal"], x["pe"], x["date_sortie"]) for x in o]
         return got == [("2025-01-10", 100.0, "2025-01-17")], "opérations %s (attendu : signal du 10, achat le 14, sortie le 17)" % got
 
@@ -275,7 +282,7 @@ def cas(copie, racine):
         # le jour même (R-608 : la séance d'achat compte). Sabotage S21.
         fin = [dict(b) for b in trouee]
         fin[-1]["high"] = 200.0
-        o, _ = B.jouer(fiche, {"XXX": fin}, mn, Signal("2025-01-20"), pos,
+        o, _ = jouer_au_courtage_seul(fiche, {"XXX": fin}, mn, Signal("2025-01-20"), pos,
                        lecture={"passages": {}, "trous": {"XXX": ["2025-01-13"]}, "composition": False})
         got = [(x["motif"], x["date_sortie"]) for x in o]
         return len(got) == 1 and got[0][0].startswith("TP") and got[0][1] == "2025-01-21", \

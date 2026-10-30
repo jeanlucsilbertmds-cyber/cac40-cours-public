@@ -67,6 +67,10 @@ CODE = r'''
 import sys, os, csv
 sys.path.insert(0, "programmes")
 import MODULE_JUGEMENT as J, MODULE_POSITIONS as P, JUGE_DES_STRATEGIES as B
+# A-550 (29-10-2026) : les cas fabriqués se jouent au courtage seul — leurs valeurs (« A », « X »…) ne figurent dans
+# aucune liste de valeurs taxées, et le barème réel lèverait, à juste titre. Les cas sur les vraies données (E2, E11)
+# gardent le barème réel. Au courtage seul, les chiffres figés de E10 sont ceux de l'ancien étalon (0,15 % par ordre).
+HIST = "HIST_COURTAGE_SANS_TTF"
 rouges = []
 def dire(nom, ok, det=""):
     if not ok:
@@ -83,7 +87,7 @@ cours = {"A": A, "B": Bv}
 tires = []
 def ent(v, j):
     tires.append(v)
-    return B.jouer_une_entree(v, cours[v], j, 0.04, 0.025, 20, P, lec)
+    return B.jouer_une_entree(v, cours[v], j, 0.04, 0.025, 20, P, lec, HIST)
 ops = [{"valeur": "A", "date_signal": jour(k)} for k in range(0, 40, 4)]
 J.etalon_hasard(ops, cours, ["A", "B"], 0.04, 0.025, 20, P, mode="valeur", n_tirages=20, entree=ent,
                 admis=lambda v, j: B.achat_admis(v, cours[v], j, lec))
@@ -122,9 +126,9 @@ lec3 = {"passages": {"X": [(jour(0), None)]}, "trous": {"X": [jour(30), jour(31)
 cours3 = {"X": S}
 d_sig = jour(29)
 j = [b["date"] for b in S].index(d_sig) + 1
-op = B.jouer_une_entree("X", S, j, 0.04, 0.025, 20, P, lec3)
+op = B.jouer_une_entree("X", S, j, 0.04, 0.025, 20, P, lec3, HIST)
 hz = J.etalon_hasard([{"valeur": "X", "date_signal": d_sig}], cours3, ["X"], 0.04, 0.025, 20, P, mode="valeur", n_tirages=5,
-                     entree=lambda v, k: B.jouer_une_entree(v, cours3[v], k, 0.04, 0.025, 20, P, lec3),
+                     entree=lambda v, k: B.jouer_une_entree(v, cours3[v], k, 0.04, 0.025, 20, P, lec3, HIST),
                      admis=lambda v, k: B.achat_admis(v, cours3[v], k, lec3))
 dire("E3 trou après le signal : le hasard, seul achat possible, rend la stratégie au centime",
      op is not None and round(hz.get("gain_median", 0), 0) == round(op["net"], 0) and op["date_sortie"] > jour(31), (op, hz.get("gain_median")))
@@ -133,7 +137,7 @@ per = (jour(10), jour(30))
 t4 = []
 def e4(v, k):
     t4.append((v, k))
-    return B.jouer_une_entree(v, cours[v], k, 0.04, 0.025, 20, P, None)
+    return B.jouer_une_entree(v, cours[v], k, 0.04, 0.025, 20, P, None, HIST)
 lec4 = {"passages": {"A": [(jour(0), None)], "B": [(jour(0), None)]}, "trous": {}, "composition": True}
 J.etalon_hasard([{"valeur": "A", "date_signal": jour(12)}] * 5, cours, ["A", "B"], 0.04, 0.025, 20, P, mode="date", n_tirages=40,
                 entree=e4, admis=lambda v, k: B.achat_admis(v, cours[v], k, lec4), periode=per)
@@ -144,7 +148,7 @@ D = [barre(k) for k in range(30)]
 cours7 = {"X": D}
 hz7 = J.etalon_hasard([{"valeur": "X", "date_signal": jour(5)}, {"valeur": "X", "date_signal": jour(28)}], cours7, ["X"],
                       0.04, 0.025, 20, P, mode="valeur", n_tirages=5,
-                      entree=lambda v, k: B.jouer_une_entree(v, cours7[v], k, 0.04, 0.025, 20, P, None),
+                      entree=lambda v, k: B.jouer_une_entree(v, cours7[v], k, 0.04, 0.025, 20, P, None, HIST),
                       admis=lambda v, k: B.achat_admis(v, cours7[v], k, None))
 dire("E7 le nombre joué par tirage dit vrai (1 sur 2)", (hz7.get("operations_reelles"), hz7.get("jouees_par_tirage_min"),
      hz7.get("jouees_par_tirage_max")) == (2, 1, 1), hz7)
@@ -152,7 +156,7 @@ dire("E7 le nombre joué par tirage dit vrai (1 sur 2)", (hz7.get("operations_re
 cours7b = {"X": [barre(k) for k in range(30)], "Y": [barre(k) for k in range(29)]}
 hz7b = J.etalon_hasard([{"valeur": "X", "date_signal": jour(27)}] * 3, cours7b, ["X", "Y"], 0.04, 0.025, 20, P, mode="valeur",
                        n_tirages=60,
-                       entree=lambda v, k: B.jouer_une_entree(v, cours7b[v], k, 0.04, 0.025, 20, P, None),
+                       entree=lambda v, k: B.jouer_une_entree(v, cours7b[v], k, 0.04, 0.025, 20, P, None, HIST),
                        admis=lambda v, k: B.achat_admis(v, cours7b[v], k, None))
 dire("E7b le plus petit et le plus grand nombre joué sont rendus chacun", hz7b.get("jouees_par_tirage_min", 9) < hz7b.get("jouees_par_tirage_max", -1),
      (hz7b.get("jouees_par_tirage_min"), hz7b.get("jouees_par_tirage_max")))
@@ -161,7 +165,7 @@ lec8 = {"passages": {"A": [(jour(0), None)], "B": []}, "trous": {}, "composition
 t8 = []
 def e8(v, k):
     t8.append(v)
-    return B.jouer_une_entree(v, cours[v], k, 0.04, 0.025, 20, P, lec8)
+    return B.jouer_une_entree(v, cours[v], k, 0.04, 0.025, 20, P, lec8, HIST)
 J.etalon_hasard(ops, cours, ["A", "B"], 0.04, 0.025, 20, P, mode="valeur", n_tirages=20, entree=e8,
                 admis=lambda v, k: B.achat_admis(v, cours[v], k, lec8))
 dire("E8 composition non demandée : aucun filtre", "B" in t8, sorted(set(t8)))
@@ -169,7 +173,7 @@ dire("E8 composition non demandée : aucun filtre", "B" in t8, sorted(set(t8)))
 t9 = []
 def e9(v, k):
     t9.append(k)
-    return B.jouer_une_entree(v, cours7[v], k, 0.04, 0.025, 20, P, None)
+    return B.jouer_une_entree(v, cours7[v], k, 0.04, 0.025, 20, P, None, HIST)
 J.etalon_hasard([{"valeur": "X", "date_signal": jour(5)}], cours7, ["X"], 0.04, 0.025, 20, P, mode="date", n_tirages=200,
                 entree=e9, admis=lambda v, k: B.achat_admis(v, cours7[v], k, None))
 dire("E9 les dernières séances sont tirables", t9 and max(t9) == len(D) - 1, max(t9) if t9 else None)
@@ -187,7 +191,7 @@ for n, (a, fq) in {"A": (100.0, 0.31), "B": (50.0, 0.17), "C": (20.0, 0.53)}.ite
     cours10[n] = s10
 ops10 = [{"valeur": "ABC"[k % 3], "date_signal": jour(k)} for k in range(2, 90, 7)]
 r10 = J.etalon_hasard(ops10, cours10, ["A", "B", "C"], 0.04, 0.025, 20, P, mode="valeur", n_tirages=25,
-                      entree=lambda v, k: B.jouer_une_entree(v, cours10[v], k, 0.04, 0.025, 20, P, None),
+                      entree=lambda v, k: B.jouer_une_entree(v, cours10[v], k, 0.04, 0.025, 20, P, None, HIST),
                       admis=lambda v, k: B.achat_admis(v, cours10[v], k, None))
 fige = {"n_tirages": 25, "taux_median": 38.5, "taux_95pct": 46.2, "taux_max": 61.5, "gain_median": -3900.0, "gain_95pct": 2590.0, "gain_max": 15571.0}
 dire("E10 sans lecture, l'ancien et le nouvel étalon rendent la même chose (chiffres figés)",

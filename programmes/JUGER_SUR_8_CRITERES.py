@@ -54,9 +54,11 @@ CODE : 0 = mesuré · 1 = calibrage échoué, rien produit · 2 = source absente
 ⑦ UNITÉ — Chaque mesure porte la sienne, et elles ne se mélangent pas. Le taux
   de réussite et la chute maximale sont des POURCENTS. La durée sous l'eau est
   un NOMBRE DE JOURS de calendrier. Les gains sont des EUROS, sur un capital de
-  100 000 € par opération. Le taux de frais, le Kelly fractionnel, la p-value et
-  les objectifs de gain et de perte sont des FRACTIONS entre 0 et 1, jamais des
-  pourcents : 0,0015 vaut 15 points de base, et 0,04 vaut 4 %. L'horizon d'une
+  100 000 € par opération. Les frais d'un aller-retour (`frais_pct`, depuis le
+  29-10-2026 la moyenne des frais réellement payés par les opérations, rapportée au
+  capital, A-550), le Kelly fractionnel, la p-value et les objectifs de gain et de
+  perte sont des FRACTIONS entre 0 et 1, jamais des pourcents : 0,0070 vaut 70 points
+  de base, et 0,04 vaut 4 %. L'horizon d'une
   stratégie est un NOMBRE DE SÉANCES de bourse.
 ⑧ POURQUOI — Le travail que ce programme refait existait déjà et a été perdu.
   Le 26-04-2026, une évaluation sur huit critères a été passée sur
@@ -109,8 +111,9 @@ CODE : 0 = mesuré · 1 = calibrage échoué, rien produit · 2 = source absente
   fichier est exécuté 2 fois sur un passage `--calibrage` et 5 fois sur un
   passage `--strategie`. AFFICHE de quatre à une vingtaine de lignes.
 ⑪ TERMINAISON — SORT DU PROGRAMME avec le code rendu par `main` : 0, 1 ou 2. Et
-  un de ses appels peut ne pas revenir : la lecture du taux de frais lève une
-  erreur non rattrapée quand `MODULE_POSITIONS.py` ou son taux sont introuvables,
+  un de ses appels peut ne pas revenir : le calcul des frais lève une erreur non
+  rattrapée quand `MODULE_POSITIONS.py` est introuvable ou qu'une opération ne porte
+  pas ses frais (A-550),
   et la conversion d'un objectif de gain ou de perte lève quand la case est vide
   ou porte du texte — mesuré le 19-09-2026, « ValueError: could not convert
   string to float: '' ». Dans les deux cas, la trace Python s'affiche et le code
@@ -167,8 +170,10 @@ def _charger(base, *noms):
       rangement. Cette fonction parcourt toute l'arborescence, prend le premier
       fichier dont le nom correspond, l'exécute, et rend l'objet qui en résulte
       ainsi que le chemin où il a été trouvé.
-    ② CONTEXTE D'APPEL — Quatre appelants, tous dans ce fichier : `_frais_taux`
-      pour aller chercher le taux de frais dans `MODULE_POSITIONS.py`, `_juger_une`
+    ② CONTEXTE D'APPEL — Quatre appelants, tous dans ce fichier : `calibrer_le_pont`
+      pour charger `MODULE_POSITIONS.py` et chiffrer les frais de ses opérations
+      fabriquées (jusqu'au 29-10-2026, c'était `_frais_taux`, qui y lisait un taux
+      unique, disparu avec A-550), `_juger_une`
       deux fois pour charger le module de signal et celui des positions, et `main`
       deux fois pour charger `MODULE_STATISTIQUES_*` puis `JUGE_DES_STRATEGIES.py`. Aucun
       appel depuis un autre programme : une recherche de `_charger(` dans tous les
@@ -314,7 +319,7 @@ def calibrer(stat):
     ⑨ CE QUI CLOCHE —
       ① Elle n'éprouve que le juge à huit critères, pas ce que ce programme ajoute. Les chiffres
       témoins sont écrits en dur : ils ne passent ni par le juge des stratégies, ni par le calcul
-      des mesures, ni par la lecture du taux de frais. Tout ce fichier peut donc
+      des mesures, ni par le calcul des frais. Tout ce fichier peut donc
       être faux sans que ce calibrage rougisse — c'est arrivé le 13-09-2026, et
       c'est la raison d'être du second calibrage, celui du branchement.
       ② Le témoin est le résultat d'une grille et d'une seule. Le score attendu,
@@ -380,11 +385,11 @@ def calibrer_le_pont(stat, base):
       programme en code 1, sans rien mesurer.
     ③ ENTRÉE — `stat` : l'objet issu de l'exécution de
       `MODULE_STATISTIQUES_Lun_24-08-2026_22h00.py`. `base` : la racine à parcourir
-      pour y trouver `MODULE_POSITIONS.py` et son taux de frais. Un seul appelant,
-      `main`, qui transmet les deux sans les modifier.
+      pour y trouver `MODULE_POSITIONS.py`, qui chiffre les frais des opérations
+      fabriquées. Un seul appelant, `main`, qui transmet les deux sans les modifier.
     ④ CONDITIONS D'ENTRÉE — L'objet reçu doit porter les fonctions de calcul
-      appelées par le branchement. La racine doit porter `MODULE_POSITIONS.py` avec
-      son taux de frais, faute de quoi la lecture de ce taux lève.
+      appelées par le branchement. La racine doit porter `MODULE_POSITIONS.py` et son
+      barème (`donnees/BAREME_FRAIS.csv`), faute de quoi le calcul des frais lève.
     ⑤ SORTIE — UNE valeur : vrai si les six attentes sont tenues, faux sinon. Elle
       affiche en plus une ligne portant les cinq mesures obtenues en cas de succès,
       ou la liste des attentes déçues en cas d'échec.
@@ -393,16 +398,19 @@ def calibrer_le_pont(stat, base):
       perdantes à −2 500 €, soit un taux de réussite de 60 % exactement ·
       ② fabriquer une fiche de stratégie portant un objectif de +4 %, une perte
       acceptée de 2,5 % et un horizon de 20 séances · ③ demander les mesures, en
-      passant le taux de frais lu chez son propriétaire · ④ s'arrêter si aucune
+      passant les frais moyens d'un aller-retour de ces opérations, chiffrés par
+      `MODULE_POSITIONS.frais_aller_retour` sur Airbus (A-550) · ④ s'arrêter si aucune
       mesure n'est rendue · ⑤ vérifier que le taux de réussite vaut exactement 60 ·
       ⑥ vérifier que la p-value est renseignée et inférieure à 0,5 · ⑦ vérifier que
       la chute maximale, la durée sous l'eau et le Kelly fractionnel sont
-      renseignés · ⑧ vérifier que le taux de frais rendu est bien celui qui a été
-      lu · ⑨ afficher le résultat et rendre le verdict.
+      renseignés · ⑧ vérifier que les frais rendus sont bien ceux des opérations ·
+      ⑨ afficher le résultat et rendre le verdict.
     ⑦ UNITÉ — Les gains fabriqués sont des EUROS : +4 000 € et −2 500 €. Le taux de
       réussite attendu est un POURCENT, 60,0. L'objectif et la perte acceptée sont
       écrits en POURCENTS dans la fiche, et convertis en fractions par le
-      branchement. Le taux de frais est une FRACTION, 0,0015 relevé le 19-09-2026.
+      branchement. Les frais d'un aller-retour sont une FRACTION du capital :
+      0,0030210 sur Airbus, non taxée (relevé le 29-10-2026 ; jusque-là, le taux d'un
+      ordre, 0,0015).
       Les opérations se comptent en NOMBRE D'OPÉRATIONS, fixé à 60.
     ⑧ POURQUOI — Le premier calibrage écrit pour ce programme n'appelait le juge à huit critères que
       sur des chiffres écrits en dur : il éprouvait le juge à huit critères, et pas une seule ligne
@@ -422,13 +430,12 @@ def calibrer_le_pont(stat, base):
       d'autre, et toute valeur différente dénonce le branchement plutôt que les
       données.
     ⑨ CE QUI CLOCHE —
-      ① Le taux de frais est relu deux fois, par deux parcours complets de
-      l'arborescence : une fois pour le passer aux mesures, une fois pour comparer
-      ce qui est rendu. Mesuré le 19-09-2026 en marquant `MODULE_POSITIONS.py`, ce
-      fichier est exécuté 2 fois sur un passage `--calibrage`. La comparaison ne
-      prouve donc pas que le branchement a transmis le taux reçu : elle prouve
-      seulement que deux lectures successives du même fichier donnent la même
-      valeur.
+      ① Les frais sont recalculés deux fois sur les mêmes opérations : une fois
+      pour les passer aux mesures, une fois pour comparer ce qui est rendu. La
+      comparaison prouve que le branchement transmet ce qu'il reçoit, pas que les
+      frais sont justes : c'est le calibrage de `MODULE_POSITIONS` qui le prouve.
+      (Jusqu'au 29-10-2026, le taux d'un ordre était relu deux fois par deux
+      parcours de l'arborescence.)
       ② L'attente sur la p-value est très large. Elle exige seulement une valeur
       inférieure à 0,5, alors que la valeur réellement obtenue est 0,1213, mesurée
       le 19-09-2026. La faute visée donnait 1,0 ; n'importe quelle valeur entre
@@ -451,12 +458,11 @@ def calibrer_le_pont(stat, base):
       changerait, le taux ne serait plus 60 % et l'attente échouerait sans qu'aucun
       défaut n'existe.
     ⑩ EFFET — N'écrit aucun fichier, ne touche pas au réseau. LIT l'arborescence de
-      la racine deux fois et EXÉCUTE `MODULE_POSITIONS.py` deux fois, pour y lire
-      le taux de frais. AFFICHE une ligne en cas de succès, une par attente déçue
+      la racine et EXÉCUTE `MODULE_POSITIONS.py`, qui lit le barème des frais. AFFICHE une ligne en cas de succès, une par attente déçue
       plus deux lignes de conclusion en cas d'échec.
     ⑪ TERMINAISON — Rend la main avec vrai ou faux dans le cas normal. Et un de ses
-      appels peut ne pas revenir : la lecture du taux de frais lève une erreur non
-      rattrapée quand `MODULE_POSITIONS.py` ou son taux sont introuvables, et cette
+      appels peut ne pas revenir : le calcul des frais lève une erreur non
+      rattrapée quand `MODULE_POSITIONS.py` ou son barème sont introuvables, et cette
       erreur arrête alors le programme avec une trace Python.
       [sort: non]
     ⑫ DÉFINITIONS
@@ -486,14 +492,22 @@ def calibrer_le_pont(stat, base):
       une trace : le fichier qu'une tâche planifiée laisse derrière elle quand elle a tourné — rapport de boucle, rapport d'audit, cockpit, historique des mesures.
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
-    # 60 operations : 36 gagnantes, 24 perdantes -> 60 % exactement
+    # 60 operations : 36 gagnantes, 24 perdantes -> 60 % exactement. Leurs frais sont chiffres
+    # par le vrai module des positions, au bareme reel, sur Airbus (non taxee) : depuis le
+    # 29-10-2026 (A-550), les mesures lisent les frais des operations, plus un taux.
+    _mp, _ch_mp = _charger(base, "MODULE_POSITIONS.py")
+    if _mp is None:
+        raise RuntimeError("MODULE_POSITIONS.py introuvable : les frais ne se recopient pas (R-708)")
     ops = []
     for k in range(60):
-        ops.append({"valeur": "X", "date_signal": f"2026-{1+k%9:02d}-{1+k%27:02d}",
-                    "pe": 100.0, "px": 104.0 if k % 5 < 3 else 97.5,
-                    "net": 4000.0 if k % 5 < 3 else -2500.0})
+        _d = f"2026-{1+k%9:02d}-{1+k%27:02d}"
+        _px = 104.0 if k % 5 < 3 else 97.5
+        ops.append({"valeur": "AIRBUS", "date_signal": _d,
+                    "pe": 100.0, "px": _px,
+                    "net": 4000.0 if k % 5 < 3 else -2500.0,
+                    "frais": _mp.frais_aller_retour(1000.0, 100.0, _px, "AIRBUS", _d, _d)["total"]})
     fiche = {"tp": "+4.0%", "sl": "-2.5%", "horizon": "20j"}
-    m, motif = mesures_disponibles(fiche, ops, stat, None, _frais_taux(base))
+    m, motif = mesures_disponibles(fiche, ops, stat, None, _frais_aller_retour(ops))
     if m is None:
         print(f"  CALIBRAGE DU PONT — ECHEC : {motif}"); return False
     echecs = []
@@ -511,8 +525,8 @@ def calibrer_le_pont(stat, base):
         if m.get(cle) is None:
             echecs.append(f"{cle} = None — clé de retour devinée au lieu d être relevée")
     # ⑥ les frais : lus chez leur proprietaire, jamais ecrits ici
-    if m.get("frais_pct") != _frais_taux(base):
-        echecs.append(f"frais_pct = {m.get('frais_pct')} au lieu de MODULE_POSITIONS.FRAIS_TAUX")
+    if m.get("frais_pct") != _frais_aller_retour(ops):
+        echecs.append(f"frais_pct = {m.get('frais_pct')} au lieu des frais moyens des opérations")
     if echecs:
         print("  CALIBRAGE DU PONT — *** ECHEC ***")
         for e in echecs:
@@ -525,84 +539,45 @@ def calibrer_le_pont(stat, base):
     return True
 
 
-def _frais_taux(base):
-    """Rend le taux de frais lu chez son propriétaire, jamais écrit ici.
+def _frais_aller_retour(ops, capital=100_000.0):
+    """Rend le coût moyen d'un aller-retour des opérations jouées, en fraction du capital.
 
-    ① RÔLE — Aller chercher le taux de frais là où il est défini, une fois pour
-      toutes, au lieu de le recopier. Ce taux entre dans le calcul du Kelly
-      fractionnel : une valeur approchée y produit un résultat approché que rien ne
-      distingue d'un résultat juste.
-    ② CONTEXTE D'APPEL — Deux appelants, tous deux dans ce fichier :
-      `calibrer_le_pont`, deux fois, pour passer le taux aux mesures puis pour
-      vérifier qu'il est bien ressorti ; et `_juger_une`, une fois, avant de
-      demander les mesures d'une vraie stratégie. Jamais appelée ailleurs.
-    ③ ENTRÉE — `base` : la racine à parcourir pour y trouver `MODULE_POSITIONS.py`.
-      Les deux appelants transmettent sans la modifier la racine reçue sur la ligne
-      de commande.
-    ④ CONDITIONS D'ENTRÉE — La racine doit porter, à n'importe quelle profondeur, un
-      fichier nommé exactement `MODULE_POSITIONS.py`, et ce fichier doit porter un
-      taux de frais nommé `FRAIS_TAUX`.
-    ⑤ SORTIE — UNE valeur : le taux de frais, en fraction. Mesuré le 19-09-2026 :
-      0,0015. Il n'y a pas de seconde forme : ou bien la valeur est rendue, ou bien
-      la fonction lève.
+    ① RÔLE — Donner aux mesures (le Kelly fractionnel et le critère C8 « frais
+      réalistes ») les frais que la stratégie a VRAIMENT payés, au lieu d'un taux.
+    ② CONTEXTE D'APPEL — `calibrer_le_pont`, deux fois, et `_juger_une`, une fois, juste
+      avant de demander les mesures.
+    ③ ENTRÉE — `ops` : les opérations rendues par le juge des stratégies, chacune avec sa
+      case `frais` (euros, les deux ordres) · `capital` : la somme engagée par opération.
+    ④ CONDITIONS D'ENTRÉE — Au moins une opération, et chacune porte `frais`.
+    ⑤ SORTIE — UNE valeur : la moyenne des frais d'un aller-retour divisée par le capital.
+      Exemples du barème réel (A-550) : environ 0,0070 sur une valeur taxée en 2026
+      (150 € de courtage et 400 € de taxe à l'achat, environ 150 € à la vente), environ
+      0,0030 sur une valeur non taxée.
       [rend: 1]
-    ⑥ TRAITEMENT — ① chercher `MODULE_POSITIONS.py` sous la racine et l'exécuter ·
-      ② lever si le fichier est introuvable ou s'il ne porte pas de taux de frais ·
-      ③ rendre le taux, converti en nombre à virgule.
-    ⑦ UNITÉ — Une FRACTION du montant de l'ordre, jamais un pourcent : 0,0015 vaut
-      15 points de base, soit 0,15 % par ordre. C'est le tarif Fortuneo PROGRESS,
-      décidé pour ce projet.
-    ⑧ POURQUOI — Un chiffre qui existe ailleurs ne se recopie pas (R-708), et ce
-      taux-ci a déjà été recopié faux. Le 13-09-2026, la valeur 0,005 était écrite à
-      la main dans ce fichier, là où `MODULE_POSITIONS.py` pose 0,0015 : plus de
-      trois fois le taux réel. Mesure faite le même jour, le Kelly fractionnel
-      passait de 0,1574 à 0,1885, soit 19,8 % d'écart, dans un programme qui ne
-      lisait jamais la source. La confusion a une cause nommable : 0,005 est bien un
-      nombre du projet, mais c'est le SEUIL du huitième critère — l'exigence que le
-      backtest ait supposé au moins 50 points de base de frais — et non le tarif du
-      courtier. Les deux se ressemblent et ne veulent pas dire la même chose.
-      Et la fonction lève au lieu de poser une valeur de repli. Un taux de repli
-      serait indiscernable du vrai : il ne ferait échouer aucun contrôle, il
-      fausserait le Kelly fractionnel, et le chiffre faux s'afficherait à côté des
-      chiffres justes sans rien qui le distingue.
-    ⑨ CE QUI CLOCHE —
-      ① Elle reparcourt l'arborescence et réexécute `MODULE_POSITIONS.py` à chaque
-      appel, sans rien garder. Mesuré le 19-09-2026 en marquant ce fichier d'une
-      ligne d'affichage : 2 exécutions sur un passage `--calibrage`, 5 sur un
-      passage `--strategie`. Rien ne garantit que les exécutions successives portent
-      sur le même fichier ni rendent la même valeur.
-      ② Elle cherche le fichier par son NOM. Le critère qui tranche tient en une
-      question : si je renomme un fichier, mon contrôle change-t-il d'avis ? Ici
-      oui, donc il épelle. Le jour où le taux de frais déménagerait dans un fichier
-      d'un autre nom, cette fonction lèverait « introuvable » alors que le taux
-      existe.
-      ③ Le message d'erreur cite la règle qui interdit de recopier un chiffre
-      existant (R-708), mais ne dit pas au lecteur quelle valeur est attendue ni où
-      la retrouver : il nomme le fichier manquant sans dire ce qu'il faut y écrire.
-    ⑩ EFFET — LIT l'arborescence de la racine, puis LIT ET EXÉCUTE
-      `MODULE_POSITIONS.py`. N'écrit rien, n'affiche rien, ne touche pas au réseau.
-    ⑪ TERMINAISON — Rend la main avec le taux quand le fichier et son taux existent.
-      LÈVE autrement une erreur non rattrapée ici, qui arrête le programme avec une
-      trace Python et un code de sortie 1. Et un de ses appels peut ne pas revenir :
-      l'exécution de `MODULE_POSITIONS.py` lève ce que ce fichier lève.
+    ⑥ TRAITEMENT — additionner les frais des opérations, diviser par leur nombre puis par
+      le capital.
+    ⑦ UNITÉ — Une FRACTION du capital, par opération (achat ET vente) — 0,0070 vaut
+      0,70 %.
+    ⑧ POURQUOI — Jusqu'au 29-10-2026, cette fonction rendait `MODULE_POSITIONS.FRAIS_TAUX`
+      (0,0015, le courtage d'UN ordre), passé tel quel au Kelly comme s'il était le coût
+      d'une opération entière : moitié trop bas, et sans la taxe. Le taux unique a disparu
+      (A-550) : la taxe dépend de la valeur et de l'année, seule la moyenne des frais
+      réellement payés dit ce que la stratégie coûte.
+    ⑨ CE QUI CLOCHE — Une moyenne : une stratégie qui mêle valeurs taxées et non taxées
+      a un coût moyen qu'aucune de ses opérations ne paie exactement.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève `ValueError` si `ops` est vide ou si une
+      opération ne porte pas `frais`.
       [sort: non]
-    ⑫ DÉFINITIONS
-      le Kelly fractionnel : la part du capital qu'il serait raisonnable d'engager
-        sur une opération, compte tenu du taux de réussite et des gains et pertes
-        attendus
-      un point de base : un centième de pourcent ; 15 points de base valent 0,15 %
-      le backtest : le rejeu d'une stratégie sur des cours passés, pour estimer ce
-        qu'elle aurait donné
-    
-      la racine : le dossier reçu sur la ligne de commande, celui dont on classe les fichiers — en général un clone du dépôt.
-      une fraction : la façon d'écrire un pourcentage entre 0 et 1 — 0,040 pour +4 % — par opposition au pourcent, qui écrirait 4.0
-      une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
-"""
-    mp, _ch = _charger(base, "MODULE_POSITIONS.py")
-    if mp is None or not hasattr(mp, "FRAIS_TAUX"):
-        raise RuntimeError("MODULE_POSITIONS.FRAIS_TAUX introuvable — "
-                           "on ne pose PAS de taux de repli (R-708)")
-    return float(mp.FRAIS_TAUX)
+    """
+    if not ops:
+        raise ValueError("_frais_aller_retour : aucune opération")
+    sans = [o for o in ops if "frais" not in o]
+    if sans:
+        raise ValueError(f"_frais_aller_retour : {len(sans)} opération(s) sans la case « frais » "
+                         f"— le juge des stratégies la rend depuis le 29-10-2026 (A-550)")
+    return sum(o["frais"] for o in ops) / len(ops) / capital
+
 
 
 # LE NOM DE LA GRILLE QUE CE PROGRAMME APPLIQUE — R-743, 13-09-2026.
@@ -853,8 +828,9 @@ def mesures_disponibles(fiche, ops, stat, rejouer, frais, capital=100_000.0):
       sa date de signal et son gain net en euros. `stat` : l'objet issu de
       l'exécution du module de statistiques. `rejouer` : une façon de rejouer la
       stratégie avec d'autres réglages — les DEUX appelants d'aujourd'hui y passent
-      une valeur vide. `frais` : le taux de frais, que les deux appelants obtiennent
-      en le lisant dans `MODULE_POSITIONS.py`, soit 0,0015 relevé le 19-09-2026.
+      une valeur vide. `frais` : les frais moyens d'un aller-retour, en fraction du
+      capital, que les deux appelants calculent par `_frais_aller_retour` sur les
+      opérations (A-550, 29-10-2026 ; jusque-là le taux d'un ordre, 0,0015).
       `capital` : le capital engagé par opération, qu'aucun appelant ne remplace
       et qui vaut donc toujours sa valeur par défaut, 100 000 €.
     ④ CONDITIONS D'ENTRÉE — La liste des opérations doit en porter au moins cinq.
@@ -931,13 +907,13 @@ def mesures_disponibles(fiche, ops, stat, rejouer, frais, capital=100_000.0):
       rien n'exerce.
       ③ Le compte annoncé « sur 9 » ne porte pas sur les neuf clés du juge à huit critères. Il
       compte le Sharpe, qui n'est pas un critère mais seulement un ingrédient du
-      Deflated Sharpe, et il ne compte pas le taux de frais, qui est bien le
+      Deflated Sharpe, et il ne compte pas les frais, qui sont bien le
       huitième critère et qui est toujours renseigné. Relevé le 19-09-2026 dans le
       juge à huit critères, les neuf clés qu'il consulte sont la p-value, le Deflated Sharpe, la
       probabilité de sur-apprentissage, la chute maximale, la durée sous l'eau, le
-      Kelly fractionnel, la stabilité, le walk-forward et le taux de frais. Les deux
+      Kelly fractionnel, la stabilité, le walk-forward et les frais. Les deux
       comptes donnent le même total ce jour-là, 5, par coïncidence : le Sharpe est
-      chiffré et le taux de frais aussi.
+      chiffré et les frais aussi.
       ④ Quatre nombres gouvernent la fonction sans qu'aucune phrase ne dise d'où ils
       viennent : le minimum de cinq opérations, le capital de 100 000 €, et les deux
       réglages passés au calcul de stabilité, 0,10 et 4. Le module de statistiques
@@ -1177,8 +1153,8 @@ def _juger_une(base, banc, stat, ident):
       différence hors le dossier `__pycache__` de Python. AFFICHE de deux à une
       vingtaine de lignes.
     ⑪ TERMINAISON — Rend toujours la main avec 0 ou 2 dans les cas prévus. Et un de
-      ses appels peut ne pas revenir : la lecture du taux de frais lève si
-      `MODULE_POSITIONS.py` ou son taux sont introuvables, et la conversion de
+      ses appels peut ne pas revenir : le calcul des frais lève si
+      `MODULE_POSITIONS.py` ou son barème sont introuvables, et la conversion de
       l'objectif de gain ou de la perte acceptée lève si la case est vide ou porte
       du texte. L'échec du juge des stratégies, lui, est rattrapé et ne termine rien.
       [sort: non]
@@ -1242,7 +1218,7 @@ def _juger_une(base, banc, stat, ident):
         return 0
     print(f"  {ident} : {len(ops)} opération(s)"
           + (f" · {len(inconnus)} mnémonique(s) inconnu(s) : {inconnus}" if inconnus else ""))
-    m, motif = mesures_disponibles(fiche, ops, stat, None, _frais_taux(base))
+    m, motif = mesures_disponibles(fiche, ops, stat, None, _frais_aller_retour(ops)) if ops else (None, "aucune opération")
     if m is None:
         print(f"     {motif}"); return 0
     print("     mesures produites :")
@@ -1343,7 +1319,7 @@ def main():
     ⑪ TERMINAISON — Rend toujours la main avec 0, 1 ou 2 dans les cas prévus, et sa
       valeur devient le code de sortie du programme. Et un de ses appels peut ne pas
       revenir : le calibrage du branchement et le jugement d'une stratégie appellent
-      la lecture du taux de frais, qui lève si `MODULE_POSITIONS.py` ou son taux
+      le calcul des frais, qui lève si `MODULE_POSITIONS.py` ou son barème
       sont introuvables ; le chargement d'un programme lève ce que ce programme
       lève ; et la conversion d'un objectif de gain ou d'une perte acceptée lève sur
       une case vide ou textuelle. Dans tous ces cas la trace Python s'affiche et le

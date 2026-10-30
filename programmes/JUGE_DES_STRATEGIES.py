@@ -263,7 +263,7 @@ USAGE
   le module de jugement : `programmes/MODULE_JUGEMENT.py`, qui rend les
     mesures disant si un gain veut dire quelque chose.
   le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-    taux de frais et des règles de sortie d'une position.
+    barème des frais et des règles de sortie d'une position.
   le module de signal : le programme qui décide quelles valeurs acheter
   le module de statistiques : le programme qui porte le voisinage des
     réglages et le pire creux,
@@ -444,7 +444,7 @@ def empreinte(chemin):
         chiffres de référence ; tout écart à données identiques est une
         régression.
       le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-        taux de frais et des règles de sortie d'une position.
+        barème des frais et des règles de sortie d'une position.
       le module de signal : le programme qui décide quelles valeurs acheter
       le REGISTRE : `gouvernance/REGISTRE_REGLES.md`, le document qui porte
         les règles numérotées du projet
@@ -544,7 +544,7 @@ def trouver_tous(base, *motifs):
       le dépôt : le dépôt GitHub où vivent les fichiers du système, le projet
         n'en étant qu'une copie de lecture
       le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-        taux de frais et des règles de sortie d'une position.
+        barème des frais et des règles de sortie d'une position.
       le module de signal : le programme qui décide quelles valeurs acheter
       le module de statistiques : le programme qui porte le voisinage des
         réglages et le pire creux,
@@ -669,7 +669,7 @@ def trouver(base, *motifs):
       le module de jugement : `programmes/MODULE_JUGEMENT.py`, qui rend les
         mesures disant si un gain veut dire quelque chose.
       le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-        taux de frais et des règles de sortie d'une position.
+        barème des frais et des règles de sortie d'une position.
       le module de signal : le programme qui décide quelles valeurs acheter
       le module de statistiques : le programme qui porte le voisinage des
         réglages et le pire creux,
@@ -796,7 +796,7 @@ def charger_module(chemin, nom):
       le module de jugement : `programmes/MODULE_JUGEMENT.py`, qui rend les
         mesures disant si un gain veut dire quelque chose.
       le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-        taux de frais et des règles de sortie d'une position.
+        barème des frais et des règles de sortie d'une position.
       le module de signal : le programme qui décide quelles valeurs acheter
       le module de statistiques : le programme qui porte le voisinage des
         réglages et le pire creux,
@@ -1577,7 +1577,36 @@ def porte_0(fiche):
     return (not manq), manq, _b
 
 
-def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=None):
+def bareme_des_verdicts(bareme, mod_positions):
+    """Rend le barème sous lequel le juge chiffre : celui qu'on lui donne, sinon le barème des verdicts.
+
+    ① RÔLE — Donner au juge UN défaut de barème, lu chez le propriétaire des frais, jamais écrit ici.
+    ② CONTEXTE D'APPEL — `jouer`, `jouer_une_entree` et `juger`, à leur entrée.
+    ③ ENTRÉE — `bareme` : un nom de barème, ou None · `mod_positions` : le module des positions.
+    ④ CONDITIONS D'ENTRÉE — Le module des positions porte `BAREME_DES_VERDICTS`.
+    ⑤ SORTIE — UNE valeur : le nom du barème.
+      [rend: 1]
+    ⑥ TRAITEMENT — `bareme` s'il est donné, sinon `mod_positions.BAREME_DES_VERDICTS`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759, tour 2, D2 (29-10-2026) : les verdicts sont restés sous le régime d'avant la taxe
+      jusqu'à la décision de Jean-Luc ; elle a changé une seule valeur, `MODULE_POSITIONS.BAREME_DES_VERDICTS`, passée
+      à « REEL » le 29-10-2026 à 19h16 (réponse « 1 » à la question de Cowork).
+    ⑨ CE QUI CLOCHE — Rien vu.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève RuntimeError si le module ne porte pas `BAREME_DES_VERDICTS` (un défaut
+      silencieux au barème réel changerait les verdicts sans décision).
+      [sort: non]
+    """
+    if bareme is not None:
+        return bareme
+    b = getattr(mod_positions, "BAREME_DES_VERDICTS", None)
+    if not b:
+        raise RuntimeError("MODULE_POSITIONS ne porte pas BAREME_DES_VERDICTS : le juge ne choisit pas seul le "
+                           "barème de ses verdicts")
+    return b
+
+
+def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=None, bareme=None):
     """Comptabilite JETONS ILLIMITES : TOUS les signaux joues. La selection d'un
     signal par jour ne concerne QUE la comptabilite UN JETON, ou il faut bien
     choisir puisqu'on ne detient qu'une position (A-79, 01-08-2026).
@@ -1600,17 +1629,19 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       le couple des bornes rendu par la porte 0, ou `None` pour ne pas borner.
       `main` passe toujours les bornes de la fiche. · `lecture` : le second rendu de
       `lire_par_le_lecteur` (passages dans l'indice, trous, composition), ou `None` pour
-      jouer la série entière sans composition, comme avant le 26-10-2026 (A-577, étape 1).
+      jouer la série entière sans composition, comme avant le 26-10-2026 (A-577, étape 1). · `bareme` : le
+      nom d'un barème de frais, None pour le barème réel (A-550, voir `jouer_une_entree`).
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0 : l'objectif de
       gain, la perte acceptée et l'horizon doivent être lisibles, faute de quoi la
       fonction lève. Le module de signal doit exposer la fonction nommée par
       `_fonction_signal`, et le module de positions doit exposer `tester_seance` et
-      `frais_ordre`.
+      `frais_aller_retour`.
     ⑤ SORTIE — DEUX valeurs : la liste des opérations, et la liste des valeurs
       demandées par la fiche mais absentes des cours. Chaque opération porte la
       valeur, la date du signal, le prix d'entrée, le prix de sortie, le motif de
-      sortie (TP, SL, leurs variantes de saut, HORIZON), le gain net en euros et, depuis le
-      28-09-2026, la date de sortie.
+      sortie (TP, SL, leurs variantes de saut, HORIZON), le gain net en euros, depuis le
+      28-09-2026 la date de sortie et, depuis le 29-10-2026, les frais des deux ordres en
+      euros (`frais`, A-550).
       Mesuré le 20-09-2026 sur la fiche
       `C5E10-QA-V1` : 62 opérations, aucune valeur inconnue.
       [rend: 2]
@@ -1712,7 +1743,7 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
         stratégie sur l'historique des cours et rend la liste de ses
         opérations
       le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-        taux de frais et des règles de sortie d'une position.
+        barème des frais et des règles de sortie d'une position.
       le module de signal : le programme qui décide quelles valeurs acheter
       le REGISTRE : `gouvernance/REGISTRE_REGLES.md`, le document qui porte
         les règles numérotées du projet
@@ -1739,6 +1770,7 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       C5-ETENDU-10 : le nom de la stratégie vivante ; ses seuils et son horizon sont lus dans `donnees/cac40_strategies.csv`.
       la table : `CRITERES_VALIDATION_EXPERTS`, lignes 1730 à 1740, qui porte les neuf seuils et le sens de comparaison de chacun
 """
+    bareme = bareme_des_verdicts(bareme, mod_positions)   # le barème des verdicts, sauf barème donné (D2)
     tp = pourcent(fiche["tp"])
     sl = pourcent(fiche["sl"])
     h = lire_horizon(fiche["horizon"])
@@ -1781,11 +1813,12 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
                 # L'ACHAT ET LA SORTIE SE JOUENT DANS `jouer_une_entree`, LA SEULE MÉCANIQUE : l'étalon de hasard
                 # l'appelle aussi (R-708 ; superviseur R-759 du 28-10-2026 : deux copies avaient déjà divergé
                 # deux fois le 28-09-2026, sur les frais et sur la séance d'achat).
-                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture)
+                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme)
                 if op is None:
                     continue
                 ops.append({"valeur": v, "date_signal": d_sig, "pe": op["pe"], "px": op["px"],
-                            "motif": op["motif"], "net": op["net"], "date_sortie": op["date_sortie"]})
+                            "motif": op["motif"], "net": op["net"], "date_sortie": op["date_sortie"],
+                            "frais": op["frais"], "date_entree": op["date_entree"]})
     return ops, inconnus
 
 
@@ -1818,7 +1851,7 @@ def achat_admis(v, serie, j, lecture):
     return dans_l_indice(lecture["passages"].get(v, []), serie[j]["date"])
 
 
-def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None):
+def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme=None):
     """Joue UNE entrée : achat à l'ouverture de la séance `j`, puis sortie ; la seule mécanique d'achat-sortie.
 
     ① RÔLE — Rendre l'opération qu'aurait faite un achat à l'ouverture de la séance `j` de la série d'une valeur :
@@ -1827,12 +1860,17 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None):
       par la fonction que `juger` lui passe, à chaque achat tiré au sort.
     ③ ENTRÉE — `v` : la valeur · `serie` : sa série entière · `j` : le rang de la séance d'achat · `tp`, `sl` : les
       seuils en FRACTIONS · `h` : l'horizon en séances · `mod_positions` : le module des positions (`tester_seance`,
-      `frais_ordre`) · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None.
-    ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; le module des positions expose `tester_seance` et `frais_ordre`.
+      `frais_aller_retour`) · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None · `bareme` : le nom d'un barème
+      de `donnees/BAREME_FRAIS.csv`, None pour le barème des trades vécus (« REEL ») ; un autre nom rejoue un chiffre
+      ancien sous le régime qui l'a produit (A-550).
+    ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; le module des positions expose `tester_seance` et `frais_aller_retour` ;
+      chaque séance porte sa `date` ; sous le barème réel, la valeur et l'année de l'achat figurent dans
+      `donnees/VALEURS_TTF.csv`.
     ⑤ SORTIE — UNE valeur : None si l'achat n'est pas permis (`achat_admis`) ou s'il tombe sur la DERNIÈRE séance
       sans qu'un seuil y soit touché (aucune séance après lui pour l'échéance) ; un achat suivi de moins de h séances
-      est vendu à la dernière clôture, motif HORIZON ; sinon un dictionnaire de cinq cases : `pe`, `px`, `motif`, `net`
-      (euros, frais payés), `date_sortie`. [rend: 1]
+      est vendu à la dernière clôture, motif HORIZON ; sinon un dictionnaire de sept cases : `pe`, `px`, `motif`, `net`
+      (euros, frais payés), `date_sortie`, `frais` (euros, les deux ordres), `date_entree` (le jour de l'achat, celui
+      où la taxe frappe). [rend: 1]
       [rend: 1]
     ⑥ TRAITEMENT — ① refuser un achat non permis · ② entrer à l'ouverture de `serie[j]` · ③ tester les séances
       `serie[j:j + 1 + h]`, séance d'achat comprise (R-608), et sortir à la première qui touche un seuil · ④ sinon
@@ -1843,14 +1881,19 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None):
       28-10-2026 a jugé « rustine » de seulement partager le test de l'indice : les deux copies avaient déjà divergé
       deux fois le 28-09-2026 (A-435 ④ sur les frais, R-608 sur la séance d'achat). Le code est celui de `jouer`,
       déplacé sans changement : les opérations du juge restent identiques à l'octet (empreinte avant et après).
-      LES FRAIS NE S'ÉCRIVENT PAS EN DUR : leur propriétaire est MODULE_POSITIONS, 0,15 % de la valeur échangée à
-      l'entrée ET à la sortie, soit 307,50 € sur une sortie à +5 %, non 300 € fixes (R-708).
+      LES FRAIS NE S'ÉCRIVENT PAS EN DUR : leur propriétaire est MODULE_POSITIONS, qui les lit dans le barème daté —
+      courtage de 0,15 % de la valeur échangée à l'entrée ET à la sortie, et, depuis le 29-10-2026 (A-550), la taxe
+      sur les transactions financières à l'achat d'une valeur taxée, au taux de la date (0,3 % puis 0,4 % depuis le
+      01-04-2025). Exemple : achat de 100 000 € de Bouygues le 30-04-2026, 150 € de courtage et 400 € de taxe.
     ⑨ CE QUI CLOCHE — Le capital de 100 000 € est écrit ici, comme il l'était dans `jouer` : MODULE_POSITIONS porte le
       sien. Ne pas le changer garde les opérations identiques ; consigné au BACKLOG.
     ⑩ EFFET — Appelle le module des positions.
-    ⑪ TERMINAISON — Rend la main ; lève RuntimeError si le module des positions n'expose pas `frais_ordre`.
+    ⑪ TERMINAISON — Rend la main ; lève RuntimeError si le module des positions n'expose pas `frais_aller_retour`, et
+      ce que lève `frais_aller_retour` (une date absente du calendrier, une valeur ou une année absente de la liste des valeurs taxées : un juge qui rejoue
+      2000-2023 sous le barème réel s'arrête là, faute des listes de ces années — voulu, pas de taxe supposée).
       [sort: non]
     """
+    bareme = bareme_des_verdicts(bareme, mod_positions)   # le barème des verdicts, sauf barème donné (D2)
     if not achat_admis(v, serie, j, lecture):
         return None
     pe = serie[j]["open"]
@@ -1876,17 +1919,20 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None):
             return None
         px, motif, d_sortie = apres[-1]["close"], "HORIZON", apres[-1]["date"]
     q = 100000.0 / pe
-    _fo = getattr(mod_positions, "frais_ordre", None)
-    if callable(_fo):
-        f_tot = _fo(q, pe) + _fo(q, px)      # les DEUX ordres
+    _far = getattr(mod_positions, "frais_aller_retour", None)
+    if callable(_far):
+        # les DEUX ordres, chacun au jour où il est passé (A-550) : la taxe ne frappe que l'achat,
+        # et pas un achat revendu le jour même (BOFiP, BOI-TCA-FIN-10-10, § 60)
+        f_tot = _far(q, pe, px, v, serie[j]["date"], d_sortie, bareme)["total"]
     else:
-        raise RuntimeError("MODULE_POSITIONS n'expose pas frais_ordre : "
+        raise RuntimeError("MODULE_POSITIONS n'expose pas frais_aller_retour : "
                            "le juge des stratégies ne recopie pas un taux de frais")
-    return {"pe": pe, "px": px, "motif": motif, "net": q * (px - pe) - f_tot, "date_sortie": d_sortie}
+    return {"pe": pe, "px": px, "motif": motif, "net": q * (px - pe) - f_tot, "date_sortie": d_sortie,
+            "frais": f_tot, "date_entree": serie[j]["date"]}
 
 
 def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
-          _bornes=None, mod_pos_sig=None, lecture=None):
+          _bornes=None, mod_pos_sig=None, lecture=None, bareme=None):
     """Rend les mesures qui disent si le gain veut dire quelque chose.
 
     AUCUN SEUIL N'EST ECRIT EN DUR : le point mort se calcule depuis les
@@ -1915,14 +1961,17 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       quand la stabilité paramétrique rejoue la fiche (`_rejouer`), pour que les voisins se
       jouent comme la fiche (27-10-2026). L'étalon de hasard, lui, ne le reçoit pas (BACKLOG
       A-577, en attente de Jean-Luc).
+      `bareme` : le nom d'un barème de `donnees/BAREME_FRAIS.csv`, ou None pour le barème des verdicts (`MODULE_POSITIONS.BAREME_DES_VERDICTS`) ; il chiffre le point mort et l'étalon de hasard (A-550, 29-10-2026).
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0. Le module de
       jugement doit exposer les huit fonctions appelées ici ; le module de
       statistiques peut manquer, ses deux mesures étant alors perdues.
     ⑤ SORTIE — Ne rend rien. Tout passe par l'affichage.
       [rend: rien]
     ⑥ TRAITEMENT — ① s'arrêter avec un message si moins de cinq opérations ont été
-      produites · ② calculer le taux de réussite et le point mort, et afficher la
-      marge · ③ compter les épisodes indépendants · ④ couper la période en sept
+      produites · ② calculer le taux de réussite et le point mort — la moyenne des
+      points morts des opérations jugées, chacune à sa valeur et à sa date d'achat
+      (`point_mort_des_operations`, décision de Jean-Luc du 29-10-2026 à 21h28,
+      « A ») —, et afficher la marge · ③ compter les épisodes indépendants · ④ couper la période en sept
       dixièmes appris et trois dixièmes jamais vus, avec un embargo entre les deux,
       et afficher le taux de la partie jamais vue avec sa borne basse · ⑤ découper
       la même période en trois fenêtres successives et dire si chacune tient face à
@@ -2039,7 +2088,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       le module de jugement : `programmes/MODULE_JUGEMENT.py`, qui rend les
         mesures disant si un gain veut dire quelque chose.
       le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-        taux de frais et des règles de sortie d'une position.
+        barème des frais et des règles de sortie d'une position.
       le module de signal : le programme qui décide quelles valeurs acheter
       le module de statistiques : le programme qui porte le voisinage des
         réglages et le pire creux,
@@ -2067,6 +2116,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
     
       la table : `CRITERES_VALIDATION_EXPERTS`, lignes 1730 à 1740, qui porte les neuf seuils et le sens de comparaison de chacun
 """
+    bareme = bareme_des_verdicts(bareme, mod_pos)   # le barème des verdicts, sauf barème donné (D2, 29-10-2026)
     mnemo = mnemo or {}
     tp = pourcent(fiche["tp"])
     sl = pourcent(fiche["sl"])
@@ -2077,10 +2127,20 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
         return
     wr = round(100.0 * sum(1 for o in ops if o["net"] > 0) / n, 1)
 
-    pm = J.point_mort_en_fractions(tp, sl, mod_positions=mod_pos)   # FRACTIONS, cf. Y1
+    # LE POINT MORT DEPEND DES FRAIS, DONC DE LA VALEUR ET DE LA DATE (A-550, 29-10-2026) : la
+    # taxe sur les transactions financieres frappe l'achat des valeurs taxees. DECISION DE
+    # JEAN-LUC DU 29-10-2026, message recu a 21h28 : « A » — chaque operation compte la taxe
+    # qu'elle a vraiment payee, a SA valeur et a SA date d'ACHAT (le jour ou la taxe frappe, pas
+    # celui du signal, la veille : superviseur R-759, C11) ; le point mort est la MOYENNE de ces
+    # points morts sur les operations jugees (`point_mort_des_operations`). Jusque-la, le pire
+    # cas des valeurs achetees au bareme du dernier achat (`point_mort_pire_cas`, garde pour
+    # comparaison).
+    pm = J.point_mort_des_operations(tp, sl, ops, mod_pos, bareme)   # FRACTIONS, cf. Y1
     print("\n    ── JUGEMENT ─────────────────────────────────────────")
     print("    POINT MORT           {:.1f} %  ·  reussite {} %  ·  marge {:+.1f} pts"
           .format(pm, wr, wr - pm))
+    print("    (point mort moyen des {} operations jouees, bareme {} : chacune a sa valeur et a sa date d'achat)"
+          .format(n, bareme))
 
     try:
         e = J.episodes(ops, seances)
@@ -2249,7 +2309,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
                 stratégie sur l'historique des cours et rend la liste de ses
                 opérations
               le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-                taux de frais et des règles de sortie d'une position.
+                barème des frais et des règles de sortie d'une position.
               le module de signal : le programme qui décide quelles valeurs acheter
               le module de statistiques : le programme qui porte le voisinage des
                 réglages et le pire creux,
@@ -2339,7 +2399,8 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
             # l'historique, avec sa propre copie de l'achat-sortie.
             hz = J.etalon_hasard(ops, cours, univ, tp, sl, h, mod_pos,
                                  mode=mode, n_tirages=120,
-                                 entree=lambda v, j: jouer_une_entree(v, cours[v], j, tp, sl, h, mod_pos, lecture),
+                                 entree=lambda v, j: jouer_une_entree(v, cours[v], j, tp, sl, h, mod_pos, lecture,
+                                                                      bareme),
                                  admis=lambda v, j: achat_admis(v, cours[v], j, lecture),
                                  periode=_bornes)
             if hz.get("n_tirages"):
@@ -2617,7 +2678,7 @@ def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, tabl
         chiffres de référence ; tout écart à données identiques est une
         régression.
       le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-        taux de frais et des règles de sortie d'une position.
+        barème des frais et des règles de sortie d'une position.
       le module de signal : le programme qui décide quelles valeurs acheter
       le REGISTRE : `gouvernance/REGISTRE_REGLES.md`, le document qui porte
         les règles numérotées du projet
@@ -2710,8 +2771,13 @@ def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, tabl
     # correction precedente venait d'eliminer entre la porte et le jugement,
     # reste en place a l'etage du dessous. Une seule source, du controle au
     # calcul, dans les deux chemins.
+    # LE BARÈME JOUÉ ET LE BARÈME AFFICHÉ SONT LA MÊME VARIABLE (superviseur R-759, tour 3, 29-10-2026) : le texte
+    # disait « ici le bareme reel » alors que `jouer`, appelé sans barème, prend le barème des verdicts
+    # (REEL depuis la décision de Jean-Luc du 29-10-2026 à 19h16, HIST_COURTAGE_SANS_TTF avant) — une réparation (D2)
+    # avait rendu la phrase fausse.
+    _bareme_cal = bareme_des_verdicts(None, mod_positions)
     ops, _ = jouer(fiche, cours, mnemo, mod_signal, mod_positions,
-                   periode=_bornes0)
+                   periode=_bornes0, bareme=_bareme_cal)
     r = resumer(ops)
     lignes, ok = list(prealables), True
     lignes.append("    perimetre : jusqu'au " + fin + " (borne du golden)")
@@ -2732,9 +2798,9 @@ def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, tabl
                   % (r.get("wr"), ref.get("wr"), r.get("wr") - ref.get("wr")))
     lignes.append("    net : obtenu {:+,.2f} . golden {:+,.2f} . ecart {:+,.2f} "
                   "(mecanique reelle) — le prix reel aux sauts d'ouverture (A-290) et "
-                  "le tarif de frais (0,15 %% par ordre ici, forfait de 300 EUR au golden) ; "
+                  "le bareme de frais (ici le bareme {}, A-550 ; forfait de 300 EUR au golden) ; "
                   "les sorties, elles, se comparent une a une ci-dessous.".replace("%%", "%").format(
-                      r.get("net"), ref.get("net"), r.get("net") - ref.get("net")))
+                      r.get("net"), ref.get("net"), r.get("net") - ref.get("net"), _bareme_cal))
     # CHAQUE SORTIE SE COMPARE AU TABLEAU DE REFERENCE, TRADE PAR TRADE (defaut 4 de
     # A-491, 28-09-2026) : la famille (objectif, vente forcee, echeance) et la DATE.
     # C'est ce qui aurait vu le defaut 4 : le juge des stratégies ne testait pas la seance d'achat,
@@ -2924,7 +2990,7 @@ def main():
       le module de jugement : `programmes/MODULE_JUGEMENT.py`, qui rend les
         mesures disant si un gain veut dire quelque chose.
       le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-        taux de frais et des règles de sortie d'une position.
+        barème des frais et des règles de sortie d'une position.
       le module de signal : le programme qui décide quelles valeurs acheter
       le module de statistiques : le programme qui porte le voisinage des
         réglages et le pire creux,

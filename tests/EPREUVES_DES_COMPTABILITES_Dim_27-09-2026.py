@@ -92,12 +92,37 @@ def copie(sab, vivant=False):
     shutil.copytree(DEPOT, d, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git", "_site_travail", "__pycache__"))
     if not vivant:
         shutil.copyfile(os.path.join(d, TEMOIN), os.path.join(d, "donnees/claude_journal_trades.csv"))
+        etiqueter_le_temoin(d)
         shutil.copyfile(os.path.join(d, REGISTRE_TEMOIN), os.path.join(d, "donnees/cac40_strategies.csv"))
         couper_les_cours(d, DERNIERE_SEANCE_DU_JEU)
     for f, a, b in SABOTAGES[sab]:
         p = os.path.join(d, f); t = open(p, encoding="utf-8").read()
         assert t.count(a) == 1, (sab, f, a[:50]); open(p, "w", encoding="utf-8").write(t.replace(a, b))
     return d
+
+def etiqueter_le_temoin(d):
+    """Pose sur le journal témoin (figé le 27-09-2026, treize colonnes) le barème de chaque montant (A-550).
+
+    Depuis le 29-10-2026, le contrat du journal des trades porte deux colonnes de plus, `bareme_reel` et
+    `bareme_convention` : le nom de la ligne de donnees/BAREME_FRAIS.csv qui a produit chaque montant (ÉTUDE 18,
+    A1bis), et le teneur de positions refuse d'écrire un journal sans elles. Le témoin, figé, ne change pas : sa
+    COPIE installée dans le dossier d'épreuve reçoit les étiquettes de la règle A1bis, celles du vrai journal —
+    « HIST_FORFAIT_300 » pour le montant réel de Bureau Veritas du 27-07-2026 (+6 884,75 €, ancien forfait),
+    « HIST_COURTAGE_SANS_TTF » pour tous les autres montants. Aucun montant n'est réécrit.
+    """
+    p = os.path.join(d, "donnees/claude_journal_trades.csv")
+    with open(p, encoding="utf-8", newline="") as fh:
+        r = csv.DictReader(fh)
+        champs = list(r.fieldnames) + ["bareme_reel", "bareme_convention"]
+        lignes = list(r)
+    for l in lignes:
+        bv = (l["valeur"], l["date_entree"]) == ("BUREAU_VERITAS", "2026-07-27")
+        l["bareme_reel"] = "HIST_FORFAIT_300" if bv else "HIST_COURTAGE_SANS_TTF"
+        l["bareme_convention"] = "HIST_COURTAGE_SANS_TTF"
+    with open(p, "w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=champs)
+        w.writeheader()
+        w.writerows(lignes)
 
 def run(d, *args):
     r = subprocess.run([sys.executable, *args], cwd=d, capture_output=True, text=True)
@@ -166,7 +191,9 @@ def epreuves(sab):
     dire("E4 les clotures du soir portent leur comptabilite", c == 0 and sorted(l.get("comptabilite") for l in neuves)
          == ["jetons_illimites", "un_jeton"], f"code {c} · {[l.get('comptabilite') for l in neuves]}")
     c, o = run(d, MES, d); m = mesure_lignes(o)
-    dire("E5 mesure apres rejeu : OBS un jeton 2 ops -5592.50", m.get(("C5E10-OBS-V1", "un jeton")) == (2, "-5592.50"), str(m.get(("C5E10-OBS-V1", "un jeton"))))
+    # la cloture rejouee se chiffre au bareme reel depuis le 29-10-2026 (A-550) : −3 196,25 € (taxe de 400 € a l'achat
+    # d'Unibail), ajoutee a la ligne du temoin (−2 796,25 €, courtage seul) — avant A-550, −5 592,50 €.
+    dire("E5 mesure apres rejeu : OBS un jeton 2 ops -5992.50", m.get(("C5E10-OBS-V1", "un jeton")) == (2, "-5992.50"), str(m.get(("C5E10-OBS-V1", "un jeton"))))
     shutil.rmtree(d)
     # E12 radar apres rejeu : les lignes nouvelles (identifiant) et anciennes (nom court) font UNE serie
     d = copie(sab); poser_positions(d); run(d, TEN, d)

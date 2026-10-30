@@ -108,9 +108,12 @@ table des seuils qui tranchent.
   DEUX CONFLITS DE SEUIL RESTENT NON TRANCHÉS. ① La probabilité de
   sur-apprentissage : la table exige moins de 0,30, l'expert consulté le
   08-07-2026 dit moins de 0,50. ② Les frais du huitième critère : la table exige
-  au moins 0,005, soit 50 points de base, tandis que le système en applique 15 —
-  `MODULE_POSITIONS.FRAIS_TAUX` vaut 0,0015, le tarif Fortuneo PROGRESS. Tant que
-  ce second conflit dure, aucune stratégie ne peut atteindre 8 sur 8.
+  au moins 0,005, soit 50 points de base, tandis que le système en appliquait 15 —
+  `MODULE_POSITIONS.FRAIS_TAUX` valait 0,0015, le tarif Fortuneo PROGRESS. (Depuis
+  le 29-10-2026, A-550, le taux unique a disparu : le juge des huit critères passe le
+  coût moyen d'un aller-retour de ses opérations, taxe comprise — environ 0,0070 sur
+  une valeur taxée, au-dessus du seuil, environ 0,0030 sur une valeur non taxée,
+  au-dessous.)
   DEUX FONCTIONS NE SE CALIBRENT PAS SEULES : `calculer_stabilite_parametrique`
   et `calculer_walk_forward` attendent une façon de rejouer la stratégie, qui
   leur est fournie par leur appelant. Elles ne peuvent donc être éprouvées que par un programme qui rejoue la stratégie :
@@ -1124,7 +1127,7 @@ def calculer_time_underwater(trades: list, capital: float = 100_000) -> dict:
 
 
 def calculer_kelly_fractionnel(wr_pct: float, tp: float, sl: float,
-                                 frais_pct: float = 0.0025, fraction: float = 0.25) -> dict:
+                                 frais_pct: float, fraction: float = 0.25) -> dict:
     """Dit quelle part du capital il serait raisonnable d'engager sur une opération.
 
     ① RÔLE — Donner au cinquième critère de la grille le chiffre qu'il compare à son
@@ -1144,12 +1147,14 @@ def calculer_kelly_fractionnel(wr_pct: float, tp: float, sl: float,
       mesurée. Il en retient la seule case `kelly_fractionnel`.
     ③ ENTRÉE — `wr_pct` : le taux de réussite EN POURCENT, non arrondi. `tp` :
       l'objectif de gain, EN FRACTION, 0,04 pour 4 %. `sl` : la perte acceptée, EN
-      FRACTION ET SANS SON SIGNE, 0,025 pour −2,5 %. `frais_pct` : le taux de frais
-      par ordre, EN FRACTION, 0,0025 quand rien n'est précisé. `fraction` : la part
+      FRACTION ET SANS SON SIGNE, 0,025 pour −2,5 %. `frais_pct` : le coût d'un
+      aller-retour, EN FRACTION du capital, OBLIGATOIRE depuis le 29-10-2026 (A-550 :
+      la valeur par défaut 0,0025 a été retirée, un oubli ne passe plus en silence). `fraction` : la part
       de la formule brute à retenir, 0,25 quand rien n'est précisé. Son seul appelant
       lui passe l'objectif et la perte lus sur la fiche de la stratégie et convertis
-      en fractions, le taux de frais qu'il est allé lire dans
-      `MODULE_POSITIONS.FRAIS_TAUX` — 0,0015, relevé le 19-09-2026 — et la valeur 0,5
+      en fractions, le coût moyen d'un aller-retour de ses opérations en fraction du
+      capital (depuis le 29-10-2026, A-550 ; jusque-là le courtage d'UN ordre,
+      `MODULE_POSITIONS.FRAIS_TAUX` — 0,0015, relevé le 19-09-2026) — et la valeur 0,5
       à la place du quart.
     ④ CONDITIONS D'ENTRÉE — La perte acceptée augmentée des frais doit être
       STRICTEMENT POSITIVE, sinon la fonction refuse. Les trois grandeurs `tp`, `sl`
@@ -1181,10 +1186,12 @@ def calculer_kelly_fractionnel(wr_pct: float, tp: float, sl: float,
       capital engagé sur une opération, et `esperance_pct` le même chiffre en
       POURCENT. Sur les 100 000 € engagés par opération dans ce projet, une espérance
       de 0,01451 vaut donc 1 451 € par opération.
-    ⑧ POURQUOI — Les frais sont retirés du gain ET ajoutés à la perte, et non
-      comptés une seule fois, parce qu'un aller-retour se paie deux fois : une fois à
-      l'achat, une fois à la revente. Le tarif du projet est de 0,15 % par ordre —
-      `MODULE_POSITIONS.FRAIS_TAUX` vaut 0,0015, tarif Fortuneo PROGRESS.
+    ⑧ POURQUOI — Les frais d'un aller-retour sont retirés du gain ET ajoutés à la
+      perte : quelle que soit l'issue, l'opération les paie. Depuis le 29-10-2026
+      (A-550), l'appelant passe le coût moyen d'un aller-retour de ses opérations, taxe
+      sur les transactions financières comprise ; jusque-là il passait le courtage
+      d'UN ordre, `MODULE_POSITIONS.FRAIS_TAUX` (0,0015), moitié trop bas pour un
+      aller-retour et sans la taxe.
       La formule complète de Kelly est réduite d'une fraction parce qu'elle suppose
       le taux de réussite et le rapport gain sur perte connus exactement. Ils sont
       ici ESTIMÉS sur un nombre fini d'opérations, et une estimation trop optimiste
@@ -1192,8 +1199,10 @@ def calculer_kelly_fractionnel(wr_pct: float, tp: float, sl: float,
       quart est la valeur d'usage de la littérature ; le seul appelant retient la
       moitié.
     ⑨ CE QUI CLOCHE —
-      ① LE TAUX DE FRAIS PAR DÉFAUT N'EST PAS LE TARIF DU PROJET, ET IL EST TROIS
-      FOIS ET DEMIE TROP GRAND. La signature pose `frais_pct` à 0,0025, soit 25
+      ① (RÉGLÉ LE 29-10-2026, A-550 : la valeur par défaut a disparu, `frais_pct` est
+      exigé ; le seul appelant passe le coût moyen d'un aller-retour de ses opérations,
+      taxe comprise.) Constat d'origine : LE TAUX DE FRAIS PAR DÉFAUT N'EST PAS LE TARIF
+      DU PROJET, ET IL EST TROIS FOIS ET DEMIE TROP GRAND. La signature pose `frais_pct` à 0,0025, soit 25
       points de base, alors que le tarif réellement appliqué est de 0,0015, soit 15
       points de base — `MODULE_POSITIONS.FRAIS_TAUX`, le tarif Fortuneo PROGRESS.
       Mesuré le 19-09-2026 pour un taux de réussite de 63,1 %, un objectif de 4 % et
@@ -1982,10 +1991,11 @@ def evaluer_strategie_8_criteres(stats: dict) -> dict:
       SANS RIEN DIRE. ① La probabilité de sur-apprentissage : la table exige moins de
       0,30, l'expert consulté le 08-07-2026 dit moins de 0,50. ② Le taux de frais :
       la table exige au moins 0,005, soit 50 points de base, tandis que le système
-      applique réellement 0,0015 — `MODULE_POSITIONS.FRAIS_TAUX`, le tarif Fortuneo
-      PROGRESS. Tant que ce second conflit dure, AUCUNE stratégie mesurée sur les
-      frais réels ne peut atteindre 8 sur 8 : le huitième critère est perdu
-      d'avance. Le témoin de C5-EI passe ce critère uniquement parce qu'on lui
+      appliquait 0,0015 — `MODULE_POSITIONS.FRAIS_TAUX`, le tarif Fortuneo PROGRESS.
+      Ce second conflit tenait au taux d'UN ordre passé pour un aller-retour, sans la
+      taxe : depuis le 29-10-2026 (A-550), le juge des huit critères passe le coût
+      moyen d'un aller-retour, taxe comprise (environ 0,0070 sur une valeur taxée, au-
+      dessus du seuil ; environ 0,0030 sur une valeur non taxée, au-dessous). Le témoin de C5-EI passe ce critère uniquement parce qu'on lui
       attribue des frais de 0,005, qui ne sont pas ceux du projet.
     ⑩ EFFET — Ne lit ni n'écrit aucun fichier, n'affiche rien, ne touche pas au
       réseau. Elle ne modifie pas le tableau de mesures qu'elle reçoit : elle ne fait

@@ -119,8 +119,11 @@ def epreuves(sab):
     import CONTRATS_DES_FICHIERS as _contrat
     sys.path.pop(0); sys.dont_write_bytecode = _ecrire
     col = list(_contrat.POSITION)
+    # les deux dernieres cases : le bareme de chaque montant (A-550, 29-10-2026) — la ligne du 20-10-2026 a ete
+    # chiffree au courtage seul, comme le vrai journal l'etiquette
     temoin = dict(zip(_contrat.TRADE, ["C5E10-OBS-V1", "VINCI", "2026-10-09", "107.80000", "2026-10-20", "105.10500",
-                                        "SL", "-2796.25", "105.10500", "-2796.25", "un_jeton", "", ""]))
+                                        "SL", "-2796.25", "105.10500", "-2796.25", "un_jeton", "", "",
+                                        "HIST_COURTAGE_SANS_TTF", "HIST_COURTAGE_SANS_TTF"]))
     with open(os.path.join(d, "donnees/claude_journal_trades.csv"), "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=list(_contrat.TRADE)); w.writeheader(); w.writerow(temoin)
     with open(os.path.join(d, "donnees/signaux_du_jour.json"), "w", encoding="utf-8") as fh:
@@ -186,7 +189,7 @@ def epreuves(sab):
             "dict(date=d, open=100.0, high=100.5, low=99.5, close=100.0))\n"
             "ops = [{'valeur': 'A', 'date_signal': s[k]['date']} for k in range(0, 60, 3)]\n"
             "print(j.etalon_hasard(ops, {'A': s}, ['A'], 0.04, 0.025, 20, p, mode='valeur', n_tirages=3, "
-            "entree=lambda v, k: b.jouer_une_entree(v, s, k, 0.04, 0.025, 20, p, None), "
+            "entree=lambda v, k: b.jouer_une_entree(v, s, k, 0.04, 0.025, 20, p, None, 'HIST_COURTAGE_SANS_TTF'), "
             "admis=lambda v, k: b.achat_admis(v, s, k, None)).get('taux_median'))\n")
     c, o = run(d, "-c", code)
     dire("E10 le hasard de reference teste la seance d'achat", c == 0 and (o.strip().splitlines() or [""])[-1] == "0.0", o.strip()[-30:])

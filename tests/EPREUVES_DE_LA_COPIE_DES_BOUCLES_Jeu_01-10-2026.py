@@ -24,9 +24,10 @@ E2 dans un dossier vide qui tient lieu de projet, la liste copiée par programme
 E3 dans ce dossier, le recalcul des signaux par le module retrouve les deux signaux réels connus — Bureau Veritas le
    24-07-2026 et Unibail le 20-08-2026 (premiers trades du journal) ;
 E4 dans ce dossier, `tenir`, avec les modules COPIÉS, refait les DEUX vrais trades du journal, qui sortent par deux
-   chemins différents : Unibail, entrée le 21-08-2026 à 103,15, vente forcée (SL) le 27-08-2026, −2 796,25 € ; Bureau
-   Veritas, entrée le 27-07-2026 à 27,28, sortie à l'ouverture au-dessus de l'objectif (TP_GAP) le 29-07-2026 à 29,24,
-   +6 873,97 € au tarif de 0,15 % par ordre (le journal porte +6 884,75 €, calculé avec l'ancien forfait de 300 € :
+   chemins différents : Unibail, entrée le 21-08-2026 à 103,15, vente forcée (SL) le 27-08-2026, −3 196,25 € au barème
+   réel (−2 796,25 € au courtage seul, montant du journal) ; Bureau Veritas, entrée le 27-07-2026 à 27,28, sortie à
+   l'ouverture au-dessus de l'objectif (TP_GAP) le 29-07-2026 à 29,24, +6 473,97 € au barème réel, taxe de 400 € comprise
+   (A-550, 29-10-2026 ; +6 873,97 € au tarif de 0,15 % par ordre seul ; le journal porte +6 884,75 €, calculé avec l'ancien forfait de 300 € :
    écart de 10,78 € documenté dans rapports/RAPPROCHEMENT_JOURNAL_REJEU_2026-09-29_22h00.md et à la ligne 335 du module
    de positions). C'est le chemin des entrées et des clôtures, qu'un `tenir` sans position ne traverse pas (relecteur du
    01-10-2026) ; la sortie sur objectif a été ajoutée au troisième tour, parce qu'une dépendance cachée dans cette seule
@@ -90,8 +91,12 @@ SABOTAGES = {
                         {"E3"}),
 }
 SIGNAUX_CONNUS = (("BUREAU_VERITAS", "2026-07-24"), ("UNIBAIL_RODAMCO", "2026-08-20"))
-TRADES_CONNUS = [("BUREAU_VERITAS", "2026-07-27", 27.28, "2026-07-29", "TP_GAP", 6873.97),
-                 ("UNIBAIL_RODAMCO", "2026-08-21", 103.15, "2026-08-27", "SL", -2796.25)]
+# DEPUIS LE 29-10-2026 (A-550), `tenir` chiffre les frais au barème réel : courtage ET taxe sur les transactions
+# financières, 400,00 € à l'achat de ces deux valeurs, taxées en 2026 (donnees/VALEURS_TTF.csv). Les deux montants
+# attendus sont ceux de l'ÉTUDE 18 (S9), retrouvés au centime par le calibrage de MODULE_POSITIONS : +6 473,97 € et
+# −3 196,25 € ; au courtage seul, ils valaient +6 873,97 € et −2 796,25 €.
+TRADES_CONNUS = [("BUREAU_VERITAS", "2026-07-27", 27.28, "2026-07-29", "TP_GAP", 6473.97),
+                 ("UNIBAIL_RODAMCO", "2026-08-21", 103.15, "2026-08-27", "SL", -3196.25)]
 
 
 def liste(depot):

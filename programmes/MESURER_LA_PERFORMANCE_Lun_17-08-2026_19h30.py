@@ -116,8 +116,9 @@ USAGE : python3 mesurer_la_performance.py [dossier_sources] [dossier_sortie]
   « FileNotFoundError: [Errno 2] No such file or directory:
   './donnees/historique_mesures.csv' », levée à la ligne d'ouverture du fichier,
   après que tout le calcul a été fait et affiché. Le travail est perdu.
-  ⑥ Une fonction chargée de lire le taux de frais chez son propriétaire,
-  `_frais_du_proprietaire`, n'est appelée nulle part. Vérifié le 19-09-2026 par
+  ⑥ (RÉGLÉ LE 29-10-2026, A-550 : la fonction a été retirée avec le taux unique qu'elle
+  lisait.) Une fonction chargée de lire le taux de frais chez son propriétaire,
+  `_frais_du_proprietaire`, n'était appelée nulle part. Vérifié le 19-09-2026 par
   recherche de son nom dans tout le dossier `programmes/` : elle n'apparaît
   qu'à sa propre définition, ligne 119. Elle fonctionne — appelée à la main,
   elle rend 0,0015 — mais rien ne s'en sert.
@@ -565,81 +566,10 @@ def wilson_borne_basse(gagnantes, n, z=1.96):
     r = z * math.sqrt(p*(1-p)/n + z*z/(4*n*n))
     return 100 * (c - r) / d
 
-def _frais_du_proprietaire():
-    """Le taux vient de MODULE_POSITIONS, jamais d une copie (R-708, 12-09-2026).
-
-    ① RÔLE — Aller chercher le taux de frais là où il est écrit, au lieu de le
-      recopier ici. Le taux de frais du courtier vit à UN SEUL endroit du
-      système, la variable `FRAIS_TAUX` de `programmes/MODULE_POSITIONS.py`, qui
-      vaut 0,0015 soit 0,15 % par ordre. Le recopier créerait une seconde source
-      qui dériverait le jour où le tarif change, sans que rien ne le dise.
-    ② CONTEXTE D'APPEL — AUCUN APPELANT. Vérifié le 19-09-2026 par recherche de
-      son nom dans tout le dossier `programmes/` : il n'apparaît qu'à sa propre
-      définition. Le taux de frais est bien lu chez son propriétaire, mais par un
-      autre chemin : `point_mort_en_pourcents` passe le module entier au calcul
-      du point mort, qui y prend lui-même le taux.
-    ③ ENTRÉE — Aucun paramètre.
-    ④ CONDITIONS D'ENTRÉE — Le fichier `MODULE_POSITIONS.py` doit se trouver dans
-      le dossier de ce programme ou l'un de ses sous-dossiers, et porter une
-      variable nommée `FRAIS_TAUX` dont la valeur se convertit en nombre.
-    ⑤ SORTIE — UNE valeur : le taux de frais d'un ordre. Mesuré le 19-09-2026 en
-      l'appelant à la main : 0.0015.
-      [rend: 1]
-    ⑥ TRAITEMENT — ① parcourir le dossier du programme et ses sous-dossiers ·
-      ② y chercher un fichier nommé `MODULE_POSITIONS.py` ou `MODULE POSITIONS.py`
-      · ③ le charger comme un module · ④ rendre la valeur de sa variable
-      `FRAIS_TAUX` convertie en nombre · ⑤ si aucun des deux noms n'est trouvé,
-      lever une erreur plutôt que de rendre une valeur de repli.
-    ⑦ UNITÉ — Une FRACTION, jamais un pourcent : 0,0015 vaut 0,15 %. Confondre
-      les deux donne des frais cent fois trop grands, et plausibles.
-    ⑧ POURQUOI — Lever plutôt que rendre une valeur de repli. Un taux de repli
-      serait une seconde source : le jour où le courtier change son tarif, le
-      système continuerait de calculer avec l'ancien sans que rien ne l'annonce.
-      Une erreur qui arrête le programme est visible ; un chiffre périmé ne l'est
-      pas. Le tarif appliqué est celui du compte Fortuneo Progress, tranché par
-      Jean-Luc le 11-08-2026 : 0,15 % par ordre sur la valeur échangée, et non un
-      forfait.
-    ⑨ CE QUI CLOCHE —
-      ① Elle n'est appelée par personne, et elle marche. C'est du code mort qui
-      donne l'impression que le taux est lu ici, alors qu'il l'est ailleurs.
-      ② La valeur trouvée est rendue telle quelle, sans contrôle d'ordre de
-      grandeur : un `FRAIS_TAUX` passé par erreur à 0,15 au lieu de 0,0015
-      serait accepté et appliquerait 15 % de frais par ordre.
-      ③ Le parcours ne retire aucun dossier, contrairement à la fonction `_p` du
-      même programme qui écarte `archives`, `.git`, `__pycache__` et
-      `_site_travail`. Une ancienne copie du module rangée en archive sous le
-      dossier du programme pourrait être prise. Vérifié le 19-09-2026 : le
-      dossier `programmes/` ne porte aujourd'hui aucun sous-dossier autre que
-      `__pycache__`, donc le cas ne se produit pas.
-    ⑩ EFFET — LIT l'arborescence du dossier du programme et EXÉCUTE le fichier
-      `MODULE_POSITIONS.py` qu'elle y trouve, ce qui déroule tout ce que ce
-      fichier fait à son chargement. N'écrit aucun fichier, ne touche pas au
-      réseau.
-    ⑪ TERMINAISON — Rend la main. LÈVE une erreur de chargement de module quand
-      aucun fichier portant l'un des deux noms n'est trouvé. Un de ses appels
-      peut ne pas revenir : l'exécution du module chargé peut elle-même lever.
-      [sort: non]
-    ⑫ DÉFINITIONS
-      le propriétaire d'un chiffre : le seul fichier où ce chiffre est écrit ;
-        tous les autres le lisent chez lui au lieu de le recopier
-      `archives` : le dossier du dépôt où sont rangées les versions tombées, sous un nom qui dit pourquoi elles sont tombées
-      une fraction : la façon d'écrire un pourcentage entre 0 et 1 — 0,040 pour +4 % — par opposition au pourcent, qui écrirait 4.0
-      une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
-"""
-    import os as _os, importlib.util as _ilu
-    for _r, _sd, _fs in _os.walk(_os.path.dirname(_os.path.abspath(__file__))):
-        for _n in ("MODULE_POSITIONS.py", "MODULE POSITIONS.py"):
-            if _n in _fs:
-                _sp = _ilu.spec_from_file_location("_mp_f", _os.path.join(_r, _n))
-                _m = _ilu.module_from_spec(_sp); _sp.loader.exec_module(_m)
-                return float(_m.FRAIS_TAUX)
-    raise ImportError("MODULE_POSITIONS introuvable : on ne recopie PAS son taux")
-
-
-def point_mort_en_pourcents(tp_pct, sl_pct, frais_par_ordre=None):
+def point_mort_en_pourcents(tp_pct, sl_pct, operations):
     """Taux de reussite en dessous duquel la strategie perd de l argent.
 
-    ICI, TOUT EST EN POURCENTS : tp=4.0, sl=2.5, frais=0.15.
+    ICI, TOUT EST EN POURCENTS : tp=4.0, sl=2.5.
 
     X1 de Cowork, 12-09-2026, ET C EST LA CAUSE DE MA QUASI-FAUTE DU SOIR :
       « Deux fonctions portent le meme nom, prennent les deux memes arguments,
@@ -667,28 +597,37 @@ def point_mort_en_pourcents(tp_pct, sl_pct, frais_par_ordre=None):
     ② CONTEXTE D'APPEL — Un seul appel, dans `ligne`, une fois par ligne écrite,
       donc quatre fois par passage du circuit du soir avec les deux stratégies
       vivantes au 19-09-2026. Elle reçoit l'objectif et la perte acceptée lus au
-      registre des stratégies, et jamais le troisième paramètre.
+      registre des stratégies, et les opérations de la ligne mesurée.
     ③ ENTRÉE — `tp_pct` : l'objectif de gain en POURCENTS, `4.0` pour +4 %, tel
       que `nombre` le rend après avoir retiré le signe pourcent de la cellule
       `+4.0%` du registre · `sl_pct` : la perte acceptée en POURCENTS, `-2.5`
-      pour −2,5 %, signe négatif compris · `frais_par_ordre` : le taux de frais
-      en POURCENTS, `None` par défaut, et l'unique appelant ne le passe jamais.
+      pour −2,5 %, signe négatif compris · `operations` : les lignes du journal des
+      trades de la stratégie et de la comptabilité mesurées, telles que
+      `operations_de` les rend ; chacune porte `valeur` et `date_entree` (décision de
+      Jean-Luc du 29-10-2026, message reçu à 21h28, « A » : chaque opération compte la
+      taxe qu'elle a vraiment payée. Jusque-là : l'univers déclaré au registre et le
+      jour de la mesure, dont on prenait la valeur la plus chère).
     ④ CONDITIONS D'ENTRÉE — LES DEUX PREMIERS PARAMÈTRES SONT DES POURCENTS, ET
       C'EST LE PIÈGE DE CE PROGRAMME. Passer des fractions rend un chiffre faux
       sans aucune erreur. Le résultat doit tomber entre 0 et 100, sans quoi la
-      fonction lève.
+      fonction lève. Chaque opération a sa valeur dans la liste des valeurs taxées de
+      l'année de sa date d'achat.
     ⑤ SORTIE — UNE valeur, de deux formes. Un pourcentage entre 0 et 100 quand
-      les deux premiers paramètres sont renseignés. `None` quand l'un des deux
-      vaut `None`, ce qui arrive lorsque le registre ne porte pas l'objectif ou
-      la perte acceptée. Mesuré le 19-09-2026 : `4.0` et `-2.5` rendent
-      43,0838…, écrit `43.1` dans l'historique.
+      les deux premiers paramètres sont renseignés et qu'il y a au moins une
+      opération. `None` quand l'un des deux seuils vaut `None` (le registre ne porte
+      pas l'objectif ou la perte acceptée) ou quand la liste d'opérations est vide :
+      une stratégie sans opération n'a pas de point mort. Mesuré le 19-09-2026 : `4.0`
+      et `-2.5` rendent 43,0838…, écrit `43.1` dans l'historique (forfait de l'époque) ;
+      le 29-10-2026, sur une opération Bouygues achetée le 27-07-2026 (taxée), 49,25.
       [rend: 1]
-    ⑥ TRAITEMENT — ① rendre `None` si l'objectif ou la perte acceptée manque ·
-      ② charger le module propriétaire du calcul · ③ diviser les trois valeurs
+    ⑥ TRAITEMENT — ① rendre `None` si l'objectif ou la perte acceptée manque, ou
+      s'il n'y a aucune opération ·
+      ② charger le module propriétaire du calcul · ③ diviser les deux seuils
       par cent pour passer des pourcents aux fractions, en prenant la valeur
-      absolue de la perte acceptée · ④ appeler le calcul du propriétaire en lui
-      passant aussi le module qui détient le taux de frais · ⑤ refuser un
-      résultat hors de l'intervalle de 0 à 100.
+      absolue de la perte acceptée · ④ appeler `point_mort_des_operations` du
+      propriétaire, avec les opérations, le module qui chiffre les frais et le barème
+      des verdicts : la moyenne des points morts des opérations, chacune à sa valeur
+      et à sa date d'achat · ⑤ refuser un résultat hors de l'intervalle de 0 à 100.
     ⑦ UNITÉ — EN ENTRÉE des POURCENTS : `4.0` vaut +4 %, `-2.5` vaut −2,5 %,
       `0.15` vaudrait 0,15 %. EN SORTIE un POURCENTAGE entre 0 et 100. Le
       propriétaire du calcul, lui, travaille en FRACTIONS — c'est toute la raison
@@ -718,8 +657,12 @@ def point_mort_en_pourcents(tp_pct, sl_pct, frais_par_ordre=None):
       valeur absolue. Ici, recevoir `0.040` au lieu de `4.0` donnerait un
       résultat faux et plausible, et c'est exactement le sens dangereux : la
       garde de sortie ne ferme que la moitié bruyante du piège.
-      ③ Le troisième paramètre n'a jamais été utilisé par personne. Vérifié le
-      19-09-2026 : l'unique appelant ne passe que deux arguments.
+      ③ (SANS OBJET DEPUIS LE 29-10-2026 : le troisième paramètre `frais_par_ordre`,
+      jamais passé, a disparu ; le troisième paramètre est désormais les opérations.)
+      ④ L'exonération d'un achat revendu le jour même n'entre pas dans le point mort
+      (elle est dans les gains) ; et le barème employé est le barème des verdicts, pas
+      la colonne `bareme_reel` de chaque ligne du journal (voir le ⑨ de
+      `point_mort_des_operations`).
     ⑩ EFFET — LIT l'arborescence du dossier du programme et EXÉCUTE deux fichiers
       voisins, `MODULE_JUGEMENT.py` et `MODULE_POSITIONS.py`, à chaque appel.
       N'écrit aucun fichier, ne touche pas au réseau, n'affiche rien.
@@ -744,12 +687,16 @@ def point_mort_en_pourcents(tp_pct, sl_pct, frais_par_ordre=None):
       une fraction : la façon d'écrire un pourcentage entre 0 et 1 — 0,040 pour +4 % — par opposition au pourcent, qui écrirait 4.0
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
-    if tp_pct is None or sl_pct is None:
+    if tp_pct is None or sl_pct is None or not operations:
         return None
     _j = _jugement()
-    _frais = None if frais_par_ordre is None else frais_par_ordre / 100.0
-    _r = _j.point_mort_en_fractions(tp_pct / 100.0, abs(sl_pct) / 100.0,
-                       frais=_frais, mod_positions=_positions())
+    # LE POINT MORT PUBLIÉ SE CHIFFRE SOUS LE BARÈME DES VERDICTS (superviseur R-759, tour 2, D2, 29-10-2026) : le
+    # barème réel depuis la décision de Jean-Luc du 29-10-2026 à 19h16 (`MODULE_POSITIONS.BAREME_DES_VERDICTS = "REEL"` ;
+    # avant : le régime d'avant la taxe, HIST_COURTAGE_SANS_TTF).
+    _mp = _positions()
+    # LA MÉTHODE A (décision de Jean-Luc du 29-10-2026, 21h28) : la moyenne des opérations jouées.
+    _r = _j.point_mort_des_operations(tp_pct / 100.0, abs(sl_pct) / 100.0, operations, _mp,
+                                      _mp.BAREME_DES_VERDICTS)
     return _refuser_l_impossible(_r, tp_pct, sl_pct)
 
 
@@ -860,8 +807,9 @@ def _jugement():
       court, pris les deux mêmes arguments et attendu des unités opposées ;
       croisées, elles rendaient un chiffre plausible et faux.
     ⑨ CE QUI CLOCHE —
-      ① Le module est rechargé depuis le disque à chaque appel : rien n'est
-      gardé d'un calcul de point mort au suivant.
+      ① (RÉGLÉ LE 29-10-2026 : `_charger_voisin` garde le module chargé pour la
+      durée du programme, voir son ⑨ ④.) Le module était rechargé depuis le disque
+      à chaque appel.
       ② Elle n'apporte rien qu'un appel direct au chargeur de fichiers voisins
       n'apporterait, et sa jumelle `_positions` fait exactement la même chose
       pour un autre nom de fichier.
@@ -883,29 +831,32 @@ def _jugement():
 
 
 def _positions():
-    """Le proprietaire du taux de frais.
+    """Le proprietaire des frais.
 
-    ① RÔLE — Mettre la main sur le fichier qui détient le taux de frais du
-      courtier, pour le PASSER au calcul du point mort au lieu de recopier le
-      taux ici. C'EST PAR CE CHEMIN, ET PAR AUCUN AUTRE, QUE CE PROGRAMME LIT LE
-      TAUX DE FRAIS : le nombre 0,0015 n'est écrit nulle part dans ce fichier,
-      vérifié le 19-09-2026 par recherche du littéral.
-    ② CONTEXTE D'APPEL — Un seul appel, dans `point_mort_en_pourcents`, à chaque
-      calcul de point mort, donc quatre fois par passage du circuit du soir avec
-      les deux stratégies vivantes au 19-09-2026. Le module rendu est passé tel
-      quel au calcul du propriétaire du point mort.
+    ① RÔLE — Mettre la main sur le fichier qui chiffre les frais d'un ordre
+      (courtage et taxe, selon le barème daté, A-550), pour le PASSER au calcul du
+      point mort au lieu de recopier un taux ici. C'EST PAR CE CHEMIN, ET PAR AUCUN
+      AUTRE, QUE CE PROGRAMME CONNAÎT LES FRAIS : aucun taux n'est écrit dans ce
+      fichier (jusqu'au 29-10-2026, le taux unique 0,0015 était lu ici).
+    ② CONTEXTE D'APPEL — Deux endroits : `point_mort_en_pourcents`, à chaque
+      calcul de point mort (le module rendu est passé tel quel au calcul du
+      propriétaire du point mort, avec son barème des verdicts), et `ligne`, pour
+      y prendre l'exception `FraisNonChiffrables` et le nom du barème des verdicts
+      (29-10-2026, A-550).
     ③ ENTRÉE — Aucun paramètre.
     ④ CONDITIONS D'ENTRÉE — Un fichier nommé `MODULE_POSITIONS.py` ou
       `MODULE POSITIONS.py` doit se trouver dans le dossier de ce programme ou
-      l'un de ses sous-dossiers, et porter la variable `FRAIS_TAUX` et la
-      fonction `frais_ordre` que le calcul du point mort y cherchera.
+      l'un de ses sous-dossiers, et porter la fonction `frais_ordre` que le
+      calcul du point mort y cherchera (depuis le 29-10-2026, A-550, elle lit le
+      barème daté ; la variable `FRAIS_TAUX` n'existe plus).
     ⑤ SORTIE — UNE valeur : le module chargé.
       [rend: 1]
     ⑥ TRAITEMENT — ① demander le chargement du fichier voisin, en essayant deux
       écritures du nom, avec tiret bas puis avec espace.
-    ⑦ UNITÉ — Le taux que porte le module rendu est une FRACTION, jamais un
-      pourcent : 0,0015 vaut 0,15 % par ordre. Confondre les deux donne des frais
-      cent fois trop grands, et plausibles.
+    ⑦ UNITÉ — Les taux du barème que lit le module rendu sont des FRACTIONS,
+      jamais des pourcents : 0,0015 vaut 0,15 % de courtage par ordre, 0,004 vaut
+      0,4 % de taxe. Confondre les deux donne des frais cent fois trop grands, et
+      plausibles.
     ⑧ POURQUOI — Passer le module entier plutôt que le taux seul. Les frais sont
       proportionnels à la valeur échangée : une sortie au gain coûte plus cher
       qu'une sortie au stop, parce qu'on vend davantage. Le calcul du point mort
@@ -916,9 +867,11 @@ def _positions():
       le propriétaire du point mort pendant que le module des positions
       appliquait 0,15 % à l'entrée et à la sortie.
     ⑨ CE QUI CLOCHE —
-      ① Le module est rechargé depuis le disque à chaque appel : rien n'est
-      gardé d'un calcul de point mort au suivant.
-      ② Ce programme porte une SECONDE façon de lire le même taux,
+      ① (RÉGLÉ LE 29-10-2026 : `_charger_voisin` garde le module chargé pour la
+      durée du programme, voir son ⑨ ④.) Le module était rechargé depuis le disque
+      à chaque appel.
+      ② (RÉGLÉ LE 29-10-2026, A-550 : la seconde façon a été retirée.) Ce programme
+      portait une SECONDE façon de lire le même taux,
       `_frais_du_proprietaire`, qui charge le même fichier pour y prendre
       directement `FRAIS_TAUX`. Vérifié le 19-09-2026 : cette seconde fonction
       n'est appelée par personne. Deux chemins pour un même besoin, dont un
@@ -945,6 +898,10 @@ def _positions():
     return _charger_voisin("MODULE_POSITIONS.py", "MODULE POSITIONS.py")
 
 
+# Les modules voisins déjà chargés, gardés pour la durée du programme (voir ⑨ ④ de `_charger_voisin`).
+_VOISINS_CHARGES = {}
+
+
 def _charger_voisin(*noms):
     """Charge un fichier de programme voisin et rend le module obtenu.
 
@@ -955,7 +912,7 @@ def _charger_voisin(*noms):
       recopier — deux implémentations d'une même chose divergent toujours (R-708).
     ② CONTEXTE D'APPEL — Deux appels, tous deux dans ce programme : `_jugement`
       pour le fichier qui détient le calcul du point mort, et `_positions` pour
-      celui qui détient le taux de frais.
+      celui qui chiffre les frais.
     ③ ENTRÉE — `noms` : un ou plusieurs noms de fichier à essayer dans l'ordre,
       donnés sans dossier. `_jugement` passe `'MODULE_JUGEMENT.py'`, `_positions`
       passe `'MODULE_POSITIONS.py'` puis `'MODULE POSITIONS.py'`.
@@ -995,8 +952,14 @@ def _charger_voisin(*noms):
       ③ Le fichier trouvé est exécuté entièrement, y compris ce qu'il fait à son
       chargement. Un fichier voisin qui afficherait ou écrirait au chargement le
       ferait à chaque appel.
-      ④ Rien n'est gardé d'un appel à l'autre : le même fichier est relu et
-      réexécuté à chaque fois.
+      ④ (RÉGLÉ LE 29-10-2026, superviseur R-759, C7 : le module chargé est gardé
+      pour la durée du programme, `_VOISINS_CHARGES`.) Constat d'origine : rien
+      n'était gardé d'un appel à l'autre, le même fichier était relu et réexécuté à
+      chaque fois — et deux chargements de `MODULE_POSITIONS.py` donnaient deux
+      classes `FraisNonChiffrables` différentes, si bien que l'exception levée par
+      l'un n'était pas reconnue par l'autre (mesuré le 29-10-2026 : l'épreuve E11 du
+      barème restait rouge, la mesure s'arrêtant sur l'exception qu'elle devait
+      attraper).
     ⑩ EFFET — LIT l'arborescence du dossier du programme et EXÉCUTE le fichier
       trouvé, ce qui déroule tout ce que ce fichier fait à son chargement.
       N'écrit aucun fichier, ne touche pas au réseau, n'affiche rien.
@@ -1013,6 +976,8 @@ def _charger_voisin(*noms):
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
     import os as _os, importlib.util as _ilu
+    if noms in _VOISINS_CHARGES:
+        return _VOISINS_CHARGES[noms]
     _base = _os.path.dirname(_os.path.abspath(__file__))
     for _r, _sd, _fs in _os.walk(_base):
         for _n in noms:
@@ -1021,6 +986,7 @@ def _charger_voisin(*noms):
                                                    _os.path.join(_r, _n))
                 _m = _ilu.module_from_spec(_sp)
                 _sp.loader.exec_module(_m)
+                _VOISINS_CHARGES[noms] = _m
                 return _m
     raise ImportError(f"{noms[0]} introuvable : on ne reecrit PAS son calcul")
 
@@ -2073,7 +2039,7 @@ def calibrage(operations):
 
 # ---------------------------------------------------------------- production
 def ligne(date_mesure, strat_id, comptabilite, etat, s, carte, golden, temoin_p,
-          temoin_m, gs, source_cal):
+          temoin_m, gs, source_cal, operations):
     """Compose la ligne de mesure d'UNE strategie dans UNE comptabilite, prete a ecrire.
 
     ① RÔLE — Transformer les chiffres bruts d'une comptabilité en une ligne
@@ -2094,7 +2060,10 @@ def ligne(date_mesure, strat_id, comptabilite, etat, s, carte, golden, temoin_p,
       figés de cette stratégie et de cette comptabilité, ou `None` · `temoin_p` :
       le témoin permanent, déjà mis en forme · `temoin_m` : le témoin miroir ·
       `gs` : le rapport gain sur secousses, ou `None` · `source_cal` : le texte
-      qui rappelle sur quoi le calibrage a porté.
+      qui rappelle sur quoi le calibrage a porté · `operations` : les lignes du
+      journal de cette stratégie et de cette comptabilité — les mêmes que celles
+      dont `s` est tiré —, sur lesquelles se calcule le point mort (décision de
+      Jean-Luc du 29-10-2026 à 21h28, « A »).
     ④ CONDITIONS D'ENTRÉE — Le dictionnaire `s` doit porter les dix clés que
       `stats` produit : une clé manquante fait tomber la fonction. Les deux
       témoins doivent déjà être du texte.
@@ -2104,9 +2073,12 @@ def ligne(date_mesure, strat_id, comptabilite, etat, s, carte, golden, temoin_p,
       [rend: 1]
     ⑥ TRAITEMENT — ① lire au registre l'objectif de gain, la perte acceptée et le
       seuil de validation · ② calculer le point mort en déléguant au propriétaire
-      du calcul · ③ calculer la borne basse du taux de réussite · ④ poser le
+      du calcul : la moyenne des points morts des opérations reçues, chacune à sa
+      valeur et à sa date d'achat ; aucune opération, aucun point mort · ③ calculer la borne basse du taux de réussite · ④ poser le
       verdict : vert si la borne basse dépasse le point mort, rouge sinon, et
-      « echantillon insuffisant » si l'un des deux manque · ⑤ comparer le cumul
+      « echantillon insuffisant » si l'un des deux manque ; dès que le point mort
+      est écrit, le verdict se termine par « (bareme <BAREME_DES_VERDICTS>) »,
+      quelle que soit la branche (relecture de Cowork du 29-10-2026) · ⑤ comparer le cumul
       au résultat promis par les chiffres figés, quand ils existent · ⑥ arrondir
       chaque chiffre et composer les vingt-sept colonnes · ⑦ allumer les deux
       autres voyants, sur les pertes consécutives et sur la pire chute.
@@ -2187,16 +2159,42 @@ def ligne(date_mesure, strat_id, comptabilite, etat, s, carte, golden, temoin_p,
 """
     tp = nombre((carte or {}).get('tp'))
     sl = nombre((carte or {}).get('sl'))
-    pm = point_mort_en_pourcents(tp, sl)
+    # LE POINT MORT DEPEND DES FRAIS, DONC DES VALEURS ET DES DATES (A-550). DECISION DE JEAN-LUC DU
+    # 29-10-2026, message recu a 21h28 : « A » — la moyenne des points morts des operations de CETTE
+    # strategie dans CETTE comptabilite, chacune a sa valeur et a sa date d'achat. Jusque-la : la valeur
+    # la plus chere de l'univers declare, au bareme du jour de mesure. Aucune operation : aucun point
+    # mort, la case reste vide et le verdict dit « echantillon insuffisant », sans etiquette de bareme.
+    # LES FRAIS NON CHIFFRABLES (la liste des valeurs taxees de l'annee manque, ou une valeur de
+    # l'univers n'y est pas) N'EMPORTENT PLUS TOUTE LA MESURE (superviseur R-759, C7, 29-10-2026) :
+    # cette strategie n'a pas de point mort, la raison s'ecrit dans `verdict_c7`, les autres sont
+    # mesurees, et `main` rend 1 APRES avoir ecrit. Seule cette exception-la est attrapee. Depuis la
+    # methode A, seules les valeurs JOUEES comptent : une valeur de l'univers jamais achetee ne bloque rien.
+    _fnc = getattr(_positions(), "FraisNonChiffrables", None)
+    _raison = None
+    try:
+        pm = point_mort_en_pourcents(tp, sl, operations)
+    except Exception as e:
+        if _fnc is None or not isinstance(e, _fnc):
+            raise
+        pm, _raison = None, str(e)
     bb = wilson_borne_basse(s['gagnantes'], s['n'])
     seuil = nombre((carte or {}).get('seuil_validation'), 50)
     # verdict C7 : borne basse > point mort (decision 2 du 15/08)
-    if bb is None or pm is None:
+    if _raison is not None:
+        verdict, voyant_c7 = (PREFIXE_NON_CHIFFRABLE + _raison)[:300], 'attente'
+    elif bb is None or pm is None:
         verdict, voyant_c7 = 'echantillon insuffisant', 'attente'
     elif bb > pm:
         verdict, voyant_c7 = f"{bb:.1f} % > {pm:.1f} %", 'vert'
     else:
         verdict, voyant_c7 = f"{bb:.1f} % <= {pm:.1f} %", 'rouge'
+    # LE VERDICT NOMME LE BARÈME DE SON POINT MORT DÈS QUE LE POINT MORT EST ÉCRIT (D2, puis relecture de Cowork du
+    # 29-10-2026, défaut 1 : posée dans deux branches sur trois, l'étiquette manquait aux lignes « echantillon
+    # insuffisant », soit aux quatre lignes publiées ce jour-là). UNE seule pose, après les branches (superviseur
+    # R-759, tour 3, amendement A) : l'étiquette décrit la case `point_mort`, pas la branche. Sans elle, le jour où
+    # les verdicts passent aux vrais frais, l'historique empilé saute de 43,1 à 49,2 sans qu'aucune case dise pourquoi.
+    if pm is not None:
+        verdict = f"{verdict} (bareme {_positions().BAREME_DES_VERDICTS})"
     conf = 'non calculable'
     if golden:
         att = nombre(golden.get('net'))
@@ -2225,6 +2223,10 @@ def ligne(date_mesure, strat_id, comptabilite, etat, s, carte, golden, temoin_p,
         'rapport_gain_secousses': f"{gs:.2f}" if gs is not None else 'non calculable',
         'source_calibrage': source_cal,
     }
+
+# LE DEBUT DU VERDICT C7 QUAND LE POINT MORT NE SE CHIFFRE PAS : `ligne` l'ecrit, `main` le
+# cherche pour rendre 1 apres l'ecriture (un seul texte, ecrit une fois, R-708).
+PREFIXE_NON_CHIFFRABLE = "point mort non chiffrable : "
 
 # ---------------------------------------------------------------- main
 def main():
@@ -2553,9 +2555,12 @@ def main():
         # par le SEUL chemin que le calibrage eprouve chaque soir.
         _lignes_au_journal[sid] = len(ops)
         for comptabilite, gref, s in mesurer_une_strategie(operations, carte):
+            # le point mort se calcule sur les MEMES operations que `s` : celles de cette
+            # comptabilite, lues par `operations_de` (methode A, decision du 29-10-2026)
             lignes.append(ligne(jour, sid, comptabilite, etats[sid], s, carte,
                                 (ref or {}).get(gref), tp_, tm_, gs,
-                                'Bureau Veritas +6884.75 / +3694.00 : OK'))
+                                'Bureau Veritas +6884.75 / +3694.00 : OK',
+                                operations_de(operations, carte, gref)))
 
     # LA PROPRIETE SE VERIFIE SUR CE QUI VA ETRE ECRIT, CHAQUE SOIR, SUR LE VRAI JOURNAL :
     # chaque ligne d'une strategie compte dans UNE comptabilite, donc les operations
@@ -2596,6 +2601,12 @@ def main():
         print(f"   {l['strategie']} · {l['comptabilite']} : {l['n_operations']} operation(s) · "
               f"cumul {l['cumul_net_eur']} EUR · C7 {l['verdict_c7']} · compteur {l['compteur']}/{l['seuil']}")
     print(f"ECRIT   : {dest} (empile, jamais ecrase)")
+    _nc = [l for l in lignes if str(l['verdict_c7']).startswith(PREFIXE_NON_CHIFFRABLE)]
+    if _nc:
+        print(f"ALERTE : {len(_nc)} ligne(s) SANS POINT MORT, faute de frais chiffrables — "
+              + " | ".join(f"{l['strategie']} · {l['comptabilite']} : {l['verdict_c7']}" for l in _nc[:4]))
+        print("        Le reste est ecrit ; CODE 1 : la mesure n'a pas tourne pour ces strategies (R-734).")
+        return 1
     return 0
 
 if __name__ == '__main__':

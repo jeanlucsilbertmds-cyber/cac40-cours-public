@@ -59,8 +59,10 @@
   Employé comme module : six constantes et neuf fonctions, dont trois publiques
   — `signaux_c5etendu10`, `backtest_c5etendu10` — et le reste préfixé d'un blanc
   souligné, marque d'usage interne que trois programmes du dépôt ignorent.
-⑥ TRAITEMENT — ① au chargement, aller lire le taux de frais chez son
-  propriétaire, `MODULE_POSITIONS.FRAIS_TAUX` · ② poser les constantes de la
+⑥ TRAITEMENT — ① (jusqu'au 29-10-2026 : au chargement, aller lire le taux de
+  frais chez son propriétaire, `MODULE_POSITIONS.FRAIS_TAUX` ; depuis A-550, le
+  module des positions est chargé au premier trade chiffré, par `_positions`, et
+  chiffre chaque ordre dans le barème daté) · ② poser les constantes de la
   stratégie et définir les fonctions · ③ rien d'autre ne s'exécute, sauf la
   suite des épreuves lorsque le fichier est lancé directement.
 ⑦ UNITÉ — `C5E10_TP` et `C5E10_SL` sont des FRACTIONS, jamais des pourcents :
@@ -123,7 +125,10 @@
     en sortant au prix d'ouverture réel. Trois mille quatre cent
     quatre-vingt-onze euros d'écart sur une seule opération. Deux
     implémentations d'une même chose divergent toujours (R-708).
-  ⑤ Les frais sont un forfait sur le capital, alors que le tarif porte sur la
+  ⑤ (RÉGLÉ LE 29-10-2026, A-550 : les frais se lisent dans le barème daté,
+    `MODULE_POSITIONS.frais_aller_retour`, et le radar refait chaque montant sous
+    le barème que le journal nomme ; l'avertissement « écart de CONVENTION DE
+    FRAIS » n'existe plus.) Constat d'origine : les frais sont un forfait sur le capital, alors que le tarif porte sur la
     valeur échangée. Ici le calcul est deux fois le taux multiplié par les 100
     000 € de capital, soit 300,00 € quel que soit le résultat du trade. Chez
     MODULE_POSITIONS, les frais du second ordre portent sur ce que la vente
@@ -157,8 +162,8 @@
   EXÉCUTE le fichier `MODULE_POSITIONS.py` voisin, en entier, pour y lire une
   seule constante : tout ce que ce fichier ferait à son propre chargement se
   produirait donc ici. Mesuré le 19-09-2026 : ce voisin ne fait que poser des
-  constantes et définir des fonctions, et le chargement rend `C5E10_FRAIS =
-  0.0015`.
+  constantes et définir des fonctions, et le chargement rendait `C5E10_FRAIS =
+  0.0015` (constante retirée le 29-10-2026, A-550).
 ⑪ TERMINAISON — Lancé seul : SORT DU PROGRAMME avec le code 0 quand les sept
   épreuves passent, mesuré le 19-09-2026 ; une épreuve fausse lève
   `AssertionError`, ce qui arrête le programme avec le code 1. Chargé comme
@@ -195,100 +200,51 @@ C5E10_TP       = 0.040     # +4.0%
 C5E10_SL       = 0.025     # -2.5%
 C5E10_HORIZON  = 20        # séances de détention max après l'entrée
 C5E10_CAPITAL  = 100_000
-# LE TAUX VIENT DE SON PROPRIETAIRE, JAMAIS D UNE COPIE (R-708).
-# Mesure du 12-09-2026 : le taux Fortuneo etait ecrit a CINQ endroits —
-# MODULE_POSITIONS (le proprietaire declare, decision A-50 du 11/08),
-# ici, deux fois dans MODULE_JUGEMENT, et en parametre par defaut de
-# MESURER_LA_PERFORMANCE. **Le jour ou Fortuneo change son tarif, on en
-# corrige un et quatre restent faux — sans erreur visible.**
-# Le radar signale deja « ecart de CONVENTION DE FRAIS » sur cinq trades.
-def _frais_du_proprietaire():
-    """Va lire le taux de frais chez le programme qui en est propriétaire.
+# LES FRAIS VIENNENT DE LEUR PROPRIETAIRE, JAMAIS D UNE COPIE (R-708).
+# Mesure du 12-09-2026 : le taux Fortuneo etait ecrit a CINQ endroits. Ce module le
+# lisait chez MODULE_POSITIONS (`FRAIS_TAUX`) et en retranchait un forfait :
+# `brut - 2 * taux * capital`, soit 300 EUR fixes quel que soit le prix de vente
+# (ETUDE 18, S4). Depuis le 29-10-2026 (A-550), il demande a MODULE_POSITIONS le cout de
+# CHAQUE ordre, au jour de l'ordre, dans le bareme date : courtage et taxe sur les
+# transactions financieres.
+_POSITIONS = {}
 
-    ① RÔLE — Empêcher que le tarif du courtier soit écrit une fois de plus.
-      Cette fonction ne calcule rien : elle ouvre le fichier voisin
-      `MODULE_POSITIONS.py`, y prend la valeur de `FRAIS_TAUX` et la rend, pour
-      que ce module travaille sur le même chiffre que le reste du système au
-      lieu d'en garder une copie.
-    ② CONTEXTE D'APPEL — Une seule fois, au CHARGEMENT du fichier, pour donner
-      sa valeur à `C5E10_FRAIS`. Jamais appelée ensuite. Tout programme qui
-      charge ce module la déclenche donc sans le savoir : le détecteur de
-      signaux du soir, le radar de 22 h et le juge des stratégies.
-    ③ ENTRÉE — Aucun paramètre. Elle se repère toute seule, à partir du dossier
-      où se trouve ce fichier.
-    ④ CONDITIONS D'ENTRÉE — Le fichier `MODULE_POSITIONS.py` doit exister dans
-      le même dossier que ce module, être du Python valide, et porter une
-      variable nommée `FRAIS_TAUX` dont la valeur se convertit en nombre.
-    ⑤ SORTIE — UNE valeur : le taux de frais d'un ordre, en fraction. Mesuré le
-      19-09-2026, elle rend 0,0015, soit 0,15 %.
+
+def _positions():
+    """Rend le module des positions, chargé une fois, propriétaire du coût d'un ordre.
+
+    ① RÔLE — Donner à ce module la fonction `frais_aller_retour` du système, sans en garder
+      de copie.
+    ② CONTEXTE D'APPEL — `_c5e10_sortie`, au premier trade chiffré ; le module est
+      ensuite gardé en mémoire.
+    ③ ENTRÉE — Aucune.
+    ④ CONDITIONS D'ENTRÉE — `MODULE_POSITIONS.py` est dans le même dossier que ce
+      fichier.
+    ⑤ SORTIE — UNE valeur : le module chargé.
       [rend: 1]
-    ⑥ TRAITEMENT — ① relever le dossier où vit ce fichier · ② y chercher, dans
-      l'ordre, `MODULE_POSITIONS.py` puis `MODULE POSITIONS.py` · ③ au premier
-      trouvé, charger et EXÉCUTER ce fichier entier · ④ rendre sa variable
-      `FRAIS_TAUX` convertie en nombre · ⑤ si aucun des deux noms n'existe,
-      lever une erreur au lieu de se rabattre sur une valeur écrite ici.
-    ⑦ UNITÉ — Une FRACTION, jamais un pourcent : 0,0015 vaut 0,15 %. Confondre
-      les deux fait payer cent fois les frais, et le résultat reste plausible.
-    ⑧ POURQUOI — Un chiffre qui existe ailleurs ne se recopie pas, parce que
-      deux copies divergent toujours (R-708). Le commentaire posé juste
-      au-dessus de cette fonction donne la mesure qui l'a fait écrire : le
-      12-09-2026, le taux Fortuneo était inscrit à CINQ endroits — chez son
-      propriétaire déclaré `MODULE_POSITIONS`, ici, deux fois dans
-      `MODULE_JUGEMENT`, et comme valeur par défaut d'un paramètre de
-      `MESURER_LA_PERFORMANCE`. Le jour où le courtier change son tarif, on en
-      corrige un et quatre restent faux, sans aucune erreur affichée. Et elle
-      LÈVE au lieu de se replier sur une valeur de secours : une valeur de
-      secours serait exactement la sixième copie que cette fonction existe pour
-      empêcher.
-    ⑨ CE QUI CLOCHE —
-      ① Elle épelle deux noms de fichier au lieu de porter sur une propriété. Le
-        critère qui tranche tient en une question : si je renomme un fichier,
-        mon contrôle change-t-il d'avis ? Ici oui. `MODULE_POSITIONS.py` et
-        `MODULE POSITIONS.py` sont cherchés à la lettre ; toute autre graphie, y
-        compris un nom horodaté comme en portent la moitié des programmes du
-        dépôt, fait lever l'erreur alors que le fichier est là.
-      ② Le taux lu n'est contrôlé par rien. La valeur est convertie en nombre et
-        rendue telle quelle : un `FRAIS_TAUX` passé par erreur à 0,15 au lieu de
-        0,0015 serait accepté, et chaque opération porterait 30 000 € de frais
-        au lieu de 300 €.
-      ③ Elle exécute un fichier entier pour lire une seule constante. Le
-        chargement n'est pas une lecture : tout ce que `MODULE_POSITIONS.py`
-        ferait à son propre chargement — écrire, afficher, appeler le réseau —
-        se produirait ici, au simple chargement de ce module. Mesuré le
-        19-09-2026, ce voisin ne fait aujourd'hui que poser des constantes et
-        définir des fonctions ; rien ne garantit qu'il en restera là.
-    ⑩ EFFET — LIT le dossier de ce fichier et EXÉCUTE le fichier voisin trouvé.
-      N'écrit rien, ne touche pas au réseau. Importe deux modules du langage au
-      moment de l'appel plutôt qu'en tête de fichier.
-    ⑪ TERMINAISON — Rend la main avec le taux quand le voisin est là. LÈVE
-      `ImportError` sinon, avec le message « MODULE_POSITIONS introuvable : on
-      ne recopie PAS son taux de frais » — mesuré le 19-09-2026 en copiant ce
-      module seul dans un dossier vide. Comme elle est appelée au chargement,
-      cette erreur empêche le module entier de se charger. Et un de ses appels
-      peut ne pas revenir : l'exécution du fichier voisin lève tout ce que ce
-      fichier lèverait.
+    ⑥ TRAITEMENT — ① chercher `MODULE_POSITIONS.py` puis `MODULE POSITIONS.py` à côté
+      de ce fichier · ② charger le premier trouvé · ③ le garder en mémoire.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un chiffre qui existe ailleurs ne se recopie pas (R-708) ; depuis
+      A-550 ce n'est même plus un chiffre, mais un barème daté.
+    ⑨ CE QUI CLOCHE — Elle épelle deux noms de fichier au lieu de porter sur une
+      propriété (déjà relevé le 19-09-2026 sur la fonction qu'elle remplace).
+    ⑩ EFFET — EXÉCUTE le fichier voisin trouvé ; n'écrit rien.
+    ⑪ TERMINAISON — Rend la main ; lève `ImportError` si aucun des deux noms n'existe.
       [sort: non]
-    ⑫ DÉFINITIONS
-      le juge des stratégies : `programmes/JUGE_DES_STRATEGIES.py`, le programme qui rejoue une stratégie sur l'historique des cours et rend la liste de ses opérations
-      le détecteur : programmes/DETECTER_LES_SIGNAUX_GITHUB.py, qui écrit les
-        signaux du jour
-      le radar : le programme programmes/audit_ecosysteme.py, lancé chaque soir, qui contrôle l'ensemble du système et range chacun de ses constats sous un numéro de maillon, par exemple 18-Tâches pour le contrôle des traces laissées par les tâches planifiées.
-    
-      une fraction : la façon d'écrire un pourcentage entre 0 et 1 — 0,040 pour +4 % — par opposition au pourcent, qui écrirait 4.0
-      une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
-"""
+    """
     import os as _os, importlib.util as _ilu
+    if "m" in _POSITIONS:
+        return _POSITIONS["m"]
     _ici = _os.path.dirname(_os.path.abspath(__file__))
     for _n in ("MODULE_POSITIONS.py", "MODULE POSITIONS.py"):
         _p = _os.path.join(_ici, _n)
         if _os.path.isfile(_p):
             _sp = _ilu.spec_from_file_location("_mp_frais", _p)
             _m = _ilu.module_from_spec(_sp); _sp.loader.exec_module(_m)
-            return float(_m.FRAIS_TAUX)
-    raise ImportError("MODULE_POSITIONS introuvable : on ne recopie PAS son taux de frais")
-
-
-C5E10_FRAIS    = _frais_du_proprietaire()   # 0,15 % par ordre, lu chez MODULE_POSITIONS
+            _POSITIONS["m"] = _m
+            return _m
+    raise ImportError("MODULE_POSITIONS introuvable : on ne recopie PAS le cout d'un ordre")
 
 
 def _c5e10_cmf(ohlcv, periode=C5E10_CMF_P):
@@ -626,7 +582,7 @@ def signaux_c5etendu10(ohlcv):
     return out
 
 
-def _c5e10_sortie(ohlcv, i_signal):
+def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
     """Rejoue la vie d'un trade, de l'entrée du lendemain jusqu'à sa sortie.
 
     ① RÔLE — Chiffrer ce qu'un signal aurait rapporté. Elle pose l'achat à
@@ -644,7 +600,10 @@ def _c5e10_sortie(ohlcv, i_signal):
       au-delà d'un euro d'écart.
     ③ ENTRÉE — `ohlcv` : la liste des séances d'UNE valeur, triée par date
       croissante. `i_signal` : l'indice, dans cette liste, de la séance où le
-      signal a été vu.
+      signal a été vu. `valeur` : le nom ou le mnémonique de cette valeur, pour la
+      taxe sur les transactions financières (A-550). `bareme` : le nom d'un barème
+      de `donnees/BAREME_FRAIS.csv`, None pour le barème réel ; le radar passe celui
+      que le journal des trades nomme pour le montant qu'il recalcule.
     ④ CONDITIONS D'ENTRÉE — `i_signal` doit désigner une séance qui existe dans
       `ohlcv`, et chaque séance doit porter `open`, `high`, `low` et `close`. La
       fonction ne vérifie pas que le signal était réellement actif à cet indice
@@ -695,9 +654,11 @@ def _c5e10_sortie(ohlcv, i_signal):
         réellement disponible. Trois mille quatre cent quatre-vingt-onze euros
         d'écart sur une seule opération. Deux implémentations d'une même chose
         divergent toujours (R-708).
-      ② Les frais sont un forfait sur le capital. Le calcul retranche deux fois
-        le taux multiplié par les 100 000 € engagés, soit 300,00 € quel que soit
-        le résultat. Le tarif réel porte sur la valeur échangée, donc sur ce que
+      ② (RÉGLÉ LE 29-10-2026, A-550 : les frais de chaque ordre se lisent dans le
+        barème daté, `MODULE_POSITIONS.frais_aller_retour` ; le radar passe le barème que
+        le journal nomme.) Constat d'origine : les frais étaient un forfait sur le
+        capital. Le calcul retranchait deux fois le taux multiplié par les
+        100 000 € engagés, soit 300,00 € quel que soit le résultat. Le tarif réel porte sur la valeur échangée, donc sur ce que
         la vente rapporte. Mesuré le 19-09-2026 sur une entrée à 100,00 € : un
         objectif touché à 104,00 € coûte 306,00 € de frais et non 300,00 €, un
         stop touché à 97,50 € en coûte 296,25 €. Le radar du soir connaît
@@ -718,13 +679,16 @@ def _c5e10_sortie(ohlcv, i_signal):
         s'arrête, fait disparaître le trade au lieu de le clôturer au dernier
         cours connu. Ce choix est défendable pour un backtest, mais il n'est
         écrit nulle part ailleurs que dans ce code.
-    ⑩ EFFET — Aucun. N'écrit rien, ne lit aucun fichier, ne touche pas au
-      réseau, et ne modifie pas la liste qu'elle reçoit.
-    ⑪ TERMINAISON — Rend toujours la main. LÈVE `KeyError` sur une séance à
-      laquelle il manque `open`, `high`, `low` ou `close`, `IndexError` si
-      `i_signal` désigne une séance qui n'existe pas, et `TypeError` si un prix
-      est un texte au lieu d'un nombre. Aucun de ses appels ne se termine : elle
-      n'appelle que des fonctions du langage.
+    ⑩ EFFET — N'écrit rien, ne touche pas au réseau, et ne modifie pas la liste
+      qu'elle reçoit. Au premier appel, elle charge `MODULE_POSITIONS.py`
+      (`_positions`), qui lit le barème des frais et la liste des valeurs taxées,
+      et charge le juge des stratégies pour sa clé des valeurs.
+    ⑪ TERMINAISON — Rend la main. LÈVE `KeyError` sur une séance à laquelle il
+      manque `open`, `high`, `low` ou `close`, `IndexError` si `i_signal`
+      désigne une séance qui n'existe pas, `TypeError` si un prix est un texte
+      au lieu d'un nombre, et ce que lève `frais_aller_retour` (`ValueError` :
+      barème inconnu, date absente du calendrier ; `FraisNonChiffrables` : valeur
+      ou année absente de la liste des valeurs taxées). Aucun de ses appels ne termine le programme.
       [sort: non]
     ⑫ DÉFINITIONS
       la grille : la liste des huit critères et de leurs seuils ; celle qui tourne s'appelle GRILLE-26-04 et vit dans `CRITERES_VALIDATION_EXPERTS`, lignes 1730 à 1740 de ce fichier
@@ -765,12 +729,17 @@ def _c5e10_sortie(ohlcv, i_signal):
             return None                 # trade encore ouvert (fin de données)
         px_out, motif, i_out = ohlcv[i_max]["close"], "HORIZON", i_max
     brut = C5E10_CAPITAL * (px_out / px_in - 1)
-    pnl  = brut - 2 * C5E10_FRAIS * C5E10_CAPITAL
+    # LES FRAIS DES DEUX ORDRES, CHACUN AU JOUR OU IL EST PASSE, LUS DANS LE BAREME DATE
+    # (A-550). Sous « HIST_FORFAIT_300 », c'est exactement l'ancien `brut - 300`.
+    _p = _positions()
+    _q = C5E10_CAPITAL / px_in
+    pnl  = brut - _p.frais_aller_retour(_q, px_in, px_out, valeur, ohlcv[i_in].get("date"),
+                                        ohlcv[i_out].get("date"), bareme)["total"]
     return {"i_in": i_in, "i_out": i_out, "px_in": round(px_in, 4),
             "px_out": round(px_out, 4), "motif": motif, "pnl": round(pnl, 2)}
 
 
-def backtest_c5etendu10(donnees):
+def backtest_c5etendu10(donnees, bareme=None):
     """Rejoue toute l'histoire de la stratégie et rend les deux comptabilités.
 
     ① RÔLE — Donner les chiffres de référence de la stratégie : combien
@@ -789,6 +758,7 @@ def backtest_c5etendu10(donnees):
     ③ ENTRÉE — `donnees` : un dictionnaire dont chaque clé est un nom de valeur
       et chaque contenu la liste des séances de cette valeur, triée par date
       croissante. Les valeurs absentes du dictionnaire sont ignorées.
+      `bareme` : le nom d'un barème de `donnees/BAREME_FRAIS.csv`, ou None pour le barème des trades vécus (« REEL ») ; passé à chaque `_c5e10_sortie` (A-550, 29-10-2026).
     ④ CONDITIONS D'ENTRÉE — Les clés doivent être écrites EXACTEMENT comme dans
       `C5E10_UNIVERS`, sans quoi la valeur est ignorée en silence. Les listes
       doivent être triées par date croissante et partager le même calendrier de
@@ -940,7 +910,7 @@ def backtest_c5etendu10(donnees):
                     for s in sorted(par_date[d], key=lambda x: (x["cci"], x["valeur"]))]
     trades_qs = []
     for s in tous_signaux:
-        t = _c5e10_sortie(donnees[s["valeur"]], s["i"])
+        t = _c5e10_sortie(donnees[s["valeur"]], s["i"], s["valeur"], bareme)
         if t:
             trades_qs.append({"valeur": s["valeur"], "cci": round(s["cci"], 1),
                               "date_signal": donnees[s["valeur"]][s["i"]]["date"], **t})
@@ -953,7 +923,7 @@ def backtest_c5etendu10(donnees):
         d_sig = ohlcv[s["i"]]["date"]
         if date_libre is not None and d_sig < date_libre:
             continue                         # capital occupé → signal ignoré
-        t = _c5e10_sortie(ohlcv, s["i"])
+        t = _c5e10_sortie(ohlcv, s["i"], s["valeur"], bareme)
         if not t:
             continue
         trades_vv.append({"valeur": s["valeur"], "cci": round(s["cci"], 1),
@@ -1100,6 +1070,29 @@ def _barre(d, o, h, l, c, v=1000):
     return {"date": d, "open": o, "high": h, "low": l, "close": c, "volume": v}
 
 
+def _jour_d_essai(i):
+    """La date de la i-ième séance d'une série d'essai : le 05-01-2026 plus i jours du calendrier.
+
+    ① RÔLE — Donner aux séries fabriquées de vraies dates, que le barème des frais sait lire.
+    ② CONTEXTE D'APPEL — `_serie_signal_a`, pour chaque séance.
+    ③ ENTRÉE — `i` : le rang de la séance, à partir de 0.
+    ④ CONDITIONS D'ENTRÉE — `i` entier positif ou nul.
+    ⑤ SORTIE — UNE valeur : la date en texte AAAA-MM-JJ.
+      [rend: 1]
+    ⑥ TRAITEMENT — ajouter i jours au 05-01-2026.
+    ⑦ UNITÉ — Des jours du calendrier, pas des séances de bourse : les fonctions éprouvées ne
+      font que comparer les dates entre elles, l'ordre suffit.
+    ⑧ POURQUOI — Superviseur R-759, C11, 29-10-2026 : les frais se lisent dans un barème daté,
+      et une date « D030 » y tombait hors de toute période.
+    ⑨ CE QUI CLOCHE — Des samedis et des dimanches figurent dans la série : sans effet ici.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    import datetime
+    return (datetime.date(2026, 1, 5) + datetime.timedelta(days=i)).isoformat()
+
+
 def _serie_signal_a(idx_signal, n=60, apres="tp"):
     """Construit des cours inventés où le signal se déclenche à la séance voulue.
 
@@ -1123,7 +1116,8 @@ def _serie_signal_a(idx_signal, n=60, apres="tp"):
       que `n`. Mesuré le 19-09-2026, le signal tombe bien à l'indice demandé
       pour les valeurs 14, 15, 16, 20, 30 et 45.
     ⑤ SORTIE — UNE valeur : une liste de `n` séances, chacune construite par
-      `_barre`, dont les dates vont de « D000 » à « D0NN » dans l'ordre.
+      `_barre`, datées du 05-01-2026 et des jours qui suivent, une par jour du
+      calendrier, dans l'ordre (`_jour_d_essai`).
       [rend: 1]
     ⑥ TRAITEMENT — ① partir d'un cours de 100,00 € · ② avant l'indice du signal,
       faire baisser le cours de 0,80 € par séance sur les quinze dernières
@@ -1135,10 +1129,9 @@ def _serie_signal_a(idx_signal, n=60, apres="tp"):
         signal, construire chaque séance à partir de la clôture de la précédente
         selon ce que demande `apres`.
     ⑦ UNITÉ — Les cours en EUROS, les volumes en TITRES, `idx_signal` et `n` en
-      SÉANCES. Les dates sont des textes de la forme « D030 », jamais des dates
-      du langage : les fonctions de ce module ne font que les comparer entre
-      elles, et l'écriture choisie fait que l'ordre alphabétique est l'ordre
-      chronologique.
+      SÉANCES. Les dates sont de VRAIES dates « AAAA-MM-JJ » depuis le 29-10-2026 :
+      le chiffrage des frais lit le barème daté et refuse une date absente du
+      calendrier (superviseur R-759, C11). Jusque-là, des textes « D030 ».
     ⑧ POURQUOI — Le volume de 500 000 contre 1 000 est le levier de toute la
       construction : le flux monétaire pondère chaque séance par son volume,
       donc une seule séance qui pèse cinq cents fois les autres suffit à faire
@@ -1190,20 +1183,20 @@ def _serie_signal_a(idx_signal, n=60, apres="tp"):
     for i in range(n):
         if i < idx_signal:
             px = px - 0.8 if i > idx_signal - 16 else px   # chute récente → CCI bas
-            bars.append(_barre(f"D{i:03d}", px + 0.3, px + 0.5, px - 0.5, px - 0.4, 1000))
+            bars.append(_barre(_jour_d_essai(i), px + 0.3, px + 0.5, px - 0.5, px - 0.4, 1000))
         elif i == idx_signal:
             # clôture au plus haut, volume énorme → CMF de la fenêtre bascule positif
-            bars.append(_barre(f"D{i:03d}", px - 0.3, px + 0.2, px - 0.5, px + 0.2, 500_000))
+            bars.append(_barre(_jour_d_essai(i), px - 0.3, px + 0.2, px - 0.5, px + 0.2, 500_000))
         else:
             o = bars[-1]["close"]
             if apres == "tp":
-                bars.append(_barre(f"D{i:03d}", o, o * 1.06, o * 0.999, o * 1.05, 1000))
+                bars.append(_barre(_jour_d_essai(i), o, o * 1.06, o * 0.999, o * 1.05, 1000))
             elif apres == "sl":
-                bars.append(_barre(f"D{i:03d}", o, o * 1.001, o * 0.95, o * 0.96, 1000))
+                bars.append(_barre(_jour_d_essai(i), o, o * 1.001, o * 0.95, o * 0.96, 1000))
             elif apres == "both":
-                bars.append(_barre(f"D{i:03d}", o, o * 1.08, o * 0.90, o, 1000))
+                bars.append(_barre(_jour_d_essai(i), o, o * 1.08, o * 0.90, o, 1000))
             else:
-                bars.append(_barre(f"D{i:03d}", o, o * 1.002, o * 0.998, o, 1000))
+                bars.append(_barre(_jour_d_essai(i), o, o * 1.002, o * 0.998, o, 1000))
     return bars
 
 
@@ -1265,10 +1258,10 @@ def _tests():
         preuve amputée. Une épreuve qui reste verte quand on retire ce qu'elle
         teste n'est pas une preuve.
       ② Les montants attendus des deuxième et troisième épreuves recopient le
-        montant des frais. Le nombre 300 est écrit en dur dans les deux, alors
-        que ce montant se déduit de `C5E10_FRAIS` et de `C5E10_CAPITAL`,
-        lesquels sont lus chez leur propriétaire précisément pour ne pas être
-        recopiés. Un changement de tarif du courtier ferait échouer ces deux
+        montant des frais. Le nombre 300 est écrit en dur dans les deux ; depuis
+        le 29-10-2026 (A-550), ces deux épreuves jouent sous le barème nommé
+        « HIST_FORFAIT_300 », dont ce nombre est le montant (`donnees/BAREME_FRAIS.csv`),
+        et `C5E10_FRAIS` a disparu. Un changement de tarif du courtier ferait échouer ces deux
         épreuves pour une raison qui n'est pas une faute de calcul.
       ③ Aucune épreuve ne porte sur les situations d'échec. Rien n'éprouve une
         histoire trop courte, une séance manquante, une valeur absente des
@@ -1320,7 +1313,7 @@ def _tests():
 
     # T2 — sortie TP : prix de sortie = entrée × 1.04, PnL = 4% - frais
     serie = _serie_signal_a(30, apres="tp")
-    t = _c5e10_sortie(serie, 30)
+    t = _c5e10_sortie(serie, 30, "TOTALENERGIES", "HIST_FORFAIT_300")
     assert t["motif"] == "TP", f"T2: motif={t['motif']}"
     attendu = C5E10_CAPITAL * C5E10_TP - 300
     assert abs(t["pnl"] - attendu) < 0.01, f"T2: pnl={t['pnl']} vs {attendu}"
@@ -1328,7 +1321,7 @@ def _tests():
 
     # T3 — sortie SL : PnL = -2.5% - frais
     serie = _serie_signal_a(30, apres="sl")
-    t = _c5e10_sortie(serie, 30)
+    t = _c5e10_sortie(serie, 30, "TOTALENERGIES", "HIST_FORFAIT_300")
     assert t["motif"] == "SL", f"T3: motif={t['motif']}"
     attendu = -C5E10_CAPITAL * C5E10_SL - 300
     assert abs(t["pnl"] - attendu) < 0.01, f"T3: pnl={t['pnl']} vs {attendu}"
@@ -1336,13 +1329,13 @@ def _tests():
 
     # T4 — CONVENTION PESSIMISTE : TP et SL touchés le même jour → SL
     serie = _serie_signal_a(30, apres="both")
-    t = _c5e10_sortie(serie, 30)
+    t = _c5e10_sortie(serie, 30, "TOTALENERGIES", "HIST_FORFAIT_300")
     assert t["motif"] == "SL", f"T4: pessimiste violée, motif={t['motif']}"
     ok += 1
 
     # T5 — sortie HORIZON : exactement 20 séances après l'entrée, au close
     serie = _serie_signal_a(30, apres="flat")
-    t = _c5e10_sortie(serie, 30)
+    t = _c5e10_sortie(serie, 30, "TOTALENERGIES", "HIST_FORFAIT_300")
     assert t["motif"] == "HORIZON" and t["i_out"] == 31 + 20, f"T5: {t}"
     ok += 1
 
@@ -1355,7 +1348,7 @@ def _tests():
     donnees = {"TOTALENERGIES": sA, "ENGIE": sB}
     cciA = [s for s in signaux_c5etendu10(sA) if s["i"] == 30][0]["cci"]
     cciB = [s for s in signaux_c5etendu10(sB) if s["i"] == 30][0]["cci"]
-    r = backtest_c5etendu10(donnees)
+    r = backtest_c5etendu10(donnees, bareme="HIST_FORFAIT_300")
     gagnant = "TOTALENERGIES" if cciA < cciB else "ENGIE"
     assert r["qualite_signal"]["trades"][0]["valeur"] == gagnant, \
         f"T6: retenu={r['qualite_signal']['trades'][0]['valeur']}, attendu={gagnant}"
@@ -1365,7 +1358,7 @@ def _tests():
     sA = _serie_signal_a(30, apres="flat")            # position 20 j (D031→D051)
     sB = _serie_signal_a(40, apres="tp")              # signal D040, pendant la position
     donnees = {"TOTALENERGIES": sA, "ENGIE": sB}
-    r = backtest_c5etendu10(donnees)
+    r = backtest_c5etendu10(donnees, bareme="HIST_FORFAIT_300")
     assert r["qualite_signal"]["n"] == 2, f"T7a: QS n={r['qualite_signal']['n']}"
     assert r["vraie_vie"]["n"] == 1, f"T7b: VV n={r['vraie_vie']['n']} (signal D040 aurait dû être ignoré)"
     ok += 1

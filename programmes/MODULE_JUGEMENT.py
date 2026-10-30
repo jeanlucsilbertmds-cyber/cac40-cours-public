@@ -31,10 +31,13 @@ CE QU'IL AJOUTE, ET QUI MANQUAIT
   relevé le 19-09-2026 : `point_mort_en_fractions`, `episodes`, `coupure_70_30`,
   `wilson_bas`, `fenetres_glissantes`, `borne_basse_gain`,
   `plus_longue_serie_de_pertes` et `etalon_hasard`.
+  Depuis la décision de Jean-Luc du 29-10-2026 à 21h28 (« A »), le juge demande son
+  point mort à `point_mort_des_operations`, qui appelle `point_mort_en_fractions`
+  une fois par opération.
   ② `programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py` n'appelle que
-  `point_mort_en_fractions`, à travers sa propre `point_mort_en_pourcents` qui
-  convertit des pourcents en fractions puis délègue, parce que le calcul du
-  point mort ne doit vivre qu'à un seul endroit (R-708). Ce programme-là TOURNE
+  `point_mort_des_operations` (donc `point_mort_en_fractions`), à travers sa propre
+  `point_mort_en_pourcents` qui convertit des pourcents en fractions puis délègue,
+  parce que le calcul du point mort ne doit vivre qu'à un seul endroit (R-708). Ce programme-là TOURNE
   CHAQUE SOIR : `.github/workflows/collecte_abc.yml` le lance à sa ligne 223,
   dans le passage automatique déclenché à 18h UTC du lundi au vendredi.
   Lancé directement en ligne de commande, le module ne fait que son calibrage.
@@ -173,7 +176,9 @@ import statistics
 from collections import defaultdict
 
 CAPITAL = 100_000.0
-FRAIS = 300.0
+# Le forfait de 300 € (`FRAIS = 300.0`) vivait ici jusqu'au 29-10-2026 : il a disparu (A-550, ÉTUDE 18 S5).
+# Les frais se lisent dans le barème daté, par `MODULE_POSITIONS.frais_ordre` ; le forfait historique
+# s'y nomme « HIST_FORFAIT_300 ».
 GRAINE = 20260828
 
 
@@ -181,7 +186,7 @@ GRAINE = 20260828
 # LE POINT MORT — le seuil qui remplace tout seuil fixe
 # ─────────────────────────────────────────────────────────────────────
 
-def point_mort_en_fractions(tp, sl, frais=None, capital=CAPITAL, mod_positions=None):
+def point_mort_en_fractions(tp, sl, mod_positions, valeur, date, bareme=None, capital=CAPITAL):
     """Taux de reussite en dessous duquel la strategie PERD, quoi qu'il arrive.
 
     CALIBRE sur les deux valeurs de l'ETUDE 11, retrouvees au centieme :
@@ -199,40 +204,45 @@ def point_mort_en_fractions(tp, sl, frais=None, capital=CAPITAL, mod_positions=N
       ruineux avec +1,2 % et −1 %. Mesuré le 19-09-2026 : les mêmes frais
       forfaitaires donnent 43,08 % pour le couple +4,0 % / −2,5 % et 59,09 %
       pour le couple +1,2 % / −1,0 %.
-    ② CONTEXTE D'APPEL — Trois appelants, dont un automatique.
-      ① `programmes/JUGE_DES_STRATEGIES.py`, à la main, une fois par stratégie jugée, en
-      lui passant le module des positions pour qu'elle prenne les vrais frais.
-      ② `point_mort_en_pourcents` de
+    ② CONTEXTE D'APPEL — Trois appelants depuis la décision de Jean-Luc du
+      29-10-2026 à 21h28 (« A » : le point mort moyen des opérations jouées).
+      ① `point_mort_des_operations`, ci-dessous, une fois par opération qu'on lui
+      donne ; elle-même est appelée par `juger` de
+      `programmes/JUGE_DES_STRATEGIES.py` (une fois par stratégie jugée) et par
+      `point_mort_en_pourcents` de
       `programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py`, qui convertit
-      des pourcents en fractions et délègue ici parce que le calcul ne doit
-      vivre qu'à un seul endroit (R-708). Ce programme TOURNE CHAQUE SOIR,
-      lancé à la ligne 223 de `.github/workflows/collecte_abc.yml`.
-      ③ `_calibrage`, trois fois, pour vérifier que les résultats connus sont
-      toujours retrouvés.
+      des pourcents en fractions ; ce programme TOURNE CHAQUE SOIR (pas « Mesurer
+      la performance » de `.github/workflows/collecte_abc.yml`). Le calcul ne vit
+      qu'à un seul endroit (R-708).
+      ② `point_mort_pire_cas`, une fois par valeur de l'univers qu'on lui donne ;
+      elle n'est plus appelée que par `_calibrage` (gardée pour comparaison).
+      ③ `_calibrage`, pour vérifier que les résultats connus sont toujours
+      retrouvés.
     ③ ENTRÉE — `tp` : l'objectif de gain, en FRACTION, 0.040 pour +4 % ·
       `sl` : la perte acceptée, en FRACTION et en valeur positive, 0.025 pour
-      −2,5 % · `frais` : le montant forfaitaire des frais d'un aller-retour en
-      euros, `None` par défaut, et les deux appelants de production le laissent
-      à `None` · `capital` : la somme engagée par opération, 100 000 € par
-      défaut, aucun appelant ne la change · `mod_positions` : le module qui
-      possède le taux de frais, `None` par défaut ; le juge des stratégies et le
-      programme de mesure y passent tous deux `programmes/MODULE_POSITIONS.py`.
+      −2,5 % · `mod_positions` : `programmes/MODULE_POSITIONS.py`, qui chiffre les
+      frais (`frais_ordre`) · `valeur` et `date` : la valeur achetée et le jour de
+      l'achat, parce que la taxe sur les transactions financières dépend de l'une et
+      de l'autre (A-550) · `bareme` : le nom d'un barème, None pour le barème réel ·
+      `capital` : la somme engagée par opération, 100 000 € par défaut, aucun
+      appelant ne la change.
     ④ CONDITIONS D'ENTRÉE — `tp` et `sl` doivent être des fractions strictement
       inférieures à 1 en valeur absolue, sans quoi la fonction lève. Le résultat
-      doit tomber entre 0 et 100, sans quoi elle lève aussi. Si `mod_positions`
-      est donné, il doit porter une fonction `frais_ordre(quantite, prix)`.
+      doit tomber entre 0 et 100, sans quoi elle lève aussi. `mod_positions` doit
+      porter `frais_ordre(quantite, prix, valeur, date, sens, bareme)`.
     ⑤ SORTIE — UNE valeur : le point mort, un pourcentage entre 0 et 100.
-      Exemples relevés le 19-09-2026 : 43,08 pour 0.040 et 0.025 avec les frais
-      forfaitaires, 32,86 pour 0.05 et 0.02 avec un taux de frais de 0,15 %.
+      Exemples relevés le 29-10-2026 : 43,08 pour 0.040 et 0.025 sous le forfait
+      historique de 300 € ; 32,86 pour 0.05 et 0.02 au courtage seul de 0,15 % ;
+      49,25 pour 0.040 et 0.025 sous le barème réel, sur une valeur taxée en 2026
+      (ÉTUDE 18, S3).
       [rend: 1]
     ⑥ TRAITEMENT — ① faire respecter le contrat d'unité annoncé par le nom ·
-      ② si aucun montant de frais n'est imposé et qu'un module de positions est
-      fourni, calculer les frais SÉPARÉMENT pour la sortie au gain et pour la
-      sortie au stop, puisqu'ils sont proportionnels à la valeur échangée ·
-      ③ sinon, retomber sur le forfait de 300 € · ④ rendre la part que la perte
+      ② calculer les frais SÉPARÉMENT pour la sortie au gain et pour la sortie au
+      stop, puisqu'ils sont proportionnels à la valeur échangée, l'achat et la vente
+      le même jour (la taxe se lit à l'achat) · ③ rendre la part que la perte
       représente dans la somme du gain et de la perte, exprimée en pourcents ·
-      ⑤ refuser un résultat hors de l'intervalle 0 à 100.
-    ⑦ UNITÉ — `tp` et `sl` sont des FRACTIONS. `frais` et `capital` sont des
+      ④ refuser un résultat hors de l'intervalle 0 à 100.
+    ⑦ UNITÉ — `tp` et `sl` sont des FRACTIONS. `capital` et les frais sont des
       EUROS. Le résultat est un POURCENTAGE entre 0 et 100.
     ⑧ POURQUOI — Le nom porte l'unité, et ce n'est pas de la décoration. Deux
       fonctions ont porté le nom `point_mort`, pris les deux mêmes arguments, et
@@ -247,29 +257,32 @@ def point_mort_en_fractions(tp, sl, frais=None, capital=CAPITAL, mod_positions=N
       que 300 € étaient écrits en dur ici pendant que `MODULE_POSITIONS`
       appliquait 0,15 % à l'entrée et à la sortie.
     ⑨ CE QUI CLOCHE —
-      ① Le repli est muet. Quand aucun module de positions n'est donné, la
-      fonction retombe sur un forfait de 300 € sans rien dire, et rend un
-      chiffre qui a l'air aussi solide que l'autre. Mesuré le 19-09-2026 : le
-      couple 0.040 et 0.025 rend 43,08 % par le forfait et le couple 0.05 et
-      0.02 rend 32,86 % par le vrai taux ; rien dans la valeur rendue ne dit
-      par quel chemin elle est passée.
+      ① (RÉGLÉ LE 29-10-2026, A-550) Le repli muet sur un forfait de 300 € quand
+      aucun module de positions n'était donné a disparu : le module est exigé.
       ② Le paramètre `capital` ne sert à rien au résultat. Il apparaît au
       numérateur et au dénominateur de la même fraction : mesuré le 19-09-2026,
       le couple 0.040 et 0.025 rend 43,08 % avec 100 000 € et 43,08 % avec
       10 000 €, frais forfaitaires identiques. Un lecteur qui voit ce paramètre
       croit pouvoir régler quelque chose qui ne bouge pas.
-      ③ Le forfait de 300 € est un nombre recopié. `programmes/MODULE_POSITIONS.py`
-      porte `FRAIS_TAUX = 0.0015`, et les frais réels d'une opération de
-      100 000 € sortie à +4 % valent 306,00 € — mesuré le 19-09-2026. Le repli
-      sous-estime donc les frais, dans le sens qui flatte la stratégie.
+      ③ (RÉGLÉ LE 29-10-2026, A-550) Le forfait de 300 € recopié ici a disparu ; il
+      se nomme « HIST_FORFAIT_300 » dans le barème, et ne sert qu'à refaire les
+      chiffres anciens.
+      ④ Le point mort se calcule pour UNE valeur à UNE date : une stratégie qui
+      achète des valeurs taxées et d'autres non a un point mort par valeur.
+      `point_mort_pire_cas` choisit la plus chère ; `point_mort_des_operations`
+      fait la moyenne des opérations jouées, chacune à sa valeur et à sa date —
+      la méthode choisie par Jean-Luc le 29-10-2026 à 21h28 (« A »).
     ⑩ EFFET — Aucun : elle calcule. Aucun fichier, aucun réseau, aucune donnée
-      modifiée. Elle EXÉCUTE la fonction `frais_ordre` du module qu'on lui
-      passe, quatre fois par appel.
+      modifiée par elle. Elle EXÉCUTE la fonction `frais_ordre` du module qu'on
+      lui passe, trois fois par appel (l'achat, la vente au gain, la vente au
+      stop) ; au premier appel, ce module lit le barème des frais.
     ⑪ TERMINAISON — Rend la main avec un pourcentage dans le cas normal. PEUT
       LEVER, et dans les deux cas l'erreur remonte à l'appelant : sur un seuil
-      qui n'est pas une fraction, et sur un résultat hors de 0 à 100. Un de ses
-      appels peut ne pas revenir : `_exiger_des_fractions` et `_impossible`
-      lèvent toutes deux.
+      qui n'est pas une fraction, sur un résultat hors de 0 à 100, sur un module
+      sans `frais_ordre` (`RuntimeError`), et ce que lève `frais_ordre`
+      (`ValueError`, `LookupError` : barème inconnu, valeur ou année absente de la
+      liste des valeurs taxées). Un de ses appels peut ne pas revenir :
+      `_exiger_des_fractions` et `_impossible` lèvent toutes deux.
       [sort: non]
     ⑫ DÉFINITIONS
       le point mort : le taux de réussite en dessous duquel une stratégie perd de l'argent
@@ -287,29 +300,178 @@ def point_mort_en_fractions(tp, sl, frais=None, capital=CAPITAL, mod_positions=N
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
     _exiger_des_fractions(tp, sl)
-    # LES FRAIS VIENNENT DU MODULE QUI LES POSSEDE, jamais d'un nombre recopie.
-    # Defaut trouve le 29/08 : 300 EUR etaient ecrits en dur ici alors que
-    # MODULE_POSITIONS applique 0,15 % de la valeur echangee a l'entree ET a la
-    # sortie — 307,50 EUR sur une sortie a +5 %. Petit ecart, mais un nombre
-    # recopie qui contredit son proprietaire, c'est R-708.
-    if frais is None:
-        _fo = getattr(mod_positions, "frais_ordre", None) if mod_positions else None
-        if callable(_fo):
-            # LES DEUX BRANCHES N'ONT PAS LES MEMES FRAIS : une sortie au
-            # gain coute plus cher qu'une sortie au stop, puisque les frais
-            # sont proportionnels a la valeur echangee. Appliquer les frais de
-            # la branche gagnante aux deux donnait 32,96 % au lieu de 32,86.
-            q = capital / 100.0                      # prix d'entree normalise
-            f_gain = _fo(q, 100.0) + _fo(q, 100.0 * (1 + tp))
-            f_perte = _fo(q, 100.0) + _fo(q, 100.0 * (1 - sl))
-            gain = capital * tp - f_gain
-            perte = capital * sl + f_perte
-            return _impossible(100.0 * perte / (gain + perte), tp, sl)
-        else:
-            frais = FRAIS                            # repli, valeur historique
-    gain = capital * tp - frais
-    perte = capital * sl + frais
+    # LES FRAIS VIENNENT DU MODULE QUI LES POSSEDE, jamais d'un nombre recopie (R-708).
+    # LES DEUX BRANCHES N'ONT PAS LES MEMES FRAIS : une sortie au gain coute plus cher
+    # qu'une sortie au stop, puisque les frais sont proportionnels a la valeur echangee
+    # (29-08-2026 : appliquer les frais de la branche gagnante aux deux donnait 32,96 % au
+    # lieu de 32,86). Depuis le 29-10-2026 (A-550), la taxe sur les transactions
+    # financieres s'ajoute a l'achat d'une valeur taxee : le point mort depend donc de la
+    # valeur et de la date.
+    # Le point mort passe par `frais_ordre`, ordre par ordre, et non par `frais_aller_retour` :
+    # il suppose une revente un AUTRE jour que l'achat, donc la taxe payée — le cas le plus
+    # cher. Un achat revendu le jour même (exonéré) coûte moins : le point mort est prudent.
+    _fo = getattr(mod_positions, "frais_ordre", None)
+    if not callable(_fo):
+        raise RuntimeError("point_mort_en_fractions : le module des positions doit exposer frais_ordre "
+                           "(aucun forfait de repli : A-550, ÉTUDE 18 S5)")
+    q = capital / 100.0                      # prix d'entree normalise
+    f_achat = _fo(q, 100.0, valeur, date, "achat", bareme)
+    f_gain = f_achat + _fo(q, 100.0 * (1 + tp), valeur, date, "vente", bareme)
+    f_perte = f_achat + _fo(q, 100.0 * (1 - sl), valeur, date, "vente", bareme)
+    gain = capital * tp - f_gain
+    perte = capital * sl + f_perte
     return _impossible(100.0 * perte / (gain + perte), tp, sl)
+
+
+def point_mort_pire_cas(tp, sl, univers, date, mod_positions, bareme=None):
+    """Le point mort de la valeur la plus chère d'un univers, à une date.
+
+    ① RÔLE — Donner UN point mort à une stratégie dont les valeurs ne coûtent pas
+      toutes la même chose : depuis la taxe sur les transactions financières (A-550),
+      acheter Bouygues coûte 400 € de plus qu'acheter Airbus.
+    ② CONTEXTE D'APPEL — PLUS APPELÉE PAR LE JUGE NI PAR LA MESURE DEPUIS LA DÉCISION
+      DU 29-10-2026 ; GARDÉE POUR COMPARAISON. Jean-Luc a répondu « A » (message reçu à
+      21h28) à la question « Avec quel point mort juger les stratégies aux vrais frais ?
+      A : chaque trade compte la taxe qu'il a vraiment payée (barre 48,70 % pour
+      C5E10-QA-V1) ; B : on suppose que chaque trade a payé la taxe la plus chère,
+      400 € (49,25 %) » : `juger` de `programmes/JUGE_DES_STRATEGIES.py` et
+      `point_mort_en_pourcents` de
+      `programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py` appellent désormais
+      `point_mort_des_operations`. Seul appelant restant : `_calibrage`, qui vérifie
+      qu'elle retient la valeur taxée. Rien ne se supprime sans accord.
+    ③ ENTRÉE — `tp`, `sl` : en FRACTIONS · `univers` : les valeurs de la stratégie
+      (mnémoniques ou noms) · `date` : « AAAA-MM-JJ », le jour dont on prend le
+      barème · `mod_positions` : `programmes/MODULE_POSITIONS.py` · `bareme` : None
+      pour le barème réel.
+    ④ CONDITIONS D'ENTRÉE — `univers` n'est pas vide ; chaque valeur figure dans la
+      liste des valeurs taxées de l'année de `date`.
+    ⑤ SORTIE — DEUX valeurs : le point mort le plus haut, en pourcents, et la valeur
+      qui le donne.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① calculer le point mort de chaque valeur à la date ·
+      ② garder le plus haut, et la première valeur qui l'atteint dans l'ordre de
+      l'univers.
+    ⑦ UNITÉ — Seuils en FRACTIONS ; résultat en POURCENTS.
+    ⑧ POURQUOI — Choix de méthode PESSIMISTE, dans l'esprit de R-602 (on suppose le
+      pire) : le verdict C7 compare la borne basse du taux de réussite à ce point mort,
+      et une stratégie qui ne passe qu'avec les frais de ses valeurs les moins chères
+      ne passe pas. Exemple : C5-ETENDU-10, +4 % / −2,5 %, univers de dix valeurs dont
+      neuf taxées en 2026 — 49,25 % (taxée) au lieu de 43,08 % (forfait d'avant).
+      CE CHOIX N'A PAS ÉTÉ RETENU : le 29-10-2026 à 21h28, Jean-Luc a choisi l'autre
+      méthode, les frais des opérations réellement jouées (`point_mort_des_operations`).
+    ⑨ CE QUI CLOCHE — La date fixe le barème de TOUTES les opérations : une stratégie
+      jugée sur 2024-2026 au barème de 2026 compte 0,4 % de taxe là où ses achats de
+      2024 n'en payaient que 0,3 %. Le point mort est donc un peu plus haut que celui
+      des opérations d'avant le 01-04-2025.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève `ValueError` sur un univers vide, et ce que lève
+      `point_mort_en_fractions`.
+      [sort: non]
+    """
+    if not univers:
+        raise ValueError("point_mort_pire_cas : univers vide")
+    pire, qui = None, None
+    for v in univers:
+        pm = point_mort_en_fractions(tp, sl, mod_positions, v, date, bareme)
+        if pire is None or pm > pire:
+            pire, qui = pm, v
+    return pire, qui
+
+
+def point_mort_des_operations(tp, sl, operations, mod_positions, bareme=None):
+    """Le point mort moyen des opérations jouées, chacune à SA valeur et à SA date d'achat.
+
+    ① RÔLE — Donner UN point mort à une stratégie dont les opérations n'ont pas toutes
+      coûté la même chose : depuis la taxe sur les transactions financières (A-550),
+      acheter Bouygues coûte 400 € de plus qu'acheter Airbus, et la taxe valait 0,3 %
+      avant le 01-04-2025 et 0,4 % depuis. Chaque opération compte la taxe qu'elle a
+      payée ; le point mort de la stratégie est la moyenne de ces points morts.
+    ② CONTEXTE D'APPEL — `juger` de `programmes/JUGE_DES_STRATEGIES.py`, une fois par
+      stratégie jugée, sur les opérations jugées ; `point_mort_en_pourcents` de
+      `programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py`, chaque soir, une fois
+      par stratégie et par comptabilité, sur les lignes du journal des trades de cette
+      stratégie et de cette comptabilité ; `_calibrage`, une fois.
+    ③ ENTRÉE — `tp`, `sl` : l'objectif de gain et la perte acceptée, en FRACTIONS
+      (0.040 et 0.025 pour +4 % et −2,5 %) · `operations` : une liste d'opérations, chacune
+      un dictionnaire qui porte au moins `valeur` (mnémonique ou nom, « BOUYGUES »,
+      « UNIBAIL_RODAMCO ») et `date_entree` (« AAAA-MM-JJ », le jour de l'ACHAT, celui où
+      la taxe frappe) — les autres clés sont ignorées · `mod_positions` :
+      `programmes/MODULE_POSITIONS.py` · `bareme` : le nom d'un barème, None pour le
+      barème réel.
+    ④ CONDITIONS D'ENTRÉE — `operations` n'est pas vide ; chaque opération porte
+      `valeur` et `date_entree` ; chaque valeur figure dans la liste des valeurs taxées
+      de l'année de sa date d'achat.
+    ⑤ SORTIE — UNE valeur : le point mort moyen, un pourcentage entre 0 et 100.
+      Exemples recalculés à la main le 29-10-2026, +4 % / −2,5 %, barème réel :
+      Airbus le 27-07-2026 (non taxée) 43,08 % et Bureau Veritas le même jour (taxée
+      0,4 %) 49,25 % donnent 46,17 % ; les 51 opérations de C5E10-QA-V1 rejouées par la
+      remesure du 29-10-2026 donnent 48,7031 %, les 89 de C5E10-OBS-V1 47,9832 %.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① refuser une liste vide · ② pour chaque opération, demander à
+      `point_mort_en_fractions` le point mort à sa valeur et à sa date d'achat, sous le
+      barème donné (le calcul n'est jamais recopié ici, R-708) · ③ rendre la moyenne
+      arithmétique, chaque opération pesant autant.
+    ⑦ UNITÉ — Seuils en FRACTIONS ; résultat en POURCENTS.
+    ⑧ POURQUOI — DÉCISION DE JEAN-LUC DU 29-10-2026, message reçu à 21h28 : « A » à la
+      question « Avec quel point mort juger les stratégies aux vrais frais ? A : chaque
+      trade compte la taxe qu'il a vraiment payée (barre 48,70 % pour C5E10-QA-V1) ; B :
+      on suppose que chaque trade a payé la taxe la plus chère, 400 € (49,25 %). »
+      Jusque-là, `point_mort_pire_cas` prenait la valeur la plus chère de l'univers au
+      barème du dernier achat : une opération de 2024 (taxe 0,3 %) ou sur Airbus (pas
+      de taxe) y était jugée comme si elle avait payé 400 €. La moyenne est juste
+      parce que le point mort est, à une opération près, une moyenne lui-même : la
+      stratégie ne perd pas d'argent tant que son taux de réussite dépasse la part
+      moyenne de la perte dans gain + perte. Mesuré sur la remesure du 29-10-2026
+      (C5E10-QA-V1, 51 opérations, 32 gagnantes, borne basse de Wilson 49,02 % —
+      49,02496 rendu par `wilson_borne_basse` de la mesure, relecture de Cowork du
+      29-10-2026, tour 3, défaut 3) : pire cas 49,25 % (ne passe
+      pas), moyenne 48,70 % (passe).
+    ⑨ CE QUI CLOCHE —
+      ① L'exonération d'un achat revendu le jour même (pas de taxe) n'entre PAS dans ce
+      point mort : `point_mort_en_fractions` suppose toujours la taxe payée à l'achat
+      d'une valeur taxée. Cette exonération est déjà dans les gains de l'opération
+      (`MODULE_POSITIONS.frais_aller_retour`) ; le point mort reste un peu prudent pour
+      ces opérations-là.
+      ② Une stratégie SANS opération n'a pas de point mort : la fonction lève, et c'est
+      à l'appelant de ne pas en écrire (la mesure laisse la case vide et dit
+      « echantillon insuffisant »).
+      ③ Chaque opération pèse autant, ce qui suppose la même somme engagée (100 000 €)
+      et les mêmes seuils pour toutes. Sous cette condition, la moyenne des points
+      morts est EXACTEMENT le point mort des frais d'achat moyens : les frais d'achat
+      s'annulent dans gain + perte, qui ne dépend donc pas de la valeur. Mesuré le
+      29-10-2026 : Airbus et Bureau Veritas au 27-07-2026 donnent 46,16540194907746 par
+      les deux chemins. Ce n'est plus vrai si un barème faisait dépendre les frais de
+      VENTE de la valeur.
+      ④ Le barème est celui que l'appelant donne (le barème des verdicts), pas celui
+      que le journal des trades écrit dans sa colonne `bareme_reel` : la première ligne
+      du journal (Bureau Veritas, 27-07-2026, payée au forfait historique de 300 €) est
+      jugée comme si elle avait payé le barème des verdicts.
+    ⑩ EFFET — Aucun : elle calcule. Elle EXÉCUTE `frais_ordre` du module des positions
+      trois fois par opération, à travers `point_mort_en_fractions`.
+    ⑪ TERMINAISON — Rend la main ; lève `ValueError` sur une liste vide ou une opération
+      sans `valeur` ou sans `date_entree`, et ce que lève `point_mort_en_fractions`
+      (dont `FraisNonChiffrables`, un cas de `LookupError`, quand une valeur manque à
+      la liste de son année). Un de ses appels peut ne pas revenir :
+      `point_mort_en_fractions` lève.
+      [sort: non]
+    ⑫ DÉFINITIONS
+      le point mort : le taux de réussite en dessous duquel une stratégie perd de l'argent
+      une opération : un achat simulé suivi de sa revente, avec son gain net en euros ;
+        aucun ordre réel n'est jamais passé
+      la taxe sur les transactions financières : 0,3 % puis 0,4 % (depuis le 01-04-2025)
+        de la somme achetée, à l'achat d'une valeur française de plus d'un milliard
+        d'euros de capitalisation, listée chaque année
+    """
+    if not operations:
+        raise ValueError("point_mort_des_operations : aucune opération — une stratégie sans opération "
+                         "n'a pas de point mort (décision de Jean-Luc du 29-10-2026, méthode A)")
+    pms = []
+    for o in operations:
+        v, d = o.get("valeur"), o.get("date_entree")
+        if not v or not d:
+            raise ValueError(f"point_mort_des_operations : opération sans valeur ou sans date d'achat : {o!r}")
+        pms.append(point_mort_en_fractions(tp, sl, mod_positions, v, d, bareme))
+    return sum(pms) / len(pms)
 
 
 def _exiger_des_fractions(tp, sl):
@@ -1440,7 +1602,7 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       « valeur » et « date ».
       ② RÉGLÉ LE 28-09-2026 (A-435 ④) : le gain net se calculait par
       `mod_positions.pnl_net` ; depuis le 28-10-2026, par la mécanique même de la stratégie
-      (`jouer_une_entree`, frais par `MODULE_POSITIONS.frais_ordre`) ; épreuve dans
+      (`jouer_une_entree`, frais par `MODULE_POSITIONS.frais_aller_retour`) ; épreuve dans
       tests/EPREUVES_DES_FRAIS_DU_HASARD_Lun_28-09-2026.py. Ce qui était mesuré :
       les frais sont un forfait de 300 € écrit dans ce fichier, alors que la
       stratégie à laquelle l'étalon sera comparé paie 0,15 % de la valeur
@@ -1450,7 +1612,8 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       rend 3 700,00 €, soit 6,00 € d'écart sur ce gain ; sur une perte à −2,5 %
       l'écart s'inverse, −3,75 € (relecteur du Chat, 28-09-2026 : il vaut 1,50 € par
       point de pourcentage de rendement). Un chiffre qui existe ailleurs ne se recopie
-      pas (R-708) : le taux vit dans `MODULE_POSITIONS.FRAIS_TAUX`.
+      pas (R-708) : les frais vivent dans `MODULE_POSITIONS` (`frais_aller_retour`, qui lit le
+      barème daté depuis le 29-10-2026, A-550).
       ③ Aucun contrôle d'unité sur l'objectif et la perte acceptée. Mesuré le
       19-09-2026 : un appel avec 4.0 et 2.5, c'est-à-dire des pourcents au lieu
       de fractions, est accepté sans broncher et rend un taux de réussite médian
@@ -1474,7 +1637,7 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       par valeur.
     ⑪ TERMINAISON — Rend toujours la main dans les cas que son appelant lui
       donne. PEUT LEVER : ValueError sans `entree` ni `admis` ; et tout ce que lève
-      `entree` (le module des positions sans `tester_seance` ou `frais_ordre`) ; le
+      `entree` (le module des positions sans `tester_seance` ou `frais_aller_retour`) ; le
       juge des stratégies rattrape et affiche « HASARD non mesure ». Ses appels à
       `entree` et `admis` rendent la main : ils ne lisent que la série reçue.
       [sort: non]
@@ -2041,57 +2204,47 @@ def _calibrage():
         L.append(f"  {lib:<52} {'OK' if passe else 'ECHEC'}"
                  + ("" if passe else f"  obtenu {obtenu} attendu {attendu}"))
 
-    # les deux points mort documentes dans l'ETUDE 11, frais historiques
-    dire("point mort +4,0/-2,5 = 43,08 %", round(point_mort_en_fractions(0.040, 0.025, frais=FRAIS), 2), 43.08, 0.01)
-    dire("point mort +1,2/-1,0 = 59,09 %", round(point_mort_en_fractions(0.012, 0.010, frais=FRAIS), 2), 59.09, 0.01)
-
-    # ON ECRIT LE CONTROLE DE CE QU'ON VIENT DE CHANGER, PAS DE CE QU'ON VIENT
-    # DE VOIR. Les deux controles ci-dessus appellent la branche de REPLI, avec
-    # des frais forfaitaires : ils ne touchent jamais le calcul a deux branches
-    # ajoute le 29/08. Prouve par sabotage le jour meme — en remettant les frais
-    # du gain sur les deux branches, le calibrage passait TOUJOURS.
-    # Troisieme fois dans la journee qu'une correction reste sans filet.
-    class _Faux:
-        FRAIS_TAUX = 0.0015
-        @staticmethod
-        def frais_ordre(q, prix, taux=None):
-            """Rend les frais d'un ordre, pour le seul besoin du calibrage.
-
-            ① RÔLE — Tenir la place de la vraie fonction de frais pendant le calibrage, pour
-            que celui-ci tourne même quand le module des positions n'est pas chargeable. Elle
-            n'est pas le calcul du système : elle en est un double de secours.
-            ② CONTEXTE D'APPEL — Définie dans la classe `_Faux`, elle-même construite par le
-            calibrage quand `programmes/MODULE_POSITIONS.py` ne peut pas être chargé. Aucun
-            autre appelant.
-            ③ ENTRÉE — `q` : la quantité de titres · `prix` : le prix unitaire en euros ·
-            `taux` : le taux de frais, `None` par défaut.
-            ④ CONDITIONS D'ENTRÉE — `q` et `prix` doivent être des nombres.
-            ⑤ SORTIE — UNE valeur : le montant des frais, en euros.
-              [rend: 1]
-            ⑥ TRAITEMENT — ① multiplier la quantité par le prix par 0,0015 · ② rendre le
-            résultat.
-            ⑦ UNITÉ — Le résultat est en EUROS. Le taux est une fraction, pas un pourcent :
-            0,0015 vaut 0,15 %.
-            ⑧ POURQUOI — Le calibrage doit pouvoir tourner seul, sans dépendre du chargement
-            d'un autre fichier. C'est ce qui permet de le lancer depuis un dossier quelconque.
-            ⑨ CE QUI CLOCHE — DEUX POINTS. ① **Le taux 0,0015 est recopié ici en dur**, alors
-            que le taux du système vit à un seul endroit, `MODULE_POSITIONS.FRAIS_TAUX`,
-            relevé à 0.0015 le 20-09-2026. Les deux concordent aujourd'hui ; rien ne le
-            garantit demain, et deux implémentations d'une même chose divergent toujours
-            (R-708). ② **Le paramètre `taux` n'est jamais employé** : appelée avec
-            `taux=0.0025`, elle rend quand même le montant calculé à 0,0015. Un appelant qui
-            croit choisir le taux ne choisit rien. Relevé par lecture du code le 20-09-2026,
-            non provoqué.
-            ⑩ EFFET — Aucun.
-            ⑪ TERMINAISON — Rend toujours la main. Aucun de ses appels ne peut ne pas revenir.
-              [sort: non]
-            """
-            return 0.0015 * q * prix
-    _pm = point_mort_en_fractions(0.05, 0.02, mod_positions=_Faux)
+    # LE VRAI MODULE DES POSITIONS, A COTE DE CE FICHIER (A-550, 29-10-2026). Jusque-la, ce
+    # calibrage employait un forfait de 300 € ecrit ici, et une fausse fonction de frais a
+    # 0,0015 ecrite en dur : deux copies d'un tarif. Il rejoue desormais les chiffres
+    # connus sous le bareme qui les a produits, nomme dans donnees/BAREME_FRAIS.csv.
+    import importlib.util as _ilu, os as _os
+    _sp = _ilu.spec_from_file_location(
+        "_positions_du_calibrage", _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "MODULE_POSITIONS.py"))
+    _mp = _ilu.module_from_spec(_sp); _sp.loader.exec_module(_mp)
+    # les deux points mort documentes dans l'ETUDE 11, sous le forfait historique de 300 €
+    dire("point mort +4,0/-2,5 = 43,08 % (forfait historique)",
+         round(point_mort_en_fractions(0.040, 0.025, _mp, "AIRBUS", "2026-07-27", "HIST_FORFAIT_300"), 2), 43.08, 0.01)
+    dire("point mort +1,2/-1,0 = 59,09 % (forfait historique)",
+         round(point_mort_en_fractions(0.012, 0.010, _mp, "AIRBUS", "2026-07-27", "HIST_FORFAIT_300"), 2), 59.09, 0.01)
+    # ON ECRIT LE CONTROLE DE CE QU'ON VIENT DE CHANGER, PAS DE CE QU'ON VIENT DE VOIR.
+    # Les deux controles ci-dessus passent par un forfait egal sur les deux branches : ils
+    # ne touchent jamais la difference entre sortie au gain et sortie au stop (29/08 : en
+    # remettant les frais du gain sur les deux branches, le calibrage passait TOUJOURS).
+    _pm = point_mort_en_fractions(0.05, 0.02, _mp, "AIRBUS", "2026-07-27", "HIST_COURTAGE_SANS_TTF")
     dire("point mort a deux branches de frais = 32,86 %", round(_pm, 2), 32.86, 0.01)
     # une sortie au stop coute MOINS cher qu'une sortie au gain : si les deux
     # branches etaient confondues, le point mort remonterait a 32,96
     dire("les deux branches different bien", round(_pm, 2) != 32.96, True)
+    # LA TAXE (A-550) : +4 % / -2,5 % sur une valeur taxee en 2026, bareme reel — 49,25 %
+    # (ETUDE 18, S3, calcul du 08-10-2026 aux frais exacts de chaque issue) ; sur Airbus,
+    # non taxee, le courtage seul : 43,08 % (100 x 2 796,25 / 6 490,25 ; recalcule le 29-10-2026,
+    # le texte disait 43,25 %).
+    dire("point mort +4,0/-2,5 = 49,25 % sur une valeur taxee (bareme reel)",
+         round(point_mort_en_fractions(0.040, 0.025, _mp, "BUREAU_VERITAS", "2026-07-27"), 2), 49.25, 0.01)
+    _pc, _qui = point_mort_pire_cas(0.040, 0.025, ["AIR", "BVI"], "2026-07-27", _mp)
+    dire("le pire cas d'un univers retient la valeur taxee (BVI)", 1.0 if _qui == "BVI" else 0.0, 1.0)
+    # LE POINT MORT DES OPERATIONS JOUEES (decision de Jean-Luc du 29-10-2026 a 21h28, « A ») :
+    # la MOYENNE, et non le pire cas. A la main, +4 % / -2,5 %, bareme reel, 100 000 € :
+    #   Airbus (non taxee) : achat 150, vente au gain 156, vente au stop 146,25
+    #     100 x (2 500 + 150 + 146,25) / ((4 000 - 150 - 156) + (2 500 + 150 + 146,25)) = 43,0839 %
+    #   Bureau Veritas (taxee 0,4 %) : achat 150 + 400 = 550
+    #     100 x (2 500 + 550 + 146,25) / ((4 000 - 550 - 156) + (2 500 + 550 + 146,25)) = 49,2469 %
+    #   moyenne des deux : (43,0839 + 49,2469) / 2 = 46,1654 % — le pire cas rendrait 49,25.
+    dire("point mort des operations : moyenne AIR + BVI = 46,17 %",
+         round(point_mort_des_operations(0.040, 0.025, [{"valeur": "AIR", "date_entree": "2026-07-27"},
+                                                        {"valeur": "BVI", "date_entree": "2026-07-27"}], _mp), 2),
+         46.17, 0.01)
 
     # LES FENETRES GLISSANTES DECOUPENT LE TEMPS EN PARTS EGALES.
     _cal2 = {f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}" for i in range(300)}

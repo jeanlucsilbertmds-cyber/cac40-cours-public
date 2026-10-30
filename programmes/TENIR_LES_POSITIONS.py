@@ -44,7 +44,7 @@ jeton unique, et un signal du soir peut alors entrer. L'inverse le bloquerait
 
 CE QUE CE PROGRAMME EMPRUNTE AU MODULE, ET CE QU'IL NE LUI EMPRUNTE PAS
 =======================================================================
-Il emprunte `tester_seance` et `frais_ordre` : ces deux-la ne dependent
+Il emprunte `tester_seance` et `frais_aller_retour` : ces deux-la ne dependent
 d'AUCUN reglage de strategie. Un taux de frais ne se recopie jamais.
 
 Il n'emprunte NI `sortie_position` NI `parametres_entree`, aux DEUX bouts du
@@ -93,9 +93,11 @@ LES ONZE ELEMENTS — ce programme est une fonction comme les autres
   ④ ouvrir sur les signaux du jour, **une position au plus par strategie** ·
   ⑤ reecrire les positions et le journal.
 ⑦ UNITE — **Les montants sont en euros, les seuils en POURCENTS, l horizon en
-  JOURS DE BOURSE et non en jours calendaires.** Les frais sont un taux, ecrit
-  a un seul endroit — `MODULE_POSITIONS.FRAIS_TAUX` — et tout autre programme
-  le LIT.
+  JOURS DE BOURSE et non en jours calendaires.** Les frais se calculent a un
+  seul endroit — `MODULE_POSITIONS.frais_aller_retour`, qui lit le bareme date
+  `donnees/BAREME_FRAIS.csv`, taxe sur les transactions financieres comprise, et
+  ne taxe pas un achat revendu le jour meme (A-550, 29-10-2026) — et tout autre
+  programme l'APPELLE.
 ⑧ POURQUOI — **Les seuils d objectif et de stop, et le nombre de seances avant
   echeance, sont lus dans `donnees/cac40_strategies.csv`, jamais ecrits dans le
   code.** C est la seule facon de servir plusieurs strategies sans toucher au
@@ -217,7 +219,7 @@ def charger_module_positions(chemin):
     spec.loader.exec_module(mod)
     # on n'exige QUE ce qu'on appelle : `pnl_net` ne l'est plus depuis que
     # le gain est calcule sur les seuils de la position.
-    for f in ("frais_ordre", "tester_seance"):
+    for f in ("frais_aller_retour", "tester_seance"):
         if not hasattr(mod, f):
             raise RuntimeError("le module des positions n'expose pas " + f)
     return mod
@@ -854,7 +856,7 @@ def completer_echeances(positions, cours, reglages, horizon_seances=20, cle=None
 # ─────────────────────────────────────────────────────────────────────
 # B) LES CLÔTURES
 # ─────────────────────────────────────────────────────────────────────
-def cloturer(positions, cours, mod, horizon_seances=20, cle=None):
+def cloturer(positions, cours, mod, horizon_seances=20, cle=None, bareme=None):
     """Clôture toute position OUVERTE dont le stop, l'objectif ou l'échéance
     est atteint. Rend (lignes de journal, positions restantes, incidents).
 
@@ -875,6 +877,7 @@ def cloturer(positions, cours, mod, horizon_seances=20, cle=None):
       depuis le 27-09-2026** — l échéance vient de la position, calculée par
       `completer_echeances` ; le paramètre reste pour ne pas changer les
       appels · `cle` : la fonction qui rapproche les deux graphies d un même nom.
+      `bareme` : le nom d'un barème de `donnees/BAREME_FRAIS.csv`, ou None pour le barème des trades vécus (« REEL ») ; il chiffre les frais et s'écrit au journal (A-550, 29-10-2026).
     ④ CONDITIONS D ENTRÉE — Les cours doivent porter les séances suivant
       l entrée. **Une valeur introuvable est un incident, pas une erreur.**
     ⑤ SORTIE — TROIS valeurs : les lignes de journal, les positions restantes,
@@ -930,7 +933,7 @@ def cloturer(positions, cours, mod, horizon_seances=20, cle=None):
         # serait donc cloturee aux seuils d'une AUTRE, en silence.
         # Mesure du 02-09-2026 : ces deux fonctions ne sont appelees par aucun
         # autre programme du projet. Le juge des stratégies, lui, lit les seuils de la fiche
-        # et n'emprunte au module que `tester_seance` et `frais_ordre`, qui ne
+        # et n'emprunte au module que `tester_seance` et ses frais, qui ne
         # dependent d'aucun reglage. On fait pareil : c'est la seule facon de
         # servir plusieurs strategies sans toucher au module, donc sans
         # toucher au juge des stratégies ni au radar qui l'utilisent.
@@ -987,8 +990,32 @@ def cloturer(positions, cours, mod, horizon_seances=20, cle=None):
         # aujourd'hui, divergentes le jour ou l'une des deux change — et
         # personne ne verrait laquelle a raison.
         q = getattr(mod, "CAPITAL", 100000.0) / pe
-        f_tot = mod.frais_ordre(q, pe) + mod.frais_ordre(q, px)
-        f_conv = mod.frais_ordre(q, pe) + mod.frais_ordre(q, prix_conv)
+        # LES FRAIS VIENNENT DU BAREME DATE (A-550, 29-10-2026) : courtage a l'achat
+        # et a la vente, taxe sur les transactions financieres a l'achat d'une valeur
+        # taxee, chacun au jour de son ordre. Le nom du barème employe est ecrit dans
+        # le journal (`bareme_reel`, `bareme_convention`) : un montant ne se verifie
+        # qu'avec le bareme qui l'a produit (ETUDE 18, A1bis).
+        _bar = bareme if bareme is not None else mod.BAREME_PAR_DEFAUT
+        # L'ALLER-RETOUR S'ASSEMBLE A UN SEUL ENDROIT, `frais_aller_retour` : un achat
+        # revendu le jour meme ne paie pas la taxe (BOFiP, BOI-TCA-FIN-10-10, § 60).
+        # SI LES FRAIS NE SE CHIFFRENT PAS (la liste des valeurs taxees de l'annee manque,
+        # le cas de janvier 2027), la position RESTE OUVERTE et le DIT dans sa propre case,
+        # `frais_non_chiffrables`, que le radar lit (superviseur R-759, C3, 29-10-2026).
+        # Seule cette exception-la est attrapee : toute autre erreur continue de lever.
+        _fnc = getattr(mod, "FraisNonChiffrables", None)
+        try:
+            f_tot = mod.frais_aller_retour(q, pe, px, v, d_ent, d_sortie, _bar)["total"]
+            f_conv = mod.frais_aller_retour(q, pe, prix_conv, v, d_ent, d_sortie, _bar)["total"]
+        except Exception as e:
+            if _fnc is None or not isinstance(e, _fnc):
+                raise
+            p["frais_non_chiffrables"] = "%s %s : %s" % (d_sortie, motif, e)
+            incidents.append("VENTE BLOQUEE %s %s le %s (%s) : frais non chiffrables — %s. "
+                             "La position reste ouverte et garde le jeton de sa strategie : ses "
+                             "signaux seront ignores jusqu'au depot de la liste." % (
+                                 p.get("strategie", ""), v, d_sortie, motif, e))
+            restantes.append(p)
+            continue
 
         trades.append({
             "strategie": p.get("strategie", ""),
@@ -1002,6 +1029,8 @@ def cloturer(positions, cours, mod, horizon_seances=20, cle=None):
             "prix_sortie_convention": "%.5f" % prix_conv,
             "pnl_net_convention_eur": "%.2f" % (q * (prix_conv - pe) - f_conv),
             "comptabilite": p.get("comptabilite", ""),
+            "bareme_reel": _bar,
+            "bareme_convention": _bar,
             "regles_pre_trade": p.get("regles_pre_trade", ""),
             "explication": p.get("explication", ""),
         })
@@ -1295,6 +1324,7 @@ def ouvrir_sur_signaux(positions, signaux, prochaine_seance):
                 "comptabilite": compta,
                 "regles_pre_trade": "",   # vérification manuelle par Jean-Luc
                 "explication": sg.get("explication", ""),
+                "frais_non_chiffrables": "",
             })
 
     return nouvelles, ignores
@@ -1304,7 +1334,7 @@ def ouvrir_sur_signaux(positions, signaux, prochaine_seance):
 # L'ENCHAÎNEMENT — l'ordre compte
 # ─────────────────────────────────────────────────────────────────────
 def tenir(positions, cours, signaux, prochaine_seance, mod,
-          horizon_seances=20, cle=None, reglages=None, base="."):
+          horizon_seances=20, cle=None, reglages=None, base=".", bareme=None):
     """B puis C puis D. Une clôture du matin libère le jeton pour un signal du
     soir ; l'ordre inverse le bloquerait à tort.
 
@@ -1316,6 +1346,7 @@ def tenir(positions, cours, signaux, prochaine_seance, mod,
       `horizon_seances` · `cle` : la fonction qui rapproche les graphies ·
       `reglages` : les seuils par stratégie, lus dans
       `donnees/cac40_strategies.csv` · `base` : la racine du dépôt.
+      `bareme` : le nom d'un barème de `donnees/BAREME_FRAIS.csv`, ou None pour le barème des trades vécus (« REEL ») ; transmis à `cloturer` (A-550, 29-10-2026).
     ④ CONDITIONS D ENTRÉE — Les réglages doivent être renseignés. **Sans eux,
       aucune position ne s ouvre** — c est le défaut du 03-09.
     ⑤ SORTIE — **UNE valeur : un dictionnaire de SIX clés.** `trades` : les
@@ -1366,7 +1397,7 @@ def tenir(positions, cours, signaux, prochaine_seance, mod,
     # L ECHEANCE SE RECALCULE AVANT LA CLOTURE (defaut 2, 27-09-2026).
     positions, inc_e = completer_echeances(positions, cours, reglages,
                                            horizon_seances, cle)
-    trades, restantes, inc_b = cloturer(positions, cours, mod, horizon_seances, cle)
+    trades, restantes, inc_b = cloturer(positions, cours, mod, horizon_seances, cle, bareme)
     _en_attente = {id(p) for p in restantes if (p.get("statut") or "").strip() == EN_ATTENTE}
     restantes, inc_c = entrer(restantes, cours, mod, horizon_seances, cle,
                               reglages)
@@ -1392,7 +1423,7 @@ def tenir(positions, cours, signaux, prochaine_seance, mod,
         for _p in _juste_entrees:
             _pp, _ip = completer_echeances([_p], cours, reglages, horizon_seances, cle)
             _inc_par_pos[id(_p)] = _ip
-        _t2, _r2, _i2 = cloturer(_juste_entrees, cours, mod, horizon_seances, cle)
+        _t2, _r2, _i2 = cloturer(_juste_entrees, cours, mod, horizon_seances, cle, bareme)
         _fermees = {id(p) for p in _juste_entrees} - {id(p) for p in _r2}
         for _k, _ip in _inc_par_pos.items():
             inc_e = inc_e + [x for x in _ip if "deja passee" in x or _k in _fermees]
@@ -1513,6 +1544,36 @@ def _calibrage(mod, base="."):
     """
     print("\n  CALIBRAGE — le cas UNIBAIL du 27-08-2026\n")
     bons = 0
+    # LES CAS DE CE CALIBRAGE SE JOUENT SOUS LE BAREME D'EPOQUE, LE COURTAGE SEUL (A-550,
+    # 29-10-2026). Ils eprouvent la MECANIQUE (sorties, entrees, echeances) sur des
+    # valeurs fabriquees (« X », « Z », « W »…) qu'aucune liste de valeurs taxees ne
+    # porte : sous le bareme reel, la taxe leverait, a juste titre (une valeur inconnue
+    # est une alerte). Le bareme reel est eprouve a part, sur Unibail, par
+    # `_tenir_au_bareme_reel`.
+    _HIST = "HIST_COURTAGE_SANS_TTF"
+    _tenir_au_bareme_reel = globals()["tenir"]
+
+    def tenir(*a, **k):
+        """Appelle la vraie tenue des positions sous le barème d'époque, sauf barème nommé.
+
+        ① RÔLE — Faire jouer les cas fabriqués du calibrage sous le courtage seul.
+        ② CONTEXTE D'APPEL — Chaque cas de `_calibrage` qui appelle `tenir`.
+        ③ ENTRÉE — `a`, `k` : les arguments de `tenir`, positionnels et nommés.
+        ④ CONDITIONS D'ENTRÉE — Celles de `tenir`.
+        ⑤ SORTIE — UNE valeur : ce que rend `tenir`.
+          [rend: 1]
+        ⑥ TRAITEMENT — poser `bareme` au barème d'époque s'il n'est pas donné, puis
+          appeler la vraie `tenir`.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Les valeurs fabriquées ne sont dans aucune liste de valeurs taxées.
+        ⑨ CE QUI CLOCHE — Rien vu.
+        ⑩ EFFET — Celui de `tenir`.
+        ⑪ TERMINAISON — Celle de `tenir`.
+          [sort: non]
+        """
+        k.setdefault("bareme", _HIST)
+        return _tenir_au_bareme_reel(*a, **k)
+
     cours = {"UNIBAIL_RODAMCO": [
         {"date": "2026-08-21", "open": 103.15, "high": 103.30, "low": 102.65, "close": 103.05},
         {"date": "2026-08-24", "open": 103.00, "high": 103.70, "low": 102.10, "close": 103.00},
@@ -1526,7 +1587,10 @@ def _calibrage(mod, base="."):
             "horizon_fin": "2026-09-18", "statut": OUVERTE,
             "comptabilite": UN_JETON, "regles_pre_trade": "", "explication": ""}]
 
-    r = tenir(pos, cours, [], "2026-08-28", mod)
+    # LE CAS SE REJOUE SOUS LE BAREME QUI L'A PRODUIT (A-550, 29-10-2026) : le courtage
+    # seul, 0,15 % par ordre, sans la taxe — c'est ainsi que la boucle du soir l'a
+    # inscrit au journal. Le meme cas sous le bareme reel est verifie juste apres.
+    r = tenir(pos, cours, [], "2026-08-28", mod, bareme=_HIST)
     t = r["trades"]
     bons += _dire("une position cloturee", len(t), 1)
     if t:
@@ -1535,7 +1599,17 @@ def _calibrage(mod, base="."):
         bons += _dire("perte nette = -2 796,25 EUR",
                       float(t[0]["pnl_net_eur"]), -2796.25, 0.01)
         bons += _dire("date de sortie = 27-08", t[0]["date_sortie"], "2026-08-27")
+        bons += _dire("le journal nomme le bareme employe", t[0]["bareme_reel"], _HIST)
     bons += _dire("plus aucune position ouverte", len(r["positions"]), 0)
+    # LE MEME CAS SOUS LE BAREME REEL : 400,00 EUR de taxe en plus a l'achat d'Unibail,
+    # valeur taxee en 2026 (donnees/VALEURS_TTF.csv) — -3 196,25 EUR, calcul de
+    # l'ETUDE 18 (S9), et le journal nomme « REEL ».
+    _t_reel = _tenir_au_bareme_reel([dict(x) for x in pos], cours, [], "2026-08-28", mod)["trades"]
+    if _t_reel:
+        bons += _dire("sous le bareme reel : -3 196,25 EUR (taxe comprise)",
+                      float(_t_reel[0]["pnl_net_eur"]), -3196.25, 0.01)
+        bons += _dire("sous le bareme reel : le journal nomme REEL",
+                      _t_reel[0]["bareme_reel"], mod.BAREME_PAR_DEFAUT)
 
     # LE PRIX DE CONVENTION NE SE VERIFIE QUE SUR UN SAUT D'OUVERTURE.
     # Sur UNIBAIL il n'y a pas eu de saut : le prix reel et le prix theorique
@@ -1553,7 +1627,7 @@ def _calibrage(mod, base="."):
                "prix_entree": "27.28", "tp": "28.3712", "sl": "26.598",
                "horizon_fin": "2026-08-21", "statut": OUVERTE,
                "comptabilite": UN_JETON, "regles_pre_trade": "", "explication": ""}]
-    rb = tenir(pos_bv, cours_bv, [], "2026-07-30", mod)
+    rb = tenir(pos_bv, cours_bv, [], "2026-07-30", mod, bareme=_HIST)
     tb = rb["trades"]
     bons += _dire("saut d'ouverture : motif TP_GAP",
                   tb[0]["motif_sortie"] if tb else "?", "TP_GAP")
@@ -1577,7 +1651,7 @@ def _calibrage(mod, base="."):
            "date_entree": "2026-05-04", "prix_entree": "100.0", "tp": "104.0",
            "sl": "97.5", "horizon_fin": "2026-06-01", "statut": OUVERTE,
            "comptabilite": UN_JETON, "regles_pre_trade": "", "explication": ""}]
-    tg = tenir(pg, cours_gap, [], "2026-05-06", mod)["trades"]
+    tg = tenir(pg, cours_gap, [], "2026-05-06", mod, bareme=_HIST)["trades"]
     bons += _dire("saut SOUS le stop : motif SL_GAP",
                   tg[0]["motif_sortie"] if tg else "?", "SL_GAP")
     if tg:
@@ -1599,7 +1673,7 @@ def _calibrage(mod, base="."):
            "date_entree": "2026-05-03", "prix_entree": "100.0", "tp": "104.0",
            "sl": "97.5", "horizon_fin": "", "statut": OUVERTE,
            "comptabilite": UN_JETON, "regles_pre_trade": "", "explication": ""}]
-    th = tenir(ph, cours_h, [], "2026-06-01", mod,
+    th = tenir(ph, cours_h, [], "2026-06-01", mod, bareme=_HIST,
                reglages={"S": {"tp": 0.04, "sl": 0.025, "horizon": _H}})["trades"]
     bons += _dire("echeance atteinte : motif HORIZON",
                   th[0]["motif_sortie"] if th else "?", "HORIZON")
@@ -1622,12 +1696,12 @@ def _calibrage(mod, base="."):
              "date_entree": "2026-06-01", "prix_entree": "100.0", "tp": "104.0",
              "sl": "97.5", "horizon_fin": "2026-07-01", "statut": OUVERTE,
              "comptabilite": UN_JETON, "regles_pre_trade": "", "explication": ""}
-    t_ord = tenir([dict(p_ord)], c_ord, [], "2026-06-05", mod)["trades"]
+    t_ord = tenir([dict(p_ord)], c_ord, [], "2026-06-05", mod, bareme=_HIST)["trades"]
     bons += _dire("dans l'ordre : sortie au TP le 06-02",
                   (t_ord[0]["motif_sortie"], t_ord[0]["date_sortie"]) if t_ord else "?",
                   ("TP", "2026-06-02"))
     t_env = tenir([dict(p_ord)], {"W": list(reversed(c_ord["W"]))},
-                  [], "2026-06-05", mod)["trades"]
+                  [], "2026-06-05", mod, bareme=_HIST)["trades"]
     bons += _dire("serie a l'envers : MEME sortie, le tri corrige",
                   (t_env[0]["motif_sortie"], t_env[0]["date_sortie"]) if t_env else "?",
                   ("TP", "2026-06-02"))
@@ -1727,12 +1801,12 @@ def _calibrage(mod, base="."):
     cours_s3 = {"Z": cours_s2["Z"] + [{"date": "2026-05-06", "open": 60.0,
                                        "high": 61.0, "low": 59.0, "close": 60.0}]}
     sig_s = [{"strategie": "S", "valeur": "Z", "date_signal": "2026-05-04"}]
-    r_s1 = tenir([], cours_s1, sig_s, None, mod, reglages=REG)
+    r_s1 = tenir([], cours_s1, sig_s, None, mod, reglages=REG, bareme=_HIST)
     bons += _dire("soir du signal : la position attend son entree",
                   [x["statut"] for x in r_s1["positions"]], [EN_ATTENTE, EN_ATTENTE])
     bons += _dire("soir du signal : attendre n'est pas un incident",
                   r_s1["incidents"], [])
-    r_s2 = tenir(r_s1["positions"], cours_s2, [], None, mod, reglages=REG)
+    r_s2 = tenir(r_s1["positions"], cours_s2, [], None, mod, reglages=REG, bareme=_HIST)
     bons += _dire("le lendemain : la position est OUVERTE",
                   [x["statut"] for x in r_s2["positions"]], [OUVERTE, OUVERTE])
     bons += _dire("le lendemain : entree datee de la seance qui suit le signal",
@@ -2303,7 +2377,8 @@ def _calibrage(mod, base="."):
            "date_sortie": "2026-07-29", "prix_sortie": "29.2400",
            "motif_sortie": "TP_GAP", "pnl_net_eur": "6884.75",
            "prix_sortie_convention": "28.3712", "pnl_net_convention_eur": "3694.00",
-           "regles_pre_trade": "R-301 AURAIT BLOQUE", "explication": "Premier signal reel du systeme."}
+           "regles_pre_trade": "R-301 AURAIT BLOQUE", "explication": "Premier signal reel du systeme.",
+           "bareme_reel": "HIST_FORFAIT_300", "bareme_convention": "HIST_COURTAGE_SANS_TTF"}
     bons += _dire("une ligne sans comptabilite est refusee",
                   any("« comptabilite » ABSENTE" in x
                       for x in fautes_d_ecriture([_bv], TRADE, "journal")), True)
@@ -2566,6 +2641,10 @@ def tenir_pour_de_vrai(base):
     f_jou = os.path.join(base, "donnees", "claude_journal_trades.csv")
     f_sig = os.path.join(base, "donnees", "signaux_du_jour.json")
     positions = _lire_csv(f_pos)
+    # Une position écrite avant le 29-10-2026 n'a pas la case `frais_non_chiffrables`
+    # (contrat POSITION) : elle la reçoit vide, ce qui est sa vraie valeur.
+    for _p in positions:
+        _p.setdefault("frais_non_chiffrables", "")
     journal = _lire_csv(f_jou)
     if not os.path.isfile(f_sig):
         print(f"  CODE 2 — {f_sig} absent : sans signaux, rien a tenir.")

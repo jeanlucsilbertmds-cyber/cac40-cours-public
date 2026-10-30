@@ -309,8 +309,10 @@ def executer_protocole_si_necessaire(force=False):
         dans le meme fichier de statut, et la fenetre de 30 minutes s'ouvre ou se ferme a
         tort.
       · **Le montant affiche porte le nom `net_50bps`, ou 50 points de base valent 0,50 %,
-        alors que les frais du systeme valent 0,15 % par ordre** — `MODULE_POSITIONS.py`
-        ligne 83, `FRAIS_TAUX = 0.0015`, tarif Fortuneo Progress. Le fichier qui produit
+        alors que le courtage du systeme vaut 0,15 % par ordre** — releve le 19-09-2026
+        dans `MODULE_POSITIONS.py`, `FRAIS_TAUX = 0.0015`, tarif Fortuneo Progress ; depuis
+        le 29-10-2026 (A-550), le bareme date `donnees/BAREME_FRAIS.csv`, taxe sur les
+        transactions financieres comprise pour les valeurs taxees. Le fichier qui produit
         cette cle, `resultats_reference_v1.json`, n'existe pas dans le depot : **je n'ai
         pas pu etablir si les deux nombres parlent de la meme chose.** Si ce sont bien les
         memes frais, un des deux chiffres est faux et un chiffre qui existe ailleurs ne se

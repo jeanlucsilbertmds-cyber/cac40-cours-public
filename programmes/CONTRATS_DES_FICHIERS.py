@@ -196,6 +196,12 @@ COPIE_DES_BOUCLES = (
     "programmes/CONTROLER_L_HISTORIQUE_LONG.py",
     "programmes/CALENDRIER_DE_LA_BOURSE.py",
     "donnees/cac40_strategies.csv",
+    # LE BARÈME DES FRAIS (ajouté le 29-10-2026, A-550) : MODULE_POSITIONS.cout_d_un_ordre lit
+    # donnees/BAREME_FRAIS.csv et donnees/VALEURS_TTF.csv (ou, dans la copie à plat, ces deux
+    # fichiers sous leur seul nom, à côté de lui) ; sans eux, la boucle ne chiffre plus un trade.
+    # Deux fichiers de plus pour la ligne `cp` des boucles.
+    "donnees/BAREME_FRAIS.csv",
+    "donnees/VALEURS_TTF.csv",
 )
 
 
@@ -417,6 +423,13 @@ POSITION = [
     "strategie", "valeur", "date_signal", "date_entree",
     "prix_entree", "tp", "sl", "horizon_fin",
     "statut", "comptabilite", "regles_pre_trade", "explication",
+    # UNE POSITION QUI DEVRAIT ÊTRE VENDUE MAIS DONT LES FRAIS NE SE CHIFFRENT PAS
+    # (superviseur R-759, C3, 29-10-2026) : vide d'ordinaire ; sinon « AAAA-MM-JJ MOTIF :
+    # raison » — le jour et le motif de la vente bloquée, et pourquoi (la liste des
+    # valeurs taxées de l'année manque). La position reste OUVERTE ; la vente se refera à
+    # l'identique, au bon jour et au bon prix, dès que la liste est déposée. Le radar
+    # rougit sur toute position qui porte cette case.
+    "frais_non_chiffrables",
 ]
 
 # journal des trades clos — TENIR_LES_POSITIONS écrit, MESURER_LA_PERFORMANCE lit
@@ -432,6 +445,59 @@ TRADE = [
     "date_sortie", "prix_sortie", "motif_sortie", "pnl_net_eur",
     "prix_sortie_convention", "pnl_net_convention_eur", "comptabilite",
     "regles_pre_trade", "explication",
+    # LE BARÈME QUI A PRODUIT CHAQUE MONTANT (A-550, ÉTUDE 18 A1bis, 29-10-2026) : le nom
+    # d'une ligne de donnees/BAREME_FRAIS.csv. Deux colonnes, parce que la ligne
+    # BUREAU_VERITAS du 27-07-2026 porte deux montants faits sous deux régimes (réel au
+    # forfait de 300 €, convention au courtage de 0,15 %). Un montant ne se vérifie
+    # qu'avec son barème ; les montants ne sont jamais réécrits.
+    "bareme_reel", "bareme_convention",
+]
+
+# LE BARÈME DES FRAIS (A-550, ÉTUDE 18) — écrit à la main sur décision de Jean-Luc, lu par
+# `programmes/MODULE_POSITIONS.py` (`cout_d_un_ordre`), seul endroit où se calcule le coût
+# d'un ordre. Une ligne par élément de coût : courtage, taxe sur les transactions
+# financières (« ttf »), forfait historique, frais de gestion d'un fonds coté. Taux en
+# FRACTION (0,0015 vaut 0,15 %), montants et seuils en euros, dates AAAA-MM-JJ, case
+# vide = sans objet (A-548). La première ligne du fichier est un commentaire « # … ».
+BAREME_FRAIS = [
+    "nom_bareme", "instrument", "nature", "sens", "taux_fraction", "montant_eur",
+    "valeur_ordre_min_eur", "valeur_ordre_max_eur", "debut", "fin", "source",
+    "releve_le", "remarque",
+]
+
+# LES SEUILS D'EXIGENCE QUI PORTENT SUR LES FRAIS — ce ne sont PAS des tarifs (ÉTUDE 18, S11).
+# Critère C8 de la grille de validation (REGISTRE) : un backtest doit avoir supposé au moins
+# 0,5 % de frais par opération, en fraction. Un tarif se lit dans le barème, un seuil d'exigence
+# se déclare ici avec son critère. (Jusqu'au 29-10-2026, le garde-fou des frais laissait passer tout
+# nombre égal à ce seuil ; il n'exempte plus que par l'emplacement, voir juste dessous.)
+SEUILS_D_EXIGENCE_SUR_LES_FRAIS = {"C8": 0.005}
+
+# LES NOMBRES QUE LE GARDE-FOU DES FRAIS LAISSE PASSER, PAR LEUR EMPLACEMENT (superviseur R-759, C5 ④,
+# 29-10-2026) : (nom du programme SANS « .py », dictionnaire, clé). Sans l'extension : écrit avec,
+# le nom ferait passer ce programme pour une dépendance de ce module aux yeux de l'épreuve de la copie
+# des boucles (tests/EPREUVES_DE_LA_COPIE_DES_BOUCLES_Jeu_01-10-2026.py, E1, mesuré le 29-10-2026). Jusqu'au 29-10-2026, le garde-fou laissait passer tout
+# nombre ÉGAL au seuil C8 (0,005), où qu'il soit écrit : un vrai frais en dur de 0,5 % serait passé.
+# Chaque ligne dit pourquoi ce nombre n'est pas un tarif.
+EXEMPTIONS_DU_GARDE_FOU_DES_FRAIS = {
+    # chiffre TÉMOIN de C5-EI au 26-04-2026 (mémo ETAT_REFLEXION du 27-04-2026) : les frais que son backtest
+    # avait supposés, recopiés tels quels pour que le juge à huit critères retrouve 7 sur 8 — pas un tarif
+    ("JUGER_SUR_8_CRITERES", "TEMOIN", "frais_pct"),
+}
+
+# LE JOUR OÙ LE BARÈME RÉEL ENTRE EN SERVICE (A-550, superviseur R-759, C4, 29-10-2026). Tout
+# trade VENDU ce jour-là ou après porte « REEL » dans `bareme_reel` et `bareme_convention` ; le
+# radar (maillon 10bis) rougit sinon. Les étiquettes historiques (« HIST_* ») ne valent que pour
+# les ventes d'avant. C'est le premier soir prévu du circuit avec le barème daté (jalon J5 du
+# planning A-577) : SI LA MISE EN SERVICE GLISSE, CETTE DATE GLISSE DANS LE MÊME GESTE — un
+# trade vendu entre-temps par l'ancien code n'aurait pas d'étiquette et rougirait au radar.
+MISE_EN_SERVICE_DU_BAREME_REEL = "2026-10-30"
+
+# LA LISTE ANNUELLE DES VALEURS TAXÉES (A-550) — une ligne par année et par valeur :
+# `assujettie` vaut OUI ou NON, selon la liste publiée au BOFiP en décembre de l'année
+# précédente. Lue par `programmes/MODULE_POSITIONS.py` (`valeur_taxee`).
+VALEURS_TTF = [
+    "annee", "mnemonique", "nom_usuel", "assujettie", "liste_reference", "source",
+    "releve_le",
 ]
 
 # LES COMPTABILITÉS ADMISES dans la colonne `comptabilite` des positions et du journal.
@@ -778,6 +844,8 @@ CONTRATS_PAR_FICHIER = {
     "EVENEMENTS_YAHOO.csv": EVENEMENTS_YAHOO,
     "claude_positions_ouvertes.csv": POSITION,
     "claude_journal_trades.csv": TRADE,
+    "BAREME_FRAIS.csv": BAREME_FRAIS,
+    "VALEURS_TTF.csv": VALEURS_TTF,
     "historique_mesures.csv": MESURE,
     "cours_maitre.csv": COURS_MAITRE,
     "cac40_ohlcv.csv": COURS_NOUVEAUX,

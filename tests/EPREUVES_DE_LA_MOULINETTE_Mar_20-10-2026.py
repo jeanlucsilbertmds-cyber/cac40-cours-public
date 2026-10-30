@@ -553,6 +553,32 @@ def cas_jouer_dehors(racine):
                          None, ("les résultats ne retrouvent pas le témoin : rien n'est écrit", detail), temoin=temoin_abime)
     noter("JOUER, témoin abîmé : aucun fichier de résultats", not os.path.exists(f_out) and not os.path.exists(f_out + ".en_cours"))
 
+    # LE TÉMOIN SE COMPARE SOUS SON BARÈME (A-550, superviseur R-759, C15, 29-10-2026). Deux témoins FAUX, faits des trois
+    # vraies lignes : ① sans étiquette de barème -> arrêt ; ② étiqueté d'un autre barème (le forfait de 300 €) -> l'écart
+    # entre les deux barèmes n'est plus la taxe -> arrêt. Le témoin intact, lui, passe : le cas « témoin abîmé d'un euro »
+    # ne rougit que sur l'euro ajouté (son détail est exigé).
+    def temoin_etiquete(etiquette):
+        def ecrire_le(d):
+            col, tem = lire(os.path.join(racine, TEMOIN))
+            garde = [dict(l) for l in tem if l["id_version"] in TROIS]
+            if etiquette is None:
+                col = [c for c in col if c != "bareme"]
+                for l in garde:
+                    l.pop("bareme", None)
+            else:
+                for l in garde:
+                    l["bareme"] = etiquette
+            ecrire(os.path.join(d, os.path.basename(TEMOIN)), col, garde)
+        return ecrire_le
+
+    d, f_out, _ = un_cas("JOUER, témoin sans barème : arrêt", None,
+                         "ne dit pas sous quel barème des frais il a été fait", temoin=temoin_etiquete(None))
+    d, f_out, _ = un_cas("JOUER, témoin étiqueté d'un autre barème : l'écart n'est pas la taxe, arrêt", None,
+                         "l'écart au témoin n'est pas expliqué par la taxe : rien n'est écrit",
+                         temoin=temoin_etiquete("HIST_FORFAIT_300"))
+    noter("JOUER, témoin d'un autre barème : aucun fichier de résultats",
+          not os.path.exists(f_out) and not os.path.exists(f_out + ".en_cours"))
+
 
 def faux_juge(base, **reglages):
     """Fabrique un faux juge des stratégies, pour atteindre les refus internes de JOUER_LES_VERSIONS.
@@ -593,6 +619,8 @@ def faux_juge(base, **reglages):
     J.table_mnemoniques = lambda f: {"TTE": "TTE"}
     J.cle_valeur = lambda m: m
     J.charger_module = lambda f, nom: None
+    # le barème des verdicts (A-550, 29-10-2026) : le faux juge n'a pas de module des positions, il en donne le nom
+    J.bareme_des_verdicts = lambda bareme, mod: bareme or "HIST_COURTAGE_SANS_TTF"
     J.trouver = lambda b, motif: reglages.get("registre") if motif == "cac40_strategies.csv" else "fichier"
     porte = reglages.get("porte", (True, [], bornes))
     J.porte_0 = porte if callable(porte) else (lambda f: porte)

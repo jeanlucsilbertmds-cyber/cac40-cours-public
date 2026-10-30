@@ -1263,7 +1263,8 @@ def chemin_registre():
     return None, None
 
 # A-15 — au-delà de ce seuil, un écart n'est plus imputable à la convention de frais
-# (A-50 non tranchée : journal = frais réels ~306 €, module = forfait 300 €).
+# (Jusqu'au 29-10-2026, A-50 : journal = frais réels ~306 €, module = forfait 300 € ; depuis A-550,
+# chaque montant se refait sous le barème que le journal nomme.)
 SEUIL_ECART_CALCUL = 25.0   # euros
 
 rapport = []
@@ -2005,16 +2006,28 @@ else:
             idx = [k for k, b in enumerate(oh) if b["date"] == d_e]
             if not idx or idx[0] == 0:
                 sans_cours += 1; continue
-            # le module entre à i_signal+1 : on lui passe donc l'indice précédent
-            res = MOD._c5e10_sortie(oh, idx[0] - 1)
+            # le module entre à i_signal+1 : on lui passe donc l'indice précédent.
+            # LE MONTANT SE REFAIT SOUS LE BARÈME QUI L'A PRODUIT (A-550, ÉTUDE 18 A1bis,
+            # 29-10-2026) : le journal le nomme dans `bareme_convention` (« HIST_COURTAGE_SANS_TTF »
+            # pour les trades d'avant le barème daté, « REEL » ensuite). Une case vide est
+            # comptée comme un écart de calcul : sans barème, un montant ne se vérifie pas.
+            _bar = str(t.get("bareme_convention") or "").strip()
+            if not _bar:
+                ecarts.append(f"{v} {d_e} : le journal ne nomme pas le barème de son montant")
+                continue
+            try:
+                res = MOD._c5e10_sortie(oh, idx[0] - 1, v, _bar)
+            except Exception as _e:
+                ecarts.append(f"{v} {d_e} : recalcul impossible sous {_bar} ({type(_e).__name__} : {_e})")
+                continue
             if res is None:
                 sans_cours += 1; continue
             controles += 1
-            # A-15 — DEUX natures d'écart, à ne pas confondre :
-            #  · écart de CONVENTION DE FRAIS : le journal inscrit les frais RÉELS
-            #    (0,15 %/ordre), le module applique un forfait. Écart faible et attendu
-            #    tant que la décision A-50 n'est pas prise → ⚠, pas ❌.
-            #  · écart de CALCUL : tout le reste → ❌.
+            # A-15 — DEUX natures d'écart. Jusqu'au 29-10-2026, un écart de quelques euros
+            # venait de la CONVENTION DE FRAIS (le journal à 0,15 % de la valeur échangée, le
+            # module au forfait de 300 €) et restait ⚠. Depuis A-550, chaque montant se refait
+            # sous son propre barème : un écart de plus d'un euro dit que l'étiquette ou le
+            # calcul est faux (ÉTUDE 18, A3) — il reste ⚠ sous le seuil de calcul, ❌ au-dessus.
             d = abs(res["pnl"] - pnl_inscrit)
             if d > SEUIL_ECART_CALCUL:
                 ecarts.append(f"{v} {d_e} : journal {pnl_inscrit:+.0f} € vs module "
@@ -2038,8 +2051,8 @@ else:
             score["warn"] += 1
         if ecarts_frais:
             rapport.append((WARN, "10-Trades",
-                f"{len(ecarts_frais)} trade(s) avec écart de CONVENTION DE FRAIS (attendu tant "
-                f"que A-50 n'est pas tranchée, ce n'est PAS une erreur de calcul) : "
+                f"{len(ecarts_frais)} trade(s) dont le montant ne retombe pas à 1 € près sous le "
+                f"barème que le journal nomme (A-550 : étiquette ou calcul faux) : "
                 + " | ".join(ecarts_frais[:3]) + (" …" if len(ecarts_frais) > 3 else "")))
             score["warn"] += 1
         if sans_cours:
@@ -2451,6 +2464,103 @@ if f_tr is not None and trades:
     for _sig, _txt, _k in _lignes_13(_constats_13(trades, _vers_id)):
         rapport.append((_sig, "13-Creux", _txt))
         score[_k] += 1
+
+# ═══ MAILLON 10bis — LES FRAIS : CHAQUE MONTANT SOUS SON BARÈME, LES LISTES DE LA TAXE ═══
+# Né du superviseur R-759 du 29-10-2026 (C3, C4, C7, C12 du relecteur T1, A-550). AUTONOME : il
+# relit lui-même ses fichiers et charge lui-même MODULE_POSITIONS (leçon de A-250).
+# ① CHAQUE MONTANT DU JOURNAL SE REFAIT, aux prix ÉCRITS au journal, sous le barème que sa
+#   ligne nomme (`bareme_reel` pour `pnl_net_eur`, `bareme_convention` pour
+#   `pnl_net_convention_eur`), par `MODULE_POSITIONS.pnl_net` : écart de plus d'UN EURO = ❌.
+#   Un euro et pas un centime : les prix sont écrits à cinq décimales, le montant a été
+#   calculé avant l'arrondi ; l'erreur vaut au plus 0,5 € divisé par le prix d'entrée
+#   (0,05 € pour une valeur à 10 €). Une confusion de barème qui compte coûte au moins
+#   3,75 € (les deux régimes historiques) et 400 € (la taxe).
+# ② UNE ÉTIQUETTE FAUSSE MAIS COHÉRENTE PASSERAIT ①. Tout trade VENDU à partir du jour de mise
+#   en service du barème réel (`MISE_EN_SERVICE_DU_BAREME_REEL`, au contrat) porte « REEL »
+#   dans ses deux cases ; sinon ❌.
+# ③ UNE POSITION DONT LA VENTE EST BLOQUÉE (case `frais_non_chiffrables` remplie) = ❌.
+# ④ LA LISTE DES VALEURS TAXÉES de l'année du jour existe et nomme chaque mnémonique des
+#   univers du registre — ❌ sinon ; celle de l'année du jour + 31 jours aussi — ⚠ sinon
+#   (la liste paraît au BOFiP vers le 20 décembre : l'alerte part dès le 1er décembre).
+def _maillon_des_frais():
+    import importlib.util as _u
+    from datetime import date as _date, timedelta as _tdl
+    try:
+        _sp = _u.spec_from_file_location("mp_frais_radar", chemin_de("MODULE_POSITIONS.py"))
+        MP = _u.module_from_spec(_sp); _sp.loader.exec_module(MP)
+        import CONTRATS_DES_FICHIERS as _C
+        _mes = _C.MISE_EN_SERVICE_DU_BAREME_REEL
+    except Exception as e:
+        rapport.append((FAIL, "10bis-Frais", "MODULE_POSITIONS ou le contrat illisible — les frais "
+                        f"ne sont PAS contrôlés ({type(e).__name__} : {e})"))
+        score["fail"] += 1
+        return
+    # ① et ②
+    trades, f_tr = _lire_csv(["journal_trades"])
+    faux, illegit, vus = [], [], 0
+    for t in (trades or []):
+        v = (t.get("valeur") or "").strip()
+        for col_px, col_pnl, col_bar in (("prix_sortie", "pnl_net_eur", "bareme_reel"),
+                                         ("prix_sortie_convention", "pnl_net_convention_eur",
+                                          "bareme_convention")):
+            bar = (t.get(col_bar) or "").strip()
+            try:
+                pe, px = float(t["prix_entree"]), float(t[col_px])
+                ecrit = float(str(t[col_pnl]).replace(",", "."))
+                refait = MP.pnl_net(pe, px, v, t["date_entree"], t["date_sortie"], bar or None)
+            except Exception as e:
+                faux.append(f"{v} {t.get('date_entree')} {col_pnl} : non refait ({type(e).__name__} : {e})"[:160])
+                continue
+            vus += 1
+            if not bar:
+                faux.append(f"{v} {t.get('date_entree')} : {col_bar} vide")
+            elif abs(refait - ecrit) > 1.0:
+                faux.append(f"{v} {t.get('date_entree')} {col_pnl} : écrit {ecrit:+.2f} €, refait sous "
+                            f"{bar} {refait:+.2f} €")
+            if (t.get("date_sortie") or "") >= _mes and bar != "REEL":
+                illegit.append(f"{v} vendu le {t.get('date_sortie')} : {col_bar} = {bar or 'vide'}")
+    if f_tr is not None:
+        check("10bis-Frais", not faux,
+              f"{vus} montant(s) du journal refait(s) sous leur barème, à un euro près",
+              f"MONTANT QUI NE RETOMBE PAS SOUS SON BARÈME ({len(faux)}) : " + " | ".join(faux[:3])
+              + (" …" if len(faux) > 3 else ""), critique=True)
+        check("10bis-Frais", not illegit,
+              f"Tout trade vendu depuis le {_mes} porte le barème réel",
+              "BARÈME HISTORIQUE SUR UN TRADE RÉCENT : " + " | ".join(illegit[:3]), critique=True)
+    # ③
+    pos, f_pos = _lire_csv(["positions_ouvertes"])
+    bloquees = [f"{p.get('strategie')} {p.get('valeur')} — {p.get('frais_non_chiffrables')}"
+                for p in (pos or []) if (p.get("frais_non_chiffrables") or "").strip()]
+    check("10bis-Frais", not bloquees, "Aucune vente bloquée faute de frais chiffrables",
+          "VENTE BLOQUÉE — position laissée ouverte, frais non chiffrables : " + " | ".join(bloquees[:3])
+          + " — déposer la liste des valeurs taxées de l'année (donnees/VALEURS_TTF.csv)", critique=True)
+    # ④
+    strats, _ = _lire_csv(["cac40_strategies"])
+    mnemos = sorted({x.strip() for s in (strats or []) if (s.get("etat_vie") or "").strip()
+                     .upper() in ("QA", "PRODUCTION") for x in (s.get("univers") or "").split(",") if x.strip()})
+    auj = datetime.now(ZoneInfo("Europe/Paris")).date()
+    # Une ligne par ANNÉE (relecteur T2, M3 : quand le jour et le jour + 31 tombent la même année, une seule) ; toutes
+    # les valeurs manquantes sont nommées (T2, D6 : la dixième était coupée) ; le message dit ce qui se bloque (M2).
+    vues = set()
+    for jour, grave in ((auj, True), (auj + _tdl(days=31), False)):
+        if jour.year in vues:
+            continue
+        vues.add(jour.year)
+        manque = []
+        for m in mnemos:
+            try:
+                MP.valeur_taxee(m, jour.isoformat())
+            except Exception as e:
+                manque.append(f"{m} ({type(e).__name__})")
+        suite = (" — les ventes ne se chiffrent plus : elles restent ouvertes (donnees/VALEURS_TTF.csv)" if grave else
+                 f" — à déposer avant le 1er janvier : sans elle, aucun achat de {jour.year} ne se chiffrera à sa "
+                 "vente (donnees/VALEURS_TTF.csv)")
+        check("10bis-Frais", not manque,
+              f"Liste des valeurs taxées {jour.year} : les {len(mnemos)} valeur(s) des univers en service y sont",
+              f"LISTE DES VALEURS TAXÉES {jour.year} INCOMPLÈTE OU ABSENTE ({len(manque)}) : "
+              + ", ".join(manque) + suite, critique=grave)
+
+_maillon_des_frais()
 
 # ═══ MAILLON 11 — POSITIONS OUVERTES (cohérence) ═══
 pos, f_pos = _lire_csv(["positions_ouvertes"])

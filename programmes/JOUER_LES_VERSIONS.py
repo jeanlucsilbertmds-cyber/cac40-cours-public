@@ -236,6 +236,40 @@ def calibrer_par_le_juge(base, ident):
     return ok, ligne
 
 
+def bareme_du_temoin(f_comb, sid, essai):
+    """Dit sous quel barème des frais le témoin de résultats a été fait, ou None sans témoin.
+
+    ① RÔLE — Lire l'étiquette de barème du témoin (A-550, superviseur R-759, C15, 29-10-2026).
+    ② CONTEXTE D'APPEL — `main`, une fois, avant de jouer les versions.
+    ③ ENTRÉE — `f_comb` : la combinatoire · `sid`, `essai` : la stratégie et l'essai.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le nom du barème (une ligne de `donnees/BAREME_FRAIS.csv`), ou None s'il
+      n'y a pas de témoin.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① chercher le témoin à côté de la combinatoire · ② lire sa colonne `bareme` ·
+      ③ exiger UNE seule valeur, non vide, sur toutes les lignes.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un montant ne se vérifie qu'avec le barème qui l'a produit (ÉTUDE 18, A1bis). Le
+      témoin de C5E10-OBS-V1 E01 a été fait au courtage seul, avant la taxe : sans son étiquette, la
+      moulinette, passée au barème réel, ne le retrouvait plus (mesuré le 29-10-2026 : version 0914,
+      gain 71 855,72 € au lieu de 97 155,72 €) et s'arrêtait. Le superviseur a refusé de REMPLACER le
+      témoin (une référence de calibrage ne se réécrit pas) : il est GARDÉ et ÉTIQUETÉ.
+    ⑨ CE QUI CLOCHE — Un témoin sans colonne `bareme` arrête la moulinette (ValueError) : c'est voulu,
+      un témoin sans barème ne prouve rien.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main ; lève ValueError si l'étiquette manque ou varie.
+      [sort: non]
+    """
+    f_tem = os.path.join(os.path.dirname(f_comb), "TEMOIN_RESULTATS_%s_%s.csv" % (sid, essai))
+    if not os.path.exists(f_tem):
+        return None
+    vals = {(r.get("bareme") or "").strip() for r in csv.DictReader(open(f_tem, encoding="utf-8-sig"))}
+    if len(vals) != 1 or "" in vals:
+        raise ValueError("le témoin %s ne dit pas sous quel barème des frais il a été fait (colonne "
+                         "« bareme », une seule valeur) : %r" % (os.path.basename(f_tem), sorted(vals)))
+    return vals.pop()
+
+
 def comparer_au_temoin(f_comb, sid, essai, f_resultats):
     """Compare les résultats d'un lancement au témoin de résultats, s'il existe.
 
@@ -243,7 +277,9 @@ def comparer_au_temoin(f_comb, sid, essai, f_resultats):
       rejoue que les réglages de la fiche.
     ② CONTEXTE D'APPEL — `main`, une fois, après avoir joué toutes les versions.
     ③ ENTRÉE — `f_comb` : la combinatoire · `sid`, `essai` : la stratégie et
-      l'essai · `f_resultats` : le fichier provisoire qui vient d'être écrit.
+      l'essai · `f_resultats` : le fichier provisoire qui vient d'être écrit, ou
+      (depuis le 29-10-2026, C15) un dictionnaire id_version -> ligne, quand les
+      versions ont été rejouées sous le barème du témoin.
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des écarts, vide si tout concorde ou s'il
       n'y a pas de témoin.
@@ -274,7 +310,10 @@ def comparer_au_temoin(f_comb, sid, essai, f_resultats):
         return []
     champs = ("operations", "reussite_pourcents_exacte", "gain_net_euros")
     tem = {r["id_version"]: r for r in csv.DictReader(open(f_tem, encoding="utf-8-sig"))}
-    res = {r["id_version"]: r for r in csv.DictReader(open(f_resultats, encoding="utf-8"))}
+    # `f_resultats` : un fichier de résultats, OU un dictionnaire id_version -> ligne, quand la comparaison se fait
+    # sous le barème du témoin et non sous celui des résultats écrits (C15, 29-10-2026).
+    res = f_resultats if isinstance(f_resultats, dict) else \
+        {r["id_version"]: r for r in csv.DictReader(open(f_resultats, encoding="utf-8"))}
     ecarts = ["%s absente du témoin" % k for k in sorted(set(res) - set(tem))]
     ecarts += ["%s absente des résultats" % k for k in sorted(set(tem) - set(res))]
     for k in sorted(set(res) & set(tem)):
@@ -368,13 +407,15 @@ def main():
         return arreter("fiche %s trouvée %d fois au registre" % (sid, len(fiches)))
     fiche = fiches[0]
 
-    def jouer_une(f):
+    def jouer_une(f, bareme=None, ops_rendues=None):
         """Fait passer une fiche par la porte 0 puis la joue.
 
         ① RÔLE — Un seul chemin de jeu pour la fiche, la version identique et
           toutes les versions.
         ② CONTEXTE D'APPEL — `main`, une fois par fiche à jouer.
-        ③ ENTRÉE — `f` : une fiche, d'origine ou fusionnée.
+        ③ ENTRÉE — `f` : une fiche, d'origine ou fusionnée · `bareme` : None pour le
+          barème des trades vécus, sinon le nom d'un barème (celui du témoin, C15) ·
+          `ops_rendues` : une liste où recopier les opérations jouées, ou None.
         ④ CONDITIONS D'ENTRÉE — Les cours, le référentiel et les deux modules sont
           chargés par `main`.
         ⑤ SORTIE — DEUX valeurs : le résumé rendu par `resumer` du juge ; les bornes
@@ -396,7 +437,13 @@ def main():
         if not ok0:
             raise ValueError("la porte 0 refuse : %s" % manq)
         f.setdefault("_fonction_signal", "signaux_c5etendu10")
-        ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=bornes, lecture=lecture)
+        if bareme is None:
+            ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=bornes, lecture=lecture)
+        else:
+            ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=bornes, lecture=lecture,
+                                    bareme=bareme)
+        if ops_rendues is not None:
+            ops_rendues.extend(ops)
         if inconnus:
             raise ValueError("valeurs absentes des cours : %s" % inconnus)
         return J.resumer(ops), bornes
@@ -432,7 +479,21 @@ def main():
 
     champs = ["id_version", "strategie", "essai", "versions_dans_l_essai", "tp", "sl",
               "horizon", "univers", "periode_debut", "periode_fin", "operations",
-              "reussite_pourcents_exacte", "gain_net_euros"]
+              "reussite_pourcents_exacte", "gain_net_euros", "bareme"]
+    # LE TÉMOIN SE COMPARE SOUS SON PROPRE BARÈME (C15, 29-10-2026) : chaque version est jouée deux fois quand le
+    # témoin a été fait sous un autre barème que celui des résultats — sous le barème des verdicts pour les résultats
+    # écrits, sous celui du témoin pour la comparaison — et l'écart entre les deux doit être EXACTEMENT la taxe
+    # payée à l'achat (mêmes opérations ; un achat revendu le jour même ne paie pas la taxe). L'écart n'est la taxe
+    # que si les deux barèmes ne diffèrent QUE par elle (courtage seul contre réel) : sinon, arrêt, et c'est voulu.
+    b_tem = bareme_du_temoin(f_comb, sid, essai)
+    # Les résultats se chiffrent sous le BARÈME DES VERDICTS (le défaut du juge, `MODULE_POSITIONS.BAREME_DES_VERDICTS`,
+    # superviseur R-759 tour 2, D2) ; le témoin n'est rejoué à part que s'il a été fait sous un autre barème.
+    b_res = J.bareme_des_verdicts(None, mod_pos)
+    rejouer = b_tem is not None and b_tem != b_res
+    vue_du_temoin, invariant_faux = {}, []
+    if b_tem is not None:
+        print("TÉMOIN FAIT SOUS LE BARÈME %s%s" % (b_tem, " : chaque version est aussi rejouée sous ce barème"
+                                                   if rejouer else ""))
     provisoire = f_out + ".en_cours"
     cree = False  # on n'efface que ce qu'on a créé (relecture du 08-10-2026, N5)
     try:
@@ -445,19 +506,45 @@ def main():
                 ecarts = controler_fusion(J, fusion, v)
                 if ecarts:
                     raise ValueError("fusion fausse pour %s : %s" % (v["id_version"], ecarts))
-                r, b = jouer_une(fusion)
+                ops_r = []
+                r, b = jouer_une(fusion, None, ops_r)
                 if b != bornes:
                     raise ValueError("période différente pour %s : %s" % (v["id_version"], b))
+                if rejouer:
+                    ops_t = []
+                    r_t, _ = jouer_une(fusion, b_tem, ops_t)
+                    vue_du_temoin[v["id_version"]] = {
+                        "operations": str(r_t["n"]),
+                        "reussite_pourcents_exacte": "%.6f" % r_t["wr_exact"] if r_t["n"] else "",
+                        "gain_net_euros": "%.2f" % r_t["net"] if r_t["n"] else "0.00"}
+                    cle_op = lambda o: (o["valeur"], o["date_signal"], o["date_sortie"], o["motif"], o["px"])
+                    # la taxe payée sous un barème : achats non revendus le jour même (BOFiP, BOI-TCA-FIN-10-10, § 60)
+                    taxe_de = lambda bar: sum(
+                        mod_pos.cout_d_un_ordre(o["valeur"], o["date_entree"], "achat", 100000.0, bar)["taxe"]
+                        for o in ops_r if o["date_entree"] != o["date_sortie"])
+                    # le gain sous le barème du témoin moins le gain sous celui des résultats = ce que les résultats
+                    # paient de taxe en plus (négatif si c'est le témoin qui la paie)
+                    taxes = taxe_de(b_res) - taxe_de(b_tem)
+                    ecart = sum(o["net"] for o in ops_t) - sum(o["net"] for o in ops_r)
+                    if [cle_op(o) for o in ops_t] != [cle_op(o) for o in ops_r] or abs(ecart - taxes) > 0.01:
+                        invariant_faux.append("%s : écart %.2f € pour %.2f € de taxe" % (v["id_version"], ecart, taxes))
                 w.writerow({"id_version": v["id_version"], "strategie": sid, "essai": essai,
                             "versions_dans_l_essai": len(versions), "tp": v["tp"], "sl": v["sl"],
                             "horizon": v["horizon"], "univers": v["univers"],
                             "periode_debut": bornes[0], "periode_fin": bornes[1],
                             "operations": r["n"],
                             "reussite_pourcents_exacte": "%.6f" % r["wr_exact"] if r["n"] else "",
-                            "gain_net_euros": "%.2f" % r["net"] if r["n"] else "0.00"})
+                            "gain_net_euros": "%.2f" % r["net"] if r["n"] else "0.00",
+                            "bareme": b_res})
                 if i % 250 == 0:
                     print("  %d / %d" % (i, len(versions)), flush=True)
-        ecarts = comparer_au_temoin(f_comb, sid, essai, provisoire)
+        if invariant_faux:
+            print("L'ÉCART ENTRE LES DEUX BARÈMES N'EST PAS LA TAXE (%d) :" % len(invariant_faux))
+            for e in invariant_faux[:10]:
+                print("  %s" % e)
+            os.remove(provisoire)
+            return arreter("l'écart au témoin n'est pas expliqué par la taxe : rien n'est écrit")
+        ecarts = comparer_au_temoin(f_comb, sid, essai, vue_du_temoin if rejouer else provisoire)
         if ecarts:
             print("ÉCARTS AVEC LE TÉMOIN DE RÉSULTATS (%d) :" % len(ecarts))
             for e in ecarts[:10]:
