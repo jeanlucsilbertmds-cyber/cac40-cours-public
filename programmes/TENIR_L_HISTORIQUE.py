@@ -129,7 +129,7 @@ mêmes natures sous d'autres noms : les onze éléments s'appliquent tels quels.
   pas de mesure.**
 
 USAGE : python3 TENIR_L_HISTORIQUE.py <racine> [--verifier] [--premier-remplissage] [--increment CHEMIN]
-CODE : 0 = écrit · 1 = révision détectée, rien écrit · 2 = source illisible
+CODE : 0 = écrit · 1 = arrêt, rien écrit · 2 = ligne de commande · 3 = écrit, mais des lignes neuves du soir mises à part (30-10-2026)
 
 ⑫ DÉFINITIONS —
   le juge des stratégies : `programmes/JUGE_DES_STRATEGIES.py`, le programme qui rejoue une stratégie sur l'historique des cours et rend la liste de ses opérations
@@ -340,7 +340,7 @@ def source_de(ligne, defaut):
     return (ligne.get("source") or "").strip() or defaut
 
 
-def ecrire_l_alerte(raison, details):
+def ecrire_l_alerte(raison, details, question=None):
     """Dépose l'alerte du fichier maître, pour que Jean-Luc décide lui-même de la réparation.
 
     ① RÔLE — Écrire `rapports/ALERTE_FICHIER_MAITRE.md` quand le versement s'arrête parce que le
@@ -350,7 +350,10 @@ def ecrire_l_alerte(raison, details):
       Le circuit du soir dépose ensuite ce fichier dans le dépôt ; la tâche du soir de Cowork, à
       23h, le lit et prévient Jean-Luc.
     ③ ENTRÉE — `raison` : une phrase qui dit ce qui s'est passé · `details` : une liste de lignes
-      qui le précisent, par exemple les couples valeur-séance disparus.
+      qui le précisent, par exemple les couples valeur-séance disparus · `question` (facultatif) :
+      des lignes qui REMPLACENT la question A, B, C quand elle ne s'applique pas — depuis le
+      30-10-2026, le refus venu du lecteur commun, où le maître de la veille est intact (relecteur
+      du 30-10-2026, B1 : les trois réponses n'y réparaient rien).
     ④ CONDITIONS D'ENTRÉE — Le dossier courant est la racine du dépôt : `main` s'y est placé.
     ⑤ SORTIE — Rend `None`.
       [rend: rien]
@@ -387,6 +390,7 @@ def ecrire_l_alerte(raison, details):
         "**Rien n'a été réparé automatiquement** — décision de Jean-Luc du 24-09-2026 (A-442). "
         "Le circuit du soir s'est arrêté au versement : ni signaux, ni positions, ni mesures ce soir.",
         "",
+        *(question if question else [
         "## LA QUESTION POUR JEAN-LUC — répondre A, B ou C, à Cowork ou au Chat",
         "",
         "- **A — reprendre le fichier maître de la veille**, enregistré dans le dépôt. "
@@ -398,6 +402,7 @@ def ecrire_l_alerte(raison, details):
         "- **C — ne rien toucher**, et chercher d'abord pourquoi c'est arrivé.",
         "",
         "En cas d'urgence, après A ou B, relancer le circuit du jour depuis GitHub (« Run workflow »).",
+        ]),
         "Dès que le versement du soir réussit de nouveau, ce fichier est rangé aux archives "
         "automatiquement, sous un nom qui dit « résolue le … » ; tant qu'il est là, la tâche du soir "
         "de Cowork alerte.",
@@ -482,8 +487,11 @@ def juger_la_ligne(r, src, aujourd_hui, connues, premiere, voisinage, par_increm
       [rend: 2]
     ⑥ TRAITEMENT — ① autant de champs que l'en-tête · ② un nom sans espace de bord ·
       ③ une source non vide, sans espace de bord, admise, dans sa période · ④ une date qui se lit AAAA-MM-JJ et se
-      réécrit à l'identique, un jour de semaine, ni avant la première séance du
-      maître, ni après aujourd'hui, ni aujourd'hui avant l'heure de clôture · ⑤ une
+      réécrit à l'identique, ni avant la première séance du
+      maître, ni après aujourd'hui, ni aujourd'hui avant l'heure de clôture — QUE CE
+      SOIT UNE SÉANCE, c'est le lecteur commun qui le juge, sur le maître complété,
+      dans `relire_par_le_lecteur` (29-10-2026 ; jusque-là, un test « samedi ou
+      dimanche » ici) · ⑤ une
       valeur du référentiel · ⑥ des prix écrits comme au maître, chiffres et point, et
       un volume en chiffres · ⑦ les cours jugés par `controler_une_seance` de
       `programmes/CONTROLER_LES_COURS.py`, le juge de la collecte : « BLOQUANT » est un
@@ -499,8 +507,10 @@ def juger_la_ligne(r, src, aujourd_hui, connues, premiere, voisinage, par_increm
       ici, parce que seul ce programme reçoit des lignes d'ailleurs que de la collecte.
       Le raccord au maître ne s'applique qu'à `--increment` : le soir, une vraie
       séance peut chuter de 25 % sur un résultat, et le juge des cours ne fait qu'alerter.
-    ⑨ CE QUI CLOCHE — Un jour férié de semaine, comme le 25-12, est accepté : aucun
-      calendrier de la bourse n'existe au dépôt. Un nom écrit autrement que dans le
+    ⑨ CE QUI CLOCHE — Un jour férié de semaine, comme le 01-05-2026, est accepté ICI ;
+      depuis le 29-10-2026, `relire_par_le_lecteur` le refuse ensuite, avec tout ce que
+      le lecteur commun met à part (superviseur R-759 du 29-10-2026 : un seul juge de
+      l'admissibilité d'une ligne, R-708). Un nom écrit autrement que dans le
       maître — casse, tiret bas — est accepté le soir s'il se rapproche d'une valeur
       connue : c'est A-474. Par `--increment`, une vraie séance hors des bandes — une
       chute de plus de 40 %, une division d'action — est refusée : c'est voulu, un
@@ -542,8 +552,6 @@ def juger_la_ligne(r, src, aujourd_hui, connues, premiere, voisinage, par_increm
         heure = datetime.now(PARIS).hour
     if not lisible:
         motifs.append(f"{ici} : date illisible — format attendu AAAA-MM-JJ")
-    elif jour.weekday() >= 5:
-        motifs.append(f"{ici} : un {('samedi', 'dimanche')[jour.weekday() - 5]}, jour sans séance")
     elif date > aujourd_hui:
         motifs.append(f"{ici} : séance postérieure au jour ({aujourd_hui})")
     elif date == aujourd_hui and heure < HEURE_CLOTURE_PARIS:
@@ -588,6 +596,267 @@ def juger_la_ligne(r, src, aujourd_hui, connues, premiere, voisinage, par_increm
     return motifs, (motif if verdict == "ALERTE" else "")
 
 
+def relire_par_le_lecteur(lignes):
+    """Fait relire par le lecteur commun le maître tel qu'il serait écrit, et rend ce qui l'empêche d'être écrit.
+
+    ① RÔLE — Juger l'admissibilité des lignes à verser par LA règle des autres lecteurs du maître : le lecteur commun
+      (`programmes/LIRE_LES_COURS.py`) ne doit mettre aucune ligne à part dans le maître complété. Sinon, `main` refuse
+      tout, sauf le soir où les lignes NEUVES en cause sont mises à part et les autres versées (versement partiel,
+      décision de Jean-Luc du 30-10-2026 à 13h55, voir `trier_les_lignes_neuves`).
+    ② CONTEXTE D'APPEL — `main`, après tous ses autres contrôles et avant toute écriture, y compris en `--verifier` :
+      une fois, et une seconde fois sur le maître complété final quand des lignes neuves ont été mises à part.
+    ③ ENTRÉE — `lignes` : toutes les lignes du maître tel qu'il serait écrit, triées, chacune un dictionnaire aux
+      colonnes du contrat COURS_MAITRE.
+    ④ CONDITIONS D'ENTRÉE — Le dossier courant est la racine du dépôt (`main` s'y est placé) ; le lecteur commun et ce
+      qu'il lit (référentiel, calendrier officiel, nature des trous, passages dans le CAC 40) sont en place.
+    ⑤ SORTIE — DEUX valeurs : le nombre de lignes que le lecteur mettrait à part (`lignes_mises_a_part`), ou None si la
+      lecture elle-même a échoué ; et une liste de lignes de texte qui disent quoi, pour l'écran et l'alerte.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① écrire les lignes dans un fichier temporaire, hors du dépôt · ② le faire lire par
+      `LIRE_LES_COURS.lire` · ③ compter par `LIRE_LES_COURS.lignes_mises_a_part`, une PROPRIÉTÉ de conservation et non
+      une liste de sortes · ④ pour le dire, montrer les premières lignes de chaque relevé non vide du lecteur ·
+      ⑤ une erreur du lecteur (HorsCalendrier, ValueError, OSError) rend None et son texte · ⑥ effacer le fichier.
+    ⑦ UNITÉ — Des LIGNES du fichier.
+    ⑧ POURQUOI — Superviseur R-759 du 29-10-2026, verdict DE FOND : le versement jugeait la date par « samedi ou
+      dimanche », le lecteur par le calendrier officiel ; une barre VINCI du 01-05-2026 (Bourse fermée) entrait au
+      maître en code 0, puis le détecteur et le teneur, qui lisent par le lecteur depuis le 29-10-2026 (A-577, étape
+      7), s'arrêtaient chaque soir — et le maître ne se réécrit jamais (mesuré par le relecteur du 29-10-2026, I1).
+      Le refus doit vivre au VERSEMENT, par le lecteur lui-même, pas par sa règle recopiée (R-708). Le LECTEUR reste
+      strict : écarter au lecteur a été jugé RUSTINE le 29-10-2026 (deux politiques d'une même lecture, R-708 ; un trou
+      fabriqué). Le versement partiel, décidé par Jean-Luc le 30-10-2026 à 13h55 — la question que ce verdict lui
+      renvoyait —, met la ligne à part AVANT le maître, qui reste propre ; le trou existe, il est nommé (alerte, code 3,
+      passage rouge) et se lève par correction (superviseur R-759 du 30-10-2026, tour 3).
+    ⑨ CE QUI CLOCHE — Le maître est relu une fois chaque soir ordinaire ; un soir où des lignes sont mises à part, il est
+      relu jusqu'à N+3 fois pour N lignes neuves (`trier_les_lignes_neuves`), environ une demi-seconde par lecture. ·
+      Le relevé à l'écran montre les sortes que nomme `SORTES_DU_LECTEUR` ; une sorte nouvelle refuse quand même (le
+      compte), mais n'est pas montrée.
+    ⑩ EFFET — Écrit puis efface un fichier temporaire hors du dépôt ; lit les fichiers du lecteur.
+    ⑪ TERMINAISON — Rend la main ; les erreurs du lecteur sont rattrapées et rendues.
+      [sort: non]
+    """
+    n, c, erreur = _relecture(lignes)
+    if n is None:
+        return None, [f"le lecteur commun n'a pas pu relire le maître complété : {erreur}"]
+    return n, [f"{SORTES_DU_LECTEUR.get(cle, cle)} : "
+               + " ; ".join(_lisible(e) for e in (list(x.items()) if hasattr(x, 'items') else list(x))[:3])
+               for cle, x in c.items() if cle in SORTES_DU_LECTEUR and x]
+
+
+def _lisible(e):
+    """Écrit un élément d'un relevé du lecteur commun en clair : les dates en JJ-MM-AAAA, le reste tel quel.
+
+    ① RÔLE — Rendre lisible un exemple montré à l'écran et dans l'alerte. ② CONTEXTE D'APPEL — `relire_par_le_lecteur`.
+    ③ ENTRÉE — `e` : un élément de relevé, souvent un tuple (mnémonique, date, nature). ④ CONDITIONS D'ENTRÉE — —.
+    ⑤ SORTIE — UNE valeur, un texte. [rend: 1] ⑥ TRAITEMENT — aplatir les tuples et listes, écrire chaque date
+    `strftime('%d-%m-%Y')`, joindre par « · ». ⑦ UNITÉ — —. ⑧ POURQUOI — relecteur du 30-10-2026, M1 : l'alerte
+    montrait `datetime.date(2026, 5, 1)`. ⑨ CE QUI CLOCHE — La valeur reste dite par son mnémonique (« DG »), la clé
+    du lecteur, et non par son nom usuel. ⑩ EFFET — —. ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    if isinstance(e, (tuple, list)):
+        return " · ".join(_lisible(x) for x in e)
+    return e.strftime("%d-%m-%Y") if hasattr(e, "strftime") else str(e)
+
+
+# LE NOM EN FRANÇAIS DE CHAQUE RELEVÉ DU LECTEUR, POUR L'ÉCRAN ET L'ALERTE SEULEMENT. Le COMPTE des lignes mises à
+# part ne passe jamais par cette table : il vient de `LIRE_LES_COURS.lignes_mises_a_part`, une propriété de
+# conservation. Une sorte nouvelle du lecteur refuse donc quand même, par le compte ; elle n'est pas montrée à l'écran,
+# et dans l'alerte des lignes elle est dite « sorte non nommée » (superviseur R-759 du 30-10-2026 : inverser le filtre
+# afficherait une clé de structure comme faux motif ; que le lecteur expose lui-même ses relevés est au BACKLOG).
+SORTES_DU_LECTEUR = {
+    "inconnues": "valeur absente du référentiel",
+    "dates_illisibles": "date illisible",
+    "conflits": "deux lignes différentes pour la même séance",
+    "hors_seance": "jour sans séance à la Bourse de Paris",
+    "hors_calendrier": "date hors du calendrier officiel des séances",
+}
+
+
+def _relecture(lignes):
+    """Fait lire des lignes de cours par le lecteur commun, et rend ce qu'il en met à part.
+
+    ① RÔLE — Le seul endroit de ce programme qui appelle le lecteur commun (`programmes/LIRE_LES_COURS.py`) : écrire
+      les lignes dans un fichier temporaire hors du dépôt, le faire lire, compter les lignes mises à part.
+    ② CONTEXTE D'APPEL — `relire_par_le_lecteur` (le maître complété) et `trier_les_lignes_neuves` (le maître de la
+      veille, seul ou avec une ligne neuve).
+    ③ ENTRÉE — `lignes` : des dictionnaires aux colonnes du contrat COURS_MAITRE.
+    ④ CONDITIONS D'ENTRÉE — Le dossier courant est la racine du dépôt (`main` s'y est placé) ; le lecteur commun et ce
+      qu'il lit (référentiel, calendrier officiel, nature des trous, passages dans le CAC 40) sont en place.
+    ⑤ SORTIE — TROIS valeurs : le nombre de lignes mises à part (None si la lecture a échoué) ; le dictionnaire rendu
+      par `LIRE_LES_COURS.lire` (vide si échec) ; le texte de l'erreur (vide si la lecture a réussi).
+      [rend: 3]
+    ⑥ TRAITEMENT — ① écrire le fichier temporaire · ② `LIRE_LES_COURS.lire` · ③ compter par
+      `LIRE_LES_COURS.lignes_mises_a_part` · ④ une erreur du lecteur (HorsCalendrier, ValueError, OSError) rend None
+      et son texte · ⑤ effacer le dossier temporaire.
+    ⑦ UNITÉ — Des LIGNES du fichier.
+    ⑧ POURQUOI — Tirée de `relire_par_le_lecteur` le 30-10-2026 : le versement partiel décidé ce jour-là doit relire
+      plusieurs ensembles de lignes ; deux copies de cet appel divergeraient (R-708 : deux implémentations d'une même
+      chose divergent toujours).
+    ⑨ CE QUI CLOCHE — Chaque appel relit tout le maître (de l'ordre d'une demi-seconde, mesuré le 29-10-2026).
+    ⑩ EFFET — Écrit puis efface un fichier temporaire hors du dépôt ; lit les fichiers du lecteur.
+    ⑪ TERMINAISON — Rend la main ; les erreurs du lecteur sont rattrapées et rendues.
+      [sort: non]
+    """
+    import importlib.util, shutil, tempfile
+    d = tempfile.mkdtemp(prefix="versement_relu_")
+    try:
+        f = os.path.join(d, "maitre_complete.csv")
+        with open(f, "w", encoding="utf-8", newline="") as h:
+            w = csv.DictWriter(h, fieldnames=COLONNES, extrasaction="ignore")
+            w.writeheader()
+            w.writerows(lignes)
+        sp = importlib.util.spec_from_file_location(
+            "lecteur_commun", os.path.join(os.path.dirname(os.path.abspath(__file__)), "LIRE_LES_COURS.py"))
+        L = importlib.util.module_from_spec(sp)
+        try:
+            sp.loader.exec_module(L)
+            c = L.lire(".", f)
+        except (ValueError, OSError) as e:
+            return None, {}, f"{type(e).__name__} : {e}"
+        return L.lignes_mises_a_part(c), c, ""
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def trier_les_lignes_neuves(base, neuves):
+    """Dit, ligne neuve par ligne neuve, si le lecteur commun la mettrait à part.
+
+    ① RÔLE — Trouver QUELLES lignes neuves de l'incrément du soir font refuser le maître complété par le lecteur
+      commun, pour les mettre à part et verser les autres.
+    ② CONTEXTE D'APPEL — `main`, seulement le soir (ni `--increment`, ni premier remplissage), seulement quand le
+      maître complété a des lignes mises à part.
+    ③ ENTRÉE — `base` : les lignes du maître de la veille · `neuves` : les lignes de l'incrément absentes du maître de
+      la veille et admises par `juger_la_ligne`.
+    ④ CONDITIONS D'ENTRÉE — Celles de `_relecture`.
+    ⑤ SORTIE — DEUX valeurs : la liste des couples (ligne neuve, motif en français) que le lecteur mettrait à part ;
+      un texte d'erreur, vide si tout a pu être relu. Une erreur rend une liste vide : `main` refuse alors tout.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① relire la base seule : si le lecteur y met une ligne à part ou échoue, rendre l'erreur — c'est
+      le maître de la veille qui est en cause, et il n'est pas question de verser · ② relire la base plus UNE ligne
+      neuve, pour chacune : mise à part dès que le compte dépasse celui de la base · ③ le motif nomme en français les
+      relevés non vides du lecteur.
+    ⑦ UNITÉ — Des LIGNES du fichier.
+    ⑧ POURQUOI — Décision de Jean-Luc du 30-10-2026 à 13h55. On lui a demandé : « 1. On répare : le programme range les
+      39 bonnes valeurs et met Vinci de côté » ; il a répondu « fais le traitement sans aucune concession sur la
+      qualité bien avant 23 heures ». Avant, une seule ligne neuve fausse refusait tout le versement, et comme
+      l'incrément n'est jamais réécrit, le refus revenait chaque soir, sans fin (relecteur et superviseur R-759 du
+      30-10-2026, B1). Le critère est une PROPRIÉTÉ — « le compte du lecteur monte quand on ajoute cette ligne » — et
+      non une liste de sortes : une sorte nouvelle du lecteur est mise à part sans qu'on touche à ce code.
+    ⑨ CE QUI CLOCHE — Une relecture complète du maître par ligne neuve, seulement les soirs où une ligne tombe :
+      environ 0,24 s par ligne, sans borne — mesuré par le relecteur du 30-10-2026 : 313 lignes neuves (maître privé
+      des séances du 20 au 29-10) en 75,8 s ; une quarantaine un soir ordinaire. · Deux lignes neuves admises chacune
+      seule mais pas ensemble ne sont pas vues ici : `main` relit le maître complété final et refuse tout dans ce cas.
+    ⑩ EFFET — Celui de `_relecture`, répété.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    n0, _, erreur = _relecture(base)
+    if n0 is None:
+        return [], f"le lecteur commun n'a pas pu relire le maître de la veille : {erreur}"
+    if n0:
+        return [], f"le lecteur commun met {n0} ligne(s) à part dans le maître de la veille lui-même"
+    a_part = []
+    for x in neuves:
+        n, c, erreur = _relecture(base + [x])
+        if n is None:
+            return [], f"le lecteur commun n'a pas pu relire le maître avec {x.get('valeur')} {x.get('date')} : {erreur}"
+        if n > n0:
+            sortes = [SORTES_DU_LECTEUR.get(k, k) for k, v in c.items() if k in SORTES_DU_LECTEUR and v]
+            a_part.append((x, "le lecteur commun la met à part — " + (", ".join(sortes) or "sorte non nommée")))
+    return a_part, ""
+
+
+def ecrire_l_alerte_des_lignes_a_part(a_part, versees):
+    """Dépose l'alerte des lignes mises à part par le versement du soir.
+
+    ① RÔLE — Écrire `rapports/ALERTE_LIGNES_MISES_A_PART.md` : quelles lignes de l'incrément du soir n'ont pas été
+      versées et pourquoi, ce que cela coûte, pourquoi le refus reviendra, et le geste qui le lève.
+    ② CONTEXTE D'APPEL — `main`, quand des lignes ont été mises à part et que les autres sont versées (code 3) ; le pas
+      `versement` du circuit du soir dépose ensuite le fichier au dépôt.
+    ③ ENTRÉE — `a_part` : la liste des couples (ligne, motif) · `versees` : le nombre de lignes neuves versées.
+    ④ CONDITIONS D'ENTRÉE — Le dossier courant est la racine du dépôt (`main` s'y est placé).
+    ⑤ SORTIE — Rend `None`.
+      [rend: rien]
+    ⑥ TRAITEMENT — ① créer `rapports` s'il manque · ② écrire le fichier, qui remplace celui d'un soir précédent ·
+      ③ dire à l'écran où il est écrit.
+    ⑦ UNITÉ — Des lignes ; les dates en JJ-MM-AAAA.
+    ⑧ POURQUOI — Le relecteur du 30-10-2026 (B1) a montré que l'alerte du fichier maître égarait Jean-Luc : ses
+      réponses A, B et C (reprendre le maître de la veille, le reconstruire, ne rien toucher) ne lèvent pas un refus
+      venu de l'incrément. Celle-ci dit le seul geste qui le lève, et dit qu'il appartient à Jean-Luc.
+    ⑨ CE QUI CLOCHE — Le fichier est rangé aux archives par le pas `versement` le premier soir sans ligne mise à
+      part. Aucun programme ne le lit : il est vu par le passage rouge du circuit et par le dépôt.
+    ⑩ EFFET — ÉCRIT `rapports/ALERTE_LIGNES_MISES_A_PART.md`, et affiche une ligne.
+    ⑪ TERMINAISON — Rend la main. Peut lever si `rapports` ne peut pas être écrit.
+      [sort: non]
+    """
+    maintenant = datetime.now(PARIS)
+    os.makedirs("rapports", exist_ok=True)
+    chemin = os.path.join("rapports", "ALERTE_LIGNES_MISES_A_PART.md")
+    texte = [
+        f"# ALERTE — {len(a_part)} LIGNE(S) DE COURS MISE(S) À PART — {maintenant.strftime('%d-%m-%Y %Hh%M')} (Paris)",
+        "",
+        f"**Ce qui s'est passé** : le versement du soir a refusé {len(a_part)} ligne(s) neuve(s) de `{INCREMENT}` "
+        f"et a versé les {versees} autre(s) au fichier maître. Le circuit du soir continue sur ces lignes : détection, "
+        "positions et mesures ; un pas de fin rougit le passage.",
+        "",
+        *[f"- **{x.get('valeur')}**, séance du {_jj_mm_aaaa(x.get('date') or '')} : {motif}" for x, motif in a_part],
+        "",
+        f"**Si le motif est « {SORTES_DU_LECTEUR['hors_seance']} »** : la Bourse était fermée ce jour-là. Il n'y a "
+        "pas de trou, rien n'est aveugle : retirer la ligne est le bon geste, sans coût (exemple réel : une barre VINCI "
+        "datée du 01-05-2026, férié).",
+        "",
+        f"**Si le motif est « {SORTES_DU_LECTEUR['hors_calendrier']} »** : le calendrier ne connaît pas la date (par "
+        "exemple le calendrier 2027 non encore relevé, A-639). C'est peut-être une vraie séance : NE PAS la retirer, "
+        "compléter le calendrier.",
+        "",
+        "**Pour toute autre ligne, qui porte une vraie séance de Bourse, ce que cela coûte** :",
+        "- **Aucun signal sur la valeur jusqu'à la correction.** Le détecteur ne calcule que sur le morceau de série "
+        "sans trou ; si la ligne n'est jamais corrigée, la valeur reste aveugle jusqu'à ce que ce morceau soit assez "
+        "long — 16 séances pour C5-ETENDU-10 au 30-10-2026 (la fenêtre de 14, plus la veille, plus le jour : "
+        "`n < C5E10_CMF_P + 2` du module `programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py`).",
+        "- **Une position ouverte sur la valeur n'a pas ses seuils regardés pour cette séance** jusqu'à la correction, "
+        "et le teneur ne le dit pas (mesuré par le relecteur du 30-10-2026 : une sortie au seuil de gain de BOUYGUES "
+        "manquée, rattrapée après correction).",
+        "- Tant que la ligne reste dans l'incrément, la collecte ne refera pas la séance : elle reprend chaque valeur "
+        "après la dernière date de l'incrément.",
+        "",
+        f"**Pourquoi cela reviendra** : `{INCREMENT}` n'est jamais réécrit, il ne fait que grandir. La ligne y reste ; "
+        "tant qu'elle est refusée, elle sera de nouveau mise à part et nommée ici, et le passage du circuit sera rouge. "
+        "**Ne rien décider fait rougir le passage chaque soir, sans fin** — et un passage rouge tous les soirs cache les "
+        "autres échecs : la décision ne peut pas rester en attente.",
+        "",
+        f"**Les deux gestes, qui ne se valent pas — c'est une décision de Jean-Luc** ; rien n'est corrigé "
+        f"automatiquement :",
+        f"- **Corriger la ligne** dans `{INCREMENT}` (le vrai cours) : la séance est versée le soir suivant, le trou "
+        "disparaît, le teneur rattrape ce qu'il a manqué.",
+        "- **La retirer** : si c'est la dernière date de la valeur dans l'incrément, la collecte la refera — et rapportera "
+        "la MÊME ligne si c'est la source (ABC) qui est fausse, qui sera de nouveau mise à part ; si ce n'est plus la "
+        "dernière date, retirer revient à ACCEPTER LE TROU pour toujours.",
+        "",
+        "Les réponses A, B et C de l'alerte du fichier maître ne s'appliquent pas ici : le fichier maître n'est pas en "
+        "cause.",
+        "",
+        "Le premier soir où aucune ligne n'est mise à part, ce fichier est rangé aux archives automatiquement, sous un "
+        "nom qui dit « résolue le … ».",
+        "",
+        "Décision : Jean-Luc, 30-10-2026 à 13h55 — verser les bonnes lignes et mettre la fausse de côté en la nommant.",
+    ]
+    with open(chemin, "w", encoding="utf-8") as f:
+        f.write("\n".join(texte) + "\n")
+    print(f"  alerte écrite : {chemin}")
+
+
+def _jj_mm_aaaa(d):
+    """Rend une date AAAA-MM-JJ écrite JJ-MM-AAAA ; toute autre forme est rendue telle quelle.
+
+    ① RÔLE — Écrire une date comme Jean-Luc la lit. ② CONTEXTE D'APPEL — `ecrire_l_alerte_des_lignes_a_part` et
+    l'écran de `main`. ③ ENTRÉE — `d` : un texte. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur, un texte.
+    [rend: 1] ⑥ TRAITEMENT — si `d` a la forme AAAA-MM-JJ, inverser ses trois parties. ⑦ UNITÉ — —. ⑧ POURQUOI —
+    relecteur du 30-10-2026, M1 : le message de refus montrait `datetime.date(2026, 5, 1)`. ⑨ CE QUI CLOCHE — —.
+    ⑩ EFFET — —. ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    return f"{d[8:10]}-{d[5:7]}-{d[0:4]}" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) else d
+
+
 def main():
     """Verse les séances du jour dans le fichier maître des cours.
 
@@ -598,7 +867,9 @@ def main():
       vert** — c est arrivé du 12 au 14-09-2026, trois soirs de suite.
     ② CONTEXTE D APPEL — Le circuit du soir, pas n°4, entre « commiter la
       collecte » et « contrôler les valeurs ». Ce pas n a PAS de tolérance à
-      l échec : s il tombe, le passage rougit.
+      l échec : s il tombe, le passage rougit. Seul le code 3 (30-10-2026 : des
+      lignes neuves mises à part, les autres versées) laisse continuer le circuit,
+      dont un pas de fin, « Rougir si des lignes de cours ont ete mises a part », rougit le passage.
     ③ ENTRÉE — La ligne de commande. `sys.argv[1]` : la racine du dépôt — le
       workflow passe `$GITHUB_WORKSPACE`. `--verifier` : ne rien écrire, dire
       seulement ce qui serait fait. `--premier-remplissage` : autoriser la
@@ -622,7 +893,14 @@ def main():
       `lire_l_increment`, qui refuse un fichier absent, mal encodé ou à l en-tête
       inattendu, et **s arrêter s il est vide** · ③ bis **s arrêter sans rien écrire** si
       `juger_la_ligne` refuse une seule ligne — source, date, valeur ou cours — ou
-      si le référentiel des valeurs ne se lit pas ·
+      si le référentiel des valeurs ne se lit pas · ③ ter (29-10-2026) **s arrêter sans
+      rien écrire** si le lecteur commun mettrait une ligne à part dans le maître complété
+      (`relire_par_le_lecteur`), alerte déposée · ③ quater (30-10-2026, décision de Jean-Luc
+      à 13h55) **le soir, une ligne ABSENTE du maître de la veille et refusée par
+      `juger_la_ligne` ou mise à part par le lecteur (`trier_les_lignes_neuves`) est mise à
+      part, nommée, et les autres sont versées** ; le maître complété final est relu et doit
+      rendre 0 ligne à part, sinon tout est refusé ; alerte
+      `rapports/ALERTE_LIGNES_MISES_A_PART.md`, code 3 ·
       ④ pour chaque ligne : absente du maître, elle est ajoutée avec la source
       qu elle porte, ou à défaut celle que dit sa date ; déjà présente,
       ses cinq champs sont comparés à l ancienne · ⑤ si un écart est trouvé,
@@ -653,9 +931,11 @@ def main():
       **`extrasaction=\"ignore\"` JETTE SILENCIEUSEMENT toute colonne absente de
       `COLONNES`** — une colonne ajoutée en amont disparaîtrait sans un mot.
     ⑪ TERMINAISON — **NE REND JAMAIS LA MAIN : tous les chemins terminent le
-      programme.** Code 2 : aucun argument, `--increment` sans chemin, option inconnue ou mal placée · Code 1 : reconstruction qui perdrait des séances enregistrées, ligne refusée par `juger_la_ligne`, référentiel illisible, maître absent sans
+      programme.** Code 2 : aucun argument, `--increment` sans chemin, option inconnue ou mal placée · Code 1 : reconstruction qui perdrait des séances enregistrées, ligne refusée par `juger_la_ligne`, ligne que le lecteur commun mettrait à part ou relecture impossible (29-10-2026), référentiel illisible, maître absent sans
       `--premier-remplissage`, maître qui a rétréci, version enregistrée ou
-      historique Google illisibles, incrément vide, ou révisions détectées · Code 0 : versement fait, ou vérification demandée.
+      historique Google illisibles, incrément vide, ou révisions détectées · Code 3 (30-10-2026) : versement fait SANS
+      les lignes neuves mises à part, nommées à l'écran et dans `rapports/ALERTE_LIGNES_MISES_A_PART.md` ; aussi en
+      `--verifier`, sans écriture · Code 0 : versement fait, ou vérification demandée.
       **Le circuit du soir n a pas de tolérance sur ce pas : un code non nul
       [sort: oui]
     ⑫ DÉFINITIONS —
@@ -819,6 +1099,12 @@ def main():
     medianes = {kv: statistics.median(v) for kv, v in volumes.items()}
     premiere = min((d for (_, d) in maitre), default="")
     alertes = []
+    # LE VERSEMENT PARTIEL (décision de Jean-Luc du 30-10-2026 à 13h55, voir `trier_les_lignes_neuves`) ne vaut que
+    # le soir, sur un maître qui existe, et pour une ligne ABSENTE du maître de la veille. Tout autre refus reste en
+    # bloc : ligne déjà au maître, séance en double, révision, `--increment` (versé à la main, refus en bloc voulu).
+    partiel = not par_increment and not neuf
+    cles_de_la_veille = set(maitre)
+    a_part = []
 
     ajouts, revisions = 0, []
     for r in increment:
@@ -848,6 +1134,10 @@ def main():
                          mediane_volume=medianes.get(k[0]), graphies=graphies.get(k[0], set()))
         motifs, alerte = juger_la_ligne(r, src, aujourd_hui, connues, premiere, voisinage,
                                         par_increment)
+        if motifs and partiel and k not in cles_de_la_veille and k not in vues:
+            a_part.append((r, " ; ".join(motifs)))
+            vues.add(k)
+            continue
         fautes += motifs
         if alerte:
             alertes.append(alerte)
@@ -921,11 +1211,58 @@ def main():
                             [f"exemples : {ex}", "Rien n'a été écrit."])
             sys.exit(1)
 
-    if verifier:
-        print(f"  {len(maitre)} lignes · {ajouts} à ajouter · 0 révision · AUCUNE ÉCRITURE")
-        sys.exit(0)
-
     lignes = sorted(maitre.values(), key=lambda r: (cle_valeur(r["valeur"]), r["date"]))
+    # LE LECTEUR COMMUN JUGE LE MAÎTRE COMPLÉTÉ AVANT QU'IL SOIT ÉCRIT (superviseur R-759 du 29-10-2026, DE FOND) :
+    # une ligne qu'il mettrait à part arrêterait le détecteur et le teneur chaque soir, sur un maître qui ne se
+    # réécrit jamais. Exemple réel : une barre VINCI du 01-05-2026, Bourse fermée, entrait en code 0.
+    n_lecteur, dit = relire_par_le_lecteur(lignes)
+    # LES LIGNES NEUVES QUE LE LECTEUR METTRAIT À PART sont mises à part elles aussi, le soir seulement (décision de
+    # Jean-Luc du 30-10-2026 à 13h55). Un lecteur en échec (None) refuse tout : rien ne dit alors quelles lignes sont
+    # saines — par exemple le calendrier 2027 non relevé (A-639).
+    if n_lecteur and partiel:
+        neuves = [x for x in lignes if (cle_valeur(x["valeur"]), x["date"]) not in cles_de_la_veille]
+        base = [x for x in lignes if (cle_valeur(x["valeur"]), x["date"]) in cles_de_la_veille]
+        tries, erreur = trier_les_lignes_neuves(base, neuves)
+        if erreur:
+            dit = dit + [erreur]
+        elif tries:
+            ecartees = {(cle_valeur(x["valeur"]), x["date"]) for x, _ in tries}
+            a_part += tries
+            lignes = [x for x in lignes if (cle_valeur(x["valeur"]), x["date"]) not in ecartees]
+            ajouts -= len(ecartees)
+            # LE MAÎTRE COMPLÉTÉ FINAL EST RELU : deux lignes neuves admises chacune seule mais pas ensemble ne
+            # passent pas. Il faut 0 ligne à part, sinon tout est refusé.
+            n_lecteur, dit = relire_par_le_lecteur(lignes)
+    if n_lecteur != 0:
+        quoi = ("la relecture par le lecteur commun a échoué" if n_lecteur is None else
+                f"le lecteur commun mettrait {n_lecteur} ligne(s) à part dans le maître complété")
+        print(f"  ❌ ARRÊT : {quoi} — RIEN N'EST ÉCRIT.")
+        for x in dit:
+            print(f"     · {x}")
+        print("     Le maître reste tel qu'il est ; la détection et les positions ne tournent pas ce soir.")
+        ecrire_l_alerte(f"le versement de {increment_chemin} est refusé : {quoi}. Le maître n'a pas été touché.",
+                        dit + ["Le lecteur commun (programmes/LIRE_LES_COURS.py) est celui du juge, du détecteur "
+                               "et du teneur : une ligne qu'il met à part les arrêterait chaque soir."],
+                        question=["## CE QUI LÈVE CE REFUS",
+                                  "",
+                                  "Ce refus vient du lecteur commun, et les lignes ci-dessus disent laquelle de ses "
+                                  "deux causes : soit le lecteur ne peut pas lire — un fichier qu'il lit (référentiel, "
+                                  "calendrier officiel des séances, nature des trous, passages dans le CAC 40) est "
+                                  "absent, illisible ou trop court ; exemple : le calendrier 2027 non relevé le fait "
+                                  "échouer à partir du 04-01-2027 (A-639) — soit une ligne DÉJÀ enregistrée au maître "
+                                  "est mise à part, parce que le lecteur ou ce qu'il lit a changé depuis. Dans les deux "
+                                  "cas, « reprendre le maître de la veille » ou « le reconstruire » ne lève pas ce "
+                                  "refus : la ligne ou le fichier en cause y sont toujours. La réparation est une "
+                                  "décision de Jean-Luc."])
+        sys.exit(1)
+
+    for x, motif in a_part:
+        print(f"  ⛔ MISE À PART : {x.get('valeur')} · séance du {_jj_mm_aaaa(x.get('date') or '')} · {motif}")
+
+    if verifier:
+        print(f"  {len(lignes)} lignes · {ajouts} à ajouter · {len(a_part)} mise(s) à part · 0 révision · AUCUNE ÉCRITURE")
+        sys.exit(3 if a_part else 0)
+
     with open(MAITRE, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=COLONNES, extrasaction="ignore")
         w.writeheader()
@@ -939,6 +1276,11 @@ def main():
           f" · du {dates[0]} au {dates[-1]}")
     print(f"  par source : " + " · ".join(f"{k} {v}" for k, v in sorted(par_source.items())))
     print(f"  {ajouts} ligne(s) ajoutée(s) ce passage")
+    if a_part:
+        ecrire_l_alerte_des_lignes_a_part(a_part, ajouts)
+        print(f"  ⛔ {len(a_part)} LIGNE(S) MISE(S) À PART, les autres versées — code 3 : le circuit continue, "
+              f"et un pas de fin rougira le passage.")
+        sys.exit(3)
     sys.exit(0)
 
 

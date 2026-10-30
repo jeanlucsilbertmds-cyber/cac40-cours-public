@@ -65,7 +65,8 @@ SAB = {
                                     "f_cours = fichiers_de_cours(base)[0]"),
     "S10 un volume mal converti": ('"low": float(r["low"]), "close": float(r["close"]), "volume": float(r["volume"])}',
                                    '"low": float(r["low"]), "close": float(r["close"]), "volume": float(r["volume"]) + 1}'),
-    "S11 la composition éteinte par le lecteur": ('"composition": True}', '"composition": False}'),
+    # S11 recalé le 29-10-2026 (A-577, étape 7) : la lecture porte aussi « seances », la cible est le même texte allongé.
+    "S11 la composition éteinte par le lecteur": ('"composition": True, "seances": seances}', '"composition": False, "seances": seances}'),
     "S12 la lecture non passée par main": (
         "ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture)",
         "ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes)"),

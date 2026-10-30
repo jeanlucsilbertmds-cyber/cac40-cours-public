@@ -69,6 +69,20 @@ dans DEUX fichiers — `cac40 ohlcv.csv` s'arrete au 10-07-2026 — et les deux
 fichiers n'ecrivent pas le meme nom, « UNIBAIL-RODAMCO-WESTFIELD » contre
 « UNIBAIL_RODAMCO ».
 
+LE CHEMIN REEL DE CE PROGRAMME LIT PAR LE LECTEUR UNIQUE DEPUIS LE 29-10-2026 (A-577, etape 7 ;
+decision de Jean-Luc du 26-10-2026 a 19h43 : « n'oublie pas de le basculer plus tard,
+sinon on va se casser les dents [...] il faut que ce soit fait rapidement »). Le chemin
+reel (`tenir_pour_de_vrai`) prend les cours par `lire_les_cours_du_soir`, qui appelle
+`lire_par_le_lecteur` du juge des strategies : les memes cours, les memes refus et le
+meme calendrier que le juge. Les seances viennent du CALENDRIER OFFICIEL (l'indice
+publie pour le passe, `donnees/CALENDRIER_EURONEXT.csv` pour l'avenir), plus des cours ;
+un achat n'a lieu que si la valeur est dans le CAC 40 le jour de l'achat (`achat_admis`
+du juge). Deux lectures des memes cours divergent toujours (R-708).
+`charger_cours_du_banc` reste pour la copie des boucles Cowork, qui lit la reference
+Google, et pour le calibrage. Ce n'est pas TOUT le circuit du soir qui lit par le lecteur :
+le detecteur et ce programme seulement ; la mesure de la performance, le cockpit et le
+PILOTE lisent encore autrement (fiche de `lire_par_le_lecteur` du juge, BACKLOG A-638).
+
 ════════════════════════════════════════════════════════════════════════
 LES ONZE ELEMENTS — ce programme est une fonction comme les autres
 ════════════════════════════════════════════════════════════════════════
@@ -85,7 +99,10 @@ LES ONZE ELEMENTS — ce programme est une fonction comme les autres
   a cote de ce programme** : depuis le 27-09-2026, les colonnes du journal et des
   positions et les deux comptabilites y sont lues au chargement ; sans lui, le
   programme s arrete sur « ModuleNotFoundError ». **Les fichiers de travail peuvent tous manquer :
-  c est le premier soir.**
+  c est le premier soir.** Depuis le 29-10-2026, le chemin reel exige aussi ce que lit le
+  lecteur unique (`programmes/LIRE_LES_COURS.py` : le referentiel, le calendrier officiel,
+  la nature des trous, les passages dans le CAC 40) ; une lecture impossible ou refusee
+  arrete le programme en code 2, sans rien ecrire.
 ⑤ SORTIE — **Un code de sortie, et deux fichiers reecrits.**
 ⑥ TRAITEMENT — ① charger le module et lire les reglages AU REGISTRE ·
   ② **CALIBRER sur un trade connu, et s arreter s il ne tombe pas au centime** ·
@@ -121,7 +138,8 @@ LES ONZE ELEMENTS — ce programme est une fonction comme les autres
   manquants** · **EXECUTE le code du juge des stratégies et du module qu il charge.**
 ⑪ TERMINAISON — **`main` REND la main avec un code** — 0 si tout va ; en
   calibrage seul, 1 s il echoue ; sur le chemin reel, les codes de
-  `tenir_pour_de_vrai` : 2 si le calibrage echoue ou si une entree manque,
+  `tenir_pour_de_vrai` : 2 si le calibrage echoue, si une entree manque ou si la
+  lecture des cours par le lecteur unique est impossible ou refusee (29-10-2026),
   1 sur une faute (signal hors contrat, valeur sans mnemonique, aucune
   strategie vivante, horizon illisible, faute d ecriture depuis le 27-09-2026)
   ou sur l alerte que rend `tenir` — et c est l appel du bas du fichier qui en fait un code de
@@ -372,7 +390,8 @@ def _fichiers_de_cours(base):
 
     ① RÔLE — Dire QUELS fichiers de cours lire, sans le décider soi-même :
       c est le juge des stratégies `programmes/JUGE_DES_STRATEGIES.py` qui les choisit.
-    ② CONTEXTE D APPEL — `charger_cours_du_banc`, juste avant de charger.
+    ② CONTEXTE D APPEL — `lire_les_cours_du_soir`, pour le chemin réel du circuit du soir
+      (depuis le 29-10-2026), et le calibrage, pour éprouver `charger_cours_du_banc`.
     ③ ENTRÉE — `base` : la racine.
     ④ CONDITIONS D ENTRÉE — Aucune. **Un juge des stratégies absent est un cas prévu.**
     ⑤ SORTIE — **UNE valeur : ce que rend `fichiers_de_cours` de
@@ -474,9 +493,14 @@ def charger_cours_du_banc(base, *chemins):
 
     ① RÔLE — Rendre les cours prêts à l emploi, en déléguant tout au juge des stratégies
       `programmes/JUGE_DES_STRATEGIES.py`.
-    ② CONTEXTE D APPEL — `tenir_pour_de_vrai`, une fois, avant toute clôture.
-    ③ ENTRÉE — `base` : la racine · `chemins` : des fichiers de cours choisis,
-      **et l appelant n en passe aucun** : la fonction demande alors au juge des stratégies.
+    ② CONTEXTE D APPEL — Deux appelants depuis le 29-10-2026 : le calibrage (`_calibrage`),
+      qui l éprouve sur le fichier maître ; et la copie des boucles Cowork, qui l appelle
+      sur la référence Google (texte des boucles ; épreuve
+      `tests/EPREUVES_DE_LA_COPIE_DES_BOUCLES_Jeu_01-10-2026.py`). **Le circuit du soir ne
+      l appelle plus** : il lit par `lire_les_cours_du_soir` (A-577, étape 7). Jusqu au
+      29-10-2026 : `tenir_pour_de_vrai`, une fois, avant toute clôture.
+    ③ ENTRÉE — `base` : la racine · `chemins` : des fichiers de cours choisis ; sans
+      chemin, la fonction demande au juge des stratégies lesquels lire.
     ④ CONDITIONS D ENTRÉE — Aucune.
     ⑤ SORTIE — UNE valeur : les cours, fusionnés, rapprochés, dédoublonnés, triés.
       [rend: 1]
@@ -508,6 +532,55 @@ def charger_cours_du_banc(base, *chemins):
         return m.charger_cours(*chemins)
     raise FileNotFoundError(
         "le juge des stratégies est introuvable : on ne reecrit PAS son chargeur de cours.")
+
+
+def lire_les_cours_du_soir(base):
+    """Rend les cours du circuit du soir PAR LE LECTEUR UNIQUE, comme le juge des stratégies les lit.
+
+    ① RÔLE — Donner au chemin réel les cours, l appartenance de chaque valeur au CAC 40, ses
+      trous et les séances du calendrier officiel, en appelant `lire_par_le_lecteur` du juge
+      des stratégies : une seule lecture des cours pour le juge et pour le circuit (R-708).
+    ② CONTEXTE D APPEL — `tenir_pour_de_vrai`, une fois, avant toute clôture.
+    ③ ENTRÉE — `base` : la racine du dépôt.
+    ④ CONDITIONS D ENTRÉE — Le juge des stratégies est trouvable (`_banc`) ; le fichier maître
+      existe et n est pas vide (`fichiers_de_cours`) ; le référentiel des valeurs existe ; ce
+      que lit `programmes/LIRE_LES_COURS.py` est en place.
+    ⑤ SORTIE — TROIS valeurs : les cours (clé de la valeur → séances triées, prix en
+      nombres), la lecture (le second rendu de `lire_par_le_lecteur` : « passages »,
+      « trous », « composition », « seances »), et le module du juge, dont `entrer`
+      appelle `achat_admis`. Mesuré le 29-10-2026 sur le maître : 40 valeurs, 722 séances
+      du 2024-01-02 au 2026-10-28, aucun trou.
+      [rend: 3]
+    ⑥ TRAITEMENT — ① trouver le juge (`_banc`) · ② lui demander le fichier des cours
+      (`_fichiers_de_cours`) et le référentiel (`trouver`, `table_mnemoniques`) · ③ lire
+      par `lire_par_le_lecteur`, qui REFUSE (ValueError) une lecture qui a mis des lignes à
+      part, un fichier figé modifié ou allongé, une valeur sans passage dans l indice.
+    ⑦ UNITÉ — Des euros par titre, des titres échangés, des dates AAAA-MM-JJ, des séances.
+    ⑧ POURQUOI — A-577, étape 7 (décision de Jean-Luc du 26-10-2026 à 19h43). Le juge lit
+      par le lecteur unique depuis le 26-10-2026 ; le circuit lisait encore par
+      `charger_cours`, et deux lectures des mêmes cours divergent toujours (R-708) : un
+      signal ou un achat du soir ne serait plus celui que le juge a jugé. Exemple réel du
+      juge : sur C5E10-QA-V1, 11 opérations achetées hors du CAC 40 retirées le 26-10-2026
+      (Eiffage, entré le 22-12-2025).
+    ⑨ CE QUI CLOCHE — Le juge est chargé deux fois (`_banc` ici et dans `_fichiers_de_cours`) ;
+      sans effet mesuré. · Le calendrier officiel ne couvre que 2026 : le lecteur attend
+      les cours jusqu à la veille, et lève dès que la veille passe le 31-12-2026 (mesuré le
+      29-10-2026) ; le circuit du lundi 04-01-2027 s arrêtera tant que 2027 n est pas
+      relevé (BACKLOG A-639, bloquant).
+    ⑩ EFFET — Exécute le code du juge ; lit des fichiers ; n écrit rien.
+    ⑪ TERMINAISON — Rend la main, ou lève : FileNotFoundError (juge, maître), ValueError
+      (lecture refusée ou impossible, HorsCalendrier compris), OSError, KeyError
+      (mnémonique hors du référentiel). `tenir_pour_de_vrai` les rattrape en code 2.
+      [sort: non]
+    """
+    m = _banc(base)
+    if not m or not hasattr(m, "lire_par_le_lecteur"):
+        raise FileNotFoundError("le juge des stratégies, ou sa lecture par le lecteur unique, est introuvable "
+                                "sous " + base + " : on ne lit pas les cours autrement (R-708).")
+    f = _fichiers_de_cours(base)[0]
+    mnemo = m.table_mnemoniques(m.trouver(base, "REFERENTIEL_VALEURS"))
+    cours, lecture = m.lire_par_le_lecteur(base, os.path.relpath(f, base), mnemo)
+    return cours, lecture, m
 
 
 def trouver_module(base):
@@ -568,39 +641,62 @@ def trouver_module(base):
         "aucune des deux graphies du module des positions n'existe sous " + base)
 
 
-def calendrier(cours):
-    """Rend toutes les séances de bourse connues, triées, toutes valeurs confondues.
+def calendrier(cours, lecture=None):
+    """Rend les séances de bourse, triées : celles du calendrier officiel quand une lecture est donnée.
 
-    ① RÔLE — **Le calendrier de la bourse**, tiré des cours. C est l unique
-      endroit où il se calcule : `tenir_pour_de_vrai` et `entrer` l appellent
-      tous les deux (deux implémentations d une même chose divergent toujours,
-      R-708).
+    ① RÔLE — **Le calendrier de la bourse.** C est l unique endroit où il se
+      décide : `tenir_pour_de_vrai` et `entrer` l appellent tous les deux (deux
+      implémentations d une même chose divergent toujours, R-708). Depuis le
+      29-10-2026 (A-577, étape 7), avec une lecture, il rend les séances du
+      CALENDRIER OFFICIEL (l indice publié pour le passé, la liste d Euronext
+      `donnees/CALENDRIER_EURONEXT.csv` pour l avenir, R-110) que le lecteur unique
+      a lues ; sans lecture, il les tire des cours, comme avant.
     ② CONTEXTE D APPEL — `tenir_pour_de_vrai`, pour la séance qui suit celle du
-      jour ; `entrer`, pour la date d entrée d une position qui n en a pas.
+      jour ; `entrer`, pour la date d entrée d une position qui n en a pas. Le
+      chemin réel passe toujours la lecture ; le calibrage (positions fabriquées,
+      dates fabriquées) et la copie des boucles Cowork appellent `tenir` sans
+      lecture.
     ③ ENTRÉE — `cours` : un dictionnaire valeur → liste de séances, chaque
-      séance étant un dictionnaire qui porte au moins la clé `date`.
+      séance étant un dictionnaire qui porte au moins la clé `date` · `lecture` :
+      le second rendu de `lire_par_le_lecteur` du juge des stratégies, ou None.
     ④ CONDITIONS D ENTRÉE — Les dates sont au format année-mois-jour
       (AAAA-MM-JJ) : c est ce qui rend l ordre du texte égal à l ordre du temps.
-    ⑤ SORTIE — UNE valeur : la liste triée des dates, sans doublon.
+      Une lecture porte « seances » (depuis le 29-10-2026), sinon KeyError.
+    ⑤ SORTIE — UNE valeur : la liste triée des dates, sans doublon. Avec une
+      lecture : les séances officielles de la première à la dernière date du
+      fichier des cours — mesuré le 29-10-2026 sur le maître : 722 séances, les
+      mêmes que celles tirées des cours.
       [rend: 1]
-    ⑥ TRAITEMENT — ① réunir les dates de toutes les valeurs · ② trier.
+    ⑥ TRAITEMENT — avec une lecture : rendre une copie de ses « seances » ; sans :
+      ① réunir les dates de toutes les valeurs · ② trier.
     ⑦ UNITÉ — Des JOURS de bourse, au format AAAA-MM-JJ.
     ⑧ POURQUOI — **La séance suivante est une date de la BOURSE, pas une date
       propre à une valeur.** Si l on prenait les seules séances d une valeur,
       une valeur privée d une séance par un trou de données serait achetée un
-      jour plus tard, à un autre prix, sans un mot.
-    ⑨ CE QUI CLOCHE — Une date fausse portée par une seule valeur entre dans le
-      calendrier de toutes. Mesuré le 27-09-2026 sur `donnees/cours_maitre.csv`
+      jour plus tard, à un autre prix, sans un mot. Et une séance où AUCUNE
+      valeur n a de cours n existe pas dans un calendrier tiré des cours : un
+      signal de la veille achetait au lendemain du trou, sans un mot (exemple
+      mesuré sur l historique des 20 ans : le 24-12-2010, indice publié, aucune
+      valeur, fiche de `programmes/LIRE_LES_COURS.py`). Le calendrier officiel
+      la porte : la séance d entrée manque, et `entrer` le dit.
+    ⑨ CE QUI CLOCHE — Sans lecture, une date fausse portée par une seule valeur
+      entre dans le calendrier de toutes, et une séance manquante pour toutes
+      les valeurs n y est pas. Mesuré le 27-09-2026 sur `donnees/cours_maitre.csv`
       (Cowork, puis le Chat) : chaque séance y est portée par 39 ou 40 valeurs —
       ArcelorMittal n'a de séances que du 31-07 au 10-09-2026 ; aucune séance
       n est portée par une poignée de valeurs. (Première rédaction du même
       jour : « aucune date n y est portée par une partie seulement des
-      valeurs » — inexacte au mot près, relevé par Cowork.)
+      valeurs » — inexacte au mot près, relevé par Cowork.) · Avec une lecture,
+      le calendrier s arrête à la dernière date du fichier : une séance que la
+      bourse a tenue mais que la collecte n a pas encore versée n y est pas, et
+      elle reste « pas encore publiée » (c est voulu : voir la fiche de
+      `lire_par_le_lecteur`).
     ⑩ EFFET — Aucun : rien n est modifié ni écrit.
-    ⑪ TERMINAISON — Rend toujours la main. Aucun de ses appels ne peut ne pas
-      revenir.
+    ⑪ TERMINAISON — Rend la main ; lève KeyError pour une lecture sans « seances ».
       [sort: non]
     """
+    if lecture is not None:
+        return list(lecture["seances"])
     return sorted({b["date"] for serie in cours.values() for b in serie})
 
 
@@ -1042,7 +1138,7 @@ def cloturer(positions, cours, mod, horizon_seances=20, cle=None, bareme=None):
 # C) LES ENTRÉES
 # ─────────────────────────────────────────────────────────────────────
 def entrer(positions, cours, mod, horizon_seances=20, cle=None,
-           reglages=None):
+           reglages=None, lecture=None, juge=None):
     """Passe en OUVERTE toute position EN_ATTENTE_ENTREE dont la séance
     d'entrée est disponible. Le prix d'entrée est l'OUVERTURE de cette séance.
 
@@ -1062,13 +1158,17 @@ def entrer(positions, cours, mod, horizon_seances=20, cle=None,
       `programmes/MODULE_POSITIONS.py` · `horizon_seances` : le nombre de séances
       avant échéance · `cle` : la fonction qui rapproche les graphies ·
       `reglages` : les seuils par stratégie, lus dans
-      `donnees/cac40_strategies.csv`.
+      `donnees/cac40_strategies.csv` · `lecture` : le second rendu de
+      `lire_par_le_lecteur`, ou None (depuis le 29-10-2026) · `juge` : le module du
+      juge des stratégies, exigé avec une lecture (ValueError sinon).
     ④ CONDITIONS D ENTRÉE — **Chaque position doit porter une date de signal
       AAAA-MM-JJ qui est une séance des cours.** Sinon elle reste en attente,
       et un incident le dit. **La date d entrée écrite dans la ligne n est pas
       crue** : elle est vide le soir du signal, et elle se déduit ici du
       signal, chaque soir tant que la position attend.
-    ⑤ SORTIE — DEUX valeurs : les positions mises à jour, et les incidents.
+    ⑤ SORTIE — DEUX valeurs : les positions mises à jour, et les incidents. Depuis
+      le 29-10-2026, la liste rendue est une NOUVELLE liste, privée des positions
+      dont l achat est refusé (valeur hors du CAC 40 le jour de l achat).
       [rend: 2]
     ⑥ TRAITEMENT — ① une date du signal illisible, postérieure aux cours ou
       absente du calendrier est dite par un incident, et la position attend ·
@@ -1079,7 +1179,11 @@ def entrer(positions, cours, mod, horizon_seances=20, cle=None,
       si elle manque alors que des séances plus récentes existent, le dire
       par un incident · ⑤ **prendre son OUVERTURE, jamais sa clôture** ·
       ⑥ calculer les seuils depuis ce prix · ⑦ fixer l échéance par `echeance`
-      — inconnue le soir de l achat, puisque sa séance n est pas publiée.
+      — inconnue le soir de l achat, puisque sa séance n est pas publiée. Avec une
+      lecture (29-10-2026) : le calendrier est le calendrier officiel (`calendrier`),
+      et, avant ⑤, l achat n a lieu que si `achat_admis` du juge le permet — la
+      valeur dans le CAC 40 le jour de l achat ; sinon la position est RETIRÉE et un
+      incident le dit, comme le juge, qui ne joue pas ce signal.
     ⑦ UNITÉ — **Prix en euros, seuils en pourcents.**
     ⑧ POURQUOI — **Un signal se calcule sur la clôture d une séance : il n est donc
       jamais connu avant 17 h 35, et une entrée au cours du même soir serait
@@ -1104,15 +1208,26 @@ def entrer(positions, cours, mod, horizon_seances=20, cle=None,
       sur les seules séances connues : elle tombait sur la séance d achat
       elle-même, et la position était vendue dès le lendemain (défaut 2 de
       A-491, réparé par `echeance` et `completer_echeances`).
+      Le retrait d une position dont l achat est refusé hors de l indice applique au
+      circuit la règle du juge (le signal n est pas joué) ; aucune règle écrite ne le
+      tranche pour une position déjà née : règle PROVISOIRE, question posée à Jean-Luc
+      au BACKLOG (A-638). `tenir_pour_de_vrai` le dit à l écran par une ligne « ⛔ ».
+      Le juge, lui, achète après un trou propre à une valeur (à sa séance suivante
+      qui a un cours) ; ici, la séance d entrée absente pour la valeur bloque la
+      position : les deux règles diffèrent encore (question posée le 29-10-2026).
     ⑩ EFFET — **MODIFIE les positions reçues** : leur date d entrée (déduite
       du signal), leur état, leur prix d entrée, leurs seuils.
     ⑪ TERMINAISON — Rend toujours la main.
       [sort: non]
     """
     incidents = []
-    # LE CALENDRIER DE LA BOURSE : toutes les seances connues, toutes valeurs
-    # confondues, calcule par la meme fonction que dans `tenir_pour_de_vrai`.
-    toutes = calendrier(cours)
+    if lecture is not None and juge is None:
+        raise ValueError("entrer : une lecture sans le juge des strategies, dont `achat_admis` decide de l'achat")
+    # LE CALENDRIER DE LA BOURSE : le calendrier officiel quand la lecture est donnee
+    # (A-577, etape 7), sinon les seances des cours ; la meme fonction que dans
+    # `tenir_pour_de_vrai`.
+    toutes = calendrier(cours, lecture)
+    retirees = set()
     for p in positions:
         if (p.get("statut") or "").strip() != EN_ATTENTE:
             continue
@@ -1186,6 +1301,20 @@ def entrer(positions, cours, mod, horizon_seances=20, cle=None,
             # sinon la seance d'entree n'est pas encore publiee : on attend
             continue
 
+        # L'ACHAT N'A LIEU QUE DANS LE CAC 40 LE JOUR DE L'ACHAT (A-577, etape 7) : la regle
+        # du juge, `achat_admis`, appelee et non recopiee (R-708). Refuse, le signal n'est
+        # pas joue — comme dans le juge — et la position est retiree : en un jeton, elle
+        # garderait sinon le jeton de sa strategie pour toujours.
+        if lecture is not None:
+            _j = next(k for k, b in enumerate(s) if b["date"] == d)
+            if not juge.achat_admis(cle(v) if cle else v, s, _j, lecture):
+                incidents.append(
+                    "ACHAT REFUSE %s %s le %s (signal du %s) : la valeur n'est pas dans le CAC 40 "
+                    "le jour de l'achat ; position retiree, comme le juge des strategies, qui ne "
+                    "joue pas ce signal" % ((p.get("strategie") or "").strip(), v, d, d_sig))
+                retirees.add(id(p))
+                continue
+
         pe = bar["open"]
         # LES SEUILS VIENNENT DE LA STRATEGIE, A L'ENTREE COMME A LA SORTIE.
         # Premiere version : `entrer()` appelait `parametres_entree` du module,
@@ -1221,7 +1350,7 @@ def entrer(positions, cours, mod, horizon_seances=20, cle=None,
         p["sl"] = "%.5f" % sl
         p["horizon_fin"] = fin
         p["statut"] = OUVERTE
-    return positions, incidents
+    return [p for p in positions if id(p) not in retirees], incidents
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1334,7 +1463,8 @@ def ouvrir_sur_signaux(positions, signaux, prochaine_seance):
 # L'ENCHAÎNEMENT — l'ordre compte
 # ─────────────────────────────────────────────────────────────────────
 def tenir(positions, cours, signaux, prochaine_seance, mod,
-          horizon_seances=20, cle=None, reglages=None, base=".", bareme=None):
+          horizon_seances=20, cle=None, reglages=None, base=".", bareme=None,
+          lecture=None, juge=None):
     """B puis C puis D. Une clôture du matin libère le jeton pour un signal du
     soir ; l'ordre inverse le bloquerait à tort.
 
@@ -1347,6 +1477,9 @@ def tenir(positions, cours, signaux, prochaine_seance, mod,
       `reglages` : les seuils par stratégie, lus dans
       `donnees/cac40_strategies.csv` · `base` : la racine du dépôt.
       `bareme` : le nom d'un barème de `donnees/BAREME_FRAIS.csv`, ou None pour le barème des trades vécus (« REEL ») ; transmis à `cloturer` (A-550, 29-10-2026).
+      `lecture`, `juge` : le second rendu de `lire_par_le_lecteur` et le module du juge
+      des stratégies, transmis à `entrer` (A-577, étape 7, 29-10-2026) ; None, None pour
+      le calibrage et la copie des boucles Cowork, qui n ont pas de lecture.
     ④ CONDITIONS D ENTRÉE — Les réglages doivent être renseignés. **Sans eux,
       aucune position ne s ouvre** — c est le défaut du 03-09.
     ⑤ SORTIE — **UNE valeur : un dictionnaire de SIX clés.** `trades` : les
@@ -1359,7 +1492,8 @@ def tenir(positions, cours, signaux, prochaine_seance, mod,
       [rend: 1]
     ⑥ TRAITEMENT — ① recalculer l échéance des positions ouvertes
       (`completer_echeances`) · ② clôturer ce qui doit l être · ③ faire entrer
-      les positions en attente · ③bis repasser, sur celles qui viennent d entrer,
+      les positions en attente — au calendrier officiel et dans le CAC 40 quand une
+      lecture est donnée · ③bis repasser, sur celles qui viennent d entrer,
       le calcul de l échéance puis la clôture — dès leur séance d achat (R-608),
       et jusqu à l échéance pour une entrée faite en retard (depuis le
       28-09-2026) · ④ ouvrir sur les signaux.
@@ -1373,8 +1507,10 @@ def tenir(positions, cours, signaux, prochaine_seance, mod,
     ⑨ CE QUI CLOCHE — Rien vu. **L ordre est le seul point délicat, et il est
       expliqué là où il s applique.**
     ⑩ EFFET — **MODIFIE la liste de positions qu elle reçoit**, au lieu d en
-      rendre une neuve.
-    ⑪ TERMINAISON — Rend la main. **Aucun de ses appels ne termine.**
+      rendre une neuve. Une position dont l achat est refusé hors du CAC 40 n est pas
+      dans les positions rendues (29-10-2026).
+    ⑪ TERMINAISON — Rend la main. **Aucun de ses appels ne termine.** `entrer` lève
+      ValueError si une lecture est donnée sans le juge.
       [sort: non]
     """
     # SI L'APPELANT NE DONNE PAS DE REGLAGES, ON VA LES LIRE. On ne se tait
@@ -1400,7 +1536,7 @@ def tenir(positions, cours, signaux, prochaine_seance, mod,
     trades, restantes, inc_b = cloturer(positions, cours, mod, horizon_seances, cle, bareme)
     _en_attente = {id(p) for p in restantes if (p.get("statut") or "").strip() == EN_ATTENTE}
     restantes, inc_c = entrer(restantes, cours, mod, horizon_seances, cle,
-                              reglages)
+                              reglages, lecture, juge)
     # LA SEANCE D'ACHAT D'UNE POSITION ENTREE CE SOIR SE TESTE CE SOIR (R-608 ;
     # relecteur du Chat, 28-09-2026). `entrer` passe apres `cloturer` : sans ce
     # second passage, une position achetee a l'ouverture du jour D et vendue le
@@ -2591,14 +2727,19 @@ def tenir_pour_de_vrai(base):
       simulé passe par elle.
     ② CONTEXTE D APPEL — `main`, sans `--calibrage`. Chaque soir.
     ③ ENTRÉE — `base` : la racine. **Et quatre fichiers** : les signaux du jour,
-      les positions ouvertes, le journal des trades, les cours.
+      les positions ouvertes, le journal des trades, les cours — lus, depuis le
+      29-10-2026, par le lecteur unique (`lire_les_cours_du_soir`).
     ④ CONDITIONS D ENTRÉE — `programmes/MODULE_POSITIONS.py` et `programmes/JUGE_DES_STRATEGIES.py`
       doivent être trouvables, et `donnees/cac40_strategies.csv` lisible. **Les fichiers de travail peuvent manquer.**
+      Ce que lit `programmes/LIRE_LES_COURS.py` doit être en place.
     ⑤ SORTIE — UNE valeur : le code de sortie.
       [rend: 1]
     ⑥ TRAITEMENT — ① charger le module, le juge des stratégies, les réglages · ② **CALIBRER, et
       s arrêter si le trade connu ne tombe pas** · ③ lire l état de la veille ·
-      ④ tenir la séance · ⑤ **contrôler toutes les lignes à écrire contre les
+      ③bis lire les cours par le lecteur unique, et s arrêter en code 2 si la lecture
+      est refusée ou impossible (29-10-2026) · ④ tenir la séance, au calendrier
+      officiel, en n achetant que dans le CAC 40 — un achat refusé se dit par une ligne
+      « ⛔ » · ⑤ **contrôler toutes les lignes à écrire contre les
       contrats du journal et des positions, et s'arrêter en code 1 sans rien
       écrire sur la moindre faute** (depuis le 27-09-2026) · ⑥ réécrire les deux
       fichiers, avec les colonnes des contrats.
@@ -2621,8 +2762,9 @@ def tenir_pour_de_vrai(base):
     ⑩ EFFET — **RÉÉCRIT les positions ouvertes et le journal des trades EN
       ENTIER**, sauf sur une faute d'écriture, où RIEN n'est écrit · **crée les
       dossiers manquants** · **exécute le code du module et du juge des stratégies.**
-    ⑪ TERMINAISON — Rend la main avec un code. **Mais `charger_module_positions`
-      et `trouver_module`, appelés en premier, LÈVENT si le module est
+    ⑪ TERMINAISON — Rend la main avec un code — 2 aussi quand la lecture des cours par
+      le lecteur unique est refusée ou impossible (29-10-2026). **Mais `charger_module_positions`
+      et `trouver_module`, appelés en premier, LÈVENT si le module est introuvable.**
       [sort: non]
     ⑫ DÉFINITIONS —
       le juge des stratégies : `programmes/JUGE_DES_STRATEGIES.py`, le programme qui rejoue une stratégie sur l'historique des cours et rend la liste de ses opérations
@@ -2664,7 +2806,15 @@ def tenir_pour_de_vrai(base):
               "une date AAAA-MM-JJ : rien n est ouvert.")
         return 2
 
-    cours = charger_cours_du_banc(base, *_fichiers_de_cours(base))
+    # LES COURS PASSENT PAR LE LECTEUR UNIQUE, comme pour le juge des strategies (A-577,
+    # etape 7, 29-10-2026) : memes cours, memes refus, calendrier officiel, composition
+    # du CAC 40. Une lecture refusee n'ouvre ni ne ferme rien.
+    try:
+        cours, lecture, juge = lire_les_cours_du_soir(base)
+    except (ValueError, OSError, KeyError) as _e:
+        print(f"  CODE 2 — LECTURE DES COURS REFUSEE OU IMPOSSIBLE : {_e}")
+        print("     Rien n est ouvert ni ferme : on ne tient pas les positions sur une lecture que le juge refuserait.")
+        return 2
     if not cours:
         print("  CODE 2 — aucun cours charge.")
         return 2
@@ -2675,7 +2825,7 @@ def tenir_pour_de_vrai(base):
     # `prochaine` vaut alors None, et c est `entrer` qui deduit la date
     # d entree du signal, chaque soir tant que la position attend (defaut
     # trouve le 27-09-2026 : jusque-la, la position attendait pour toujours).
-    prochaine = seance_suivante(calendrier(cours), seance)
+    prochaine = seance_suivante(calendrier(cours, lecture), seance)
 
     # ═══ L ADAPTATEUR, ET C EST LE MAILLON QUI MANQUAIT ═══
     # Trouve le 12-09-2026 : le detecteur emet {valeur, date, cmf, cci, close} ;
@@ -2798,7 +2948,7 @@ def tenir_pour_de_vrai(base):
         print(f"  horizon lu au registre · {l['id']} : "
               f"{lire_horizon(l['horizon'])} seances")
 
-    r = tenir(positions, cours, signaux, prochaine, mod, base=base)
+    r = tenir(positions, cours, signaux, prochaine, mod, base=base, lecture=lecture, juge=juge)
 
     # LES COLONNES VIENNENT DU CONTRAT, JAMAIS DU FICHIER EXISTANT, ET RIEN NE
     # S'ÉCRIT AVANT QUE TOUT SOIT CONTRÔLÉ (défaut 3 de A-491, 27-09-2026). Avant,
@@ -2828,6 +2978,11 @@ def tenir_pour_de_vrai(base):
         print(f"  signal ignore : {i}")
     for i in r["incidents"]:
         print(f"  incident : {i}")
+    # LE RETRAIT D'UNE POSITION SE VOIT COMME LE REFUS DU DETECTEUR (superviseur R-759 du 29-10-2026, DE FOND) :
+    # regle provisoire, la plus proche du juge ; la question est posee a Jean-Luc (BACKLOG A-638). Code 0 maintenu.
+    for i in r["incidents"]:
+        if i.startswith("ACHAT REFUSE"):
+            print(f"  ⛔ {i} — achat REFUSE, position retiree (regle provisoire, question A-638)")
     if r["muet"]:
         print(f"  ⚠️ {r['alerte']}")
         return 1

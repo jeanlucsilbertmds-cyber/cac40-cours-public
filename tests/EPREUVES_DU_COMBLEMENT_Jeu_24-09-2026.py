@@ -254,10 +254,21 @@ c, _, _ = verser_le_soir(d, f"ACCOR,{demain},48.5,48.99,48.03,48.03,487319")
 epreuve("S6 refus de date future retiré : code du versement du soir (doit être 0)", 0, c)
 
 # S7 — la lecture de la date retirée : la date impossible repasse, le soir.
+# RECALÉ LE 30-10-2026 (relecteur et superviseur R-759, B2, verdict DE FOND) : depuis le 29-10-2026, le lecteur commun
+# refuse lui aussi la date impossible. S7 retire donc les DEUX juges — la lecture de la date dans `juger_la_ligne` et
+# le compte du lecteur dans `_relecture` — et la ligne doit repasser (code 0). S7b ne retire que le premier : la ligne
+# doit être mise à part par le lecteur (code 3, versement partiel décidé par Jean-Luc le 30-10-2026 à 13h55).
+LECTEUR_MUET = ('''        return L.lignes_mises_a_part(c), c, ""\n''', '''        return 0, c, ""\n''')
 d = copie()
 remplacer(d, VERSER, "        lisible = False\n", "        lisible, jour = True, datetime(2026, 2, 27)\n")
+remplacer(d, VERSER, *LECTEUR_MUET)
 c, _, _ = verser_le_soir(d, "ACCOR,2026-02-30,48.5,48.99,48.03,48.03,487319")
-epreuve("S7 lecture de la date retirée : code du versement du soir (doit être 0)", 0, c)
+epreuve("S7 lecture de la date et lecteur retirés : code du versement du soir (doit être 0)", 0, c)
+d = copie()
+remplacer(d, VERSER, "        lisible = False\n", "        lisible, jour = True, datetime(2026, 2, 27)\n")
+c, s_, _ = verser_le_soir(d, "ACCOR,2026-02-30,48.5,48.99,48.03,48.03,487319")
+epreuve("S7b lecture de la date seule retirée : mise à part par le lecteur (code 3, date illisible)", (3, True),
+        (c, "MISE À PART : ACCOR · séance du 30-02-2026 · le lecteur commun la met à part — date illisible" in s_))
 
 # E11 à E16 — LA LIGNE ENTIÈRE EST JUGÉE. Cassures de Cowork du 24-09-2026 à 22h34,
 # ses lignes exactes ; la date 2026-07-14, un mardi, est absente du maître d'avant
@@ -275,7 +286,12 @@ CAS_DE_LIGNE = [
     ("E12 cours en lettres", "ACCOR,2026-07-14,abc,def,ghi,jkl,xyz,euronext", "champ illisible ou vide"),
     ("E13 cours incohérents", "ACCOR,2026-07-14,50,40,60,-5,-1000,euronext", "High 40.0 < Low 60.0"),
     ("E14 valeur inconnue", "TOTO_INCONNUE,2026-07-14,50,51,49,50.5,1000,euronext", "valeur inconnue du référentiel"),
-    ("E15 un dimanche", "ACCOR,2026-09-20,50,51,49,50.5,1000,euronext", "un dimanche, jour sans séance"),
+    # E15 recalé le 29-10-2026 (superviseur R-759, A-577 étape 7) : le jour sans séance n'est plus jugé par
+    # « samedi ou dimanche » dans `juger_la_ligne`, mais par le lecteur commun sur le maître complété.
+    # Recalé de nouveau le 30-10-2026 (relecteur, B2) : la ligne d'avant (volume 1000) était refusée par son VOLUME et
+    # n'atteignait jamais le lecteur. Celle-ci est la vraie ligne d'ACCOR du 18-09-2026, source abc, portée au dimanche
+    # 20-09 : `juger_la_ligne` l'admet entièrement, seul le lecteur peut la refuser.
+    ("E15 un dimanche", "ACCOR,2026-09-20,45.69,46.05,45.15,45.58,1094181,abc", "ligne(s) à part dans le maître complété"),
     ("E16 prix négatifs ordonnés", "ACCOR,2026-07-14,-5,-4,-6,-5,1000,euronext", "un prix est strictement positif"),
     ("E17 virgule décimale", "ACCOR,2026-07-14,\"48,5\",48.99,48.03,48.03,487319,euronext", "pas écrit comme au maître"),
     ("E18 plus haut infini", "ACCOR,2026-07-14,48.5,inf,48.03,48.03,487319,euronext", "pas écrit comme au maître"),
@@ -410,14 +426,11 @@ if _jour < 5:
 SABOTAGES_DE_LIGNE = [
     ("S8 juge des cours retiré", VERSER, "    verdict, motif = controler_une_seance(seance)\n",
      "    verdict, motif = \"OK\", \"\"\n", "ACCOR,2026-07-14,48.5,48.03,48.99,48.5,487319,euronext"),
-    ("S9 jour de semaine retiré", VERSER, "    elif jour.weekday() >= 5:\n", "    elif False:\n",
+    # S9 recalé le 29-10-2026 : la protection du jour sans séance est la relecture par le lecteur commun.
+    ("S9 relecture par le lecteur commun retirée", VERSER, '''        return L.lignes_mises_a_part(c), c, ""\n''', '''        return 0, c, ""\n''',
      "ACCOR,2026-09-20,48.5,48.99,48.03,48.03,487319", "soir"),
-    ("S10 valeur connue retirée", VERSER, "    if cle_valeur(nom) not in connues:\n",
-     "    if False:\n", "TOTO_INCONNUE,2026-07-14,50,51,49,50.5,1000", "soir"),
     ("S13 raccord au maître retiré", VERSER, "                    if n and not RAPPORT_VOISIN[0] <= float(r[champ]) / n <= RAPPORT_VOISIN[1]:\n",
      "                    if False:\n", "ACCOR,2026-07-14,4850,4899,4803,4803,487319,euronext"),
-    ("S14 première séance retirée", VERSER, "    elif premiere and date < premiere:\n", "    elif False:\n",
-     "ACCOR,1900-01-01,48.5,48.99,48.03,48.03,487319", "soir"),
     ("S15 compte des champs retiré", VERSER, "    if None in r or any(v is None for v in r.values()):\n",
      "    if False:\n", "ACCOR,2026-07-14,48.5,48.99,48.03,48.03,487319,euronext,EXTRA"),
     ("S16 période des sources retirée", VERSER, "        if (debut and date < debut) or (fin and date > fin):\n",
@@ -440,6 +453,27 @@ for nom, fichier, avant_, apres_, ligne, *mode in SABOTAGES_DE_LIGNE:
     remplacer(d, fichier, avant_, apres_)
     c, _, _ = (verser_le_soir if mode else verser_une_ligne)(d, ligne)
     epreuve(f"{nom} : la ligne fautive repasse (code 0)", 0, c)
+
+# S10 et S14 RECALÉS LE 30-10-2026 (relecteur et superviseur R-759, B2, verdict DE FOND), comme S7 : le lecteur commun
+# refuse lui aussi la valeur inconnue et l'année 1900. Retirer le seul refus de `juger_la_ligne` ne fait plus passer la
+# ligne. Chaque sabotage retire donc LES DEUX juges (la ligne doit repasser, code 0) ; et une épreuve ne retire que
+# le premier (la ligne doit être mise à part par le lecteur, code 3, avec son motif).
+for nom, avant_, apres_, ligne, quoi in (
+        ("S10 valeur connue", "    if cle_valeur(nom) not in connues:\n", "    if False:\n",
+         "TOTO_INCONNUE,2026-07-14,50,51,49,50.5,1000",
+         "MISE À PART : TOTO_INCONNUE · séance du 14-07-2026 · le lecteur commun la met à part — valeur absente du référentiel"),
+        ("S14 première séance", "    elif premiere and date < premiere:\n", "    elif False:\n",
+         "ACCOR,1900-01-01,48.5,48.99,48.03,48.03,487319",
+         "MISE À PART : ACCOR · séance du 01-01-1900 · le lecteur commun la met à part — date hors du calendrier officiel")):
+    d = copie()
+    remplacer(d, VERSER, avant_, apres_)
+    remplacer(d, VERSER, *LECTEUR_MUET)
+    c, _, _ = verser_le_soir(d, ligne)
+    epreuve(f"{nom} et lecteur retirés : la ligne fautive repasse (code 0)", 0, c)
+    d = copie()
+    remplacer(d, VERSER, avant_, apres_)
+    c, s_, _ = verser_le_soir(d, ligne)
+    epreuve(f"{nom[:3]}b {nom[4:]} seule retirée : mise à part par le lecteur (code 3, motif)", (3, True), (c, quoi in s_))
 
 # E16b et S11 — LE TEST « PRIX STRICTEMENT POSITIF » DU JUGE DES COURS, appelé
 # directement : par le versement, un prix négatif est déjà refusé par son écriture,

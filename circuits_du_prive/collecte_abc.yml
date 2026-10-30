@@ -110,7 +110,18 @@ jobs:
           # sur le fichier maitre, il a ecrit rapports/ALERTE_FICHIER_MAITRE.md ; on la
           # depose AVANT d arreter le passage, pour que la tache du soir de Cowork la lise
           # a 23h et previenne Jean-Luc. Rien n est repare automatiquement.
-          python3 programmes/TENIR_L_HISTORIQUE.py "$GITHUB_WORKSPACE" \
+          # LE CODE 3 (decision de Jean-Luc du 30-10-2026 a 13h55) : des lignes neuves du soir ont ete mises a part et
+          # nommees, les autres sont versees. Le circuit CONTINUE — les 39 autres valeurs gardent leurs signaux — et
+          # un pas de fin, « Rougir si des lignes de cours ont ete mises a part », fait rougir le passage.
+          VERSE=0
+          python3 programmes/TENIR_L_HISTORIQUE.py "$GITHUB_WORKSPACE" || VERSE=$?
+          if [ "$VERSE" -eq 3 ]; then
+            echo "::error::DES LIGNES DE COURS ONT ETE MISES A PART — lire rapports/ALERTE_LIGNES_MISES_A_PART.md"
+            echo "a_part=1" >> "$GITHUB_OUTPUT"
+            git add rapports/ALERTE_LIGNES_MISES_A_PART.md \
+              || { echo "::error::L ALERTE DES LIGNES MISES A PART N A PAS PU ETRE AJOUTEE"; exit 1; }
+          fi
+          [ "$VERSE" -eq 0 ] || [ "$VERSE" -eq 3 ] \
             || { echo "::error::LE FICHIER MAITRE N A PAS ETE ALIMENTE — le detecteur calculerait sur des cours perimes";
                  if [ -f rapports/ALERTE_FICHIER_MAITRE.md ]; then
                    git add rapports/ALERTE_FICHIER_MAITRE.md \
@@ -132,6 +143,16 @@ jobs:
             git add "$RESOLUE" \
               && git rm -q --cached --ignore-unmatch rapports/ALERTE_FICHIER_MAITRE.md \
               || { echo "::error::L ALERTE RESOLUE N A PAS PU ETRE RANGEE AUX ARCHIVES"; exit 1; }
+          fi
+          # L ALERTE DES LIGNES MISES A PART se range de la meme facon, le premier soir ou aucune ligne n est mise a part.
+          if [ "$VERSE" -eq 0 ] && [ -f rapports/ALERTE_LIGNES_MISES_A_PART.md ]; then
+            RESOLUE="archives/ALERTE_LIGNES_MISES_A_PART_resolue_$(TZ=Europe/Paris date +%d-%m-%Y_%Hh%M).md"
+            mkdir -p archives
+            mv rapports/ALERTE_LIGNES_MISES_A_PART.md "$RESOLUE"
+            printf '\n**RÉSOLUE le %s (Paris)** : le versement du soir n a mis aucune ligne à part.\n' "$(TZ=Europe/Paris date '+%d-%m-%Y %Hh%M')" >> "$RESOLUE"
+            git add "$RESOLUE" \
+              && git rm -q --cached --ignore-unmatch rapports/ALERTE_LIGNES_MISES_A_PART.md \
+              || { echo "::error::L ALERTE RESOLUE DES LIGNES MISES A PART N A PAS PU ETRE RANGEE"; exit 1; }
           fi
           git add donnees/cours_maitre.csv \
             || { echo "::error::git add cours_maitre A ECHOUE"; exit 1; }
@@ -428,6 +449,16 @@ jobs:
         if: steps.collecte.outputs.code != '0'
         run: |
           echo "::error::collecte ABC terminée avec le code ${{ steps.collecte.outputs.code }} — lire rapports/collecte_abc_*.md"
+          exit 1
+
+      - name: Rougir si des lignes de cours ont ete mises a part
+        id: rougir_si_des_lignes_mises_a_part
+        # Le versement a mis des lignes neuves a part (code 3) et a laisse tourner la suite. Ce pas de fin, apres
+        # tous les pas sans always(), fait rougir le passage : un passage vert ne doit jamais cacher une valeur sans sa seance. Place APRES
+        # « Echouer bruyamment… » : un pas rouge avant lui l aurait fait sauter le soir ou la collecte echoue.
+        if: always() && steps.versement.outputs.a_part == '1'
+        run: |
+          echo "::error::DES LIGNES DE COURS ONT ETE MISES A PART CE SOIR — lire rapports/ALERTE_LIGNES_MISES_A_PART.md (decision de Jean-Luc : corriger ou retirer la ligne dans donnees/claude_cours_nouveaux.csv)"
           exit 1
 
       - name: Dire quels pas non bloquants sont tombes

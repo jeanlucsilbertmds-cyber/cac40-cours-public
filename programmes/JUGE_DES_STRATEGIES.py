@@ -1021,12 +1021,15 @@ def charger_cours(*chemins):
     ① RÔLE — Transformer des fichiers de cours en séries utilisables : une liste de
       séances par valeur, triée par date, sans doublon, quel que soit le nombre de
       fichiers d'où elles viennent. Tout le reste du juge des stratégies part de là.
-    ② CONTEXTE D'APPEL — Quatre appelants, dont deux au-dehors.
-      · `main`, une fois, sur les cours et les cours du jour ensemble.
-      · `main` encore, sur le témoin du golden seul, quand ce témoin est conforme.
-      · `programmes/DETECTER_LES_SIGNAUX_GITHUB.py` ligne 167 et
-      `programmes/TENIR_LES_POSITIONS.py` ligne 463, qui tournent chaque soir.
-      · `programmes/JUGER_SUR_8_CRITERES.py` ligne 1180.
+    ② CONTEXTE D'APPEL — Trois appelants, dont deux au-dehors (relevé le 29-10-2026 ; `main`
+      lit les cours à juger par `lire_par_le_lecteur` depuis le 26-10-2026, A-577 étape 1).
+      · `main`, sur le témoin du golden seul, quand ce témoin est conforme.
+      · `charger_cours_du_banc` de `programmes/TENIR_LES_POSITIONS.py`, que la copie des
+      boucles Cowork appelle sur la référence Google et que le calibrage de ce programme
+      éprouve. Le détecteur et le teneur (son chemin réel) lisent par `lire_par_le_lecteur`
+      depuis le 29-10-2026 (A-577, étape 7) ; ce qui lit encore autrement est dit au ⑨ de
+      `lire_par_le_lecteur`.
+      · `programmes/JUGER_SUR_8_CRITERES.py` ligne 1193 (relevée le 29-10-2026).
     ③ ENTRÉE — `chemins` : un ou plusieurs chemins de fichiers de cours, donnés
       les uns après les autres. Un chemin vide ou `None` est sauté. Exemple réel,
       mesuré le 20-09-2026 : `main` passe `donnees/cac40_ohlcv.csv` puis
@@ -1118,10 +1121,13 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       (`programmes/LIRE_LES_COURS.py`), avec ce que ce lecteur sait et que `charger_cours`
       ignore : les périodes où chaque valeur était dans le CAC 40, et les séances où elle
       n'a pas de cours (les trous).
-    ② CONTEXTE D'APPEL — Deux appelants : `main`, pour juger les fiches (A-577, étape 1) ;
+    ② CONTEXTE D'APPEL — Quatre appelants : `main`, pour juger les fiches (A-577, étape 1) ;
       `main` de `programmes/JOUER_LES_VERSIONS.py`, qui se compare au juge et lit donc comme
-      lui (27-10-2026). Le circuit du soir garde `charger_cours` jusqu'à l'étape 7 de A-577
-      (décision de Jean-Luc du 26-10-2026 à 19h43).
+      lui (27-10-2026) ; et, depuis le 29-10-2026 (A-577, étape 7, décision de Jean-Luc du
+      26-10-2026 à 19h43 : « n'oublie pas de le basculer plus tard, sinon on va se casser les
+      dents »), les deux pas du circuit du soir : `charger` de
+      `programmes/DETECTER_LES_SIGNAUX_GITHUB.py` et `lire_les_cours_du_soir` de
+      `programmes/TENIR_LES_POSITIONS.py`.
     ③ ENTRÉE — `base` : la racine du dépôt · `fichier` : le fichier des cours, relatif à la
       racine (`donnees/cours_maitre.csv` ou l'historique long) · `mnemo` : la table de
       `table_mnemoniques`, du mnémonique à la clé de la valeur · `jusqu_au` : la date jusqu'à
@@ -1132,14 +1138,23 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       séances triées, prix en nombres) ; et la lecture, un dictionnaire : « passages »
       (clé → liste des (entrée, sortie ou None), dates AAAA-MM-JJ), « trous » (clé → liste
       triée des séances sans cours, AAAA-MM-JJ), « composition » (vrai : n'acheter qu'une
-      valeur dans l'indice le jour de l'achat).
+      valeur dans l'indice le jour de l'achat), « seances » (depuis le 29-10-2026 : la liste
+      triée, AAAA-MM-JJ, des séances du calendrier officiel — l'indice publié pour le passé, la
+      liste d'Euronext `donnees/CALENDRIER_EURONEXT.csv` pour l'avenir, R-110 — de la première
+      à la dernière date du fichier ; vide pour un fichier sans barre). Exemple mesuré le
+      29-10-2026 sur le maître : 722 séances, du 2024-01-02 au 2026-10-28.
       [rend: 2]
     ⑥ TRAITEMENT — ① lire par le lecteur unique · ② REFUSER la lecture (ValueError) quand le
       lecteur a mis des lignes à part (`LIRE_LES_COURS.lignes_mises_a_part`, une propriété de
       conservation, pas une liste de sortes), quand le fichier est un fichier figé modifié ou
       allongé, ou quand une valeur lue n'a aucun passage dans l'indice · ③ pour chaque
       mnémonique, traduire en clé, convertir chaque barre en nombres, trier · ④ relever ses
-      passages dans l'indice et ses trous.
+      passages dans l'indice et ses trous · ⑤ relever les séances du calendrier officiel entre
+      la première et la dernière date du fichier (`CALENDRIER_DE_LA_BOURSE.seances_entre`, que
+      le lecteur a chargé : aucune seconde lecture du calendrier).
+      La borne de fin est la dernière date LUE, pas la date demandée : le teneur de positions
+      tient pour « pas encore publiée » une séance que le fichier ne porte pas encore ; une
+      séance du calendrier au-delà des cours la ferait passer pour une séance manquante.
     ⑦ UNITÉ — Des euros par titre, des titres échangés, des dates AAAA-MM-JJ, des séances.
     ⑧ POURQUOI — A-577 ① et ② : la pratique reconnue n'ouvre un trade que si la valeur est
       dans l'indice à la date d'entrée (Norgate avec Wealth-Lab), et ne calcule pas un
@@ -1148,9 +1163,22 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       des mêmes cours divergent toujours (R-708) : le juge lit par le lecteur unique au lieu
       d'en refaire une partie.
     ⑨ CE QUI CLOCHE — Une barre que le lecteur rend mais dont un prix ne se lit pas lève une
-      ValueError : `charger_cours` la sautait sans le dire. · Le circuit du soir lit encore
-      autrement (`charger_cours`), jusqu'à l'étape 7 de A-577 ; `programmes/JUGER_SUR_8_CRITERES.py`
-      aussi (relevé le 27-10-2026).
+      ValueError : `charger_cours` la sautait sans le dire. · `programmes/JUGER_SUR_8_CRITERES.py`
+      lit encore autrement (`charger_cours`, relevé le 27-10-2026). · Dans le circuit du soir,
+      le détecteur (`programmes/DETECTER_LES_SIGNAUX_GITHUB.py`) et le teneur de positions
+      (`programmes/TENIR_LES_POSITIONS.py`, son chemin réel) lisent par ici depuis le 29-10-2026 (A-577,
+      étape 7), et le versement (`programmes/TENIR_L_HISTORIQUE.py`) fait relire par le lecteur commun le
+      maître complété avant de l'écrire ; NE SONT PAS basculés (relevé du relecteur du 29-10-2026, dans le
+      code) : la mesure de la performance (`programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py`,
+      son propre lecteur), le cockpit (`programmes/PUBLIER_LE_SITE.py`), le PILOTE
+      (`programmes/claude_FABRIQUER_LE_PILOTE.py`) et le calibrage du teneur (`charger_cours_du_banc`,
+      volontaire) ; voir BACKLOG A-638. La copie des boucles Cowork appelle `charger_cours_du_banc` sur la
+      référence Google.
+      · Le calendrier officiel ne couvre que jusqu'au 31-12-2026 (fiche de
+      `programmes/CALENDRIER_DE_LA_BOURSE.py`) : une lecture attendue au-delà lève HorsCalendrier —
+      mesuré le 29-10-2026 : lire(…, 2026-12-31) rend 0 ligne à part, lire(…, 2027-01-01) lève.
+      Le lecteur attend les cours jusqu'à la veille : le circuit du lundi 04-01-2027 s'arrêtera
+      (versement, détecteur, teneur) tant que 2027 n'est pas relevé (BACKLOG A-639, bloquant).
     ⑩ EFFET — Lit des fichiers. N'écrit rien.
     ⑪ TERMINAISON — Rend la main, ou lève ValueError (lecture refusée, voir ⑥ ②, message
       commençant par « le lecteur unique ») ou l'erreur du lecteur (OSError, ValueError) ou de la
@@ -1180,7 +1208,11 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
                     for d, r in sorted(barres.items())]
         passages[v] = [(iso(a), iso(b) if b else None) for a, b in c["dans_l_indice"].get(m, [])]
         trous[v] = sorted(iso(d) for d, _ in lecteur.trous(c, m))
-    return cours, {"passages": passages, "trous": trous, "composition": True}
+    # LES SÉANCES DU CALENDRIER OFFICIEL (A-577, étape 7, 29-10-2026) : celles que le lecteur a lues, bornées aux
+    # dates du fichier ; le teneur de positions les prend au lieu de les tirer des cours (R-708).
+    lues = [d for b in c["barres"].values() for d in b]
+    seances = [iso(d) for d, _ in lecteur.CAL.seances_entre(min(lues), max(lues), c["seances"])] if lues else []
+    return cours, {"passages": passages, "trous": trous, "composition": True, "seances": seances}
 
 
 def dans_l_indice(passages, jour):

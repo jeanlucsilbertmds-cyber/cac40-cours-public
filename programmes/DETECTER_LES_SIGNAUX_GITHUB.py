@@ -19,10 +19,20 @@ POURQUOI, ET C'EST UNE DÉCISION D'ARCHITECTURE (Jean-Luc, 11-09-2026) :
   qu'elle seule peut faire — tenir les positions et écrire au projet.
   C'est le principe déjà retenu pour les autres maillons (A-395) : le calcul va où sont les données.
 
-CE QUE CE PROGRAMME NE RÉÉCRIT PAS — deux implémentations d'une même chose divergent toujours (R-708) : ni le chargement des cours, ni le
-calcul du signal. Il importe `JUGE_DES_STRATEGIES.charger_cours` et
+CE QUE CE PROGRAMME NE RÉÉCRIT PAS — deux implémentations d'une même chose divergent toujours (R-708) : ni la lecture des cours, ni le
+calcul du signal, ni les règles de la composition et des trous. Il importe
+`JUGE_DES_STRATEGIES.lire_par_le_lecteur` (depuis le 29-10-2026, A-577 étape 7 ;
+jusque-là `charger_cours`), `couper_aux_trous`, `dans_l_indice` et
 `MODULE_C5_ETENDU_10.signaux_c5etendu10` — le code éprouvé, celui qui a reproduit
 au chiffre près le signal connu UNIBAIL du 20-08.
+
+LE SIGNAL DU SOIR EST CELUI QUE LE JUGE A JUGÉ (A-577, étape 7 ; décision de Jean-Luc du
+26-10-2026 à 19h43 : « n'oublie pas de le basculer plus tard, sinon on va se casser les
+dents [...] il faut que ce soit fait rapidement »). Les cours passent par le lecteur
+unique, avec ses refus ; un signal ne se donne que pour une valeur dans le CAC 40 le jour
+du signal ; et il se calcule sur le morceau de série qui finit à la séance, jamais à
+travers un trou. Exemple mesuré (fiche de `programmes/LIRE_LES_COURS.py`) : le CMF de
+Vinci passe de −0,136 à −0,087 quand la séance du 03-07-2026 manque.
 
 CALIBRAGE OBLIGATOIRE AVANT DE CONCLURE — reproduire un résultat connu avant d'en produire un nouveau (R-720) : le
 programme reproduit d'abord un signal CONNU. S'il ne le retrouve pas, il ÉCHOUE et
@@ -36,15 +46,20 @@ LES ONZE ÉLÉMENTS — ce programme est une fonction comme les autres
 ② CONTEXTE D APPEL — Le circuit du soir, après la clôture, sur une machine
   GitHub Actions. **Un signal n est jamais connu avant la clôture.**
 ③ ENTRÉE — La ligne de commande : la racine du dépôt. **Et les fichiers de
-  cours, choisis par le juge des stratégies et non par ce programme.**
+  cours, choisis par le juge des stratégies et non par ce programme**, lus par le
+  lecteur unique `programmes/LIRE_LES_COURS.py` depuis le 29-10-2026.
 ④ CONDITIONS D ENTRÉE — Le juge des stratégies `programmes/JUGE_DES_STRATEGIES.py` et le module
   de signal doivent être là, et au
-  moins un fichier de cours. Tout le reste est un cas prévu.
+  moins un fichier de cours, et ce que lit le lecteur unique (le référentiel, le
+  calendrier officiel, la nature des trous, les passages dans le CAC 40). Tout le reste
+  est un cas prévu.
 ⑤ SORTIE — **Un code de sortie, et un fichier de quelques centaines d octets.**
-⑥ TRAITEMENT — ① charger juge des stratégies, module et cours · ② **CALIBRER sur un signal
+⑥ TRAITEMENT — ① charger juge des stratégies, module et cours, ces derniers par le
+  lecteur unique · ② **CALIBRER sur un signal
   CONNU, et s arrêter s il manque** · ③ trouver la dernière séance · ④ relever
-  les signaux de cette séance, valeur par valeur · ⑤ confronter au CONTRAT ·
-  ⑥ écrire.
+  les signaux de cette séance, valeur par valeur, sur le morceau sans trou qui finit à
+  la séance, et refuser ceux d une valeur hors du CAC 40 ce jour-là · ⑤ confronter au
+  CONTRAT · ⑥ écrire.
 ⑦ UNITÉ — **Le CMF — flux monétaire de Chaikin — mesure si l'argent entre ou
   sort d'une valeur ; c'est un rapport sans unité, borné à ±1.** **Le CCI —
   indice du canal des matières premières — mesure de combien le cours s'écarte de
@@ -55,9 +70,11 @@ LES ONZE ÉLÉMENTS — ce programme est une fonction comme les autres
   cours étaient transportés chaque soir jusqu'à la conversation pour en tirer
   trois lignes. Ce transport a cassé deux fois en deux jours. **GitHub a les
   cours, le réseau et les programmes : il calcule, et n'envoie que le résultat.**
-  **② RIEN N'EST RÉÉCRIT DE CE QUI EXISTE** : ce programme importe le chargement
+  **② RIEN N'EST RÉÉCRIT DE CE QUI EXISTE** : ce programme importe la lecture
   des cours et le calcul du signal au lieu de les refaire — deux implémentations
-  d'une même chose divergent toujours (R-708).
+  d'une même chose divergent toujours (R-708). Depuis le 29-10-2026, il lit comme le
+  juge des stratégies : un signal du soir calculé à travers un trou, ou sur une valeur
+  hors du CAC 40, ne serait plus celui que le juge a jugé.
   **③ LE CALIBRAGE PRÉCÈDE TOUTE CONCLUSION** : il reproduit d'abord un signal
   CONNU, et ne publie rien s'il ne le retrouve pas.
 ⑨ CE QUI CLOCHE — **Trois silences, aucun corrigé** — le ⑨ se consigne et ne se corrige pas (R-752) :
@@ -72,7 +89,8 @@ LES ONZE ÉLÉMENTS — ce programme est une fonction comme les autres
   trace : une heure de midi sur une séance close la veille rend la preuve
   inutilisable.** Modifie aussi le chemin de recherche des modules.
 ⑪ TERMINAISON — **NE REND JAMAIS LA MAIN : quatre codes.** `0` publié ·
-  `1` calibrage en échec, rien publié · `2` sources ou séance absentes ·
+  `1` calibrage en échec, rien publié · `2` sources ou séance absentes, ou lecture
+  des cours refusée par le lecteur unique (29-10-2026) ·
   `3` les signaux ne respectent pas le format déclaré dans
   `programmes/CONTRATS_DES_FICHIERS.py`, rien écrit. **Le circuit du soir n a pas
   de tolérance sur ce
@@ -80,7 +98,7 @@ LES ONZE ÉLÉMENTS — ce programme est une fonction comme les autres
 
 USAGE : python3 DETECTER_LES_SIGNAUX_GITHUB.py <racine_du_depot>
 SORTIE : donnees/signaux_du_jour.json  (quelques centaines d'octets)
-CODE : 0 = calculé et publié · 1 = calibrage en échec, rien publié · 2 = sources absentes
+CODE : 0 = calculé et publié · 1 = calibrage en échec, rien publié · 2 = sources absentes ou lecture refusée
 
 ⑫ DÉFINITIONS —
   le juge des stratégies : `programmes/JUGE_DES_STRATEGIES.py`, le programme qui rejoue une stratégie sur l'historique des cours et rend la liste de ses opérations
@@ -120,9 +138,10 @@ ETALON = {"valeur": "UNIBAIL_RODAMCO", "date": "2026-08-20"}
 def charger(racine):
     """Prépare tout le matériel du détecteur, ou arrête le programme.
 
-    ① RÔLE — **Rassembler d un coup les trois choses sans lesquelles rien ne peut
+    ① RÔLE — **Rassembler d un coup les choses sans lesquelles rien ne peut
       être calculé** : le juge des stratégies `programmes/JUGE_DES_STRATEGIES.py`, le module de signal
-      `programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py` qui sait calculer les signaux, et les cours. Rien n est détecté ici.
+      `programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py` qui sait calculer les signaux, et les cours,
+      lus par le lecteur unique avec leur lecture (passages dans le CAC 40, trous). Rien n est détecté ici.
     ② CONTEXTE D APPEL — `main`, en tout PREMIER, avant même le calibrage.
       **Si le matériel manque, il vaut mieux ne rien faire que calculer sur du
       vide.**
@@ -131,16 +150,23 @@ def charger(racine):
     ④ CONDITIONS D ENTRÉE — `programmes/` doit contenir le juge des stratégies et le
       module de signal. **Les fichiers de cours, eux, sont vérifiés ici : leur
       absence est un cas prévu, pas une condition.**
-    ⑤ SORTIE — TROIS valeurs : le juge des stratégies, le module de signal, les cours chargés.
-      [rend: 3]
+    ⑤ SORTIE — QUATRE valeurs : le juge des stratégies, le module de signal, les cours
+      (clé de la valeur → séances triées) et la lecture (le second rendu de
+      `lire_par_le_lecteur` : « passages », « trous », « composition », « seances »).
+      [rend: 4]
     ⑥ TRAITEMENT — ① ajouter `programmes/` au chemin de recherche · ② charger le
       juge des stratégies et lui demander le module · ③ **lui demander AUSSI quels fichiers de
-      cours lire** · ④ vérifier que chacun existe · ⑤ rendre le triplet.
+      cours lire** · ④ vérifier que chacun existe · ⑤ lire le fichier des cours par
+      `lire_par_le_lecteur`, avec la table des mnémoniques du référentiel, comme `main`
+      du juge · ⑥ rendre les quatre.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — **LE CHOIX DES FICHIERS APPARTIENT À `programmes/JUGE_DES_STRATEGIES.py`,
       un seul point de décision.** Mesuré le 12-09-2026 : ce programme nommait
       les deux anciens fichiers en dur, comme dix-sept autres, **et le fichier
-      maître existait pendant que personne ne le lisait.**
+      maître existait pendant que personne ne le lisait.** **LA LECTURE AUSSI
+      APPARTIENT AU JUGE** (A-577, étape 7, 29-10-2026) : `lire_par_le_lecteur` refuse
+      une lecture qui a mis des lignes à part, un fichier figé modifié, une valeur sans
+      passage dans l indice — le détecteur refuse avec lui, une fois pour tous (R-708).
     ⑨ CE QUI CLOCHE — **`sys.path.insert` empile un chemin à chaque appel sans
       jamais vérifier s il y est déjà.** Un seul appel par exécution le rend
       inoffensif ici ; il cesserait de l être si la fonction était appelée en
@@ -148,7 +174,9 @@ def charger(racine):
     ⑩ EFFET — **MODIFIE LE CHEMIN DE RECHERCHE DES MODULES du processus**, ce qui
       change ce que tout `import` ultérieur trouvera. N écrit aucun fichier.
     ⑪ TERMINAISON — **PEUT NE PAS RENDRE LA MAIN : code 2 si un programme est
-      introuvable, code 2 si un fichier de cours est absent.** Aucun de ses
+      introuvable, code 2 si le fichier maître est absent ou vide, code 2 si la
+      lecture des cours est refusée ou impossible** (ValueError — HorsCalendrier
+      compris —, OSError, KeyError du lecteur ou du juge, 29-10-2026). Aucun de ses
       propres appels ne termine.
       [sort: oui]
     ⑫ DÉFINITIONS —
@@ -170,38 +198,60 @@ def charger(racine):
     # LE CHOIX DES FICHIERS APPARTIENT AU JUGE DES STRATÉGIES — un seul point de décision
     # (12-09-2026). Ce programme nommait les deux anciens fichiers en dur, comme
     # dix-sept autres ; le fichier maître existait et personne ne le lisait.
-    fichiers = B.fichiers_de_cours(racine)
+    try:
+        fichiers = B.fichiers_de_cours(racine)
+    except FileNotFoundError as e:
+        print(f"CODE 2 — {e}")
+        sys.exit(2)
     for c in fichiers:
         if not os.path.isfile(c):
             print(f"CODE 2 — {c} absent")
             sys.exit(2)
-    return B, mod, B.charger_cours(*fichiers)
+    # LA LECTURE APPARTIENT AU JUGE (A-577, étape 7, 29-10-2026) : la même que celle de son `main`,
+    # avec ses refus. Une lecture refusée ne publie rien : le signal ne serait pas celui que le juge juge.
+    try:
+        mnemo = B.table_mnemoniques(B.trouver(racine, "REFERENTIEL_VALEURS"))
+        cours, lecture = B.lire_par_le_lecteur(racine, os.path.relpath(fichiers[0], racine), mnemo)
+    except (ValueError, OSError, KeyError) as e:
+        print(f"CODE 2 — LECTURE DES COURS REFUSÉE OU IMPOSSIBLE : {type(e).__name__} : {e}. RIEN N'EST PUBLIÉ.")
+        sys.exit(2)
+    return B, mod, cours, lecture
 
 
-def signaux_sur(cours, B, mod, valeur, jusqu_a=None):
-    """Rend les signaux d'une valeur, éventuellement bornés à une date.
+def signaux_sur(cours, lecture, B, mod, valeur, jusqu_a=None):
+    """Rend les signaux d'une valeur, éventuellement bornés à une date, calculés sans traverser un trou.
 
     ① RÔLE — **Chercher les signaux d UNE SEULE valeur.** C est le grain le plus
       fin du détecteur : tout le reste l appelle en boucle.
-    ② CONTEXTE D APPEL — `main`, DEUX fois, pour des raisons opposées.
-      **① sur l étalon, avec une date, pour le calibrage** — reproduire un signal
-      connu avant de conclure quoi que ce soit. **② sur chaque valeur de
-      l univers, sans date**, pour la détection du jour.
-    ③ ENTRÉE — `cours` : toutes les séries · `B` : le juge des stratégies `programmes/JUGE_DES_STRATEGIES.py` ·
+    ② CONTEXTE D APPEL — DEUX appelants, pour des raisons opposées.
+      **① `main`, sur l étalon, avec une date, pour le calibrage** — reproduire un signal
+      connu avant de conclure quoi que ce soit. **② `signaux_de_la_seance`, sur chaque
+      valeur de l univers, bornée à la séance**, pour la détection du jour.
+    ③ ENTRÉE — `cours` : toutes les séries · `lecture` : le second rendu de
+      `lire_par_le_lecteur` (ses « trous » servent ici), obligatoire depuis le 29-10-2026 ·
+      `B` : le juge des stratégies `programmes/JUGE_DES_STRATEGIES.py` ·
       `mod` : le module de signal `programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py` · `valeur` : le nom d une valeur · `jusqu_a` : une date de borne,
       **absente pour la détection, renseignée pour le calibrage**.
     ④ CONDITIONS D ENTRÉE — Aucune. **Une valeur inconnue est un cas prévu.**
-    ⑤ SORTIE — DEUX valeurs : la série bornée, et ses signaux.
+    ⑤ SORTIE — DEUX valeurs : la série bornée — réduite, depuis le 29-10-2026, à son
+      DERNIER MORCEAU SANS TROU, celui qui finit à la borne —, et ses signaux, dont les
+      rangs `i` sont des rangs dans ce morceau.
       **Si la série est vide, rend `(None, [])` — la série à None, PAS une liste
       vide : l appelant peut distinguer « valeur absente » de « aucun signal ».**
       [rend: 2]
     ⑥ TRAITEMENT — ① retrouver la série **par son MNÉMONIQUE, jamais par son nom**
       · ② la borner à la date si demandé · ③ si elle est vide, rendre `(None, [])`
-      · ④ sinon, déléguer le calcul au module de signal.
+      · ④ la couper à ses trous par `couper_aux_trous` du juge, et garder le dernier
+      morceau · ⑤ déléguer le calcul au module de signal.
     ⑦ UNITÉ — `jusqu_a` est une date au format AAAA-MM-JJ.
     ⑧ POURQUOI — **Le mnémonique est la clé, jamais le nom** : deux sources
       écrivent le même nom différemment, et une valeur attendue qui ne renvoie
-      rien doit être une alerte, pas un silence.
+      rien doit être une alerte, pas un silence. **Aucun indicateur ne se calcule
+      à travers un trou** (A-577 ② et étape 7) : le juge calcule ses signaux morceau
+      par morceau ; le signal de la séance vit dans le dernier morceau. Exemple mesuré
+      (fiche de `programmes/LIRE_LES_COURS.py`) : sans la séance du 03-07-2026, le
+      CMF de Vinci passe de −0,136 à −0,087 ; coupé au trou, le morceau d après est
+      trop court pour un CMF sur quatorze séances, et aucun signal n est donné.
     ⑨ CE QUI CLOCHE — **`None` VEUT DIRE DEUX CHOSES, et l appelant ne peut pas les
   distinguer.** Une valeur absente des cours rend `(None, [])` · une valeur
   PRÉSENTE mais dont le bornage par `jusqu_a` ne laisse aucune séance rend
@@ -224,12 +274,94 @@ def signaux_sur(cours, B, mod, valeur, jusqu_a=None):
       un signal : le repérage, sur la dernière séance connue, d'une configuration de cours qui déclenche une simulation d'achat.
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
-    serie = cours.get(B.cle_valeur(valeur), [])
+    cle = B.cle_valeur(valeur)
+    serie = cours.get(cle, [])
     if jusqu_a:
         serie = [b for b in serie if b["date"] <= jusqu_a]
     if not serie:
         return None, []
+    # LE DERNIER MORCEAU SANS TROU (A-577, étape 7) : la coupure est celle du juge, appelée et non recopiée.
+    serie = B.couper_aux_trous(serie, lecture["trous"].get(cle, []))[-1]
     return serie, mod.signaux_c5etendu10(serie)
+
+
+def signaux_de_la_seance(cours, lecture, B, mod, seance):
+    """Relève, valeur par valeur, les signaux d'une séance : ceux qui sont donnés, ceux qui sont refusés hors du CAC 40.
+
+    ① RÔLE — Le cœur de la détection du jour, sorti de `main` le 29-10-2026 pour qu une
+      épreuve puisse le rejouer séance par séance, sans écrire le fichier des signaux.
+    ② CONTEXTE D APPEL — `main`, une fois, sur la dernière séance ; les épreuves
+      (`tests/EPREUVES_DU_CIRCUIT_PAR_LE_LECTEUR_Jeu_29-10-2026.py`), sur des séances passées.
+    ③ ENTRÉE — `cours`, `lecture` : le rendu de `charger` · `B` : le juge des stratégies ·
+      `mod` : le module de signal · `seance` : la séance, AAAA-MM-JJ.
+    ④ CONDITIONS D ENTRÉE — `lecture` porte « passages » et « trous » pour chaque valeur lue.
+    ⑤ SORTIE — QUATRE valeurs : ① les signaux donnés, chacun {valeur, date_signal, cmf,
+      cci, close} (le contrat SIGNAL) · ② les signaux REFUSÉS parce que la valeur n est
+      pas dans le CAC 40 ce jour-là, même forme · ③ les valeurs de l univers sans cette
+      séance · ④ le détail des indicateurs de chaque valeur qui a la séance, avec, depuis
+      le 29-10-2026, « dans_l_indice », « signal_hors_de_l_indice », et la longueur et le
+      début du morceau sans trou sur lequel ils sont calculés (« seances_sans_trou »,
+      « depuis »).
+      [rend: 4]
+    ⑥ TRAITEMENT — pour chaque valeur de l univers : ① ses signaux par `signaux_sur`,
+      bornés à la séance et sur le dernier morceau sans trou · ② une valeur sans la
+      séance est notée · ③ un signal tombé sur la séance est donné si la valeur est dans
+      le CAC 40 ce jour-là (`dans_l_indice` du juge), refusé sinon · ④ le détail des
+      indicateurs, calculé sur le même morceau.
+    ⑦ UNITÉ — Le CMF, sans unité, borné à ±1 ; le CCI, sans unité ; la clôture en euros.
+    ⑧ POURQUOI — A-577, étape 7 : le juge n achète qu une valeur dans l indice ; un
+      signal du soir sur une valeur hors de l indice serait un signal que le juge n a
+      jamais jugé. Exemple réel, mesuré le 29-10-2026 en rejouant les 722 séances du
+      maître : Eiffage, entrée dans le CAC 40 le 22-12-2025, avait 9 signaux avant cette
+      date, Bureau Veritas, entrée le 23-12-2024, en avait 2 ; ils sont refusés, et les
+      96 autres signaux des 722 séances sont rendus à l identique (mêmes CMF, CCI et
+      clôtures que la lecture d avant). Le
+      refus se dit (au fichier, dans le détail, et à l écran) : un signal écarté en
+      silence ne se relit pas.
+      Le jour regardé est celui du SIGNAL, faute de connaître le lendemain dans les
+      cours ; le teneur de positions regarde, lui, le jour de l ACHAT, avec la règle du
+      juge (`achat_admis`).
+    ⑨ CE QUI CLOCHE — Une valeur qui sort de l indice le jour même du signal donne un
+      signal ; c est le teneur de positions qui refuse l achat du lendemain.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; une boucle sur les dix valeurs de l univers.
+      [sort: non]
+    """
+    du_jour, refuses, sans_seance, detail = [], [], [], []
+    for v in UNIVERS:
+        serie, sig = signaux_sur(cours, lecture, B, mod, v, seance)
+        if not serie:
+            sans_seance.append(v)
+            continue
+        if serie[-1]["date"] != seance:
+            sans_seance.append(v)
+        # LA VALEUR DANS LE CAC 40 LE JOUR DU SIGNAL (A-577, étape 7) : la règle du juge, appelée.
+        dedans = B.dans_l_indice(lecture["passages"].get(B.cle_valeur(v), []), seance)
+        hors = False
+        for s in sig:
+            if serie[s["i"]]["date"] == seance:
+                # « date_signal » ET NON « date » — le contrat tranche, il ne
+                # constate pas. C est le maillon casse du 12-09 repare A LA
+                # SOURCE : jusqu ici, l adaptateur de TENIR traduisait l un en
+                # l autre. Traduire, c est entretenir le desaccord.
+                x = {"valeur": v, "date_signal": seance,
+                     "cmf": round(s["cmf"], 6), "cci": round(s["cci"], 2),
+                     "close": serie[s["i"]]["close"]}
+                if dedans:
+                    du_jour.append(x)
+                else:
+                    refuses.append(x)
+                    hors = True
+        # le détail sert à relire un « aucun signal » sans refaire le calcul
+        if serie[-1]["date"] == seance:
+            c = mod._c5e10_cmf(serie); v_cci = mod._c5e10_cci(serie)
+            detail.append({"valeur": v,
+                           "cmf": round(c[-1], 6) if c[-1] is not None else None,
+                           "cmf_veille": round(c[-2], 6) if len(c) > 1 and c[-2] is not None else None,
+                           "cci": round(v_cci[-1], 2) if v_cci[-1] is not None else None,
+                           "dans_l_indice": dedans, "signal_hors_de_l_indice": hors,
+                           "seances_sans_trou": len(serie), "depuis": serie[0]["date"]})
+    return du_jour, refuses, sans_seance, detail
 
 
 def main():
@@ -246,11 +378,15 @@ def main():
     ⑤ SORTIE — Ne rend rien. **Tout passe par le code de sortie, l affichage, et
       le fichier des signaux.**
       [rend: rien]
-    ⑥ TRAITEMENT — ① charger juge des stratégies, module et cours · ② **CALIBRER : retrouver un
+    ⑥ TRAITEMENT — ① charger juge des stratégies, module et cours (par le lecteur
+      unique) · ② **CALIBRER : retrouver un
       signal CONNU, et s arrêter s il manque** · ③ trouver la dernière séance,
       tous univers confondus · ④ pour chaque valeur de l univers, relever ses
-      signaux de cette séance, et noter celles qui n ont pas la séance ·
-      ⑤ confronter le résultat AU CONTRAT avant d écrire · ⑥ écrire le fichier.
+      signaux de cette séance (`signaux_de_la_seance` : sans traverser un trou,
+      refusés hors du CAC 40), et noter celles qui n ont pas la séance ·
+      ⑤ confronter le résultat AU CONTRAT avant d écrire · ⑥ écrire le fichier ·
+      ⑦ dire chaque valeur qui a la séance mais un indicateur du jour à None (« ◌ »),
+      et leur nombre (depuis le 29-10-2026, superviseur R-759).
     ⑦ UNITÉ — Le CMF est un flux monétaire sans unité, borné à ±1 · le CCI est un
       indice, typiquement entre −200 et +200 · la clôture est en euros.
     ⑧ POURQUOI — **LE CALIBRAGE EST LA PREMIÈRE CHOSE QU IL FAIT, AVANT TOUTE
@@ -295,10 +431,10 @@ def main():
 """
     racine = sys.argv[1] if len(sys.argv) > 1 else "."
     maintenant = datetime.now(PARIS)
-    B, mod, cours = charger(racine)
+    B, mod, cours, lecture = charger(racine)
 
     # ─── CALIBRAGE : reproduire un signal CONNU avant de conclure quoi que ce soit
-    serie, sig = signaux_sur(cours, B, mod, ETALON["valeur"], ETALON["date"])
+    serie, sig = signaux_sur(cours, lecture, B, mod, ETALON["valeur"], ETALON["date"])
     trouvé = [s for s in sig if serie[s["i"]]["date"] == ETALON["date"]]
     if not trouvé:
         print(f"CODE 1 — CALIBRAGE EN ÉCHEC : le signal connu {ETALON['valeur']} "
@@ -315,31 +451,8 @@ def main():
         sys.exit(2)
     seance = toutes[-1]
 
-    # ─── les signaux de cette séance, valeur par valeur
-    du_jour, sans_seance, detail = [], [], []
-    for v in UNIVERS:
-        serie, sig = signaux_sur(cours, B, mod, v)
-        if not serie:
-            sans_seance.append(v)
-            continue
-        if serie[-1]["date"] != seance:
-            sans_seance.append(v)
-        for s in sig:
-            if serie[s["i"]]["date"] == seance:
-                # « date_signal » ET NON « date » — le contrat tranche, il ne
-                # constate pas. C est le maillon casse du 12-09 repare A LA
-                # SOURCE : jusqu ici, l adaptateur de TENIR traduisait l un en
-                # l autre. Traduire, c est entretenir le desaccord.
-                du_jour.append({"valeur": v, "date_signal": seance,
-                                "cmf": round(s["cmf"], 6), "cci": round(s["cci"], 2),
-                                "close": serie[s["i"]]["close"]})
-        # le détail sert à relire un « aucun signal » sans refaire le calcul
-        if serie[-1]["date"] == seance:
-            c = mod._c5e10_cmf(serie); v_cci = mod._c5e10_cci(serie)
-            detail.append({"valeur": v,
-                           "cmf": round(c[-1], 6) if c[-1] is not None else None,
-                           "cmf_veille": round(c[-2], 6) if len(c) > 1 and c[-2] is not None else None,
-                           "cci": round(v_cci[-1], 2) if v_cci[-1] is not None else None})
+    # ─── les signaux de cette séance, valeur par valeur (sans traverser un trou ; refusés hors du CAC 40)
+    du_jour, refuses, sans_seance, detail = signaux_de_la_seance(cours, lecture, B, mod, seance)
 
     sortie = {
         "calcule_le": maintenant.strftime("%Y-%m-%d %H:%M") + " (Europe/Paris)",
@@ -374,9 +487,22 @@ def main():
     json.dump(sortie, open(dest, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     taille = os.path.getsize(dest)
     print(f"  séance {seance} · {len(du_jour)} signal(aux) · "
-          f"{len(sans_seance)} valeur(s) sans cette séance")
+          f"{len(sans_seance)} valeur(s) sans cette séance · {len(refuses)} signal(aux) refusé(s) hors du CAC 40")
     for s in du_jour:
         print(f"    ▶ {s['valeur']} · CMF {s['cmf']:+.4f} · CCI {s['cci']:.1f} · clôture {s['close']}")
+    for s in refuses:
+        print(f"    ⛔ {s['valeur']} · signal REFUSÉ : la valeur n'est pas dans le CAC 40 le {seance} "
+              f"(CMF {s['cmf']:+.4f} · CCI {s['cci']:.1f})")
+    # UNE VALEUR AVEUGLE SE DIT (superviseur R-759 du 29-10-2026, DE FOND) : toute valeur qui a la séance du soir et
+    # dont un indicateur du jour vaut None ne peut donner aucun signal ; quelle qu'en soit la raison, on le dit, avec
+    # son morceau sans trou et ses derniers trous. Code 0 maintenu : une valeur aveugle n'éteint pas les autres.
+    # Exemple réel (relecteur du 29-10-2026, I2) : VINCI privée du 20-10-2026, 6 séances sans trou au 28-10.
+    aveugles = [x for x in detail if x["cmf"] is None or x["cci"] is None]
+    print(f"  {len(aveugles)} valeur(s) sans calcul possible ce soir")
+    for x in aveugles:
+        tr = [d for d in lecture["trous"].get(B.cle_valeur(x["valeur"]), []) if d < x["depuis"]][-3:]
+        print(f"    ◌ {x['valeur']} · aucun signal possible : {x['seances_sans_trou']} séance(s) sans trou "
+              f"depuis le {x['depuis']} ; trou(s) : {', '.join(tr) or 'aucun'}")
     print(f"  écrit : donnees/signaux_du_jour.json · {taille} octets")
     sys.exit(0)
 
