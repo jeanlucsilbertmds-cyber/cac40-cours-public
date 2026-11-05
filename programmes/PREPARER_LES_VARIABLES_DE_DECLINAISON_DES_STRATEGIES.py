@@ -35,7 +35,8 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   chaque réglage (colonnes parametre, pas, de_part_et_d_autre, minimum, maximum,
   unite, raison) ; `<essai>` : le numéro d'essai, E01 à E99 ;
   `<dossier_sortie>` : le dossier où écrire le tableau.
-④ CONDITIONS D'ENTRÉE — Le registre contient la fiche demandée une seule fois.
+④ CONDITIONS D'ENTRÉE — Le registre contient la fiche demandée ; si elle y est écrite plusieurs fois, sa DERNIÈRE
+  ligne fait foi (décision n°83, depuis le 05-11-2026 ; avant, une fiche double était refusée).
   La fiche porte un objectif (`tp`), un stop (`sl`), une durée (`horizon`) et un
   univers lisibles : chaque code de l'univers doit exister au référentiel des
   valeurs (`REFERENTIEL_VALEURS*.csv`, un seul, dans le dossier du registre) et
@@ -108,6 +109,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import COMMUN  # noqa: E402  la lecture d'horizon et de tableau vit là (R-708)
+import CONTRATS_DES_FICHIERS as CONTRAT  # noqa: E402  la règle « la dernière ligne d'un identifiant fait foi » (n°83)
 
 COLONNES = ["strategie", "essai", "parametre", "valeur_fiche", "valeurs_a_essayer",
             "unite", "jouable", "raison", "valide_par", "prepare_le"]
@@ -415,7 +417,9 @@ def main(argv):
     ⑤ SORTIE — UNE valeur : le code de sortie 0, 1 ou 2.
       [rend: 1]
     ⑥ TRAITEMENT — ① vérifier les arguments et leur forme · ② lire la fiche,
-      refuser si absente ou double · ③ lire le référentiel, refuser s'il n'y en a
+      sa DERNIÈRE ligne par `fiches_des_lignes` du contrat (n°83, depuis le
+      05-11-2026 ; avant, une fiche double était refusée), refuser si absente ·
+      ③ lire le référentiel, refuser s'il n'y en a
       pas exactement un · ④ lire le voisinage · ⑤ préparer · ⑥ refuser au moindre
       manque · ⑦ écrire en mode exclusif · ⑧ relire et comparer · ⑨ afficher.
     ⑦ UNITÉ — —
@@ -440,20 +444,23 @@ def main(argv):
         print("REFUS : il faut exactement un référentiel des valeurs à côté du registre — trouvé %d" % len(refs))
         return 1
     try:
-        fiches = [l for l in lire_tableau(registre) if l.get("id") == ident]
+        # LA DERNIÈRE LIGNE DE L'IDENTIFIANT FAIT FOI (décision de Jean-Luc n°83 du 01-11-2026 à 12h33, « Les
+        # précédentes restent comme historique ») : la règle vit au contrat. Avant le 05-11-2026, une fiche écrite deux
+        # fois était refusée ici.
+        fiche = CONTRAT.fiches_des_lignes(lire_tableau(registre)).get(ident)
         regles = lire_tableau(f_vois)
         codes_connus = {(l.get("mnemonique") or "").strip().upper() for l in lire_tableau(refs[0])
                         if not (l.get("hors_univers") or "").strip()} - {""}
     except OSError as e:
         print("REFUS : %s" % e)
         return 1
-    if len(fiches) != 1:
-        print("REFUS : la fiche %s apparaît %d fois au registre (une seule attendue)" % (ident, len(fiches)))
+    if fiche is None:
+        print("REFUS : la fiche %s est absente du registre" % ident)
         return 1
     voisinage = {r["parametre"]: r for r in regles}
     heure = datetime.now(ZoneInfo("Europe/Paris")).strftime("%Y-%m-%d %Hh%M Paris")
     try:
-        lignes, manques = preparer(fiches[0], voisinage, essai, heure, codes_connus)
+        lignes, manques = preparer(fiche, voisinage, essai, heure, codes_connus)
     except ValueError as e:
         print("REFUS : %s" % e)
         return 1

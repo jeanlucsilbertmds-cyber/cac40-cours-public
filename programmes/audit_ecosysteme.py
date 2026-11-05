@@ -1422,15 +1422,99 @@ check("5-Cockpit", any(f.startswith("gen_cockpit") or "generateur_cockpit" in f.
 # ═══ MAILLON 6 — APPRENTISSAGE ═══
 check("6-Apprentissage", existe("journal_apprentissage"),
       "journal_apprentissage présent", "journal_apprentissage absent")
+def _lire_le_registre():
+    """Lit le registre des stratégies par le contrat : une fiche par identifiant, sa DERNIÈRE ligne (n°83).
+
+    ① RÔLE — Donner aux maillons du radar qui lisent le registre des stratégies (6, 3, 17, 10bis) la même lecture que
+      tous les autres programmes : le fichier nommé UNE fois dans programmes/CONTRATS_DES_FICHIERS.py, lu par
+      `fiches_du_registre` (décision de Jean-Luc n°83 du 01-11-2026 à 12h33 : « La dernière ligne ajoutée fait foi.
+      Les précédentes restent comme historique. »).
+    ② CONTEXTE D'APPEL — Le corps du radar : maillon 6 (présence), maillon 3 (stratégies en service), maillon 17
+      (registre et positions) ; `_maillon_des_frais`, ④. Une fois chacun.
+    ③ ENTRÉE — Aucune : le radar cherche le fichier parmi les fichiers du projet (`trouve`, `chemin_de`).
+    ④ CONDITIONS D'ENTRÉE — Le dossier de ce programme est sur le chemin d'import (posé plus haut, pour COMMUN).
+    ⑤ SORTIE — TROIS valeurs : la liste des fiches (vide si le registre n'est pas lu) ; le nom du fichier lu, ou None ;
+      None quand le contrat s'est chargé, sinon un texte qui le dit (« CONTRATS_DES_FICHIERS illisible (<erreur>) —
+      registre lu par le repli du radar », ou « … — registre NON NOMMÉ »). Exemple réel au 05-11-2026 : 68 fiches,
+      « cac40_strategies.csv », None. [rend: 3]
+    ⑥ TRAITEMENT — ① charger le contrat ; s'il se charge, prendre son nom et sa lecture · ② sinon, REPLI DU RADAR :
+      lire le chemin REGISTRE_DES_STRATEGIES dans le TEXTE du contrat, par l'arbre syntaxique, sans l'exécuter (le
+      contrat peut être chargé de travers et rester lisible) ; s'il n'y est pas, le registre n'est pas nommé · ③ chercher
+      le fichier par son nom ; le premier qui se lit rend ses fiches (par le contrat, ou par la règle du repli).
+    ⑦ UNITÉ — Des fiches (une par identifiant).
+    ⑧ POURQUOI — Avant le 05-11-2026, quatre maillons lisaient le fichier par le motif « cac40_strategies » et
+      `_lire_csv`, toutes ses lignes : une stratégie écrite deux fois y comptait deux fois. LE RADAR NE SE TAIT PAS
+      quand le contrat est illisible (A-250 ; épreuve E4 des noms au contrat : « contrat illisible : repli dit,
+      maillon 17 présent » ; épreuve E14 des comptabilités) : il le dit, et garde la règle écrite ici, NOMMÉE comme
+      repli — comme `_noms_17` pour les noms d'une stratégie.
+    ⑨ CE QUI CLOCHE — ① Le repli RECOPIE la règle « la dernière ligne fait foi » (R-708 : deux écritures d'une même
+      chose divergent) : il ne sert que le soir où le contrat ne se charge pas, et il le dit. ② Un contrat dont le
+      TEXTE ne se lit pas (syntaxe cassée : épreuve E14 des comptabilités) ne donne aucun nom : le registre n'est pas
+      lu, les maillons qui en dépendent le voient vide, et le maillon 6 le dit. ③ Le motif cherche le nom entier du
+      fichier : un fichier dont le nom le CONTIENT répondrait aussi ; le premier lisible est pris.
+    ⑩ EFFET — Charge le contrat (une fois par processus), ou lit son texte ; lit le registre.
+    ⑪ TERMINAISON — Rend la main ; ne lève pas. [sort: non]
+    """
+    try:
+        import CONTRATS_DES_FICHIERS as _contrat
+        nom, dire = _contrat.NOM_DU_REGISTRE_DES_STRATEGIES, None
+        lire = lambda ch: list(_contrat.fiches_du_registre(ch).values())
+    except Exception as _e:
+        dire = "CONTRATS_DES_FICHIERS illisible (%s)" % type(_e).__name__
+        nom = None
+        try:
+            import ast as _ast
+            _texte = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "CONTRATS_DES_FICHIERS.py"),
+                          encoding="utf-8").read()
+            for _n in _ast.parse(_texte).body:
+                if (isinstance(_n, _ast.Assign) and any(isinstance(c, _ast.Name) and c.id == "REGISTRE_DES_STRATEGIES"
+                                                       for c in _n.targets)
+                        and isinstance(_n.value, _ast.Constant) and isinstance(_n.value.value, str)):
+                    nom = _n.value.value.rsplit("/", 1)[-1]
+        except Exception:
+            nom = None
+        if nom is None:
+            return [], None, dire + " — registre NON NOMMÉ"
+        dire += " — registre lu par le repli du radar"
+
+        def lire(ch):
+            """REPLI DU RADAR (A-250) : la règle « la dernière ligne d'un identifiant fait foi » (n°83), recopiée.
+
+            ① RÔLE — Lire le registre le soir où le contrat ne se charge pas. ② CONTEXTE D'APPEL — `_lire_le_registre`,
+            une fois par fichier essayé. ③ ENTRÉE — `ch` : un chemin. ④ CONDITIONS D'ENTRÉE — Le fichier existe.
+            ⑤ SORTIE — UNE valeur : la liste des fiches. [rend: 1] ⑥ TRAITEMENT — Lire toutes les lignes, ranger par
+            identifiant, la dernière remplaçant la précédente. ⑦ UNITÉ — Des fiches. ⑧ POURQUOI — Voir ⑧ de
+            `_lire_le_registre`. ⑨ CE QUI CLOCHE — Une copie de `fiches_du_registre` du contrat (R-708), dite.
+            ⑩ EFFET — Lit le fichier. ⑪ TERMINAISON — Rend la main, ou lève l'erreur de lecture. [sort: non]
+            """
+            fiches = {}
+            with open(ch, newline="", encoding="utf-8-sig") as fh:
+                for _l in csv.DictReader(fh):
+                    fiches[_l.get("id") or ""] = _l
+            return list(fiches.values())
+    for f in trouve(nom):
+        try:
+            return lire(chemin_de(f)), f, dire
+        except Exception:
+            pass
+    return [], None, dire
+
+
 # LE SAS N'EXISTE PLUS : IL A ETE ABSORBE PAR LE REGISTRE LE 29-08-2026.
 # `registre_candidates.csv` a ete supprime ce jour-la : il dupliquait sept
 # colonnes de `cac40_strategies.csv` sous d'autres identifiants, sans qu'aucune
 # colonne ne relie les deux fichiers. Reclamer un fichier supprime produit une
 # alerte qu'on ne peut pas eteindre — et une alerte qu'on ne peut pas eteindre
 # devient du bruit.
-check("6-Apprentissage", existe("cac40_strategies"),
-      "Registre des stratégies présent (le sas y a été absorbé le 29/08)",
-      "REGISTRE DES STRATÉGIES ABSENT", critique=True)
+# LE NOM DU REGISTRE VIT AU CONTRAT (n°83, 05-11-2026) : présent = trouvé sous ce nom ET lisible.
+_fiches_6, _f_6, _err_6 = _lire_le_registre()
+if _err_6:
+    rapport.append((WARN, "6-Apprentissage", "Registre des stratégies : %s" % _err_6))
+    score["warn"] += 1
+if not (_err_6 or "").endswith("NON NOMMÉ"):
+    check("6-Apprentissage", _f_6 is not None,
+          "Registre des stratégies présent (le sas y a été absorbé le 29/08)",
+          "REGISTRE DES STRATÉGIES ABSENT", critique=True)
 # tâche mensuelle : non détectable depuis les fichiers (vit dans Cowork) -> note
 rapport.append((WARN, "6-Apprentissage", "Tâche mensuelle Cowork : à vérifier dans Cowork (non visible ici)"))
 score["warn"] += 1
@@ -2079,7 +2163,7 @@ else:
 # QA ou PRODUCTION au registre, et rien d'autre.
 # on emploie le lecteur DEJA ECRIT, jamais un second : deux lectures du meme
 # fichier divergent toujours (famille A-308).
-_s3, _f_s3 = _lire_csv(["cac40_strategies"])
+_s3, _f_s3, _e3 = _lire_le_registre()   # la dernière ligne d'un identifiant fait foi (n°83)
 _serv3 = [s for s in _s3
           if (s.get("etat_vie") or "").strip().upper() in ("QA", "PRODUCTION")]
 # LE LIEN FICHE -> CODE PASSE PAR LA COLONNE `chemin`, PAS PAR LE NOM.
@@ -2111,7 +2195,7 @@ check("3-Calcul", not _sans_code,
       "EN SERVICE SANS CODE DE SIGNAL : %s — elle prend des positions et son "
       "calcul est introuvable" % ", ".join(_sans_code), critique=True)
 
-_strats, _f_str = _lire_csv(["cac40_strategies"])
+_strats, _f_str, _err_17 = _lire_le_registre()   # la dernière ligne d'un identifiant fait foi (n°83)
 _p17, _f_p17 = _lire_csv(["positions_ouvertes"])
 if _f_str is None:
     rapport.append((WARN, "17-Registre", "Registre des stratégies ABSENT — comparaison impossible"))
@@ -2490,8 +2574,9 @@ def _maillon_des_frais():
       de l'année (et de l'année à venir) nomme toutes les valeurs des univers en service. Le détail des quatre
       contrôles est dans le commentaire au-dessus de la fonction.
     ② CONTEXTE D'APPEL — Le corps du programme, une fois, entre le maillon 13 et le maillon 11.
-    ③ ENTRÉE — Aucun paramètre : elle lit le journal des trades, les positions ouvertes et le registre des
-      stratégies par `_lire_csv`, charge `MODULE_POSITIONS.py` (trouvé par `chemin_de`) et lit
+    ③ ENTRÉE — Aucun paramètre : elle lit le journal des trades et les positions ouvertes par `_lire_csv`, le
+      registre des stratégies par `_lire_le_registre` (la dernière ligne d'un identifiant fait foi, n°83, depuis le
+      05-11-2026), charge `MODULE_POSITIONS.py` (trouvé par `chemin_de`) et lit
       `MISE_EN_SERVICE_DU_BAREME_REEL` dans `CONTRATS_DES_FICHIERS`.
     ④ CONDITIONS D'ENTRÉE — `rapport`, `score`, `check`, `_lire_csv` et `chemin_de` sont définis plus haut ;
       `CONTRATS_DES_FICHIERS` s'importe.
@@ -2575,7 +2660,7 @@ def _maillon_des_frais():
           "VENTE BLOQUÉE — position laissée ouverte, frais non chiffrables : " + " | ".join(bloquees[:3])
           + " — déposer la liste des valeurs taxées de l'année (donnees/VALEURS_TTF.csv)", critique=True)
     # ④
-    strats, _ = _lire_csv(["cac40_strategies"])
+    strats, _, _ = _lire_le_registre()   # la dernière ligne d'un identifiant fait foi (n°83)
     mnemos = sorted({x.strip() for s in (strats or []) if (s.get("etat_vie") or "").strip()
                      .upper() in ("QA", "PRODUCTION") for x in (s.get("univers") or "").split(",") if x.strip()})
     auj = datetime.now(ZoneInfo("Europe/Paris")).date()
@@ -3313,12 +3398,14 @@ else:
 
 # ═══ MÉTA-VÉRIFICATION — angles morts du radar ═══
 # Liste les fichiers du projet qu'AUCUNE vérification ci-dessus ne surveille.
+# Le motif du registre des stratégies n'est plus écrit ici (n°83, 05-11-2026 : son nom vit au contrat) ; « cac40_ »,
+# plus bas, le couvre déjà.
 motifs_couverts = ["PROMPT_BOUCLE","TACHE_COWORK","cac40_ohlcv","CONSOLIDATION","MODULE_C5_ETENDU","MODULE_C5_EI",
     "RAV","positions_ouvertes","trading_journal","journal_trades","journal_paper","cockpit",
     "gen_cockpit","generateur_cockpit","journal_apprentissage","registre_candidates","golden",
     "REGISTRE_REGLES","PILOTE","BACKLOG_DECISIONS","registre_veille","REPRISE","audit_ecosysteme",
     "PASSATION","cours_nouveaux","journal_lectures","audit_du_jour","strategies_validees",
-    "cac40_strategies","protocole_qualite","journal_trades","COMMENT_MARCHE","PRT_SYNTAXE","TEST_PROREALTIME","historique",
+    "protocole_qualite","journal_trades","COMMENT_MARCHE","PRT_SYNTAXE","TEST_PROREALTIME","historique",
     "signal_achat","methodologies","C6_","C8_","MEMOIRE","AUDIT_","backlog_au",
     # ajoutés le 01/08 — documents créés depuis la dernière mise à jour du radar
     "STRATEGIE_","ETUDE_","TABLEAU_","verif_backlog","C5_ETENDU_10","ETAT_REEL",

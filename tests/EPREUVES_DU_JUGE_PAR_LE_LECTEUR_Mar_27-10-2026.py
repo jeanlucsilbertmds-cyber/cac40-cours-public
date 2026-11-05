@@ -205,7 +205,8 @@ def cas(copie, racine):
     """
     B = charger(copie, racine)
     pos = B.charger_module(B.trouver(racine, "MODULE_POSITIONS.py"), "pos")
-    fiche = {"tp": "+50%", "sl": "-50%", "horizon": "3", "univers": "XXX"}
+    # depuis le 31-10-2026 (version B, points 5 et 9), `jouer` refuse une fiche sans moment d'achat ni données déclarés
+    fiche = {"tp": "+50%", "sl": "-50%", "horizon": "3", "univers": "XXX", "entree": "DÉFAUT", "donnees_demandees": "cours"}
     mn = {"XXX": "XXX"}
     res = []
 
@@ -213,6 +214,10 @@ def cas(copie, racine):
         # La valeur « XXX » est fabriquée : aucune liste de valeurs taxées ne la porte, et le barème réel lèverait, à
         # juste titre. Ces cas éprouvent la LECTURE (trous, indice) : ils se jouent au courtage seul (A-550, 29-10-2026).
         k.setdefault("bareme", "HIST_COURTAGE_SANS_TTF")
+        # `jouer` n'accepte plus que le signal d'une fiche, un `SignalNomme` (A-542, 30-10-2026) : le signal fabriqué
+        # de ces cas y est enveloppé, sans réglages.
+        if isinstance(a[3], Signal):
+            a = a[:3] + (B.SignalNomme(a[3].signaux, {}, "épreuve : signal fabriqué"),) + a[4:]
         return B.jouer(*a, **k)
 
     def un(nom, f):
@@ -330,11 +335,11 @@ def cas(copie, racine):
         vieux = B.charger_cours(f_maitre)
         return vieux == neuf and len(neuf) > 0, "%d valeurs ; mêmes séries que l'ancienne lecture : %s" % (len(neuf), vieux == neuf)
 
-    fiches = __import__("csv").DictReader(open(B.trouver(racine, "cac40_strategies.csv"), encoding="utf-8-sig"))
-    f = next(x for x in fiches if x["id"] == FICHE)
+    # LE REGISTRE SE NOMME ET SE LIT AU CONTRAT (n°83, 05-11-2026) : la fiche est la dernière ligne de son identifiant
+    import CONTRATS_DES_FICHIERS as contrat
+    f = contrat.fiches_du_registre(B.trouver(racine, contrat.NOM_DU_REGISTRE_DES_STRATEGIES))[FICHE]
     _, _, bornes = B.porte_0(f)
-    f.setdefault("_fonction_signal", "signaux_c5etendu10")
-    sig = B.charger_module(B.trouver(racine, "MODULE_C5_ETENDU_10"), "sig")
+    sig = B.signal_de_la_fiche(racine, f)   # le signal que la fiche nomme (A-542, 30-10-2026)
     avec = []
 
     def r5():

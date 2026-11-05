@@ -182,6 +182,9 @@ VERSION = "tenir-positions-1.0"
 # 27-09-2026 : la mesure les lit au même endroit, un seul nom fait donc foi aux deux bouts.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from CONTRATS_DES_FICHIERS import COMPTABILITES, TRADE, POSITION, UN_JETON, JETONS_ILLIMITES, noms_d_une_strategie
+# le registre des stratégies : son nom, ses graphies et sa lecture vivent au contrat (n°83, 05-11-2026)
+from CONTRATS_DES_FICHIERS import (REGISTRE_DES_STRATEGIES, NOM_DU_REGISTRE_DES_STRATEGIES, chemin_du_registre,
+                                   fiches_du_registre)
 from COMMUN import lire_horizon                 # la seule lecture d'un horizon (R-708)
 
 # les statuts d'une ligne de positions_ouvertes.csv
@@ -296,6 +299,44 @@ def cle_valeur_du_banc(base):
         "On ne la reecrit PAS — sans elle, les noms ne se rapprochent pas.")
 
 
+_JUGE_D_A_COTE = {}
+
+
+def _juge_d_a_cote():
+    """Charge le juge des stratégies posé dans le même dossier que ce fichier, une fois par processus.
+
+    ① RÔLE — Donner à `reglages_du_registre` la lecture unique des seuils (`seuil_de_la_fiche`, A-548).
+    ② CONTEXTE D APPEL — `reglages_du_registre`, à chaque appel ; le chargement n a lieu qu au premier.
+    ③ ENTRÉE — Aucune.
+    ④ CONDITIONS D ENTRÉE — `JUGE_DES_STRATEGIES.py` est à côté de ce fichier (dans `programmes/`).
+    ⑤ SORTIE — UNE valeur : le module du juge des stratégies.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① rendre le module gardé s il existe · ② sinon charger le fichier voisin et le garder.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — `_banc` cherche le juge sous la RACINE ; or le calibrage de ce programme appelle
+      `reglages_du_registre` sur des registres fabriqués dans un dossier temporaire, où il n y a pas de juge. Le
+      voisin de ce fichier est toujours là, et c est celui que le circuit du soir exécute : même motif que
+      `_cle_des_valeurs` de `programmes/MODULE_POSITIONS.py`.
+    ⑨ CE QUI CLOCHE — Le circuit du soir charge désormais le juge DEUX fois (ici, et par `_banc` pour les cours) :
+      deux objets du même fichier, sans état partagé ; sans effet sur les seuils, qui ne dépendent d aucun état.
+    ⑩ EFFET — Exécute le code du juge des stratégies au premier appel : ses définitions, et un seul geste de
+      premier niveau, l ajout de son dossier (`programmes/`) en tête de `sys.path` — dossier où vit déjà ce fichier.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque.
+      [sort: non]
+    """
+    if "juge" not in _JUGE_D_A_COTE:
+        import importlib.util as _ilu
+        chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "JUGE_DES_STRATEGIES.py")
+        if not os.path.isfile(chemin):
+            raise FileNotFoundError(
+                "%s introuvable : les seuils ne se lisent qu au juge des strategies (A-548)" % chemin)
+        sp = _ilu.spec_from_file_location("_juge_pour_les_seuils", chemin)
+        m = _ilu.module_from_spec(sp)
+        sp.loader.exec_module(m)
+        _JUGE_D_A_COTE["juge"] = m
+    return _JUGE_D_A_COTE["juge"]
+
+
 def reglages_du_registre(base):
     """Lit les seuils de CHAQUE strategie dans `cac40_strategies.csv`.
 
@@ -325,9 +366,14 @@ def reglages_du_registre(base):
     ⑤ SORTIE — UNE valeur : un dictionnaire des réglages, indexé À LA FOIS par
       identifiant et par nom.
       [rend: 1]
-    ⑥ TRAITEMENT — ① ouvrir le registre · ② pour chaque stratégie, relever ses
-      seuils et son horizon · ③ l indexer sous ses deux désignations.
-    ⑦ UNITÉ — **Les seuils sont en POURCENTS, l horizon en JOURS DE BOURSE et
+    ⑥ TRAITEMENT — ① ouvrir le registre par `chemin_du_registre` et `fiches_du_registre`
+      du contrat (n°83, depuis le 05-11-2026 : une fiche par identifiant, sa DERNIÈRE
+      ligne ; avant, chaque ligne était lue et la dernière écrasait la première) · ② pour chaque stratégie, relever ses
+      seuils par `seuil_de_la_fiche` du juge des stratégies (la lecture unique,
+      A-548, 31-10-2026) et son horizon ; une ligne aux seuils illisibles ou mal
+      signés est passée, comme avant · ③ l indexer sous ses deux désignations.
+    ⑦ UNITÉ — **Les seuils sont écrits en POURCENTS dans le registre et RENDUS en
+      FRACTIONS (« +4.0% » → 0,04) ; l horizon en JOURS DE BOURSE et
       non en jours calendaires.**
     ⑧ POURQUOI — **Les seuils d objectif et de stop diffèrent d une stratégie à
       l autre, et ils vivent dans `donnees/cac40_strategies.csv`.** Les lire ici
@@ -338,47 +384,57 @@ def reglages_du_registre(base):
     ⑨ CE QUI CLOCHE — **Un registre absent rend un dictionnaire vide, et rien ne
       le dit.** C est exactement le retour à l arrêt silencieux de septembre :
       sans réglages, aucune position ne s ouvre, et la sortie reste verte.
-    ⑩ EFFET — Aucun : elle lit.
-    ⑪ TERMINAISON — Rend toujours la main, dictionnaire vide compris.
+      [Le texte ci-dessus est démenti par le code depuis le 12-09-2026 : un registre
+      introuvable LÈVE FileNotFoundError, voir ⑪ ; relevé le 31-10-2026, non corrigé.]
+      ② Une ligne aux seuils illisibles ou mal signés est PASSÉE sans un mot (comme
+      avant le 31-10-2026) : une stratégie vivante ainsi écrite n ouvrirait aucune
+      position, en silence. ③ Le juge des stratégies est chargé depuis le dossier de
+      CE fichier, pas depuis la racine : le calibrage lit des registres fabriqués
+      dans un dossier temporaire, sans juge.
+    ⑩ EFFET — Charge (exécute) le juge des stratégies posé à côté de ce fichier, une
+      fois par processus ; lit le registre.
+    ⑪ TERMINAISON — Rend la main, dictionnaire vide compris ; lève FileNotFoundError
+      si le registre est introuvable, ou si le juge des stratégies manque à côté de
+      ce fichier (A-548 : les seuils ne se lisent qu à un endroit).
       [sort: non]
     """
-    import csv as _csv
     # QUATRIEME occurrence du meme defaut dans ce seul fichier, 12-09-2026 :
     # chercher a plat une source qui vit dans `donnees/`. Une fonction ecrite
     # pour reparer un arret silencieux etait elle-meme arretee en silence.
-    for nom in ("donnees/cac40_strategies.csv", "cac40_strategies.csv",
-                "cac40 strategies.csv", "donnees/cac40 strategies.csv"):
-        p = os.path.join(base, nom)
-        if not os.path.exists(p):
-            continue
+    # LES GRAPHIES ESSAYÉES, LE NOM DU FICHIER ET SA LECTURE VIVENT AU CONTRAT (n°83, 05-11-2026) :
+    # `chemin_du_registre` essaie les quatre graphies d'ici, dans le même ordre ; `fiches_du_registre`
+    # rend, pour chaque identifiant, la DERNIÈRE ligne écrite (décision de Jean-Luc du 01-11-2026 à
+    # 12h33 : « La dernière ligne ajoutée fait foi. Les précédentes restent comme historique. »).
+    p = chemin_du_registre(base)
+    if os.path.exists(p):
         r = {}
-        with open(p, encoding="utf-8-sig", newline="") as f:
-            for x in _csv.DictReader(f):
-                try:
-                    tp = float(str(x["tp"]).replace("%", "").replace(",", ".")
-                               .replace("+", "").strip()) / 100.0
-                    sl = abs(float(str(x["sl"]).replace("%", "").replace(",", ".")
-                                   .replace("-", "").strip())) / 100.0
-                except (KeyError, ValueError):
-                    continue
-                # les noms d'une strategie se lisent au contrat (R-708), une fois
-                for k in sorted(noms_d_une_strategie(x)):
-                    if k:
-                        # W2 de Cowork, 12-09 : l horizon est une colonne PAR
-                        # STRATEGIE, et le fichier s en sert — C4-RAV 3j,
-                        # MA200-S1 20j, C5-EI-PARAMS 30. Deux vivantes d horizons
-                        # differents n est donc PAS une anomalie : c est une
-                        # configuration que l etat civil prevoit. Mon garde-fou
-                        # l interdisait, et « il ne protegeait pas d un defaut,
-                        # il masquait une limite de conception ».
-                        # W1 : la graphie MAJORITAIRE du fichier porte un « j ».
-                        # `isdigit()` l excluait, l ensemble tombait vide, et le
-                        # repli code en dur s appliquait EN ANNONCANT une lecture
-                        # du registre qui n avait pas eu lieu.
-                        # UNE SEULE LECTURE DE L'HORIZON (R-708) : `lire_horizon`,
-                        # aussi employee par le garde-fou `horizons_illisibles`.
-                        r[k] = {"tp": tp, "sl": sl,
-                                "horizon": lire_horizon(x.get("horizon", ""))}
+        # LES SEUILS SE LISENT AU JUGE DES STRATÉGIES, À UN SEUL ENDROIT (A-548, 31-10-2026) : trois programmes les
+        # lisaient de trois façons ; « -0.6% » valait 0,6 chez le juge et 0,006 ici.
+        juge = _juge_d_a_cote()
+        for x in fiches_du_registre(p).values():
+            try:
+                tp = juge.seuil_de_la_fiche(x, "tp")
+                sl = juge.seuil_de_la_fiche(x, "sl")
+            except ValueError:
+                continue
+            # les noms d'une strategie se lisent au contrat (R-708), une fois
+            for k in sorted(noms_d_une_strategie(x)):
+                if k:
+                    # W2 de Cowork, 12-09 : l horizon est une colonne PAR
+                    # STRATEGIE, et le fichier s en sert — C4-RAV 3j,
+                    # MA200-S1 20j, C5-EI-PARAMS 30. Deux vivantes d horizons
+                    # differents n est donc PAS une anomalie : c est une
+                    # configuration que l etat civil prevoit. Mon garde-fou
+                    # l interdisait, et « il ne protegeait pas d un defaut,
+                    # il masquait une limite de conception ».
+                    # W1 : la graphie MAJORITAIRE du fichier porte un « j ».
+                    # `isdigit()` l excluait, l ensemble tombait vide, et le
+                    # repli code en dur s appliquait EN ANNONCANT une lecture
+                    # du registre qui n avait pas eu lieu.
+                    # UNE SEULE LECTURE DE L'HORIZON (R-708) : `lire_horizon`,
+                    # aussi employee par le garde-fou `horizons_illisibles`.
+                    r[k] = {"tp": tp, "sl": sl,
+                            "horizon": lire_horizon(x.get("horizon", ""))}
         return r
     raise FileNotFoundError(
         "le registre des strategies est introuvable dans %r : sans lui, aucune "
@@ -2207,7 +2263,7 @@ def _calibrage(mod, base="."):
     # lecture des reglages (avant le 27-09-2026 : ValueError).
     import tempfile as _tf2
     _d2 = _tf2.mkdtemp()
-    with open(os.path.join(_d2, "cac40_strategies.csv"), "w", encoding="utf-8", newline="") as _f2:
+    with open(os.path.join(_d2, NOM_DU_REGISTRE_DES_STRATEGIES), "w", encoding="utf-8", newline="") as _f2:
         _f2.write("id,nom,etat_vie,tp,sl,horizon\n"
                   "XA,Essai A,LABO,+4.0%,-2.5%,\u00b2\n"
                   "XB,Essai B,LABO,+4.0%,-2.5%,20j\n")
@@ -2320,7 +2376,7 @@ def _calibrage(mod, base="."):
     # On FABRIQUE donc le registre dont on a besoin, dans un dossier a nous.
     import tempfile as _tf
     _dir = _tf.mkdtemp()
-    with open(os.path.join(_dir, "cac40_strategies.csv"), "w",
+    with open(os.path.join(_dir, NOM_DU_REGISTRE_DES_STRATEGIES), "w",
               encoding="utf-8", newline="") as _f:
         _f.write("id,nom,etat_vie,tp,sl\n"
                  "C5E10-QA-V1,COURS_BAS_ARGENT_REVIENT_6 (C5-ETENDU-10),QA,+4.0%,-2.5%\n"
@@ -2735,7 +2791,9 @@ def tenir_pour_de_vrai(base):
     ⑤ SORTIE — UNE valeur : le code de sortie.
       [rend: 1]
     ⑥ TRAITEMENT — ① charger le module, le juge des stratégies, les réglages · ② **CALIBRER, et
-      s arrêter si le trade connu ne tombe pas** · ③ lire l état de la veille ·
+      s arrêter si le trade connu ne tombe pas** · ③ lire l état de la veille, et les fiches du
+      registre par `fiches_du_registre` du contrat, UNE fois, la dernière ligne d un identifiant
+      faisant foi (n°83, depuis le 05-11-2026 ; les univers et les horizons des vivantes en viennent) ·
       ③bis lire les cours par le lecteur unique, et s arrêter en code 2 si la lecture
       est refusée ou impossible (29-10-2026) · ④ tenir la séance, au calendrier
       officiel, en n achetant que dans le CAC 40 — un achat refusé se dit par une ligne
@@ -2836,8 +2894,12 @@ def tenir_pour_de_vrai(base):
     # silence. Le jour du premier signal, rien ne se serait ouvert.
     # UNE VALEUR PEUT DECLENCHER DEUX STRATEGIES. L univers de chacune se lit AU
     # REGISTRE, colonne `univers`, en mnemoniques — on ne l invente pas ici.
+    # LA DERNIÈRE LIGNE D'UN IDENTIFIANT FAIT FOI (n°83, 05-11-2026) : la lecture et le nom du fichier vivent au
+    # contrat ; un registre absent rend une liste vide, comme `_lire_csv` le faisait.
+    _registre = os.path.join(base, REGISTRE_DES_STRATEGIES)
+    _fiches = list(fiches_du_registre(_registre).values()) if os.path.isfile(_registre) else []
     strategies = []
-    for ligne in _lire_csv(os.path.join(base, "donnees", "cac40_strategies.csv")):
+    for ligne in _fiches:
         if "VIVANTE" in (ligne.get("statut") or "") and (ligne.get("univers") or "").strip():
             strategies.append((ligne["id"], {m.strip().upper()
                                              for m in ligne["univers"].split(",") if m.strip()}))
@@ -2933,7 +2995,7 @@ def tenir_pour_de_vrai(base):
     # « horizon lu au registre ». **Affirmer une lecture qui n a pas eu lieu, dans
     # le programme qui calcule le P&L, est le pire endroit du systeme pour une
     # valeur inventee.** Un horizon illisible n est pas un 20, c est un arret.
-    lignes_v = [l for l in _lire_csv(os.path.join(base, "donnees", "cac40_strategies.csv"))
+    lignes_v = [l for l in _fiches          # les fiches lues plus haut, la dernière ligne faisant foi (n°83)
                 if "VIVANTE" in (l.get("statut") or "")]
     illisibles = horizons_illisibles(lignes_v)
     if not lignes_v:

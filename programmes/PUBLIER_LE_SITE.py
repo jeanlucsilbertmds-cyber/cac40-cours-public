@@ -85,10 +85,15 @@ PARIS = ZoneInfo("Europe/Paris")
 PUBLIC = "jeanlucsilbertmds-cyber/cac40-cours-public"
 GENERATEUR = "GENERATEUR_COCKPIT_Sam_15-08-2026_21h50.py"
 
+# le registre des stratégies : son chemin et son nom vivent au contrat, une fois (n°83, 05-11-2026 ; le générateur le
+# cherche sous ce même nom, pris au même endroit)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from CONTRATS_DES_FICHIERS import REGISTRE_DES_STRATEGIES, NOM_DU_REGISTRE_DES_STRATEGIES
+
 # fichier du dépôt -> nom attendu par le générateur
 ENTREES = [
     ("donnees/cours_maitre.csv",             "cours_maitre.csv"),
-    ("donnees/cac40_strategies.csv",         "cac40_strategies.csv"),
+    (REGISTRE_DES_STRATEGIES,                NOM_DU_REGISTRE_DES_STRATEGIES),
     ("donnees/historique_mesures.csv",       "historique_mesures.csv"),
     ("donnees/claude_journal_trades.csv",    "journal_trades.csv"),
     ("donnees/claude_positions_ouvertes.csv","positions_ouvertes.csv"),

@@ -327,8 +327,13 @@ def epreuves(prep, decl, juge, registre):
     e("PREPARER refuse un numéro d'essai mal formé", lambda: prep.main([registre, "C5E10-OBS-V1", f_v, "1", d]) == 1)
     e("PREPARER refuse une fiche absente", lambda: prep.main([registre, "N-EXISTE-PAS", f_v, "E09", d]) == 1)
     e("PREPARER refuse un identifiant dangereux", lambda: prep.main([registre, "../X", f_v, "E09", d]) == 1)
-    reg2 = ecrire_tableau(os.path.join(d, "reg_double.csv"),
-                          [l for l in prep.lire_tableau(registre) if l["id"] == "C5E10-OBS-V1"] * 2)
+    # n°83 (décision de Jean-Luc du 01-11-2026 à 12h33 : « La dernière ligne ajoutée fait foi. Les précédentes restent
+    # comme historique. ») : une fiche écrite deux fois n'est plus refusée, sa DERNIÈRE ligne est préparée. Deux
+    # registres de deux lignes : la ligne « A TRANCHER » (univers non tranché, refusée comme MA200-S1) d'abord puis la
+    # vraie, et l'inverse — seule la dernière décide.
+    _obs = prep.CONTRAT.fiches_des_lignes(prep.lire_tableau(registre))["C5E10-OBS-V1"]
+    reg2 = ecrire_tableau(os.path.join(d, "reg_double.csv"), [dict(_obs, univers="A TRANCHER"), _obs])
+    reg2b = ecrire_tableau(os.path.join(d, "reg_double_inverse.csv"), [_obs, dict(_obs, univers="A TRANCHER")])
     for ref in glob.glob(os.path.join(os.path.dirname(os.path.abspath(registre)), "REFERENTIEL_VALEURS*.csv")):
         shutil.copy(ref, d)
     d3 = dossier_temporaire()
@@ -344,7 +349,10 @@ def epreuves(prep, decl, juge, registre):
                           [dict([l for l in prep.lire_tableau(registre) if l["id"] == "C5E10-OBS-V1"][0], id="X Y")])
     e("PREPARER refuse un identifiant de forme inattendue présent au registre", lambda: prep.main([reg5, "X Y", f_v, "E05", d3]) == 1)
     e("PREPARER refuse une fiche contenant MT, hors univers au référentiel", lambda: prep.main([reg4, "X-MT", f_v, "E04", d3]) == 1)
-    e("PREPARER refuse une fiche présente deux fois", lambda: prep.main([reg2, "C5E10-OBS-V1", f_v, "E02", d]) == 1)
+    e("PREPARER, fiche écrite deux fois : la DERNIÈRE ligne est préparée (n°83)",
+      lambda: prep.main([reg2, "C5E10-OBS-V1", f_v, "E02", d]) == 0)
+    e("PREPARER, fiche écrite deux fois, la dernière non tranchée : refusée (n°83)",
+      lambda: prep.main([reg2b, "C5E10-OBS-V1", f_v, "E06", d]) == 1)
 
     sortie = os.path.join(d, "VARIABLES_DE_DECLINAISON_C5E10-OBS-V1_E01.csv")
     e("PREPARER : le fichier écrit porte 1 100 versions annoncées",
@@ -359,7 +367,7 @@ def epreuves(prep, decl, juge, registre):
     _jour = lignes[0]["prepare_le"][:10]
     _validation = "Jean-Luc le %s-%s-%s" % (_jour[8:10], _jour[5:7], _jour[0:4])
     valid = [dict(l, valide_par=_validation) if l["jouable"] == "OUI" else l for l in lignes]
-    reg = {l["id"]: l for l in prep.lire_tableau(registre)}
+    reg = prep.CONTRAT.fiches_des_lignes(prep.lire_tableau(registre))   # la dernière ligne fait foi (n°83), au contrat
     fic = reg["C5E10-OBS-V1"]
     codes = {(l.get("mnemonique") or "").strip().upper() for l in prep.lire_tableau(
         glob.glob(os.path.join(os.path.dirname(os.path.abspath(registre)), "REFERENTIEL_VALEURS*.csv"))[0])
@@ -454,7 +462,10 @@ SABOTAGES = [
     (P_PREP, "un code d'univers inconnu passe", "if not codes or inconnus:", "if not codes:"),
     (P_PREP, "l'univers est écrit avec des +", 'ensembles = [",".join(codes)]', 'ensembles = ["+".join(codes)]'),
     (P_PREP, "l'écrasement d'un essai n'est plus refusé", 'open(sortie, "x"', 'open(sortie, "w"'),
-    (P_PREP, "une fiche double passe", "if len(fiches) != 1:", "if not fiches:"),
+    # (« une fiche double passe » est retiré le 05-11-2026 : n°83 veut qu'elle passe, par sa dernière ligne)
+    (P_PREP, "la PREMIÈRE ligne d'une fiche écrite deux fois est préparée",
+     "        fiche = CONTRAT.fiches_des_lignes(lire_tableau(registre)).get(ident)\n",
+     "        fiche = next((l for l in lire_tableau(registre) if l.get(\"id\") == ident), None)\n"),
     (P_PREP, "la relecture est neutralisée", "if lire_tableau(sortie) != lignes:", "if False:"),
     (P_PREP, "le total annoncé est faux", "total *= len(", "total += len("),
     (P_DECL, "la validation n'est plus exigée", 'if not validation_valable(l):', "if False:"),

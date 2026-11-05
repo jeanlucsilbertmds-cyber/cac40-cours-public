@@ -32,10 +32,11 @@ CODE : 0 = mesuré · 1 = calibrage échoué, rien produit · 2 = source absente
   l'identifiant d'une ligne du registre des stratégies, par exemple
   `C5E10-OBS-V1`.
 ④ CONDITIONS D'ENTRÉE — La racine donnée doit porter, à n'importe quelle
-  profondeur, quatre programmes et trois fichiers : `MODULE_STATISTIQUES_*`,
-  `MODULE_POSITIONS.py`, `JUGE_DES_STRATEGIES.py`, `MODULE_C5_ETENDU_10_*`, un fichier
+  profondeur, trois programmes et trois fichiers : `MODULE_STATISTIQUES_*`,
+  `MODULE_POSITIONS.py`, `JUGE_DES_STRATEGIES.py`, un fichier
   dont le nom commence par `REFERENTIEL_VALEURS`, `REGISTRE_REGLES.md` et
-  `cac40_strategies.csv`. Le REGISTRE doit porter le bloc de la grille
+  `cac40_strategies.csv` ; avec `--strategie`, le module de signal que la fiche
+  nomme (`module_signal`, chemin relatif à la racine, depuis le 30-10-2026, A-542). Le REGISTRE doit porter le bloc de la grille
   GRILLE-26-04 avec ses seuils écrits en toutes lettres. La stratégie demandée
   doit exister au registre des stratégies et y porter un univers renseigné.
 ⑤ SORTIE — Un code de sortie, et des lignes affichées. 0 quand la mesure a été
@@ -733,81 +734,50 @@ def seuils_du_registre(base):
     return manquants
 
 
-def _pct(v):
-    """Convertit un pourcent écrit dans une fiche en fraction, sans son signe.
+_JUGE_D_A_COTE = {}
 
-    ① RÔLE — Traduire ce qu'un humain a écrit dans le registre des stratégies en ce
-      que les calculs attendent. La fiche porte `+4.0%` et `-2.5%` ; les calculs
-      veulent 0,04 et 0,025. Sans cette traduction, un objectif de 4 % serait pris
-      pour 4, soit 400 %.
-    ② CONTEXTE D'APPEL — Le calcul des mesures, deux fois de suite sur la même
-      ligne, sur l'objectif de gain puis sur la perte acceptée de la fiche en
-      cours. Jamais appelée ailleurs : une recherche de `_pct(` dans ce fichier, le
-      19-09-2026, ne rend que sa définition et cette seule ligne d'appel.
-    ③ ENTRÉE — `v` : la valeur écrite dans la fiche. Son unique appelant y passe
-      l'objectif de gain puis la perte acceptée, lus dans le registre des
-      stratégies, par exemple `+4.0%` et `-2.5%` pour la stratégie C5E10-OBS-V1
-      relevés le 19-09-2026.
-    ④ CONDITIONS D'ENTRÉE — La valeur doit porter un nombre, avec ou sans signe,
-      avec un point ou une virgule, suivi ou non d'un signe pourcent. Une case vide
-      ou du texte la font lever.
-    ⑤ SORTIE — UNE valeur : une fraction, toujours positive. Mesuré le 19-09-2026 :
-      `-2.5%` rend 0,025 et `+4.0%` rend 0,04. Rien ne la borne à 1 : une fiche
-      portant `+150%` rendrait 1,5.
-      [rend: 1]
-    ⑥ TRAITEMENT — ① écarter le signe pourcent · ② remplacer une virgule décimale
-      par un point · ③ écarter un signe plus · ④ nettoyer les espaces de bord ·
-      ⑤ convertir en nombre à virgule · ⑥ en prendre la valeur absolue · ⑦ diviser
-      par 100.
-    ⑦ UNITÉ — Elle change d'unité : elle reçoit un POURCENT et rend une FRACTION.
-      4 % entre, 0,04 sort.
-    ⑧ POURQUOI — Le signe est écarté parce qu'il ne porte aucune information ici :
-      la perte acceptée est toujours une perte, l'objectif toujours un gain. Les
-      deux nombres sont ensuite employés comme des distances à un prix d'entrée, et
-      le calcul qui les reçoit sait déjà lequel est en haut et lequel est en bas.
-      Garder le signe obligerait chaque appelant à savoir quoi en faire, et un
-      appelant qui se tromperait produirait un Kelly fractionnel négatif sans que
-      rien ne le signale.
-      Les deux écritures du séparateur décimal sont acceptées parce que le registre
-      des stratégies est tenu à la main, et qu'une virgule y est aussi naturelle
-      qu'un point pour qui écrit en français.
-    ⑨ CE QUI CLOCHE —
-      ① Elle lève sur une case vide et sur du texte. Mesuré le 19-09-2026 : une
-      case vide donne « ValueError: could not convert string to float: '' », et la
-      valeur `Intraday` donne la même erreur sur ce mot. Le registre des stratégies
-      porte aujourd'hui 68 lignes dont aucune n'a d'objectif ni de perte vide —
-      vérifié le même jour — mais une case d'horizon y porte bien le mot
-      `Intraday`, ce qui montre que du texte se trouve dans ces colonnes.
-      ② Écarter le signe fait accepter une fiche mal écrite sans rien dire. Un
-      objectif de gain écrit `-4.0%` par erreur serait lu comme un gain de 4 %. La
-      faute de saisie disparaît au lieu d'être signalée.
-      ③ Elle accepte un nombre sans signe pourcent et le traite comme un pourcent.
-      La valeur `0.04`, qui est déjà une fraction, serait rendue à 0,0004 : cent
-      fois trop petite, et sans aucune alerte.
-      ④ Le nom de la fonction ne dit pas dans quel sens elle convertit. Un lecteur
-      qui voit `_pct` peut comprendre aussi bien « donne-moi un pourcent » que
-      « prends un pourcent ». C'est le second.
-    ⑩ EFFET — Ne lit ni n'écrit aucun fichier, n'affiche rien, ne touche pas au
-      réseau. Elle ne modifie pas la valeur reçue.
-    ⑪ TERMINAISON — Rend la main quand la valeur porte un nombre. LÈVE autrement une
-      erreur non rattrapée ici, qui remonte jusqu'au lancement et arrête le
-      programme avec une trace Python. Aucun de ses appels ne se termine.
+
+def _seuils(fiche):
+    """Rend l'objectif de gain et la perte acceptée d'une fiche, en fractions positives, lus PAR LE JUGE DES STRATÉGIES.
+
+    ① RÔLE — Traduire ce qu'un humain a écrit dans le registre des stratégies (« +4.0% », « -2.5% ») en ce que les
+      calculs attendent (0,04 ; 0,025), sans écrire ici une lecture des pourcentages : elle est demandée à
+      `seuil_de_la_fiche` de `programmes/JUGE_DES_STRATEGIES.py`, la lecture unique depuis le 31-10-2026 (A-548).
+    ② CONTEXTE D'APPEL — `mesures_disponibles`, une fois par appel, sur la fiche en cours. Elle-même est appelée par
+      `calibrer_le_pont` (fiche fabriquée « +4.0% » / « -2.5% ») et par `_juger_une` (une vraie fiche).
+    ③ ENTRÉE — `fiche` : un dictionnaire portant `tp` et `sl`, par exemple « +4.0% » et « -2.5% » pour C5E10-OBS-V1.
+    ④ CONDITIONS D'ENTRÉE — `programmes/JUGE_DES_STRATEGIES.py` est dans le même dossier que ce fichier.
+    ⑤ SORTIE — DEUX valeurs : l'objectif et la perte acceptée, en fractions positives. Exemple réel : C1-004
+      (« +1.0% », « -0.6% ») rend 0,01 et 0,006.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① charger le juge des stratégies posé à côté de ce fichier, une fois par processus · ② lui
+      demander les deux seuils.
+    ⑦ UNITÉ — Elle reçoit des POURCENTS écrits à la main et rend des FRACTIONS : 4 % entre, 0,04 sort.
+    ⑧ POURQUOI — Deux implémentations d'une même chose divergent toujours (R-708). L'ancienne `_pct` d'ici divisait
+      toujours par cent et levait sur une case vide, pendant que le juge lisait « -0.6% » comme 0,6 (A-547) : la même
+      fiche était jugée sur deux stops différents selon le programme. Le juge est chargé depuis le dossier de CE
+      fichier, comme le fait `_cle_des_valeurs` de `programmes/MODULE_POSITIONS.py`, parce que `mesures_disponibles`
+      ne reçoit pas la racine.
+    ⑨ CE QUI CLOCHE — ① Lancé contre une racine différente du dépôt où il vit, ce programme lit les seuils avec le
+      juge de SON dépôt, et le reste avec celui de la racine (`_charger`). ② Un nombre sans « % » est encore deviné
+      (⑨ ① de `pourcent` du juge : convention d'A-548 à décider).
+    ⑩ EFFET — Charge le juge des stratégies (l'exécute) au premier appel : ses définitions, et l'ajout de son dossier
+      en tête de `sys.path` ; n'écrit rien.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le juge manque à côté, et ValueError (motif du juge) si
+      un seuil est illisible ou mal signé, ce qui arrête le programme comme l'ancienne `_pct` sur une case vide.
       [sort: non]
-    ⑫ DÉFINITIONS
-      une fiche : la ligne qui décrit une stratégie dans le registre des stratégies, `donnees/cac40_strategies.csv` — son identifiant, ses réglages et ce qu'elle déclare.
-      le registre des stratégies : le fichier `cac40_strategies.csv`, une ligne par stratégie, qui porte leur état civil — identifiant, réglages, résultats connus
-      le Kelly fractionnel : la part du capital qu'il serait raisonnable d'engager
-        sur une opération, compte tenu du taux de réussite et des gains et pertes
-        attendus
-    
-      l'objectif de gain : le pourcentage de hausse à partir duquel la position se referme sur un gain
-      la fiche : la ligne d'une stratégie au registre des stratégies `donnees/cac40_strategies.csv`, avec son objectif de gain, sa perte acceptée, son horizon et son univers
-      la perte acceptée : le pourcentage de baisse à partir duquel la position se referme sur une perte
-      une fraction : la façon d'écrire un pourcentage entre 0 et 1 — 0,040 pour +4 % — par opposition au pourcent, qui écrirait 4.0
-      une trace : le fichier qu'une tâche planifiée laisse derrière elle quand elle a tourné — rapport de boucle, rapport d'audit, cockpit, historique des mesures.
-      une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
-"""
-    return abs(float(str(v).replace("%", "").replace(",", ".").replace("+", "").strip())) / 100.0
+    """
+    if "juge" not in _JUGE_D_A_COTE:
+        import importlib.util as _ilu
+        chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "JUGE_DES_STRATEGIES.py")
+        if not os.path.isfile(chemin):
+            raise FileNotFoundError("%s introuvable : les seuils ne se lisent qu'au juge des stratégies (A-548)" % chemin)
+        sp = _ilu.spec_from_file_location("_juge_pour_les_seuils", chemin)
+        juge = _ilu.module_from_spec(sp)
+        sp.loader.exec_module(juge)
+        _JUGE_D_A_COTE["juge"] = juge
+    juge = _JUGE_D_A_COTE["juge"]
+    return juge.seuil_de_la_fiche(fiche, "tp"), juge.seuil_de_la_fiche(fiche, "sl")
 
 
 def mesures_disponibles(fiche, ops, stat, rejouer, frais, capital=100_000.0):
@@ -974,7 +944,7 @@ def mesures_disponibles(fiche, ops, stat, rejouer, frais, capital=100_000.0):
     if n < 5:
         return None, "moins de 5 opérations — rien à juger"
     wr = 100.0 * sum(1 for o in ops if o.get("net", 0) > 0) / n
-    tp, sl = _pct(fiche["tp"]), _pct(fiche["sl"])
+    tp, sl = _seuils(fiche)   # la lecture unique des seuils, au juge des stratégies (A-548, 31-10-2026)
     # les operations, dans la forme que MODULE_STATISTIQUES attend
     trades = [{"date": o.get("date_signal"), "gain": o.get("net", 0.0)} for o in ops]
 
@@ -1055,24 +1025,27 @@ def _juger_une(base, banc, stat, ident):
       commande juste après `--strategie`, par exemple `C5E10-OBS-V1`. Un seul
       appelant, `main`, qui transmet les quatre sans les modifier.
     ④ CONDITIONS D'ENTRÉE — La racine doit porter `cac40_strategies.csv`, un fichier
-      dont le nom commence par `REFERENTIEL_VALEURS`, `MODULE_C5_ETENDU_10_*` et
+      dont le nom commence par `REFERENTIEL_VALEURS` et
       `MODULE_POSITIONS.py`. L'identifiant doit correspondre à une ligne du registre
-      des stratégies, et cette ligne doit porter un univers renseigné. Le juge des stratégies doit
+      des stratégies, et cette ligne doit porter un univers renseigné et nommer son
+      signal (`module_signal`, `fonction_signal`, `reglages_signal`, A-542). Le juge des stratégies doit
       savoir trouver et charger les cours à partir de la même racine.
     ⑤ SORTIE — UNE valeur : le code de sortie du programme. 0 dans quatre cas
       différents — la mesure prise, l'univers non renseigné, l'échec du juge des stratégies, et
-      moins de cinq opérations. 2 dans trois cas — registre des stratégies
-      introuvable, identifiant absent du registre, module de signal ou de positions
-      introuvable. Elle affiche en plus de deux à une vingtaine de lignes.
+      moins de cinq opérations. 2 dans quatre cas — registre des stratégies
+      introuvable, identifiant absent du registre, module de positions
+      introuvable, signal de la fiche refusé par `signal_de_la_fiche` du juge (non
+      nommé, illisible ou introuvable, depuis le 30-10-2026). Elle affiche en plus de deux à une vingtaine de lignes.
       [rend: 1]
     ⑥ TRAITEMENT — ① chercher `cac40_strategies.csv` sous la racine, et rendre 2
       s'il est absent · ② y chercher la ligne de l'identifiant, et rendre 2 si elle
       n'y est pas · ③ s'arrêter en rendant 0 si l'univers est vide, porte le mot
       « renseigner » ou le mot « TRANCHER » · ④ demander au juge des stratégies de charger les
-      cours · ⑤ charger le module de signal et celui des positions, et rendre 2 si
-      l'un manque · ⑥ lire le référentiel des valeurs pour associer chaque
-      mnémonique au nom employé dans les cours · ⑦ poser sur la fiche le nom de la
-      fonction de signal, repris du juge des stratégies · ⑧ faire jouer la stratégie et récupérer
+      cours · ⑤ charger le module des positions, et rendre 2 s'il
+      manque · ⑥ lire le référentiel des valeurs pour associer chaque
+      mnémonique au nom employé dans les cours · ⑦ lire le signal que la fiche nomme
+      par `signal_de_la_fiche` du juge, et rendre 2 avec son motif s'il est refusé
+      (A-542, 30-10-2026) · ⑧ faire jouer la stratégie avec CE signal et récupérer
       ses opérations, en rendant 0 si le juge des stratégies échoue · ⑨ afficher le nombre
       d'opérations et les mnémoniques inconnus · ⑩ demander les mesures · ⑪ les
       afficher une par ligne, un tiret pour celles qui manquent · ⑫ afficher le nom
@@ -1097,11 +1070,10 @@ def _juger_une(base, banc, stat, ident):
       seul endroit qui relie les deux, et il est relu ici plutôt que deviné : une
       même entreprise s'écrit différemment selon le fichier, et sans rapprochement
       le programme croirait qu'il s'agit de deux sociétés distinctes.
-      Le nom de la fonction de signal est REPRIS DU JUGE DES STRATÉGIES plutôt que choisi ici. Le
-      juge des stratégies pose lui-même une valeur par défaut, et le registre des stratégies ne
-      porte pas cette information. Si ce programme en choisissait une, deux endroits
-      décideraient du même nom et divergeraient un jour ; un chiffre ou un nom qui
-      existe ailleurs ne se recopie pas (R-708).
+      Le signal est LU PAR LE JUGE DES STRATÉGIES, `signal_de_la_fiche`, plutôt qu'ici : la fiche
+      le nomme depuis le 30-10-2026 (A-542), et une seule fonction lit cette déclaration
+      dans les trois programmes qui jouent une fiche. Deux lectures d'une même chose
+      divergent toujours (R-708).
     ⑨ CE QUI CLOCHE —
       ① Trois chemins d'échec rendent 0. Mesuré le 19-09-2026 sur une copie du
       dépôt, `--strategie MA200-S1` affiche « INJOUABLE, rien mesuré. » et le code
@@ -1114,12 +1086,9 @@ def _juger_une(base, banc, stat, ident):
       affiché nomme le type de l'erreur et son texte, mais la trace est perdue : une
       erreur de programmation dans le juge des stratégies et une donnée manquante produisent la
       même ligne d'affichage et le même code 0.
-      ③ Le nom de la fonction de signal est repris du juge des stratégies PAR RECOPIE, et c'est
-      exactement ce que la raison invoquée interdit. La valeur `signaux_c5etendu10`
-      est écrite ici, en toutes lettres, à côté d'un commentaire qui explique que le
-      juge des stratégies la pose déjà par défaut. Les deux endroits portent donc bien le même nom
-      écrit deux fois : si le juge des stratégies change sa valeur par défaut, celle-ci ne suivra
-      pas.
+      ③ (RÉPARÉ LE 30-10-2026, A-542) Le nom de la fonction de signal était recopié
+      ici, `signaux_c5etendu10`, et imposé à toute fiche. Il est désormais lu dans la
+      fiche par `signal_de_la_fiche` du juge.
       ④ Les seuils et l'horizon de la stratégie viennent du registre des stratégies,
       pas du REGISTRE. Vérifié le 19-09-2026 : la ligne C5E10-OBS-V1 de
       `donnees/cac40_strategies.csv` porte objectif +4.0 %, perte acceptée −2.5 %,
@@ -1145,9 +1114,20 @@ def _juger_une(base, banc, stat, ident):
       frais est relu une seconde fois par un parcours séparé au lieu d'être demandé
       au module déjà chargé. Mesuré le 19-09-2026 en marquant `MODULE_POSITIONS.py`,
       il est exécuté 5 fois sur un passage `--strategie`.
+      ⑨ IL JOUE LA FICHE SANS SA PÉRIODE NI LA LECTURE UNIQUE, contrairement au juge
+      des stratégies (« LA PERIODE DE LA FICHE FAIT FOI », commentaire de son `main`) :
+      ses huit critères portent donc sur un AUTRE ensemble d'opérations, pour toutes
+      les fiches. Mesuré par la relecture du 31-10-2026 : C5E10-QA-V1 67 opérations
+      ici contre 51 au juge, C5E10-OBS-V1 107 contre 89, la fiche d'épreuve RSI(2)
+      158 contre 128. Défaut ANTÉRIEUR au lot L3 (l'appel est identique sur la base
+      246df0e), consigné au BACKLOG ; deux implémentations d'une même mesure
+      divergent (R-708).
+      Et, depuis n°83 (05-11-2026) : la fiche jouée est la DERNIÈRE ligne de l'identifiant,
+      lue par `fiches_du_registre` du contrat ; avant, la première. Si le contrat
+      manque sous la racine, la fonction rend 2 sans rien jouer.
     ⑩ EFFET — LIT l'arborescence de la racine plusieurs fois, LIT le registre des
       stratégies et le référentiel des valeurs, et LIT ET EXÉCUTE le module de
-      signal et celui des positions. Fait LIRE les cours par le juge des stratégies. N'écrit aucun
+      signal nommé par la fiche (par le juge) et celui des positions. Fait LIRE les cours par le juge des stratégies. N'écrit aucun
       fichier et ne touche pas au réseau : vérifié le 19-09-2026, après un passage
       complet sur une copie du dépôt, la comparaison avec l'original ne rend aucune
       différence hors le dossier `__pycache__` de Python. AFFICHE de deux à une
@@ -1171,18 +1151,22 @@ def _juger_une(base, banc, stat, ident):
         euros ; aucun ordre réel n'est jamais passé
       une fiche : la ligne qui décrit une stratégie dans le registre des stratégies, `donnees/cac40_strategies.csv` — son identifiant, ses réglages et ce qu'elle déclare.
     """
-    import csv as _csv
+    # LE NOM DU REGISTRE ET SA LECTURE VIVENT AU CONTRAT (n°83, 05-11-2026) : le registre est cherché par le nom
+    # écrit une fois dans programmes/CONTRATS_DES_FICHIERS.py, et la fiche est sa DERNIÈRE ligne (décision de
+    # Jean-Luc n°83 du 01-11-2026 à 12h33, « La dernière ligne ajoutée fait foi ») ; avant, ce programme prenait la
+    # PREMIÈRE ligne de l'identifiant.
+    import csv as _csv                      # le référentiel des valeurs, plus bas, se lit encore ici
+    contrat, _ch_contrat = _charger(base, "CONTRATS_DES_FICHIERS.py")
+    if contrat is None:
+        print("CODE 2 — programmes/CONTRATS_DES_FICHIERS.py introuvable : le registre ne peut pas être nommé."); return 2
     ch = None
     for r, sd, fs in os.walk(base):
         sd[:] = [x for x in sd if x not in ("archives", ".git", "__pycache__", "_site_travail")]
-        if "cac40_strategies.csv" in fs:
-            ch = os.path.join(r, "cac40_strategies.csv"); break
+        if contrat.NOM_DU_REGISTRE_DES_STRATEGIES in fs:
+            ch = os.path.join(r, contrat.NOM_DU_REGISTRE_DES_STRATEGIES); break
     if not ch:
         print("CODE 2 — registre des stratégies introuvable."); return 2
-    fiche = None
-    for x in _csv.DictReader(open(ch, encoding="utf-8-sig")):
-        if x["id"] == ident:
-            fiche = x; break
+    fiche = contrat.fiches_du_registre(ch).get(ident)
     if not fiche:
         print(f"CODE 2 — {ident} absente du registre."); return 2
     u = (fiche.get("univers") or "").strip()
@@ -1191,10 +1175,9 @@ def _juger_une(base, banc, stat, ident):
         print("     Un univers non renseigné n'est pas un univers vide : on ne devine pas.")
         return 0
     cours = banc.charger_cours(*banc.fichiers_de_cours(base))
-    mod_sig, _ = _charger(base, "MODULE_C5_ETENDU_10_*")
     mod_pos, _ = _charger(base, "MODULE_POSITIONS.py")
-    if mod_sig is None or mod_pos is None:
-        print("CODE 2 — module de signal ou de positions introuvable."); return 2
+    if mod_pos is None:
+        print("CODE 2 — module de positions introuvable."); return 2
     mnemo = {}
     for r2, sd2, fs2 in os.walk(base):
         sd2[:] = [x for x in sd2 if x not in ("archives", ".git", "__pycache__")]
@@ -1205,12 +1188,14 @@ def _juger_une(base, banc, stat, ident):
                     n2 = (x.get("onglet_google") or x.get("nom_usuel") or "").strip()
                     if m2 and n2: mnemo[m2] = banc.cle_valeur(n2)
                 break
-    # LE NOM DE LA FONCTION DE SIGNAL VIENT DU JUGE DES STRATÉGIES, PAS DE MOI.
-    # `JUGE_DES_STRATEGIES` ligne 883 pose lui-même `_fonction_signal` par défaut ; le
-    # registre ne porte pas cette clé. **Je reprends SA valeur plutôt que d en
-    # choisir une** — sinon deux endroits décideraient du même nom (R-708).
+    # LE SIGNAL EST CELUI QUE LA FICHE NOMME, LU PAR LE JUGE DES STRATÉGIES (A-542, 30-10-2026) : une seule lecture
+    # des colonnes du signal pour les trois programmes (R-708) ; plus aucun repli vers C5. Une fiche sans signal
+    # nommé ne se mesure pas : code 2, comme une source absente (R-734).
     fiche = dict(fiche)
-    fiche.setdefault("_fonction_signal", "signaux_c5etendu10")
+    try:
+        mod_sig = banc.signal_de_la_fiche(base, fiche)
+    except ValueError as e:
+        print(f"CODE 2 — {e}"); return 2
     try:
         ops, inconnus = banc.jouer(fiche, cours, mnemo, mod_sig, mod_pos)
     except Exception as e:

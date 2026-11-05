@@ -20,6 +20,8 @@
 # ══════════════════════════════════════════════════════════════
 
 """Calcule les signaux d'achat de la stratégie C5-ETENDU-10 et rejoue son backtest.
+DÉCIDÉ · module de signal · Rôle : décider l'achat C5-ETENDU-10 ; ligne lue SANS exécution par `signal_de_la_fiche`
+du juge, qui refuse un module non déclaré (A-542, superviseur R-759 du 31-10-2026 ; texte seul, aucun calcul changé).
 
 ① RÔLE — C'est le SEUL endroit du dépôt où sont écrites les deux formules qui
   décident un achat sur cette stratégie : le CMF, qui dit si l'argent entre ou

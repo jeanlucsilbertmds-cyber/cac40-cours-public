@@ -499,7 +499,8 @@ class Sources:
         ⑥ TRAITEMENT — ① lire le fichier maître des cours dans un dictionnaire, en
           ignorant les lignes illisibles ; son absence arrête (A-442) · ② lire le journal des
           operations cloturees · ③ lire les positions ouvertes · ④ lire l etat civil
-          des strategies · ⑤ lire la file d idees · ⑥ choisir le fichier de chiffres
+          des strategies, par le nom et `fiches_du_registre` du contrat (une fiche par
+          identifiant, sa derniere ligne : n°83, depuis le 05-11-2026) · ⑤ lire la file d idees · ⑥ choisir le fichier de chiffres
           de reference le plus recent par la date de son nom, et le lire · ⑦ lire le
           texte de l audit du jour · ⑧ lire l historique des mesures et compter sur
           combien de jours il porte · ⑨ choisir le dernier rapport de boucle, a plat
@@ -617,12 +618,18 @@ class Sources:
             self.trace.append(('positions_ouvertes.csv', 'ABSENT', 'etat du jeton indetermine'))
 
         # --- registre d'etat civil des strategies ---
-        ch = self._p('cac40_strategies.csv')
+        # SON NOM ET SA LECTURE VIVENT AU CONTRAT (n°83, 05-11-2026) : une fiche par identifiant, sa DERNIERE ligne
+        # (decision de Jean-Luc n°83 du 01-11-2026 a 12h33, « La derniere ligne ajoutee fait foi. Les precedentes
+        # restent comme historique. ») ; avant, chaque ligne etait une carte, et une strategie ecrite deux fois en
+        # avait deux.
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import CONTRATS_DES_FICHIERS as _contrat
+        ch = self._p(_contrat.NOM_DU_REGISTRE_DES_STRATEGIES)
         if ch:
-            self.strategies = self._lire_csv(ch)
-            self.trace.append((os.path.basename(ch), 'LU', f'{len(self.strategies)} lignes de vie'))
+            self.strategies = list(_contrat.fiches_du_registre(ch).values())
+            self.trace.append((os.path.basename(ch), 'LU', f'{len(self.strategies)} fiches (une par identifiant)'))
         else:
-            self.trace.append(('cac40_strategies.csv', 'ABSENT', 'cartes d identite indisponibles'))
+            self.trace.append((_contrat.NOM_DU_REGISTRE_DES_STRATEGIES, 'ABSENT', 'cartes d identite indisponibles'))
 
         # --- file d idees ---
         ch = self._p('registre_candidates.csv')

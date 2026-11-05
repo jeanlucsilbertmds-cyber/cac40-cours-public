@@ -229,7 +229,9 @@ def lire_strategies(chemin):
       en-tête. `None` quand le chemin n'existe pas.
       [rend: 1]
     ⑥ TRAITEMENT — ① si le chemin n'existe pas, rendre `None` et s'arrêter là ·
-      ② ouvrir le fichier · ③ lire toutes ses lignes en dictionnaires et les rendre.
+      ② lire le fichier par `fiches_du_registre` du contrat et rendre ses fiches :
+      une par identifiant, sa DERNIÈRE ligne (n°83, depuis le 05-11-2026 ; avant,
+      toutes les lignes, et une stratégie écrite deux fois amorçait deux détails).
     ⑦ UNITÉ — Un NOMBRE DE LIGNES : 68 stratégies lues le 19-09-2026 dans
       `donnees/cac40_strategies.csv`, pour un fichier de 69 lignes, en-tête compris.
     ⑧ POURQUOI — Le fichier est ouvert en `utf-8-sig` et non en `utf-8` simple :
@@ -248,10 +250,11 @@ def lire_strategies(chemin):
       conformes : ECHEC » — alors que les colonnes sont correctes et que la vraie
       cause est l'absence de stratégies.
       ② `os.path.exists` accepte aussi un dossier. Mesuré le 19-09-2026 en créant
-      un dossier nommé `donnees/cac40_strategies.csv` : `main` écarte ce chemin de
-      lui-même parce qu'il vérifie de son côté qu'il s'agit d'un fichier, et se
-      rabat sur le second chemin, qui n'existe pas ; le message d'arrêt nomme alors
-      ce second chemin et non le dossier fautif.
+      un dossier nommé `donnees/cac40_strategies.csv` : `main` écartait alors ce
+      chemin. Depuis le 05-11-2026 (n°83), `main` prend le chemin rendu par
+      `chemin_du_registre` du contrat, qui teste lui aussi par `os.path.exists` :
+      un tel dossier serait désormais lu, et lèverait `IsADirectoryError` (lu dans
+      le code, non rejoué).
     ⑩ EFFET — LIT le fichier désigné, en entier et en mémoire. N'écrit rien,
       n'affiche rien, ne touche pas au réseau.
     ⑪ TERMINAISON — Rend toujours la main dans les cas prévus. PEUT LEVER une erreur
@@ -269,8 +272,12 @@ def lire_strategies(chemin):
 """
     if not os.path.exists(chemin):
         return None
-    with open(chemin, encoding="utf-8-sig", newline="") as f:
-        return list(csv.DictReader(f))
+    # LA LECTURE VIT AU CONTRAT (n°83, 05-11-2026) : une fiche par identifiant, sa DERNIÈRE ligne (décision de
+    # Jean-Luc n°83 du 01-11-2026 à 12h33, « La dernière ligne ajoutée fait foi. Les précédentes restent comme
+    # historique. »).
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import CONTRATS_DES_FICHIERS as _contrat
+    return list(_contrat.fiches_du_registre(chemin).values())
 
 
 def amorcer_detail(strategies, aujourd_hui):
@@ -532,7 +539,8 @@ def main():
       [rend: 1]
     ⑥ TRAITEMENT — ① prendre les deux dossiers sur la ligne de commande et créer le
       dossier de sortie · ② afficher l'heure et les deux dossiers · ③ chercher le
-      registre des stratégies d'abord dans `donnees/`, puis à plat · ④ le lire, et
+      registre des stratégies d'abord dans `donnees/`, puis à plat, par
+      `chemin_du_registre` du contrat (n°83, depuis le 05-11-2026) · ④ le lire, et
       rendre 1 s'il est introuvable · ⑤ composer une ligne par stratégie · ⑥ écrire
       le fichier de détail · ⑦ écrire le fichier de résumé, vide · ⑧ relire les deux
       fichiers · ⑨ vérifier cinq propriétés : autant de lignes relues qu'écrites au
@@ -636,9 +644,11 @@ def main():
     # occurrence de la meme faute en une journee** — apres le radar, la mesure, le
     # teneur de positions et le pilote. Au depot, les donnees sont rangees ; les
     # programmes ecrits pour le projet, non.
-    chemin_strategies = os.path.join(src, "donnees", "cac40_strategies.csv")
-    if not os.path.isfile(chemin_strategies):
-        chemin_strategies = os.path.join(src, "cac40_strategies.csv")
+    # LE NOM ET LES ENDROITS ESSAYÉS VIVENT AU CONTRAT (n°83, 05-11-2026) : `chemin_du_registre` essaie
+    # `donnees/` puis le dossier lui-même, et rend le premier qui existe.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import CONTRATS_DES_FICHIERS as _contrat
+    chemin_strategies = _contrat.chemin_du_registre(src)
     strategies = lire_strategies(chemin_strategies)
     if strategies is None:
         print(f"ARRET : {chemin_strategies} introuvable.")

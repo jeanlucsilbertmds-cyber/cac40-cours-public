@@ -9,7 +9,7 @@
   [--saboter]
 ③ ENTRÉE — La racine du dépôt (le module est pris dans son programmes/).
 ④ CONDITIONS D'ENTRÉE — —
-⑤ SORTIE — Le code de sortie : 0 si les cas V0 à V19 donnent la réponse attendue et, avec --saboter, si chaque
+⑤ SORTIE — Le code de sortie : 0 si les cas V0 à V30 donnent la réponse attendue et, avec --saboter, si chaque
   sabotage en fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus.
   [rend: 1]
 ⑥ TRAITEMENT — Un petit dépôt d'essai (une épreuve à trois sabotages qui nomme programmes/P.py, une donnée) et un vrai
@@ -23,7 +23,19 @@
   2 sans arguments · V14 les fichiers lus cette nuit tous au relevé → 0 · V15 un fichier lu absent du relevé → 1
   (relecture de Cowork du 16-10-2026, cassure M1) · V16 aucune lecture relevée → 2 · V17 une ligne « MONTAGE
   IMPOSSIBLE » → 1 · V18 une ligne qui porte un chemin jetable → 1 · V19 une exception notée par son type seul → 0
-  (cassure N de Cowork, 17-10-2026 : un plantage n'est pas une morsure, et une ligne doit pouvoir se refaire). Avec --saboter : chaque garde du module retirée, une à la fois, dans une copie.
+  (cassure N de Cowork, 17-10-2026 : un plantage n'est pas une morsure, et une ligne doit pouvoir se refaire). LA
+  PORTÉE « epreuve » (ajoutée le 04-11-2026 ; décision de Jean-Luc n°71 du 01-11-2026 à 11h41 : la série de l'épreuve
+  d'arrivée des signaux ne se rejoue que quand le code de l'épreuve change) : un relevé écrit avec la seule empreinte
+  de l'épreuve, puis : V20 la donnée ET un programme changés, une lecture de la nuit sans empreinte → 0 · V21
+  l'épreuve changée (un commentaire ajouté, ses sabotages identiques) → 1 · V22 une portée inconnue → 2 · V23 un
+  sabotage qui « NE MORD PAS » → 1 (les contrôles du relevé restent). LA PORTÉE « code_execute » (ajoutée le
+  05-11-2026 ; CHOIX D43 DU CHAT, À CONFIRMER PAR JEAN-LUC : l'épreuve et les programmes que la série exécute, sans les
+  données) : un relevé écrit avec l'épreuve et le programme exécuté P.py (Q.py n'est pas exécuté, la donnée non plus),
+  puis : V24 le relevé tel quel → 0 · V25 le programme exécuté P.py changé → 1 « SÉRIE À REJOUER » · V26 la donnée
+  changée → 0 · V27 le programme non exécuté Q.py changé → 0 · V28 le programme exécuté P.py effacé → 1 · V29 un
+  relevé qui ne porte que l'épreuve (fait sous la portée « epreuve » avant le 05-11-2026) → 1 · V30 le même relevé que
+  V24, P.py changé, portée « epreuve » → 0 (revenir à la lecture au mot de n°71 se fait d'un mot, sans rejouer). Avec
+  --saboter : chaque garde du module retirée, une à la fois, dans une copie.
 ⑦ UNITÉ — Des codes de sortie.
 ⑧ POURQUOI — Décision de Jean-Luc du 16-10-2026 à 14h30 : la série des 20 ans ne se rejoue plus la nuit, la nuit
   vérifie son relevé ; si cette vérification se trompe, l'alarme se tait. Une épreuve qui reste verte quand on retire
@@ -63,6 +75,14 @@ SABOTAGES = {
     "S13_lectures_vides_admises": [("        if not lus:\n", "        if False:\n")],
     # cassure N de Cowork, 17-10-2026 : un plantage compté comme une morsure
     "S14_ligne_non_reproductible_admise": [("    if douteuses:\n", "    if False:\n")],
+    # décision n°71 (01-11-2026) : la portée « epreuve »
+    "S15_portee_epreuve_sans_comparaison": [("        if empreinte(os.path.join(racine, epreuve)) != attendus[epreuve]:\n",
+                                             "        if False:\n")],
+    "S16_portee_ignoree": [("    if portee == PORTEE_EPREUVE:\n", "    if False:\n")],
+    "S17_portee_inconnue_admise": [("    if portee not in PORTEES:\n", "    if False:\n")],
+    # choix D43 du 05-11-2026 : la portée « code_execute »
+    "S18_code_execute_sans_comparaison": [("        changes = fichiers_changes(racine, attendus)\n", "        changes = []\n")],
+    "S19_code_execute_epreuve_seule_admise": [("        if not set(attendus) - {epreuve}:\n", "        if False:\n")],
 }
 
 
@@ -80,7 +100,7 @@ def charger(chemin):
 
 
 def tour(module):
-    """Joue V0 à V19 avec le module à `module` ; rend la liste des cas faux.
+    """Joue V0 à V30 avec le module à `module` ; rend la liste des cas faux.
 
     ① RÔLE — Un tour d'épreuves. ② CONTEXTE D'APPEL — `main`, une fois tel quel puis une fois par sabotage.
     ③ ENTRÉE — `module` : le chemin du module à éprouver. ④ CONDITIONS D'ENTRÉE — —
@@ -157,6 +177,55 @@ def tour(module):
             code = S.verifier_la_serie(r, "tests/EPR.py", rel, lus)[0]
             if code != attendu:
                 faux.append(f"{cas} (code {code}, attendu {attendu})")
+        # V20 à V23 : la portée « epreuve » (décision n°71) — un relevé qui ne porte que l'empreinte de l'épreuve
+        rel_e = "tests/resultats/SERIE_EPREUVE.txt"
+        S.ecrire_le_releve(r, rel_e, "tests/EPR.py", [], ["A1 mord : ['H1']", "A2 mord : ['H1']", "A3 mord : ['H1']"],
+                           True, ["essai, portée epreuve"])
+        vrai_e = open(os.path.join(r, rel_e), encoding="utf-8").read()
+        gardes = {c: open(os.path.join(r, c), encoding="utf-8").read() for c in ("donnees/d.csv", "programmes/P.py", "tests/EPR.py")}
+        for cas, changes, texte, lus, portee, attendu in (
+                ("V20", {"donnees/d.csv": "9,9,9\n", "programmes/P.py": "X = 2\n"}, vrai_e,
+                 {"tests/EPR.py", "donnees/d.csv", "donnees/autre.csv"}, "epreuve", 0),
+                ("V21", {"tests/EPR.py": EPREUVE + "# changé après la série\n"}, vrai_e, None, "epreuve", 1),
+                ("V22", {}, vrai_e, None, "partout", 2),
+                ("V23", {}, vrai_e.replace("A2 mord", "A2 NE MORD PAS"), None, "epreuve", 1)):
+            for c, x in changes.items():
+                open(os.path.join(r, c), "w", encoding="utf-8").write(x)
+            open(os.path.join(r, rel_e), "w", encoding="utf-8").write(texte)
+            code = S.verifier_la_serie(r, "tests/EPR.py", rel_e, lus, portee)[0]
+            for c, x in gardes.items():
+                open(os.path.join(r, c), "w", encoding="utf-8").write(x)
+            if code != attendu:
+                faux.append(f"{cas} (code {code}, attendu {attendu})")
+        # V24 à V30 : la portée « code_execute » (choix D43 du Chat, à confirmer) — le relevé porte le code exécuté
+        rel_x = "tests/resultats/SERIE_CODE_EXECUTE.txt"
+        S.ecrire_le_releve(r, rel_x, "tests/EPR.py", ["programmes/P.py"],
+                           ["A1 mord : ['H1']", "A2 mord : ['H1']", "A3 mord : ['H1']"], True, ["essai, portée code_execute"])
+        vrai_x = open(os.path.join(r, rel_x), encoding="utf-8").read()
+        gardes = {c: open(os.path.join(r, c), encoding="utf-8").read()
+                  for c in ("donnees/d.csv", "programmes/P.py", "programmes/Q.py", "tests/EPR.py")}
+        lus_x = {"tests/EPR.py", "donnees/d.csv"}
+        for cas, changes, texte, portee, attendu in (
+                ("V24", {}, vrai_x, "code_execute", 0),
+                ("V25", {"programmes/P.py": "X = 2\n"}, vrai_x, "code_execute", 1),
+                ("V26", {"donnees/d.csv": "9,9,9\n"}, vrai_x, "code_execute", 0),
+                ("V27", {"programmes/Q.py": "Y = 2\n"}, vrai_x, "code_execute", 0),
+                ("V28", {"programmes/P.py": None}, vrai_x, "code_execute", 1),
+                ("V29", {}, vrai_e, "code_execute", 1),
+                ("V30", {"programmes/P.py": "X = 2\n"}, vrai_x, "epreuve", 0)):
+            for c, x in changes.items():
+                if x is None:
+                    os.remove(os.path.join(r, c))
+                else:
+                    open(os.path.join(r, c), "w", encoding="utf-8").write(x)
+            open(os.path.join(r, rel_x), "w", encoding="utf-8").write(texte)
+            code = S.verifier_la_serie(r, "tests/EPR.py", rel_x, lus_x, portee)[0]
+            for c, x in gardes.items():
+                open(os.path.join(r, c), "w", encoding="utf-8").write(x)
+            if code != attendu:
+                faux.append(f"{cas} (code {code}, attendu {attendu})")
+        os.remove(os.path.join(r, rel_x))
+        os.remove(os.path.join(r, rel_e))
         codes = [subprocess.run([sys.executable, module, *a], capture_output=True, timeout=60).returncode
                  for a in ((r, rel), (r, "tests/resultats/ABSENT.txt"), ())]
         if codes != [0, 2, 2]:
@@ -175,7 +244,7 @@ def main():
     ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     faux = tour(MODULE)
-    print("== Z0 module tel quel : " + ("V0 à V19 conformes" if not faux else "FAUX " + ", ".join(faux)))
+    print("== Z0 module tel quel : " + ("V0 à V30 conformes" if not faux else "FAUX " + ", ".join(faux)))
     code = 1 if faux else 0
     if "--saboter" in sys.argv:
         texte = open(MODULE, encoding="utf-8").read()

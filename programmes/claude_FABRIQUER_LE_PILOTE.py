@@ -1412,6 +1412,49 @@ def lignes_csv(ch):
 # COMPTER — jamais un nombre écrit en dur
 # ─────────────────────────────────────────────────────────────────────
 
+def registre_des_strategies(base):
+    """Trouve et lit le registre des stratégies par le contrat : une fiche par identifiant, sa DERNIÈRE ligne (n°83).
+
+    ① RÔLE — Donner au pilote la même lecture du registre des stratégies que tous les autres programmes : le nom
+      écrit UNE fois dans programmes/CONTRATS_DES_FICHIERS.py, la lecture `fiches_du_registre` (décision de Jean-Luc
+      n°83 du 01-11-2026 à 12h33 : « La dernière ligne ajoutée fait foi. Les précédentes restent comme
+      historique. »), et la règle du pilote : une lecture ratée se dit `Illisible`, jamais une liste vide (A-226).
+    ② CONTEXTE D'APPEL — `compter`, trois fois : les stratégies vivantes, les fiches en LABO, les sources muettes.
+    ③ ENTRÉE — `base` : la racine fouillée par `trouver`.
+    ④ CONDITIONS D'ENTRÉE — Aucune : chaque échec rend un `Illisible` qui dit pourquoi.
+    ⑤ SORTIE — DEUX valeurs : le chemin trouvé (None si le contrat ne se charge pas ou si aucun fichier ne répond au
+      nom) ; la liste des fiches, ou un `Illisible` (« contrat illisible : <erreur> », « chemin absent », le nom de
+      l'erreur de lecture, « fichier vide »). Exemple réel au 05-11-2026 : (`<racine>/donnees/cac40_strategies.csv`,
+      68 fiches). [rend: 2]
+    ⑥ TRAITEMENT — ① charger le contrat depuis le dossier de ce programme · ② `trouver` le fichier par
+      NOM_DU_REGISTRE_DES_STRATEGIES · ③ le lire par `fiches_du_registre`, comme `lignes_csv` lit les autres
+      sources : mêmes erreurs rattrapées, même règle du fichier vide.
+    ⑦ UNITÉ — Des fiches (une par identifiant).
+    ⑧ POURQUOI — Avant le 05-11-2026, le pilote cherchait « cac40_strategies.csv » à trois endroits de `compter` et
+      comptait chaque LIGNE : une stratégie écrite deux fois (C5-EI-PARAMS depuis la décision n°53) comptait deux
+      fois parmi les fiches en LABO.
+    ⑨ CE QUI CLOCHE — Le contrat est chargé à chaque appel par l'import de Python (une fois par processus en
+      réalité) ; s'il est illisible, le registre n'est pas nommé et le pilote le range parmi les sources muettes.
+    ⑩ EFFET — Charge le contrat ; lit le fichier.
+    ⑪ TERMINAISON — Rend la main ; ne lève pas sur les erreurs rattrapées. [sort: non]
+    """
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import CONTRATS_DES_FICHIERS as _contrat
+    except Exception as e:
+        return None, Illisible("contrat illisible : %s" % type(e).__name__)
+    ch = trouver(base, _contrat.NOM_DU_REGISTRE_DES_STRATEGIES)
+    if not ch:
+        return None, Illisible('chemin absent')
+    try:
+        r = list(_contrat.fiches_du_registre(ch).values())
+    except (OSError, TypeError, csv.Error, ValueError) as e:
+        return ch, Illisible(type(e).__name__)
+    if not r and os.path.getsize(ch) < 4:
+        return ch, Illisible('fichier vide')
+    return ch, r
+
+
 def compter(base):
     """Relève sur les sources tous les chiffres du tableau du pilote.
 
@@ -1445,7 +1488,8 @@ def compter(base):
       relever le nombre d'actions annoncé par le tampon et compter les lignes du
       tableau · ③ lire les cours : compter les séances, les valeurs, la première et
       la dernière, et les séances dont le compte de valeurs s'écarte du compte le
-      plus fréquent · ④ lire l'état civil des stratégies : compter les vivantes et
+      plus fréquent · ④ lire l'état civil des stratégies (par `registre_des_strategies` :
+      une fiche par identifiant, sa dernière ligne, n°83, depuis le 05-11-2026) : compter les vivantes et
       relever pour chacune son état, son compteur et son univers · ⑤ compter les
       positions ouvertes, en regroupant les lignes par valeur et date d'entrée ·
       ⑥ compter les fiches du sas et celles dont les cinq champs obligatoires sont
@@ -1681,12 +1725,12 @@ def compter(base):
         c["séances incomplètes"] = sum(1 for n in par.values() if n != ref)
         src["les cours"] = os.path.basename(ch)
 
-    ch = trouver(base, "cac40_strategies.csv")
-    if ch and isinstance(lignes_csv(ch), Illisible):
-        c.setdefault("_illisibles", []).append(("l'état civil", lignes_csv(ch).motif))
+    # LE REGISTRE DES STRATÉGIES SE NOMME ET SE LIT AU CONTRAT (n°83, 05-11-2026) : une fiche par identifiant.
+    ch, r = registre_des_strategies(base)
+    if ch and isinstance(r, Illisible):
+        c.setdefault("_illisibles", []).append(("l'état civil", r.motif))
         ch = None
     if ch:
-        r = lignes_csv(ch)
         viv = [x for x in r
                if (x.get("etat_vie") or "").strip().upper() in ("QA", "PRODUCTION")]
         c["stratégies vivantes"] = len(viv)
@@ -1790,9 +1834,9 @@ def compter(base):
     # corrige le pilote. Une alerte qui dure sans etre instruite devient un bruit,
     # et un bruit cache les vraies.
     # Les fiches se comptent donc au REGISTRE DES STRATEGIES, sa vraie source.
-    ch = trouver(base, "cac40_strategies.csv")
-    if ch and not isinstance(lignes_csv(ch), Illisible):
-        r = [x for x in lignes_csv(ch) if (x.get("etat_vie") or "").strip().upper() == "LABO"]
+    ch, r = registre_des_strategies(base)      # une fiche par identifiant, sa dernière ligne (n°83)
+    if ch and not isinstance(r, Illisible):
+        r = [x for x in r if (x.get("etat_vie") or "").strip().upper() == "LABO"]
         OB = ["indicateurs", "univers", "tp", "sl", "horizon"]
         VIDE = ("", "-", "\u2014", "a renseigner", "\u00e0 renseigner")
         c["fiches au sas"] = len(r)
@@ -1802,13 +1846,14 @@ def compter(base):
 
     # UNE SOURCE INTROUVABLE SE DIT, elle ne se tait pas. Sans cela, le pilote
     # aurait l'air complet en ayant perdu une donnée — c'est le pire des cas.
-    c["_sources_muettes"] = [nom for nom, motifs in (
-        ("le registre", ("REGISTRE_REGLES",)),
-        ("le backlog", ("BACKLOG_DECISIONS.md",)),
-        ("les cours", ("cours_maitre.csv",)),
-        ("l'état civil des stratégies", ("cac40_strategies.csv",)),
-        ("les positions", ("claude_positions_ouvertes.csv", "positions_ouvertes.csv")),
-    ) if not trouver(base, *motifs)]
+    # L'état civil des stratégies est cherché par le nom écrit au contrat (n°83, 05-11-2026).
+    c["_sources_muettes"] = [nom for nom, trouve in (
+        ("le registre", trouver(base, "REGISTRE_REGLES")),
+        ("le backlog", trouver(base, "BACKLOG_DECISIONS.md")),
+        ("les cours", trouver(base, "cours_maitre.csv")),
+        ("l'état civil des stratégies", registre_des_strategies(base)[0]),
+        ("les positions", trouver(base, "claude_positions_ouvertes.csv", "positions_ouvertes.csv")),
+    ) if not trouve]
 
     # LES DEUX NOMBRES ET LEURS DEUX ROLES (R-722) : un TEST DE BALANCE n'est
     # jamais une PERFORMANCE. Le pilote doit porter les deux, nommés.

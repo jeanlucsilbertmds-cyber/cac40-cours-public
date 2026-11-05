@@ -33,8 +33,9 @@ SABOTAGES = {
     "S2_radar_recopie_les_noms": [(RAD, "    _noms = set().union(*(_noms_17(s) for s in _strats))",
                                    '    _noms = {(s.get("nom") or "").split(" (")[0].strip() for s in _strats} | '
                                    '{(s.get("id") or "").strip() for s in _strats}')],
-    "S3_soir_recopie_les_noms": [(TEN, "                for k in sorted(noms_d_une_strategie(x)):",
-                                  '                for k in ((x.get("id") or "").strip(), (x.get("nom") or "").split(" (")[0].strip()):')],
+    # (la cible a perdu un niveau d'indentation le 05-11-2026 : n°83, le soir lit les fiches au contrat, sans « with »)
+    "S3_soir_recopie_les_noms": [(TEN, "            for k in sorted(noms_d_une_strategie(x)):",
+                                  '            for k in ((x.get("id") or "").strip(), (x.get("nom") or "").split(" (")[0].strip()):')],
     "S4_radar_sans_repli": [(RAD, "        def _noms_17(s):\n", "        def _pas_de_repli(s):\n")],
     "S6_univers_recopie_la_regle": [(RAD, "            for _cle in (_noms_17(s) if _u else ()):",
                                      '            for _cle in (({(s.get("id") or "").strip(), (s.get("nom") or "").split(" (")[0].strip()} - {""}) if _u else ()):')],

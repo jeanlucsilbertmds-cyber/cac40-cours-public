@@ -2262,7 +2262,8 @@ def main():
       le journal des opérations, et s'arrêter s'il manque · ③ refaire les chiffres
       de référence, et s'arrêter s'ils ne tombent pas juste · ③bis s'arrêter si
       une opération n'a pas de comptabilité reconnue · ④ relever au
-      registre les stratégies en essai ou en production, et s'arrêter s'il n'y en
+      registre (par `fiches_du_registre` du contrat : une fiche par identifiant, sa
+      dernière ligne, n°83, depuis le 05-11-2026) les stratégies en essai ou en production, et s'arrêter s'il n'y en
       a aucune · ④bis signaler un nom qui désigne deux d'entre elles · ⑤ charger les chiffres de référence figés · ⑥ charger le
       référentiel des valeurs et dire s'il manque · ⑦ reconstituer la courbe du
       capital et calculer le rapport gain sur secousses et les deux témoins ; la
@@ -2447,6 +2448,8 @@ def main():
     # 3 operation(s) · cumul 1292.25 EUR » pour un seul trade a -2 796,25 EUR.
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from CONTRATS_DES_FICHIERS import COMPTABILITES, UN_JETON, JETONS_ILLIMITES, noms_d_une_strategie
+    # le registre des stratégies : son nom et sa lecture vivent au contrat (n°83, 05-11-2026)
+    from CONTRATS_DES_FICHIERS import NOM_DU_REGISTRE_DES_STRATEGIES, fiches_du_registre
     sans = [o for o in operations if (o.get('comptabilite') or '') not in COMPTABILITES]
     if sans:
         print(f"ARRET : {len(sans)} operation(s) sans comptabilite reconnue — aucune mesure n'est ecrite.")
@@ -2457,9 +2460,11 @@ def main():
 
     # carte d'identite de chaque strategie vivante (registre = etat civil)
     cartes, etats = {}, {}
-    ch = _p(base, 'cac40_strategies.csv')
+    ch = _p(base, NOM_DU_REGISTRE_DES_STRATEGIES)
     if ch:
-        for r in lire_csv(ch):
+        # une fiche par identifiant, sa DERNIÈRE ligne (décision de Jean-Luc n°83 du 01-11-2026 à 12h33, « La dernière
+        # ligne ajoutée fait foi ») ; avant le 05-11-2026, chaque ligne était lue et la dernière écrasait la première
+        for r in fiches_du_registre(ch).values():
             ev = (r.get('etat_vie') or '').strip().upper()
             if ev in ('QA', 'PRODUCTION'):
                 nom = (r.get('id') or '').strip()

@@ -95,9 +95,9 @@ dire("E1 aucun achat hors de l'indice (cas fabriqué)", tires and "B" not in tir
 # E2
 R = "."
 mnemo = B.table_mnemoniques(B.trouver(R, "REFERENTIEL_VALEURS"))
-sig = B.charger_module(B.trouver(R, "MODULE_C5_ETENDU_10"), "sig")
-f = next(x for x in csv.DictReader(open("donnees/cac40_strategies.csv", encoding="utf-8-sig")) if x["id"] == "C5E10-QA-V1")
-ok0, _m, bornes = B.porte_0(f); f.setdefault("_fonction_signal", "signaux_c5etendu10")
+import CONTRATS_DES_FICHIERS as C   # le registre se nomme et se lit au contrat ; la dernière ligne fait foi (n°83)
+f = C.lire_les_fiches(R)["C5E10-QA-V1"]
+ok0, _m, bornes = B.porte_0(f); sig = B.signal_de_la_fiche(R, f)   # le signal que la fiche nomme (A-542, 30-10-2026)
 cr, lr = B.lire_par_le_lecteur(R, "donnees/cours_maitre.csv", mnemo)
 o2, _ = B.jouer(f, cr, mnemo, sig, P, periode=bornes, lecture=lr)
 tp, sl, h = B.pourcent(f["tp"]), B.pourcent(f["sl"]), B.lire_horizon(f["horizon"])

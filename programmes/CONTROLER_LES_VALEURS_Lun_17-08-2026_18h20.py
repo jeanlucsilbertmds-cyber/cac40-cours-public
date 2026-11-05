@@ -278,7 +278,9 @@ def main():
       relever la derniere date ecrite · ③ premier controle : les valeurs presentes a
       l avant-derniere date et absentes a la derniere · ④ deuxieme controle : les
       valeurs des cours qui ne sont ni attendues ni hors univers · ⑤ troisieme
-      controle, pour chaque fiche de strategie portant un univers ou en QA ou en
+      controle, sur les fiches du registre lues par `fiches_du_registre` du contrat
+      (une par identifiant, sa DERNIERE ligne : n°83, depuis le 05-11-2026), pour
+      chaque fiche de strategie portant un univers ou en QA ou en
       PRODUCTION : ecarter les univers non renseignes, signaler les mnemoniques
       ecrits deux fois, l univers vide sur une strategie jouee, les mnemoniques
       inconnus du referentiel et les mnemoniques hors univers · ⑥ afficher l
@@ -488,9 +490,15 @@ def main():
         infos.append(f"controle 2 : les {len(presentes)} valeurs des cours existent toutes au referentiel")
 
     # --- CONTROLE 3 : les univers de strategies
-    ch = _p(base, 'cac40_strategies')
+    # LE NOM DU REGISTRE ET SA LECTURE VIVENT AU CONTRAT (n°83, 05-11-2026) : le fichier est cherché par le nom écrit
+    # une fois dans programmes/CONTRATS_DES_FICHIERS.py (avant : le morceau « cac40_strategies », qui répondait
+    # aussi pour un témoin du registre rangé ailleurs), et chaque identifiant est lu par sa DERNIÈRE ligne (décision
+    # de Jean-Luc n°83 du 01-11-2026 à 12h33, « La dernière ligne ajoutée fait foi »).
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import CONTRATS_DES_FICHIERS as _contrat
+    ch = _p(base, _contrat.NOM_DU_REGISTRE_DES_STRATEGIES)
     if ch:
-        vivantes = [r for r in csv.DictReader(open(ch, encoding='utf-8-sig'))
+        vivantes = [r for r in _contrat.fiches_du_registre(ch).values()
                     # TOUTE FICHE QUI PORTE UN UNIVERS EST CONTROLEE, quel que soit
                     # son etat de vie. CC2 de Cowork, 13-09-2026 :
                     #   « en passant MA200-S1 en LABO — geste juste par ailleurs — tu as

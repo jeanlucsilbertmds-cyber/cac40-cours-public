@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-DÉCIDÉ · outil · v1.5 · 29-08-2026 · Rôle : juger une strategie a partir de sa fiche.
+DÉCIDÉ · outil · v1.6 · 30-10-2026 · Rôle : juger une strategie a partir de sa fiche.
 UN SEUL NUMERO DE VERSION DANS CE FICHIER : ce cartouche et la constante
 VERSION plus bas disent la meme chose. Le rapport imprime celui du code, un
 lecteur voit celui-ci — deux numeros differents dans le meme fichier etaient
 exactement le defaut que la v1.5 corrigeait.
+
+VERSION 1.6 — 30-10-2026. CHAQUE FICHE NOMME SON SIGNAL (A-542 ① ②). Le juge
+    imposait le signal de la famille C5-ETENDU-10 a toute fiche ; il joue
+    desormais la fonction que la fiche nomme dans `module_signal`,
+    `fonction_signal` et `reglages_signal`, lues par `signal_de_la_fiche`
+    seule. Une fiche sans signal nomme est refusee a la porte 0.
 
 VERSION 1.5 — 29-08-2026. Le juge des stratégies lit le REGISTRE DES STRATEGIES et non
     plus le sas, qui est absorbe. Les TROIS FENETRES sont rendues. La
@@ -307,10 +313,13 @@ USAGE
   une fiche de strategie : une ligne du registre des strategies, qui porte son identifiant, son etat de vie et son univers
 """
 
+import ast
 import csv
 import hashlib
 import importlib.util
 import json
+import math
+import numbers
 import os
 import re
 import sys
@@ -321,7 +330,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from COMMUN import lire_horizon       # la seule lecture d'un horizon (R-708, défaut 4 de A-491)
 
-VERSION = "generique-1.5"
+VERSION = "generique-1.6"
 PARIS = ZoneInfo("Europe/Paris")
 JOURS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
 
@@ -483,10 +492,11 @@ def trouver_tous(base, *motifs):
     ① RÔLE — Faire voir qu'un même nom répond sous plusieurs graphies, pour que le
       choix silencieux d'un fichier parmi deux devienne une alerte imprimée.
       `trouver` en prend UN et se tait ; cette fonction les rend TOUS.
-    ② CONTEXTE D'APPEL — `main`, quatre fois, juste après le relevé des fichiers
-      et avant leur affichage, sur quatre motifs : `cac40_strategies.csv`,
-      `cac40_ohlcv.csv`, `MODULE_C5_ETENDU_10` et `MODULE_POSITIONS.py`. Jamais
-      appelée ailleurs.
+    ② CONTEXTE D'APPEL — `main`, trois fois, juste après le relevé des fichiers
+      et avant leur affichage, sur trois motifs : `cac40_strategies.csv`,
+      `cours_maitre.csv` et `MODULE_POSITIONS.py` (le motif `MODULE_C5_ETENDU_10`
+      en est sorti le 30-10-2026, A-542 : chaque fiche nomme son module par son
+      chemin exact). Jamais appelée ailleurs.
     ③ ENTRÉE — `base` : le dossier racine à parcourir · `motifs` : un ou plusieurs
       noms ou débuts de nom, donnés les uns après les autres. Un seul appelant,
       `main`, qui passe la racine reçue sur la ligne de commande et un seul motif
@@ -599,8 +609,9 @@ def trouver(base, *motifs):
       soulignés, et leur nom finit souvent par une date qui change : chercher le
       nom exact ne marcherait qu'un jour sur deux.
     ② CONTEXTE D'APPEL — `main`, neuf fois, pour le registre des stratégies, les
-      cours, les cours du jour, le référentiel des valeurs, le module de signal, le
-      module de positions, le golden, le module de jugement, le module de
+      cours, les cours du jour, le référentiel des valeurs, le
+      module de positions (le module de signal n'y est plus depuis le 30-10-2026,
+      A-542 : chaque fiche le nomme par son chemin exact), le golden, le module de jugement, le module de
       statistiques et le témoin du golden. Jamais appelée ailleurs.
     ③ ENTRÉE — `base` : le dossier racine à fouiller · `motifs` : un ou plusieurs
       noms ou débuts de nom, essayés dans l'ordre donné. Un seul appelant, `main`,
@@ -729,13 +740,18 @@ def charger_module(chemin, nom):
       La fiche d'une stratégie dit quel module produit ses signaux ; le juge des stratégies doit
       donc charger un fichier dont il n'apprend le chemin qu'à l'exécution, sans
       qu'aucune ligne de son propre code ne le nomme.
-    ② CONTEXTE D'APPEL — Deux appelants.
-      · `main`, quatre fois : le module de signal sous le nom `sig`, le module de
+    ② CONTEXTE D'APPEL — Cinq appelants, relevés le 31-10-2026 par recherche de
+      « charger_module( » dans programmes/.
+      · `main`, trois fois : le module de
       positions sous `pos`, le module de jugement sous `jug` et le module de
       statistiques sous `sta`.
-      · `programmes/DETECTER_LES_SIGNAUX_GITHUB.py` ligne 153, qui charge le module
-      de signal par cette fonction. Ce programme tourne chaque soir, lancé par
-      `.github/workflows/collecte_abc.yml` ligne 136.
+      · `signal_de_la_fiche` (depuis le 30-10-2026, A-542), une fois par chemin de
+      module de signal nommé par une fiche, sous un nom tiré de ce chemin.
+      · `lire_par_le_lecteur`, pour `programmes/LIRE_LES_COURS.py`.
+      · `main` de `programmes/JOUER_LES_VERSIONS.py`, pour le module de positions.
+      · `programmes/DETECTER_LES_SIGNAUX_GITHUB.py` ligne 192, qui charge le module
+      C5 par son chemin écrit en dur. Ce programme tourne chaque soir, lancé par
+      `.github/workflows/collecte_abc.yml`.
     ③ ENTRÉE — `chemin` : le chemin du fichier Python à charger · `nom` : le nom
       court sous lequel le module sera connu dans le processus. Exemple réel,
       mesuré le 20-09-2026 : chemin
@@ -761,7 +777,10 @@ def charger_module(chemin, nom):
       ① ELLE EXÉCUTE TOUT CE QUE LE FICHIER CONTIENT, sans aucun filtre. Un module
       qui écrirait un fichier ou appellerait le réseau au moment de son chargement
       le ferait ici, et le juge des stratégies, qui n'écrit rien par lui-même, écrirait par
-      procuration. Rien dans la fonction ne le limite.
+      procuration. Rien dans la fonction ne le limite. Pour le module de signal
+      nommé par une fiche, la porte filtre AVANT : `signal_de_la_fiche` n'appelle
+      cette fonction que sur un fichier qui se déclare module de signal, lu sans
+      exécution (`declaration_de_signal`, depuis le 31-10-2026).
       ② ELLE ACCEPTE UN FICHIER COMPILÉ. Mesuré le 20-09-2026 : appelée sur
       `programmes/__pycache__/MODULE_STATISTIQUES_Lun_24-08-2026_22h00.cpython-311.pyc`,
       elle rend un module dont `calculer_stabilite_parametrique` répond. Le module
@@ -811,6 +830,434 @@ def charger_module(chemin, nom):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+# ── LE SIGNAL QUE LA FICHE NOMME (A-542 ① ②, plan du circuit validé par Jean-Luc le 30-10-2026) ─────────────────
+# Jusqu'au 30-10-2026, le juge, la moulinette (JOUER_LES_VERSIONS) et le juge à 8 critères imposaient le signal de la
+# famille C5-ETENDU-10 à N'IMPORTE QUELLE fiche : le module était cherché par le motif « MODULE_C5_ETENDU_10 » et la
+# fonction posée par défaut, `setdefault("_fonction_signal", "signaux_c5etendu10")`, à quatre endroits. Une fiche
+# RSI ou MA200 aurait donc été jugée sur le signal C5 sans un mot. Désormais CHAQUE FICHE NOMME SON SIGNAL dans trois
+# colonnes du registre des stratégies, et UNE SEULE fonction les lit, `signal_de_la_fiche`, appelée par les trois
+# programmes (deux implémentations d'une même chose divergent toujours, R-708). Ajouter une famille = écrire son
+# module et sa fiche ; aucun autre fichier ne change.
+#   module_signal   : le chemin du module, RELATIF À LA RACINE, exact (ex. programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py)
+#   fonction_signal : le nom de la fonction de ce module qui rend les séances d'achat (ex. signaux_c5etendu10)
+#   reglages_signal : vide, ou un objet JSON passé à la fonction en arguments nommés (ex. {"periode": 2, "seuil": 10})
+COLONNES_DU_SIGNAL = ("module_signal", "fonction_signal", "reglages_signal")
+
+# Les modules de signal déjà chargés, par chemin réel : la moulinette joue des milliers de versions d'une même fiche,
+# et recharger le module à chaque version referait tourner tout son code de chargement.
+_MODULES_DE_SIGNAL = {}
+
+
+class SignalNomme:
+    """Le signal d'une fiche, prêt à jouer : la fonction nommée par la fiche, avec ses réglages.
+
+    ① RÔLE — Porter, en un seul objet, ce que la fiche a nommé : la fonction qui rend les séances d'achat, ses
+      réglages, le module d'où elle vient et la déclaration lue. `jouer` n'accepte que cet objet : un module passé à
+      sa place, ou une fonction prise ailleurs, est refusé.
+    ② CONTEXTE D'APPEL — Construit par `signal_de_la_fiche`, et par les épreuves qui fabriquent un signal (tests/).
+      Appelé par `jouer`, une fois par morceau de série de chaque valeur de l'univers.
+    ③ ENTRÉE — `fonction` : la fonction de signal · `reglages` : un dictionnaire d'arguments nommés, vide si aucun ·
+      `declaration` : le texte qui dit d'où vient le signal, affiché par le juge · `module` : le module chargé, ou None ·
+      `chemin` : le chemin du module tel que la fiche l'écrit, relatif à la racine, ou None.
+    ④ CONDITIONS D'ENTRÉE — `fonction` est appelable ; `reglages` est un dictionnaire.
+    ⑤ SORTIE — L'appel rend UNE valeur : ce que rend la fonction nommée, la liste des {"i": rang} des séances
+      signalées. [rend: 1]
+    ⑥ TRAITEMENT — Appeler `fonction(serie, **reglages)`.
+    ⑦ UNITÉ — Le rang `i` est un indice dans la série passée.
+    ⑧ POURQUOI — Un objet à part, et non la fonction nue, pour que `jouer` puisse REFUSER ce qui n'est pas passé par
+      la lecture de la fiche (A-542 : plus aucun repli silencieux), et pour que le juge puisse AFFICHER quel signal il
+      joue.
+    ⑨ CE QUI CLOCHE — Une épreuve peut construire cet objet à la main avec n'importe quelle fonction : le refus de
+      `jouer` protège les programmes, pas une main qui contournerait exprès la fiche.
+    ⑩ EFFET — Ce que fait la fonction nommée ; aucun par lui-même.
+    ⑪ TERMINAISON — Rend la main, sauf si la fonction nommée ne revient pas : c'est du code de module, dont rien ne
+      borne le temps. [sort: non]
+    """
+
+    def __init__(self, fonction, reglages, declaration, module=None, chemin=None):
+        """Range la fonction, ses réglages et leur provenance.
+
+        ① RÔLE — Construire le signal, en refusant ce qui ne pourrait pas jouer.
+        ② CONTEXTE D'APPEL — `signal_de_la_fiche` ; les épreuves qui fabriquent un signal.
+        ③ ENTRÉE — `self` : l'objet construit · `fonction`, `reglages`, `declaration`, `module`, `chemin` : voir ③ de la
+          classe.
+        ④ CONDITIONS D'ENTRÉE — `fonction` appelable ; `reglages` dictionnaire.
+        ⑤ SORTIE — Aucune valeur (constructeur).
+          [rend: rien]
+        ⑥ TRAITEMENT — ① refuser une fonction non appelable ou des réglages qui ne sont pas un dictionnaire ·
+          ② ranger les cinq attributs, les réglages copiés.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Les réglages sont copiés : la fiche qui les a fournis peut changer ensuite sans changer le signal.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun hors de l'objet.
+        ⑪ TERMINAISON — Rend la main, ou lève TypeError.
+          [sort: non]
+        """
+        if not callable(fonction):
+            raise TypeError("SignalNomme : la fonction de signal n'est pas appelable (%r)" % (fonction,))
+        if not isinstance(reglages, dict):
+            raise TypeError("SignalNomme : les reglages doivent etre un dictionnaire (%r)" % (reglages,))
+        self.fonction, self.reglages, self.declaration, self.module = fonction, dict(reglages), declaration, module
+        self.chemin = chemin
+
+    def __call__(self, serie):
+        """Rend les séances d'achat de la série, après avoir contrôlé la FORME de la sortie.
+
+        ① RÔLE — Appliquer le signal à une série, et refuser — avant que `jouer` ne s'en serve — une sortie mal
+          formée (point 8 du plan du juge, 31-10-2026).
+        ② CONTEXTE D'APPEL — `jouer`, une fois par morceau de série de chaque valeur (donc pour le juge, son
+          calibrage, son voisinage, la moulinette et le juge à 8 critères) ; l'épreuve d'arrivée des signaux
+          (`tests/EPREUVES_DE_L_ARRIVEE_DES_SIGNAUX_Sam_31-10-2026.py`), sur des séries coupées.
+        ③ ENTRÉE — `self` : le signal (fonction et réglages) · `serie` : les séances d'UNE valeur, triées par date.
+        ④ CONDITIONS D'ENTRÉE — Celles de la fonction nommée.
+        ⑤ SORTIE — UNE valeur : la liste des {"i": rang} rendue par la fonction nommée, inchangée.
+          [rend: 1]
+        ⑥ TRAITEMENT — ① appeler la fonction (`_appeler`) · ② refuser une sortie mal formée (`forme_du_signal`) ·
+          ③ rendre la sortie.
+        ⑦ UNITÉ — Rangs dans `serie`.
+        ⑧ POURQUOI — `jouer` prend `s[i]` sans rien vérifier : un rang négatif achète à une autre date, en silence
+          (audit du code, D2). Le contrôle de la forme vit ICI parce que tout signal joué passe par cet objet (A-542) :
+          un seul endroit pour les trois programmes, et son coût suit le nombre de signaux.
+          LE CONTRÔLE « LE SIGNAL NE VOIT PAS L'AVENIR » N'EST PLUS ICI (décision de Jean-Luc du 31-10-2026 à 21h15,
+          ses mots : « Ok, je ne comprends pas très bien, mais je te fais confiance. Donc fais le 1 »). Il tournait à
+          chaque jugement : réduit pour rester léger à 5 + 5 dates tirées par série, il ne prouvait presque rien (une
+          fuite rare passait, relecteur de la version B) et il faisait passer l'épreuve du juge par le lecteur de
+          593 s à 977 s sur une machine seule. Il se fait désormais UNE FOIS par signal, sur TOUTES les dates d'une
+          fenêtre fixe, hors du juge : `tests/EPREUVES_DE_L_ARRIVEE_DES_SIGNAUX_Sam_31-10-2026.py`.
+        ⑨ CE QUI CLOCHE — ① Le juge ne contrôle pas l'avenir : un module ajouté puis jugé avant la prochaine
+          vérification de version n'a pas été éprouvé (BACKLOG : un visa par empreinte du module). ② La sortie n'est
+          pas recopiée : la fonction pourrait la modifier ensuite (aucune ne le fait).
+        ⑩ EFFET — Celui de la fonction nommée ; aucun par lui-même.
+        ⑪ TERMINAISON — Rend la main ; lève `SignalRefuse` (motif nommé) ; un appel de la fonction nommée peut ne
+          pas revenir : du code de module, non borné.
+          [sort: non]
+        """
+        resultat = self._appeler(serie)
+        motif = forme_du_signal(resultat, len(serie))
+        if motif:
+            raise SignalRefuse("NON JUGEABLE — la sortie du signal %s est mal formée : %s" % (self.declaration, motif))
+        return resultat
+
+    def _appeler(self, serie):
+        """Appelle la fonction nommée avec les réglages de la fiche, sans contrôle.
+
+        ① RÔLE — Le seul appel de la fonction de signal.
+        ② CONTEXTE D'APPEL — `__call__`.
+        ③ ENTRÉE — `self` : le signal (fonction et réglages) · `serie` : des séances triées par date.
+        ④ CONDITIONS D'ENTRÉE — Celles de la fonction nommée.
+        ⑤ SORTIE — UNE valeur : ce que rend la fonction nommée.
+          [rend: 1]
+        ⑥ TRAITEMENT — `fonction(serie, **reglages)`.
+        ⑦ UNITÉ — Rangs dans `serie`.
+        ⑧ POURQUOI — Les réglages de la fiche arrivent à la fonction sans que `jouer` les connaisse.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Celui de la fonction nommée.
+        ⑪ TERMINAISON — Celle de la fonction nommée : du code de module, non borné.
+          [sort: non]
+        """
+        return self.fonction(serie, **self.reglages)
+
+
+def manques_du_signal(fiche):
+    """Dit ce qui manque, ou est illisible, dans la déclaration du signal d'une fiche.
+
+    ① RÔLE — La seule écriture de la règle « une fiche nomme son signal » : `porte_0` en tire ses refus, et
+      `signal_de_la_fiche` refuse sur la même liste. Une fiche qui ne nomme pas son module et sa fonction est refusée,
+      jamais complétée par un défaut.
+    ② CONTEXTE D'APPEL — `porte_0`, une fois par fiche ; `signal_de_la_fiche`, à son entrée.
+    ③ ENTRÉE — `fiche` : un dictionnaire de champs (ligne du registre des stratégies, ou fiche construite).
+    ④ CONDITIONS D'ENTRÉE — Aucune : une colonne absente vaut vide.
+    ⑤ SORTIE — UNE valeur : la liste des manques, en texte, VIDE si la déclaration est complète et lisible. Exemple
+      réel : une ligne du registre sans signal rend ["module_signal (aucun signal nommé)",
+      "fonction_signal (aucun signal nommé)"].
+      [rend: 1]
+    ⑥ TRAITEMENT — ① `module_signal` vide → manque ; sinon il doit être un chemin relatif sous la racine, sans
+      « .. », finissant par « .py » · ② `fonction_signal` vide → manque ; sinon un nom Python · ③ `reglages_signal`
+      vide, ou un objet JSON dont les clés sont des noms Python.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — A-542 : le signal C5 était imposé à toute fiche par défaut. Un défaut qui choisit le signal à la
+      place de la fiche fait juger une stratégie sur une autre, sans que rien ne le dise. Le chemin est EXACT, et non
+      un motif : un motif prend le premier fichier qui répond, y compris un compilé du cache ou une archive (⑨ de
+      `trouver`).
+    ⑨ CE QUI CLOCHE — Elle ne vérifie pas que le module existe ni que la fonction y est : elle n'a pas la racine.
+      C'est `signal_de_la_fiche` qui le fait, et le juge l'appelle dès la porte 0.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    manq = []
+    module = (fiche.get("module_signal") or "").strip()
+    fonction = (fiche.get("fonction_signal") or "").strip()
+    reglages = (fiche.get("reglages_signal") or "").strip()
+    if module.lower() in VIDE:
+        manq.append("module_signal (aucun signal nommé)")
+    elif (os.path.isabs(module) or "\\" in module or ".." in module.split("/")
+          or not module.endswith(".py")):
+        manq.append("module_signal illisible : lu %r, attendu un chemin relatif à la racine finissant par .py" % module)
+    if fonction.lower() in VIDE:
+        manq.append("fonction_signal (aucun signal nommé)")
+    elif not fonction.isidentifier():
+        manq.append("fonction_signal illisible : lu %r, attendu un nom de fonction" % fonction)
+    if reglages.lower() not in VIDE:
+        try:
+            r = json.loads(reglages)
+        except ValueError as e:
+            manq.append("reglages_signal illisible : lu %r (%s)" % (reglages, e))
+        else:
+            if not isinstance(r, dict) or not all(isinstance(k, str) and k.isidentifier() for k in r):
+                manq.append("reglages_signal illisible : lu %r, attendu un objet JSON {\"nom\": valeur}" % reglages)
+    return manq
+
+
+# LA LIGNE QUI DÉCLARE UN MODULE DE SIGNAL (superviseur R-759 du 31-10-2026, voie D) : une ligne de la docstring du
+# module qui S'OUVRE par « <STATUT> · module de signal · », le statut en majuscules (« DÉCIDÉ », « EN ESSAI »). Elle doit
+# OUVRIR la ligne : une recherche large rendait 13 rôles dont 11 faux (claude_FABRIQUER_LE_PILOTE.py, vers la ligne 2105).
+DECLARATION_DE_SIGNAL = re.compile(r"^[A-ZÀ-Ý][A-ZÀ-Ý ]* · module de signal · ")
+
+
+def declaration_de_signal(chemin):
+    """Lit, SANS L'EXÉCUTER, si un fichier Python se déclare module de signal.
+
+    ① RÔLE — Dire si le fichier qu'une fiche nomme est un module de signal, avant que le juge ne l'exécute.
+    ② CONTEXTE D'APPEL — `signal_de_la_fiche`, une fois par chemin et par processus, avant `charger_module`.
+    ③ ENTRÉE — `chemin` : le chemin réel du fichier, sous la racine.
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe (vérifié par l'appelant).
+    ⑤ SORTIE — DEUX valeurs : la ligne qui déclare (ou None) ; le motif du refus (ou None). Exemple réel : le module
+      C5 rend (« DÉCIDÉ · module de signal · Rôle : … », None) ; `programmes/audit_ecosysteme.py` rend
+      (None, « ne se déclare pas « module de signal » (il n'est pas exécuté) »).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① lire les octets et construire l'arbre syntaxique (`ast.parse`) ; un fichier illisible comme du
+      Python est refusé · ② prendre la docstring du module · ③ chercher une ligne qui S'OUVRE par
+      `DECLARATION_DE_SIGNAL` · ④ sinon, refuser.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le juge exécute le fichier que la fiche nomme. Mesuré par le superviseur R-759 le 31-10-2026 : une fiche
+      qui nommait par erreur `programmes/audit_ecosysteme.py` faisait tourner le radar complet DANS le juge (environ
+      240 lignes d'audit versées au rapport, 8,8 s de calcul), sans aucune exception, puis code 0 ; rattraper l'erreur
+      ne voit rien quand le fichier ne lève pas. Deux programmes du dépôt écrivent un fichier à leur chargement.
+      L'arbre syntaxique se lit sans rien exécuter (0,2 à 3,3 ms par module). Une liste blanche a été écartée : c'est
+      une énumération, qu'un renommage ferait changer d'avis.
+    ⑨ CE QUI CLOCHE — ① C'est une déclaration, pas une preuve : un fichier qui se déclare à tort est exécuté (le filet
+      de `signal_de_la_fiche` rattrape alors son erreur ou son `sys.exit`, pas ses effets). ② Seule la docstring du
+      MODULE compte, pas un commentaire.
+    ⑩ EFFET — LIT le fichier ; ne l'exécute pas.
+    ⑪ TERMINAISON — Rend toujours la main ; une erreur de lecture du fichier (droits) lèverait OSError.
+      [sort: non]
+    """
+    try:
+        arbre = ast.parse(open(chemin, "rb").read(), chemin)
+    except (SyntaxError, ValueError) as _e_syntaxe:      # ValueError : octets nuls dans le source
+        return None, "n'est pas du Python lisible : %s : %s" % (type(_e_syntaxe).__name__, _e_syntaxe)
+    for ligne in (ast.get_docstring(arbre) or "").splitlines():
+        if DECLARATION_DE_SIGNAL.match(ligne.strip()):
+            return ligne.strip(), None
+    return None, "ne se déclare pas « module de signal » (il n'est pas exécuté)"
+
+
+def signal_de_la_fiche(base, fiche):
+    """Rend le signal que la fiche nomme : la SEULE lecture des colonnes du signal (A-542, R-708).
+
+    ① RÔLE — Traduire la déclaration de la fiche (`module_signal`, `fonction_signal`, `reglages_signal`) en un signal
+      prêt à jouer. Dans le juge, la moulinette et le juge à 8 critères, aucun programme ne lit ces colonnes
+      ailleurs et aucun ne choisit un signal à la place de la fiche. HORS DE CE PÉRIMÈTRE : le programme du soir
+      `programmes/DETECTER_LES_SIGNAUX_GITHUB.py` calcule toujours le signal C5 par son chemin écrit en dur, quelle
+      que soit la fiche (A-542 ③, à faire).
+    ② CONTEXTE D'APPEL — Trois programmes, et eux seuls : `main` et `calibrer` de ce juge ; `jouer_une` dans `main`
+      de `programmes/JOUER_LES_VERSIONS.py` (la moulinette), une fois par version ; `_juger_une` de
+      `programmes/JUGER_SUR_8_CRITERES.py`, une fois.
+    ③ ENTRÉE — `base` : la racine du dépôt · `fiche` : un dictionnaire de champs portant les trois colonnes.
+    ④ CONDITIONS D'ENTRÉE — Aucune : tout manque, et tout module qui ne se déclare pas module de signal ou ne se charge
+      pas, est refusé par une ValueError qui dit pourquoi.
+    ⑤ SORTIE — UNE valeur : un `SignalNomme`. Exemple réel : la fiche C5E10-QA-V1 rend la fonction
+      `signaux_c5etendu10` de `programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py`, sans réglages.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① refuser si `manques_du_signal` trouve un manque · ② refuser un chemin qui sort de la racine
+      ou qui n'est pas un fichier · ③ au premier appel pour ce chemin, lire SANS L'EXÉCUTER si le fichier se déclare
+      module de signal (`declaration_de_signal`) et le refuser sinon ; puis le charger (`charger_module`), toute erreur
+      du chargement, `SystemExit` compris, devenant un refus « ne se charge pas » · ④ refuser une
+      fonction absente ou non appelable · ⑤ refuser des réglages que la signature de la fonction n'accepte pas ·
+      ⑥ rendre le signal.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une seule rédaction de cette lecture : le 30-10-2026, le même défaut (le signal C5 imposé) vivait à
+      quatre endroits de trois programmes. Les réglages se confrontent à la signature AVANT de jouer, mais
+      `inspect.signature(...).bind` ne vérifie que leurs NOMS (un réglage oublié ou en trop est refusé ici) ; une
+      mauvaise VALEUR (graine « 7 » en texte, proportion 5) n'est vue qu'au jeu, où la fonction de signal lève : le
+      juge met alors la fiche « EN ÉCHEC » et juge les suivantes (superviseur R-759 du 31-10-2026 : un essai à vide
+      de la fonction a été écarté, il ne prouve pas qu'un réglage est valide).
+      LE MODULE SE DÉCLARE AVANT D'ÊTRE EXÉCUTÉ (superviseur R-759, tour 3, 31-10-2026) : une fiche qui nommait par erreur
+      `programmes/audit_ecosysteme.py` faisait tourner le radar complet dans le juge, sans exception, code 0 (voir
+      `declaration_de_signal`, ⑧). LE FILET reste derrière, pour un module déclaré mais cassé : relecture du tour 2,
+      une erreur de syntaxe, un import absent ou une exception au chargement arrêtaient le juge avant toute fiche, et
+      un `sys.exit(0)` le faisait sortir avec 0.
+    ⑨ CE QUI CLOCHE — ① Le module est gardé en mémoire par chemin : modifié pendant un même lancement, il ne serait
+      pas relu. ② Charger un module DÉCLARÉ exécute son code (⑨ ① de `charger_module`) : ses effets au chargement
+      ne sont pas empêchés, seuls son erreur et son `sys.exit` sont rattrapés ; un fichier NON déclaré n'est jamais
+      exécuté. ③ Le chemin est exact : renommer un
+      module oblige à réécrire ses fiches — voulu, un renommage devient visible au lieu d'être deviné.
+    ⑩ EFFET — LIT le module nommé ; l'EXÉCUTE à son premier appel pour ce chemin, s'il se déclare module de signal.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError avec le motif du refus, y compris quand le chargement lève ou
+      appelle `sys.exit` (rattrapés). `KeyboardInterrupt` n'est pas rattrapé. Un module dont le chargement ne revient
+      pas (boucle) bloque l'appel.
+      [sort: non]
+    """
+    ident = fiche.get("id") or "(sans identifiant)"
+    manq = manques_du_signal(fiche)
+    if manq:
+        raise ValueError("fiche %s : signal refusé — %s" % (ident, " ; ".join(manq)))
+    module = fiche["module_signal"].strip()
+    fonction = fiche["fonction_signal"].strip()
+    texte = (fiche.get("reglages_signal") or "").strip()
+    reglages = json.loads(texte) if texte.lower() not in VIDE else {}
+    racine = os.path.realpath(base)
+    chemin = os.path.realpath(os.path.join(racine, module))
+    if os.path.commonpath([racine, chemin]) != racine:
+        raise ValueError("fiche %s : signal refusé — module_signal %r sort de la racine" % (ident, module))
+    if not os.path.isfile(chemin):
+        raise ValueError("fiche %s : signal refusé — module_signal %r introuvable sous la racine" % (ident, module))
+    mod = _MODULES_DE_SIGNAL.get(chemin)
+    if mod is None:
+        # LE FICHIER SE DÉCLARE AVANT D'ÊTRE EXÉCUTÉ, puis LE FILET (superviseur R-759, tour 3, 31-10-2026)
+        _ligne, _refus = declaration_de_signal(chemin)
+        if _refus:
+            raise ValueError("fiche %s : signal refusé — le module %s %s" % (ident, module, _refus))
+        try:
+            mod = charger_module(chemin, "signal_" + hashlib.sha256(chemin.encode("utf-8")).hexdigest()[:12])
+        except (Exception, SystemExit) as _e_charge:
+            raise ValueError("fiche %s : signal refusé — le module %s ne se charge pas : %s : %s"
+                             % (ident, module, type(_e_charge).__name__, _e_charge))
+        _MODULES_DE_SIGNAL[chemin] = mod
+    fn = getattr(mod, fonction, None)
+    if not callable(fn):
+        raise ValueError("fiche %s : signal refusé — le module %s n'expose pas la fonction %r" % (ident, module, fonction))
+    import inspect
+    try:
+        inspect.signature(fn).bind(None, **reglages)
+    except TypeError as e:
+        raise ValueError("fiche %s : signal refusé — les réglages %s ne s'appliquent pas à %s : %s"
+                         % (ident, texte or "{}", fonction, e))
+    return SignalNomme(fn, reglages, "%s · %s · réglages %s" % (module, fonction, texte or "aucun"), mod, module)
+
+
+class SignalRefuse(ValueError):
+    """Le refus nommé d'un signal au moment de le jouer : sortie mal formée (point 8).
+
+    ① RÔLE — Distinguer un REFUS (la fiche n'est pas jugeable, le motif est nommé) d'une PANNE (« EN ÉCHEC »).
+    ② CONTEXTE D'APPEL — Levé par `SignalNomme.__call__` ; rattrapé par `main` (fiche « REFUSÉE AU JEU »), et par les
+      appelants de `jouer` comme toute ValueError.
+    ③ ENTRÉE — Le motif, en texte.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Aucune (exception). [rend: 0]
+    ⑥ TRAITEMENT — Celui de ValueError.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Sous-classe de ValueError : la moulinette et le juge à 8 critères, qui rattrapent déjà les erreurs
+      de `jouer`, n'ont rien à changer pour ne pas jouer la fiche.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — — [sort: non]
+    """
+
+
+def forme_du_signal(resultat, longueur):
+    """Dit si ce que rend une fonction de signal a la forme que `jouer` attend.
+
+    ① RÔLE — Refuser, avant de jouer, une sortie que `jouer` lirait de travers sans rien dire.
+    ② CONTEXTE D'APPEL — `SignalNomme.__call__`, à chaque appel : par `jouer` (série entière ou morceau), et par
+      l'épreuve d'arrivée des signaux (séries coupées).
+    ③ ENTRÉE — `resultat` : ce qu'a rendu la fonction de signal · `longueur` : le nombre de séances de la série passée.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : None si la forme est bonne, sinon le motif en texte. Exemple : le signal C5 rend une liste
+      de {"i": rang, "cci": …, "cmf": …} aux rangs croissants : None.
+      [rend: 1]
+    ⑥ TRAITEMENT — Exiger ① une liste · ② de dictionnaires portant « i » · ③ un « i » ENTIER au sens de
+      `numbers.Integral` (un entier de Python, ou un entier de numpy comme `np.int64`), qui n'est pas un booléen ·
+      ④ compris entre 0 et longueur − 1 · ⑤ strictement croissant (ni recul, ni doublon).
+    ⑦ UNITÉ — Rangs dans la série passée.
+    ⑧ POURQUOI — `jouer` lit `s[i]` : un rang négatif prend une séance comptée depuis la fin (une autre date, en
+      silence) ; un booléen vaut 0 ou 1 ; un doublon achète deux fois le même jour. Point 8 du plan du juge.
+      Les entiers de numpy sont acceptés depuis le 31-10-2026 (relecteur de la version B, défaut D8) : un module
+      honnête qui calcule ses rangs avec numpy était refusé « mal formé », alors que `s[i]` les lit sans erreur. Un
+      flottant, même entier (« 1.0 »), reste refusé : `s[1.0]` lève.
+    ⑨ CE QUI CLOCHE — ① Les autres clés des dictionnaires (cci, cmf…) ne sont pas regardées : `jouer` ne les lit pas.
+      ② Un type d'entier inscrit à la main comme `numbers.Integral` sans savoir servir d'indice serait accepté ici,
+      puis ferait lever `jouer` (fiche « EN ÉCHEC »). Aucun module ne le fait.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if not isinstance(resultat, list):
+        return "rend %s au lieu d'une liste" % type(resultat).__name__
+    precedent = -1
+    for k, sg in enumerate(resultat):
+        if not isinstance(sg, dict) or "i" not in sg:
+            return "l'élément %d n'est pas un dictionnaire portant « i » : %r" % (k, sg)
+        i = sg["i"]
+        if isinstance(i, bool) or not isinstance(i, numbers.Integral):
+            return "l'élément %d porte un rang %r qui n'est pas un entier" % (k, i)
+        if not 0 <= i < longueur:
+            return "l'élément %d porte le rang %d, hors de la série (0 à %d)" % (k, i, longueur - 1)
+        if i <= precedent:
+            return "l'élément %d porte le rang %d après le rang %d : rangs non croissants ou en double" % (k, i, precedent)
+        precedent = i
+    return None
+
+
+# LES DEUX CASES DE LA FICHE QUE LE JUGE SAIT JOUER (points 5 et 9 du plan du juge, 31-10-2026) — listes FERMÉES.
+# Le moment d'achat : le juge n'achète qu'à l'ouverture de la séance qui suit le signal (`jouer_une_entree`). La clé est
+# la case écrite en majuscules, sans espace ni souligné ; « DÉFAUT » est le mot que la fiche écrit pour le
+# comportement habituel (synthèse du chemin d'une stratégie : « une case vide est refusée »).
+ENTREES_JOUABLES = {"OPENJ+1": "ouverture du lendemain", "DÉFAUT": "ouverture du lendemain"}
+# Les données fournies au programme de signal : la série des cours de LA valeur, rien d'autre (`jouer` lui passe
+# `cours[valeur]`). Chaque donnée ajoutée (indice, dates de résultats, consensus) sera un lot à part.
+DONNEES_FOURNIES = ("cours",)
+
+
+def manques_du_jeu(fiche):
+    """Dit pourquoi une fiche n'est pas jouable par le juge : moment d'achat ou données hors de ses listes fermées.
+
+    ① RÔLE — La seule écriture des deux règles « le juge n'achète qu'à l'ouverture du lendemain » et « le signal ne
+      reçoit que les cours de la valeur ». `porte_0` en tire ses refus ; `jouer` refuse sur la même liste.
+    ② CONTEXTE D'APPEL — `porte_0`, une fois par fiche ; `jouer`, à son entrée.
+    ③ ENTRÉE — `fiche` : un dictionnaire de champs portant `entree` et `donnees_demandees`.
+    ④ CONDITIONS D'ENTRÉE — Aucune : une case absente vaut vide.
+    ⑤ SORTIE — UNE valeur : la liste des motifs, VIDE si la fiche est jouable. Exemples réels : C5E10-QA-V1
+      (« Open J+1 », « cours ») rend [] ; C1-004 (« CLOSE ») rend le motif « NON JUGEABLE — moment d'achat non
+      jouable … » ; C2-001 (« INTRADAY ») aussi.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① `entree` vide ou « — » → manque ; sinon, écrite en majuscules sans espace ni souligné, elle doit
+      être une clé de `ENTREES_JOUABLES`, sinon NON JUGEABLE · ② `donnees_demandees` vide → manque ; sinon chaque
+      donnée (séparée par « , », « ; » ou « + ») doit être dans `DONNEES_FOURNIES`, sinon NON JUGEABLE, donnée absente.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le juge achetait TOUJOURS à l'ouverture du lendemain sans lire la case : 28 fiches du registre
+      portent « CLOSE » et 1 « INTRADAY », elles auraient été jouées à l'ouverture sans un mot (audit du code, B4).
+      Et une fiche qui demande le consensus (C2-001) ou la tendance de l'indice (MA200-S1) aurait été calculée sans
+      cette donnée (audit du code, point 6). Refuser en nommant vaut mieux que jouer une autre stratégie que celle de
+      la fiche. Une case VIDE est refusée aussi : pour le comportement habituel, la fiche écrit « DÉFAUT » (synthèse
+      du chemin d'une stratégie) ; jouer une case vide à l'ouverture serait la jouer en silence.
+    ⑨ CE QUI CLOCHE — ① « DEFAUT » sans accent n'est pas reconnu (liste fermée, épelée). ② La case `donnees_demandees`
+      est une DÉCLARATION : un module qui lirait un fichier de son côté n'est pas empêché (le juge ne lui en passe
+      aucun). ③ La colonne `filtres` n'est PAS lue ici : décision de Jean-Luc du 31-10-2026 à 17h15 (QJ-17), elle
+      reste un texte affiché, jamais joué.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    manq = []
+    entree = (fiche.get("entree") or "").strip()
+    if entree.lower() in VIDE:
+        manq.append("entree (aucun moment d'achat déclaré — écrire DÉFAUT pour l'ouverture du lendemain)")
+    elif entree.upper().replace(" ", "").replace("_", "") not in ENTREES_JOUABLES:
+        manq.append("NON JUGEABLE — moment d'achat non jouable : entree lu %r ; le juge n'achète qu'à l'ouverture du "
+                    "lendemain (OPEN_J+1, Open J+1, DÉFAUT)" % entree)
+    donnees = (fiche.get("donnees_demandees") or "").strip()
+    if donnees.lower() in VIDE:
+        manq.append("donnees_demandees (aucune donnée déclarée — écrire « cours »)")
+    else:
+        absentes = [d for d in (x.strip().lower() for x in re.split(r"[,;+]", donnees)) if d and d not in DONNEES_FOURNIES]
+        if absentes:
+            manq.append("NON JUGEABLE — donnée absente : %s ; le juge ne fournit au signal que : %s"
+                        % (", ".join(absentes), ", ".join(DONNEES_FOURNIES)))
+    return manq
 
 
 def cle_valeur(nom):
@@ -1361,47 +1808,54 @@ def pourcent(txt, defaut=None):
       des stratégies — `+4.0%`, `-2,5 %`, `4` — et les rendre sous la seule forme
       que les calculs emploient, la fraction. Sans elle, chaque endroit qui lit un
       seuil devrait refaire ce nettoyage à sa façon.
-    ② CONTEXTE D'APPEL — Trois appelants, tous dans ce programme.
-      ① `porte_0`, pour vérifier que l'objectif de gain et la perte acceptée d'une
-      fiche sont lisibles.
-      ② `jouer`, pour obtenir les deux seuils avant de rejouer la stratégie.
-      ③ `juger`, pour les mêmes deux seuils avant de calculer le point mort.
+    ② CONTEXTE D'APPEL — Depuis le 31-10-2026 (A-547, A-548, version B) : la SEULE
+      lecture des pourcentages des fiches. Appelée par `seuil_de_la_fiche` (qui la
+      fait servir à `porte_0`, `jouer` et `juger` de ce programme, à `_seuils` de
+      `programmes/JUGER_SUR_8_CRITERES.py` et à `reglages_du_registre` de
+      `programmes/TENIR_LES_POSITIONS.py`), et directement par `controler_fusion` de
+      `programmes/JOUER_LES_VERSIONS.py` (la moulinette, qui compare une fiche à une
+      version écrite en fraction).
     ③ ENTRÉE — `txt` : le texte à lire, venu d'une colonne du registre des
-      stratégies · `defaut` : ce qui est rendu quand le texte est vide ou
-      illisible, `None` si l'appelant n'en donne pas. Les trois appelants ne
+      stratégies, ou un nombre · `defaut` : ce qui est rendu quand le texte est vide ou
+      illisible, `None` si l'appelant n'en donne pas. Les appelants ne
       passent que `txt`.
     ④ CONDITIONS D'ENTRÉE — Aucune. `None`, un texte vide ou un texte quelconque
       sont trois cas prévus.
     ⑤ SORTIE — UNE valeur : une fraction positive, ou la valeur de repli. Exemples
-      réels, mesurés le 20-09-2026 : `+4.0%` rend 0,04 · `-2.5%` rend 0,025 ·
-      `12` rend 0,12 · `abc` rend `None`.
+      réels : `+4.0%` rend 0,04 · `-2.5%` rend 0,025 · `-0.6%` (stop de la fiche
+      C1-004) rend 0,006 depuis le 31-10-2026 (0,6 avant) · `12` rend 0,12 ·
+      `0.005` (fraction écrite par la moulinette) rend 0,005 · `abc` rend `None`.
       [rend: 1]
-    ⑥ TRAITEMENT — ① rendre la valeur de repli si le texte est `None` · ② remplacer
-      la virgule par un point, retirer le signe pourcent et les espaces · ③ rendre
-      la valeur de repli si plus rien ne reste · ④ lire le nombre et en prendre la
-      VALEUR ABSOLUE, ou rendre la valeur de repli s'il est illisible · ⑤ diviser
-      par cent si le nombre vaut au moins 1, le garder tel quel sinon.
+    ⑥ TRAITEMENT — ① rendre la valeur de repli si le texte est `None` · ② noter si
+      le texte porte le signe « % » · ③ remplacer la virgule par un point, retirer
+      le signe pourcent et les espaces · ④ rendre la valeur de repli si plus rien ne
+      reste · ⑤ lire le nombre et en prendre la VALEUR ABSOLUE, ou rendre la valeur
+      de repli s'il est illisible · ⑥ AVEC « % » : toujours diviser par cent ;
+      SANS « % » : diviser par cent si le nombre vaut au moins 1, le garder tel
+      quel sinon (la lecture d'avant, gardée : voir ⑨ ①).
     ⑦ UNITÉ — Une FRACTION du prix d'entrée : 0,040 vaut 4 %.
     ⑧ POURQUOI — La valeur absolue est prise parce que la perte acceptée s'écrit
       avec un signe moins dans le registre, `-2.5%`, alors que les calculs la
       veulent positive : le prix de sortie se construit en RETRANCHANT cette
       fraction, et un signe conservé la rajouterait.
     ⑨ CE QUI CLOCHE —
-      ① UN SEUIL AU-DESSOUS DE 1 % EST LU CENT FOIS TROP GRAND. La règle « diviser
-      par cent si le nombre vaut au moins 1 » sert à accepter `4` pour 4 %, mais
-      elle rend 0,8 pour `0.8%`. Mesuré le 20-09-2026 : `pourcent("0.8%")` rend
-      0,8 — soit 80 % — là où 0,008 était écrit ; `pourcent("1%")` rend bien 0,01.
-      La bascule se fait donc exactement à 1 %. Une stratégie à objectif serré, un
-      écart de moins d'un pour cent, serait jouée avec un objectif cent fois plus
-      lointain, et aucune alerte ne s'afficherait : le rapport annoncerait
-      simplement que presque toutes les opérations sortent à l'horizon.
-      ② LE SIGNE EST PERDU, DONC UN SEUIL MAL SIGNÉ NE SE VOIT PAS. Une fiche qui
-      écrirait `+2.5%` en perte acceptée serait acceptée telle quelle, et une qui
-      écrirait `-4.0%` en objectif de gain aussi. Rien ne vérifie que l'objectif est
-      positif et la perte négative dans le fichier.
-      ③ Le texte illisible et le texte vide rendent la même chose. `porte_0` s'en
-      sort en testant séparément le vide, mais un appelant qui ne le ferait pas ne
-      pourrait pas distinguer « champ non rempli » de « champ mal rempli ».
+      ① [RÉPARÉ LE 31-10-2026 POUR LE TEXTE AVEC « % », A-547] Un seuil au-dessous
+      de 1 % était lu cent fois trop grand : `pourcent("0.8%")` rendait 0,8 (mesuré
+      le 20-09-2026), et les six fiches archivées à stop sous 1 % (C1-004, C4-002,
+      C4-001 à « -0.6% » ; C4-BOLL, C4-MFI, C5-TRIPLE à « -0.8% ») ne sortaient
+      jamais au stop. RESTE OUVERT : un nombre SANS « % » est encore deviné
+      (`4` → 0,04, `0.04` → 0,04, `0.8` → 0,8 soit 80 %). La règle « sans % »
+      appartient à la convention d'A-548, que Jean-Luc n'a pas décidée ; elle est
+      gardée telle qu'avant parce que la moulinette écrit ses versions en fraction
+      (« 0.005 ») et que `programmes/EPREUVES_DE_LA_DECLINAISON.py` l'éprouve.
+      Aucune fiche du registre n'écrit un seuil sans « % » (relevé le 31-10-2026 :
+      toutes portent « % », ou « — », ou « à renseigner »).
+      ② LE SIGNE EST PERDU ICI. Le contrôle du signe est fait par
+      `seuil_de_la_fiche`, qui sait quelle colonne il lit ; un appelant qui lirait
+      un seuil par `pourcent` directement ne le verrait pas (seule la moulinette le
+      fait, sur des versions déjà passées par la porte 0).
+      ③ Le texte illisible et le texte vide rendent la même chose. `seuil_de_la_fiche`
+      les sépare dans son motif.
     ⑩ EFFET — Aucun : elle ne lit ni n'écrit aucun fichier, ne touche pas au
       réseau, n'affiche rien.
     ⑪ TERMINAISON — Rend toujours la main. Elle ne lève pas : l'échec de lecture du
@@ -1432,6 +1886,7 @@ def pourcent(txt, defaut=None):
     """
     if txt is None:
         return defaut
+    avec_signe_pourcent = "%" in str(txt)
     s = str(txt).strip().replace(",", ".").replace("%", "").replace(" ", "")
     if not s:
         return defaut
@@ -1439,7 +1894,62 @@ def pourcent(txt, defaut=None):
         v = abs(float(s))
     except ValueError:
         return defaut
+    # A-547 (31-10-2026) : un texte qui porte « % » est un POURCENT, quelle que soit sa taille — « -0.6% » vaut 0,006.
+    if avec_signe_pourcent:
+        return v / 100
     return v / 100 if v >= 1 else v
+
+
+def seuil_de_la_fiche(fiche, champ):
+    """Rend l'objectif de gain ou la perte acceptée d'une fiche, en fraction positive : LA lecture unique (A-548).
+
+    ① RÔLE — Lire `tp` ou `sl` d'une fiche du registre des stratégies, refuser ce qui est illisible ou mal signé, et
+      rendre la fraction que les calculs emploient. Trois programmes lisaient ces deux cases de trois façons
+      différentes ; ils appellent tous celle-ci depuis le 31-10-2026.
+    ② CONTEXTE D'APPEL — `porte_0`, `jouer` et `juger` de ce programme ; `_seuils` de
+      `programmes/JUGER_SUR_8_CRITERES.py` (le juge à 8 critères) ; `reglages_du_registre` de
+      `programmes/TENIR_LES_POSITIONS.py` (le programme du soir, qui ouvre et ferme les positions simulées).
+    ③ ENTRÉE — `fiche` : un dictionnaire de champs (ligne du registre, ou fiche construite) · `champ` : « tp » ou « sl ».
+    ④ CONDITIONS D'ENTRÉE — `champ` vaut « tp » ou « sl » ; sinon ValueError.
+    ⑤ SORTIE — UNE valeur : la fraction positive. Exemples réels : C5E10-QA-V1, `tp` « +4.0% » → 0,04, `sl` « -2.5% »
+      → 0,025 ; C1-004, `sl` « -0.6% » → 0,006.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire le texte par `pourcent` ; illisible ou vide → refus « <champ> illisible » · ② refuser une
+      valeur qui n'est pas un nombre FINI et STRICTEMENT POSITIF (« nan% », « -inf% », « 0% ») · ③ refuser un
+      objectif de gain écrit avec un signe moins, et une perte acceptée écrite avec un signe plus · ④ rendre la fraction.
+    ⑦ UNITÉ — Elle reçoit un POURCENT écrit à la main (« +4.0% ») ou une fraction (0.04) et rend une FRACTION : 0,04
+      vaut 4 %.
+    ⑧ POURQUOI — Deux implémentations d'une même chose divergent toujours (R-708) : le 31-10-2026, le juge lisait
+      « -0.6% » comme 0,6 (60 %), le juge à 8 critères comme 0,006 en levant sur une case vide, et le programme du
+      soir comme 0,006 en gardant le signe de l'objectif. Le signe se contrôle ICI parce que seule cette fonction sait
+      quelle case elle lit (A-547 ④ : « le traducteur refuse un objectif négatif et un stop positif »). Un seuil sans
+      signe est accepté, comme avant : refuser l'absence de signe serait une convention nouvelle (A-548), non décidée.
+      Un seuil infini, indéfini ou nul est refusé depuis le 31-10-2026 (relecteur de la version B, défaut D7) : la
+      porte acceptait « nan% » (un stop qui ne se déclenche jamais, toute comparaison avec nan étant fausse) et
+      « 0% » (un stop au prix d'achat) ; `float` lit « nan » et « inf » sans erreur, et `pourcent` en prend la valeur
+      absolue, d'où « -inf% » rendu +inf.
+    ⑨ CE QUI CLOCHE — ① Un nombre sans « % » est encore deviné (⑨ ① de `pourcent`, convention d'A-548 à décider).
+      ② Le contrôle du signe ne voit que le PREMIER caractère du texte : « 4 % - » passerait, puis serait illisible.
+      ③ Aucune borne haute : « +150% » rend 1,5 (A-548). ④ Quatre lectures de `tp`/`sl` ne passent pas par ici
+      (relecteur de la version B, défaut D4, BACKLOG A-548) : elles ne refusent ni « nan% » ni « 0% ».
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError avec le motif (champ, texte lu).
+      [sort: non]
+    """
+    if champ not in ("tp", "sl"):
+        raise ValueError("seuil_de_la_fiche : champ %r inconnu, attendu « tp » ou « sl »" % (champ,))
+    texte = fiche.get(champ)
+    v = pourcent(texte)
+    if v is None:
+        raise ValueError("%s illisible : lu %r" % (champ, texte))
+    if not (math.isfinite(v) and v > 0):
+        raise ValueError("%s hors des bornes : lu %r — un seuil est un nombre fini et non nul" % (champ, texte))
+    debut = str(texte).strip()[:1]
+    if champ == "tp" and debut == "-":
+        raise ValueError("tp mal signé : lu %r — un objectif de gain s'écrit sans signe moins (A-547)" % (texte,))
+    if champ == "sl" and debut == "+":
+        raise ValueError("sl mal signé : lu %r — une perte acceptée s'écrit sans signe plus (A-547)" % (texte,))
+    return v
 
 
 def porte_0(fiche):
@@ -1457,8 +1967,9 @@ def porte_0(fiche):
       pour que cette fiche passe la même porte que les autres.
     ③ ENTRÉE — `fiche` : un dictionnaire de champs, soit une ligne du registre des
       stratégies lue telle quelle, soit la fiche construite par `calibrer`. Les
-      champs regardés sont `periode`, `indicateurs`, `univers`, `tp`, `sl` et
-      `horizon`.
+      champs regardés sont `periode`, `indicateurs`, `univers`, `tp`, `sl`,
+      `horizon` et, depuis le 30-10-2026 (A-542), les trois colonnes du signal
+      `module_signal`, `fonction_signal` et `reglages_signal`.
     ④ CONDITIONS D'ENTRÉE — Aucune. Un champ absent est traité comme un champ vide.
     ⑤ SORTIE — **DEUX valeurs (2) dans un cas, TROIS valeurs (3) dans l'autre — elle a DEUX
       FORMES, et c'est un défaut.** DANS LE CAS ORDINAIRE, elle
@@ -1472,7 +1983,12 @@ def porte_0(fiche):
       le début précède la fin · ② relever les champs obligatoires vides · ③ vérifier
       que l'objectif de gain et la perte acceptée sont des nombres lisibles ·
       ④ vérifier que l'horizon est un entier · ⑤ rendre le verdict, la liste des
-      manques, et les bornes validées.
+      manques, et les bornes validées. Entre ② et ③, les manques du signal nommé
+      (`manques_du_signal`, A-542) : une fiche qui ne nomme pas son module et sa
+      fonction de signal est refusée, avec le motif « aucun signal nommé ».
+      Depuis le 31-10-2026 (A-547, A-548), le ③ passe par `seuil_de_la_fiche`, la
+      lecture unique, qui refuse aussi un objectif écrit avec un signe moins et une
+      perte acceptée écrite avec un signe plus.
     ⑦ UNITÉ — Les bornes rendues sont deux DATES au format AAAA-MM-JJ. Les manques
       se comptent en NOMBRE DE CHAMPS.
     ⑧ POURQUOI — La période est un champ obligatoire depuis le 29-08-2026, au même
@@ -1590,9 +2106,20 @@ def porte_0(fiche):
                            "fin, aucune operation ne serait trouvee" % _p]
     manq = [c for c in CHAMPS_OBLIGATOIRES
             if (fiche.get(c) or "").strip().lower() in VIDE]
+    # LA FICHE NOMME SON SIGNAL (A-542, 30-10-2026) : sans module ni fonction nommés, elle est refusée ici, jamais
+    # complétée par le signal C5 comme avant. La règle s'écrit une fois, dans `manques_du_signal`.
+    manq += manques_du_signal(fiche)
+    # LE MOMENT D'ACHAT ET LES DONNÉES (points 5 et 9 du plan du juge, 31-10-2026) : hors des listes fermées, la fiche
+    # est refusée ici, en le nommant, jamais jouée à l'ouverture en silence. La règle s'écrit une fois, dans
+    # `manques_du_jeu`.
+    manq += manques_du_jeu(fiche)
+    # LES SEUILS SE LISENT PAR LA LECTURE UNIQUE (A-548, 31-10-2026) : illisible ou mal signé, la fiche est refusée ici.
     for c in ("tp", "sl"):
-        if c not in manq and pourcent(fiche.get(c)) is None:
-            manq.append(c + " illisible")
+        if c not in manq:
+            try:
+                seuil_de_la_fiche(fiche, c)
+            except ValueError as _e_seuil:
+                manq.append(str(_e_seuil))
     # L'HORIZON SE LIT PAR LA MEME FONCTION QUE LE PROGRAMME DU SOIR (defaut 4 de
     # A-491, 28-09-2026) : l'ancienne lecture refusait « 20j » et acceptait « 0 ».
     if "horizon" not in manq and lire_horizon(fiche.get("horizon")) is None:
@@ -1652,11 +2179,13 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       · `calibrer`, une fois, sur la fiche de calibrage.
       · `_rejouer`, à l'intérieur de `juger`, une fois par variante de réglages
       quand le voisinage est mesuré.
-      · `programmes/JUGER_SUR_8_CRITERES.py` ligne 1202.
-    ③ ENTRÉE — `fiche` : la ligne de stratégie, où sont lus `tp`, `sl`, `horizon`,
-      `univers` et `_fonction_signal` · `cours` : les séries par valeur, rendues par
+      · `programmes/JUGER_SUR_8_CRITERES.py`, dans `_juger_une` (ligne 1216 au 31-10-2026).
+    ③ ENTRÉE — `fiche` : la ligne de stratégie, où sont lus `tp`, `sl`, `horizon` et
+      `univers` · `cours` : les séries par valeur, rendues par
       `charger_cours` ou par `lire_par_le_lecteur` · `mnemo` : la table qui traduit les codes courts en noms
-      rapprochés · `mod_signal` : le module qui produit les signaux ·
+      rapprochés · `mod_signal` : LE SIGNAL DE LA FICHE, un `SignalNomme` rendu par
+      `signal_de_la_fiche` (depuis le 30-10-2026, A-542 ; avant, le module C5 et un nom de fonction lu dans
+      `_fonction_signal`) ·
       `mod_positions` : le module qui décide des sorties et des frais · `periode` :
       le couple des bornes rendu par la porte 0, ou `None` pour ne pas borner.
       `main` passe toujours les bornes de la fiche. · `lecture` : le second rendu de
@@ -1665,9 +2194,9 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       nom d'un barème de frais, None pour le barème réel (A-550, voir `jouer_une_entree`).
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0 : l'objectif de
       gain, la perte acceptée et l'horizon doivent être lisibles, faute de quoi la
-      fonction lève. Le module de signal doit exposer la fonction nommée par
-      `_fonction_signal`, et le module de positions doit exposer `tester_seance` et
-      `frais_aller_retour`.
+      fonction lève. `mod_signal` doit être un `SignalNomme` — un module, ou une
+      fonction prise ailleurs, est refusé par TypeError — et le module de positions
+      doit exposer `tester_seance` et `frais_aller_retour`.
     ⑤ SORTIE — DEUX valeurs : la liste des opérations, et la liste des valeurs
       demandées par la fiche mais absentes des cours. Chaque opération porte la
       valeur, la date du signal, le prix d'entrée, le prix de sortie, le motif de
@@ -1677,13 +2206,16 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       Mesuré le 20-09-2026 sur la fiche
       `C5E10-QA-V1` : 62 opérations, aucune valeur inconnue.
       [rend: 2]
-    ⑥ TRAITEMENT — ① lire l'objectif de gain, la perte acceptée et l'horizon dans
+    ⑥ TRAITEMENT — ⓪ refuser (ValueError) une fiche que le juge ne sait pas jouer
+      — moment d'achat ou données hors des listes fermées, `manques_du_jeu`, depuis le
+      31-10-2026 · ① lire l'objectif de gain, la perte acceptée (par
+      `seuil_de_la_fiche`, la lecture unique, depuis le 31-10-2026) et l'horizon dans
       la fiche · ② traduire l'univers demandé, en séparant les valeurs connues des
       inconnues · ②bis avec une lecture, couper chaque série à ses trous
       (`couper_aux_trous`) et demander les signaux morceau par morceau ; l'achat et les
       sorties, eux, se jouent sur la série entière, à travers les trous (décision de Jean-Luc
       du 27-10-2026, 13h30) ; refuser un signal dont la séance d'achat est hors de l'indice
-      (`dans_l_indice`) · ③ demander au module de signal les séances qui déclenchent un
+      (`dans_l_indice`) · ③ demander au signal de la fiche les séances qui déclenchent un
       achat · ④ écarter un signal sur la dernière séance, faute de lendemain pour
       entrer · ⑤ écarter un signal hors de la période déclarée · ⑥ entrer à
       l'ouverture du lendemain et poser les deux prix de sortie · ⑦ parcourir les
@@ -1720,15 +2252,10 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       Choisir un signal par jour ne concerne que la comptabilité « un jeton », où
       il faut bien trancher puisqu'on ne détient qu'une position à la fois.
     ⑨ CE QUI CLOCHE —
-      ① LE NOM DE FONCTION DE SIGNAL PAR DÉFAUT NE CORRESPOND À AUCUN MODULE. La
-      fiche peut ne pas porter `_fonction_signal`, et le repli écrit ici est
-      `signaux`. Mesuré le 20-09-2026 en appelant `jouer` sur une fiche du registre
-      sans poser ce champ : « RuntimeError: le module de signal n'expose pas
-      'signaux' ». Le seul module de signal du dépôt expose
-      `signaux_c5etendu10`. Le vrai repli est écrit deux fois ailleurs, dans `main`
-      et dans `calibrer`, et une troisième fois dans
-      `programmes/JUGER_SUR_8_CRITERES.py` : quatre endroits décident du même nom,
-      et celui qui est écrit ici est faux.
+      ① (RÉPARÉ LE 30-10-2026, A-542) Le nom de la fonction de signal avait un repli,
+      `signaux`, écrit ici, et un autre, `signaux_c5etendu10`, écrit dans `main`, dans
+      `calibrer` et dans `programmes/JUGER_SUR_8_CRITERES.py`. Il n'y a plus de repli :
+      le signal est celui que la fiche nomme, lu par `signal_de_la_fiche` seule.
       ② UN SIGNAL SANS LENDEMAIN DISPARAÎT SANS ÊTRE COMPTÉ. Le signal de la
       dernière séance disponible est sauté, puisqu'il n'y a pas d'ouverture du
       lendemain pour entrer. C'est juste, mais rien ne le dit au rapport : un
@@ -1751,11 +2278,20 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
     ⑩ EFFET — Aucun sur le disque : ni lecture ni écriture de fichier, aucun accès
       réseau. Elle APPELLE le module de signal et le module de positions, donc tout
       ce que ces modules font, elle le fait. Elle ne modifie pas les cours reçus.
-    ⑪ TERMINAISON — Rend la main dans le cas normal. PEUT LEVER deux erreurs non
-      rattrapées : quand le module de signal n'expose pas la fonction demandée, et
-      quand le module de positions n'expose pas la fonction de frais. Aucun de ses
-      appelants ne les rattrape, sauf `_rejouer`, dont l'appel est enveloppé par le
-      enveloppe de secours du voisinage dans `juger`. Et un de ses appels peut ne pas
+    ⑪ TERMINAISON — Rend la main dans le cas normal. PEUT LEVER, non rattrapées ici :
+      ValueError quand la fiche n'est pas jouable (`manques_du_jeu`) ou qu'un seuil
+      est illisible ou mal signé (`seuil_de_la_fiche`) ; `SignalRefuse` quand la
+      sortie du signal est mal formée (contrôle de `SignalNomme`, 31-10-2026) —
+      `main` en fait une fiche « REFUSÉE AU JEU » ;
+      TypeError quand `mod_signal` n'est pas un
+      `SignalNomme` ; l'erreur du module de positions quand il n'expose pas la
+      fonction de frais ; et TOUTE ERREUR DE LA FONCTION DE SIGNAL NOMMÉE, par
+      exemple ValueError sur un réglage de mauvaise valeur (graine « 7 » en texte)
+      ou une fonction qui n'est pas un signal. `main` les rattrape fiche par fiche
+      et met la fiche « EN ÉCHEC » (depuis le 31-10-2026) ; `_rejouer` est enveloppé
+      par l'enveloppe de secours du voisinage dans `juger` ; la moulinette et le
+      juge à 8 critères, qui jouent une fiche par lancement, s'arrêtent sur une
+      trace ou un code non nul. Et un de ses appels peut ne pas
       revenir : la fonction de signal du module chargé est du code tiers, et rien
       ne borne son temps d'exécution.
       [sort: non]
@@ -1803,8 +2339,13 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       la table : `CRITERES_VALIDATION_EXPERTS`, lignes 1730 à 1740, qui porte les neuf seuils et le sens de comparaison de chacun
 """
     bareme = bareme_des_verdicts(bareme, mod_positions)   # le barème des verdicts, sauf barème donné (D2)
-    tp = pourcent(fiche["tp"])
-    sl = pourcent(fiche["sl"])
+    # UNE FICHE QUE LE JUGE NE SAIT PAS JOUER N'EST PAS JOUÉE, même par un appelant qui ne passe pas par la porte 0
+    # (le juge à 8 critères) : points 5 et 9 du plan du juge, 31-10-2026.
+    _non_jouable = manques_du_jeu(fiche)
+    if _non_jouable:
+        raise ValueError("fiche %s non jouable : %s" % (fiche.get("id") or "(sans identifiant)", " ; ".join(_non_jouable)))
+    tp = seuil_de_la_fiche(fiche, "tp")
+    sl = seuil_de_la_fiche(fiche, "sl")
     h = lire_horizon(fiche["horizon"])
 
     demandes = [x.strip().upper() for x in fiche["univers"].split(",") if x.strip()]
@@ -1816,10 +2357,12 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
         else:
             inconnus.append(m)
 
-    nom_fn = fiche.get("_fonction_signal", "signaux")
-    fn = getattr(mod_signal, nom_fn, None)
-    if fn is None:
-        raise RuntimeError("le module de signal n'expose pas " + repr(nom_fn))
+    # LE SIGNAL EST CELUI QUE LA FICHE NOMME, LU PAR `signal_de_la_fiche` SEULE (A-542, 30-10-2026) : plus aucun
+    # repli — un module passé à la place, ou une fonction prise ailleurs, est refusé.
+    if not isinstance(mod_signal, SignalNomme):
+        raise TypeError("jouer attend le signal de la fiche, rendu par signal_de_la_fiche (A-542) ; recu %r"
+                        % type(mod_signal).__name__)
+    fn = mod_signal
 
     ops = []
     for v in univers:
@@ -1988,7 +2531,8 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       peut valoir `None` · `mod_pos` : le module de positions · `mnemo` : la table
       des codes courts, vide par défaut · `_bornes` : le couple des bornes de
       période rendu par la porte 0 · `mod_pos_sig` : un tuple d'un seul élément,
-      le module de signal, dont seul le premier élément est employé · `lecture` : le
+      le signal de la fiche (un `SignalNomme`, depuis le 30-10-2026, A-542 ; avant,
+      le module de signal), dont seul le premier élément est employé · `lecture` : le
       second rendu de `lire_par_le_lecteur`, ou `None` ; il est passé tel quel à `jouer`
       quand la stabilité paramétrique rejoue la fiche (`_rejouer`), pour que les voisins se
       jouent comme la fiche (27-10-2026). L'étalon de hasard, lui, ne le reçoit pas (BACKLOG
@@ -2150,8 +2694,8 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
 """
     bareme = bareme_des_verdicts(bareme, mod_pos)   # le barème des verdicts, sauf barème donné (D2, 29-10-2026)
     mnemo = mnemo or {}
-    tp = pourcent(fiche["tp"])
-    sl = pourcent(fiche["sl"])
+    tp = seuil_de_la_fiche(fiche, "tp")
+    sl = seuil_de_la_fiche(fiche, "sl")
     h = lire_horizon(fiche["horizon"])
     n = len(ops)
     if n < 5:
@@ -2564,7 +3108,15 @@ def resumer(ops):
             "motifs": dict(sorted(motifs.items()))}
 
 
-def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, table=None):
+# LE SIGNAL DU CALIBRAGE (A-542, 30-10-2026) : le calibrage rejoue la stratégie de référence du golden, C5-ETENDU-10,
+# et le golden nomme lui-même le module qui l'a produit (`meta.module`). Ce n'est PAS un repli pour les fiches : seule
+# la fiche de calibrage, construite par `calibrer`, porte ces trois valeurs, et elles passent par `signal_de_la_fiche`
+# comme toute fiche. `calibrer` refuse si le module nommé ici n'est pas celui que le golden déclare.
+SIGNAL_DU_CALIBRAGE = {"module_signal": "programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py",
+                       "fonction_signal": "signaux_c5etendu10", "reglages_signal": ""}
+
+
+def calibrer(cours, mnemo, base, mod_positions, golden, f_cours=None, table=None):
     """Calibre l'INSTRUMENT, pas la strategie : une strategie neuve n'a aucun
     chiffre de reference. LE NET N'EST PAS EXIGE — le golden a ete produit avec
     la mecanique de sortie theorique, le juge des stratégies emploie la mecanique reelle, et
@@ -2579,7 +3131,9 @@ def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, tabl
       la moindre fiche, et seulement si un fichier de chiffres figés a été trouvé.
       Jamais appelée ailleurs.
     ③ ENTRÉE — `cours` : les séries par valeur sur lesquelles rejouer · `mnemo` :
-      la table des codes courts · `mod_signal` : le module de signal · `mod_positions` :
+      la table des codes courts · `base` : la racine du dépôt, où `signal_de_la_fiche` trouve
+      le module de signal nommé par `SIGNAL_DU_CALIBRAGE` (avant le 30-10-2026 : le module de
+      signal lui-même, chargé par `main` sous le motif « MODULE_C5_ETENDU_10 ») · `mod_positions` :
       le module de positions · `golden` : le contenu du fichier de chiffres figés,
       déjà lu · `f_cours` : le chemin du fichier de cours employé, pour en vérifier
       l'empreinte, `None` si l'appelant n'en donne pas. Mesuré le 20-09-2026,
@@ -2588,7 +3142,10 @@ def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, tabl
       tableau de référence des 100 trades, que `main` passe quand il calibre sur le
       témoin du golden, `None` sinon.
     ④ CONDITIONS D'ENTRÉE — Le golden doit porter une entrée `C5-ETENDU-10` avec
-      sa comptabilité « jetons illimités ». Le module de signal doit exposer la
+      sa comptabilité « jetons illimités », et le PREMIER MOT de son `meta.module`
+      doit être ÉGAL au nom du fichier nommé par `SIGNAL_DU_CALIBRAGE` (le golden
+      porte « MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py (inchange) » ; un chemin
+      « programmes/MODULE_… » y ferait échouer le calibrage, ⑨ consigné). Ce module doit exposer la
       liste de valeurs `C5E10_UNIVERS` et la fonction `signaux_c5etendu10`. Les
       cours doivent couvrir la période de référence.
     ⑤ SORTIE — DEUX valeurs : un oui-ou-non qui dit si l'instrument est calibré, et
@@ -2665,10 +3222,12 @@ def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, tabl
       réimporte la bibliothèque et refait le calcul. Relevé le 20-09-2026 :
       `hexdigest()[:16]` apparaît 3 fois dans le fichier, l'appel `empreinte(`
       seulement 2.
-      ⑤ LE NOM DE LA FONCTION DE SIGNAL EST ÉCRIT ICI ET RÉÉCRIT DANS `main`. Les
-      deux disent `signaux_c5etendu10`, et `programmes/JUGER_SUR_8_CRITERES.py` le
-      réécrit une troisième fois à sa ligne 1203, en disant explicitement qu'il
-      reprend la valeur du juge des stratégies.
+      ⑤ (RÉPARÉ LE 30-10-2026, A-542) Le nom de la fonction de signal était écrit ici,
+      réécrit dans `main` et dans `programmes/JUGER_SUR_8_CRITERES.py`. Il n'est plus
+      écrit qu'ici, dans `SIGNAL_DU_CALIBRAGE`, pour la seule fiche de calibrage, et
+      confronté au module que le golden déclare. Restent deux écritures du NOM DU
+      FICHIER du module, celle-ci et `meta.module` du golden : c'est voulu, la seconde
+      contrôle la première.
       ⑥ LA DATE DE FIN A UNE VALEUR DE REPLI ÉCRITE EN DUR, `2026-07-10`, employée
       si le golden ne déclare pas la sienne. Un golden muet ferait donc calibrer sur
       une fenêtre choisie ailleurs que dans le golden, sans qu'un mot ne soit dit.
@@ -2681,8 +3240,8 @@ def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, tabl
       et le module de positions.
     ⑪ TERMINAISON — Rend la main dans le cas normal, avec le verdict et les lignes.
       PEUT LEVER si `porte_0` rend deux valeurs au lieu de trois, ce qui
-      arriverait si la période composée ici devenait illisible, et si `jouer` ne
-      trouve pas la fonction de signal attendue. Et un de ses appels peut ne pas
+      arriverait si la période composée ici devenait illisible. Un signal
+      introuvable rend un refus (faux et une ligne), il ne lève pas. Et un de ses appels peut ne pas
       revenir : `jouer` appelle du code tiers dont le temps n'est pas borné.
       [sort: non]
     ⑫ DÉFINITIONS
@@ -2780,16 +3339,30 @@ def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, tabl
     # que rien ne garantisse qu'elles disent la meme chose : la structure exacte
     # d'A-308, la regle juste chez celui qui la porte et absente chez le voisin.
     # Le calibrage PROUVE desormais la porte au lieu de la contourner.
+    # LE MODULE DU CALIBRAGE EST CELUI QUE LE GOLDEN DÉCLARE (A-542, 30-10-2026), et il passe par la lecture unique.
+    # (Le chemin se lit sur le signal rendu, jamais dans le dictionnaire : les colonnes du signal ne se lisent que dans
+    # `manques_du_signal` et `signal_de_la_fiche`, ce que l'épreuve du signal nommé vérifie.)
+    try:
+        _sig_cal = signal_de_la_fiche(base, dict(SIGNAL_DU_CALIBRAGE, id="calibrage"))
+    except ValueError as _e:
+        return False, ["    " + str(_e)]
+    _mod_golden = str((golden.get("meta", {}) or {}).get("module") or "").split(" ")[0]
+    _mod_cal = os.path.basename(_sig_cal.chemin)
+    if _mod_golden != _mod_cal:
+        return False, ["    le golden declare le module %r, le calibrage nomme %r : rien n'est calibre"
+                       % (_mod_golden or "(aucun)", _mod_cal)]
     fiche = {"tp": "+4.0%", "sl": "-2.5%", "horizon": "20",
-             "univers": ",".join(getattr(mod_signal, "C5E10_UNIVERS", [])),
+             # C5 achète à l'ouverture du lendemain et ne lit que les cours (points 5 et 9, 31-10-2026)
+             "entree": "Open J+1", "donnees_demandees": "cours",
+             "univers": ",".join(getattr(_sig_cal.module, "C5E10_UNIVERS", [])),
              "indicateurs": "calibrage",
              # UNE BORNE OUVERTE S'ECRIT AVEC UNE VRAIE DATE. « 0000-00-00 »
              # n'existe pas dans le calendrier, et la porte 0 le refuse depuis
              # qu'elle valide les dates — elle a raison. On prend donc la
              # premiere seance de l'historique, qui est la vraie borne basse.
              "periode": (min(min(b["date"] for b in s) for s in cours.values())
-                         + " -> " + fin),
-             "_fonction_signal": "signaux_c5etendu10"}
+                         + " -> " + fin)}
+    fiche.update(SIGNAL_DU_CALIBRAGE)
     _ok0, _manq0, _bornes0 = porte_0(fiche)
     if not _ok0:
         return False, ["    la fiche de calibrage elle-meme est refusee a la "
@@ -2808,7 +3381,7 @@ def calibrer(cours, mnemo, mod_signal, mod_positions, golden, f_cours=None, tabl
     # (REEL depuis la décision de Jean-Luc du 29-10-2026 à 19h16, HIST_COURTAGE_SANS_TTF avant) — une réparation (D2)
     # avait rendu la phrase fausse.
     _bareme_cal = bareme_des_verdicts(None, mod_positions)
-    ops, _ = jouer(fiche, cours, mnemo, mod_signal, mod_positions,
+    ops, _ = jouer(fiche, cours, mnemo, _sig_cal, mod_positions,
                    periode=_bornes0, bareme=_bareme_cal)
     r = resumer(ops)
     lignes, ok = list(prealables), True
@@ -2876,30 +3449,50 @@ def main():
       argument est le dossier racine, `/mnt/project` s'il est absent ; le second est
       l'identifiant d'une seule fiche à juger, toutes les fiches recevables étant
       jouées s'il est absent.
-    ④ CONDITIONS D'ENTRÉE — Quatre fichiers doivent exister sous la racine : le
-      registre des stratégies, les cours, le module de signal et le module de
-      positions. Les cours sont ceux du fichier maître, `donnees/cours_maitre.csv` :
+    ④ CONDITIONS D'ENTRÉE — Trois fichiers doivent exister sous la racine : le
+      registre des stratégies, les cours et le module de positions. Depuis le
+      30-10-2026 (A-542), le module de signal n'est plus cherché ici : chaque fiche
+      nomme le sien, et une fiche dont le module est introuvable est refusée à la
+      porte 0, sans arrêter les autres. Une fiche qui passe la porte 0 mais dont le
+      JEU ou le JUGEMENT lève (par exemple un réglage de mauvaise valeur, graine
+      « 7 » en texte) est mise « EN ÉCHEC », ce qui n'est pas un refus, et les
+      fiches suivantes sont jugées (superviseur R-759 du 31-10-2026). Les cours sont ceux du fichier maître, `donnees/cours_maitre.csv` :
       s'il manque, le juge des stratégies s'arrête (A-442). Le référentiel des valeurs, le golden,
       le module de jugement et le module de statistiques peuvent manquer ; le
       rapport est alors plus pauvre, et il le dit pour le module de jugement.
     ⑤ SORTIE — UNE valeur : un entier passé à la sortie du processus. 0 quand le
       rapport est allé au bout, et 0 aussi quand aucune fiche n'était recevable,
       ce qui n'est pas un échec mais la porte 0 qui fait son travail. 1 quand un
-      fichier indispensable manque, et 1 quand le calibrage échoue.
+      fichier indispensable manque, 1 quand le calibrage échoue, et 1 quand une
+      fiche au moins est « EN ÉCHEC » : un contrôle qui n'a pas pu tourner ne rend
+      pas 0 (R-734).
       [rend: 1]
     ⑥ TRAITEMENT — ① afficher la version et l'heure de Paris · ② relever les sept
-      fichiers par leur nom réel · ③ alerter si l'un des quatre noms surveillés
+      fichiers par leur nom réel · ③ alerter si l'un des trois noms surveillés
       répond sous plusieurs graphies · ④ afficher chaque fichier avec son empreinte
       · ⑤ désigner le fichier maître des cours par `fichiers_de_cours`, et
       s'arrêter s'il manque · ⑥ s'arrêter si un fichier indispensable manque · ⑦ charger les cours,
-      la table des mnémoniques et les quatre modules · ⑧ lire le registre des
-      stratégies et n'y garder que les lignes à l'état LABO ou QA · ⑨ passer chaque
-      fiche restante par la porte 0 et afficher le verdict ligne à ligne ·
+      la table des mnémoniques et les trois modules (positions, jugement,
+      statistiques) · ⑧ lire le registre des
+      stratégies par `fiches_du_registre` du contrat — une fiche par identifiant,
+      sa DERNIÈRE ligne (n°83, depuis le 05-11-2026) — et n'y garder que les
+      fiches à l'état LABO ou QA · ⑨ passer chaque
+      fiche restante par la porte 0, puis lire le signal qu'elle nomme
+      (`signal_de_la_fiche`, A-542) et la refuser s'il est introuvable, et afficher
+      le verdict ligne à ligne ·
       ⑩ calibrer l'instrument sur le témoin du golden si son empreinte est conforme,
       sur le fichier vivant sinon, et s'arrêter si le calibrage échoue · ⑪ pour
-      chaque fiche recevable, afficher ses réglages, la jouer, la résumer, compter
-      ses sorties sur saut, puis appeler le jugement · ⑫ rappeler que le juge des stratégies ne
-      conclut pas.
+      chaque fiche recevable, afficher ses réglages et son signal, la jouer avec CE
+      signal, la résumer, compter
+      ses sorties sur saut, puis appeler le jugement ; une fiche dont le jeu ou le
+      jugement lève (`SystemExit` compris) est mise « EN ÉCHEC » et la suivante est
+      jugée ; depuis le 31-10-2026, une fiche dont le signal est refusé au jeu
+      (`SignalRefuse` : sortie mal formée) est dite « REFUSÉE
+      AU JEU », ce qui n'est pas une panne et ne change pas le code ; et chaque
+      fiche jouée affiche, sous la ligne de son signal, « filtres non joués : »
+      suivi du texte de sa colonne `filtres` quand elle n'est pas vide (décision de
+      Jean-Luc du 31-10-2026 à 17h15, QJ-17) · ⑫ rappeler que le juge des stratégies ne conclut pas, lister les fiches
+      EN ÉCHEC et rendre 1 s'il y en a.
       la table : `CRITERES_VALIDATION_EXPERTS`, lignes 1730 à 1740, qui porte les neuf seuils et le sens de comparaison de chacun
     ⑦ UNITÉ — Les fiches se comptent en LIGNES DE REGISTRE. Les opérations se
       comptent à l'unité. Les gains sont en EUROS. Les empreintes sont des nombres
@@ -2962,9 +3555,10 @@ def main():
       rapport perd le voisinage des réglages et le pire creux, remplacés par deux
       lignes « non mesure : 'NoneType' object has no attribute … » au milieu de
       quinze autres, sans alerte en tête.
-      ⑤ QUATRE NOMS SONT SURVEILLÉS CONTRE LES GRAPHIES MULTIPLES, DIX SONT
-      CHERCHÉS. La boucle d'alerte porte sur le registre des stratégies, les cours,
-      le module de signal et le module de positions. Le golden, son témoin, le
+      ⑤ TROIS NOMS SONT SURVEILLÉS CONTRE LES GRAPHIES MULTIPLES, NEUF SONT
+      CHERCHÉS. La boucle d'alerte porte sur le registre des stratégies, les cours
+      et le module de positions (le module de signal en est sorti le 30-10-2026 :
+      chaque fiche le nomme par son chemin exact, A-542). Le golden, son témoin, le
       référentiel des valeurs, les cours du jour, le module de jugement et le module
       de statistiques ne sont pas surveillés : un doublon sur l'un d'eux serait
       tranché en silence.
@@ -2972,24 +3566,31 @@ def main():
       `empreinte` existe dans ce même fichier et fait exactement cela ; ce passage
       réimporte la bibliothèque et recalcule. Relevé le 20-09-2026 :
       `hexdigest()[:16]` apparaît 3 fois, l'appel `empreinte(` 2 fois.
-      ⑦ LE NOM DE LA FONCTION DE SIGNAL EST ÉCRIT ICI EN CLAIR, `signaux_c5etendu10`,
-      et une seconde fois dans `calibrer`. Le registre des stratégies ne porte pas
-      cette colonne : le nom ne peut donc pas venir de la fiche, et il est décidé
-      dans le code, à deux endroits.
+      ⑦ (RÉPARÉ LE 30-10-2026, A-542) Le nom de la fonction de signal était écrit ici
+      en clair, `signaux_c5etendu10`, et imposé à toute fiche. Le registre porte
+      désormais `module_signal`, `fonction_signal` et `reglages_signal`, lus par
+      `signal_de_la_fiche` seule ; une fiche sans signal nommé est refusée.
       ⑧ LE GOLDEN EST LU SANS PROTECTION. Le fichier est ouvert et décodé
       directement ; un fichier tronqué ou mal formé arrêterait le programme sur une
       erreur brute, alors que tout le reste de cette fonction traite l'absence d'un
       fichier comme une situation prévue.
     ⑩ EFFET — N'ÉCRIT AUCUN FICHIER et ne touche pas au réseau : `git status` reste
       vide après un passage complet sur une copie du dépôt, mesuré le 20-09-2026.
-      Elle LIT sept fichiers, EXÉCUTE le code de quatre modules Python chargés
-      depuis le disque, et AFFICHE le rapport : 167 lignes mesurées le 20-09-2026
+      Elle LIT sept fichiers, EXÉCUTE le code des modules Python chargés
+      depuis le disque (positions, jugement, statistiques, et le module de signal
+      nommé par chaque fiche recevable), et AFFICHE le rapport : 167 lignes mesurées le 20-09-2026
       sur un passage complet.
-    ⑪ TERMINAISON — Rend la main avec 0 ou 1 dans le cas normal. PEUT LEVER des
+    ⑪ TERMINAISON — Rend la main avec 0 ou 1 dans le cas normal. Une erreur levée
+      par `jouer` ou `juger` pour UNE fiche, `SystemExit` compris, est rattrapée : la
+      fiche est « EN ÉCHEC », les suivantes sont jugées, le code final est 1. Un module
+      de signal non déclaré, illisible, ou qui lève ou sort au chargement est REFUSÉ à
+      la porte 0 (`signal_de_la_fiche`), sans arrêter les autres. PEUT LEVER des
       erreurs non rattrapées qui arrêtent alors le programme : sur une fiche dont la
-      période est mal formée, mesuré le 20-09-2026 ; sur une fiche passée qui
-      arriverait sans bornes, ce que le code signale lui-même ; sur un fichier
-      indispensable illisible ; et sur un golden mal formé. Et un de ses appels peut
+      période est mal formée, mesuré le 20-09-2026 — défaut ANTÉRIEUR au lot L3,
+      `porte_0` rendant deux valeurs au lieu de trois (son ⑤), consigné au BACKLOG ; sur une fiche passée qui
+      arriverait sans bornes, ce que le code signale lui-même et qui reste HORS de
+      l'enveloppe, parce qu'elle dit une incohérence du juge et non de la fiche ;
+      sur un fichier indispensable illisible ; et sur un golden mal formé. Et un de ses appels peut
       ne pas revenir : `charger_module` exécute le contenu des fichiers qu'il
       charge, et `jouer` comme `juger` appellent du code tiers dont le temps n'est
       pas borné.
@@ -3071,7 +3672,12 @@ def main():
     # RESSEMBLANCE DE NOMS — exactement ce que le chapitre IDENTITE DES VALEURS
     # interdit, et qui a coute 26 % d'une mesure le 23/08.
     # Un objet, un nom, un registre, de la naissance a la mort.
-    f_sas = trouver(base, "cac40_strategies.csv")
+    # LE NOM DU REGISTRE ET SA LECTURE VIVENT AU CONTRAT (n°83, 05-11-2026) : ce programme le cherche par son nom,
+    # écrit une fois dans programmes/CONTRATS_DES_FICHIERS.py, et le lit par `fiches_du_registre` (la dernière ligne
+    # d'un identifiant fait foi). Importé ici, au moment de lire, pour que les programmes qui chargent le juge comme
+    # une bibliothèque (le soir, la moulinette, les épreuves) n'en dépendent pas.
+    from CONTRATS_DES_FICHIERS import NOM_DU_REGISTRE_DES_STRATEGIES, fiches_du_registre
+    f_sas = trouver(base, NOM_DU_REGISTRE_DES_STRATEGIES)
     # LES COURS VIENNENT DU SEUL FICHIER MAITRE, designe par `fichiers_de_cours` :
     # une seule facon de le trouver dans tout le systeme (A-442, R-708).
     try:
@@ -3080,14 +3686,14 @@ def main():
         print(_e)
         return 1
     f_ref = trouver(base, "REFERENTIEL_VALEURS")
-    f_sig = trouver(base, "MODULE_C5_ETENDU_10")
+    # LE MODULE DE SIGNAL N'EST PLUS CHERCHÉ ICI (A-542, 30-10-2026) : chaque fiche nomme le sien, par son chemin exact,
+    # et `signal_de_la_fiche` le charge. Avant, le motif « MODULE_C5_ETENDU_10 » l'imposait à toutes les fiches.
     f_pos = trouver(base, "MODULE_POSITIONS.py")
     f_gold = trouver(base, "golden_tests_")
 
     # UN NOM QUI REPOND DEUX FOIS EST UNE ALERTE, jamais un choix silencieux.
-    for _lib, _mot in (("le registre des strategies", "cac40_strategies.csv"),
+    for _lib, _mot in (("le registre des strategies", NOM_DU_REGISTRE_DES_STRATEGIES),
                        ("les cours", "cours_maitre.csv"),
-                       ("le module de signal", "MODULE_C5_ETENDU_10"),
                        ("le module de positions", "MODULE_POSITIONS.py")):
         _tous = trouver_tous(base, _mot)
         if len(_tous) > 1:
@@ -3101,7 +3707,7 @@ def main():
     print("FICHIERS RELEVES - noms reels, jamais supposes (R-719) :")
     for lib, ch in (("registre des strategies", f_sas), ("cours", f_cours),
                     ("referentiel", f_ref),
-                    ("module de signal", f_sig), ("module de positions", f_pos),
+                    ("module de positions", f_pos),
                     ("chiffres figes", f_gold)):
         if ch:
             print("  %-22s %-46s %s" % (lib, os.path.basename(ch), empreinte(ch)))
@@ -3110,7 +3716,6 @@ def main():
     print()
 
     manquants = [l for l, c in (("registre des strategies", f_sas), ("cours", f_cours),
-                                ("module de signal", f_sig),
                                 ("module de positions", f_pos)) if not c]
     if manquants:
         print("ARRET : introuvable - %s. Rien n'est produit." % ", ".join(manquants))
@@ -3135,7 +3740,6 @@ def main():
                      if m[i - 1][-1]["date"] < d < m[i][0]["date"])
     print("LECTURE : par le lecteur unique ; achats limites aux valeurs du CAC 40 le jour de l'achat ;"
           " %d coupures des series, sur %d seances sans cours" % (_coupures, _enjambees))
-    mod_sig = charger_module(f_sig, "sig")
     mod_pos = charger_module(f_pos, "pos")
     f_jug = trouver(base, "MODULE_JUGEMENT.py")
     f_sta = trouver(base, "MODULE_STATISTIQUES")
@@ -3146,7 +3750,10 @@ def main():
         print("  Le juge des stratégies rendra les gains, mais PAS les mesures qui disent si")
         print("  ces gains veulent dire quelque chose. Ce n'est pas un jugement.\n")
     seances = {b["date"] for s in cours.values() for b in s}
-    fiches = list(csv.DictReader(open(f_sas, encoding="utf-8-sig")))
+    # UNE FICHE PAR IDENTIFIANT, SA DERNIÈRE LIGNE (décision de Jean-Luc n°83, 01-11-2026 à 12h33 : « La dernière
+    # ligne ajoutée fait foi. Les précédentes restent comme historique. ») ; avant le 05-11-2026, chaque ligne était
+    # jugée, l'ancienne ligne de C5-EI-PARAMS comprise (refusée à la porte 0).
+    fiches = list(fiches_du_registre(f_sas).values())
     print("DONNEES : %d valeurs . %d mnemoniques . %d fiches au registre\n"
           % (len(cours), len(mnemo), len(fiches)))
 
@@ -3189,6 +3796,13 @@ def main():
     passees = []
     for f in fiches:
         ok, manq, _b0 = porte_0(f)
+        if ok:
+            # LE SIGNAL NOMMÉ SE LIT DÈS LA PORTE (A-542, 30-10-2026) : un module ou une fonction introuvable refuse la
+            # fiche ici, avec son motif, au lieu de lever au milieu du jeu.
+            try:
+                f["_signal"] = signal_de_la_fiche(base, f)
+            except ValueError as _e:
+                ok, manq = False, [str(_e)]
         if ok:
             f["_bornes"] = _b0
             passees.append(f)
@@ -3234,7 +3848,7 @@ def main():
             print("  ARRET : le tableau de reference des 100 trades est introuvable — "
                   "les sorties ne peuvent pas etre comparees.")
             return 1
-        ok, lignes = calibrer(_cours_cal, mnemo, mod_sig, mod_pos, golden, _f_cal, _f_tab)
+        ok, lignes = calibrer(_cours_cal, mnemo, base, mod_pos, golden, _f_cal, _f_tab)
         print("CALIBRAGE DE L'INSTRUMENT (9bis) - rejoue C5-ETENDU-10 :")
         for l in lignes:
             print(l)
@@ -3248,10 +3862,19 @@ def main():
         # du 27-10-2026) : une faute de frappe dans l'identifiant rendait 0 sans rien juger.
         print("ARRET : la fiche visee %s n'est pas parmi les fiches qui passent la porte 0. Rien n'est juge." % cible)
         return 1
+    # UNE ERREUR AU CHARGEMENT DU SIGNAL, AU JEU OU AU JUGEMENT D'UNE FICHE N'ARRÊTE PAS LES SUIVANTES (superviseur R-759
+    # du 31-10-2026, I1 ; tour 3 : `SystemExit` compris). Une fiche qui passe la porte 0 peut encore lever au jeu — un
+    # réglage de mauvaise VALEUR, graine « 7 » en texte, que `bind` ne voit pas. Elle est mise « EN ÉCHEC », ce qui n'est
+    # pas un refus (un refus dit qu'un champ manque), les suivantes sont jugées, et le code final est 1 (R-734).
+    # CE QUI ARRÊTE ENCORE TOUT, ET C'EST ANTÉRIEUR AU LOT : une période mal formée, parce que `porte_0` rend alors deux
+    # valeurs au lieu de trois (son ⑤ ; consigné au BACKLOG) ; et une fiche sans bornes après la porte, voulu. Mesuré par le superviseur : sans cette enveloppe, une telle fiche placée en tête
+    # du registre arrêtait le juge, et aucune des trois fiches C5 n'était jugée.
+    en_echec = []
     for f in passees:
         if cible and f["id"] != cible:
             continue
-        f.setdefault("_fonction_signal", "signaux_c5etendu10")
+        # LE SIGNAL JOUÉ EST CELUI QUE LA FICHE NOMME, LU À LA PORTE (A-542, 30-10-2026) — plus aucun repli vers C5.
+        mod_sig = f["_signal"]
         print("=== %s . %s" % (f["id"], f["nom"]))
         print("    %s" % f["indicateurs"][:88])
         print("    TP %s . SL %s . horizon %s seances" % (f["tp"], f["sl"], f["horizon"]))
@@ -3269,15 +3892,35 @@ def main():
             raise RuntimeError("fiche sans bornes apres la porte 0 : la porte "
                                "et le jugement ne lisent plus la meme chose")
         print("    periode de la fiche : %s -> %s" % _bornes)
-        ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture)
+        try:
+            ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture)
+        except SignalRefuse as _refus_au_jeu:
+            # UN REFUS NOMMÉ, PAS UNE PANNE (point 8 du plan du juge, 31-10-2026) : sortie du signal mal formée. La fiche
+            # n'est pas jugée ; ce n'est pas « EN ÉCHEC », le code ne change pas.
+            print("    REFUSÉE AU JEU (ce n'est pas une panne) : %s\n" % _refus_au_jeu)
+            continue
+        except (Exception, SystemExit) as _ex_jeu:
+            en_echec.append(f["id"])
+            print("    EN ÉCHEC (ce n'est pas un refus) : %s : %s\n" % (type(_ex_jeu).__name__, _ex_jeu))
+            continue
         if inconnus:
             print("    ALERTE - valeurs demandees et absentes des cours : %s" % inconnus)
         r = resumer(ops)
+        # LE SIGNAL JOUÉ SE DIT, APRÈS LE RÉSULTAT (A-542) : la ligne du résultat reste à sa place, trois lignes au plus
+        # après « === » — tests/EPREUVES_DU_JUGE_PAR_LE_LECTEUR (M3) et la moulinette la lisent là.
+        _ligne_signal = "    signal : %s . empreinte du module %s" % (mod_sig.declaration, empreinte(mod_sig.module.__file__))
+        # LES FILTRES SE DISENT, ILS NE SE JOUENT PAS (décision de Jean-Luc du 31-10-2026 à 17h15, QJ-17) : la colonne
+        # `filtres` reste un texte affiché ; chaque verdict écrit ce qui n'a pas été joué.
+        _filtres = (f.get("filtres") or "").strip()
+        if _filtres.lower() not in VIDE:
+            _ligne_signal += "\n    filtres non joués : %s" % _filtres
         if r["n"] == 0:
+            print(_ligne_signal)
             print("    aucune operation produite.\n")
             continue
         print("    {} operations . {} % de reussite . {:+,.2f} EUR".format(
               r["n"], r["wr"], r["net"]))
+        print(_ligne_signal)
         print("    motifs : %s" % r["motifs"])
         gaps = [o for o in ops if o["motif"].endswith("_GAP")]
         if gaps:
@@ -3289,11 +3932,20 @@ def main():
         # Sans ce branchement, tout ce qui a ete mesure le 28/08 ne vivait
         # que dans des scripts jetables — donc nulle part.
         if mod_jug:
-            juger(f, ops, cours, seances, mod_jug, mod_stats, mod_pos, mnemo,
-                  _bornes, (mod_sig,), lecture=lecture)
+            try:
+                juger(f, ops, cours, seances, mod_jug, mod_stats, mod_pos, mnemo,
+                      _bornes, (mod_sig,), lecture=lecture)
+            except (Exception, SystemExit) as _ex_jugement:
+                en_echec.append(f["id"])
+                print("    EN ÉCHEC (ce n'est pas un refus) : %s : %s\n"
+                      % (type(_ex_jugement).__name__, _ex_jugement))
+                continue
         print()
 
     print("Pas de verdict oui / non : la grille qui le rendra (A-210) n'est pas encore figée.")
+    if en_echec:
+        print("FICHES EN ÉCHEC (%d) : %s — code de sortie 1 (R-734)" % (len(en_echec), ", ".join(en_echec)))
+        return 1
     return 0
 
 

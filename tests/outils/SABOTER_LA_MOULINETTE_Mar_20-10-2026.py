@@ -32,6 +32,9 @@ P = "programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py"
 D = "programmes/DECLINER_LES_STRATEGIES.py"
 E = "programmes/EPREUVES_DE_LA_DECLINAISON.py"
 T = "tests/EPREUVES_DE_LA_MOULINETTE_Mar_20-10-2026.py"
+# le chemin du registre, argument de l'épreuve de la déclinaison : il vit au contrat (n°83, 05-11-2026), pris au dépôt
+sys.path.insert(0, os.path.join(DEPOT, "programmes"))
+from CONTRATS_DES_FICHIERS import REGISTRE_DES_STRATEGIES
 MSG = ('return arreter("les résultats ne retrouvent pas le témoin : rien n\'est écrit")',
        'return arreter("les résultats ne retrouvent pas le témoin.")')
 # (nom, [(fichier, avant, apres)], code attendu : "rouge" ou "vert")
@@ -94,7 +97,7 @@ def jouer(s):
     # (tests/LANCEMENT_DES_EPREUVES.json). Le 20-10-2026, l'outil ne lançait que la première, et le sabotage M1,
     # que seule la seconde voit, sortait « NON CONFORME » à tort.
     r = subprocess.run([sys.executable, "-B", T, "."], cwd=copie, capture_output=True, text=True, timeout=1800)
-    r2 = subprocess.run([sys.executable, "-B", E, "donnees/cac40_strategies.csv"], cwd=copie, capture_output=True,
+    r2 = subprocess.run([sys.executable, "-B", E, REGISTRE_DES_STRATEGIES], cwd=copie, capture_output=True,
                         text=True, timeout=1800)
     shutil.rmtree(d, ignore_errors=True)
     fin = [l for l in r.stdout.splitlines() if l.startswith(("  ÉCHEC", "CAS :", "VERDICT"))]

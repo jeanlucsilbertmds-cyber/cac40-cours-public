@@ -57,7 +57,11 @@ mesure comptait pour une écriture : E17k5 de l'épreuve du cours propre). S38 s
 son sabotage retire les trois (mesuré le 25-10-2026 : sans la deuxième, il restait vert). · S41 COPIE EFFACÉE PAR SON
 DOSSIER OUVERT : l'enfant exécute une copie identique de CALCUL.py puis l'efface par os.remove(nom, dir_fd=…), lancé
 depuis un dossier programmes/ qui porte un leurre de même nom → 0 (la mesure prend l'empreinte du fichier effacé, pas du
-leurre ; cas conseillé par le superviseur R-759 du 25-10-2026, écrit et éprouvé par Cowork le 26-10-2026, P2).
+leurre ; cas conseillé par le superviseur R-759 du 25-10-2026, écrit et éprouvé par Cowork le 26-10-2026, P2). · S42
+SÉRIE HORS DE LA NUIT À PORTÉE « epreuve » (ajouté le 04-11-2026 ; décision de Jean-Luc n°71 du 01-11-2026 à 11h41 :
+la série de l'épreuve d'arrivée des signaux ne se rejoue que quand le code de l'épreuve change) : la table déclare
+« portee_du_releve » : « epreuve », le relevé ne porte que l'empreinte de l'épreuve, l'épreuve lit donnees/choix.txt
+et CALCUL.py change après le relevé → 0 (avec la portée « lectures », S32 et S35 rendent 1).
 
 LES SABOTAGES (avec --saboter) : chaque correction du certificateur est retirée, une à la fois, dans une copie ; l'épreuve
 qui la surveille DOIT changer de résultat. Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas une
@@ -381,10 +385,11 @@ def cas(nom, cert, tmp):
                '{"epreuves": {}, "delais": {"tests/EPREUVE_LENTE.py": {"secondes": 60}}}\n')
         c = certifier(cert, racine)
         return e == 0 and c == 0, f"référence {e}, épreuve de 8 s sous un délai déclaré de 60 s : {c} (attendu 0 puis 0)"
-    if nom in ("S31", "S32", "S33", "S35", "S36", "S37", "S38", "S39"):
+    if nom in ("S31", "S32", "S33", "S35", "S36", "S37", "S38", "S39", "S42"):
         racine, e = base(tmp, cert)
-        lit = ("import os\nopen(os.path.join(sys.argv[1], 'donnees', 'choix.txt')).read()\n" if nom == "S35" else "")
-        if nom == "S35":
+        lit = ("import os\nopen(os.path.join(sys.argv[1], 'donnees', 'choix.txt')).read()\n" if nom in ("S35", "S42")
+               else "")
+        if nom in ("S35", "S42"):
             ecrire(racine, "donnees/choix.txt", "1\n")
         if nom in ("S38", "S39"):
             ecrire(racine, "etudes/x/programmes/A.py", "def a():\n    return 1\n")
@@ -401,7 +406,8 @@ def cas(nom, cert, tmp):
         essais = 1 if nom in ("S36", "S37") else 0
         ecrire(racine, "tests/LANCEMENT_DES_EPREUVES.json",
                '{"epreuves": {}, "series_hors_de_la_nuit": {"tests/EPREUVE_CALCUL.py": '
-               '{"releve": "tests/resultats/SERIE_DE_CALCUL_*.txt", "essais_refaits_chaque_nuit": %d}}}\n' % essais)
+               '{"releve": "tests/resultats/SERIE_DE_CALCUL_*.txt", "essais_refaits_chaque_nuit": %d%s}}}\n'
+               % (essais, ', "portee_du_releve": "epreuve"' if nom == "S42" else ""))
         if nom != "S33":
             import importlib.util
             sp = importlib.util.spec_from_file_location("SERIE_", os.path.join(os.path.dirname(CERTIFICATEUR),
@@ -409,12 +415,13 @@ def cas(nom, cert, tmp):
             serie = importlib.util.module_from_spec(sp)
             sp.loader.exec_module(serie)
             serie.ecrire_le_releve(racine, "tests/resultats/SERIE_DE_CALCUL_1.txt", "tests/EPREUVE_CALCUL.py",
-                                   ["programmes/CALCUL.py"], ["S1 mord : ['E2']" if nom == "S37" else "S1 mord : ['E1']"],
+                                   [] if nom == "S42" else ["programmes/CALCUL.py"],
+                                   ["S1 mord : ['E2']" if nom == "S37" else "S1 mord : ['E1']"],
                                    True, ["cas de l'épreuve"])
-        if nom == "S32":
+        if nom in ("S32", "S42"):
             ecrire(racine, "programmes/CALCUL.py", CALCUL + "\n# changé après la série\n")
         c = certifier(cert, racine)
-        attendu = 0 if nom in ("S31", "S36", "S38", "S39") else 1
+        attendu = 0 if nom in ("S31", "S36", "S38", "S39", "S42") else 1
         return e == 0 and c == attendu, f"référence {e}, certification {c} (attendu 0 puis {attendu})"
     if nom == "S40":
         racine, e = base(tmp, cert)
@@ -569,7 +576,7 @@ def cas(nom, cert, tmp):
     return c == attendu, f"certification : {c} (attendu {attendu})"
 
 
-NOMS = ["Z0"] + [f"S{i}" for i in range(1, 42)]
+NOMS = ["Z0"] + [f"S{i}" for i in range(1, 43)]
 
 # Chaque correction du certificateur, retirée une à la fois : (nom, [(ancien, nouveau)], cas qui DOIT changer de résultat).
 SABOTAGES = [
@@ -640,6 +647,9 @@ SABOTAGES = [
      [("                if stat.S_ISLNK(os.lstat(nom).st_mode):\n                    return\n", ""),
       ("                elif une_entree:\n                    return\n", ""),
       ("isinstance(arguments[0], (str, bytes)) or _dans_la_mesure[0]:", "isinstance(arguments[0], (str, bytes)):")], "S38"),
+    # 04-11-2026, décision n°71 : la portée du relevé passe de la table à la vérification
+    ("portée du relevé non transmise", [('                                           entree_de_la_serie.get("portee"))',
+                                         '                                           None)')], "S42"),
     ("le chemin relatif à un dossier ouvert résolu par le dossier courant",
      [("                if dir_fd is not None and not os.path.isabs(nom):\n", "                if False:\n")], "S41"),
 ]
@@ -685,7 +695,7 @@ def jouer(travail):
 
 
 def main():
-    """Joue les quarante-deux cas, puis, avec --saboter, chaque sabotage ; rend 0, 1 ou 2.
+    """Joue les quarante-trois cas, puis, avec --saboter, chaque sabotage ; rend 0, 1 ou 2.
 
     ① RÔLE — Le programme entier (voir la fiche en tête).
     ② CONTEXTE D'APPEL — La ligne de commande ; le certificateur, à chaque certification.

@@ -46,6 +46,10 @@ TEMOIN = "temoins/TEMOIN_claude_journal_trades_DU_27-09-2026_JEU_DES_COMPTABILIT
 # superviseur R-759 du 25-10-2026, mesuré avec l'horizon d'OBS à une séance). Avec le journal témoin et les cours coupés,
 # c'est TOUT le jeu de données des cas qui font tourner le teneur qui est figé ; E3b et E3c restent sur le vivant.
 REGISTRE_TEMOIN = "temoins/TEMOIN_cac40_strategies_DU_10-10-2026_JEU_DES_COMPTABILITES.csv"
+# LE CHEMIN DU REGISTRE VIVANT et sa lecture vivent au contrat (n°83, 05-11-2026), jamais ici : le contrat est pris dans
+# le dépôt éprouvé (une constante de chemin ; les sabotages, eux, portent sur les copies).
+sys.path.insert(0, os.path.join(DEPOT, "programmes"))
+from CONTRATS_DES_FICHIERS import REGISTRE_DES_STRATEGIES, lignes_du_registre
 TEN, MES = "programmes/TENIR_LES_POSITIONS.py", "programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py"
 CON, COK = "programmes/CONTRATS_DES_FICHIERS.py", "programmes/GENERATEUR_COCKPIT_Sam_15-08-2026_21h50.py"
 AUD = "programmes/audit_ecosysteme.py"
@@ -88,12 +92,25 @@ VERTS = {"V1_ordre_des_comptabilites_inverse": [(CON, "COMPTABILITES = (UN_JETON
 SABOTAGES.update(VERTS)
 
 def copie(sab, vivant=False):
+    """Fait une copie du dépôt, y pose le jeu de données figé, et y applique un sabotage.
+
+    ① RÔLE — Donner à chaque cas sa copie, avec le journal témoin, le registre témoin et les cours coupés au jeu des
+      chiffres attendus. ② CONTEXTE D'APPEL — `epreuves`, une fois par cas qui lance un programme. ③ ENTRÉE — `sab` :
+      le nom du sabotage (clé de SABOTAGES) · `vivant` : vrai pour garder le vrai journal et le vrai registre (E3b,
+      E3c). ④ CONDITIONS D'ENTRÉE — Les témoins existent au dépôt ; chaque cible du sabotage existe une fois. ⑤ SORTIE
+      — UNE valeur : le dossier de la copie. [rend: 1] ⑥ TRAITEMENT — ① copier sans .git, caches · ② sauf `vivant`,
+      poser le journal témoin (étiqueté de ses barèmes), le registre témoin à l'endroit du registre (chemin pris au
+      contrat depuis n°83, 05-11-2026), couper les cours · ③ appliquer le sabotage. ⑦ UNITÉ — —. ⑧ POURQUOI — Les
+      chiffres attendus ne tiennent que sur un jeu de données figé (superviseurs R-759 du 25-10-2026). ⑨ CE QUI CLOCHE
+      — La copie n'est pas effacée ici : chaque cas l'efface lui-même. ⑩ EFFET — Écrit un dossier temporaire.
+      ⑪ TERMINAISON — Rend la main, ou lève AssertionError sur une cible absente. [sort: non]
+    """
     d = tempfile.mkdtemp(prefix="d3_")
     shutil.copytree(DEPOT, d, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git", "_site_travail", "__pycache__"))
     if not vivant:
         shutil.copyfile(os.path.join(d, TEMOIN), os.path.join(d, "donnees/claude_journal_trades.csv"))
         etiqueter_le_temoin(d)
-        shutil.copyfile(os.path.join(d, REGISTRE_TEMOIN), os.path.join(d, "donnees/cac40_strategies.csv"))
+        shutil.copyfile(os.path.join(d, REGISTRE_TEMOIN), os.path.join(d, REGISTRE_DES_STRATEGIES))
         couper_les_cours(d, DERNIERE_SEANCE_DU_JEU)
     for f, a, b in SABOTAGES[sab]:
         p = os.path.join(d, f); t = open(p, encoding="utf-8").read()
@@ -159,8 +176,24 @@ def mesure_lignes(out):
             re.findall(r"(C5E10-\w+-V1) · (un jeton|jetons illimites) : (\d+) operation\(s\) · cumul (\S+) EUR", out)}
 
 def epreuves(sab):
+    """Joue les cas E1 à E19 sous un sabotage, et rend leurs verdicts.
+
+    ① RÔLE — Les épreuves des deux comptabilités (un jeton, jetons illimités) : teneur, mesure, radar, cockpit.
+    ② CONTEXTE D'APPEL — Le programme principal, une fois par sabotage (Z0 compris). ③ ENTRÉE — `sab` : le nom du
+    sabotage. ④ CONDITIONS D'ENTRÉE — Celles de `copie`. ⑤ SORTIE — UNE valeur : la liste des (nom, réussi, détail).
+    [rend: 1] ⑥ TRAITEMENT — Pour chaque cas : une copie, un programme lancé, sa sortie jugée ; E15 et E16 ajoutent une
+    ligne au registre de la copie (lu, depuis n°83 du 05-11-2026, par `lignes_du_registre` du contrat : toutes les
+    lignes, puisque le fichier est réécrit). ⑦ UNITÉ — Des euros, des opérations, des séries de pertes. ⑧ POURQUOI —
+    Voir l'en-tête du fichier. ⑨ CE QUI CLOCHE — Les cas ne sont pas isolés en fonctions : un cas qui lève arrête les
+    suivants. ⑩ EFFET — Écrit et efface des copies temporaires. ⑪ TERMINAISON — Rend la main ; les sous-processus n'ont
+    pas de délai. [sort: non]
+    """
     res = []
     def dire(nom, ok, detail=""):
+        """Range un verdict. ① RÔLE — Ajouter (nom, réussi, détail) à `res`. ② CONTEXTE D'APPEL — `epreuves`, une fois
+        par élément jugé. ③ ENTRÉE — `nom`, `ok`, `detail`. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — Aucune. [rend: 0]
+        ⑥ TRAITEMENT — Un ajout. ⑦ UNITÉ — —. ⑧ POURQUOI — Un seul geste. ⑨ CE QUI CLOCHE — —. ⑩ EFFET — Modifie `res`.
+        ⑪ TERMINAISON — Rend la main. [sort: non]"""
         res.append((nom, ok, detail))
     # E1 calibrage du teneur
     d = copie(sab); c, o = run(d, TEN, d, "--calibrage")
@@ -221,8 +254,8 @@ def epreuves(sab):
     dire("E14 contrat illisible : le radar le dit, rapport complet", "CONTRATS_DES_FICHIERS illisible" in o and o.count("\n") > 50, f"{o.count(chr(10))} lignes")
     shutil.rmtree(d)
     # E15 deux strategies vivantes partagent un nom court : le radar l'ecarte et le dit, la mesure le dit
-    d = copie(sab); p = os.path.join(d, "donnees/cac40_strategies.csv")
-    reg = list(csv.DictReader(open(p, encoding="utf-8-sig")))
+    d = copie(sab); p = os.path.join(d, REGISTRE_DES_STRATEGIES)
+    reg = lignes_du_registre(p)       # toutes les lignes, historique compris : le fichier est réécrit plus bas
     reg.append(dict([r for r in reg if r["id"] == "C5E10-QA-V1"][0], id="C5E10-QA-V2"))
     with open(p, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=list(reg[0].keys())); w.writeheader(); w.writerows(reg)
@@ -234,8 +267,8 @@ def epreuves(sab):
     dire("E15c nom partage : la mesure le dit", "designe 2 strategies vivantes" in o, "")
     shutil.rmtree(d)
     # E16 une ligne ARCHIVEE du registre partage le nom de QA-V1 : seules les vivantes comptent, rien a dire
-    d = copie(sab); p = os.path.join(d, "donnees/cac40_strategies.csv")
-    reg = list(csv.DictReader(open(p, encoding="utf-8-sig")))
+    d = copie(sab); p = os.path.join(d, REGISTRE_DES_STRATEGIES)
+    reg = lignes_du_registre(p)       # toutes les lignes, historique compris : le fichier est réécrit plus bas
     reg.append(dict([r for r in reg if r["id"] == "C5E10-QA-V1"][0], id="C5E10-QA-V0", etat_vie="ARCHIVEE"))
     with open(p, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=list(reg[0].keys())); w.writeheader(); w.writerows(reg)

@@ -353,9 +353,25 @@ def run(d, *args):
 
 
 def epreuves(sab):
+    """Joue les cas du barème des frais sous un sabotage, et rend leurs verdicts.
+
+    ① RÔLE — Les épreuves du barème des frais (A-550) : garde-fou, lecture du barème, taxe, mesure, radar.
+    ② CONTEXTE D'APPEL — Le programme principal, une fois par sabotage (Z0 compris). ③ ENTRÉE — `sab` : le nom du
+    sabotage. ④ CONDITIONS D'ENTRÉE — Celles de `copie`. ⑤ SORTIE — UNE valeur : la liste des (nom, réussi, détail).
+    [rend: 1] ⑥ TRAITEMENT — Une copie, puis chaque cas : un programme ou un court programme « -c » lancé dans la copie,
+    sa sortie jugée ; les courts programmes qui lisent le registre des stratégies le font, depuis n°83 (05-11-2026), par
+    `lire_les_fiches` du contrat (la dernière ligne d'un identifiant fait foi). ⑦ UNITÉ — Des euros, des fractions.
+    ⑧ POURQUOI — Voir l'en-tête du fichier. ⑨ CE QUI CLOCHE — Les cas ne sont pas isolés en fonctions : un cas qui lève
+    arrête les suivants. ⑩ EFFET — Écrit et efface des copies temporaires. ⑪ TERMINAISON — Rend la main ; chaque
+    sous-processus a le délai de `run`. [sort: non]
+    """
     res = []
 
     def dire(nom, ok, detail=""):
+        """Range un verdict. ① RÔLE — Ajouter (nom, réussi, détail) à `res`. ② CONTEXTE D'APPEL — `epreuves`, une fois
+        par élément jugé. ③ ENTRÉE — `nom`, `ok`, `detail`. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — Aucune. [rend: 0]
+        ⑥ TRAITEMENT — Un ajout. ⑦ UNITÉ — —. ⑧ POURQUOI — Un seul geste. ⑨ CE QUI CLOCHE — —. ⑩ EFFET — Modifie `res`.
+        ⑪ TERMINAISON — Rend la main. [sort: non]"""
         res.append((nom, bool(ok), detail))
 
     d = copie(sab)
@@ -639,7 +655,8 @@ def epreuves(sab):
                             "v = sorted(n, key=lambda x: (-n[x], x))[0]\n"
                             "mn = sorted({x['mnemonique'] for x in tt if x['mnemonique'].upper() == v.upper() or B.cle_valeur(x['nom_usuel']) == B.cle_valeur(v)})\n"
                             "ans = sorted({o['date_entree'][:4] for o in j if o['valeur'] == v})\n"
-                            "viv = [r for r in csv.DictReader(open('donnees/cac40_strategies.csv', encoding='utf-8-sig')) if (r.get('etat_vie') or '').strip().upper() in ('QA', 'PRODUCTION')]\n"
+                            # le registre se nomme et se lit au contrat ; la dernière ligne fait foi (n°83, 05-11-2026)
+                            "viv = [r for r in C.lire_les_fiches('.').values() if (r.get('etat_vie') or '').strip().upper() in ('QA', 'PRODUCTION')]\n"
                             "tou = sorted({(r['id'], o['comptabilite'].replace('_', ' ')) for r in viv for o in j if o['valeur'] == v and (o.get('strategie') or '').strip() in C.noms_d_une_strategie(r)})\n"
                             "print('CHOIX ' + json.dumps([v, mn, ans, tou]))\n")
     m11 = re.search(r"CHOIX (.*)", o_)
@@ -729,9 +746,10 @@ def epreuves(sab):
             "import MODULE_JUGEMENT as J, MODULE_POSITIONS as P, JUGE_DES_STRATEGIES as B\n"
             "R = '.'\n"
             "mnemo = B.table_mnemoniques(B.trouver(R, 'REFERENTIEL_VALEURS'))\n"
-            "sig = B.charger_module(B.trouver(R, 'MODULE_C5_ETENDU_10'), 'sig')\n"
-            "f = next(x for x in csv.DictReader(open('donnees/cac40_strategies.csv', encoding='utf-8-sig')) if x['id'] == 'C5E10-QA-V1')\n"
-            "ok0, _m, bornes = B.porte_0(f); f.setdefault('_fonction_signal', 'signaux_c5etendu10')\n"
+            # le registre se nomme et se lit au contrat ; la dernière ligne fait foi (n°83, 05-11-2026)
+            "import CONTRATS_DES_FICHIERS as C\n"
+            "f = C.lire_les_fiches(R)['C5E10-QA-V1']\n"
+            "ok0, _m, bornes = B.porte_0(f); sig = B.signal_de_la_fiche(R, f)\n"
             "cr, lr = B.lire_par_le_lecteur(R, 'donnees/cours_maitre.csv', mnemo)\n"
             "ops, _ = B.jouer(f, cr, mnemo, sig, P, periode=bornes, lecture=lr, bareme='REEL')\n"
             "inv = {}\n"
@@ -851,7 +869,9 @@ def epreuves(sab):
                         "prog = sorted(glob.glob(os.path.join('programmes', 'MESURER_LA_PERFORMANCE_*.py')))[0]\n"
                         "s = u.spec_from_file_location('mes', prog); m = u.module_from_spec(s); s.loader.exec_module(m)\n"
                         "vraie = list(csv.DictReader(open(os.path.join('donnees', 'claude_journal_trades.csv'), encoding='utf-8')))[0]\n"
-                        "carte = next(r for r in csv.DictReader(open(os.path.join('donnees', 'cac40_strategies.csv'), encoding='utf-8-sig')) "
+                        # le registre se nomme et se lit au contrat ; la dernière ligne fait foi (n°83, 05-11-2026)
+                        "import CONTRATS_DES_FICHIERS as C\n"
+                        "carte = next(r for r in C.lire_les_fiches('.').values() "
                         "if (r.get('etat_vie') or '').strip().upper() in ('QA', 'PRODUCTION'))\n"
                         "f = lambda n, pnl, **k: [dict(vraie, pnl_net_eur=pnl, **k) for _ in range(n)]\n"
                         "cas = {'vert': f(10, '3000'), 'rouge': f(10, '-2600'), 'insuffisant': f(3, '3000'), 'aucune': [],\n"
@@ -890,7 +910,9 @@ def epreuves(sab):
                         # LA PROPRIÉTÉ, PAS UNE LISTE (superviseur R-759, T4, R2) : la VRAIE `ligne`, et TOUTE colonne
                         # publiée dont le nom finit par `_eur` — liste lue dans `COLONNES` du programme, jamais recopiée
                         "gs = m.rapport_gain_secousses(courbe)\n"
-                        "carte = next(r for r in csv.DictReader(open(os.path.join('donnees', 'cac40_strategies.csv'), encoding='utf-8-sig')) "
+                        # le registre se nomme et se lit au contrat ; la dernière ligne fait foi (n°83, 05-11-2026)
+                        "sys.path.insert(0, 'programmes'); import CONTRATS_DES_FICHIERS as C\n"
+                        "carte = next(r for r in C.lire_les_fiches('.').values() "
                         "if (r.get('etat_vie') or '').strip().upper() in ('QA', 'PRODUCTION'))\n"
                         "l = m.ligne('2026-10-28', carte['id'], 'un jeton', 'QA', st, carte, None, '', '', gs, '', ops)\n"
                         "eur = {k: l.get(k) for k in m.COLONNES if k.endswith('_eur')}\n"

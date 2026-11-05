@@ -99,7 +99,11 @@ def epreuves(sab):
     # E4 une seule lecture de l'horizon : la porte du juge des stratégies accepte « 20j » et refuse « 0 »
     #    (en sous-processus, sur la copie : un module deja charge ne doit pas repondre a sa place)
     c, o = run(d, "-c", "import sys; sys.path.insert(0, 'programmes'); import JUGE_DES_STRATEGIES as b; "
-               "f={'indicateurs':'x','univers':'DG','tp':'+4%','sl':'-2.5%','periode':'2024-01-02 -> 2026-07-10'}; "
+               "f={'indicateurs':'x','univers':'DG','tp':'+4%','sl':'-2.5%','periode':'2024-01-02 -> 2026-07-10', "
+               # depuis le 30-10-2026 (A-542), une fiche nomme son signal, sinon la porte 0 la refuse
+               "'module_signal':'programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py','fonction_signal':'signaux_c5etendu10', "
+               # depuis le 31-10-2026 (version B, points 5 et 9), une fiche déclare son moment d'achat et ses données
+               "'entree':'DÉFAUT','donnees_demandees':'cours'}; "
                "print(b.porte_0(dict(f, horizon='20j'))[0], b.porte_0(dict(f, horizon='0'))[0])")
     dire("E4 porte du juge des stratégies : « 20j » lu, « 0 » refuse", o.strip().endswith("True False"), o.strip()[-40:])
     # E5 le programme du soir emploie LA fonction de COMMUN, pas une copie

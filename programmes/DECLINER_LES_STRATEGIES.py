@@ -110,6 +110,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import COMMUN  # noqa: E402  la lecture de tableau et d'horizon vit là (R-708)
 import PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES as PREPARER  # noqa: E402  lecture des pourcents et bornes (R-708)
+import CONTRATS_DES_FICHIERS as CONTRAT  # noqa: E402  la règle « la dernière ligne d'un identifiant fait foi » (n°83)
 
 OBLIGATOIRES = ("tp", "sl", "horizon", "univers")
 # Les réglages non jouables viennent de PREPARER, qui les écrit : une seule liste (R-708).
@@ -193,8 +194,8 @@ def verifier(lignes, fiche, codes_connus):
     ① RÔLE — Refuser AVANT tout croisement ce qui n'a pas été validé ou qui est mal formé.
     ② CONTEXTE D'APPEL — `main`, une fois ; les épreuves l'appellent aussi.
     ③ ENTRÉE — `lignes` : les lignes du tableau des variables · `fiche` : la
-      ligne du registre que désigne la colonne `strategie`, ou None si elle est
-      absente ou double · `codes_connus` : les mnémoniques du référentiel, hors
+      ligne du registre que désigne la colonne `strategie` (sa DERNIÈRE ligne
+      depuis n°83, 05-11-2026), ou None si elle est absente · `codes_connus` : les mnémoniques du référentiel, hors
       valeurs marquées hors univers.
     ④ CONDITIONS D'ENTRÉE — Aucune.
     ⑤ SORTIE — UNE valeur : la liste des motifs de refus, vide si tout va bien.
@@ -277,7 +278,7 @@ def verifier(lignes, fiche, codes_connus):
                     motifs.append("ligne « univers » : codes hors de l'univers de la fiche ou du référentiel : %s"
                                   % ",".join(sorted(set(x[0]) - permis)))
     if fiche is None:
-        motifs.append("la stratégie du tableau est absente du registre, ou y figure plusieurs fois")
+        motifs.append("la stratégie du tableau est absente du registre")
     return motifs
 
 
@@ -398,7 +399,8 @@ def main(argv):
     ④ CONDITIONS D'ENTRÉE — Celles de l'en-tête.
     ⑤ SORTIE — UNE valeur : le code de sortie 0, 1 ou 2.
       [rend: 1]
-    ⑥ TRAITEMENT — ① arguments · ② lire le tableau, la fiche, le référentiel ·
+    ⑥ TRAITEMENT — ① arguments · ② lire le tableau, la fiche (sa DERNIÈRE ligne par
+      `fiches_des_lignes` du contrat : n°83, depuis le 05-11-2026), le référentiel ·
       ③ vérifier, refuser au moindre motif ·
       ④ décliner · ⑤ écrire en mode exclusif · ⑥ relire : mêmes lignes,
       identifiants uniques, une seule version de la fiche · ⑦ afficher le bilan.
@@ -419,13 +421,15 @@ def main(argv):
         return 1
     try:
         lignes = lire_tableau(entree)
-        fiches = [l for l in lire_tableau(registre) if lignes and l.get("id") == lignes[0].get("strategie")]
+        # LA DERNIÈRE LIGNE DE L'IDENTIFIANT FAIT FOI (décision de Jean-Luc n°83 du 01-11-2026 à 12h33) : la règle
+        # vit au contrat ; avant le 05-11-2026, une fiche écrite deux fois était refusée par `verifier`.
+        fiche = CONTRAT.fiches_des_lignes(lire_tableau(registre)).get(lignes[0].get("strategie")) if lignes else None
         codes_connus = {(l.get("mnemonique") or "").strip().upper() for l in lire_tableau(refs[0])
                         if not (l.get("hors_univers") or "").strip()} - {""}
     except OSError as e:
         print("REFUS : %s" % e)
         return 1
-    motifs = verifier(lignes, fiches[0] if len(fiches) == 1 else None, codes_connus)
+    motifs = verifier(lignes, fiche, codes_connus)
     if motifs:
         print("REFUS — rien n'est décliné :")
         for m in motifs:

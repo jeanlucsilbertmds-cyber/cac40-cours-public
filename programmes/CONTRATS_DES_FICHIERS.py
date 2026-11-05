@@ -34,7 +34,10 @@ Quand l'appeler : par tout programme qui écrit ou lit un fichier de liaison. Ja
 ⑥ TRAITEMENT — ① déclarer onze listes de noms de champs, et deux listes de valeurs
   admises : les sources des cours, les comptabilités (depuis le 27-09-2026) ·
   ①bis dire, par `noms_d_une_strategie`, sous quels noms le journal écrit une
-  stratégie (depuis le 27-09-2026) · ② déclarer la table qui
+  stratégie (depuis le 27-09-2026) · ①ter nommer UNE fois le registre des stratégies et le
+  lire, la dernière ligne d'un identifiant faisant foi (`chemin_du_registre`,
+  `lignes_du_registre`, `fiches_du_registre`, `fiches_des_lignes`, `lire_les_fiches` ; décision n°83,
+  depuis le 05-11-2026) · ② déclarer la table qui
   relie dix noms de fichiers à dix de ces listes · ③ définir cinq fonctions ·
   ④ lancé à la main, jouer les six épreuves du contrat des signaux et sortir.
 ⑦ UNITÉ — Aucune grandeur physique : des NOMS DE CHAMPS et des NOMBRES DE CHAMPS.
@@ -153,6 +156,21 @@ FABRIQUES_DU_SOIR = (
     ("gouvernance/PILOTE.md", r"Fabriqu\u00e9 le \w+ (\d{2}-\d{2}-\d{4})", "fabrique"),
 )
 
+# LE REGISTRE DES STRAT\u00c9GIES : SON NOM VIT ICI, ET NULLE PART AILLEURS DANS LE CODE (n\u00b083, 05-11-2026).
+# D\u00e9cision de Jean-Luc n\u00b083, du 01-11-2026 \u00e0 12h33, r\u00e9ponse \u00ab 1 \u00bb : \u00ab Quand une strat\u00e9gie a deux lignes au registre
+# [\u2026] 1. La derni\u00e8re ligne ajout\u00e9e fait foi. Les pr\u00e9c\u00e9dentes restent comme historique. \u00bb On n'efface jamais une ligne,
+# on en ajoute une (R-727). Le 05-11-2026, la d\u00e9cision n\u00b053 a ajout\u00e9 une seconde ligne `C5-EI-PARAMS` (premier
+# identifiant \u00e9crit deux fois dans l'histoire du fichier), et les programmes n'en retenaient pas la m\u00eame : le teneur
+# de positions gardait la derni\u00e8re, `JOUER_LES_VERSIONS.py` refusait la fiche (\u00ab trouv\u00e9e 2 fois \u00bb), le juge \u00e0 8
+# crit\u00e8res prenait la premi\u00e8re, le juge des strat\u00e9gies jugeait les deux. Deux lectures d'une m\u00eame chose divergent
+# toujours (R-708) : le NOM du fichier et sa LECTURE vivent donc ici, une fois (superviseur R-759 du 05-11-2026,
+# d\u00e9faut 3), et tests/EPREUVES_DU_REGISTRE_DES_STRATEGIES_Jeu_05-11-2026.py rougit d\u00e8s qu'une constante du code,
+# hors de ce module, nomme ce fichier : un lecteur \u00e9crit demain \u00e0 sa fa\u00e7on est vu sans que personne pense \u00e0 lui.
+# Le chemin est RELATIF \u00c0 LA RACINE du d\u00e9p\u00f4t ; le nom seul sert aux programmes qui cherchent le fichier \u00e0 plat (la
+# copie des boucles Cowork, le dossier de travail du cockpit) : il se tire du chemin, il ne se recopie pas (R-708).
+REGISTRE_DES_STRATEGIES = "donnees/cac40_strategies.csv"
+NOM_DU_REGISTRE_DES_STRATEGIES = REGISTRE_DES_STRATEGIES.rsplit("/", 1)[-1]
+
 # LES FICHIERS QUE LES BOUCLES COWORK COPIENT DANS LE DOSSIER DU PROJET (étape 5bis de leur
 # texte : la ligne `cp` des programmes, puis celle du registre des stratégies), écrits une
 # fois ici, en chemins sous la racine du dépôt. Le 01-10-2026, la fusion a donné à
@@ -195,7 +213,7 @@ COPIE_DES_BOUCLES = (
     "programmes/REPARER_L_HISTORIQUE_LONG.py",
     "programmes/CONTROLER_L_HISTORIQUE_LONG.py",
     "programmes/CALENDRIER_DE_LA_BOURSE.py",
-    "donnees/cac40_strategies.csv",
+    REGISTRE_DES_STRATEGIES,
     # LE BARÈME DES FRAIS (ajouté le 29-10-2026, A-550) : MODULE_POSITIONS.cout_d_un_ordre lit
     # donnees/BAREME_FRAIS.csv et donnees/VALEURS_TTF.csv (ou, dans la copie à plat, ces deux
     # fichiers sous leur seul nom, à côté de lui) ; sans eux, la boucle ne chiffre plus un trade.
@@ -604,6 +622,28 @@ STRATEGIE = [
     "wr_constate", "conformite", "forcage", "univers",
     "origine", "bloque_par", "rang_priorite", "etude_ref",
     "periode",
+    # LE SIGNAL QUE LA FICHE NOMME (A-542 ① ②, 30-10-2026) — trois colonnes en fin de ligne, lues par UNE seule
+    # fonction, `signal_de_la_fiche` de programmes/JUGE_DES_STRATEGIES.py (le juge, la moulinette et le juge à 8
+    # critères l'appellent ; aucun ne lit ces colonnes ailleurs). Avant, ces trois programmes imposaient le signal
+    # C5-ETENDU-10 à toute fiche. HORS DE CE PÉRIMÈTRE : le programme du soir DETECTER_LES_SIGNAUX_GITHUB.py calcule
+    # toujours C5 par son chemin écrit en dur, quelle que soit la fiche (A-542 ③).
+    #   module_signal   : chemin du module de signal, RELATIF À LA RACINE, exact, finissant par « .py », sans « .. »
+    #   fonction_signal : nom de la fonction de ce module qui rend la liste des {"i": rang} des séances d'achat
+    #   reglages_signal : vide, ou un objet JSON {"nom": valeur} passé à la fonction en arguments nommés
+    # Une fiche sans module ou sans fonction est REFUSÉE par la porte 0 (« aucun signal nommé ») ; jamais complétée.
+    "module_signal", "fonction_signal", "reglages_signal",
+    # LES CASES QUE LE JUGE LIT AVANT DE JOUER (version B, 31-10-2026 ; points 5 et 9 du plan du juge) — une seule
+    # fonction, `manques_du_jeu` de programmes/JUGE_DES_STRATEGIES.py, les lit (`porte_0` en tire ses refus, `jouer`
+    # refuse sur la même liste) :
+    #   entree            : (colonne déjà là, lue depuis le 31-10-2026) le moment d'achat ; jouable seulement
+    #                       « OPEN_J+1 », « Open J+1 » ou « DÉFAUT » (l'ouverture du lendemain) ; toute autre valeur
+    #                       (CLOSE, INTRADAY…) → NON JUGEABLE ; vide ou « — » → refusée.
+    #   donnees_demandees : (colonne ajoutée en fin de ligne) les données que le signal demande, séparées par « , »,
+    #                       « ; » ou « + » ; liste fermée d'aujourd'hui : « cours » (la série des cours de la valeur).
+    #                       Toute autre donnée → NON JUGEABLE, donnée absente ; vide → refusée.
+    #   filtres           : (colonne déjà là) un TEXTE AFFICHÉ, JAMAIS JOUÉ (décision de Jean-Luc du 31-10-2026 à
+    #                       17h15, QJ-17) ; le juge écrit « filtres non joués : <texte> » sous chaque fiche jouée.
+    "donnees_demandees",
 ]
 
 # journal des passages de collecte
@@ -850,7 +890,7 @@ CONTRATS_PAR_FICHIER = {
     "cours_maitre.csv": COURS_MAITRE,
     "cac40_ohlcv.csv": COURS_NOUVEAUX,
     "claude_cours_nouveaux.csv": COURS_NOUVEAUX,
-    "cac40_strategies.csv": STRATEGIE,
+    NOM_DU_REGISTRE_DES_STRATEGIES: STRATEGIE,
     "claude_journal_lectures.csv": LECTURE,
     "SOCLE.csv": SOCLE,
     "historique_consensus.csv": CONSENSUS,
@@ -903,6 +943,166 @@ def noms_d_une_strategie(ligne_du_registre):
     """
     return {(ligne_du_registre.get("id") or "").strip(),
             (ligne_du_registre.get("nom") or "").split(" (")[0].strip()} - {""}
+
+
+def chemin_du_registre(racine):
+    """Rend le chemin du registre des stratégies sous une racine, au dépôt ou dans une copie à plat.
+
+    ① RÔLE — Dire où lire le registre quand le programme peut tourner au dépôt (`donnees/`) OU dans une copie à
+      plat, sans que ce programme écrive lui-même le nom du fichier (n°83).
+    ② CONTEXTE D'APPEL — `reglages_du_registre` de `programmes/TENIR_LES_POSITIONS.py` (une fois par appel ; il
+      tourne au dépôt et dans la copie à plat des boucles Cowork) et `main` de
+      `programmes/CONSTRUIRE_LE_REGISTRE_EXPERIENCES.py` (une fois).
+    ③ ENTRÉE — `racine` : un dossier, la racine du dépôt ou celle d'une copie.
+    ④ CONDITIONS D'ENTRÉE — Aucune : un dossier sans registre rend le chemin du dépôt, qui n'existe pas.
+    ⑤ SORTIE — UNE valeur : un chemin. Le premier qui existe parmi, dans cet ordre : `<racine>/donnees/<nom>`,
+      `<racine>/<nom>`, puis les deux mêmes avec les soulignés du nom changés en espaces ; sinon
+      `<racine>/donnees/<nom>`. Exemple : au dépôt, `<racine>/donnees/cac40_strategies.csv`. [rend: 1]
+    ⑥ TRAITEMENT — ① former les quatre chemins à partir de REGISTRE_DES_STRATEGIES · ② rendre le premier qui existe,
+      sinon le premier.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Ces quatre graphies sont celles que `reglages_du_registre` essayait, écrites par lui le 12-09-2026
+      (« chercher à plat une source qui vit dans `donnees/` », quatrième occurrence du même défaut ce jour-là) ;
+      `CONSTRUIRE_LE_REGISTRE_EXPERIENCES` en essayait deux. Elles sont tirées du chemin déclaré ici, jamais
+      recopiées (R-708).
+    ⑨ CE QUI CLOCHE — ① Les graphies à espaces viennent du temps où le Drive renommait les fichiers ; aucune copie
+      d'aujourd'hui ne les porte (non mesuré au-delà du dépôt), elles sont gardées pour ne rien retirer sans accord.
+      ② `CONSTRUIRE_LE_REGISTRE_EXPERIENCES` n'essayait pas les graphies à espaces : il les accepte désormais.
+    ⑩ EFFET — Regarde si des fichiers existent ; n'en lit aucun.
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    import os as _os
+    dossier, nom = REGISTRE_DES_STRATEGIES.rsplit("/", 1)
+    essais = [_os.path.join(racine, dossier, nom), _os.path.join(racine, nom)]
+    essais += [_os.path.join(racine, dossier, nom.replace("_", " ")), _os.path.join(racine, nom.replace("_", " "))]
+    return next((p for p in essais if _os.path.exists(p)), essais[0])
+
+
+def lignes_du_registre(chemin):
+    """Rend TOUTES les lignes du registre des stratégies, dans l'ordre du fichier, doublons compris.
+
+    ① RÔLE — La lecture de l'HISTORIQUE : chaque ligne écrite, même celles qu'une ligne ajoutée plus bas remplace
+      (n°83 : « Les précédentes restent comme historique »). La seule lecture du fichier ; `fiches_du_registre` part
+      d'elle.
+    ② CONTEXTE D'APPEL — `fiches_du_registre`, une fois par appel ; et les ÉPREUVES qui ont besoin de l'historique
+      (aujourd'hui : `tests/EPREUVES_DE_LA_LECTURE_DE_LA_FICHE_Sam_31-10-2026.py`, qui éprouve la première ligne de
+      `C5-EI-PARAMS`, gardée telle quelle ; `tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py`, qui réécrit le
+      registre de sa copie ; `tests/EPREUVES_DU_REGISTRE_DES_STRATEGIES_Jeu_05-11-2026.py`). AUCUN fichier de
+      `programmes/` autre que ce contrat ne l'appelle : un programme qui lirait toutes les lignes jugerait une ligne
+      que n°83 a remplacée (superviseur R-759 du 05-11-2026 à 09h05, propriété P1). Le cas G4 de
+      `tests/EPREUVES_DU_REGISTRE_DES_STRATEGIES_Jeu_05-11-2026.py` le garde.
+    ③ ENTRÉE — `chemin` : le chemin du fichier du registre (REGISTRE_DES_STRATEGIES sous une racine, ou le nom seul
+      dans une copie à plat).
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe, en UTF-8 (avec ou sans marque d'ordre d'octets), une première ligne
+      d'en-tête.
+    ⑤ SORTIE — UNE valeur : la liste des lignes, chacune un dictionnaire {colonne : texte}. Exemple réel au
+      05-11-2026 : 69 lignes, dont deux d'identifiant `C5-EI-PARAMS` (la 64e et la 69e). [rend: 1]
+    ⑥ TRAITEMENT — Ouvrir le fichier, le lire par `csv.DictReader`, rendre la liste.
+    ⑦ UNITÉ — Des lignes du fichier, en-tête exclu.
+    ⑧ POURQUOI — Une seule lecture du fichier (R-708) : l'encodage, les fins de ligne et la façon de couper les cases
+      ne se décident qu'ici.
+    ⑨ CE QUI CLOCHE — Une ligne plus courte que l'en-tête porte None dans ses dernières cases (comportement de
+      `csv.DictReader`), comme avant n°83.
+    ⑩ EFFET — Lit le fichier.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque. [sort: non]
+    """
+    import csv as _csv
+    with open(chemin, encoding="utf-8-sig", newline="") as f:
+        return list(_csv.DictReader(f))
+
+
+def fiches_du_registre(chemin):
+    """Rend les fiches du registre des stratégies : pour chaque identifiant, la DERNIÈRE ligne écrite (n°83).
+
+    ① RÔLE — LA lecture du registre pour tout programme qui veut savoir ce qu'une stratégie EST aujourd'hui :
+      décision de Jean-Luc n°83 du 01-11-2026 à 12h33, « La dernière ligne ajoutée fait foi. Les précédentes restent
+      comme historique. »
+    ② CONTEXTE D'APPEL — `lire_les_fiches` ; et chaque programme qui trouve le fichier par son propre chemin (le
+      cockpit, le juge des stratégies, le radar…) après l'avoir nommé par NOM_DU_REGISTRE_DES_STRATEGIES.
+    ③ ENTRÉE — `chemin` : le chemin du fichier du registre.
+    ④ CONDITIONS D'ENTRÉE — Celles de `lignes_du_registre`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire {identifiant : ligne}, chaque valeur étant la DERNIÈRE ligne qui porte
+      cet identifiant, et chaque fiche rangée À LA PLACE DE CETTE DERNIÈRE LIGNE dans le fichier (voir
+      `fiches_des_lignes`, ⑤ et ⑧). Exemple réel au 05-11-2026 : 68 fiches pour 69 lignes ; `C5-EI-PARAMS` rend la
+      ligne ajoutée par la décision n°53, celle dont la case `entree` vaut « DÉFAUT », et vient en dernier, après
+      `C5E10-TP5-SL5`. [rend: 1]
+    ⑥ TRAITEMENT — ① lire toutes les lignes par `lignes_du_registre` · ② les ranger par `fiches_des_lignes`.
+    ⑦ UNITÉ — Des fiches (une par identifiant).
+    ⑧ POURQUOI — Voir ① ; pour l'ordre, `fiches_des_lignes`, ⑧.
+    ⑨ CE QUI CLOCHE — Voir `fiches_des_lignes`, ⑨.
+    ⑩ EFFET — Lit le fichier.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque. [sort: non]
+    """
+    return fiches_des_lignes(lignes_du_registre(chemin))
+
+
+def fiches_des_lignes(lignes):
+    """Applique LA règle de n°83 à des lignes déjà lues : pour chaque identifiant, la DERNIÈRE ligne fait foi.
+
+    ① RÔLE — Écrire une fois la règle de la décision de Jean-Luc n°83 (01-11-2026, 12h33 : « La dernière ligne
+      ajoutée fait foi. Les précédentes restent comme historique. »), pour les programmes qui lisent eux-mêmes le
+      fichier avec leur propre lecteur de tableau.
+    ② CONTEXTE D'APPEL — `fiches_du_registre`, une fois par appel ; `main` de
+      `programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py` et de `programmes/DECLINER_LES_STRATEGIES.py`,
+      qui reçoivent le chemin du registre sur leur ligne de commande et le lisent par `COMMUN.lire_csv` (leur lecture
+      ratée se dit « lecture ratée de … », une forme que leurs épreuves exigent).
+    ③ ENTRÉE — `lignes` : une liste de dictionnaires {colonne : texte}, dans l'ordre du fichier.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un dictionnaire {identifiant : ligne}, chaque valeur étant la DERNIÈRE ligne qui porte
+      cet identifiant, et chaque fiche rangée À LA PLACE DE CETTE DERNIÈRE LIGNE : les fiches se suivent dans l'ordre
+      où leurs lignes qui font foi se suivent dans le fichier. Exemple réel au 05-11-2026 : 68 fiches pour les 69
+      lignes du registre ; `C5-EI-PARAMS` (64e et 69e lignes) rend la ligne ajoutée par la décision n°53, celle dont
+      la case `entree` vaut « DÉFAUT », et vient en dernier, après `C5E10-TP5-SL5` (68e ligne). [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque ligne, dans l'ordre du fichier : retirer la fiche déjà rangée sous sa case `id` telle
+      qu'elle est écrite, s'il y en a une, puis ranger la ligne sous cette case, en dernière place.
+    ⑦ UNITÉ — Des fiches (une par identifiant).
+    ⑧ POURQUOI — La valeur : n°83. L'ordre : le registre ne fait qu'ajouter des lignes (R-727), sa seule chronologie
+      fiable est donc la place dans le fichier — la case `date_entree_etat` a au moins trois formes et est vide sur
+      des lignes (superviseur R-759 du 05-11-2026 à 09h05, D1). Le cockpit lit cette place comme une date (« une
+      ligne de vie […] donne l'état civil d'une stratégie à une date ») : la carte QA prend la plus récente, la liste
+      des « 6 dernières archivées » les six dernières. Rangée à sa PREMIÈRE apparition (le tour de n°83, avant cette
+      réparation), une stratégie qui reçoit une ligne gardait sa vieille place : mesuré le 05-11-2026, une ligne
+      ajoutée à C5E10-QA-V1 (objectif +6 %) laissait la carte QA montrer C5E10-OBS-V1, et C1-001 archivée par une
+      ligne ajoutée n'entrait pas dans les « 6 dernières archivées ». La place de la fiche est celle de sa ligne qui
+      fait foi ; cet ordre vit ICI, jamais chez un lecteur (R-708).
+    ⑨ CE QUI CLOCHE — ① La clé est la case `id` telle qu'écrite : deux graphies d'un même identifiant (une espace en
+      trop) feraient deux fiches (mesuré le 05-11-2026 : aucun identifiant du registre ne porte d'espace autour,
+      aucun n'est vide). ② Une ligne sans case `id` est rangée sous le texte vide. ③ Le repli du radar
+      (`_lire_le_registre` de `programmes/audit_ecosysteme.py`, le soir où ce contrat ne se charge pas, A-250)
+      recopie la règle de la VALEUR, pas celle de l'ORDRE : il range à la première apparition. Lu : le radar compte
+      et cherche dans ces fiches, il n'en tire aucun « plus récent » ; non éprouvé (au BACKLOG avec X7, le repli sans
+      dent).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    fiches = {}
+    for ligne in lignes:
+        cle = ligne.get("id") or ""
+        fiches.pop(cle, None)        # la place de la fiche est celle de sa DERNIÈRE ligne (⑧)
+        fiches[cle] = ligne
+    return fiches
+
+
+def lire_les_fiches(racine):
+    """Rend les fiches du registre des stratégies d'une racine : {identifiant : DERNIÈRE ligne} (n°83).
+
+    ① RÔLE — Le chemin le plus court pour un programme qui tourne au dépôt : la racine suffit.
+    ② CONTEXTE D'APPEL — Les programmes et les épreuves qui lisent le registre sous `donnees/` d'une racine (le teneur
+      de positions, l'épreuve de l'arrivée des signaux, l'épreuve du registre…).
+    ③ ENTRÉE — `racine` : la racine du dépôt ou d'une copie qui en garde l'arborescence.
+    ④ CONDITIONS D'ENTRÉE — `<racine>/donnees/cac40_strategies.csv` existe (REGISTRE_DES_STRATEGIES).
+    ⑤ SORTIE — UNE valeur : celle de `fiches_du_registre`. [rend: 1]
+    ⑥ TRAITEMENT — Joindre REGISTRE_DES_STRATEGIES à la racine, appeler `fiches_du_registre`.
+    ⑦ UNITÉ — Des fiches.
+    ⑧ POURQUOI — La forme prescrite par le superviseur R-759 du 05-11-2026 (défaut 3) : `lire_les_fiches(racine)` →
+      {id : DERNIÈRE ligne}.
+    ⑨ CE QUI CLOCHE — Ne cherche pas la copie à plat (voir `chemin_du_registre`) : un programme qui tourne aussi à
+      plat passe par `chemin_du_registre` puis `fiches_du_registre`.
+    ⑩ EFFET — Lit le fichier.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque. [sort: non]
+    """
+    import os as _os
+    return fiches_du_registre(_os.path.join(racine, REGISTRE_DES_STRATEGIES))
 
 
 def date_ecrite(base, chemin, motif):

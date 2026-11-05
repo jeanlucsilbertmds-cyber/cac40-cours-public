@@ -761,15 +761,21 @@ def options_de_lancement(copie):
       ValueError (et `main` rend 2).
     ⑤ SORTIE — DEUX valeurs : {« chemin arguments » : secondes} (les arguments sans « {copie} », séparés par une
       espace) ; {chemin de l'épreuve : {« releve » : motif du relevé, relatif à la racine, « essais » : nombre
-      d'essais de la série refaits chaque nuit}}.
+      d'essais de la série refaits chaque nuit, « portee » : la portée du relevé écrite à la table
+      (« portee_du_releve »), ou None si elle n'y est pas}}.
       [rend: 2]
-    ⑥ TRAITEMENT — json ; contrôle de forme.
+    ⑥ TRAITEMENT — json ; contrôle de forme. La VALEUR de la portée n'est pas contrôlée ici : programmes/
+      SERIES_DE_SABOTAGES.py, qui seul connaît les portées (`PORTEES`), refuse une portée inconnue (code 2, la nuit
+      même).
     ⑦ UNITÉ — Des secondes.
     ⑧ POURQUOI — Décision de Jean-Luc du 16-10-2026 à 14h30 : la série des 167 sabotages de l'épreuve des 20 ans
       (environ 6 heures) se rejoue quand son code change, et la nuit vérifie seulement que rien n'a changé ; la
       série de la lecture des cours (62 minutes mesurées le 16-10-2026) reçoit un délai à elle. Les deux rougissaient
       au certificat du 16-10-2026 (f5aac6b), arrêtées à 1 500 s. 21 600 s : les six heures d'un passage de GitHub.
-    ⑨ CE QUI CLOCHE — Un délai déclaré pour un lancement qui n'existe plus n'est pas signalé.
+      La portée : décision de Jean-Luc du 01-11-2026 à 11h41 (n°71) — la série de l'épreuve d'arrivée des signaux sort
+      du soir et ne se rejoue que quand le code de l'épreuve change.
+    ⑨ CE QUI CLOCHE — Un délai déclaré pour un lancement qui n'existe plus n'est pas signalé. · Une portée qui n'est
+      pas un texte (un nombre…) n'est refusée qu'à la vérification de la série, pas ici.
     ⑩ EFFET — Lit la table.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
@@ -792,7 +798,7 @@ def options_de_lancement(copie):
         essais = e.get("essais_refaits_chaque_nuit")
         if not isinstance(essais, int) or isinstance(essais, bool) or not 0 <= essais <= 50:
             raise ValueError(f"série hors de la nuit sans nombre d'essais refaits (0 à 50) : {chemin}")
-        series[chemin] = {"releve": motif, "essais": essais}
+        series[chemin] = {"releve": motif, "essais": essais, "portee": e.get("portee_du_releve")}
     return delais, series
 
 
@@ -1090,21 +1096,25 @@ def reunir_les_tranches(racine, nombre, passage, empreinte, lancements):
     return "", resultats, reunie, notes
 
 
-def verifier_une_serie(copie, chemin, motif, lus=None):
+def verifier_une_serie(copie, chemin, entree_de_la_serie, lus=None):
     """Remplace, pour une série jouée hors de la nuit, le lancement « --saboter » par la vérification de son relevé.
 
     ① RÔLE — L'alarme décidée par Jean-Luc le 16-10-2026 : la série n'est pas rejouée ; son relevé doit valoir pour
       les fichiers du jour.
     ② CONTEXTE D'APPEL — `main`, à la place de `jouer`, pour le lancement « --saboter » d'une épreuve déclarée dans
       « series_hors_de_la_nuit ».
-    ③ ENTRÉE — `copie` · `chemin` : l'épreuve, relative · `motif` : le motif du relevé (glob), relatif · `lus` :
-      l'ensemble des fichiers du dépôt que l'épreuve a lus cette nuit en mode normal (`fichiers_lus`), ou None.
-    ④ CONDITIONS D'ENTRÉE — —
+    ③ ENTRÉE — `copie` · `chemin` : l'épreuve, relative · `entree_de_la_serie` : son entrée rendue par
+      `options_de_lancement`, {« releve » : le motif du relevé (glob), relatif ; « portee » : la portée du relevé ou
+      None} · `lus` : l'ensemble des fichiers du dépôt que l'épreuve a lus cette nuit en mode normal (`fichiers_lus`),
+      ou None.
+    ④ CONDITIONS D'ENTRÉE — `entree_de_la_serie` porte « releve » (contrôlé par `options_de_lancement`).
     ⑤ SORTIE — TROIS valeurs, comme `jouer` : le code (0 le relevé vaut ; 1 un fichier a changé ou la série n'était
-      pas conforme ; 2 aucun relevé, plusieurs relevés, ou relevé illisible), la durée (0), une ligne de raison.
+      pas conforme ; 2 aucun relevé, plusieurs relevés, relevé illisible, ou portée inconnue), la durée (0), une ligne
+      de raison.
       [rend: 3]
     ⑥ TRAITEMENT — un seul fichier doit répondre au motif (une seule version vivante) ;
-      programmes/SERIES_DE_SABOTAGES.py, `verifier_la_serie`.
+      programmes/SERIES_DE_SABOTAGES.py, `verifier_la_serie`, avec la portée de la série (décision n°71 du
+      01-11-2026 pour la portée « epreuve »).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Voir `options_de_lancement`, ⑧. Le relevé et sa vérification sont écrits une fois (R-708).
     ⑨ CE QUI CLOCHE — Voir programmes/SERIES_DE_SABOTAGES.py, ⑨.
@@ -1113,6 +1123,7 @@ def verifier_une_serie(copie, chemin, motif, lus=None):
       [sort: non]
     """
     import glob
+    motif = entree_de_la_serie["releve"]
     trouves = sorted(glob.glob(os.path.join(copie, motif)))
     if len(trouves) != 1:
         return 2, 0, [f"série hors de la nuit : {len(trouves)} relevé(s) pour {motif}, il en faut un seul"]
@@ -1121,7 +1132,8 @@ def verifier_une_serie(copie, chemin, motif, lus=None):
                                                              "SERIES_DE_SABOTAGES.py"))
     serie = importlib.util.module_from_spec(sp)
     sp.loader.exec_module(serie)
-    code, raison = serie.verifier_la_serie(copie, chemin, os.path.relpath(trouves[0], copie).replace(os.sep, "/"), lus)
+    code, raison = serie.verifier_la_serie(copie, chemin, os.path.relpath(trouves[0], copie).replace(os.sep, "/"), lus,
+                                           entree_de_la_serie.get("portee"))
     return code, 0, [raison]
 
 
@@ -1424,7 +1436,7 @@ def jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lance
     for chemin, dossier, arguments in lancements:
         cle = cle_de(chemin, arguments)
         if chemin in series and "--saboter" in arguments:
-            code, duree, lignes = verifier_une_serie(copie, chemin, series[chemin]["releve"],
+            code, duree, lignes = verifier_une_serie(copie, chemin, series[chemin],
                                                      lus_par_epreuve.get(chemin, set()))
             if code == 0 and series[chemin]["essais"]:
                 code, duree, autres = refaire_des_essais(copie, py, reglages, manifestes, chemin,

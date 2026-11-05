@@ -71,7 +71,9 @@ P_PREP = "programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py"
 P_DECL = "programmes/DECLINER_LES_STRATEGIES.py"
 P_JOUER = "programmes/JOUER_LES_VERSIONS.py"
 P_EPDE = "programmes/EPREUVES_DE_LA_DECLINAISON.py"
-REGISTRE = "donnees/cac40_strategies.csv"
+# LE CHEMIN DU REGISTRE DES STRATÉGIES vit au contrat (n°83, 05-11-2026), jamais ici : pris dans le dépôt de ce fichier.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "programmes"))
+from CONTRATS_DES_FICHIERS import REGISTRE_DES_STRATEGIES as REGISTRE, NOM_DU_REGISTRE_DES_STRATEGIES
 VARIABLES = "donnees/combinatoires/VARIABLES_DE_DECLINAISON_%s_%s.csv" % (SID, ESSAI)
 VOISINAGE = "donnees/combinatoires/VOISINAGE.csv"
 COMBINATOIRE = "donnees/combinatoires/COMBINATOIRE_%s_%s.csv" % (SID, ESSAI)
@@ -619,9 +621,11 @@ def faux_juge(base, **reglages):
     J.table_mnemoniques = lambda f: {"TTE": "TTE"}
     J.cle_valeur = lambda m: m
     J.charger_module = lambda f, nom: None
+    # le signal que la fiche nomme (A-542, 30-10-2026) : le faux juge n'en lit pas, son faux `jouer` n'en a pas besoin
+    J.signal_de_la_fiche = lambda b, f: None
     # le barème des verdicts (A-550, 29-10-2026) : le faux juge n'a pas de module des positions, il en donne le nom
     J.bareme_des_verdicts = lambda bareme, mod: bareme or "HIST_COURTAGE_SANS_TTF"
-    J.trouver = lambda b, motif: reglages.get("registre") if motif == "cac40_strategies.csv" else "fichier"
+    J.trouver = lambda b, motif: reglages.get("registre") if motif == NOM_DU_REGISTRE_DES_STRATEGIES else "fichier"
     porte = reglages.get("porte", (True, [], bornes))
     J.porte_0 = porte if callable(porte) else (lambda f: porte)
     def jouer(f, cours, mnemo, sig, pos, periode=None, lecture=None):
@@ -665,14 +669,17 @@ def cas_jouer_dedans(racine):
              "univers": "TTE", "versions_dans_l_essai": "2", "version_de_la_fiche": ""}]
     fiche = {"id": "F", "tp": "0.04", "sl": "0.025", "horizon": "20", "univers": "TTE"}
 
-    def un_cas(nom, fragment, nb_fiches=1, ligne_juge="1 operations . 100.0 % de reussite . +10.00 EUR", leve=False, **reglages):
+    def un_cas(nom, fragment, nb_fiches=1, ligne_juge="1 operations . 100.0 % de reussite . +10.00 EUR", leve=False,
+               derniere=None, **reglages):
         """Appelle `main` de JOUER_LES_VERSIONS dans ce processus, avec un faux juge, et juge le cas.
 
         ① RÔLE — Jouer un refus interne de JOUER_LES_VERSIONS.
         ② CONTEXTE D'APPEL — `cas_jouer_dedans`, une fois par cas.
         ③ ENTRÉE — `nom` · `fragment` : texte fixe exigé · `nb_fiches` : nombre de fois où la fiche figure au registre ·
           `ligne_juge` : ce que le calibrage du juge est censé avoir affiché · `leve` : vrai si le refus est une
-          erreur levée et non un code · `reglages` : passés à `faux_juge`.
+          erreur levée et non un code · `derniere` : None, ou les cases qui changent dans la DERNIÈRE ligne de la
+          fiche (n°83, 05-11-2026 : une ligne ajoutée au registre, la dernière fait foi) · `reglages` : passés à
+          `faux_juge`.
         ④ CONDITIONS D'ENTRÉE — `jouer` est le module importé de la racine.
         ⑤ SORTIE — Aucune valeur.
           [rend: 0]
@@ -690,7 +697,8 @@ def cas_jouer_dedans(racine):
         d = dossier()
         base = os.path.join(d, "depot")
         os.makedirs(os.path.join(base, "programmes"))
-        f_reg = ecrire(os.path.join(d, "registre.csv"), list(fiche), [fiche] * nb_fiches)
+        f_reg = ecrire(os.path.join(d, "registre.csv"), list(fiche),
+                       [fiche] * (nb_fiches - 1) + [dict(fiche, **(derniere or {}))])
         f_comb = ecrire(os.path.join(d, "COMBINATOIRE_F_E01.csv"), colonnes, deux)
         f_out = os.path.join(d, "RESULTATS.csv")
         J = faux_juge(os.path.abspath(base), registre=f_reg, **reglages)
@@ -717,7 +725,14 @@ def cas_jouer_dedans(racine):
         noter(nom, ok, "code %s · erreur %r · fragment %s · fichier restant %s" % (code, erreur[:80], "vu" if fragment in texte else "ABSENT", reste))
 
     un_cas("JOUER (faux juge), juge importé d'ailleurs", "le juge importé n'est pas celui du dépôt", ailleurs=True)
-    un_cas("JOUER (faux juge), fiche deux fois au registre", "trouvée 2 fois au registre", nb_fiches=2)
+    # n°83 (décision de Jean-Luc du 01-11-2026 à 12h33, « La dernière ligne ajoutée fait foi ») : jusqu'au 05-11-2026,
+    # une fiche écrite deux fois arrêtait JOUER (« trouvée 2 fois au registre ») et ce cas l'exigeait. Désormais la
+    # DERNIÈRE ligne est jouée : elle seule porte un horizon de 21, et la porte 0 du faux juge ne refuse qu'elle ; si
+    # JOUER prenait la première, la porte passerait et le cas rougirait.
+    un_cas("JOUER (faux juge), fiche deux fois au registre : la DERNIÈRE ligne est jouée (n°83)",
+           "la porte 0 refuse : ['ligne ajoutée lue']", nb_fiches=2, leve=True, derniere={"horizon": "21"},
+           porte=lambda f: (False, ["ligne ajoutée lue"], None) if f.get("horizon") == "21"
+           else (True, [], ("2024-01-02", "2026-07-10")))
     un_cas("JOUER (faux juge), la porte 0 refuse", "la porte 0 refuse", leve=True, porte=(False, ["tp illisible"], None))
     un_cas("JOUER (faux juge), valeurs absentes des cours", "valeurs absentes des cours", leve=True, inconnus=["XYZ"])
     un_cas("JOUER (faux juge), la fiche ne produit aucune opération", "la fiche elle-même ne produit aucune opération", n=0)

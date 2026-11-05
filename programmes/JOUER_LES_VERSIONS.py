@@ -42,7 +42,8 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   [rend: 1]
 ⑥ TRAITEMENT — ① lire et contrôler la combinatoire · ② lancer le juge des
   stratégies seul sur la fiche et exiger son calibrage · ③ charger cours et modules
-  par les fonctions du juge · ④ jouer la fiche telle quelle et exiger le résultat
+  par les fonctions du juge, et la fiche par `fiches_du_registre` du contrat (sa
+  DERNIÈRE ligne, n°83, depuis le 05-11-2026) · ④ jouer la fiche telle quelle et exiger le résultat
   que le juge vient d'afficher · ⑤ jouer la version identique et exiger le même
   résultat · ⑥ contrôler la marge de cours après la période · ⑦ pour chaque
   version : fusionner, contrôler la fusion, jouer, écrire une ligne dans un
@@ -59,8 +60,11 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
 ⑨ CE QUI CLOCHE — ① le calibrage du juge compare le nombre d'opérations et les
   sorties, pas les frais : des frais doublés passeraient (relecture du
   08-10-2026) ; seul le témoin de résultats les attrape, et sans témoin rien ne
-  les attrape · ② la période jouée est celle de la fiche ; le signal est forcé
-  à `signaux_c5etendu10` tant qu'A-542 n'est pas faite · ③ la version à zéro
+  les attrape · ② la période jouée est celle de la fiche ; le signal est celui
+  que la fiche nomme (`module_signal`, `fonction_signal`, `reglages_signal`),
+  lu par `signal_de_la_fiche` du juge — depuis le 30-10-2026 (A-542), il n'est
+  plus forcé à `signaux_c5etendu10` ; une version ne fait pas varier le signal ·
+  ③ la version à zéro
   opération porte un gain de 0, que le tri devra traiter à part.
 ⑩ EFFET — Crée le fichier de résultats, via un fichier provisoire `.en_cours`
   effacé en cas d'échec s'il a été créé par ce lancement. Rien d'autre n'est
@@ -146,12 +150,12 @@ def fusionner(fiche, version):
     ④ CONDITIONS D'ENTRÉE — Les deux portent tp, sl, horizon et univers.
     ⑤ SORTIE — UNE valeur : la fiche fusionnée, un nouveau dictionnaire.
       [rend: 1]
-    ⑥ TRAITEMENT — ① copier la fiche · ② y remplacer tp, sl, horizon, univers ·
-      ③ poser `_fonction_signal`.
+    ⑥ TRAITEMENT — ① copier la fiche, avec le signal qu'elle nomme · ② y remplacer
+      tp, sl, horizon, univers.
     ⑦ UNITÉ — tp et sl en fractions ; horizon en séances.
     ⑧ POURQUOI — DECLINER le prescrit dans son en-tête : la version ne porte que
       ce qui varie, le reste vient de la fiche.
-    ⑨ CE QUI CLOCHE — Le nom de la fonction de signal est écrit ici (A-542).
+    ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Aucun : la fiche d'origine n'est pas modifiée.
     ⑪ TERMINAISON — Rend toujours la main.
       [sort: non]
@@ -159,7 +163,6 @@ def fusionner(fiche, version):
     f = dict(fiche)
     for k in REGLAGES:
         f[k] = version[k]
-    f["_fonction_signal"] = "signaux_c5etendu10"
     return f
 
 
@@ -399,13 +402,17 @@ def main():
         if not str(e).startswith("le lecteur unique"):
             raise
         return arreter(str(e))
-    mod_sig = J.charger_module(J.trouver(base, "MODULE_C5_ETENDU_10"), "sig")
+    # LE SIGNAL N'EST PLUS CHARGÉ ICI (A-542, 30-10-2026) : chaque fiche jouée le nomme, `jouer_une` le lit par
+    # `signal_de_la_fiche` du juge, la seule lecture (R-708).
     mod_pos = J.charger_module(J.trouver(base, "MODULE_POSITIONS.py"), "pos")
-    fiches = [f for f in csv.DictReader(open(J.trouver(base, "cac40_strategies.csv"),
-                                             encoding="utf-8-sig")) if f["id"] == sid]
-    if len(fiches) != 1:
-        return arreter("fiche %s trouvée %d fois au registre" % (sid, len(fiches)))
-    fiche = fiches[0]
+    # LA FICHE EST LA DERNIÈRE LIGNE DE SON IDENTIFIANT (décision de Jean-Luc n°83 du 01-11-2026 à 12h33 : « La
+    # dernière ligne ajoutée fait foi. Les précédentes restent comme historique. ») : le nom du registre et sa lecture
+    # vivent au contrat (programmes/CONTRATS_DES_FICHIERS.py, chargé depuis le même dossier que le juge). Avant le
+    # 05-11-2026, une fiche écrite deux fois arrêtait ce programme (« trouvée 2 fois au registre »).
+    import CONTRATS_DES_FICHIERS as contrat
+    fiche = contrat.fiches_du_registre(J.trouver(base, contrat.NOM_DU_REGISTRE_DES_STRATEGIES)).get(sid)
+    if fiche is None:
+        return arreter("fiche %s absente du registre" % sid)
 
     def jouer_une(f, bareme=None, ops_rendues=None):
         """Fait passer une fiche par la porte 0 puis la joue.
@@ -421,14 +428,16 @@ def main():
         ⑤ SORTIE — DEUX valeurs : le résumé rendu par `resumer` du juge ; les bornes
           de la période rendues par la porte 0.
           [rend: 2]
-        ⑥ TRAITEMENT — ① porte 0 · ② poser la fonction de signal si absente ·
-          ③ `jouer` sur la période · ④ refuser une valeur absente des cours ·
-          ⑤ résumer.
+        ⑥ TRAITEMENT — ① porte 0 · ② lire le signal que la fiche nomme, par
+          `signal_de_la_fiche` du juge (A-542) · ③ `jouer` sur la période avec CE
+          signal · ④ refuser une valeur absente des cours · ⑤ résumer.
         ⑦ UNITÉ — Euros ; pourcents ; dates AAAA-MM-JJ.
         ⑧ POURQUOI — Le même appel que `main` du juge, ligne `ops, inconnus = jouer(...)`.
         ⑨ CE QUI CLOCHE — Rien vu.
-        ⑩ EFFET — Pose `_fonction_signal` dans la fiche reçue si elle ne l'a pas.
-        ⑪ TERMINAISON — Rend la main, ou lève ValueError sur un refus.
+        ⑩ EFFET — Aucun sur la fiche reçue. Charge le module de signal nommé au
+          premier appel (le juge le garde ensuite en mémoire).
+        ⑪ TERMINAISON — Rend la main, ou lève ValueError sur un refus — porte 0, ou
+          signal nommé introuvable.
           [sort: non]
         ⑫ DÉFINITIONS
           la porte 0 : la fonction `porte_0` du juge, qui refuse une fiche incomplète.
@@ -436,7 +445,7 @@ def main():
         ok0, manq, bornes = J.porte_0(f)
         if not ok0:
             raise ValueError("la porte 0 refuse : %s" % manq)
-        f.setdefault("_fonction_signal", "signaux_c5etendu10")
+        mod_sig = J.signal_de_la_fiche(base, f)   # le signal que la fiche nomme, lu à un seul endroit (A-542)
         if bareme is None:
             ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=bornes, lecture=lecture)
         else:

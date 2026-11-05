@@ -15,7 +15,7 @@
   au départ ; si le dépôt a changé depuis, le travail est refusé (ARRET) et il faut un dossier neuf.
 ⑤ SORTIE — Le code de sortie : 0 relevé écrit et série conforme ; 1 relevé écrit, série NON conforme (un sabotage ne
   mord pas, un lot a rendu autre chose que 0) ; 2 rien d'écrit (dépôt changé, épreuve illisible, sortie d'un lot
-  introuvable). L'ancien relevé de la même série (même nom, à la date près) est rangé dans archives/ avant l'écriture.
+  introuvable, table de lancement illisible, portée inconnue). L'ancien relevé de la même série (même nom, à la date près) est rangé dans archives/ avant l'écriture.
   [rend: 1]
 ⑥ TRAITEMENT — ① lire les noms des sabotages dans l'épreuve (arbre syntaxique, clé du dictionnaire SABOTAGES) ·
   ② prendre l'empreinte de chaque fichier du dépôt (sans .git ni le relevé), ou relire celle du départ et refuser si
@@ -24,7 +24,17 @@
   qui note chaque fichier ouvert en lecture · ④ chaque lot écrit sa sortie et son code, d'abord dans un fichier
   « .part », renommé une fois fini · ⑤ quand tous sont faits : chaque sabotage doit apparaître une fois, « mord » ;
   les fichiers lus = ceux notés ET présents au départ (les dossiers jetables de l'épreuve n'y sont pas) ; leur
-  empreinte doit être celle du départ · ⑥ écrire le relevé.
+  empreinte doit être celle du départ · ⑥ écrire le relevé. Avec la portée « lectures » (la règle d'origine, prise
+  quand la table n'en déclare pas), le relevé porte les fichiers LUS. Avec la portée « epreuve » (décision de Jean-Luc
+  n°71 du 01-11-2026 à 11h41 : la série de l'épreuve d'arrivée des signaux ne se rejoue que quand le code de l'essai
+  change) ou « code_execute » (05-11-2026, CHOIX D43 DU CHAT, À CONFIRMER PAR JEAN-LUC : le code de l'essai lu comme
+  le code que la série exécute), le relevé porte les fichiers du dépôt dont le code a été EXÉCUTÉ pendant la série —
+  l'écoute note aussi l'évènement d'audit « exec », et `SERIE.fichiers_executes` ramène chaque code exécuté, même
+  dans une copie jetable, au fichier du dépôt qu'il représente ; les données n'y entrent pas, elles ne sont jamais
+  exécutées. Le relevé porte les mêmes empreintes pour ces deux portées : la nuit ne compare que l'épreuve
+  (« epreuve ») ou tout le code exécuté (« code_execute »), et passer de l'une à l'autre se fait d'un mot dans la
+  table, sans rejouer la série. La portée vient de la table, lue par `CERTIF.options_de_lancement` (R-708), et ses
+  valeurs de `SERIE.PORTEES`.
 ⑦ UNITÉ — —
 ⑧ POURQUOI — Décision de Jean-Luc du 16-10-2026 à 14h30 : la série des 167 sabotages de l'épreuve des 20 ans se rejoue
   quand son code change, avec une alarme la nuit si on oublie. Elle dure environ 6 heures sur la machine du Chat
@@ -32,9 +42,16 @@
   plusieurs lots en même temps divisent la durée. Repères en tête de ligne pour la surveillance : ETAPE, ERREUR,
   FINI, ARRET.
 ⑨ CE QUI CLOCHE — Le module d'écoute passe par PYTHONPATH : l'épreuve est lancée sans « -I », et un programme qu'elle
-  lance avec « -I » ou « -E » n'est pas écouté (ses lectures dans le dépôt ne sont pas notées) ; la vérification de
+  lance avec « -I », « -E » ou « -S », ou avec un environnement remplacé (`env=` sans PYTHONPATH), n'est pas écouté
+  — ni ses lectures ni son code exécuté ne sont notés —, et du code exécuté par `exec` d'une chaîne lue dans un fichier
+  ne porte pas le nom de ce fichier (relecteur du 05-11-2026, défaut 2 : les cinq mécanismes, détaillés au ⑨ ③ de
+  programmes/SERIES_DE_SABOTAGES.py) ; la vérification de
   nuit ne le rattrape pas non plus : ce qui n'est pas lu sous l'écoute n'a pas d'empreinte (la règle « chaque
-  programme nommé », qui le rattrapait par hasard de nommage, est retirée le 17-10-2026). · Un fichier compilé
+  programme nommé », qui le rattrapait par hasard de nommage, est retirée le 17-10-2026). · Avec la portée
+  « lectures », seules les ouvertures SOUS LA RACINE comptent : un programme exécuté dans une copie faite ailleurs
+  n'est pas couvert (la mesure « exec » ne leur est pas appliquée : changer leur mesure pourrait rendre « SÉRIE À
+  REJOUER » à la nuit suivante, environ 6 heures pour les 20 ans ; décision séparée, BACKLOG). · Les limites de la
+  mesure « exec » : programmes/SERIES_DE_SABOTAGES.py, ⑨. · Un fichier compilé
   (__pycache__) lu à la place d'un .py est ramené à son .py. · Un lot coupé recommence en entier.
 ⑩ EFFET — Écrit dans le dossier de travail (lots, empreintes du départ, écoutes) et le relevé ; l'épreuve écrit ses
   dossiers jetables.
@@ -57,13 +74,20 @@ import SERIES_DE_SABOTAGES as SERIE   # noqa: E402  (le relevé : écrit une foi
 import CERTIFIER_LA_VERSION as CERTIF  # noqa: E402  (l'environnement de la nuit : défini une fois, R-708)
 
 PARIS = zoneinfo.ZoneInfo("Europe/Paris")
+# L'ÉCOUTE : chaque processus note les fichiers qu'il ouvre en lecture (dossier SERIE_ECOUTE) et, depuis le
+# 05-11-2026, le fichier de chaque code qu'il EXÉCUTE (évènement d'audit « exec », dossier SERIE_EXECUTION, à part :
+# la lecture des notes « lus » de la portée « lectures » reste inchangée).
 ECOUTE = '''import os, sys
 _d = os.environ.get("SERIE_ECOUTE")
+_x = os.environ.get("SERIE_EXECUTION")
 if _d:
     _f = open(os.path.join(_d, "lus.%d" % os.getpid()), "a", encoding="utf-8")
+    _g = open(os.path.join(_x, "executes.%d" % os.getpid()), "a", encoding="utf-8") if _x else None
     def _h(ev, a):
         if ev == "open" and a and isinstance(a[0], (str, bytes)) and "w" not in str(a[1] or "r") and "a" not in str(a[1] or "r"):
             _f.write(os.path.realpath(os.fsdecode(a[0])) + "\\n"); _f.flush()
+        elif _g is not None and ev == "exec" and a and hasattr(a[0], "co_filename"):
+            _g.write(a[0].co_filename + "\\n"); _g.flush()
     sys.addaudithook(_h)
 '''
 LIGNE = SERIE.LIGNE
@@ -118,7 +142,8 @@ def jouer_un_lot(racine, epreuve, travail, k, lot):
         return k, int(open(fin).read().strip())
     ecoute = os.path.join(travail, "ecoute")
     sortie = os.path.join(travail, f"lot_{k:02d}.out")
-    env = dict(os.environ, PYTHONPATH=os.path.join(travail, "module"), SERIE_ECOUTE=ecoute, PYTHONUNBUFFERED="1")
+    env = dict(os.environ, PYTHONPATH=os.path.join(travail, "module"), SERIE_ECOUTE=ecoute, PYTHONUNBUFFERED="1",
+               SERIE_EXECUTION=os.path.join(travail, "execution"))
     env.update(CERTIF.SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE)   # l'environnement où la nuit refait les essais
     with open(sortie + ".part", "w", encoding="utf-8") as s:
         code = subprocess.run([sys.executable, "-u", os.path.join(racine, epreuve), racine, "--saboter=" + ",".join(lot)],
@@ -154,8 +179,22 @@ def main():
     if not noms:
         print(f"ARRET aucun dictionnaire SABOTAGES lisible dans {epreuve}")
         return 2
+    # LA PORTÉE DU RELEVÉ, lue à la table de lancement par le certificateur (R-708) ; une racine sans table (un dépôt
+    # d'essai) garde la portée d'origine, « lectures ».
+    try:
+        portee = (CERTIF.options_de_lancement(racine)[1].get(epreuve) or {}).get("portee")
+    except FileNotFoundError:
+        portee = None
+    except ValueError as e:
+        print(f"ARRET table de lancement illisible : {e}")
+        return 2
+    portee = SERIE.PORTEE_LECTURES if portee is None else portee
+    if portee not in SERIE.PORTEES:
+        print(f"ARRET portée du relevé inconnue pour {epreuve} : {portee!r}")
+        return 2
     os.makedirs(os.path.join(travail, "module"), exist_ok=True)
     os.makedirs(os.path.join(travail, "ecoute"), exist_ok=True)
+    os.makedirs(os.path.join(travail, "execution"), exist_ok=True)
     open(os.path.join(travail, "module", "sitecustomize.py"), "w").write(ECOUTE)
     depart = os.path.join(travail, "etat_du_depart.json")
     etat = etat_du_depot(racine)
@@ -210,9 +249,12 @@ def main():
                     rel = (m.group(1) or "") + m.group(2) + ".py"
                 if rel in etat:
                     lus.add(rel)
+    # le code exécuté (portées « epreuve » et « code_execute ») : une propriété mesurée, ramenée au dépôt (R-708)
+    executes = SERIE.fichiers_executes(os.path.join(travail, "execution"), etat)
+    couverts = lus if portee == SERIE.PORTEE_LECTURES else executes
     # Un fichier disparu pendant la série est un changement, pas un plantage (relecture indépendante, 17-10-2026, tour
     # 15 : un fichier lu, effacé par l'épreuve, faisait sortir le joueur sur une trace, code 1, au lieu d'ARRET).
-    change = [c for c in sorted(lus | {epreuve}) if not os.path.isfile(os.path.join(racine, c))
+    change = [c for c in sorted(couverts | {epreuve}) if not os.path.isfile(os.path.join(racine, c))
               or SERIE.empreinte(os.path.join(racine, c)) != etat.get(c)]
     if change:
         print(f"ARRET {len(change)} fichier(s) lu(s) ont changé pendant la série : {', '.join(change[:5])}")
@@ -221,7 +263,13 @@ def main():
     entete = [f"série jouée du {open(os.path.join(travail, 'debut.txt')).read()} au "
               f"{datetime.datetime.now(PARIS):%d-%m-%Y %Hh%M} (Paris), {len(lots)} lots de {taille} au plus, {parts} à la fois,",
               f"par tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py ; {len(noms)} sabotages attendus, {len(vus)} joués, "
-              f"{sum(v == ['mord'] for v in vus.values())} mordent ; lots rouges : {lots_rouges or 'aucun'}"] + z0
+              f"{sum(v == ['mord'] for v in vus.values())} mordent ; lots rouges : {lots_rouges or 'aucun'}",
+              f"portée du relevé : {portee}" + ("" if portee == SERIE.PORTEE_LECTURES else
+                                                 " — empreintes du code EXÉCUTÉ par la série (évènement « exec »), sans "
+                                                 "les données ; la nuit compare " + ("le seul code de l'épreuve (décision "
+                                                 "n°71 du 01-11-2026, lue au mot)" if portee == SERIE.PORTEE_EPREUVE else
+                                                 "tout ce code (choix D43 du Chat du 05-11-2026, à confirmer par "
+                                                 "Jean-Luc)"))] + z0
     # Une seule version vivante : l'ancien relevé de la même série va dans archives/, sous un nom qui dit pourquoi.
     prefixe = re.sub(r"_[A-Z][a-z]{2}_\d{2}-\d{2}-\d{4}_\d{2}h\d{2}\.txt$", "_", os.path.basename(releve))
     dossier = os.path.join(racine, os.path.dirname(releve))
@@ -231,7 +279,7 @@ def main():
             os.replace(os.path.join(dossier, ancien), os.path.join(
                 racine, "archives", ancien[:-4] + "_REMPLACE_PAR_" + os.path.basename(releve)))
             print(f"ETAPE {heure()} ancien relevé rangé dans archives/ : {ancien}")
-    n = SERIE.ecrire_le_releve(racine, releve, epreuve, sorted(lus), lignes, conforme, entete)
+    n = SERIE.ecrire_le_releve(racine, releve, epreuve, sorted(couverts), lignes, conforme, entete)
     print(f"FINI {heure()} relevé {releve} : {len(vus)} sabotages, {n} empreintes, "
           f"{'conforme' if conforme else 'NON CONFORME'}", flush=True)
     return 0 if conforme else 1
