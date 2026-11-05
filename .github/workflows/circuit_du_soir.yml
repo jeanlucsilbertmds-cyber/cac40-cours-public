@@ -384,14 +384,14 @@ jobs:
 
       - name: Rougir si des lignes de cours ont ete mises a part
         id: rougir_si_des_lignes_mises_a_part
-        if: always() && steps.versement.outputs.a_part == '1'
+        if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (always() && steps.versement.outputs.a_part == '1') }}
         run: |
           echo "::error::DES LIGNES DE COURS ONT ETE MISES A PART CE SOIR — lire rapports/ALERTE_LIGNES_MISES_A_PART.md (decision de Jean-Luc : corriger ou retirer la ligne dans donnees/claude_cours_nouveaux.csv)"
           exit 1
 
       - name: Dire quels pas non bloquants sont tombes
         id: dire_quels_pas_non_bloquants_sont_tomb
-        if: ${{ always() && steps.poser_les_programmes.outcome == 'success' }}
+        if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (always()) }}
         env:
           PAS: ${{ toJSON(steps) }}
         run: |

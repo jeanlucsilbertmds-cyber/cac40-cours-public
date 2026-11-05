@@ -8,7 +8,7 @@
   première ligne : circuit non passé, séance attendue non lue (le dernier jour de
   bourse, week-ends et jours fériés sautés), valeurs sans cours, source illisible, ❌ du
   radar, alerte nouvelle, fin prochaine du calendrier de la Bourse, certification de la
-  nuit non déposée.
+  nuit non déposée ou impossible.
 ② CONTEXTE D'APPEL — La tâche planifiée « MESSAGE DU SOIR » (décision de Jean-Luc du
   30-09-2026, 17h34-17h42 : un seul message chaque soir, construit sur ce que fait
   GitHub, testé en forçant le passage) le lance après le circuit de GitHub, puis
@@ -28,7 +28,8 @@
   une source manquait ou n'était pas lisible (R-734 : un contrôle qui n'a pas pu
   conclure ne rend jamais 0) ; 2 si le circuit du soir n'a pas tourné ou si la
   séance lue n'est pas celle qu'on attend (en retard, postérieure, ou hors jour de
-  bourse), ou si le certificat de la nuit n'a pas été déposé ; 0 sinon.
+  bourse), ou si le certificat de la nuit n'a pas été déposé, ou s'il dit « CERTIFICATION
+  IMPOSSIBLE » ; 0 sinon.
 ⑥ TRAITEMENT — ① dire si le rapport du radar est du jour (`fabrique_du_jour`) et en
   lire le score, les ❌ et les ⚠️ · ② relire la version précédente du même rapport
   dans l'historique git, pour dire ce qui est nouveau · ③ lire les signaux et
@@ -37,7 +38,7 @@
   clos à la date de la séance, chacun compté une fois quelle que soit sa comptabilité
   · ④bis lire dans l'historique git le dernier dépôt du certificat de la version par
   son auteur `certification-publique`, et dire s'il est plus ancien que la nuit
-  attendue · ⑤ écrire le bilan, puis le détail.
+  attendue, ou s'il dit « CERTIFICATION IMPOSSIBLE » · ⑤ écrire le bilan, puis le détail.
 ⑦ UNITÉ — Des dates AAAA-MM-JJ, affichées JJ-MM ; des euros pour les trades.
 ⑧ POURQUOI — Le 30-09-2026, relevé par le Chat : la tâche de 22h ne fait plus
   tourner le radar depuis le 09-09 (clone refusé), et le seul message du soir venait
@@ -76,6 +77,9 @@ IDENTITE_CERTIFICATION = "certification-publique <certification-publique@users.n
 # L'identité git du pas « deposer » de la certification, écrite par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py
 # (CERTIFICATION) : épinglée par l'épreuve E52 des épreuves du message, qui rougit si le gabarit change.
 BANNIERE = 200
+# La longueur du verdict de la certification recopié au détail : la raison d'une « CERTIFICATION IMPOSSIBLE » de la
+# nuit découpée nomme chaque tranche et peut tenir plus de mille caractères ; le certificat la porte en entier.
+VERDICT_AU_DETAIL = 300
 
 
 def contrats(racine):
@@ -364,8 +368,9 @@ def reveil_de_la_certification():
 def juger_la_certification(racine, maintenant):
     """Juge la certification de la nuit par son fruit, le certificat déposé, et rend ce que le message en dit.
 
-    ① RÔLE — Dire, chaque soir, si la certification a tourné et déposé son certificat. Le 27 et le 28-10-2026,
-      elle a refusé de tourner deux nuits de suite sans que personne le sache avant le lendemain midi (A-629).
+    ① RÔLE — Dire, chaque soir, si la certification a tourné, déposé son certificat et pu conclure. Le 27 et le
+      28-10-2026, elle a refusé de tourner deux nuits de suite sans que personne le sache avant le lendemain midi
+      (A-629).
     ② CONTEXTE D'APPEL — `composer`, une fois.
     ③ ENTRÉE — `racine` : le clone lu, avec son historique · `maintenant` : l'heure de Paris du message.
     ④ CONDITIONS D'ENTRÉE — Un clone COMPLET : un clone superficiel est refusé (voir ⑥ ①).
@@ -381,8 +386,12 @@ def juger_la_certification(racine, maintenant):
       date dans le futur · ⑤ règle (a) : ce commit doit toucher le certificat, sinon le dernier passage n'a rien
       certifié · ⑥ règle (b) : il doit dater d'après le dernier réveil qui a eu le temps de finir (heure du
       réveil plus son délai maximal, avant maintenant, lus par `reveil_de_la_certification`), sinon ce
-      réveil n'a rien déposé · ⑦ lire le verdict du certificat ;
-      illisible, il rend la source illisible.
+      réveil n'a rien déposé · ⑦ lire le verdict du certificat, « **VERSION …** » ou « **CERTIFICATION IMPOSSIBLE
+      …** » en tête de sa ligne ; illisible, il rend la source illisible · ⑧ un verdict « CERTIFICATION
+      IMPOSSIBLE » rend l'alerte « 🚨 Certification impossible (passage du JJ-MM HHhMM) » : le certificateur n'a pas
+      pu conclure (R-734 ; relecture de Cowork du 31-10-2026 à 18h49 : avec la nuit découpée, c'est son cri
+      principal, et le message le disait « verdict illisible », sans alerte nommée). Au détail, le verdict est
+      coupé à VERDICT_AU_DETAIL caractères.
     ⑦ UNITÉ — Dates de Paris ; le réveil en temps universel.
     ⑧ POURQUOI — Superviseurs R-759 du 28-10-2026 : juger par le fruit et non par une cause de panne ; règles
       (a) et (b) rejouées sur les soirs du 12 au 28-10 : les alertes tombent le 13, le 14, le 15, le 20, le 27
@@ -390,7 +399,13 @@ def juger_la_certification(racine, maintenant):
     ⑨ CE QUI CLOCHE — Un réveil qui n'est pas parti, suivi d'un lancement manuel APRÈS l'heure du réveil, ne se
       voit pas. Un conflit de poussée qui empêche le dépôt du certificat se dit « absente », sans cause. Le
       verdict « VERSION NON CERTIFIÉE » n'alerte pas : décision de Jean-Luc en attente. Un dépôt de la nuit
-      retardé par GitHub au-delà de 20h45 le lendemain se dit « absente ».
+      retardé par GitHub au-delà de 20h45 le lendemain se dit « absente ». Un verdict dont la raison tient sur
+      plusieurs lignes ne se termine pas par « ** » sur sa ligne : il est dit illisible (code 1), jamais tu. Un
+      verdict suivi d'un autre texte sur sa ligne (« **VERSION …** (voir …) »), que l'ancien motif du 30-10 lisait,
+      est désormais dit illisible (code 1) ; le certificateur n'en écrit jamais (17 certificats de l'historique
+      relus par la relecture neuve du 31-10-2026). Un passage « IMPOSSIBLE » plus ancien que le dernier réveil se
+      dit « absente », pas « impossible ». Un soir où une autre source est illisible, le message rend 1 et non 2,
+      mais l'alerte « 🚨 Certification impossible » reste dans son bilan (`composer`).
     ⑩ EFFET — Lance `git` en lecture ; lit le fabricant du circuit public comme une donnée.
     ⑪ TERMINAISON — Rend la main ; chaque appel à `git` est borné à 60 secondes.
       [sort: non]
@@ -435,13 +450,21 @@ def juger_la_certification(racine, maintenant):
     if CERTIFICAT not in touche.split("\n"):
         return f"🚨 Certification sans certificat (passage du {quand:%d-%m %Hh%M})", None, \
             f"Certificat de la version : le dernier passage, le {quand:%d-%m à %Hh%M}, n'a déposé que son journal"
-    v = re.search(r"^\*\*(VERSION[^*\n]*)\*\*", lire_git(racine, "show", sha + ":" + CERTIFICAT) or "", re.M)
+    # le verdict : « VERSION … » (certifiée ou non) ou « CERTIFICATION IMPOSSIBLE … » (le certificateur n'a pas pu
+    # conclure : partiel manquant, autre passage, autre code, doublon, épreuve non déclarée…), en gras sur sa ligne.
+    # La raison d'un « IMPOSSIBLE » peut porter des « * » (un nom de fichier) : la ligne est lue jusqu'à son « ** » final.
+    v = re.search(r"^\*\*((?:VERSION|CERTIFICATION IMPOSSIBLE)[^\n]*?)\*\*[ \t\r]*$",
+                  lire_git(racine, "show", sha + ":" + CERTIFICAT) or "", re.M)
     if not v:
         return None, f"{CERTIFICAT} (verdict illisible au dépôt {sha[:7]})", \
             f"Certificat de la version : déposé le {quand:%d-%m à %Hh%M}, verdict illisible"
-    detail = f"Certificat de la version : déposé le {quand:%d-%m à %Hh%M} · {v.group(1).strip()}"
+    verdict = v.group(1).strip()
+    detail = f"Certificat de la version : déposé le {quand:%d-%m à %Hh%M} · " + (
+        verdict if len(verdict) <= VERDICT_AU_DETAIL else verdict[:VERDICT_AU_DETAIL - 1] + "…")
     if quand < seuil:
         return f"🚨 Certification absente (dernier passage {quand:%d-%m})", None, detail
+    if verdict.startswith("CERTIFICATION IMPOSSIBLE"):   # R-734 : un contrôle qui n'a pas pu tourner ne se tait pas
+        return f"🚨 Certification impossible (passage du {quand:%d-%m %Hh%M})", None, detail
     return None, None, detail
 
 

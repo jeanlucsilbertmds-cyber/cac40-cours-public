@@ -645,12 +645,24 @@ def relire_par_le_lecteur(lignes):
 def _lisible(e):
     """Écrit un élément d'un relevé du lecteur commun en clair : les dates en JJ-MM-AAAA, le reste tel quel.
 
-    ① RÔLE — Rendre lisible un exemple montré à l'écran et dans l'alerte. ② CONTEXTE D'APPEL — `relire_par_le_lecteur`.
-    ③ ENTRÉE — `e` : un élément de relevé, souvent un tuple (mnémonique, date, nature). ④ CONDITIONS D'ENTRÉE — —.
-    ⑤ SORTIE — UNE valeur, un texte. [rend: 1] ⑥ TRAITEMENT — aplatir les tuples et listes, écrire chaque date
-    `strftime('%d-%m-%Y')`, joindre par « · ». ⑦ UNITÉ — —. ⑧ POURQUOI — relecteur du 30-10-2026, M1 : l'alerte
-    montrait `datetime.date(2026, 5, 1)`. ⑨ CE QUI CLOCHE — La valeur reste dite par son mnémonique (« DG »), la clé
-    du lecteur, et non par son nom usuel. ⑩ EFFET — —. ⑪ TERMINAISON — Rend la main. [sort: non]
+    ① RÔLE — Rendre lisible un exemple montré à l'écran et dans l'alerte.
+    ② CONTEXTE D'APPEL — `relire_par_le_lecteur`, pour les trois premiers éléments de chaque relevé ; et elle-même,
+      pour chaque morceau d'un tuple ou d'une liste.
+    ③ ENTRÉE — `e` : un élément de relevé, souvent un tuple (mnémonique, date, nature), ou une paire (clé, valeur)
+      quand le relevé est un dictionnaire.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur, un texte.
+      [rend: 1]
+    ⑥ TRAITEMENT — aplatir les tuples et listes en joignant leurs morceaux par « · », écrire chaque objet qui a
+      `strftime` en `%d-%m-%Y`, tout le reste par `str`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relecteur du 30-10-2026, M1 : l'alerte montrait `datetime.date(2026, 5, 1)`.
+    ⑨ CE QUI CLOCHE — La valeur reste dite par son mnémonique (« DG »), la clé du lecteur, et non par son nom usuel.
+      Une liste qui se contiendrait elle-même ferait monter la récursion jusqu'à l'erreur.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main ; elle s'appelle elle-même une fois par morceau, sur des éléments de plus en plus
+      petits.
+      [sort: non]
     """
     if isinstance(e, (tuple, list)):
         return " · ".join(_lisible(x) for x in e)
@@ -848,11 +860,22 @@ def ecrire_l_alerte_des_lignes_a_part(a_part, versees):
 def _jj_mm_aaaa(d):
     """Rend une date AAAA-MM-JJ écrite JJ-MM-AAAA ; toute autre forme est rendue telle quelle.
 
-    ① RÔLE — Écrire une date comme Jean-Luc la lit. ② CONTEXTE D'APPEL — `ecrire_l_alerte_des_lignes_a_part` et
-    l'écran de `main`. ③ ENTRÉE — `d` : un texte. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur, un texte.
-    [rend: 1] ⑥ TRAITEMENT — si `d` a la forme AAAA-MM-JJ, inverser ses trois parties. ⑦ UNITÉ — —. ⑧ POURQUOI —
-    relecteur du 30-10-2026, M1 : le message de refus montrait `datetime.date(2026, 5, 1)`. ⑨ CE QUI CLOCHE — —.
-    ⑩ EFFET — —. ⑪ TERMINAISON — Rend la main. [sort: non]
+    ① RÔLE — Écrire une date comme Jean-Luc la lit.
+    ② CONTEXTE D'APPEL — `ecrire_l_alerte_des_lignes_a_part` (une ligne par ligne mise à part) et l'écran de `main`
+      (« MISE À PART »).
+    ③ ENTRÉE — `d` : un texte ; les deux appelants passent `x.get('date') or ''`.
+    ④ CONDITIONS D'ENTRÉE — `d` est un texte.
+    ⑤ SORTIE — UNE valeur, un texte.
+      [rend: 1]
+    ⑥ TRAITEMENT — si `d` a la forme exacte de quatre, deux et deux chiffres séparés par des tirets, inverser ses
+      trois parties ; sinon le rendre tel quel.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relecteur du 30-10-2026, M1 : le message de refus montrait `datetime.date(2026, 5, 1)`.
+    ⑨ CE QUI CLOCHE — La forme seule est lue, pas la date : « 2026-13-45 » devient « 45-13-2026 ». Un `d` qui n'est
+      pas un texte (une date Python, None) lève TypeError.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
     """
     return f"{d[8:10]}-{d[5:7]}-{d[0:4]}" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) else d
 

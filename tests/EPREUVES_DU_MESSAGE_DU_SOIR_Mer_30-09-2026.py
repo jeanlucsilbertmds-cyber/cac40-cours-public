@@ -58,6 +58,13 @@ E59 message lancé à 1h00 la nuit qui suit la veille ouvrée, pendant son passa
 E60 gabarit sans « timeout-minutes » : délai illisible, code 1 ;
 E61 fabricant qui arrête Python à son import : le message n'est pas touché, il ne l'exécute pas ;
 E54 copie sans historique git : la certification est dite illisible, code 1 ;
+E62 verdict « **CERTIFICATION IMPOSSIBLE — … ** » (la vraie ligne du certificat public du 29-10-2026, 2a937b5) : 🚨
+    « Certification impossible (passage du JJ-MM HHhMM) », code 2, le verdict au détail, jamais « verdict illisible »
+    (R-734 ; relecture de Cowork du 31-10-2026 à 18h49) ;
+E63 raison « IMPOSSIBLE » de la nuit découpée, six tranches, avec « * » dans les noms de fichier : 🚨, et le détail
+    coupé à VERDICT_AU_DETAIL caractères, terminé par « … » ;
+E64 raison qui porte « ** » : lue jusqu'au « ** » final de la ligne, 🚨 ;
+E65 passage « IMPOSSIBLE » de trois jours ouvrés avant : 🚨 « absente », jamais « impossible » ;
 E20 un ❌ nouveau en fin de ligne longue : le détail l'écrit en entier ;
 E21 fichier des signaux portant une clé hors contrat : « Message incomplet » ;
 E22 un signal portant un champ hors contrat : « Message incomplet » ;
@@ -97,7 +104,10 @@ programme est lu d'abord (E30) · S31 la fin prochaine du calendrier est tue (E3
 tolérée (E32) · S33 le retard est compté hors couverture (E36) · S34 « POSTÉRIEURE » jugé sur la veille de bourse
 (E39) · S35 seuil de fin du calendrier à 11 jours (E35) · S36 la veille de bourse cherchée trois jours avant (E38) ·
 S37 forme de la séance non exigée (E37) · S38 compte faux avant la couverture (E36) · S39 le retard tu quand la séance
-tombe un samedi (E34) · S40 une séance impossible affichée comme une date (E32) · S41 la date du radar mal lue (E2).
+tombe un samedi (E34) · S40 une séance impossible affichée comme une date (E32) · S41 la date du radar mal lue (E2) ·
+S62 le verdict « CERTIFICATION IMPOSSIBLE » n'est plus lu (E62) · S63 il est lu mais n'alerte pas (E62, E63) · S64 le
+verdict entier au détail (E63) · S65 le verdict lu jusqu'à la première « * » seulement (E63) · S66 l'ancre de fin de
+ligne retirée (E64) · S67 « impossible » jugé avant l'âge du passage (E65).
 LA LOGIQUE DU CALENDRIER lui-même (week-ends, fériés, bornes) est éprouvée à part, sur des réponses écrites à la main :
 tests/EPREUVES_DU_CALENDRIER_DE_LA_BOURSE_Mer_30-09-2026.py. Ici, les dates d'épreuve viennent du module : elles ne
 jugent que le message.
@@ -176,6 +186,18 @@ SABOTAGES = {
     "S59_motif_non_echappe": [('    motif = "".join("\\\\" + c if c in ".[]*^$\\\\" else c for c in IDENTITE_CERTIFICATION)\n', "    motif = IDENTITE_CERTIFICATION\n")],
     "S60_adresse_du_committer_ignoree": [("    if committer != auteur:\n", '    if committer.split(" <")[0] != auteur.split(" <")[0]:\n')],
     "S61_delai_ignore": [("seuil + timedelta(minutes=delai) <= maintenant", "seuil < maintenant")],
+    "S62_impossible_non_lu": [("(?:VERSION|CERTIFICATION IMPOSSIBLE)", "VERSION")],
+    "S63_impossible_tu": [('    if verdict.startswith("CERTIFICATION IMPOSSIBLE"):', "    if False:")],
+    "S64_verdict_entier_au_detail": [("verdict if len(verdict) <= VERDICT_AU_DETAIL else", "verdict if True else")],
+    "S65_verdict_coupe_a_la_premiere_etoile": [("IMPOSSIBLE)[^\\n]*?)", "IMPOSSIBLE)[^*\\n]*?)")],
+    "S66_ancre_de_fin_retiree": [("[^\\n]*?)\\*\\*[ \\t\\r]*$\",", "[^\\n]*?)\\*\\*\",")],
+    "S67_impossible_juge_avant_l_age": [(   # l'ordre des deux tests inversé, rien d'autre
+        '    if quand < seuil:\n        return f"🚨 Certification absente (dernier passage {quand:%d-%m})", None, detail\n'
+        '    if verdict.startswith("CERTIFICATION IMPOSSIBLE"):   # R-734 : un contrôle qui n\'a pas pu tourner ne se tait pas\n'
+        '        return f"🚨 Certification impossible (passage du {quand:%d-%m %Hh%M})", None, detail\n',
+        '    if verdict.startswith("CERTIFICATION IMPOSSIBLE"):   # R-734 : un contrôle qui n\'a pas pu tourner ne se tait pas\n'
+        '        return f"🚨 Certification impossible (passage du {quand:%d-%m %Hh%M})", None, detail\n'
+        '    if quand < seuil:\n        return f"🚨 Certification absente (dernier passage {quand:%d-%m})", None, detail\n')],
     "S16_nouveau_coupe": [('        detail.append("  NOUVEAU " + x if x in nouv_r else "  " + x[:160])',
                            '        detail.append("  NOUVEAU " + x[:160] if x in nouv_r else "  " + x[:160])')],
 }
@@ -581,6 +603,32 @@ def epreuves(prog, tmp):
     pex = gabarit("import sys\nsys.exit(0)\nprint('X')\n" + _fab)
     c, l1, o = lancer(pex, monter(dos(), (V, o7), (J, o8)))
     res.append(("E61 fabricant qui arrête Python à l'import : le message n'est pas touché", c == 0 and l1.startswith("✅")))
+    # E62-E63 : « CERTIFICATION IMPOSSIBLE » (relecture de Cowork du 31-10-2026 à 18h49). E62 est la VRAIE ligne du
+    # certificat public du 29-10-2026 (commit 2a937b5) ; E63 une raison de nuit découpée, longue et qui porte « * ».
+    _imp = "**CERTIFICATION IMPOSSIBLE — épreuve(s) non déclarée(s) : programmes/EPREUVES_TENIR_UN_PLANNING.py**"
+    c, l1, o = lancer(prog, monter(dos(), (V, o7), (J, o8), passages=[passage(NUIT, verdict=_imp)]))
+    res.append(("E62 verdict « CERTIFICATION IMPOSSIBLE » réel (29-10) : 🚨 « Certification impossible », code 2, verdict au détail",
+                c == 2 and l1.startswith("🚨") and f"Certification impossible (passage du {NUIT.astimezone(_P):%d-%m %Hh%M})" in l1
+                and "· CERTIFICATION IMPOSSIBLE — épreuve(s) non déclarée(s) : programmes/EPREUVES_TENIR_UN_PLANNING.py" in o
+                and "verdict illisible" not in o))
+    _long = "**CERTIFICATION IMPOSSIBLE — " + " · ".join(
+        f"tranche {k} : rapports/certificats_partiels/TRANCHE_*.json : certificat partiel absent ou illisible (FileNotFoundError)"
+        for k in range(1, 7)) + "**"
+    c, l1, o = lancer(prog, monter(dos(), (V, o7), (J, o8), passages=[passage(NUIT, verdict=_long)]))
+    _ligne = next((x for x in o.splitlines() if x.startswith("Certificat de la version : ")), "")
+    res.append(("E63 raison longue avec « * » : 🚨 « Certification impossible », détail coupé, terminé par « … »",
+                c == 2 and "Certification impossible" in l1 and "tranche 1 : rapports/certificats_partiels/TRANCHE_*.json" in _ligne
+                and _ligne.endswith("…") and "tranche 6" not in _ligne))
+    # E64-E65 (relecture neuve du 31-10-2026, M3) : « ** » DANS la raison, lue jusqu'au « ** » final ; un passage
+    # « IMPOSSIBLE » vieux de trois jours ouvrés se dit « absente », pas « impossible ».
+    _etoiles = "**CERTIFICATION IMPOSSIBLE — partiel « **TRANCHE_3** » illisible · fin de la raison**"
+    c, l1, o = lancer(prog, monter(dos(), (V, o7), (J, o8), passages=[passage(NUIT, verdict=_etoiles)]))
+    res.append(("E64 raison qui porte « ** » : lue jusqu'au « ** » final, 🚨 « Certification impossible »",
+                c == 2 and "Certification impossible" in l1 and "illisible · fin de la raison" in o))
+    c, l1, o = lancer(prog, monter(dos(), (V, o7), (J, o8), passages=[passage(_q3, verdict=_imp)]))
+    res.append(("E65 « IMPOSSIBLE » de trois jours ouvrés avant : 🚨 « absente », jamais « impossible », code 2",
+                c == 2 and f"Certification absente (dernier passage {_q3.astimezone(_P):%d-%m})" in l1
+                and "Certification impossible" not in l1))
     c, l1, o = lancer(prog, monter(dos(), (V, o7), (J, o8), git=False))
     res.append(("E54 sans historique : la certification est dite illisible, code 1", c == 1 and "Illisible : rapports/CERTIFICAT_DE_LA_VERSION.md" in o))
     c, l1, o = lancer(prog, monter(dos(), (V, o7 + r1), (J, o8 + [r1[0] + " " + "x" * 200 + " | ❌ A-509 : CLOSE sans preuve"])))

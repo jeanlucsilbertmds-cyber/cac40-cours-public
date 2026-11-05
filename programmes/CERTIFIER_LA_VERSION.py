@@ -14,6 +14,9 @@
   aussi avant de fusionner une version en attente. À la main :
   python3 programmes/CERTIFIER_LA_VERSION.py <racine du dépôt>
   [--ecrire-la-reference [--accord "<décision de Jean-Luc, datée>"]].
+  LA NUIT, DEPUIS LE 30-10-2026, EN TRANCHES (décision de Jean-Luc du 30-10-2026 à 19h02) : le circuit public
+  `.github/workflows/certifier_la_version.yml` lance « --tranche i/n » sur n machines en même temps, puis
+  « --reunir n » dans une tâche finale qui réunit leurs certificats partiels (voir `main`, ⑥).
 ③ ENTRÉE — `sys.argv[1]` : la racine d'un clone du dépôt. `--ecrire-la-reference` : écrire
   la référence à partir de la mesure de ce passage. `--accord "…"` : la décision de
   Jean-Luc qui autorise une référence moins bonne que l'actuelle, recopiée dedans.
@@ -409,26 +412,26 @@ def texte(lignes, n):
     return lignes[n - 1].strip() if 0 < n <= len(lignes) else "<sortie>"
 
 
-def lire_la_mesure(dossier, reglages, manifestes, racine):
-    """Réunit les relevés, ne crédite que les copies identiques, et rend le tableau par programme.
+def mesure_brute(dossier, reglages, manifestes, racine):
+    """Réunit les relevés, ne crédite que les copies identiques, et rend, par programme, ce qui n'est pas examiné, par numéros.
 
     ① RÔLE — Transformer les relevés bruts en ce qui a été examiné, programme par programme.
-    ② CONTEXTE D'APPEL — `calibrer_la_mesure` et `main`.
+    ② CONTEXTE D'APPEL — `lire_la_mesure` ; `main`, pour le certificat partiel d'une tranche de la nuit.
     ③ ENTRÉE — `dossier` : où écrire les fichiers de travail · `reglages` · `manifestes` :
       le dossier des empreintes · `racine` : la copie dont on mesure les programmes.
     ④ CONDITIONS D'ENTRÉE — Les épreuves ont tourné.
-    ⑤ SORTIE — UNE valeur : « chemin relatif → {instructions, instructions_non_examinees,
-      embranchements, embranchements_non_examines, fonctions, fonctions_non_examinees,
-      lignes_non_examinees, branches_non_examinees} » ; les deux dernières clés comptent,
-      par texte de ligne (ou par couple « départ → arrivée »), ce qui n'est pas examiné.
+    ⑤ SORTIE — UNE valeur : « chemin relatif → {empreinte, instructions, embranchements, fonctions,
+      fonctions_non_examinees, lignes, branches} » ; `lignes` : les numéros des lignes non examinées ;
+      `branches` : les couples [départ, arrivée] non examinés ; `empreinte` : le sha256 du programme mesuré.
       [rend: 1]
     ⑥ TRAITEMENT — ① réunir les relevés · ② lire les empreintes notées par chaque processus ·
       ③ pour chaque fichier mesuré, retrouver le programme de même chemin relatif sous
       `programmes/`, et ne créditer ses lignes et embranchements QUE si l'empreinte est la
       même · ④ faire calculer par `coverage` le rapport de chaque programme sur les seuls
-      crédits · ⑤ compter par texte.
-    ⑦ UNITÉ — Des nombres d'instructions et d'embranchements.
-    ⑧ POURQUOI — Voir la fiche en tête, ⑧ (le leurre) et ⑨ ⑥.
+      crédits · ⑤ garder les numéros (la traduction en textes est faite par `tableau_de`).
+    ⑦ UNITÉ — Des numéros de lignes.
+    ⑧ POURQUOI — Voir la fiche en tête, ⑧ (le leurre) et ⑨ ⑥. Les numéros, et non les textes : deux tranches de
+      la nuit se réunissent ligne à ligne (`reunir_les_mesures`), et deux lignes de même texte se confondraient.
     ⑨ CE QUI CLOCHE — Une copie modifiée par un sabotage n'est pas créditée : ce qu'elle
       exécute ne compte pas, et c'est voulu.
     ⑩ EFFET — Écrit des fichiers de travail dans `dossier`.
@@ -477,23 +480,75 @@ def lire_la_mesure(dossier, reglages, manifestes, racine):
     cov.json_report(morfs=list(reels.values()), outfile=sortie, ignore_errors=True)
     rapport = json.load(open(sortie, encoding="utf-8"))["files"]
     par_chemin = {os.path.abspath(k): v for k, v in rapport.items()}
-    tableau = {}
+    brute = {}
     for rel, a in reels.items():
         v = par_chemin.get(os.path.abspath(a))
         if v is None:
             continue
-        src = open(a, encoding="utf-8", errors="replace").read().splitlines()
         s = v["summary"]
         fonctions = {k: x for k, x in v.get("functions", {}).items() if k}
+        brute[rel] = {"empreinte": empreintes[rel], "instructions": s["num_statements"],
+                      "embranchements": s.get("num_branches", 0), "fonctions": len(fonctions),
+                      "fonctions_non_examinees": sorted(k for k, x in fonctions.items()
+                                                        if x["summary"]["covered_lines"] == 0),
+                      "lignes": sorted(v.get("missing_lines", [])),
+                      "branches": sorted([d, b] for d, b in v.get("missing_branches", []))}
+    return brute
+
+
+def tableau_de(brute, racine):
+    """Traduit une mesure brute (numéros de lignes) en tableau par programme (textes de lignes), celui que la référence garde.
+
+    ① RÔLE — Désigner ce qui n'est pas examiné par le TEXTE des lignes, pas par leur numéro.
+    ② CONTEXTE D'APPEL — `lire_la_mesure` (une tranche, ou la certification entière) ; `main`, après `reunir_les_tranches`.
+    ③ ENTRÉE — `brute` : « chemin relatif → mesure brute » (`mesure_brute`) · `racine` : où lire le texte des programmes.
+    ④ CONDITIONS D'ENTRÉE — Chaque programme de `brute` existe sous `racine`, avec le contenu mesuré.
+    ⑤ SORTIE — UNE valeur : le tableau décrit en ⑤ de `lire_la_mesure`.
+      [rend: 1]
+    ⑥ TRAITEMENT — pour chaque programme : les comptes, et le compte par texte des lignes et des embranchements non examinés.
+    ⑦ UNITÉ — Des nombres d'instructions et d'embranchements.
+    ⑧ POURQUOI — La nuit découpée en tranches (décision de Jean-Luc du 30-10-2026 à 19h02, « 1 ») réunit des mesures
+      faites sur plusieurs machines : la réunion se fait sur les NUMÉROS (un même programme, à l'octet), puis la
+      traduction en textes se fait ici, une fois, pour une tranche comme pour la nuit entière (R-708).
+    ⑨ CE QUI CLOCHE — Voir la fiche en tête, ⑨ ⑥.
+    ⑩ EFFET — Lit les programmes.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    tableau = {}
+    for rel, v in brute.items():
+        src = open(os.path.join(racine, rel), encoding="utf-8", errors="replace").read().splitlines()
         tableau[rel] = {
-            "instructions": s["num_statements"], "instructions_non_examinees": s["missing_lines"],
-            "embranchements": s.get("num_branches", 0), "embranchements_non_examines": s.get("missing_branches", 0),
-            "fonctions": len(fonctions),
-            "fonctions_non_examinees": sorted(k for k, x in fonctions.items() if x["summary"]["covered_lines"] == 0),
-            "lignes_non_examinees": dict(collections.Counter(texte(src, n) for n in v.get("missing_lines", []))),
+            "instructions": v["instructions"], "instructions_non_examinees": len(v["lignes"]),
+            "embranchements": v["embranchements"], "embranchements_non_examines": len(v["branches"]),
+            "fonctions": v["fonctions"], "fonctions_non_examinees": sorted(v["fonctions_non_examinees"]),
+            "lignes_non_examinees": dict(collections.Counter(texte(src, n) for n in v["lignes"])),
             "branches_non_examinees": dict(collections.Counter(f"{texte(src, d)} → {texte(src, b)}"
-                                                               for d, b in v.get("missing_branches", [])))}
+                                                               for d, b in v["branches"]))}
     return tableau
+
+
+def lire_la_mesure(dossier, reglages, manifestes, racine):
+    """Rend le tableau par programme de la mesure : `mesure_brute` puis `tableau_de`.
+
+    ① RÔLE — La mesure d'un passage, telle que la référence la garde.
+    ② CONTEXTE D'APPEL — `calibrer_la_mesure` et `main`.
+    ③ ENTRÉE — `dossier` : où écrire les fichiers de travail · `reglages` · `manifestes` : le dossier des
+      empreintes · `racine` : la copie dont on mesure les programmes (les quatre sont passés tels quels à
+      `mesure_brute`).
+    ④ CONDITIONS D'ENTRÉE — Les épreuves ont tourné.
+    ⑤ SORTIE — UNE valeur : « chemin relatif → {instructions, instructions_non_examinees, embranchements,
+      embranchements_non_examines, fonctions, fonctions_non_examinees, lignes_non_examinees, branches_non_examinees} ».
+      [rend: 1]
+    ⑥ TRAITEMENT — les deux appels.
+    ⑦ UNITÉ — Des nombres d'instructions et d'embranchements.
+    ⑧ POURQUOI — Garder l'appel d'avant le découpage de la nuit (30-10-2026) pour la sonde du calibrage.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Voir `mesure_brute`.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return tableau_de(mesure_brute(dossier, reglages, manifestes, racine), racine)
 
 
 def calibrer_la_mesure(dossier, py):
@@ -739,6 +794,300 @@ def options_de_lancement(copie):
             raise ValueError(f"série hors de la nuit sans nombre d'essais refaits (0 à 50) : {chemin}")
         series[chemin] = {"releve": motif, "essais": essais}
     return delais, series
+
+
+# LA NUIT DÉCOUPÉE EN TRANCHES (décision de Jean-Luc du 30-10-2026 à 19h02, réponse « 1 » : « Couper la nuit en
+# plusieurs tâches qui tournent en même temps, chacune avec ses propres 6 heures, plus une tâche finale qui réunit les
+# résultats et dit rouge s'il en manque un »). La nuit du 29 au 30-10-2026, la certification, lancée à 01h30:33, a été
+# coupée par sa limite de 330 minutes : les lancements de tests/ relevés au journal y totalisent 19 663 s (328 min), et
+# les épreuves de programmes/ n'ont pas commencé. Le nombre de tranches est écrit UNE fois, dans
+# programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py (TRANCHES_DE_LA_NUIT), qui le passe sur la ligne de commande.
+JOURNAUX = os.path.join("rapports", "journal_du_circuit")
+JOURNAL_DE_CERTIFICATION = r"^circuit_(\d+)_\d+_certifier(?:_tranche_\d+)?\.log$"   # nom écrit par programmes/ETAPE_MUETTE.py
+PASSAGES_RETENUS = 3            # les trois derniers passages qui ont joué un lancement : on garde la plus longue durée
+PARTIELS = "rapports/certificats_partiels"   # où chaque tranche dépose son certificat partiel (noms fixes)
+
+
+def ligne_du_journal(chemin, arguments, code, duree):
+    """Rend la ligne que la certification écrit pour un lancement, et que `durees_relevees` relit.
+
+    ① RÔLE — Écrire une fois la forme de la ligne d'un lancement (R-708 : l'écrivain et le lecteur ne divergent pas).
+    ② CONTEXTE D'APPEL — `main`, une fois par lancement ; `durees_relevees` lit sa forme par `LIGNE_DU_JOURNAL`.
+    ③ ENTRÉE — `chemin` : l'épreuve · `arguments` : ses arguments, « {copie} » compris · `code` : son code ·
+      `duree` : en secondes.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la ligne, sans fin de ligne.
+      [rend: 1]
+    ⑥ TRAITEMENT — « ␣␣vert␣␣<clé> · code <code> · <durée> s » ou « ␣␣ROUGE␣<clé> · … », la clé étant celle de `cle_de`.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — La durée de chaque lancement se relève dans les journaux des nuits passées pour répartir les
+      tranches (`repartir`) : la forme de la ligne est un contrat entre ce programme et lui-même.
+    ⑨ CE QUI CLOCHE — Une clé qui contiendrait « · code » se relirait mal ; aucune ne le fait (relevé le 30-10-2026).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return f"  {'vert ' if code == 0 else 'ROUGE'} {cle_de(chemin, arguments)} · code {code} · {duree} s"
+
+
+LIGNE_DU_JOURNAL = r"^  (?:vert |ROUGE) (.+?) · code -?\d+ · (\d+) s$"
+
+
+def cle_de(chemin, arguments):
+    """Rend la clé d'un lancement : son chemin, puis ses arguments sans « {copie} », séparés par une espace.
+
+    ① RÔLE — Nommer un lancement de la même façon partout : délais déclarés, journal, répartition.
+    ② CONTEXTE D'APPEL — `main`, `ligne_du_journal`, `repartir`.
+    ③ ENTRÉE — `chemin` · `arguments`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le texte.
+      [rend: 1]
+    ⑥ TRAITEMENT — joindre.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — La forme des clés de « delais » (tests/LANCEMENT_DES_EPREUVES.json, « format_des_options »).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return " ".join([chemin] + [a for a in arguments if a != "{copie}"])
+
+
+def durees_relevees(racine, passage_exclu=""):
+    """Rend, pour chaque lancement déjà joué une nuit, sa durée relevée dans les journaux de la certification.
+
+    ① RÔLE — Donner à `repartir` la durée de chaque lancement, MESURÉE et non écrite à la main (R-728).
+    ② CONTEXTE D'APPEL — `main`, en mode tranche ; tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py.
+    ③ ENTRÉE — `racine` : le dépôt · `passage_exclu` : le numéro du passage en cours (GITHUB_RUN_ID), dont les
+      journaux sont écartés.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : {clé du lancement : secondes} ; vide si aucun journal.
+      [rend: 1]
+    ⑥ TRAITEMENT — chaque fichier de `JOURNAUX` dont le nom répond à `JOURNAL_DE_CERTIFICATION` ; chaque ligne qui
+      répond à `LIGNE_DU_JOURNAL` ; par clé, la plus longue durée des `PASSAGES_RETENUS` derniers passages (numéros
+      de passage croissants) qui l'ont jouée.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Une propriété, pas une liste : une épreuve nouvelle ou ralentie est prise avec sa vraie durée dès
+      qu'une nuit l'a jouée. La plus longue des trois dernières : les durées ont varié du simple au double d'une nuit
+      à l'autre (la série de la lecture des cours : 2 730 s, 4 379 s, 5 028 s aux nuits du 23, 24 et 30-10-2026).
+      Les journaux du passage en cours sont écartés : une tranche qui démarre après qu'une autre a déposé son
+      journal, ou relancée seule, ferait sinon une autre répartition que ses sœurs.
+    ⑨ CE QUI CLOCHE — Un lancement ROUGE tombé vite (0 s) est compté pour sa durée réelle, donc trop court : la
+      plus longue des trois nuits l'atténue sans l'effacer. Un lancement jamais joué n'a pas de durée ici : `repartir`
+      prend alors son délai.
+    ⑩ EFFET — Lit les journaux.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import re
+    par_cle = collections.defaultdict(list)
+    dossier = os.path.join(racine, JOURNAUX)
+    for f in (sorted(os.listdir(dossier)) if os.path.isdir(dossier) else []):
+        m = re.match(JOURNAL_DE_CERTIFICATION, f)
+        if not m or (passage_exclu and m.group(1) == passage_exclu):
+            continue
+        t = open(os.path.join(dossier, f), encoding="utf-8", errors="replace").read()
+        for l in re.finditer(LIGNE_DU_JOURNAL, t, re.M):
+            par_cle[l.group(1).strip()].append((int(m.group(1)), int(l.group(2))))
+    rendu = {}
+    for cle, v in par_cle.items():
+        derniers = sorted({p for p, _ in v})[-PASSAGES_RETENUS:]
+        rendu[cle] = max(d for p, d in v if p in derniers)
+    return rendu
+
+
+def repartir(lancements, durees, delais, nombre):
+    """Répartit les lancements en `nombre` tranches de charges voisines, chaque épreuve entière dans une seule.
+
+    ① RÔLE — Dire quelle tranche de la nuit joue quoi.
+    ② CONTEXTE D'APPEL — `main`, en mode tranche ; tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py.
+    ③ ENTRÉE — `lancements` : de `lister_les_epreuves` · `durees` : de `durees_relevees` · `delais` : de
+      `options_de_lancement` · `nombre` : le nombre de tranches.
+    ④ CONDITIONS D'ENTRÉE — `nombre` ≥ 1.
+    ⑤ SORTIE — DEUX valeurs : la liste des `nombre` tranches (chacune : ses lancements, dans l'ordre de
+      `lancements`) ; la liste de leurs charges prévues, en secondes.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① grouper les lancements par épreuve (son chemin) · ② la durée prévue d'un lancement : sa durée
+      relevée, sinon son délai déclaré, sinon `DUREE_MAX_EPREUVE` · ③ ranger les épreuves de la plus longue à la plus
+      courte (à égalité : par chemin), chacune dans la tranche la moins chargée (à égalité : la première).
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Une PROPRIÉTÉ, jamais une liste de noms : une épreuve ajoutée est rangée sans qu'on y pense. Une
+      épreuve entière dans une seule tranche : la vérification d'une série jouée hors de la nuit lit les fichiers que
+      son lancement normal a lus (`fichiers_lus`), dans le même processus ; et une épreuve et sa série se jouent dans
+      l'ordre. La plus longue d'abord, dans la moins chargée : la règle de Graham (1969), dont la charge la plus
+      forte ne dépasse pas 4/3 de la meilleure possible.
+    ⑨ CE QUI CLOCHE — Une épreuve dont la durée dépasse à elle seule la limite d'une tranche ne peut pas être
+      coupée : sa série doit passer hors de la nuit (« series_hors_de_la_nuit »), et l'épreuve de la nuit découpée
+      le dit en rouge. Des épreuves qui se gênaient en se suivant dans une même copie ne se suivent plus.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    groupes = collections.OrderedDict()
+    for l in lancements:
+        groupes.setdefault(l[0], []).append(l)
+
+    def prevue(l):
+        """Rend la durée prévue d'un lancement d'épreuve, en secondes.
+
+        ① RÔLE — Donner à `repartir` le poids d'un lancement pour équilibrer les tranches.
+        ② CONTEXTE D'APPEL — `repartir`, dans le tri des épreuves et dans le cumul des charges.
+        ③ ENTRÉE — `l` : un lancement de `lister_les_epreuves` (l[0] : le chemin de l'épreuve, l[2] : ses arguments).
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : la durée relevée de ce lancement, sinon son délai déclaré, sinon `DUREE_MAX_EPREUVE`.
+          [rend: 1]
+        ⑥ TRAITEMENT — ① la clé du lancement (`cle_de`) · ② la chercher dans `durees`, puis dans `delais`.
+        ⑦ UNITÉ — Des secondes.
+        ⑧ POURQUOI — Voir le ⑥ ② de `repartir` : une durée inconnue compte pour la plus longue permise, jamais pour zéro.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        cle = cle_de(l[0], l[2])
+        return durees.get(cle, delais.get(cle, DUREE_MAX_EPREUVE))
+
+    unites = sorted(groupes, key=lambda c: (-sum(prevue(l) for l in groupes[c]), c))
+    charges, choisies = [0] * nombre, [set() for _ in range(nombre)]
+    for c in unites:
+        i = min(range(nombre), key=lambda k: (charges[k], k))
+        charges[i] += sum(prevue(l) for l in groupes[c])
+        choisies[i].add(c)
+    return [[l for l in lancements if l[0] in choisies[i]] for i in range(nombre)], charges
+
+
+def empreinte_de_la_repartition(tranches):
+    """Rend l'empreinte d'une répartition, pour que les tranches d'une même nuit prouvent qu'elles ont la même.
+
+    ① RÔLE — Comparer deux répartitions en une chaîne.
+    ② CONTEXTE D'APPEL — `main`, en mode tranche et en mode réunion.
+    ③ ENTRÉE — `tranches` : la première sortie de `repartir`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : 16 caractères hexadécimaux.
+      [rend: 1]
+    ⑥ TRAITEMENT — sha256 du JSON trié.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Deux tranches qui auraient réparti différemment joueraient une épreuve deux fois et en oublieraient
+      une autre ; la réunion le refuse (`reunir_les_tranches`).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return hashlib.sha256(json.dumps(tranches, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def reunir_les_mesures(brutes):
+    """Réunit les mesures brutes de plusieurs tranches en une seule, comme si une seule machine avait tout joué.
+
+    ① RÔLE — Une ligne est examinée la nuit si une tranche au moins l'a examinée.
+    ② CONTEXTE D'APPEL — `reunir_les_tranches`, une fois.
+    ③ ENTRÉE — `brutes` : la liste des mesures brutes (`mesure_brute`), une par tranche.
+    ④ CONDITIONS D'ENTRÉE — Toutes viennent du même code (vérifié par `reunir_les_tranches`).
+    ⑤ SORTIE — DEUX valeurs : la mesure brute réunie ; la liste des programmes écartés (absents d'une tranche, ou
+      mesurés avec deux empreintes différentes).
+      [rend: 2]
+    ⑥ TRAITEMENT — pour chaque programme présent dans TOUTES les tranches avec la même empreinte : les lignes,
+      embranchements et fonctions non examinés sont l'INTERSECTION de ceux des tranches ; les comptes totaux sont ceux
+      de la première tranche.
+    ⑦ UNITÉ — Des numéros de lignes.
+    ⑧ POURQUOI — Ce qui n'est examiné par aucune tranche n'est examiné par personne : l'intersection des non-examinés
+      est le complément de l'union des examinés, ce que fait la mesure quand une seule machine joue tout.
+    ⑨ CE QUI CLOCHE — Un programme écarté devient « présent sans rapport de mesure » : la certification est
+      impossible, jamais devinée.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if not brutes:
+        return {}, []
+    reunie, ecartes = {}, []
+    for rel in sorted(set().union(*brutes)):
+        v = [b.get(rel) for b in brutes]
+        if any(x is None for x in v) or len({x["empreinte"] for x in v}) != 1:
+            ecartes.append(rel)
+            continue
+        r = dict(v[0])
+        r["lignes"] = sorted(set.intersection(*(set(x["lignes"]) for x in v)))
+        r["branches"] = sorted(list(p) for p in set.intersection(*({tuple(p) for p in x["branches"]} for x in v)))
+        r["fonctions_non_examinees"] = sorted(set.intersection(*(set(x["fonctions_non_examinees"]) for x in v)))
+        reunie[rel] = r
+    return reunie, ecartes
+
+
+def reunir_les_tranches(racine, nombre, passage, empreinte, lancements):
+    """Lit les certificats partiels des tranches de la nuit et dit ce qui manque, ou rend leur réunion.
+
+    ① RÔLE — La tâche finale de la nuit : rouge s'il manque une tranche, si une tranche est rouge, ou si les tranches
+      n'ont pas joué, à elles toutes, chaque lancement une fois et une seule.
+    ② CONTEXTE D'APPEL — `main`, en mode réunion (« --reunir N »), dans le job `reunir` du circuit de certification.
+    ③ ENTRÉE — `racine` : le dépôt, où les tranches ont déposé leurs certificats partiels (`PARTIELS`) · `nombre` :
+      le nombre de tranches attendu · `passage` : le numéro du passage en cours · `empreinte` : celle du code de
+      `racine` · `lancements` : ceux que `lister_les_epreuves` trouve dans `racine`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — QUATRE valeurs : la raison qui rend la certification impossible (texte vide sinon) ; les résultats
+      réunis, dans l'ordre de `lancements` ; la mesure brute réunie ; une remarque par tranche (lancements, durée
+      mesurée, charge prévue), pour le certificat.
+      [rend: 4]
+    ⑥ TRAITEMENT — pour chaque tranche de 1 à `nombre` : le fichier existe, se lit, porte ce passage, ce nombre,
+      ce numéro de tranche, l'empreinte du code et la même empreinte de répartition que les autres, et ne se dit pas
+      impossible · chaque lancement de `lancements` est joué par exactement une tranche, et aucune tranche ne joue un
+      lancement inconnu · les mesures sont réunies (`reunir_les_mesures`).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Décision de Jean-Luc du 30-10-2026 à 19h02 (voir `JOURNAUX`, plus haut) : « une tâche finale qui
+      réunit les résultats et dit rouge s'il en manque un ». Le numéro du passage : un certificat partiel d'une nuit
+      précédente reste au dépôt sous le même nom, et ne doit pas passer pour celui de la nuit.
+    ⑨ CE QUI CLOCHE — Hors de GitHub, le passage s'appelle « local » : deux certifications locales successives ne se
+      distinguent pas par lui (seulement par l'empreinte du code).
+    ⑩ EFFET — Lit les certificats partiels.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    lus, fautes = [], []
+    for i in range(1, nombre + 1):
+        f = os.path.join(racine, PARTIELS, f"TRANCHE_{i}.json")
+        try:
+            p = json.load(open(f, encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            fautes.append(f"tranche {i} : certificat partiel absent ou illisible ({type(e).__name__})")
+            continue
+        attendu = {"passage": passage, "nombre": nombre, "tranche": i, "empreinte_du_code": empreinte}
+        ecarts = [f"{k} {p.get(k)!r} au lieu de {v!r}" for k, v in attendu.items() if p.get(k) != v]
+        if ecarts:
+            fautes.append(f"tranche {i} : certificat partiel d'un autre passage ou d'un autre code ({'; '.join(ecarts)})")
+        elif p.get("impossible"):
+            fautes.append(f"tranche {i} : {p['impossible']}")
+        else:
+            lus.append(p)
+    if not fautes and len({p.get("repartition") for p in lus}) != 1:
+        fautes.append("les tranches n'ont pas fait la même répartition : " + ", ".join(
+            f"tranche {p['tranche']} {p.get('repartition')}" for p in lus))
+    if fautes:
+        return " · ".join(fautes), [], {}, []
+    joues = collections.Counter(json.dumps(l) for p in lus for l in p.get("joues", []))
+    attendus = {json.dumps(l) for l in lancements}
+    oublies = [json.loads(l) for l in sorted(attendus) if joues[l] == 0]
+    doubles = [json.loads(l) for l in sorted(joues) if joues[l] > 1]
+    inconnus = [json.loads(l) for l in sorted(joues) if l not in attendus]
+    for quoi, liste in (("jamais joué(s)", oublies), ("joué(s) par plusieurs tranches", doubles),
+                        ("inconnu(s) du dépôt", inconnus)):
+        if liste:
+            fautes.append(f"lancement(s) {quoi} : " + ", ".join(cle_de(l[0], l[2]) for l in liste[:5]))
+    if fautes:
+        return " · ".join(fautes), [], {}, []
+    # un résultat partiel : [chemin, dossier, arguments, code, durée, lignes] (écrit par `main`, mode tranche)
+    par_lancement = {json.dumps(r[:3]): r for p in lus for r in p.get("resultats", [])}
+    resultats = []
+    for l in lancements:
+        r = par_lancement.get(json.dumps(l))
+        if r is None:
+            return f"résultat absent pour {cle_de(l[0], l[2])}", [], {}, []
+        resultats.append((r[0], r[2], r[3], r[4], r[5]))
+    reunie, ecartes = reunir_les_mesures([p.get("mesure", {}) for p in lus])
+    notes = [f"tranche {p['tranche']}/{nombre} : {len(p.get('joues', []))} lancement(s), "
+             f"{sum(r[4] for r in p.get('resultats', []))} s mesurées, "
+             f"{(p.get('charges_prevues_secondes') or [0] * nombre)[p['tranche'] - 1]} s prévues" for p in lus]
+    return "", resultats, reunie, notes
 
 
 def verifier_une_serie(copie, chemin, motif, lus=None):
@@ -1050,12 +1399,230 @@ def ecrire_le_rapport(racine, horodatage, resultats, tableau, reculs, verdict, c
         f.write("\n".join(t) + "\n")
 
 
+def jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lancements, delais, series):
+    """Joue des lancements dans l'ordre donné, sous la mesure, et rend leurs résultats.
+
+    ① RÔLE — La boucle des épreuves, la même pour la certification entière et pour une tranche de la nuit.
+    ② CONTEXTE D'APPEL — `main`, une fois.
+    ③ ENTRÉE — `copie` · `jetable` : le dossier jetable · `racine` : le dépôt certifié · `py`, `reglages`,
+      `manifestes` : la mesure armée · `lancements` : ceux à jouer · `delais`, `series` : de `options_de_lancement`.
+    ④ CONDITIONS D'ENTRÉE — La mesure est armée et calibrée.
+    ⑤ SORTIE — UNE valeur : la liste des [chemin, dossier, arguments, code, durée, lignes], dans l'ordre joué.
+      [rend: 1]
+    ⑥ TRAITEMENT — une série déclarée « series_hors_de_la_nuit » n'est pas rejouée : son relevé est vérifié
+      (`verifier_une_serie`), puis des essais refaits (`refaire_des_essais`) ; tout autre lancement est joué
+      (`jouer`) avec son délai ; une ligne par lancement à l'écran (`ligne_du_journal`).
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Une seule rédaction de la boucle (R-708) pour les deux modes.
+    ⑨ CE QUI CLOCHE — La vérification d'une série lit ce que le lancement normal de la même épreuve a lu : il doit
+      être joué AVANT, dans le même appel (`repartir` garde une épreuve entière dans une tranche).
+    ⑩ EFFET — Lance les épreuves ; écrit à l'écran.
+    ⑪ TERMINAISON — Rend la main ; chaque épreuve est bornée par son délai.
+      [sort: non]
+    """
+    resultats, lus_par_epreuve = [], {}
+    for chemin, dossier, arguments in lancements:
+        cle = cle_de(chemin, arguments)
+        if chemin in series and "--saboter" in arguments:
+            code, duree, lignes = verifier_une_serie(copie, chemin, series[chemin]["releve"],
+                                                     lus_par_epreuve.get(chemin, set()))
+            if code == 0 and series[chemin]["essais"]:
+                code, duree, autres = refaire_des_essais(copie, py, reglages, manifestes, chemin,
+                                                         series[chemin]["releve"], series[chemin]["essais"],
+                                                         delais.get(cle, DUREE_MAX_EPREUVE))
+                lignes = (lignes + autres)[-3:]
+        else:
+            lectures = None
+            if chemin in series:
+                lectures = os.path.join(jetable, "lectures", os.path.basename(chemin))
+                os.makedirs(lectures, exist_ok=True)
+            code, duree, lignes = jouer(copie, py, reglages, manifestes, chemin, dossier, arguments,
+                                        delais.get(cle, DUREE_MAX_EPREUVE), lectures)
+            if lectures:
+                lus_par_epreuve[chemin] = fichiers_lus(lectures, copie, racine)
+        resultats.append([chemin, dossier, arguments, code, duree, lignes])
+        print(ligne_du_journal(chemin, arguments, code, duree), flush=True)
+    return resultats
+
+
+def conclure(racine, ou, horodatage, resultats, lancements, tableau, reference, empreinte, ecrire, accord,
+             non_declarees, notes):
+    """Compare la mesure à la référence, écrit le certificat (et la référence si demandé), et rend le code de sortie.
+
+    ① RÔLE — La fin d'une certification, entière ou réunie depuis les tranches de la nuit.
+    ② CONTEXTE D'APPEL — `main`, une fois.
+    ③ ENTRÉE — `racine` : le dépôt certifié, où écrire · `ou` : où lire les programmes (la copie, ou la racine en
+      réunion) · `horodatage` · `resultats` : (épreuve, arguments, code, durée, lignes) · `lancements` : tous ·
+      `tableau` : la mesure (`tableau_de`) · `reference` : la référence lue, ou None · `empreinte` : celle du code ·
+      `ecrire`, `accord` : l'écriture de la référence · `non_declarees` · `notes` : remarques déjà faites.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : 0 certifiée (ou référence écrite), 1 recul (ou référence refusée), 2 impossible.
+      [rend: 1]
+    ⑥ TRAITEMENT — Voir la fiche en tête, ⑦ et ⑧, et la fiche de `main`, ⑥.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une seule rédaction de la conclusion (R-708) pour la certification entière et pour la réunion
+      des tranches (décision de Jean-Luc du 30-10-2026 à 19h02).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Écrit `rapports/CERTIFICAT_DE_LA_VERSION.md` ; et la référence sur demande.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    chemin_ref = os.path.join(racine, REFERENCE)
+    # UN SEUL REFUS POUR « NE SE LIT PAS », APRÈS LA MESURE (troisième tour, 02-10-2026) : un programme
+    # que Python ne lit pas comme un script (K1, K7 de Cowork), et un programme présent dont la mesure
+    # n'a aucun rapport. Placés avant les épreuves, ces refus laissaient la garde de la mesure sans
+    # aucun cas qui l'atteigne : le certificateur se refusait lui-même, et il avait raison.
+    presents = programmes_de(ou)
+    illisibles = programmes_illisibles(ou)
+    non_mesures = sorted(rel for rel in presents if rel not in tableau
+                         and not any(i.startswith(rel + " (") for i in illisibles))
+    if illisibles or non_mesures:
+        raison = " · ".join(p for p in (
+            "programme(s) que Python ne sait pas lire : " + " · ".join(illisibles) if illisibles else "",
+            "programme(s) présent(s) sans rapport de mesure : " + ", ".join(non_mesures) if non_mesures else "")
+            if p)
+        ecrire_le_rapport(racine, horodatage, resultats, tableau, [], "CERTIFICATION IMPOSSIBLE — " + raison,
+                          "réussie (sonde vue, leurre écarté)", non_declarees, notes)
+        print("CERTIFICATION IMPOSSIBLE — " + raison)
+        return 2
+    rouges = [f"épreuve rouge : {c} {' '.join(a for a in ar if a != '{copie}')} (code {code})"
+              for c, ar, code, _, _ in resultats if code != 0]
+    notes, reculs_mesure, disparues = list(notes), [], []
+    if reference is not None:
+        sources = {rel: collections.Counter(l.strip() for l in
+                                            open(a, encoding="utf-8", errors="replace").read().splitlines())
+                   for rel, a in presents.items()}
+        reculs_mesure, disparues = comparer(tableau, lancements, reference, sources)
+        notes += [f"programme disparu depuis la référence : {n}" for n in reference.get("programmes", {})
+                  if n not in presents]
+        if reculs_mesure and not rouges and not disparues and reference.get("empreinte_du_code") == empreinte:
+            notes += ["DÉRIVE DE MESURE, code identique à la référence (" + empreinte + ") : " + r
+                      for r in reculs_mesure]
+            reculs_mesure = []
+    reculs = rouges + disparues + reculs_mesure
+    if ecrire:
+        if rouges:
+            verdict, code_final = "RÉFÉRENCE NON ÉCRITE — une épreuve est rouge", 1
+        elif reference is not None and reculs and not accord:
+            verdict, code_final = "RÉFÉRENCE NON ÉCRITE — elle reculerait ; il faut l'accord de Jean-Luc (--accord)", 1
+        else:
+            with open(chemin_ref, "w", encoding="utf-8") as f:
+                json.dump({"ecrite_le": horodatage, "empreinte_du_code": empreinte,
+                           "accord": accord or "première référence, ou aucun recul",
+                           "epreuves": lancements, "programmes": tableau},
+                          f, ensure_ascii=False, indent=1, sort_keys=True)
+            verdict, code_final = "RÉFÉRENCE ÉCRITE — " + REFERENCE, 0
+    else:
+        verdict = ("VERSION CERTIFIÉE — toutes les épreuves sont vertes et rien ne recule"
+                   if not reculs else f"VERSION NON CERTIFIÉE — {len(reculs)} recul(s)")
+        code_final = 0 if not reculs else 1
+    ecrire_le_rapport(racine, horodatage, resultats, tableau, reculs, verdict, "réussie (sonde vue, leurre écarté)",
+                      non_declarees, notes)
+    print(verdict)
+    return code_final
+
+
+def ecrire_le_partiel(racine, contenu):
+    """Écrit le certificat partiel d'une tranche de la nuit, `PARTIELS`/TRANCHE_<i>.json, dans la racine.
+
+    ① RÔLE — Laisser à la tâche finale ce que la tranche a joué et mesuré.
+    ② CONTEXTE D'APPEL — `main`, en mode tranche, une fois (qu'elle ait pu jouer ou non).
+    ③ ENTRÉE — `racine` · `contenu` : le dictionnaire (« tranche » y est).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Rien.
+      [rend: rien]
+    ⑥ TRAITEMENT — JSON, dans un fichier temporaire renommé (un fichier à moitié écrit ne se lit pas comme entier).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le pas « deposer » de la tranche pousse ce fichier au dépôt privé, où la tâche finale le lit. Pas
+      d'archive de GitHub : celles d'un dépôt public sont téléchargeables par tous (fiche de
+      programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, ⑥ ③).
+    ⑨ CE QUI CLOCHE — Le fichier porte les numéros des lignes et des embranchements non examinés de chaque programme,
+      réécrit chaque nuit au dépôt privé : sa taille sur le vrai dépôt n'est pas mesurée (estimée à quelques centaines
+      de kilooctets par tranche le 30-10-2026, d'après la référence, 338 450 octets en textes de lignes).
+    ⑩ EFFET — Écrit un fichier.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    os.makedirs(os.path.join(racine, PARTIELS), exist_ok=True)
+    f = os.path.join(racine, PARTIELS, f"TRANCHE_{contenu['tranche']}.json")
+    with open(f + ".part", "w", encoding="utf-8") as s:
+        json.dump(contenu, s, ensure_ascii=False, sort_keys=True)
+    os.replace(f + ".part", f)
+
+
+def lire_la_ligne_de_commande(argv):
+    """Lit la ligne de commande du certificateur.
+
+    ① RÔLE — Dire quel mode est demandé : la certification entière, une tranche de la nuit, ou la réunion.
+    ② CONTEXTE D'APPEL — `main`, une fois.
+    ③ ENTRÉE — `argv` : sys.argv.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — SIX valeurs : la racine (ou None si la ligne est fausse), `ecrire` (booléen), `accord` (texte),
+      `tranche` ((i, n) ou None), `reunir` (n ou None), la raison du refus (texte vide si la ligne est bonne).
+      [rend: 6]
+    ⑥ TRAITEMENT — « --ecrire-la-reference », « --accord <texte> », « --tranche i/n » (1 ≤ i ≤ n), « --reunir n »
+      (n ≥ 1) ; « --tranche » et « --reunir » ne vont ni ensemble ni avec « --ecrire-la-reference ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — La référence s'écrit d'un passage entier, sur une seule machine : jamais d'une tranche.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    def valeur(nom):
+        """Rend le mot qui suit une option de la ligne de commande, ou None.
+
+        ① RÔLE — Lire la valeur d'une option à valeur (« --accord », « --tranche », « --reunir »).
+        ② CONTEXTE D'APPEL — `lire_la_ligne_de_commande`, une fois par option à valeur.
+        ③ ENTRÉE — `nom` : le nom de l'option, par exemple « --tranche ».
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : le mot qui suit la première occurrence de `nom` dans `argv`, ou None si `nom` est
+          absent ou en dernière position.
+          [rend: 1]
+        ⑥ TRAITEMENT — chercher `nom` dans `argv` sans son dernier mot, puis prendre le mot suivant.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Une option écrite sans sa valeur rend None : l'appelant la refuse alors avec sa raison.
+        ⑨ CE QUI CLOCHE — Une option écrite deux fois : seule la première est lue, sans rien dire.
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        return argv[argv.index(nom) + 1] if nom in argv[:-1] else None
+
+    ecrire = "--ecrire-la-reference" in argv
+    accord, t, r = valeur("--accord") or "", valeur("--tranche"), valeur("--reunir")
+    args = [a for a in argv[1:] if not a.startswith("--") and a not in {accord, t, r}]
+    tranche = reunir = None
+    try:
+        if t is not None:
+            i, n = (int(x) for x in t.split("/"))
+            if not 1 <= i <= n:
+                raise ValueError
+            tranche = (i, n)
+        if r is not None:
+            reunir = int(r)
+            if reunir < 1:
+                raise ValueError
+    except ValueError:
+        return None, ecrire, accord, None, None, "« --tranche i/n » ou « --reunir n » illisible"
+    if ("--tranche" in argv and tranche is None) or ("--reunir" in argv and reunir is None):
+        return None, ecrire, accord, None, None, "« --tranche » ou « --reunir » sans valeur"
+    if sum(x is not None for x in (tranche, reunir)) + ecrire > 1:
+        return None, ecrire, accord, None, None, "« --tranche », « --reunir » et « --ecrire-la-reference » s'excluent"
+    if len(args) < 1 or not os.path.isdir(os.path.join(args[0], "programmes")):
+        return None, ecrire, accord, None, None, "racine absente"
+    return os.path.abspath(args[0]), ecrire, accord, tranche, reunir, ""
+
+
 def main():
-    """Certifie la version, ou dit pourquoi elle ne l'est pas.
+    """Certifie la version, ou une tranche de la nuit, ou réunit les tranches, ou dit pourquoi ce n'est pas possible.
 
     ① RÔLE — Le programme entier (voir la fiche en tête).
-    ② CONTEXTE D'APPEL — La ligne de commande.
-    ③ ENTRÉE — Voir la fiche en tête.
+    ② CONTEXTE D'APPEL — La ligne de commande. La nuit, au dépôt public (.github/workflows/certifier_la_version.yml,
+      fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py) : « --tranche i/n » dans chaque tranche, puis
+      « --reunir n » dans la tâche finale.
+    ③ ENTRÉE — Voir la fiche en tête, et `lire_la_ligne_de_commande`. L'environnement : GITHUB_RUN_ID, le numéro du
+      passage (« local » hors de GitHub).
     ④ CONDITIONS D'ENTRÉE — Voir la fiche en tête.
     ⑤ SORTIE — Le code de sortie, 0, 1 ou 2.
       [rend: 1]
@@ -1066,35 +1633,85 @@ def main():
       laissait la version « certifiée »). Un recul de mesure, sans épreuve rouge ni
       disparue, alors que l'empreinte du code est celle de la référence, est une dérive de
       mesure : dit en remarque, sans rougir (fiche ⑨ ④).
+      MODE TRANCHE (« --tranche i/n ») : les lancements sont répartis (`repartir`, durées de `durees_relevees`) ;
+      seuls ceux de la tranche i sont joués ; le certificat partiel est écrit (`ecrire_le_partiel`), et non le
+      certificat ; rend 2 si la tranche n'a pas pu jouer, 1 si une épreuve est rouge, 0 sinon.
+      MODE RÉUNION (« --reunir n ») : rien n'est joué ; les certificats partiels sont lus et vérifiés
+      (`reunir_les_tranches`) ; une tranche absente, rouge d'impossibilité, d'un autre passage ou d'un autre code, ou
+      un lancement joué zéro ou deux fois : CERTIFICATION IMPOSSIBLE, code 2 ; sinon la conclusion est celle de la
+      certification entière (`conclure`).
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Voir la fiche en tête.
-    ⑨ CE QUI CLOCHE — —
-    ⑩ EFFET — Voir la fiche en tête.
+    ⑧ POURQUOI — Voir la fiche en tête. Les tranches : décision de Jean-Luc du 30-10-2026 à 19h02 (voir `JOURNAUX`).
+    ⑨ CE QUI CLOCHE — Une épreuve rouge d'une tranche fait rougir la tranche ET la réunion : la réunion le dit dans
+      le certificat, la tranche dans son job.
+    ⑩ EFFET — Voir la fiche en tête ; en mode tranche, écrit `PARTIELS`/TRANCHE_<i>.json au lieu du certificat.
     ⑪ TERMINAISON — Rend la main au bloc de lancement ; le dossier jetable est effacé.
       [sort: non]
     """
-    ecrire = "--ecrire-la-reference" in sys.argv
-    accord = sys.argv[sys.argv.index("--accord") + 1] if "--accord" in sys.argv[:-1] else ""
-    args = [a for a in sys.argv[1:] if not a.startswith("--") and a != accord]
-    if len(args) < 1 or not os.path.isdir(os.path.join(args[0], "programmes")):
-        print("CERTIFICATION IMPOSSIBLE — usage : CERTIFIER_LA_VERSION.py <racine du dépôt> [--ecrire-la-reference [--accord \"…\"]]")
+    racine, ecrire, accord, tranche, reunir, refus = lire_la_ligne_de_commande(sys.argv)
+    if racine is None:
+        print("CERTIFICATION IMPOSSIBLE — " + refus + " — usage : CERTIFIER_LA_VERSION.py <racine du dépôt> "
+              "[--ecrire-la-reference [--accord \"…\"]] [--tranche i/n | --reunir n]")
         return 2
-    racine = os.path.abspath(args[0])
     maintenant = datetime.now(ZoneInfo("Europe/Paris"))
     horodatage = ("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim")[maintenant.weekday()] + maintenant.strftime(" %d-%m-%Y %Hh%M")
-    try:
-        import coverage  # noqa: F401
-    except ImportError:
-        print("CERTIFICATION IMPOSSIBLE — le module coverage n'est pas installé")
+    passage = os.environ.get("GITHUB_RUN_ID") or "local"
+    empreinte = empreinte_du_code(racine)
+    partiel = {"passage": passage, "nombre": tranche[1], "tranche": tranche[0], "empreinte_du_code": empreinte,
+               "ecrit_le": horodatage, "impossible": ""} if tranche else None
+
+    def impossible(raison, calibration="non faite", non_declarees=()):
+        """Écrit que la certification est impossible, dit pourquoi, et rend le code 2.
+
+        ① RÔLE — Terminer `main` proprement quand la certification ne peut pas se faire.
+        ② CONTEXTE D'APPEL — `main`, à chaque cas où la certification ne peut pas aller au bout.
+        ③ ENTRÉE — `raison` : la phrase qui dit pourquoi · `calibration` : l'état de la calibration de la mesure ·
+          `non_declarees` : les épreuves non déclarées, s'il y en a.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : 2, le code de sortie « impossible ».
+          [rend: 1]
+        ⑥ TRAITEMENT — ① en mode tranche, noter la raison dans le certificat partiel et l'écrire
+          (`ecrire_le_partiel`) · ② sinon, écrire le rapport « CERTIFICATION IMPOSSIBLE » (`ecrire_le_rapport`) ·
+          ③ afficher la raison.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Un contrôle qui n'a pas pu tourner rend un code de sortie non nul et le dit (R-734).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Écrit le certificat partiel de la tranche, ou le rapport ; affiche une ligne.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        if partiel is not None:
+            partiel["impossible"] = raison
+            ecrire_le_partiel(racine, partiel)
+        else:
+            ecrire_le_rapport(racine, horodatage, [], {}, [], "CERTIFICATION IMPOSSIBLE — " + raison, calibration,
+                              list(non_declarees), [])
+        print("CERTIFICATION IMPOSSIBLE — " + raison)
         return 2
+
+    if reunir is None:
+        try:
+            import coverage  # noqa: F401
+        except ImportError:
+            print("CERTIFICATION IMPOSSIBLE — le module coverage n'est pas installé")
+            return 2
     chemin_ref = os.path.join(racine, REFERENCE)
     reference = json.load(open(chemin_ref, encoding="utf-8")) if os.path.exists(chemin_ref) else None
     if reference is None and not ecrire:
-        raison = "référence absente : " + REFERENCE
-        ecrire_le_rapport(racine, horodatage, [], {}, [], "CERTIFICATION IMPOSSIBLE — " + raison, "non faite", [], [])
-        print("CERTIFICATION IMPOSSIBLE — " + raison)
-        return 2
-    empreinte = empreinte_du_code(racine)
+        if tranche is None:     # une tranche n'a pas besoin de la référence : la réunion la lit
+            return impossible("référence absente : " + REFERENCE)
+    if reunir is not None:
+        try:
+            lancements, non_declarees = lister_les_epreuves(racine)
+        except (OSError, ValueError, KeyError, TypeError, SyntaxError) as erreur:
+            return impossible(f"épreuves illisibles ({type(erreur).__name__}: {erreur})")
+        if non_declarees:
+            return impossible("épreuve(s) non déclarée(s) : " + ", ".join(non_declarees), non_declarees=non_declarees)
+        raison, resultats, brute, notes = reunir_les_tranches(racine, reunir, passage, empreinte, lancements)
+        if raison:
+            return impossible(raison)
+        return conclure(racine, racine, horodatage, resultats, lancements, tableau_de(brute, racine), reference,
+                        empreinte, False, "", non_declarees, notes)
     jetable = tempfile.mkdtemp(prefix="certification_")
     try:
         copie = copier(racine, jetable)
@@ -1110,86 +1727,24 @@ def main():
             delais, series = {}, {}
         if not calibree or non_declarees:
             raison = raison if not calibree else "épreuve(s) non déclarée(s) : " + ", ".join(non_declarees)
-            ecrire_le_rapport(racine, horodatage, [], {}, [], "CERTIFICATION IMPOSSIBLE — " + raison,
-                              "échouée" if not calibree else "réussie", non_declarees, [])
-            print("CERTIFICATION IMPOSSIBLE — " + raison)
-            return 2
-        resultats, lus_par_epreuve = [], {}
-        for chemin, dossier, arguments in lancements:
-            cle = " ".join([chemin] + [a for a in arguments if a != "{copie}"])
-            if chemin in series and "--saboter" in arguments:
-                code, duree, lignes = verifier_une_serie(copie, chemin, series[chemin]["releve"],
-                                                         lus_par_epreuve.get(chemin, set()))
-                if code == 0 and series[chemin]["essais"]:
-                    code, duree, autres = refaire_des_essais(copie, py, reglages, manifestes, chemin,
-                                                             series[chemin]["releve"], series[chemin]["essais"],
-                                                             delais.get(cle, DUREE_MAX_EPREUVE))
-                    lignes = (lignes + autres)[-3:]
-            else:
-                lectures = None
-                if chemin in series:
-                    lectures = os.path.join(jetable, "lectures", os.path.basename(chemin))
-                    os.makedirs(lectures, exist_ok=True)
-                code, duree, lignes = jouer(copie, py, reglages, manifestes, chemin, dossier, arguments,
-                                            delais.get(cle, DUREE_MAX_EPREUVE), lectures)
-                if lectures:
-                    lus_par_epreuve[chemin] = fichiers_lus(lectures, copie, racine)
-            resultats.append((chemin, arguments, code, duree, lignes))
-            print(f"  {'vert ' if code == 0 else 'ROUGE'} {chemin} {' '.join(a for a in arguments if a != '{copie}')} "
-                  f"· code {code} · {duree} s", flush=True)
-        tableau = lire_la_mesure(jetable, reglages, manifestes, copie)
-        # UN SEUL REFUS POUR « NE SE LIT PAS », APRÈS LA MESURE (troisième tour, 02-10-2026) : un programme
-        # que Python ne lit pas comme un script (K1, K7 de Cowork), et un programme présent dont la mesure
-        # n'a aucun rapport. Placés avant les épreuves, ces refus laissaient la garde de la mesure sans
-        # aucun cas qui l'atteigne : le certificateur se refusait lui-même, et il avait raison.
-        presents = programmes_de(copie)
-        illisibles = programmes_illisibles(copie)
-        non_mesures = sorted(rel for rel in presents if rel not in tableau
-                             and not any(i.startswith(rel + " (") for i in illisibles))
-        if illisibles or non_mesures:
-            raison = " · ".join(p for p in (
-                "programme(s) que Python ne sait pas lire : " + " · ".join(illisibles) if illisibles else "",
-                "programme(s) présent(s) sans rapport de mesure : " + ", ".join(non_mesures) if non_mesures else "")
-                if p)
-            ecrire_le_rapport(racine, horodatage, resultats, tableau, [], "CERTIFICATION IMPOSSIBLE — " + raison,
-                              "réussie (sonde vue, leurre écarté)", non_declarees, [])
-            print("CERTIFICATION IMPOSSIBLE — " + raison)
-            return 2
-        rouges = [f"épreuve rouge : {c} {' '.join(a for a in ar if a != '{copie}')} (code {code})"
-                  for c, ar, code, _, _ in resultats if code != 0]
-        notes, reculs_mesure, disparues = [], [], []
-        if reference is not None:
-            sources = {rel: collections.Counter(l.strip() for l in
-                                                open(a, encoding="utf-8", errors="replace").read().splitlines())
-                       for rel, a in presents.items()}
-            reculs_mesure, disparues = comparer(tableau, lancements, reference, sources)
-            notes += [f"programme disparu depuis la référence : {n}" for n in reference.get("programmes", {})
-                      if n not in presents]
-            if reculs_mesure and not rouges and not disparues and reference.get("empreinte_du_code") == empreinte:
-                notes += ["DÉRIVE DE MESURE, code identique à la référence (" + empreinte + ") : " + r
-                          for r in reculs_mesure]
-                reculs_mesure = []
-        reculs = rouges + disparues + reculs_mesure
-        if ecrire:
-            if rouges:
-                verdict, code_final = "RÉFÉRENCE NON ÉCRITE — une épreuve est rouge", 1
-            elif reference is not None and reculs and not accord:
-                verdict, code_final = "RÉFÉRENCE NON ÉCRITE — elle reculerait ; il faut l'accord de Jean-Luc (--accord)", 1
-            else:
-                with open(chemin_ref, "w", encoding="utf-8") as f:
-                    json.dump({"ecrite_le": horodatage, "empreinte_du_code": empreinte,
-                               "accord": accord or "première référence, ou aucun recul",
-                               "epreuves": lancements, "programmes": tableau},
-                              f, ensure_ascii=False, indent=1, sort_keys=True)
-                verdict, code_final = "RÉFÉRENCE ÉCRITE — " + REFERENCE, 0
-        else:
-            verdict = ("VERSION CERTIFIÉE — toutes les épreuves sont vertes et rien ne recule"
-                       if not reculs else f"VERSION NON CERTIFIÉE — {len(reculs)} recul(s)")
-            code_final = 0 if not reculs else 1
-        ecrire_le_rapport(racine, horodatage, resultats, tableau, reculs, verdict, "réussie (sonde vue, leurre écarté)",
-                          non_declarees, notes)
-        print(verdict)
-        return code_final
+            return impossible(raison, "échouée" if not calibree else "réussie", non_declarees)
+        if tranche is None:
+            resultats = jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lancements, delais,
+                                             series)
+            return conclure(racine, copie, horodatage, [(r[0], r[2], r[3], r[4], r[5]) for r in resultats],
+                            lancements, lire_la_mesure(jetable, reglages, manifestes, copie), reference, empreinte,
+                            ecrire, accord, non_declarees, [])
+        tranches, charges = repartir(lancements, durees_relevees(racine, passage), delais, tranche[1])
+        a_jouer = tranches[tranche[0] - 1]
+        resultats = jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, a_jouer, delais, series)
+        partiel.update({"repartition": empreinte_de_la_repartition(tranches), "charges_prevues_secondes": charges,
+                        "joues": a_jouer, "resultats": resultats,
+                        "mesure": mesure_brute(jetable, reglages, manifestes, copie)})
+        ecrire_le_partiel(racine, partiel)
+        rouges = sum(1 for r in resultats if r[3] != 0)
+        print(f"TRANCHE {tranche[0]}/{tranche[1]} — {len(a_jouer)} lancement(s), {rouges} rouge(s) — "
+              f"certificat partiel : {PARTIELS}/TRANCHE_{tranche[0]}.json")
+        return 1 if rouges else 0
     finally:
         shutil.rmtree(jetable, ignore_errors=True)
 

@@ -12,14 +12,18 @@
   python3 -I programmes/VERIFIER_LES_PREUVES_DU_REFERENTIEL.py <racine du dépôt>
   Le module est aussi importé par etudes/brouillons_chat/REFERENTIEL_PROUVE_Sam_24-10-2026/COMPLETER_LE_REFERENTIEL.py,
   qui a écrit les trois colonnes une fois : les deux lisent les fichiers cités par les MÊMES fonctions (deux
-  implémentations d'une même chose divergent toujours, R-708).
-③ ENTRÉE — La racine du dépôt : le référentiel, le carnet donnees/PROVENANCE_DES_FICHIERS.csv et les fichiers cités.
-④ CONDITIONS D'ENTRÉE — Un seul fichier donnees/REFERENTIEL_VALEURS_*.csv ; pdftotext (poppler) installé quand un PDF
-  est cité.
-⑤ SORTIE — Le code de sortie : 0 si aucun défaut ; 1 s'il y a au moins un défaut ; 2 si la vérification n'a pas pu
-  tourner (appel mal formé, fichier cité absent ou illisible, pdftotext absent ou en échec, ou toute erreur imprévue,
-  rattrapée par le dernier filet de `main`) — un contrôle qui n'a pas pu tourner ne rend jamais 0 (R-734), et une
-  panne ne se confond pas avec un défaut. L'écran : une ligne « DÉFAUT … » par défaut, puis « VERDICT … ».
+  implémentations d'une même chose divergent toujours, R-708) ; depuis le 01-11-2026, il lit donc lui aussi les textes
+  figés des avis, et non plus pdftotext. Le module est enfin importé par etudes/outils/FIGER_LE_TEXTE_DES_AVIS.py, qui
+  fige ces textes et en prend le dossier et la règle de nom ici (`texte_fige_de`), pour qu'il n'y en ait qu'une.
+③ ENTRÉE — La racine du dépôt : le référentiel, le carnet donnees/PROVENANCE_DES_FICHIERS.csv, les fichiers cités, et
+  le texte figé de chaque avis PDF cité (donnees/sources_du_referentiel/textes_figes/<empreinte sha256 du PDF>.txt).
+④ CONDITIONS D'ENTRÉE — Un seul fichier donnees/REFERENTIEL_VALEURS_*.csv. Aucun outil extérieur : pdftotext n'est plus
+  lancé (décision de Jean-Luc du 01-11-2026 à 13h41, voir le ⑧).
+⑤ SORTIE — Le code de sortie : 0 si aucun défaut ; 1 s'il y a au moins un défaut (un texte figé retouché en est un) ;
+  2 si la vérification n'a pas pu tourner (appel mal formé, fichier cité absent ou illisible, avis PDF sans texte figé
+  qui porte son empreinte, ou toute erreur imprévue, rattrapée par le dernier filet de `main`) — un contrôle qui n'a
+  pas pu tourner ne rend jamais 0 (R-734), et une panne ne se confond pas avec un défaut. L'écran : une ligne
+  « DÉFAUT … » par défaut, puis « VERDICT … ».
   [rend: 1]
 ⑥ TRAITEMENT — (1) aucune clé — nom_usuel, isin, mnemonique — ne porte d'espace en bord ; (2) unicité : chaque ISIN,
   chaque ancien ISIN et chaque code n'apparaît que sur une ligne ; l'identité des noms est jugée par le lecteur des
@@ -29,7 +33,9 @@
   faisait planter la suite et rendre 2) ; (3) pour chaque ligne, la citation est
   découpée en morceaux « <désignation> : « <texte> » » séparés par « · » ; chaque morceau doit être UN ENREGISTREMENT
   ENTIER du fichier désigné : une ligne entière d'un fichier quotidien de Paris (désignation « <archive>.ZIP › … ›
-  <jour>.txt »), une ligne entière du texte d'un avis PDF (espaces resserrés), ou le membre "symbol" ou "longName" de
+  <jour>.txt »), une ligne entière du TEXTE FIGÉ d'un avis PDF (espaces resserrés) — le texte figé est celui qui porte
+  pour nom l'empreinte sha256 du PDF, et son empreinte à lui doit être celle que le carnet lui donne, sinon c'est un
+  défaut et ses lignes ne servent pas —, ou le membre "symbol" ou "longName" de
   la réponse de Yahoo, égal à la valeur lue dans le JSON ; (4) couverture : l'ISIN et chaque ancien ISIN ont chacun un
   morceau dont la CLÉ est la leur (premier champ de la ligne de Paris, ou ISIN écrit dans la ligne du PDF) ; la
   réponse de Yahoo dont "symbol" vaut <code>.PA est citée, et son "longName" est cité DANS CE MÊME FICHIER ; (5) chaque
@@ -48,7 +54,16 @@
   de leur identité ; l'enregistrement entier trouvé par sa clé, dans le fichier même qui porte la clé,
   rend impossible la citation recousue. Une clé à espace est un défaut, sans l'imiter ni la corriger : les lecteurs
   du référentiel ne la traitent pas pareil (LIRE_LES_ARCHIVES_BNAINS retire les espaces, FABRIQUER_LE_COURS_PROPRE_DE_
-  YAHOO non).
+  YAHOO non). LES TEXTES FIGÉS : la machine de la certification publique est passée de pdftotext 24.02.0 à 26.01.0 le
+  29-10-2026 ; 26.01 coupe en colonnes le tableau de l'avis d'Eurofins (ERF), deux citations sur douze n'y sont plus des
+  lignes entières, et l'épreuve rendait 38/42 sur un dépôt inchangé (cause prouvée le 01-11-2026 avec un pdftotext
+  26.01.0 construit depuis l'archive officielle). Décisions de Jean-Luc du 01-11-2026 : à 13h41 (« 1 » à « prouver la
+  cause, puis figer au dépôt le texte extrait de chaque PDF du référentiel ; le vérificateur compare à ce texte
+  figé ») ; à 14h05 (« 1 » à « on vérifie une fois, au moment de figer, avec l'ancienne version 24.02 ; ensuite c'est
+  l'empreinte qui protège chaque nuit ») ; à 14h06 (« 1 » à « un PDF abîmé n'a aucun texte figé qui corresponde à son
+  empreinte, la vérification s'arrête et le dit ; quelqu'un retouche un texte figé, l'empreinte ne correspond plus au
+  carnet, la vérification rougit »). Le nom du texte figé EST son lien au PDF : renommer le PDF ne change rien, le
+  modifier laisse le contrôle sans texte (une propriété, pas une liste).
 ⑨ CE QUI CLOCHE — L'IDENTITÉ DES NOMS N'EST PAS VÉRIFIÉE : un ISIN unique d'une société hors du CAC 40, cité par sa vraie
   ligne de Paris, passe. Le nom se juge par un relecteur, sur etudes/brouillons_chat/REFERENTIEL_PROUVE_Sam_24-10-2026/
   TABLEAU_DES_NOMS.md (décision de Jean-Luc du 17-10-2026 à 16h10 : le fond reste au relecteur). · DEUX LIGNES QUI
@@ -62,8 +77,9 @@
   ce qui prouve qu'un ISIN est actuel, c'est le moment où il sert : programmes/COLLECTER_LE_CONSENSUS.py refuse une
   page dont l'ISIN diffère du référentiel ; pour programmes/COMBLER_LE_TROU_DEPUIS_EURONEXT.py, c'est THÉORIQUE — à
   tester (BACKLOG A-622 ⑦). · UN FICHIER CITÉ FORGÉ PASSE : l'empreinte des fichiers cités n'est pas comparée au carnet
-  (une réponse de Yahoo réduite à son "symbol" et à son "longName", ou un avis PDF modifié, rendent 0 — relecteur du
-  24-10-2026, tour 3, N6). Ce travail est celui de K23 (`remonter` compare l'empreinte de chaque fichier au carnet, et
+  (une réponse de Yahoo réduite à son "symbol" et à son "longName" rend 0 — relecteur du 24-10-2026, tour 3, N6 ; un
+  avis PDF modifié, lui, rend 2 depuis le 01-11-2026, car aucun texte figé ne porte sa nouvelle empreinte). Ce travail
+  est celui de K23 (`remonter` compare l'empreinte de chaque fichier au carnet, et
   remonte chaque fichier cité par un fichier écrit à la main) ; le recopier ici ferait deux implémentations (R-708).
   · Un morceau superflu est accepté (une ligne de Paris d'une autre valeur ajoutée à la citation, tour 3, N8) : chaque
   morceau doit être entier, pas forcément utile. · CE CONTRÔLE ET LE LECTEUR DES COURS PEUVENT JUGER DEUX FICHIERS DIFFÉRENTS : ce programme exige un seul fichier
@@ -77,25 +93,39 @@
   jour où ce programme sera modifié (BACKLOG A-622 ⑬). · Le nombre de valeurs n'est pas contrôlé : une ligne supprimée passe ; un garde-fou porte sur une
   propriété, jamais sur un compte. · K23, le contrôle du circuit, n'atteint ce fichier que si une fiche du carnet le
   déclare lu : depuis le 24-10-2026, les fiches du cours propre de Yahoo et des cours de Paris le déclarent (décision
-  de Jean-Luc de 22h22, BACKLOG A-622 ④), et K23 compare au carnet son empreinte et celle de chaque fichier qu'il cite. · Le texte d'un PDF dépend de pdftotext en mode -layout : une autre version peut couper les lignes
-  autrement et rendre des défauts sur un avis inchangé. · Les autres colonnes du référentiel ne sont pas prouvées ; la
+  de Jean-Luc de 22h22, BACKLOG A-622 ④), et K23 compare au carnet son empreinte et celle de chaque fichier qu'il cite.
+  · LE TEXTE FIGÉ D'UN AVIS N'EST PROUVÉ FIDÈLE QU'UNE FOIS : au moment de le figer, par
+  etudes/outils/FIGER_LE_TEXTE_DES_AVIS.py, qui relance pdftotext 24.02.0 -layout et compare à l'octet ; ensuite, seule
+  l'empreinte le protège. Un texte figé faux ET inscrit au carnet avec sa fausse empreinte passe : un carnet faux mais
+  cohérent passe, comme pour K23. · Ce contrôle compare l'empreinte du texte figé au carnet, ce que fait aussi K23
+  pour les fichiers qu'il atteint (R-708) : c'est la décision de Jean-Luc du 01-11-2026 à 14h06, et K23 n'atteint
+  pas ces textes, aucune fiche du carnet ne les déclarant lus. · Un nouvel avis cité doit avoir son texte figé, par le
+  même outil et avec pdftotext 24.02.0, avant d'être cité ; sinon le contrôle rend 2. Les citations ont été écrites
+  le 24-10-2026 contre ce texte-là (12 sur 12 sont des lignes entières en 24.02.0, 10 sur 12 en 26.01.0). · Un PDF
+  cité absent rend 2 avec le même message qu'un PDF modifié : le texte de l'erreur nomme le fichier qui manque.
+  · Le carnet est relu pour chaque avis (six aujourd'hui) : c'est un fichier de quelques dizaines de kilo-octets.
+  · Les autres colonnes du référentiel ne sont pas prouvées ; la
   chaîne des 20 ans ne les lit pas. · Les anciens ISIN écrits dans le code de LIRE_LES_ARCHIVES_BNAINS (ANCIENS_ISIN)
   ne sont pas dans le référentiel et ne sont pas vérifiés ici.
-⑩ EFFET — Lit le dépôt ; charge programmes/LIRE_LES_COURS.py ; lance pdftotext ; n'écrit rien.
-⑪ TERMINAISON — Rend la main ; pdftotext est borné à 60 s par avis ; sort par sys.exit.
+⑩ EFFET — Lit le dépôt ; charge programmes/LIRE_LES_COURS.py ; n'écrit rien ; ne lance aucun programme.
+⑪ TERMINAISON — Rend la main ; sort par sys.exit. Aucun de mes appels ne peut ne pas revenir : il ne lit que des
+  fichiers du dépôt.
   [sort: oui]
 """
 import csv
 import glob
+import hashlib
 import io
 import json
 import os
 import re
-import subprocess
 import sys
 import zipfile
 
 CARNET = os.path.join("donnees", "PROVENANCE_DES_FICHIERS.csv")
+# Le dossier des textes figés des avis PDF, écrit comme au carnet (barres obliques) : un seul endroit, lu aussi par
+# etudes/outils/FIGER_LE_TEXTE_DES_AVIS.py (R-708). Décision de Jean-Luc du 01-11-2026 à 13h41.
+TEXTES_FIGES = "donnees/sources_du_referentiel/textes_figes"
 COLONNES = ("source", "citation", "fichiers_cites")
 CLES = ("nom_usuel", "isin", "mnemonique")
 SEPARATEUR = " · "
@@ -108,6 +138,10 @@ YAHOO = re.compile(r'^"(symbol|longName)":"(.*)"$', re.S)
 
 class Panne(Exception):
     """La vérification ne peut pas tourner (code 2)."""
+
+
+class TexteRetouche(Exception):
+    """Le texte figé d'un avis n'a pas l'empreinte que le carnet lui donne : un défaut (code 1), pas une panne."""
 
 
 def lignes_du_quotidien(racine, archive, membres):
@@ -137,31 +171,68 @@ def lignes_du_quotidien(racine, archive, membres):
         raise Panne(f"{archive} › {DANS.join(membres)} illisible : {e}")
 
 
-def lignes_du_pdf(racine, chemin):
-    """Rend les lignes du texte d'un avis PDF, espaces resserrés, lignes vides retirées.
+def texte_fige_de(racine, chemin):
+    """Rend le chemin, depuis la racine, du texte figé qui répond à un avis PDF.
 
-    ① RÔLE — Lire un avis officiel en PDF.
-    ② CONTEXTE D'APPEL — `verifier_une_valeur`, ici et dans le programme qui a écrit les colonnes.
-    ③ ENTRÉE — `racine` · `chemin` : l'avis, depuis la racine.
-    ④ CONDITIONS D'ENTRÉE — pdftotext installé.
-    ⑤ SORTIE — UNE valeur : la liste des lignes.
+    ① RÔLE — Dire, par la seule règle de nom du dépôt, quel texte figé appartient à un avis PDF.
+    ② CONTEXTE D'APPEL — `lignes_du_pdf` ; etudes/outils/FIGER_LE_TEXTE_DES_AVIS.py, qui écrit les textes sous ce nom.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `chemin` : l'avis PDF, depuis la racine.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : « donnees/sources_du_referentiel/textes_figes/<empreinte sha256 du PDF>.txt », en barres
+      obliques, comme au carnet. Exemple mesuré le 01-11-2026 : l'avis ERF_EUREX_Info_002_ERF.pdf rend
+      « …/textes_figes/b550aaaba74aca3fcdb1a40cc91a1fd21634c5da5aeb02c4c535e8d0a0ff8a55.txt ».
       [rend: 1]
-    ⑥ TRAITEMENT — pdftotext -layout, puis chaque ligne : espaces resserrés, bords retirés ; les lignes vides tombent.
+    ⑥ TRAITEMENT — Lire le PDF en entier, hacher ses octets en SHA-256, former le nom.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — -layout garde les lignes d'un tableau d'avis ensemble : l'ISIN et le nom restent sur la même ligne.
-    ⑨ CE QUI CLOCHE — Dépend de la version de pdftotext (voir le ⑨ du programme).
-    ⑩ EFFET — Lance pdftotext.
-    ⑪ TERMINAISON — Rend la main ou lève Panne ; pdftotext est borné à 60 s.
+    ⑧ POURQUOI — Le nom est le lien entre l'avis et son texte : un avis modifié n'a plus de texte, un avis renommé garde
+      le sien (décisions de Jean-Luc du 01-11-2026 à 13h41 et 14h06, voir le ⑧ du programme).
+    ⑨ CE QUI CLOCHE — Un PDF absent ou illisible lève OSError : c'est l'appelant qui le traduit (Panne, ou code 2).
+    ⑩ EFFET — Lit le PDF.
+    ⑪ TERMINAISON — Rend la main ou lève OSError. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    with open(os.path.join(racine, chemin), "rb") as x:
+        return f"{TEXTES_FIGES}/{hashlib.sha256(x.read()).hexdigest()}.txt"
+
+
+def lignes_du_pdf(racine, chemin):
+    """Rend les lignes du texte figé d'un avis PDF, espaces resserrés, lignes vides retirées.
+
+    ① RÔLE — Lire un avis officiel en PDF, par son texte figé au dépôt.
+    ② CONTEXTE D'APPEL — `verifier_une_valeur`, ici et dans le programme qui a écrit les colonnes
+      (etudes/brouillons_chat/REFERENTIEL_PROUVE_Sam_24-10-2026/COMPLETER_LE_REFERENTIEL.py).
+    ③ ENTRÉE — `racine` · `chemin` : l'avis, depuis la racine.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste des lignes du texte figé.
+      [rend: 1]
+    ⑥ TRAITEMENT — (1) le texte figé est celui que nomme `texte_fige_de` ; l'avis ou ce texte illisible ou absent :
+      Panne ; (2) l'empreinte SHA-256 du texte doit être inscrite UNE fois au carnet pour ce texte
+      (`inscrite_au_carnet`), sinon TexteRetouche ; (3) chaque ligne, décodée en UTF-8 : espaces resserrés, bords retirés ; les lignes vides tombent.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le texte figé est la sortie brute de pdftotext 24.02.0 -layout, qui garde les lignes d'un tableau
+      d'avis ensemble (l'ISIN et le nom restent sur la même ligne) ; la normalisation reste ici, à un seul endroit, pour
+      qu'une ré-extraction se compare au texte figé octet pour octet. Le verdict ne dépend plus de l'outil installé sur
+      la machine du soir (voir le ⑧ du programme).
+    ⑨ CE QUI CLOCHE — Voir le ⑨ du programme : la fidélité du texte figé au PDF n'est prouvée qu'au moment de figer.
+      · Le chemin du carnet est comparé tel qu'écrit, sans normalisation : « ./donnees/… » ne serait pas reconnu, et
+      rendrait le défaut, pas un faux CONFORME.
+    ⑩ EFFET — Lit l'avis, son texte figé et le carnet.
+    ⑪ TERMINAISON — Rend la main, ou lève Panne ou TexteRetouche. Aucun de mes appels ne peut ne pas revenir.
       [sort: non]
     """
     try:
-        r = subprocess.run(["pdftotext", "-layout", os.path.join(racine, chemin), "-"],
-                           capture_output=True, timeout=60)
-    except (OSError, subprocess.TimeoutExpired) as e:
-        raise Panne(f"pdftotext n'a pas pu lire {chemin} : {e}")
-    if r.returncode != 0:
-        raise Panne(f"pdftotext a échoué sur {chemin} (code {r.returncode})")
-    lignes = (re.sub(r"\s+", " ", l).strip() for l in r.stdout.decode("utf-8", "replace").splitlines())
+        texte = texte_fige_de(racine, chemin)
+        with open(os.path.join(racine, texte), "rb") as x:
+            octets = x.read()
+    except OSError as e:
+        raise Panne(f"aucun texte figé ne correspond à l'empreinte de {chemin} (avis modifié ou absent, ou texte jamais "
+                    f"figé) : {e}")
+    empreinte = hashlib.sha256(octets).hexdigest()
+    n = inscrite_au_carnet(lignes_du_carnet(racine), texte, empreinte)
+    if n != 1:
+        raise TexteRetouche(f"le texte figé {texte} a l'empreinte {empreinte[:16]}…, inscrite {n} fois au carnet au lieu "
+                            f"d'une : il a été retouché, ou il n'est pas au carnet")
+    lignes = (re.sub(r"\s+", " ", l).strip() for l in octets.decode("utf-8", "replace").splitlines())
     return [l for l in lignes if l]
 
 
@@ -220,6 +291,70 @@ def morceaux(citation):
     return bons, mauvais
 
 
+def inscrite_au_carnet(lignes, fichier, empreinte):
+    """Rend le nombre de lignes du carnet qui inscrivent ce fichier à cette empreinte, comparés à l'identique.
+
+    ① RÔLE — La comparaison partagée par ce vérificateur et l'outil qui fige
+      (etudes/outils/FIGER_LE_TEXTE_DES_AVIS.py) pour dire « cette empreinte est celle que le carnet donne à ce
+      fichier ». D'autres programmes du dépôt refont cette comparaison sans passer par ici : voir le ⑨.
+    ② CONTEXTE D'APPEL — `lignes_du_pdf`, pour un texte figé ; etudes/outils/FIGER_LE_TEXTE_DES_AVIS.py, `ecarts`.
+    ③ ENTRÉE — `lignes` : rendu par `lignes_du_carnet` · `fichier` : le chemin tel qu'écrit au carnet (barres
+      obliques) · `empreinte` : 64 caractères hexadécimaux en minuscules (hashlib.hexdigest).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un entier, 0 ou plus. Exemple au 01-11-2026 : le texte figé d'ERF, à son empreinte
+      d719c285…, rend 1.
+      [rend: 1]
+    ⑥ TRAITEMENT — Compter les lignes dont `fichier` et `sha256` sont égaux, caractère pour caractère, à ceux donnés.
+    ⑦ UNITÉ — Un nombre de lignes.
+    ⑧ POURQUOI — Relecture neuve du 01-11-2026 (M2, cas L1k) : le vérificateur comparait l'empreinte après
+      `strip().lower()`, l'outil qui fige à l'identique ; une empreinte en majuscules passait l'un et pas l'autre. Deux
+      implémentations d'une même chose divergent toujours (R-708) : une seule fonction, la plus stricte. Mesuré le
+      01-11-2026 sur les 124 lignes du carnet : toutes les empreintes sont 64 caractères hexadécimaux en minuscules,
+      sans espace ; la stricte ne refuse donc aucune ligne existante.
+    ⑨ CE QUI CLOCHE — Trois autres programmes comparent une empreinte au carnet sans passer par cette fonction
+      (relecture n° 2 du 04-11-2026, m4, relevé par grep sur programmes/*.py) :
+      programmes/FABRIQUER_LES_COURS_DE_FRANCFORT.py, `reponse_verifiee`, et
+      programmes/FABRIQUER_LE_COURS_PROPRE_DE_YAHOO.py, `lire_les_sources`, comparent à l'identique, comme ici ;
+      K23 (programmes/CONTROLER_L_HISTORIQUE_LONG.py, `remonter`) tolère, lui, les majuscules et les espaces : il ne
+      lit pas les textes figés, mais c'est une lecture de l'empreinte plus tolérante. Aucune divergence entre les deux
+      premiers et celle-ci au 04-11-2026, seulement un risque de dérive (R-708). Le superviseur R-759 du 04-11-2026
+      (tour 3) a proposé au BACKLOG, sans le faire ici : placer cette fonction dans CONTRATS_DES_FICHIERS, y faire
+      passer les trois, et faire décider à Jean-Luc si K23 devient strict, puisque cela changerait un verdict.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return sum(1 for r in lignes if r["fichier"] == fichier and r["sha256"] == empreinte)
+
+
+def lignes_du_carnet(racine):
+    """Rend les lignes du carnet de provenance.
+
+    ① RÔLE — La seule lecture du carnet dans ce programme.
+    ② CONTEXTE D'APPEL — `adresses_du_carnet` ; `lignes_du_pdf`, pour l'empreinte d'un texte figé (par
+      `inscrite_au_carnet`) ; etudes/outils/FIGER_LE_TEXTE_DES_AVIS.py.
+    ③ ENTRÉE — `racine`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste des lignes, chacune un dictionnaire colonne → texte (en-tête
+      CONTRATS_DES_FICHIERS.PROVENANCE_DES_FICHIERS).
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire le CSV en UTF-8 (marque d'ordre d'octets tolérée).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Deux lectures du même fichier dans le même programme divergeraient (R-708) ; la panne « carnet
+      illisible » est éprouvée une fois (V29).
+    ⑨ CE QUI CLOCHE — L'en-tête n'est pas comparé au contrat ici : une colonne absente lève KeyError chez l'appelant,
+      que le dernier filet de `main` rend en code 2.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main ou lève Panne. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    try:
+        with open(os.path.join(racine, CARNET), encoding="utf-8-sig", newline="") as x:
+            return list(csv.DictReader(x))
+    except OSError as e:
+        raise Panne(f"carnet illisible : {e}")
+
+
 def adresses_du_carnet(racine):
     """Rend, pour chaque fichier inscrit au carnet, ses adresses.
 
@@ -229,7 +364,7 @@ def adresses_du_carnet(racine):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : un dictionnaire fichier → liste des adresses de ses lignes.
       [rend: 1]
-    ⑥ TRAITEMENT — Lire le carnet.
+    ⑥ TRAITEMENT — Lire le carnet (`lignes_du_carnet`).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — La colonne source recopie les adresses du carnet : elles se comparent, elles ne se devinent pas.
     ⑨ CE QUI CLOCHE — Recopier l'adresse est une seconde écriture d'un fait du carnet (R-708) ; c'est la décision de
@@ -238,10 +373,7 @@ def adresses_du_carnet(racine):
     ⑪ TERMINAISON — Rend la main ou lève Panne.
       [sort: non]
     """
-    try:
-        lus = list(csv.DictReader(open(os.path.join(racine, CARNET), encoding="utf-8-sig", newline="")))
-    except OSError as e:
-        raise Panne(f"carnet illisible : {e}")
+    lus = lignes_du_carnet(racine)
     a = {}
     for r in lus:
         a.setdefault(r["fichier"], []).append(r["adresse"])
@@ -257,11 +389,13 @@ def verifier_une_valeur(racine, r, carnet, cache):
     ④ CONDITIONS D'ENTRÉE — La ligne porte les trois colonnes.
     ⑤ SORTIE — UNE valeur : la liste des défauts, en textes.
       [rend: 1]
-    ⑥ TRAITEMENT — Les étapes (3) à (6) du ⑥ du programme.
+    ⑥ TRAITEMENT — Les étapes (3) à (6) du ⑥ du programme. Un texte figé retouché (TexteRetouche) est gardé au cache
+      sous la forme de son message : chaque morceau qui le désigne rend ce défaut, et aucun n'est comparé à ses lignes.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Voir le ⑧ du programme.
-    ⑨ CE QUI CLOCHE — Voir le ⑨ du programme.
-    ⑩ EFFET — Lit les fichiers cités.
+    ⑨ CE QUI CLOCHE — Voir le ⑨ du programme. · Un avis cité par deux morceaux d'une ligne retouchée rend deux fois le
+      même défaut : le verdict n'en change pas.
+    ⑩ EFFET — Lit les fichiers cités, et le texte figé de chaque avis.
     ⑪ TERMINAISON — Rend la main ou lève Panne.
       [sort: non]
     """
@@ -292,7 +426,13 @@ def verifier_une_valeur(racine, r, carnet, cache):
             cles.add(texte.split("\t")[0])
         elif f.lower().endswith(".pdf"):
             if f not in cache:
-                cache[f] = lignes_du_pdf(racine, f)
+                try:
+                    cache[f] = lignes_du_pdf(racine, f)
+                except TexteRetouche as e:              # un défaut : ses lignes ne servent à aucune citation
+                    cache[f] = str(e)
+            if isinstance(cache[f], str):
+                d.append(f"{code} : {cache[f]}")
+                continue
             if texte not in cache[f]:
                 d.append(f"{code} : « {texte[:60]} » n'est pas une ligne entière de {designation}")
                 continue

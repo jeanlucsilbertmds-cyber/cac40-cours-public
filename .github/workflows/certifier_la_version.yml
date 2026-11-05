@@ -6,6 +6,9 @@
 # tests/ diffère du dépôt privé ou n'existe que d'un côté. Les données des épreuves sont lues au
 # dépôt privé, jamais publiées. Chaque pas passe par programmes/ETAPE_MUETTE.py : le journal
 # public ne dit que « OK » ou « ÉCHEC » ; le détail est au dépôt privé.
+# Depuis le 30-10-2026 (décision de Jean-Luc à 19h02) : les épreuves sont réparties en tranches
+# jouées en même temps sur des machines distinctes (job « certifier »), puis une tâche finale
+# (job « reunir ») réunit leurs certificats partiels et rougit s'il en manque un.
 name: Certifier la version
 on:
   workflow_dispatch:
@@ -21,8 +24,19 @@ permissions:
 jobs:
   certifier:
     runs-on: ubuntu-latest
-    # 330 minutes (16-10-2026) : la série de la lecture des cours reçoit 3 heures à elle ; GitHub coupe à 6 heures.
+    # 330 minutes PAR TRANCHE : GitHub coupe toute tâche à 6 heures ; chaque tranche a les siennes.
     timeout-minutes: 330
+    strategy:
+      # une tranche rouge n'arrête pas les autres : la tâche finale doit voir chacune
+      fail-fast: false
+      matrix:
+        tranche:
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
     defaults:
       run:
         shell: python3 programmes/ETAPE_MUETTE.py {0}
@@ -42,7 +56,7 @@ jobs:
           D=""
           L=$(find . -name '*.py' -type l -print | head -5 | paste -sd ' ' -)
           [ -z "$L" ] || D="$D liens-symboliques:$L"
-          for d in . programmes tests etudes/outils; do
+          for d in . programmes tests etudes/outils tests/outils; do
             while IFS= read -r -d '' f; do
               n=${f##*/}
               if [ ! -f "$d/$n" ]; then D="$D $d/$n(absent-du-prive)"; elif ! cmp -s "$f" "$d/$n"; then D="$D $d/$n"; fi
@@ -63,13 +77,13 @@ jobs:
           done < <(find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) -type f -print0)
           if [ -n "$D" ]; then echo "::error::CODE PUBLIC DIFFERENT DU DEPOT PRIVE :$D"; exit 1; fi
           find . -path ./_code -prune -o -path ./.git -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
-          find . -path ./_code -prune -o -path ./.git -prune -o -name '*.py' -type f -print0 | grep -zvE '^[.]/[^/]+[.]py$|^[.]/(programmes|tests|etudes/outils)/[^/]+[.]py$' | xargs -0 -r rm -f
+          find . -path ./_code -prune -o -path ./.git -prune -o -name '*.py' -type f -print0 | grep -zvE '^[.]/[^/]+[.]py$|^[.]/(programmes|tests|etudes/outils|tests/outils)/[^/]+[.]py$' | xargs -0 -r rm -f
           X=$(python3 -c "import importlib.machinery as m; print('|'.join(s.replace('.', '[.]') for s in m.all_suffixes() if s != '.py'))")
           find . -path ./_code -prune -o -path ./.git -prune -o -type f -print0 | grep -zE "($X)$" | xargs -0 -r rm -f
-          R=$(find . -path ./_code -prune -o -path ./.git -prune -o -name '*.py' -print | grep -cvE '^[.]/[^/]+[.]py$|^[.]/(programmes|tests|etudes/outils)/[^/]+[.]py$' || true)
+          R=$(find . -path ./_code -prune -o -path ./.git -prune -o -name '*.py' -print | grep -cvE '^[.]/[^/]+[.]py$|^[.]/(programmes|tests|etudes/outils|tests/outils)/[^/]+[.]py$' || true)
           C=$(find . -path ./_code -prune -o -path ./.git -prune -o -type f -print | grep -cE "($X)$" || true)
           [ "$R" = "0" ] && [ "$C" = "0" ] || { echo "::error::CODE PRIVE NON PUBLIE ENCORE PRESENT : $R source(s), $C compile(s)"; exit 1; }
-          for d in . programmes tests etudes/outils; do
+          for d in . programmes tests etudes/outils tests/outils; do
             for f in _code/$d/*.py; do [ -e "$f" ] && cp "$f" "$d/"; done
           done
           cp _code/tests/LANCEMENT_DES_EPREUVES.json tests/
@@ -100,28 +114,130 @@ jobs:
           soffice --version || libreoffice --version
       - name: Installer la mesure et les dependances des programmes
         id: installer
-        run: python3 -m pip install --quiet "coverage==7.16.2" cryptography pyyaml
-      - name: Certifier
+        run: python3 -m pip install --quiet "coverage==7.16.2" "pyflakes==4.1.0" cryptography pyyaml
+      - name: Certifier une tranche
         id: certifier
         continue-on-error: true
-        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE"
-      - name: Deposer le certificat et le journal au depot prive
+        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/6
+      - name: Deposer au depot prive
         id: deposer
         if: always()
         shell: bash
         run: |
           git config user.name certification-publique
           git config user.email certification-publique@users.noreply.github.com
-          git rebase --abort 2>/dev/null || true
+          mkdir -p rapports/certificats_partiels
+          for f in rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log; do
+            [ -f "$f" ] && mv "$f" "${f%.log}_tranche_${{ matrix.tranche }}.log"
+          done
+          git add rapports/certificats_partiels/ rapports/journal_du_circuit/ \
+            || { echo "::error::certificat partiel ou journal introuvable"; exit 1; }
+          if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
+          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
+          for i in $(seq 1 9); do
+            git rebase --abort 2>/dev/null || true
+            if git pull -q --rebase --autostash origin main && git push -q; then echo "depose"; exit 0; fi
+            sleep $((RANDOM % 15 + 1))
+          done
+          echo "::error::POUSSEE REFUSEE 9 FOIS — le certificat reste sur la machine jetable"; exit 1
+      - name: Rougir si la version n'est pas certifiee
+        id: verdict
+        if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'success' }}
+        run: |
+          echo "::error::VERSION NON CERTIFIEE — lire rapports/CERTIFICAT_DE_LA_VERSION.md au depot prive"
+          exit 1
+  reunir:
+    # LA TÂCHE FINALE : après toutes les tranches, MÊME si l'une a échoué, a été coupée ou annulée.
+    needs: certifier
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: python3 programmes/ETAPE_MUETTE.py {0}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
+          token: ${{ secrets.JETON_DEPOTS }}
+          fetch-depth: 0
+      - uses: actions/checkout@v5
+        with:
+          path: _code
+      - name: Poser le code public, s'il est celui du depot prive
+        id: poser_le_code
+        shell: python3 _code/programmes/ETAPE_MUETTE.py {0}
+        run: |
+          D=""
+          L=$(find . -name '*.py' -type l -print | head -5 | paste -sd ' ' -)
+          [ -z "$L" ] || D="$D liens-symboliques:$L"
+          for d in . programmes tests etudes/outils tests/outils; do
+            while IFS= read -r -d '' f; do
+              n=${f##*/}
+              if [ ! -f "$d/$n" ]; then D="$D $d/$n(absent-du-prive)"; elif ! cmp -s "$f" "$d/$n"; then D="$D $d/$n"; fi
+            done < <(find "_code/$d" -maxdepth 1 -name '*.py' -type f -print0 2>/dev/null)
+            while IFS= read -r -d '' f; do
+              n=${f##*/}
+              [ -f "_code/$d/$n" ] || D="$D $d/$n(absent-du-public)"
+            done < <(find "$d" -maxdepth 1 -name '*.py' -type f -print0)
+          done
+          cmp -s _code/tests/LANCEMENT_DES_EPREUVES.json tests/LANCEMENT_DES_EPREUVES.json || D="$D tests/LANCEMENT_DES_EPREUVES.json"
+          while IFS= read -r -d '' f; do
+            n=${f##*/}
+            if [ ! -f ".github/workflows/$n" ]; then D="$D fiche:$n(absent-du-prive)"; elif ! cmp -s "$f" ".github/workflows/$n"; then D="$D fiche:$n"; fi
+          done < <(find _code/circuits_du_prive -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) -type f -print0 2>/dev/null)
+          while IFS= read -r -d '' f; do
+            n=${f##*/}
+            [ -f "_code/circuits_du_prive/$n" ] || D="$D fiche:$n(absent-du-public)"
+          done < <(find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) -type f -print0)
+          if [ -n "$D" ]; then echo "::error::CODE PUBLIC DIFFERENT DU DEPOT PRIVE :$D"; exit 1; fi
+          find . -path ./_code -prune -o -path ./.git -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
+          find . -path ./_code -prune -o -path ./.git -prune -o -name '*.py' -type f -print0 | grep -zvE '^[.]/[^/]+[.]py$|^[.]/(programmes|tests|etudes/outils|tests/outils)/[^/]+[.]py$' | xargs -0 -r rm -f
+          X=$(python3 -c "import importlib.machinery as m; print('|'.join(s.replace('.', '[.]') for s in m.all_suffixes() if s != '.py'))")
+          find . -path ./_code -prune -o -path ./.git -prune -o -type f -print0 | grep -zE "($X)$" | xargs -0 -r rm -f
+          R=$(find . -path ./_code -prune -o -path ./.git -prune -o -name '*.py' -print | grep -cvE '^[.]/[^/]+[.]py$|^[.]/(programmes|tests|etudes/outils|tests/outils)/[^/]+[.]py$' || true)
+          C=$(find . -path ./_code -prune -o -path ./.git -prune -o -type f -print | grep -cE "($X)$" || true)
+          [ "$R" = "0" ] && [ "$C" = "0" ] || { echo "::error::CODE PRIVE NON PUBLIE ENCORE PRESENT : $R source(s), $C compile(s)"; exit 1; }
+          for d in . programmes tests etudes/outils tests/outils; do
+            for f in _code/$d/*.py; do [ -e "$f" ] && cp "$f" "$d/"; done
+          done
+          cp _code/tests/LANCEMENT_DES_EPREUVES.json tests/
+          mkdir -p "$RUNNER_TEMP/circuit_public"
+          cp _code/.github/workflows/certifier_la_version.yml "$RUNNER_TEMP/circuit_public/"
+          rm -rf _code
+      - name: Le circuit de certification est-il celui que fabrique le depot prive ?
+        id: circuit_a_jour
+        run: |
+          rm -rf "$RUNNER_TEMP/refait" && mkdir -p "$RUNNER_TEMP/refait"
+          python3 programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py . "$RUNNER_TEMP/refait"
+          cmp "$RUNNER_TEMP/refait/.github/workflows/certifier_la_version.yml" "$RUNNER_TEMP/circuit_public/certifier_la_version.yml" \
+            || { echo "::error::LE CIRCUIT DE CERTIFICATION N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Installer la mesure et les dependances des programmes
+        id: installer
+        run: python3 -m pip install --quiet "coverage==7.16.2" "pyflakes==4.1.0" cryptography pyyaml
+      - name: Reunir les tranches
+        id: certifier
+        continue-on-error: true
+        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir 6
+      - name: Deposer au depot prive
+        id: deposer
+        if: always()
+        shell: bash
+        run: |
+          git config user.name certification-publique
+          git config user.email certification-publique@users.noreply.github.com
           git add rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ \
             || { echo "::error::certificat ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
           git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
-          for i in 1 2 3; do
+          for i in $(seq 1 9); do
+            git rebase --abort 2>/dev/null || true
             if git pull -q --rebase --autostash origin main && git push -q; then echo "depose"; exit 0; fi
-            sleep 5
+            sleep $((RANDOM % 15 + 1))
           done
-          echo "::error::POUSSEE REFUSEE 3 FOIS — le certificat reste sur la machine jetable"; exit 1
+          echo "::error::POUSSEE REFUSEE 9 FOIS — le certificat reste sur la machine jetable"; exit 1
       - name: Rougir si la version n'est pas certifiee
         id: verdict
         if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'success' }}

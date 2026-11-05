@@ -11,16 +11,18 @@
   en argument, puis une seconde fois avec --saboter. À la main :
   python3 tests/EPREUVES_DES_PREUVES_DU_REFERENTIEL_Sam_24-10-2026.py <racine> [--saboter]
 ③ ENTRÉE — La racine du dépôt (lue, jamais écrite) ; l'option --saboter.
-④ CONDITIONS D'ENTRÉE — pdftotext installé (sinon code 2, sans jouer aucun cas).
+④ CONDITIONS D'ENTRÉE — — (aucun outil extérieur depuis le 01-11-2026 : le vérificateur lit les textes figés des avis
+  au lieu de lancer pdftotext, et l'épreuve ne le demande plus).
 ⑤ SORTIE — Le code : 0 si chaque cas rend le code et le motif attendus (et, avec --saboter, si chaque garde retirée
   fait tomber au moins un cas) ; 1 si un cas est faux ou si une garde ne mord pas ; 2 si l'épreuve n'a pas pu juger
-  (pdftotext absent, un cas ou une garde ne s'applique plus, erreur imprévue). Une ligne « OK »/« FAUX » par cas,
+  (un cas ou une garde ne s'applique plus, erreur imprévue). Une ligne « OK »/« FAUX » par cas,
   « BILAN », puis avec --saboter une ligne « <garde> mord … » / « NE MORD PAS » / « NE S'APPLIQUE PLUS » par garde,
   et « VERDICT ».
   [rend: 1]
 ⑥ TRAITEMENT — Un banc dans un dossier temporaire : une copie du vérificateur (à l'octet, pour que la mesure de
-  couverture le crédite), du référentiel, du carnet et de chaque fichier que le référentiel cite, plus l'archive
-  2016.ZIP pour le cas d'une archive imbriquée. Chaque cas : une copie du banc en liens durs, un fichier remplacé
+  couverture le crédite), du référentiel, du carnet, de chaque fichier que le référentiel cite et de chaque texte figé
+  (donnees/sources_du_referentiel/textes_figes/, tout le dossier, sans liste), plus l'archive 2016.ZIP pour le cas
+  d'une archive imbriquée. Chaque cas : une copie du banc en liens durs, un fichier remplacé
   (jamais écrit à travers un lien), le vérificateur lancé par sous-processus, son code ET un fragment de son écran
   comparés à l'attendu. Avec --saboter, chaque garde du vérificateur est retirée une à une, et les cas sont rejoués
   jusqu'au premier qui tombe.
@@ -31,7 +33,19 @@
   que chaque instruction du vérificateur soit exécutée : la certification exige qu'un programme absent de la
   référence ait tout examiné (superviseur R-759 du 24-10-2026, tour 2). Mesuré le 24-10-2026 par coverage --branch sur
   les cas non sabotés : 182 instructions sur 182, 79 embranchements sur 80 (manque la sortie du « if __name__ ») ;
-  après les corrections du tour 4 (même jour, 20h27) : 188 instructions sur 188, 81 embranchements sur 82.
+  après les corrections du tour 4 (même jour, 20h27) : 188 instructions sur 188, 81 embranchements sur 82. V32 et V34
+  réorientés le 01-11-2026, décision de Jean-Luc de 14h06 (« 1 » à « réorienter V32 et V34 : V32 = un PDF abîmé n'a
+  aucun texte figé qui corresponde à son empreinte, la vérification s'arrête et le dit ; V34 = quelqu'un retouche un
+  texte figé, l'empreinte ne correspond plus au carnet, la vérification rougit. Aucune épreuve supprimée. ») : V34
+  éprouvait l'absence de pdftotext, que le vérificateur ne lance plus. Les gardes G22 et G23 éprouvent ces deux
+  nouvelles défenses. Mesuré le 01-11-2026 (coverage --branch, pdftotext 26.01.0 en tête du chemin) : 206 instructions
+  sur 206, 83 embranchements sur 84 (manque toujours la sortie du « if __name__ »). V38 et G24 (relecture neuve du
+  01-11-2026, M2) : l'empreinte du carnet se compare à l'identique, par la seule fonction `inscrite_au_carnet`,
+  partagée avec l'outil qui fige ; une empreinte écrite en majuscules rougit. V39 et G25 (relecture n° 2 du
+  04-11-2026, m1 ; superviseur R-759 du même jour, tour 3) : la vraie ligne du texte figé d'ERF écrite deux fois au
+  carnet rougit « inscrite 2 fois » ; plafonner à 1 le compte de `inscrite_au_carnet` fait tomber V39. Le cas vit
+  ici et non dans l'épreuve de l'outil qui fige, où la garde « une seule ligne par texte » attrape déjà le doublon
+  et cacherait le plafond.
 ⑨ CE QUI CLOCHE — Les cas sont écrits pour les valeurs actuelles (AC, AI, BVI, DSY, ML, ERF) et pour les lignes de leurs
   preuves ; les chemins des réponses de Yahoo sont tirés des fichiers que le référentiel cite. Si l'un change, son cas
   « ne s'applique plus » et l'épreuve rend 2 ; une préparation qui ne change rien le dit aussi (relecteur du
@@ -47,6 +61,7 @@
 """
 import csv
 import glob
+import hashlib
 import io
 import os
 import shutil
@@ -59,6 +74,7 @@ import zipfile
 VERIF = "programmes/VERIFIER_LES_PREUVES_DU_REFERENTIEL.py"
 CARNET = "donnees/PROVENANCE_DES_FICHIERS.csv"
 BNAINS = "donnees/sources_bnains/archives_bnains"
+TEXTES_FIGES = "donnees/sources_du_referentiel/textes_figes"   # écrit aussi dans le vérificateur : l'épreuve le confronte
 SEP = " · "
 
 
@@ -76,8 +92,24 @@ def lancer(programme, racine, env=None, args=None, sans_b=False):
 
 
 def construire_le_banc(depot, banc):
-    """① Copier dans `banc` ce que lit le vérificateur. ⑤ UNE valeur : le chemin relatif du référentiel.
+    """Copie dans un banc ce que lit le vérificateur, et rend le chemin du référentiel.
+
+    ① RÔLE — Copier dans `banc` ce que lit le vérificateur.
+    ② CONTEXTE D'APPEL — `main`, une fois, avant de fabriquer les cas.
+    ③ ENTRÉE — `depot` : la racine éprouvée (lue, jamais écrite) · `banc` : un dossier à créer.
+    ④ CONDITIONS D'ENTRÉE — Un seul fichier donnees/REFERENTIEL_VALEURS_*.csv au dépôt, sinon NeSAppliquePlus.
+    ⑤ SORTIE — UNE valeur : le chemin relatif du référentiel (par exemple « donnees/REFERENTIEL_VALEURS_v3_Lun_17-08-2026_10h54.csv »).
       [rend: 1]
+    ⑥ TRAITEMENT — Rassembler : le vérificateur, le carnet, le référentiel, l'archive 2016.ZIP, tout programmes/*.py,
+      tout donnees/sources_du_referentiel/textes_figes/*.txt et chaque fichier de la colonne fichiers_cites ; les
+      copier, octet pour octet.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Les programmes et les textes figés sont pris par dossier, sans liste : le vérificateur charge le
+      lecteur des cours et ses voisins (relecteur du 24-10-2026, tour 4, D3), et choisit le texte figé par l'empreinte
+      du PDF (décision de Jean-Luc du 01-11-2026 à 13h41).
+    ⑨ CE QUI CLOCHE — Un fichier lu par le vérificateur hors de ces règles ne serait pas copié : son cas rougirait.
+    ⑩ EFFET — Écrit le banc.
+    ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
       [sort: non]"""
     refs = [os.path.relpath(p, depot) for p in glob.glob(os.path.join(depot, "donnees", "REFERENTIEL_VALEURS_*.csv"))]
     if len(refs) != 1:
@@ -86,7 +118,9 @@ def construire_le_banc(depot, banc):
     # tout programmes/*.py, sans liste : le vérificateur charge le lecteur des cours, qui charge ses voisins
     # (relecteur du 24-10-2026, tour 4, D3 : une liste de quatre modules tombait dès qu'un voisin s'ajoutait)
     progs = {os.path.relpath(p, depot) for p in glob.glob(os.path.join(depot, "programmes", "*.py"))}
-    a_copier = {VERIF, CARNET, refs[0], f"{BNAINS}/2016.ZIP"} | progs
+    # tout le dossier des textes figés, sans liste : le vérificateur choisit le texte par l'empreinte du PDF
+    figes = {os.path.relpath(p, depot) for p in glob.glob(os.path.join(depot, TEXTES_FIGES, "*.txt"))}
+    a_copier = {VERIF, CARNET, refs[0], f"{BNAINS}/2016.ZIP"} | progs | figes
     for r in lus:
         a_copier |= {f for f in (r.get("fichiers_cites") or "").split(";") if f}
     for f in sorted(a_copier):
@@ -115,8 +149,23 @@ def remplacer(dossier, chemin, octets):
 
 
 def fabriquer_les_cas(banc, ref):
-    """① La table des cas. ⑤ UNE valeur : nom → (préparation, code attendu, fragment attendu).
+    """Rend la table des cas.
+
+    ① RÔLE — Écrire, une fois, chaque cas : comment l'amener, et ce que le vérificateur doit alors rendre.
+    ② CONTEXTE D'APPEL — `main`, une fois ; la table sert aussi à chaque garde sabotée.
+    ③ ENTRÉE — `banc` : le banc construit · `ref` : le chemin relatif du référentiel.
+    ④ CONDITIONS D'ENTRÉE — Les valeurs AC, AI, BVI, DSY, ML et ERF sont au référentiel, et les fichiers que les cas
+      modifient sont au banc ; sinon NeSAppliquePlus (code 2 de l'épreuve).
+    ⑤ SORTIE — UNE valeur : un dictionnaire nom → (préparation, code attendu, fragment attendu). La préparation est
+      une fonction du dossier du cas, ou l'un des mots « SANS_B », « SANS_RACINE ».
       [rend: 1]
+    ⑥ TRAITEMENT — Lire le référentiel et le carnet du banc ; fabriquer les préparations (une ligne changée, un texte
+      remplacé, un fichier remplacé…) ; rendre la table.
+    ⑦ UNITÉ — Des codes de sortie.
+    ⑧ POURQUOI — Voir le ⑧ du programme : chaque défaut plausible, et chaque panne, a son cas.
+    ⑨ CE QUI CLOCHE — Voir le ⑨ du programme : les cas sont écrits pour les valeurs et les avis actuels.
+    ⑩ EFFET — Lit le banc ; n'écrit rien (les préparations écriront, chacune dans son dossier).
+    ⑪ TERMINAISON — Rend la main ou lève NeSAppliquePlus. Aucun de mes appels ne peut ne pas revenir.
       [sort: non]"""
     orig = open(os.path.join(banc, ref), "rb").read()
     texte = orig.decode("utf-8-sig")
@@ -228,6 +277,27 @@ def fabriquer_les_cas(banc, ref):
         os.remove(os.path.join(d, ref))
         os.makedirs(os.path.join(d, ref))
 
+    # V34 : le texte figé de l'avis d'ERF, trouvé comme le vérificateur le trouve (l'empreinte du PDF fait son nom)
+    erf = "donnees/sources_du_referentiel/ERF_EUREX_Info_002_ERF.pdf"
+    if not os.path.isfile(os.path.join(banc, erf)):
+        raise NeSAppliquePlus(f"{erf} n'est plus au banc")
+    t_erf = f"{TEXTES_FIGES}/{hashlib.sha256(open(os.path.join(banc, erf), 'rb').read()).hexdigest()}.txt"
+    if not os.path.isfile(os.path.join(banc, t_erf)):
+        raise NeSAppliquePlus(f"le texte figé de {erf} ({t_erf}) n'est pas au banc")
+    t_erf_octets = open(os.path.join(banc, t_erf), "rb").read()
+    # V38 : la ligne du carnet du texte d'ERF, son empreinte écrite en majuscules (relecture neuve du 01-11-2026, M2)
+    ligne_erf = (t_erf + "," + hashlib.sha256(t_erf_octets).hexdigest() + ",").encode()
+    if carnet_txt.count(ligne_erf) != 1:
+        raise NeSAppliquePlus(f"le carnet n'inscrit pas une fois {t_erf} à son empreinte")
+    carnet_majuscules = carnet_txt.replace(ligne_erf, (t_erf + "," + hashlib.sha256(t_erf_octets).hexdigest().upper()
+                                                       + ",").encode())
+    # V39 : la VRAIE ligne du carnet du texte d'ERF (R-732), écrite deux fois (relecture n° 2 du 04-11-2026, m1)
+    l_erf = [l for l in carnet_txt.split(b"\n") if l.startswith(ligne_erf)]
+    carnet_double = carnet_txt.replace(l_erf[0] + b"\n", l_erf[0] + b"\n" + l_erf[0] + b"\n", 1) if len(l_erf) == 1 \
+        else carnet_txt
+    if carnet_double == carnet_txt:
+        raise NeSAppliquePlus(f"la ligne de {t_erf} n'est pas une ligne entière du carnet")
+
     l_ml = "FR0000121261\tMICHELIN"
     return {
         "V00_temoin": (lambda d: None, 0, "VERDICT CONFORME"),
@@ -278,18 +348,40 @@ def fabriquer_les_cas(banc, ref):
         "V29_carnet_absent": (lambda d: os.remove(os.path.join(d, CARNET)), 2, "carnet illisible"),
         "V30_archive_corrompue": (fichier(f"{BNAINS}/201702.ZIP", b"pas une archive"), 2, "illisible"),
         "V31_reponse_yahoo_illisible": (fichier(yahoo_ac, b"{pas du json"), 2, "illisible"),
-        "V32_avis_corrompu": (fichier("donnees/sources_du_referentiel/DSY_EUREX_Info_002_DYS1.pdf", b"pas un pdf"), 2, "pdftotext a échoué"),
+        "V32_avis_corrompu": (fichier("donnees/sources_du_referentiel/DSY_EUREX_Info_002_DYS1.pdf", b"pas un pdf"), 2,
+                              "aucun texte figé ne correspond à l'empreinte"),
         "V33_case_manquante": (sans_case, 1, "cases au lieu de"),
         "V36_lance_sans_option_B_n_ecrit_rien": ("SANS_B", 0, "VERDICT CONFORME"),
         "V37_referentiel_en_latin1": (lambda d: remplacer(d, ref, orig.decode("utf-8-sig").encode("latin-1", "replace")), 2, "erreur imprévue"),
-        "V34_pdftotext_absent": ("SANS_PDFTOTEXT", 2, "pdftotext n'a pas pu lire"),
+        # une ligne ajoutée à la fin : sans le contrôle d'empreinte, toutes les citations y restent des lignes entières
+        "V34_texte_fige_retouche": (fichier(t_erf, t_erf_octets + b"ligne ajoutee a la main\n"), 1, "inscrite 0 fois au carnet"),
+        # une seule comparaison d'empreinte, la plus stricte, pour le vérificateur et l'outil qui fige (M2, R-708)
+        "V38_empreinte_du_carnet_en_majuscules": (fichier(CARNET, carnet_majuscules), 1, "inscrite 0 fois au carnet"),
+        # le compte de `inscrite_au_carnet` n'est pas plafonné : deux lignes à la bonne empreinte rougissent (m1)
+        "V39_ligne_du_texte_fige_en_double": (fichier(CARNET, carnet_double), 1, "inscrite 2 fois au carnet"),
         "V35_appel_sans_racine": ("SANS_RACINE", 2, "appel mal formé"),
     }
 
 
 def jouer(banc, travail, cas, programme_relatif, bavard=True, jusqu_a_la_premiere_chute=False):
-    """① Jouer les cas avec un vérificateur donné. ⑤ DEUX valeurs : justes, faux (listes de noms).
+    """Joue les cas avec un vérificateur donné, et rend les justes et les faux.
+
+    ① RÔLE — Jouer les cas avec un vérificateur donné.
+    ② CONTEXTE D'APPEL — `main` : une fois sur le banc, puis, avec --saboter, une fois par garde sur une copie sabotée.
+    ③ ENTRÉE — `banc` · `travail` : le dossier temporaire · `cas` : la table de `fabriquer_les_cas` ·
+      `programme_relatif` : le vérificateur, depuis la racine du banc · `bavard` : une ligne par cas ·
+      `jusqu_a_la_premiere_chute` : s'arrêter au premier faux.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : justes, faux (listes de noms).
       [rend: 2]
+    ⑥ TRAITEMENT — Pour chaque cas : une copie du banc en liens durs, la préparation, le vérificateur lancé ; juste si
+      le code ET le fragment attendus sont là, et si, sans -B, rien n'a été écrit dans programmes/__pycache__.
+    ⑦ UNITÉ — Des codes de sortie.
+    ⑧ POURQUOI — Le fragment distingue une détection d'un plantage, qui rendait le même code (relecteur du
+      24-10-2026, tour 2, C-e).
+    ⑨ CE QUI CLOCHE — Une garde qui « mord » peut mordre par un plantage (voir le ⑨ du programme).
+    ⑩ EFFET — Écrit et efface un dossier par cas ; écrit à l'écran.
+    ⑪ TERMINAISON — Rend la main ; chaque lancement est borné à 300 s (`lancer`).
       [sort: non]"""
     justes, faux = [], []
     for nom, (prep, attendu, fragment) in cas.items():
@@ -297,9 +389,7 @@ def jouer(banc, travail, cas, programme_relatif, bavard=True, jusqu_a_la_premier
         try:
             copie_du_banc(banc, d)
             env, args = None, None
-            if prep == "SANS_PDFTOTEXT":
-                env = dict(os.environ, PATH="/nonexistent")
-            elif prep == "SANS_RACINE":
+            if prep == "SANS_RACINE":
                 args = []
             elif prep != "SANS_B":
                 prep(d)
@@ -341,23 +431,37 @@ GARDES = {
     "G19_identite_des_noms": ("    refus = identite_des_noms(racine)\n", "    refus = []\n"),
     "G20_arret_si_le_lecteur_refuse": ("    if refus:                                           # le lecteur refuse", "    if False:  # le lecteur refuse"),
     "G21_pas_de_cache_de_compilation": ("    sys.dont_write_bytecode = True                      # le chargement", "    pass  # le chargement"),
+    "G22_empreinte_du_texte_fige": ("    if n != 1:\n", "    if False:\n"),
+    "G23_texte_retouche_ecarte": ("            if isinstance(cache[f], str):", "            if False:"),
+    "G24_empreinte_comparee_a_l_identique": ('r["sha256"] == empreinte)', 'r["sha256"].lower() == empreinte)'),
+    "G25_compte_non_plafonne": ('    return sum(1 for r in lignes if r["fichier"] == fichier and r["sha256"] == empreinte)',
+                                '    return min(1, sum(1 for r in lignes if r["fichier"] == fichier and r["sha256"] == empreinte))'),
     "G18_dernier_filet": ("    except Exception as e:                                # dernier filet",
                           "    except ZeroDivisionError as e:                        # dernier filet"),
 }
 
 
 def main(argv):
-    """① Le point d'entrée. ⑤ UNE valeur : le code de sortie (voir le ⑤ du programme).
+    """Le point d'entrée : joue les cas, puis les gardes sabotées si demandé, et rend le code de sortie.
+
+    ① RÔLE — Le point d'entrée.
+    ② CONTEXTE D'APPEL — La ligne de commande (la certification, chaque nuit, deux fois : sans et avec --saboter).
+    ③ ENTRÉE — `argv` : le nom du programme, la racine, et --saboter facultatif.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le code de sortie (voir le ⑤ du programme).
       [rend: 1]
+    ⑥ TRAITEMENT — Le ⑥ du programme ; une NeSAppliquePlus ou une erreur imprévue rend « VERDICT IMPOSSIBLE » et 2.
+    ⑦ UNITÉ — Des secondes pour la durée affichée.
+    ⑧ POURQUOI — R-734 : une épreuve qui n'a pas pu juger ne rend jamais 0.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Écrit et efface un dossier temporaire ; écrit à l'écran.
+    ⑪ TERMINAISON — Rend la main ; le dossier temporaire est effacé même en cas d'erreur (un arrêt brutal le laisse).
       [sort: non]"""
     args = [a for a in argv[1:] if a != "--saboter"]
     saboter = "--saboter" in argv[1:]
     if len(args) != 1 or not os.path.isdir(args[0]):
         print(__doc__.split("③")[0])
         print("VERDICT IMPOSSIBLE — appel mal formé")
-        return 2
-    if shutil.which("pdftotext") is None:
-        print("VERDICT IMPOSSIBLE — pdftotext n'est pas installé : aucun cas n'est joué")
         return 2
     depot = os.path.abspath(args[0])
     debut = time.monotonic()

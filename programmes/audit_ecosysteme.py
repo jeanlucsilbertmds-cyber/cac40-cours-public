@@ -2483,6 +2483,46 @@ if f_tr is not None and trades:
 #   univers du registre — ❌ sinon ; celle de l'année du jour + 31 jours aussi — ⚠ sinon
 #   (la liste paraît au BOFiP vers le 20 décembre : l'alerte part dès le 1er décembre).
 def _maillon_des_frais():
+    """Le maillon 10bis du radar : refait chaque montant du journal sous son barème, et contrôle les listes de la taxe.
+
+    ① RÔLE — Dire, chaque soir, si les frais des trades sont ceux que le barème nommé produit, si un trade récent
+      porte le barème réel, si une vente est bloquée faute de frais chiffrables, et si la liste des valeurs taxées
+      de l'année (et de l'année à venir) nomme toutes les valeurs des univers en service. Le détail des quatre
+      contrôles est dans le commentaire au-dessus de la fonction.
+    ② CONTEXTE D'APPEL — Le corps du programme, une fois, entre le maillon 13 et le maillon 11.
+    ③ ENTRÉE — Aucun paramètre : elle lit le journal des trades, les positions ouvertes et le registre des
+      stratégies par `_lire_csv`, charge `MODULE_POSITIONS.py` (trouvé par `chemin_de`) et lit
+      `MISE_EN_SERVICE_DU_BAREME_REEL` dans `CONTRATS_DES_FICHIERS`.
+    ④ CONDITIONS D'ENTRÉE — `rapport`, `score`, `check`, `_lire_csv` et `chemin_de` sont définis plus haut ;
+      `CONTRATS_DES_FICHIERS` s'importe.
+    ⑤ SORTIE — Rien : rend None. Son résultat est dans `rapport` et `score` : une ligne ❌ et un échec si le module
+      ou le contrat ne se chargent pas (et rien d'autre) ; sinon une ligne par contrôle — deux pour ① et ② quand le
+      journal est trouvé, une pour ③, une par année distincte pour ④.
+      [rend: rien]
+    ⑥ TRAITEMENT — ① charger `MODULE_POSITIONS` et le contrat, ou écrire l'échec et rendre la main · ② pour chaque
+      trade et chacune de ses deux colonnes de résultat, refaire le montant par `MODULE_POSITIONS.pnl_net` sous le
+      barème que la ligne nomme, aux prix écrits ; noter un écart de plus d'un euro, un barème vide, un montant non
+      refait, et un trade vendu depuis la mise en service dont le barème n'est pas « REEL » · ③ relever les
+      positions dont la case `frais_non_chiffrables` est remplie · ④ pour le jour et le jour + 31, une fois par
+      année, demander `MODULE_POSITIONS.valeur_taxee` pour chaque mnémonique des univers en QA ou PRODUCTION ·
+      ⑤ écrire chaque verdict par `check`.
+    ⑦ UNITÉ — Des EUROS pour les montants, tolérance d'UN euro ; des JOURS pour l'avance de la liste (31).
+    ⑧ POURQUOI — Né du superviseur R-759 du 29-10-2026 (C3, C4, C7, C12 du relecteur T1, A-550). Une étiquette de
+      barème fausse mais cohérente passerait le contrôle des montants : d'où le contrôle du barème réel. La liste
+      des valeurs taxées paraît au BOFiP vers le 20 décembre ; sans elle, une vente ne se chiffre plus et la
+      position reste ouverte : d'où l'alerte dès le 1er décembre. Le maillon relit lui-même ses fichiers et charge
+      lui-même `MODULE_POSITIONS` (leçon de A-250).
+    ⑨ CE QUI CLOCHE — Journal introuvable : ① et ② n'écrivent AUCUNE ligne, et ce maillon ne le dit pas. Fichier
+      des positions introuvable : ③ écrit « Aucune vente bloquée » en vert. Registre des stratégies introuvable ou
+      sans univers en service : ④ écrit en vert « les 0 valeur(s) des univers en service y sont ». Les dates sont
+      comparées comme des textes AAAA-MM-JJ.
+    ⑩ EFFET — AJOUTE des lignes à `rapport` et augmente `score` ; lit trois tableurs par `_lire_csv` ; exécute
+      `MODULE_POSITIONS.py` en le chargeant, et ce module lit le barème et la liste des valeurs taxées dans
+      `donnees/`. N'écrit aucun fichier.
+    ⑪ TERMINAISON — Rend la main ; les erreurs du chargement, de chaque montant et de chaque valeur sont rattrapées.
+      Aucun appel qui puisse ne pas revenir.
+      [sort: non]
+    """
     import importlib.util as _u
     from datetime import date as _date, timedelta as _tdl
     try:

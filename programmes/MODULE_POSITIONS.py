@@ -861,6 +861,30 @@ def _calibrage():
     ok = True
 
     def comparer(libelle, obtenu, attendu):
+        """Compare un résultat du calibrage à son attendu, l affiche, et éteint `ok` s il ne tombe pas.
+
+        ① RÔLE — Le geste élémentaire du calibrage : une comparaison, une ligne à l écran.
+        ② CONTEXTE D APPEL — `_calibrage`, une fois par montant ou motif à reproduire, et `leve`,
+          qui s en sert pour dire si une erreur attendue est survenue.
+        ③ ENTRÉE — `libelle` : ce qui est comparé, en clair · `obtenu` : ce que le module a
+          rendu · `attendu` : le témoin.
+        ④ CONDITIONS D ENTRÉE — Si `attendu` est un nombre à virgule, `obtenu` doit être un nombre.
+        ⑤ SORTIE — Rien : rend None. Son résultat est la variable `ok` de `_calibrage`,
+          remise à faux au premier écart.
+          [rend: rien]
+        ⑥ TRAITEMENT — si `attendu` est un nombre à virgule, l écart doit être de moins d un
+          demi-centime ; sinon les deux doivent être égaux · mettre `ok` à faux sinon ·
+          afficher ✅ ou ❌, le libellé, l obtenu et l attendu.
+        ⑦ UNITÉ — Celle du témoin : des euros pour les montants, la tolérance est 0,005.
+        ⑧ POURQUOI — Un instrument qui ne reproduit pas un résultat connu ne mesure rien (voir
+          `_calibrage`, ⑧) ; une seule façon de comparer pour tous les cas.
+        ⑨ CE QUI CLOCHE — Un attendu écrit comme un ENTIER (0 et non 0.00) serait comparé à
+          l égalité stricte, sans tolérance : tous les attendus numériques d aujourd hui sont
+          écrits avec une virgule.
+        ⑩ EFFET — AFFICHE une ligne ; ÉCRIT la variable `ok` de la fonction englobante.
+        ⑪ TERMINAISON — Rend la main ; aucun appel qui puisse ne pas revenir.
+          [sort: non]
+        """
         nonlocal ok
         m = (abs(obtenu - attendu) < 0.005) if isinstance(attendu, float) else (obtenu == attendu)
         ok = ok and m
@@ -918,6 +942,33 @@ def _calibrage():
                  710.78)
         print("── UNE DATE FAUSSE OU UNE LISTE ABSENTE LÈVE, ET DIT POURQUOI ──")
         def leve(libelle, appel, classe, mot):
+            """Vérifie qu un appel lève l erreur attendue, en disant sa cause ; le compare par `comparer`.
+
+            ① RÔLE — Éprouver les refus du module : une date fausse ou une liste absente doit
+              lever, et le message doit dire pourquoi.
+            ② CONTEXTE D APPEL — `_calibrage`, quatre fois : date « 2025-13-45 », date « D030 »,
+              année 2023 sans liste, valeur absente de la liste.
+            ③ ENTRÉE — `libelle` : le cas, en clair · `appel` : une fonction sans argument qui
+              lance l appel à éprouver · `classe` : la classe d erreur attendue · `mot` : un
+              mot que le message de l erreur doit contenir.
+            ④ CONDITIONS D ENTRÉE — —
+            ⑤ SORTIE — Rien : rend None. Son verdict passe par `comparer`, qui éteint `ok`.
+              [rend: rien]
+            ⑥ TRAITEMENT — lancer `appel` · s il ne lève rien : comparer « aucune erreur » au nom
+              de la classe (échec) · s il lève la classe attendue : comparer « cause dite » ou
+              « cause non dite » selon que `mot` est dans le message · s il lève une autre
+              erreur : comparer son nom à celui de la classe attendue (échec).
+            ⑦ UNITÉ — —
+            ⑧ POURQUOI — Un refus qui ne dit pas sa cause laisse Jean-Luc sans geste ; un refus
+              qui ne lève pas laisserait chiffrer des frais faux.
+            ⑨ CE QUI CLOCHE — La cause est cherchée comme une sous-chaîne du message : un mot
+              présent par hasard suffit. Une erreur qui n hérite pas d `Exception` (interruption)
+              n est pas rattrapée et remonte.
+            ⑩ EFFET — Lance `appel` ; affiche par `comparer`.
+            ⑪ TERMINAISON — Rend la main ; `appel` peut ne pas revenir s il boucle — les quatre
+              appels d aujourd hui sont des lectures de barème et de liste.
+              [sort: non]
+            """
             try:
                 appel()
                 comparer(libelle, "aucune erreur", classe.__name__)
