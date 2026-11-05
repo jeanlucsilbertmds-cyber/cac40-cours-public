@@ -843,10 +843,13 @@ def chemin_de(nom):
       BACKLOG EN ÉCHEC alors que verif_backlog.py est là. Un radar qui rend des
       constats bloquants faux est pire que pas de radar. Quatre endroits étaient
       fautifs ; ils passent tous par ici.
-    ② CONTEXTE D'APPEL — Huit endroits, dans cinq maillons : le chargement du module
-      de signal, la lecture d'un fichier de tableur, la lecture du golden et des
-      données de cours au maillon 8, et le lancement de programmes/verif_backlog.py au
-      maillon 16.
+    ② CONTEXTE D'APPEL — Cinq endroits depuis le 05-11-2026, tous des LECTURES DE
+      DONNÉES : la lecture d'un fichier de tableur, et la lecture du golden et des
+      données de cours au maillon 8. Jusqu'au 05-11-2026 elle servait aussi à trois
+      endroits qui EXÉCUTENT du code — le chargement du module de signal, le
+      chargement de programmes/MODULE_POSITIONS.py au maillon 10bis et le lancement de
+      programmes/verif_backlog.py au maillon 16 — qui passent désormais par
+      `chemin_du_code`, juste en dessous (voir ⑨ ①).
     ③ ENTRÉE — `nom` : le nom nu du fichier, sans dossier, par exemple
       cac40_ohlcv.csv ou verif_backlog.py. La comparaison est EXACTE, à la différence
       de la recherche par fragment employée ailleurs dans le programme.
@@ -875,9 +878,24 @@ def chemin_de(nom):
       posée sous le nom _copie a fait rendre _copie/donnees/cac40_ohlcv.csv au lieu de
       donnees/cac40_ohlcv.csv, parce que le souligné précède la lettre d. C'est la
       faute que le projet a fermée ailleurs en lisant la date portée par le nom.
+      CE DÉFAUT A ARRÊTÉ LE RADAR DU CIRCUIT LE 05-11-2026, POUR LE CODE, ET C'EST
+      RÉPARÉ POUR LE CODE SEULEMENT. Deux copies de verif_backlog.py arrivées sous
+      etudes/JOURNEE_01-11-2026/ (commit 890e56c2) passaient avant
+      programmes/verif_backlog.py dans l'alphabet ; le maillon 16 a lancé la copie
+      d'etudes/, et le garde du circuit public, qui n'exécute que le code publié depuis
+      programmes/, a arrêté tout le radar : « GARDE DU CODE : REFUS — sous-processus :
+      etudes/JOURNEE_01-11-2026/inscription_backlog_2/relecture_t2/run/t2/outils/
+      verif_backlog.py ». Réparé par une propriété : le code que le radar exécute ne
+      vient que de programmes/, par `chemin_du_code`, et cette fonction-ci ne sert
+      plus à exécuter quoi que ce soit. CE QUI N'EST PAS RÉPARÉ : les cinq lectures
+      de DONNÉES du ② passent encore par ici ; une copie homonyme d'un fichier de
+      données rangée dans un dossier qui vient avant le sien dans l'alphabet serait
+      lue à sa place, sans un mot (BACKLOG).
       ② Deux fichiers de même nom à deux endroits sont un défaut, jamais une
       intention, et cette fonction les masque au lieu de les signaler : elle en choisit
-      un et se tait. Le rapport ne portera jamais la moindre ligne à ce sujet.
+      un et se tait. Le rapport ne portera jamais la moindre ligne à ce sujet. Non
+      réparé le 05-11-2026 : `chemin_du_code` ne regarde plus les homonymes hors de
+      programmes/, il ne les signale pas davantage.
     ⑩ EFFET — N'ouvre aucun fichier, n'écrit rien, n'affiche rien, ne touche pas au
       réseau : elle ne fait que composer un chemin.
     ⑪ TERMINAISON — Rend toujours la main. Elle ne lève pas. Aucun de ses appels ne se
@@ -909,6 +927,90 @@ def chemin_de(nom):
         if os.path.basename(p) == nom:
             return os.path.join(PROJ, p)
     return os.path.join(PROJ, nom)   # repli : l'appelant verra l'échec d'ouverture
+
+
+# ─── LE CODE QUE LE RADAR EXÉCUTE VIENT DE programmes/ SEULEMENT (05-11-2026) ───
+# Le circuit public n'a le droit d'exécuter que le code publié, et le code publié est
+# celui de programmes/ (garde programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py).
+# Le dossier est écrit ICI et nulle part ailleurs dans ce programme (R-708).
+DOSSIER_DU_CODE = "programmes"
+# Les noms nus des fichiers rangés DIRECTEMENT dans programmes/ — et nulle part
+# ailleurs. C'est parmi eux, et parmi eux seuls, que le radar choisit le code qu'il
+# charge ou lance : une copie homonyme sous etudes/ n'y figure pas, quel que soit son
+# nom ou son dossier.
+fichiers_du_code = [os.path.basename(p) for p in _chemins
+                    if os.path.dirname(p) == DOSSIER_DU_CODE]
+
+
+def chemin_du_code(nom):
+    """Rend le chemin, sous programmes/, du fichier de code que le radar va charger ou lancer.
+
+    ① RÔLE — Garantir que le code exécuté par le radar vient de programmes/ et de
+      nulle part ailleurs. C'est le seul code que le circuit public a le droit
+      d'exécuter : son garde arrête tout le programme sur un fichier de code qui
+      n'est pas, à l'octet, dans la copie publique. Le 05-11-2026, le maillon 16 a
+      lancé une copie de verif_backlog.py rangée sous
+      etudes/JOURNEE_01-11-2026/inscription_backlog_2/relecture_t2/run/t2/outils/,
+      parce que `chemin_de` rend le premier homonyme dans l'alphabet, et le radar du
+      soir n'a rendu que la ligne « GARDE DU CODE : REFUS ».
+    ② CONTEXTE D'APPEL — Trois endroits, les seuls du radar qui exécutent un fichier
+      de code trouvé par son nom : le chargement du module de signal
+      (`_charge_module`), le chargement de MODULE_POSITIONS.py au maillon 10bis,
+      et le lancement de verif_backlog.py au maillon 16.
+    ③ ENTRÉE — `nom` : le nom nu du fichier, par exemple verif_backlog.py ou
+      MODULE_POSITIONS.py. Un dossier écrit dans le nom est ignoré : seul le
+      dernier élément compte.
+    ④ CONDITIONS D'ENTRÉE — `nom` est un texte. Aucune autre : un nom inconnu ne
+      fait pas tomber la fonction.
+    ⑤ SORTIE — UNE valeur : le dossier examiné, suivi de programmes/, suivi du nom
+      nu. Le même chemin que le fichier existe ou non : s'il n'existe pas, le
+      chemin ne mène nulle part. Mesuré le 05-11-2026 sur une copie de 178aee33,
+      qui porte deux copies de verif_backlog.py sous etudes/ : verif_backlog.py rend
+      .../programmes/verif_backlog.py.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① garder le dernier élément du nom · ② le coller au dossier
+      examiné et à programmes/.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une propriété, et non une liste de fichiers à écarter : une copie
+      de plus sous etudes/, renommée ou déplacée, ne change rien, puisque la
+      fonction ne regarde jamais ailleurs que dans programmes/. Et le même repli que
+      `chemin_de` : un chemin qui ne mène nulle part plutôt que rien, pour que
+      l'appelant échoue à l'ouverture en nommant programmes/<nom>, au lieu de
+      prendre une copie ou d'écrire son propre contrôle.
+    ⑨ CE QUI CLOCHE — trois points, relevés le 05-11-2026 :
+      ① Elle ne CHOISIT pas le fichier : elle compose le chemin du nom qu'on lui
+      donne. Le choix du nom se fait chez l'appelant, parmi `fichiers_du_code`, la
+      liste des fichiers rangés directement dans programmes/ ; un appelant qui
+      choisirait son nom dans la liste de TOUS les fichiers du projet pourrait
+      encore recevoir un chemin qui ne mène nulle part à cause d'une copie
+      d'etudes/.
+      ② Elle ne signale pas les homonymes de programmes/ rangés ailleurs : elle les
+      ignore, sans une ligne au rapport.
+      ③ Un sous-dossier de programmes/ n'est pas regardé ; le circuit public le
+      refuse de toute façon (« programmes/X(dossier) »).
+    ⑩ EFFET — N'ouvre aucun fichier, n'écrit rien, n'affiche rien, ne touche pas au
+      réseau : elle ne fait que composer un chemin.
+    ⑪ TERMINAISON — Rend toujours la main. Elle ne lève pas. Aucun de ses appels ne
+      peut ne pas revenir.
+      [sort: non]
+    ⑫ DÉFINITIONS
+      le radar : le programme programmes/audit_ecosysteme.py, lancé chaque
+        soir, qui contrôle l'ensemble du système et range chacun de ses
+        constats sous un numéro de maillon, par exemple 18-Tâches pour le
+        contrôle des traces laissées par les tâches planifiées.
+      un maillon : un groupe de contrôles du radar, désigné par un numéro et
+        un nom, par exemple 18-Tâches pour le contrôle des traces laissées par
+        les tâches planifiées.
+      le circuit public : la tâche du soir qui tourne sur le dépôt public et
+        n'exécute que le code publié depuis programmes/.
+      le garde : programmes/N_EXECUTER_AU_PUBLIC_QUE_LE_CODE_PUBLIE.py, qui arrête
+        tout programme du circuit public sur le point d'exécuter un fichier de code
+        absent de la copie publique, ou différent d'elle.
+      le module de signal : le programme qui décide quelles valeurs acheter
+      le dossier examiné : le dossier reçu sur la ligne de commande, celui que le
+        radar contrôle.
+"""
+    return os.path.join(PROJ, DOSSIER_DU_CODE, os.path.basename(nom))
 
 
 # ─── LE REGISTRE VIT AU DÉPÔT (R-736) ───
@@ -1865,8 +1967,10 @@ def _charge_module():
       passage. Son résultat sert ensuite à trois maillons : le 10 pour le recalcul, le
       11 pour l'objectif de gain et la perte acceptée des positions ouvertes, et le 12
       pour le prix d'entrée.
-    ③ ENTRÉE — Aucun paramètre. Elle parcourt la liste des noms de fichiers relevée au
-      démarrage du programme.
+    ③ ENTRÉE — Aucun paramètre. Elle parcourt la liste des noms des fichiers rangés
+      directement dans programmes/ (`fichiers_du_code`), relevée au démarrage du
+      programme — et elle seule depuis le 05-11-2026 : le code que le radar exécute
+      vient de programmes/ seulement (voir `chemin_du_code`).
     ④ CONDITIONS D'ENTRÉE — Le module trouvé doit pouvoir s'exécuter de bout en bout,
       puisque le charger revient à le lancer. Il doit ensuite porter la fonction de
       sortie et les deux réglages que les maillons 11 et 12 lui demanderont.
@@ -1877,7 +1981,7 @@ def _charge_module():
       nom, deux valeurs vides. Mesuré le 20-09-2026 sur une copie du dépôt : elle rend
       le module et le nom MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py.
       [rend: 2]
-    ⑥ TRAITEMENT — ① trier les noms de fichiers du projet par ordre alphabétique
+    ⑥ TRAITEMENT — ① trier les noms des fichiers de programmes/ par ordre alphabétique
       DÉCROISSANT · ② s'arrêter au premier dont la forme unique contient
       MODULE_C5_ETENDU_10 et qui se termine par .py · ③ le charger comme un programme,
       ce qui l'exécute · ④ rendre le module et son nom · ⑤ si le chargement échoue,
@@ -1935,10 +2039,10 @@ def _charge_module():
         se referme sur une perte
       le REGISTRE : `gouvernance/REGISTRE_REGLES.md`, le document qui porte les règles numérotées du projet
     """
-    for f in sorted(fichiers, reverse=True):
+    for f in sorted(fichiers_du_code, reverse=True):   # programmes/ seulement (05-11-2026)
         if _norm("MODULE_C5_ETENDU_10") in _norm(f) and f.endswith(".py"):
             try:
-                spec = _ilu.spec_from_file_location("mod_c5e10", chemin_de(f))
+                spec = _ilu.spec_from_file_location("mod_c5e10", chemin_du_code(f))
                 m = _ilu.module_from_spec(spec); spec.loader.exec_module(m)
                 return m, f
             except Exception as e:
@@ -2576,9 +2680,9 @@ def _maillon_des_frais():
     ② CONTEXTE D'APPEL — Le corps du programme, une fois, entre le maillon 13 et le maillon 11.
     ③ ENTRÉE — Aucun paramètre : elle lit le journal des trades et les positions ouvertes par `_lire_csv`, le
       registre des stratégies par `_lire_le_registre` (la dernière ligne d'un identifiant fait foi, n°83, depuis le
-      05-11-2026), charge `MODULE_POSITIONS.py` (trouvé par `chemin_de`) et lit
+      05-11-2026), charge `programmes/MODULE_POSITIONS.py` (par `chemin_du_code`) et lit
       `MISE_EN_SERVICE_DU_BAREME_REEL` dans `CONTRATS_DES_FICHIERS`.
-    ④ CONDITIONS D'ENTRÉE — `rapport`, `score`, `check`, `_lire_csv` et `chemin_de` sont définis plus haut ;
+    ④ CONDITIONS D'ENTRÉE — `rapport`, `score`, `check`, `_lire_csv` et `chemin_du_code` sont définis plus haut ;
       `CONTRATS_DES_FICHIERS` s'importe.
     ⑤ SORTIE — Rien : rend None. Son résultat est dans `rapport` et `score` : une ligne ❌ et un échec si le module
       ou le contrat ne se chargent pas (et rien d'autre) ; sinon une ligne par contrôle — deux pour ① et ② quand le
@@ -2611,7 +2715,7 @@ def _maillon_des_frais():
     import importlib.util as _u
     from datetime import date as _date, timedelta as _tdl
     try:
-        _sp = _u.spec_from_file_location("mp_frais_radar", chemin_de("MODULE_POSITIONS.py"))
+        _sp = _u.spec_from_file_location("mp_frais_radar", chemin_du_code("MODULE_POSITIONS.py"))
         MP = _u.module_from_spec(_sp); _sp.loader.exec_module(MP)
         import CONTRATS_DES_FICHIERS as _C
         _mes = _C.MISE_EN_SERVICE_DU_BAREME_REEL
@@ -3187,11 +3291,13 @@ for _strat, _motif_hist, _motif_moteur in [("C5-ETENDU-10", "STRATEGIE_C5_ETENDU
 
 # ═══ MAILLON 16 — A-46 : CONTRÔLE DU BACKLOG (délégué à verif_backlog.py) ═══
 # R-708 : on n'écrit PAS un second contrôle du backlog ici, on APPELLE le script existant.
-_vb = [f for f in fichiers if _norm("verif_backlog") in _norm(f) and f.endswith(".py")]
+# Le script est choisi dans programmes/ SEULEMENT (05-11-2026) : une copie sous etudes/ a été
+# lancée à sa place le 05-11, et le garde du circuit public a arrêté tout le radar.
+_vb = [f for f in fichiers_du_code if _norm("verif_backlog") in _norm(f) and f.endswith(".py")]
 _cbl = chemin_backlog()          # au dépôt d'abord (R-736)
 _bl = [_cbl] if _cbl else []
 if not _vb:
-    rapport.append((WARN, "16-Backlog", "verif_backlog.py absent — contrôle du backlog non effectué"))
+    rapport.append((WARN, "16-Backlog", f"{DOSSIER_DU_CODE}/verif_backlog.py absent — contrôle du backlog non effectué"))
     score["warn"] += 1
 elif not _bl:
     rapport.append((FAIL, "16-Backlog", "BACKLOG_DECISIONS absent")); score["fail"] += 1
@@ -3201,7 +3307,7 @@ else:
         # copie de travail : le script tamponne le fichier, on ne touche pas à l'original
         _tmp = os.path.join(tempfile.gettempdir(), "_bl_audit.md")
         _sh.copy(_cbl, _tmp)
-        _r = subprocess.run([sys.executable, chemin_de(_vb[0]), _tmp],
+        _r = subprocess.run([sys.executable, chemin_du_code(_vb[0]), _tmp],
                             capture_output=True, text=True, timeout=60)
         _sortie = (_r.stdout or "").strip().splitlines()
         _resume = _sortie[-1] if _sortie else "(pas de sortie)"
