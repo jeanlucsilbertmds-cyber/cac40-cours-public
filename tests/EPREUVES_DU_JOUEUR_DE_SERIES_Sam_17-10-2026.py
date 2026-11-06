@@ -9,7 +9,7 @@
   [--saboter]
 ③ ENTRÉE — La racine du dépôt (le joueur est pris dans son tests/outils/, ses modules dans son programmes/).
 ④ CONDITIONS D'ENTRÉE — —
-⑤ SORTIE — Le code de sortie : 0 si J1 à J6 donnent la réponse attendue et, avec --saboter, si chaque sabotage en
+⑤ SORTIE — Le code de sortie : 0 si J1 à J13 donnent la réponse attendue et, avec --saboter, si chaque sabotage en
   fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus.
   [rend: 1]
 ⑥ TRAITEMENT — Un dépôt d'essai dont l'unique épreuve écrit « A1 mord » seulement si elle tourne sans la configuration
@@ -26,15 +26,32 @@
   épreuve faite à la manière de l'épreuve d'arrivée des signaux — elle copie le dépôt dans un dossier temporaire et y
   relance sa copie, qui EXÉCUTE programmes/M.py de la copie et lit donnees/d.csv ; programmes/N_inutilise.py est
   copié mais jamais exécuté. Code 0, le relevé porte exactement programmes/M.py et l'épreuve, NI le module inutilisé
-  NI la donnée, et dit sa portée. Avec --saboter : chaque garde du joueur retirée, une à la fois, dans une copie ; un
-  sabotage peut viser aussi programmes/SERIES_DE_SABOTAGES.py (le ramenage au dépôt d'un code exécuté dans une copie).
+  NI la donnée, et dit sa portée. J7 à J9 (ajoutés le 05-11-2026, étude github_series/RAPPORT.md : une écoute vide
+  n'est jamais un succès, une trace d'erreur système n'est jamais « mord ») : J7 une copie du joueur éprouvé dont
+  le module d'écoute ne note plus le flux « exec » (l'autre flux reste sain) → « SOURD », « ARRET », code 2, aucun
+  relevé · J8 une série jouée (code 0), puis son écoute vidée et son relevé retiré, rejouée en REPRISE (tous les
+  lots déjà faits, aucun contrôle par lot) → « ARRET », code 2, aucun relevé · J9 une épreuve qui écrit « A1 mord »
+  ET « OSError: [Errno 28] No space left on device », code 0 (le faux « mord » du disque plein) → code 1, relevé
+  « lots en erreur système : [1] », 0 sabotage qui mord. J10 à J13 (ajoutés le 05-11-2026, superviseur R-759 du
+  05-11-2026, M1 : les deux témoins de la raison) : chaque dépôt d'essai dont la série doit être conforme porte un
+  relevé retenu CONFORME (RETENU) ; J10 le relevé retenu dit « A1 mord : ['H2'] », l'épreuve fait tomber H1 → code 1,
+  « raisons à examiner », 0 qui mord ; puis la même série reprise avec --raisons-acceptees=A1 → code 0, aucun lot
+  rejoué · J13 entre les deux, la série rejouée sous un AUTRE nom de relevé sans décision → code 1 (le relevé « à
+  examiner » n'est pas un relevé retenu) · J11 plancher relevé à 10**9 Mo → code 1, « sous le plancher », et la ligne
+  « joué par » · J12 une épreuve qui écrit 200 Mo, les garde 3 s et les efface, plancher posé 100 Mo sous la place
+  mesurée juste avant → code 1 : seule une mesure PENDANT le lot passe sous le plancher. Avec --saboter : chaque garde du joueur retirée, une à la
+  fois, dans une copie ; un sabotage peut viser aussi programmes/SERIES_DE_SABOTAGES.py (le ramenage au dépôt d'un
+  code exécuté dans une copie). S10 retire la préparation du flux « execution » : c'est le défaut mesuré le
+  05-11-2026 sur tests/outils/jouer_une_part.py (écoute sourde, 0 ligne lue, code 0) ; J1 doit rougir.
 ⑦ UNITÉ — Des codes de sortie.
 ⑧ POURQUOI — Cassure N de Cowork, 17-10-2026 : le joueur ne neutralisait pas la configuration git, la nuit si ; le
   relevé de la boucle de check avait été écrit dans un autre environnement que celui où la nuit le rejoue, et 14
   sabotages avaient « mordu » parce qu'un `git commit` du montage était refusé. L'environnement est posé EXPRÈS par
   l'épreuve, et pas hérité : la certification lance déjà ses épreuves sans la configuration git, et un joueur qui ne
   la poserait pas resterait vert sous elle (même piège que S26 de l'épreuve de la certification, 02-10-2026).
-⑨ CE QUI CLOCHE — Seules la garde de l'environnement, la portée et la mesure du code exécuté sont éprouvées ici ; le
+⑨ CE QUI CLOCHE — J12 suppose que rien d'autre n'écrit 100 Mo sur le même disque pendant son lot (vrai sur une
+  machine de GitHub ; sur la machine du Chat, une série en cours peut le fausser dans le sens « mord » d'un sabotage
+  S13 qui ne devrait pas mordre). Seules la garde de l'environnement, la portée et la mesure du code exécuté sont éprouvées ici ; le
   reste du joueur l'est par ses séries réelles. La mesure « exec » n'est prouvée que sous le Python qui lance cette
   épreuve (3.13 sur la machine du Chat le 05-11-2026) : chaque nuit où J6 tourne, elle l'est sous celui de la nuit.
 ⑩ EFFET — Écrit dans des dossiers jetables, effacés à la fin.
@@ -62,6 +79,14 @@ EPREUVE_QUI_EFFACE = ('import os, sys\nSABOTAGES = {"A1": 1}\n'
                       'f = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "donnees", "d.csv")\n'
                       'if os.path.isfile(f):\n    open(f).read()\n    os.remove(f)\n'
                       'print("Z0 programme tel quel : tous les cas conformes")\nprint("A1 mord : [\'H1\']")\n')
+# J9 : le faux « mord » d'un disque plein (series_A, essai 1 du 04-11-2026) : le sabotage « mord », la sortie porte la
+# trace de l'erreur système, le code est 0
+EPREUVE_DISQUE_PLEIN = ('import sys\nSABOTAGES = {"A1": 1}\n'
+                        'print("Z0 programme tel quel : tous les cas conformes")\n'
+                        'print("      H56 : OSError : [Errno 28] No space left on device")\n'
+                        'print("A1 mord : [\'H1\']")\n')
+# J7 : dans une copie du joueur éprouvé, le module d'écoute ne note plus le flux « exec » (le flux « lus » reste sain)
+ECOUTE_EXEC = "        elif _g is not None and ev == \"exec\""
 # J4 et J5 : une épreuve qui lit une donnée du dépôt, et une table de lancement qui déclare la portée de son relevé
 EPREUVE_QUI_LIT = ('import os, sys\nSABOTAGES = {"A1": 1}\n'
                    'open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "donnees", "d.csv")).read()\n'
@@ -82,6 +107,43 @@ EPREUVE_QUI_EXECUTE = ('import os, sys, shutil, subprocess, tempfile, importlib.
                        'shutil.rmtree(d)\n'
                        'print("Z0 programme tel quel : tous les cas conformes")\n'
                        'print("A1 mord : [\'H1\']" if code == 0 else "A1 NE MORD PAS : []")\n')
+# LE RELEVÉ RETENU (05-11-2026, témoin de la raison du joueur, superviseur R-759 M1 (1)) : un sabotage ne compte « mord »
+# que s'il fait tomber les mêmes épreuves que dans le dernier relevé CONFORME de la même série. Chaque dépôt d'essai dont
+# la série doit être conforme en porte un, de même préfixe que le relevé joué (`retenir`).
+RETENU = "tests/resultats/SERIE_DE_SABOTAGES_DE_L_ESSAI_Ven_16-10-2026_10h00.txt"
+RETENU_TEXTE = ("# RELEVÉ D'UNE SÉRIE DE SABOTAGES — fabriqué par un programme, jamais écrit à la main (R-728)\n"
+                "# épreuve : tests/EPR.py\nA1 mord : %s\nVERDICT : tout est conforme\n")
+# J12 : une épreuve qui creuse le disque PENDANT son lot (un fichier de CREUX_MO Mo écrit, gardé, effacé) : seule une
+# mesure faite pendant le lot le voit
+CREUX_MO = 200
+EPREUVE_QUI_CREUSE = ('import os, sys, time\nSABOTAGES = {"A1": 1}\n'
+                      'f = os.path.join(os.environ["ESSAI_CREUX"], "creux.bin")\n'
+                      'with open(f, "wb") as s:\n    for _ in range(%d):\n        s.write(b"x" * 2**20)\n'
+                      '    s.flush(); os.fsync(s.fileno())\n'
+                      'time.sleep(3)\nos.remove(f)\n'
+                      'print("Z0 programme tel quel : tous les cas conformes")\nprint("A1 mord : [\'H1\']")\n' % CREUX_MO)
+
+
+def retenir(racine, liste="['H1']"):
+    """Pose dans un dépôt d'essai un relevé retenu CONFORME où A1 fait tomber `liste`.
+
+    ① RÔLE — Donner au témoin de la raison un relevé auquel comparer.
+    ② CONTEXTE D'APPEL — `tour`, pour chaque dépôt d'essai dont la série doit être conforme, et pour J10.
+    ③ ENTRÉE — `racine` : le dépôt d'essai ; `liste` : la liste écrite après « A1 mord : ».
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Aucune valeur. [rend: 0]
+    ⑥ TRAITEMENT — écrit RETENU_TEXTE dans RETENU.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Commentaire de RETENU.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Écrit un fichier dans le dépôt d'essai.
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    os.makedirs(os.path.join(racine, "tests", "resultats"), exist_ok=True)
+    with open(os.path.join(racine, RETENU), "w", encoding="utf-8") as f:
+        f.write(RETENU_TEXTE % liste)
+
+
 TABLE_A_PORTEE = ('{"epreuves": {}, "series_hors_de_la_nuit": {"tests/EPR.py": {"releve": "tests/resultats/SERIE_*.txt", '
                   '"essais_refaits_chaque_nuit": 0, "portee_du_releve": "%s"}}}\n')
 # Un remplacement est (cible, texte) dans le joueur, ou (fichier relatif, cible, texte) dans un autre fichier du dépôt.
@@ -93,20 +155,34 @@ SABOTAGES = {
     "S3_portee_ignoree": [("    couverts = lus if portee == SERIE.PORTEE_LECTURES else executes\n", "    couverts = lus\n")],
     "S4_portee_inconnue_admise": [("    if portee not in SERIE.PORTEES:\n", "    if False:\n")],
     # choix D43 du 05-11-2026 : le code exécuté, mesuré par « exec » et ramené au dépôt (J6 doit rougir)
-    "S5_mesure_par_ouverture": [('    executes = SERIE.fichiers_executes(os.path.join(travail, "execution"), etat)\n',
-                                 '    executes = SERIE.fichiers_executes(os.path.join(travail, "ecoute"), etat)\n')],
+    "S5_mesure_par_ouverture": [('    executes = SERIE.fichiers_executes(flux["SERIE_EXECUTION"], etat)\n',
+                                 '    executes = SERIE.fichiers_executes(flux["SERIE_ECOUTE"], etat)\n')],
     "S6_ramenage_des_copies_retire": [(SERIE_PY, "    for i in range(len(morceaux)):\n", "    for i in range(0):\n")],
+    # 05-11-2026 (étude github_series/RAPPORT.md) : les gardes de l'écoute sourde et de la trace d'erreur système
+    "S7_lot_sourd_admis": [("        if not lignes & noms_de_l_epreuve:\n", "        if False:\n")],
+    "S8_epreuve_non_couverte_admise": [("    if epreuve not in couverts:\n", "    if False:\n")],
+    "S9_trace_systeme_non_cherchee": [("        if TRACE_SYSTEME.search(l):\n", "        if False:\n")],
+    "S11_raison_non_comparee": [("    changes, nouveaux, disparus = raisons_a_examiner(retenues, raisons_des_lignes(lignes), "
+                                 "set(acceptees))\n", "    changes, nouveaux, disparus = {}, [], []\n")],
+    "S12_plancher_non_juge": [("    sous_le_plancher = place is None or place < plancher_mo()\n",
+                               "    sous_le_plancher = False\n")],
+    "S13_surveillance_sans_mesure_pendant": [("        while not fin.wait(PAS_DE_SURVEILLANCE_S):\n",
+                                              "        while False:\n")],
+    "S14_releve_a_examiner_retenu": [("        if texte_retenu and texte_retenu[-1] == SERIE.VERDICT_CONFORME:\n",
+                                      "        if texte_retenu:\n")],
+    "S10_flux_execution_non_prepare": [("    for dossier in dossiers_d_ecoute(travail).values():\n",
+                                        "    for dossier in list(dossiers_d_ecoute(travail).values())[:2]:\n")],
 }
 
 
 def tour(joueur):
-    """Joue J1 à J6 avec le joueur à `joueur` ; rend la liste des cas faux.
+    """Joue J1 à J9 avec le joueur à `joueur` ; rend la liste des cas faux.
 
     ① RÔLE — Un tour d'épreuves. ② CONTEXTE D'APPEL — `main`, une fois tel quel puis une fois par sabotage.
     ③ ENTRÉE — `joueur` : le chemin du joueur à éprouver. ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des noms des cas faux. [rend: 1] ⑥ TRAITEMENT — Voir la fiche en tête, ⑥.
     ⑦ UNITÉ — — ⑧ POURQUOI — Voir la fiche en tête. ⑨ CE QUI CLOCHE — — ⑩ EFFET — Un dépôt d'essai jetable.
-    ⑪ TERMINAISON — Rend la main ; six lancements bornés à 120 secondes. [sort: non]
+    ⑪ TERMINAISON — Rend la main ; dix lancements bornés à 120 secondes. [sort: non]
     """
     faux = []
     d = tempfile.mkdtemp(prefix="joueur_")
@@ -114,6 +190,7 @@ def tour(joueur):
         r = os.path.join(d, "depot")
         os.makedirs(os.path.join(r, "tests"))
         open(os.path.join(r, "tests", "EPR.py"), "w", encoding="utf-8").write(EPREUVE)
+        retenir(r)
         machine = os.path.join(d, "configuration_git_de_la_machine")
         open(machine, "w").write("[commit]\n\tgpgsign = true\n")
         env = dict(os.environ, GIT_CONFIG_GLOBAL=machine, GIT_CONFIG_NOSYSTEM="", GIT_CONFIG_COUNT="1",
@@ -145,6 +222,7 @@ def tour(joueur):
                              ("tests/LANCEMENT_DES_EPREUVES.json", TABLE_A_PORTEE % portee)):
                 os.makedirs(os.path.dirname(os.path.join(r4, c)), exist_ok=True)
                 open(os.path.join(r4, c), "w", encoding="utf-8").write(texte)
+            retenir(r4)
             j4 = subprocess.run([sys.executable, joueur, r4, "tests/EPR.py", rel, "--parts=1", "--lot=1",
                                  "--travail=" + os.path.join(d, "travail_" + cas)], capture_output=True, text=True,
                                 env=env, timeout=120)
@@ -163,6 +241,7 @@ def tour(joueur):
                          ("tests/LANCEMENT_DES_EPREUVES.json", TABLE_A_PORTEE % "code_execute")):
             os.makedirs(os.path.dirname(os.path.join(r6, c)), exist_ok=True)
             open(os.path.join(r6, c), "w", encoding="utf-8").write(texte)
+        retenir(r6)
         j6 = subprocess.run([sys.executable, joueur, r6, "tests/EPR.py", rel, "--parts=1", "--lot=1",
                              "--travail=" + os.path.join(d, "travail_J6")], capture_output=True, text=True,
                             env=env, timeout=120)
@@ -172,6 +251,109 @@ def tour(joueur):
         if (j6.returncode != 0 or empreintes6 != ["programmes/M.py", "tests/EPR.py"]
                 or "# portée du relevé : code_execute" not in releve6):
             faux.append(f"J6 (code {j6.returncode}, empreintes {empreintes6})")
+        # J7 : un flux de l'écoute sourd (le flux « exec » n'est plus noté, dans une copie du joueur éprouvé)
+        texte = open(joueur, encoding="utf-8").read()
+        if texte.count(ECOUTE_EXEC) != 1:
+            faux.append("J7 (ancrage du flux « exec » introuvable dans le joueur)")
+        else:
+            j7_dir = os.path.join(d, "joueur_J7")
+            os.makedirs(os.path.join(j7_dir, "tests", "outils"))
+            os.symlink(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(joueur)))),
+                                    "programmes"), os.path.join(j7_dir, "programmes"))
+            j7 = os.path.join(j7_dir, "tests", "outils", "JOUER_UNE_SERIE_DE_SABOTAGES.py")
+            open(j7, "w", encoding="utf-8").write(texte.replace(ECOUTE_EXEC, "        elif False"))
+            r7 = os.path.join(d, "depot_J7")
+            os.makedirs(os.path.join(r7, "tests"))
+            open(os.path.join(r7, "tests", "EPR.py"), "w", encoding="utf-8").write(EPREUVE)
+            k7 = subprocess.run([sys.executable, j7, r7, "tests/EPR.py", rel, "--parts=1", "--lot=1",
+                                 "--travail=" + os.path.join(d, "travail_J7")], capture_output=True, text=True,
+                                env=env, timeout=120)
+            if k7.returncode != 2 or "SOURD" not in k7.stdout or os.path.isfile(os.path.join(r7, rel)):
+                faux.append(f"J7 (code {k7.returncode})")
+        # J8 : la reprise d'une série dont l'écoute est vide (tous les lots faits : aucun contrôle par lot)
+        r8 = os.path.join(d, "depot_J8")
+        for c, texte8 in (("tests/EPR.py", EPREUVE_QUI_LIT), ("donnees/d.csv", "1,2,3\n")):
+            os.makedirs(os.path.dirname(os.path.join(r8, c)), exist_ok=True)
+            open(os.path.join(r8, c), "w", encoding="utf-8").write(texte8)
+        retenir(r8)
+        t8 = os.path.join(d, "travail_J8")
+        commande8 = [sys.executable, joueur, r8, "tests/EPR.py", rel, "--parts=1", "--lot=1", "--travail=" + t8]
+        a8 = subprocess.run(commande8, capture_output=True, text=True, env=env, timeout=120)
+        if a8.returncode != 0 or not os.path.isfile(os.path.join(r8, rel)):
+            faux.append(f"J8 (premier passage, code {a8.returncode})")
+        else:
+            os.remove(os.path.join(r8, rel))
+            for f in os.listdir(os.path.join(t8, "ecoute")):
+                open(os.path.join(t8, "ecoute", f), "w").close()
+            b8 = subprocess.run(commande8, capture_output=True, text=True, env=env, timeout=120)
+            if b8.returncode != 2 or "ARRET" not in b8.stdout or os.path.isfile(os.path.join(r8, rel)):
+                faux.append(f"J8 (reprise, code {b8.returncode})")
+        # J9 : le faux « mord » d'un disque plein
+        r9 = os.path.join(d, "depot_J9")
+        os.makedirs(os.path.join(r9, "tests"))
+        open(os.path.join(r9, "tests", "EPR.py"), "w", encoding="utf-8").write(EPREUVE_DISQUE_PLEIN)
+        j9 = subprocess.run([sys.executable, joueur, r9, "tests/EPR.py", rel, "--parts=1", "--lot=1",
+                             "--travail=" + os.path.join(d, "travail_J9")], capture_output=True, text=True, env=env,
+                            timeout=120)
+        p9 = os.path.join(r9, rel)
+        releve9 = open(p9, encoding="utf-8").read() if os.path.isfile(p9) else ""
+        if (j9.returncode != 1 or "# lots en erreur système : [1]" not in releve9
+                or "1 joués, 0 mordent" not in releve9):
+            faux.append(f"J9 (code {j9.returncode})")
+        # J10 : la raison a changé (le relevé retenu dit H2, l'épreuve fait tomber H1) → « à examiner », code 1 ; puis
+        # Jean-Luc tranche : reprise du même dossier avec --raisons-acceptees=A1 → code 0, aucun lot rejoué
+        r10 = os.path.join(d, "depot_J10")
+        os.makedirs(os.path.join(r10, "tests"))
+        open(os.path.join(r10, "tests", "EPR.py"), "w", encoding="utf-8").write(EPREUVE)
+        retenir(r10, "['H2']")
+        t10 = os.path.join(d, "travail_J10")
+        commande10 = [sys.executable, joueur, r10, "tests/EPR.py", rel, "--parts=1", "--lot=1", "--travail=" + t10]
+        a10 = subprocess.run(commande10, capture_output=True, text=True, env=env, timeout=120)
+        p10 = os.path.join(r10, rel)
+        releve10 = open(p10, encoding="utf-8").read() if os.path.isfile(p10) else ""
+        if (a10.returncode != 1 or "1 joués, 0 mordent" not in releve10 or "# raisons à examiner" not in releve10
+                or "raison changée A1 : retenue mord ['H2'] ; jouée mord ['H1']" not in releve10):
+            faux.append(f"J10 (raison changée, code {a10.returncode})")
+        # J13 : rejouer sous un AUTRE nom, sans décision, ne blanchit pas : le relevé « à examiner » n'est pas retenu
+        rel13 = rel.replace("10h00", "11h00")
+        b13 = subprocess.run([sys.executable, joueur, r10, "tests/EPR.py", rel13, "--parts=1", "--lot=1",
+                              "--travail=" + t10], capture_output=True, text=True, env=env, timeout=120)
+        if b13.returncode != 1:
+            faux.append(f"J13 (relevé « à examiner » pris pour retenu, code {b13.returncode})")
+        c10 = subprocess.run(commande10 + ["--raisons-acceptees=A1"], capture_output=True, text=True, env=env,
+                             timeout=120)
+        releve10 = open(p10, encoding="utf-8").read() if os.path.isfile(p10) else ""
+        if (c10.returncode != 0 or "raisons nouvelles acceptées (--raisons-acceptees) : ['A1']" not in releve10
+                or " lot 1 fini" in c10.stdout):
+            faux.append(f"J10 (décision prise, code {c10.returncode})")
+        # J11 : un plancher que la place libre n'atteint pas (SERIE_PLANCHER_MO ne peut que le relever) → code 1
+        r11 = os.path.join(d, "depot_J11")
+        os.makedirs(os.path.join(r11, "tests"))
+        open(os.path.join(r11, "tests", "EPR.py"), "w", encoding="utf-8").write(EPREUVE)
+        retenir(r11)
+        j11 = subprocess.run([sys.executable, joueur, r11, "tests/EPR.py", rel, "--parts=1", "--lot=1",
+                              "--travail=" + os.path.join(d, "travail_J11")], capture_output=True, text=True,
+                             env=dict(env, SERIE_PLANCHER_MO=str(10**9)), timeout=120)
+        p11 = os.path.join(r11, rel)
+        releve11 = open(p11, encoding="utf-8").read() if os.path.isfile(p11) else ""
+        if j11.returncode != 1 or "sous le plancher" not in releve11 or "# joué par : " not in releve11:
+            faux.append(f"J11 (plancher, code {j11.returncode})")
+        # J12 : le creux PENDANT le lot — plancher posé à mi-creux sous la place mesurée juste avant ; le début et la
+        # fin restent au-dessus, seule la mesure pendant le lot passe dessous → code 1
+        r12 = os.path.join(d, "depot_J12")
+        os.makedirs(os.path.join(r12, "tests"))
+        open(os.path.join(r12, "tests", "EPR.py"), "w", encoding="utf-8").write(EPREUVE_QUI_CREUSE)
+        retenir(r12)
+        libre = shutil.disk_usage(d).free // 2**20
+        if libre < 2 * CREUX_MO + 1024:
+            faux.append(f"J12 (disque trop plein pour l'essai : {libre} Mo)")
+        else:
+            j12 = subprocess.run([sys.executable, joueur, r12, "tests/EPR.py", rel, "--parts=1", "--lot=1",
+                                  "--travail=" + os.path.join(d, "travail_J12")], capture_output=True, text=True,
+                                 env=dict(env, ESSAI_CREUX=d, SERIE_PLANCHER_MO=str(libre - CREUX_MO // 2)),
+                                 timeout=120)
+            if j12.returncode != 1 or "sous le plancher" not in open(os.path.join(r12, rel), encoding="utf-8").read():
+                faux.append(f"J12 (creux pendant le lot, code {j12.returncode})")
     finally:
         shutil.rmtree(d, ignore_errors=True)
     return faux
@@ -188,7 +370,7 @@ def main():
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Voir la fiche en tête. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     faux = tour(JOUEUR)
-    print("Z0 joueur tel quel : " + ("J1 à J6 conformes" if not faux else "FAUX " + ", ".join(faux)))
+    print("Z0 joueur tel quel : " + ("J1 à J13 conformes" if not faux else "FAUX " + ", ".join(faux)))
     code = 1 if faux else 0
     if "--saboter" in sys.argv:
         for nom, remplacements in SABOTAGES.items():

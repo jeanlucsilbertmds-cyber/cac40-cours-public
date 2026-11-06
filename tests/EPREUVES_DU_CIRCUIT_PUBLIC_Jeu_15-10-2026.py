@@ -12,7 +12,8 @@
 ③ ENTRÉE — La racine du dépôt privé (ses vrais programmes, ses vraies épreuves, ses vrais fichiers de données).
 ④ CONDITIONS D'ENTRÉE — Le module yaml (PyYAML) s'importe : sans lui, l'épreuve s'arrête (code 2).
 ⑤ SORTIE — UNE valeur : le code de sortie — 0 si Z0 est vert et, avec --saboter, si chaque sabotage fait rougir
-  l'épreuve ; 1 sinon ; 2 si un sabotage ne s'applique plus ou si yaml manque.
+  l'épreuve ; 1 sinon ; 2 si un sabotage ne s'applique plus, si yaml manque ou si deux sabotages portent le même
+  numéro.
   [rend: 1]
 ⑥ TRAITEMENT — Pour Z0 puis pour chaque sabotage : copier le dépôt (sans .git), y appliquer le sabotage, lancer le
   fabricant vers un faux clone public qui porte un programme et une épreuve « seulement au public », puis :
@@ -61,6 +62,15 @@
      fichier posé nommé dans le refus avec sa raison, 0 fichier écrit au public ; ④ un emplacement de code qui est
      un dossier lié hors du dépôt : refusé, rien écrit ; ⑤ le mot « github_pat_ » seul, le filtre sed du dépôt et
      « Basic ${B64} » : publiés.
+  S122 à S136 et V6 (circuit des séries, 04-11-2026, numérotés le 05-11-2026) : le filet des gabarits publics du
+  fabricant (`verifier_les_gabarits_publics` : actions permises, permissions en lecture, identités distinctes, résultat
+  des parts lu, branches à soi, une seule forme permise de la poussée), chaque propriété sabotée séparément ; le
+  fabricant doit refuser, pour la raison attendue.
+  E9 (05-11-2026, décision de Jean-Luc à 13h36, « 2 » : les séries éprouvent la version en attente AVANT sa fusion,
+  depuis la branche publique du même nom) : le fabricant refuse d'écrire dans un clone public sur « main » quand le
+  dépôt privé est sur « travail-essai », et écrit quand les deux sont sur « travail-essai » (`cas_de_branche`).
+  S137 (E9 sans sa propriété) et S138 (« preparer » clone le privé sans « ref: » : le filet, propriété ⑦, refuse).
+  Avant tout : deux sabotages au même numéro → code 2 (`numeros_en_double`).
   Avec --saboter, les cas « V… » sont des VARIANTES qui doivent rester vertes (le fabricant protège cette forme), les
   cas « S… » doivent rougir ; un cas de MOTIFS_ATTENDUS doit rougir POUR CETTE RAISON-LÀ (le motif se lit dans le
   détail), sinon il compte comme un sabotage sans effet.
@@ -307,6 +317,30 @@ SABOTAGES = {
     "S120_controles_admis": [(FAB, "            if controle is not None:\n", "            if False:\n")],
     "S121_borne_gh_remise_a_b": [(MOD, '(?<![A-Za-z0-9])gh[pousr]_', '\\bgh[pousr]_')],
     "S95_installation_en_echo": [(FAB, "        run: python3 -m pip install --quiet \"coverage==7.16.2\" \"pyflakes", "        run: echo pip install --quiet \"coverage==7.16.2\" \"pyflakes")],
+    # LE FILET DES GABARITS PUBLICS (circuit des séries, 04-11-2026, superviseur R-759, R3 ; tour 4, R2 : les poussées
+    # hors de la forme permise) : chaque propriété de `verifier_les_gabarits_publics` sabotée SÉPARÉMENT ; la variante
+    # renomme la garde des parts et doit rester verte (le filet lit une propriété, pas un nom). Numéros S122 à S136 et V6
+    # pris par programme au premier libre le 05-11-2026 (la réparation M5 avait pris S100 à S121).
+    'S122_series_sans_garde_des_parts': [(FAB, '      - name: Toutes les parts sont-elles vertes ?\n        id: parts_vertes\n        shell: bash\n        env:\n          JOUER: ${{ needs.jouer.result }}\n        run: |\n          [ "$JOUER" = "success" ] || { echo "::error::une part au moins n\'est pas verte ($JOUER) : rien n\'est rassemble, aucun releve"; exit 1; }\n', '')],
+    'S123_series_identite_de_la_certification': [(FAB, 'SERIES_IDENTITE = "series-longues-publiques"', 'SERIES_IDENTITE = "certification-publique"')],
+    'S124_series_archive_jointe': [(FAB, '          exit "$code"\n%(deposer_final)s"""', '          exit "$code"\n      - uses: actions/upload-artifact@v4\n        with:\n          path: rapports/series_longues\n%(deposer_final)s"""')],
+    'S125_series_contents_write': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:', 'permissions:\n  contents: write\njobs:\n  preparer:')],
+    'S126_series_pousse_sur_main': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/releve",', 'branche="main",')],
+    'S127_series_branches_travail': [(FAB, 'SERIES_BRANCHES = "series-longues/"', 'SERIES_BRANCHES = "travail-series/"')],
+    'S128_certification_identite_du_soir': [(FAB, 'auteur="certification-publique", message=', 'auteur="circuit-public", message=')],
+    'S129_series_permission_en_ligne': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:', 'permissions: write-all\njobs:\n  preparer:')],
+    'S130_series_permission_de_job': [(FAB, '  jouer:\n    needs: preparer\n', '  jouer:\n    needs: preparer\n    permissions: write-all\n')],
+    'S131_M1_sa_branche_et_main': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}",', 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}\\" \\"HEAD:refs/heads/main",')],
+    'S132_N1_cible_courte_main': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}",', 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}\\" \\"HEAD:main",')],
+    'S133_N2_seconde_cible_ligne_suivante': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}",', 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}\\" \\\\\\n            \\"HEAD:main",')],
+    'S134_N3_git_c_push_vers_main': [(FAB, 'git push -q origin "HEAD:refs/heads/""" + branche + """" \\\\', 'git -c x.y=1 push -q origin "HEAD:refs/heads/main" \\\\')],
+    'S135_N4_force': [(FAB, 'git push -q origin "HEAD:refs/heads/"""', 'git push -q --force origin "HEAD:refs/heads/"""')],
+    'S136_N5_plus_refspec': [(FAB, 'git push -q origin "HEAD:refs/heads/"""', 'git push -q origin "+HEAD:refs/heads/"""')],
+    # LA VERSION EN ATTENTE (décision de Jean-Luc du 05-11-2026 à 13h36, « 2 ») : la branche du clone public non
+    # comparée à celle du privé (E9), et le clonage de la version demandée sans « ref: » (filet, propriété ⑦).
+    'S137_branche_publique_non_comparee': [(FAB, '        refus = refus_de_branche(prive, public)\n', '        refus = None\n')],
+    'S138_series_preparation_sans_version': [(FAB, 'ref="${{ inputs.version }}"),', '),')],
+    'V6_series_garde_renommee': [(FAB, '      - name: Toutes les parts sont-elles vertes ?\n        id: parts_vertes\n', '      - name: Les parts ont-elles toutes reussi ?\n        id: verifier_les_parts\n')],
 }
 for _k, (_n, (_r, _m)) in enumerate(FORMES_HORS_SOUS_ENSEMBLE.items()):
     SABOTAGES[f"S{_NUMERO(_k)}_prive_{_n}"] = _r
@@ -362,6 +396,23 @@ MOTIFS_ATTENDUS = {
     "S120_controles_admis": "E8 non refusé : tests/outils/U16NB_M5.py",
     "S121_borne_gh_remise_a_b": "E8 motif : « jeton ghp_ collé derrière « _ » » non reconnu",
     "S95_installation_en_echo": "E6 bis paquet de la certification privée non installé au public : coverage==7.16.2",
+    'S122_series_sans_garde_des_parts': 'sans lire needs.jouer.result',
+    'S123_series_identite_de_la_certification': 'identité partagée',
+    'S124_series_archive_jointe': 'action non permise « actions/upload-artifact@v4 »',
+    'S125_series_contents_write': "permissions ['contents: write']",
+    'S126_series_pousse_sur_main': 'une poussée hors de la forme permise',
+    'S127_series_branches_travail': 'commencent par « travail- »',
+    'S128_certification_identite_du_soir': 'identité partagée avec circuit du soir',
+    'S129_series_permission_en_ligne': 'pas de « permissions: » au premier niveau',
+    'S130_series_permission_de_job': '« permissions: write-all »',
+    'S131_M1_sa_branche_et_main': 'une poussée hors de la forme permise',
+    'S132_N1_cible_courte_main': 'une poussée hors de la forme permise',
+    'S133_N2_seconde_cible_ligne_suivante': 'une poussée hors de la forme permise',
+    'S134_N3_git_c_push_vers_main': 'une poussée hors de la forme permise',
+    'S135_N4_force': 'une poussée hors de la forme permise',
+    'S136_N5_plus_refspec': 'une poussée hors de la forme permise',
+    'S137_branche_publique_non_comparee': 'E9 branche publique « main », privé « travail-essai »',
+    'S138_series_preparation_sans_version': 'un clonage du dépôt privé sans « ref: »',
 }
 for _k, (_n, (_r, _m)) in enumerate(FORMES_HORS_SOUS_ENSEMBLE.items()):
     MOTIFS_ATTENDUS[f"S{_NUMERO(_k)}_prive_{_n}"] = _m
@@ -678,6 +729,79 @@ def epreuve_du_motif(r):
     return fautes
 
 
+def cas_de_branche(r, d):
+    """E9 — le fabricant DE LA COPIE n'écrit dans un clone public que s'il est sur la branche du dépôt privé.
+
+    ① RÔLE — Prouver la propriété `refus_de_branche` du fabricant : le code d'une version en attente (dépôt privé sur
+      une branche « travail-… ») ne peut pas être écrit dans un clone public sur main, et l'est sur la branche publique
+      du même nom.
+    ② CONTEXTE D'APPEL — `epreuve`, une fois par sabotage, avant la fabrication principale.
+    ③ ENTRÉE — `r` : la copie (sabotée ou non) du dépôt privé, sans « .git » · `d` : son dossier jetable.
+    ④ CONDITIONS D'ENTRÉE — git ≥ 2.28 (« git init -b ») ; `r` n'a pas de « .git » (la copie de `epreuve` l'exclut).
+    ⑤ SORTIE — UNE valeur : la liste des fautes, vide si tout est conforme (« E9 branche publique « main », privé
+      « travail-essai » : … » ; « E9 même branche refusée : … »).
+      [rend: 1]
+    ⑥ TRAITEMENT — « git init -b travail-essai » dans `r` (une branche non née suffit : le fabricant lit le nom) ; pour
+      un clone public « git init -b main » puis « git init -b travail-essai », lancer le fabricant de la copie : le
+      premier doit rendre un code non nul et ne rien écrire hors de « .git », le second rendre 0 et écrire le circuit
+      des séries ; le « .git » de `r` et les deux clones sont retirés, même en cas d'erreur.
+    ⑦ UNITÉ — Des secondes : la borne du fabricant, 120.
+    ⑧ POURQUOI — Décision de Jean-Luc du 05-11-2026 à 13h36, « 2 » : les séries longues tournent sur GitHub AVANT la
+      fusion, depuis une branche publique qui porte le code de la version en attente, du même nom (« publier ce qui
+      tourne », cadre du 08-10-2026) ; option 1 (après la fusion, retour arrière) refusée, une version non éprouvée
+      serait la version officielle environ une heure. Aucun écrit sur main du dépôt public par erreur de branche.
+    ⑨ CE QUI CLOCHE — Les dépôts sont des « git init » sans commit, pas des clones : la lecture de la branche est la
+      même (symbolic-ref), la poussée qui suivrait n'est pas jouée. Le cas « clone public sans .git » n'est pas
+      joué ici : c'est la fabrication principale de chaque passage.
+    ⑩ EFFET — Écrit puis efface, dans `d` et dans `r`.
+    ⑪ TERMINAISON — Rend la main ; chaque appel est borné (git 30 s, fabricant 120 s).
+      [sort: non]
+    """
+    fautes = []
+    env = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+
+    def init(dossier, branche):
+        """Crée un dépôt git vide sur `branche` (nom d'une branche non née).
+
+        ① RÔLE — Poser un dépôt git dont la branche courante est connue.
+        ② CONTEXTE D'APPEL — `cas_de_branche`, trois fois.
+        ③ ENTRÉE — `dossier`, `branche`.
+        ④ CONDITIONS D'ENTRÉE — git ≥ 2.28.
+        ⑤ SORTIE — Aucune valeur ; lève CalledProcessError si git échoue.
+          [rend: 0]
+        ⑥ TRAITEMENT — « git init -q -b ».
+        ⑦ UNITÉ — Des secondes : la borne de git, 30.
+        ⑧ POURQUOI — Voir `cas_de_branche`.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Écrit `dossier`/.git.
+        ⑪ TERMINAISON — Rend la main, ou lève ; l'appel à git est borné à 30 s.
+          [sort: non]
+        """
+        subprocess.run(["git", "init", "-q", "-b", branche, dossier], check=True, capture_output=True, env=env,
+                       timeout=30)
+
+    try:
+        init(r, "travail-essai")
+        for branche_pub, permis in (("main", False), ("travail-essai", True)):
+            pub = os.path.join(d, "public_e9_" + branche_pub)
+            os.makedirs(pub)
+            init(pub, branche_pub)
+            x = subprocess.run([sys.executable, os.path.join(r, FAB), r, pub], capture_output=True, text=True,
+                               timeout=120, env=env)
+            ecrits = sorted(f for f in os.listdir(pub) if f != ".git")
+            if not permis and (x.returncode == 0 or ecrits):
+                fautes.append(f"E9 branche publique « main », privé « travail-essai » : code {x.returncode}, "
+                              f"{len(ecrits)} entrée(s) écrite(s) au public")
+            if permis and (x.returncode != 0 or not os.path.isfile(os.path.join(pub, PROPRIETE.CIRCUIT_SERIES))):
+                fautes.append(f"E9 même branche refusée : code {x.returncode} : {(x.stdout + x.stderr).strip()[-200:]}")
+            shutil.rmtree(pub, ignore_errors=True)
+    except (OSError, subprocess.SubprocessError) as e:
+        fautes.append(f"E9 n'a pas pu tourner : {e}")
+    finally:
+        shutil.rmtree(os.path.join(r, ".git"), ignore_errors=True)
+    return fautes
+
+
 def cas_m5(r, d):
     """E8 ③ à ⑤ — joue le fabricant DE LA COPIE sur les cas du défaut M5 ; rend les fautes.
 
@@ -937,16 +1061,21 @@ def jouer_soir(poser, mord, prep, garde):
 
 
 def epreuve(sab):
-    """Joue E1 à E8 sur une copie du dépôt sabotée par `sab` ; rend (vert ?, détail).
+    """Joue E1 à E9 sur une copie du dépôt sabotée par `sab` ; rend (vert ?, détail).
 
-    ① RÔLE — Une passe complète des épreuves. ② CONTEXTE D'APPEL — la boucle principale, une fois par sabotage.
-    ③ ENTRÉE — `sab` : le nom du sabotage (Z0 : aucun). ④ CONDITIONS D'ENTRÉE — DEPOT est un dépôt privé.
+    ① RÔLE — Une passe complète des épreuves.
+    ② CONTEXTE D'APPEL — la boucle principale, une fois par sabotage.
+    ③ ENTRÉE — `sab` : le nom du sabotage (Z0 : aucun).
+    ④ CONDITIONS D'ENTRÉE — DEPOT est un dépôt privé.
     ⑤ SORTIE — DEUX valeurs : vrai si tout est conforme ; le détail (les quatre premières fautes).
       [rend: 2]
-    ⑥ TRAITEMENT — copier, saboter, jouer E8 (motif, propriété, cas M5), fabriquer vers un faux public, confronter E1
-      à E7 ; si la fabrication principale tombe, le détail porte d'abord les fautes de E8.
-    ⑦ UNITÉ — — ⑧ POURQUOI — Voir la fiche du fichier. ⑨ CE QUI CLOCHE — Voir la fiche du fichier.
-    ⑩ EFFET — Écrit et efface un dossier jetable. ⑪ TERMINAISON — Rend la main ; le fabricant est borné à 120 s.
+    ⑥ TRAITEMENT — copier, saboter, jouer E8 (motif, propriété, cas M5) et E9 (branches), fabriquer vers un faux
+      public, confronter E1 à E7 ; si la fabrication principale tombe, le détail porte d'abord les fautes de E8 et E9.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir la fiche du fichier.
+    ⑨ CE QUI CLOCHE — Voir la fiche du fichier.
+    ⑩ EFFET — Écrit et efface un dossier jetable.
+    ⑪ TERMINAISON — Rend la main ; le fabricant est borné à 120 s.
       [sort: non]
     """
     d = tempfile.mkdtemp(prefix="circuit_public_")
@@ -965,6 +1094,7 @@ def epreuve(sab):
         # et la propriété (`epreuve_du_motif`), puis les cas du fabricant (`cas_m5`) ; ses fautes viennent en tête.
         fautes += epreuve_du_motif(r)
         fautes += cas_m5(r, d)
+        fautes += cas_de_branche(r, d)
         pub = os.path.join(d, "public")
         for x in ("programmes", "tests"):
             os.makedirs(os.path.join(pub, x))
@@ -1190,19 +1320,62 @@ def epreuve(sab):
                         fautes.append("E7 le pas « Le garde du code mord-il ? » reste vert avec la porte des imports morte")
                     for f_ in arrete:
                         fautes.append("E7 " + f_)
-        return not fautes, ("; ".join(fautes[:4]) if fautes else "E1 à E8 conformes")
+        return not fautes, ("; ".join(fautes[:4]) if fautes else "E1 à E9 conformes")
     finally:
         shutil.rmtree(d, ignore_errors=True)
+
+
+def numeros_en_double(noms):
+    """Rend les numéros de cas portés par plus d'un nom de SABOTAGES.
+
+    ① RÔLE — Garder la convention « un numéro, un cas » des sabotages de cette épreuve.
+    ② CONTEXTE D'APPEL — `main`, une fois, avant de jouer quoi que ce soit.
+    ③ ENTRÉE — `noms` : les clés de SABOTAGES (« S122_series_sans_garde_des_parts », « V6_… »).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste triée des préfixes en double (« S110 »…), vide si chaque numéro est unique.
+      [rend: 1]
+    ⑥ TRAITEMENT — le préfixe d'un nom est sa lettre et ses chiffres de tête (« S110 », « V6 ») ; compter.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Étude du 05-11-2026 (github_series/RAPPORT.md, §1.2) : le patch du filet des gabarits, régénéré sur
+      la version B, reprenait S110 à S121, déjà pris par la réparation M5 : 12 numéros en double, sans rien qui le
+      signale (les noms complets restaient distincts). Les numéros nouveaux se prennent par programme au premier libre,
+      1 + le plus grand pris (un numéro retiré n'est pas repris : d'anciens relevés le citent) ; ce contrôle rend la
+      convention vérifiée au lieu de supposée.
+    ⑨ CE QUI CLOCHE — Un nom sans lettre ni chiffre de tête (« Z0 ») n'a pas de numéro et n'est pas compté.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    vus = {}
+    for n in noms:
+        m = re.match(r"([A-Z]\d+)_", n)
+        if m:
+            vus[m.group(1)] = vus.get(m.group(1), 0) + 1
+    return sorted(k for k, v in vus.items() if v > 1)
 
 
 def main():
     """Joue Z0, et chaque sabotage avec --saboter ; affiche ; rend le code de sortie.
 
-    ① RÔLE — Voir la fiche du fichier. ② CONTEXTE D'APPEL — La ligne de commande. ③ ENTRÉE — `sys.argv`.
-    ④ CONDITIONS D'ENTRÉE — Voir la fiche du fichier. ⑤ SORTIE — UNE valeur : le code de sortie. [rend: 1]
-    ⑥ TRAITEMENT — Voir la fiche du fichier. ⑦ UNITÉ — — ⑧ POURQUOI — Voir la fiche du fichier.
-    ⑨ CE QUI CLOCHE — — ⑩ EFFET — Affiche. ⑪ TERMINAISON — Rend la main. [sort: non]
+    ① RÔLE — Voir la fiche du fichier.
+    ② CONTEXTE D'APPEL — La ligne de commande.
+    ③ ENTRÉE — `sys.argv`.
+    ④ CONDITIONS D'ENTRÉE — Voir la fiche du fichier.
+    ⑤ SORTIE — UNE valeur : le code de sortie.
+      [rend: 1]
+    ⑥ TRAITEMENT — Refuser (code 2) si deux sabotages portent le même numéro (`numeros_en_double`) ; puis voir la
+      fiche du fichier.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir la fiche du fichier.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Affiche.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
     """
+    doubles = numeros_en_double(SABOTAGES)
+    if doubles:
+        print("ARRÊT : numéros de sabotages en double :", ", ".join(doubles), "(prendre le premier libre)")
+        return 2
     choix = list(SABOTAGES) if "--saboter" in sys.argv else ["Z0"]
     code = 0
     for sab in choix:
