@@ -1426,6 +1426,7 @@ def registre_des_strategies(base):
       nom) ; la liste des fiches, ou un `Illisible` (« contrat illisible : <erreur> », « chemin absent », le nom de
       l'erreur de lecture, « fichier vide »). Exemple réel au 05-11-2026 : (`<racine>/donnees/cac40_strategies.csv`,
       68 fiches). [rend: 2]
+      [rend: 2]
     ⑥ TRAITEMENT — ① charger le contrat depuis le dossier de ce programme · ② `trouver` le fichier par
       NOM_DU_REGISTRE_DES_STRATEGIES · ③ le lire par `fiches_du_registre`, comme `lignes_csv` lit les autres
       sources : mêmes erreurs rattrapées, même règle du fichier vide.
@@ -1437,6 +1438,7 @@ def registre_des_strategies(base):
       réalité) ; s'il est illisible, le registre n'est pas nommé et le pilote le range parmi les sources muettes.
     ⑩ EFFET — Charge le contrat ; lit le fichier.
     ⑪ TERMINAISON — Rend la main ; ne lève pas sur les erreurs rattrapées. [sort: non]
+      [sort: non]
     """
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

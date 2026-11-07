@@ -958,6 +958,7 @@ def chemin_du_registre(racine):
     ⑤ SORTIE — UNE valeur : un chemin. Le premier qui existe parmi, dans cet ordre : `<racine>/donnees/<nom>`,
       `<racine>/<nom>`, puis les deux mêmes avec les soulignés du nom changés en espaces ; sinon
       `<racine>/donnees/<nom>`. Exemple : au dépôt, `<racine>/donnees/cac40_strategies.csv`. [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — ① former les quatre chemins à partir de REGISTRE_DES_STRATEGIES · ② rendre le premier qui existe,
       sinon le premier.
     ⑦ UNITÉ — —
@@ -970,6 +971,7 @@ def chemin_du_registre(racine):
       ② `CONSTRUIRE_LE_REGISTRE_EXPERIENCES` n'essayait pas les graphies à espaces : il les accepte désormais.
     ⑩ EFFET — Regarde si des fichiers existent ; n'en lit aucun.
     ⑪ TERMINAISON — Rend la main. [sort: non]
+      [sort: non]
     """
     import os as _os
     dossier, nom = REGISTRE_DES_STRATEGIES.rsplit("/", 1)
@@ -997,6 +999,7 @@ def lignes_du_registre(chemin):
       d'en-tête.
     ⑤ SORTIE — UNE valeur : la liste des lignes, chacune un dictionnaire {colonne : texte}. Exemple réel au
       05-11-2026 : 69 lignes, dont deux d'identifiant `C5-EI-PARAMS` (la 64e et la 69e). [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — Ouvrir le fichier, le lire par `csv.DictReader`, rendre la liste.
     ⑦ UNITÉ — Des lignes du fichier, en-tête exclu.
     ⑧ POURQUOI — Une seule lecture du fichier (R-708) : l'encodage, les fins de ligne et la façon de couper les cases
@@ -1005,6 +1008,7 @@ def lignes_du_registre(chemin):
       `csv.DictReader`), comme avant n°83.
     ⑩ EFFET — Lit le fichier.
     ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque. [sort: non]
+      [sort: non]
     """
     import csv as _csv
     with open(chemin, encoding="utf-8-sig", newline="") as f:
@@ -1026,12 +1030,14 @@ def fiches_du_registre(chemin):
       `fiches_des_lignes`, ⑤ et ⑧). Exemple réel au 05-11-2026 : 68 fiches pour 69 lignes ; `C5-EI-PARAMS` rend la
       ligne ajoutée par la décision n°53, celle dont la case `entree` vaut « DÉFAUT », et vient en dernier, après
       `C5E10-TP5-SL5`. [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — ① lire toutes les lignes par `lignes_du_registre` · ② les ranger par `fiches_des_lignes`.
     ⑦ UNITÉ — Des fiches (une par identifiant).
     ⑧ POURQUOI — Voir ① ; pour l'ordre, `fiches_des_lignes`, ⑧.
     ⑨ CE QUI CLOCHE — Voir `fiches_des_lignes`, ⑨.
     ⑩ EFFET — Lit le fichier.
     ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque. [sort: non]
+      [sort: non]
     """
     return fiches_des_lignes(lignes_du_registre(chemin))
 
@@ -1053,6 +1059,7 @@ def fiches_des_lignes(lignes):
       où leurs lignes qui font foi se suivent dans le fichier. Exemple réel au 05-11-2026 : 68 fiches pour les 69
       lignes du registre ; `C5-EI-PARAMS` (64e et 69e lignes) rend la ligne ajoutée par la décision n°53, celle dont
       la case `entree` vaut « DÉFAUT », et vient en dernier, après `C5E10-TP5-SL5` (68e ligne). [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — Pour chaque ligne, dans l'ordre du fichier : retirer la fiche déjà rangée sous sa case `id` telle
       qu'elle est écrite, s'il y en a une, puis ranger la ligne sous cette case, en dernière place.
     ⑦ UNITÉ — Des fiches (une par identifiant).
@@ -1074,6 +1081,7 @@ def fiches_des_lignes(lignes):
       dent).
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main. [sort: non]
+      [sort: non]
     """
     fiches = {}
     for ligne in lignes:
@@ -1092,6 +1100,7 @@ def lire_les_fiches(racine):
     ③ ENTRÉE — `racine` : la racine du dépôt ou d'une copie qui en garde l'arborescence.
     ④ CONDITIONS D'ENTRÉE — `<racine>/donnees/cac40_strategies.csv` existe (REGISTRE_DES_STRATEGIES).
     ⑤ SORTIE — UNE valeur : celle de `fiches_du_registre`. [rend: 1]
+      [rend: 1]
     ⑥ TRAITEMENT — Joindre REGISTRE_DES_STRATEGIES à la racine, appeler `fiches_du_registre`.
     ⑦ UNITÉ — Des fiches.
     ⑧ POURQUOI — La forme prescrite par le superviseur R-759 du 05-11-2026 (défaut 3) : `lire_les_fiches(racine)` →
@@ -1100,6 +1109,7 @@ def lire_les_fiches(racine):
       plat passe par `chemin_du_registre` puis `fiches_du_registre`.
     ⑩ EFFET — Lit le fichier.
     ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque. [sort: non]
+      [sort: non]
     """
     import os as _os
     return fiches_du_registre(_os.path.join(racine, REGISTRE_DES_STRATEGIES))

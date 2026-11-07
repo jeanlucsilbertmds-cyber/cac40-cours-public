@@ -1539,6 +1539,7 @@ def _lire_le_registre():
       None quand le contrat s'est chargé, sinon un texte qui le dit (« CONTRATS_DES_FICHIERS illisible (<erreur>) —
       registre lu par le repli du radar », ou « … — registre NON NOMMÉ »). Exemple réel au 05-11-2026 : 68 fiches,
       « cac40_strategies.csv », None. [rend: 3]
+      [rend: 3]
     ⑥ TRAITEMENT — ① charger le contrat ; s'il se charge, prendre son nom et sa lecture · ② sinon, REPLI DU RADAR :
       lire le chemin REGISTRE_DES_STRATEGIES dans le TEXTE du contrat, par l'arbre syntaxique, sans l'exécuter (le
       contrat peut être chargé de travers et rester lisible) ; s'il n'y est pas, le registre n'est pas nommé · ③ chercher
@@ -1556,6 +1557,7 @@ def _lire_le_registre():
       fichier : un fichier dont le nom le CONTIENT répondrait aussi ; le premier lisible est pris.
     ⑩ EFFET — Charge le contrat (une fois par processus), ou lit son texte ; lit le registre.
     ⑪ TERMINAISON — Rend la main ; ne lève pas. [sort: non]
+      [sort: non]
     """
     try:
         import CONTRATS_DES_FICHIERS as _contrat
@@ -1582,12 +1584,47 @@ def _lire_le_registre():
         def lire(ch):
             """REPLI DU RADAR (A-250) : la règle « la dernière ligne d'un identifiant fait foi » (n°83), recopiée.
 
-            ① RÔLE — Lire le registre le soir où le contrat ne se charge pas. ② CONTEXTE D'APPEL — `_lire_le_registre`,
-            une fois par fichier essayé. ③ ENTRÉE — `ch` : un chemin. ④ CONDITIONS D'ENTRÉE — Le fichier existe.
-            ⑤ SORTIE — UNE valeur : la liste des fiches. [rend: 1] ⑥ TRAITEMENT — Lire toutes les lignes, ranger par
-            identifiant, la dernière remplaçant la précédente. ⑦ UNITÉ — Des fiches. ⑧ POURQUOI — Voir ⑧ de
-            `_lire_le_registre`. ⑨ CE QUI CLOCHE — Une copie de `fiches_du_registre` du contrat (R-708), dite.
-            ⑩ EFFET — Lit le fichier. ⑪ TERMINAISON — Rend la main, ou lève l'erreur de lecture. [sort: non]
+            ① RÔLE — Lire le registre des stratégies le soir où le contrat programmes/CONTRATS_DES_FICHIERS.py ne
+              se charge pas : une fiche par identifiant, la DERNIÈRE ligne écrite faisant foi (décision de Jean-Luc
+              n°83 du 01-11-2026 à 12h33 : « La dernière ligne ajoutée fait foi. Les précédentes restent comme
+              historique. »). C'est une COPIE de `fiches_du_registre` du contrat, dite comme telle.
+            ② CONTEXTE D'APPEL — Définie et appelée dans `_lire_le_registre` seulement, et seulement quand l'import
+              du contrat a échoué ET que le nom du registre a pu être lu dans le texte du contrat (sinon
+              `_lire_le_registre` rend avant de la définir). La boucle finale de `_lire_le_registre` l'appelle alors
+              une fois par fichier que `trouve` rend pour ce nom, jusqu'au premier qui se lit sans erreur. Quand le
+              contrat se charge, le nom `lire` y désigne une autre lecture, une lambda sur `fiches_du_registre`, et
+              cette fonction-ci n'est jamais définie.
+            ③ ENTRÉE — `ch` : le chemin du fichier à lire, formé par `chemin_de` à partir d'un chemin relatif rendu
+              par `trouve` ; au dépôt, <dossier examiné>/donnees/cac40_strategies.csv.
+            ④ CONDITIONS D'ENTRÉE — Le fichier existe et se lit en UTF-8 (une marque d'ordre des octets en tête est
+              tolérée) ; sa première ligne est l'en-tête du tableau. La colonne `id` est attendue mais pas exigée :
+              sans elle, toutes les lignes tombent sous la clé vide et une seule fiche est rendue.
+            ⑤ SORTIE — UNE valeur : la liste des fiches, chacune un dictionnaire {colonne : texte}, la dernière
+              ligne écrite de chaque identifiant. Mesuré le 06-11-2026 sur donnees/cac40_strategies.csv de la
+              version officielle : 68 fiches, les mêmes lignes que celles du contrat.
+              [rend: 1]
+            ⑥ TRAITEMENT — ① ouvrir le fichier · ② le lire ligne à ligne par csv.DictReader · ③ ranger chaque ligne
+              sous sa case `id` (texte vide si elle manque ou est vide), une ligne plus tardive remplaçant la
+              précédente À LA MÊME PLACE · ④ rendre les fiches dans l'ordre du dictionnaire.
+            ⑦ UNITÉ — Des fiches (une par identifiant).
+            ⑧ POURQUOI — Le radar ne se tait pas quand le contrat est illisible (A-250) : il garde ici une lecture
+              de secours, NOMMÉE comme repli, et `_lire_le_registre` dit dans sa troisième valeur que c'est elle qui
+              a servi. Le reste du pourquoi est au ⑧ de `_lire_le_registre`.
+            ⑨ CE QUI CLOCHE — ① COPIE d'une règle qui vit au contrat (R-708 : deux écritures d'une même chose
+              divergent), et elles divergent DÉJÀ sur l'ORDRE : ici un identifiant réécrit garde la place de sa
+              PREMIÈRE ligne (un dictionnaire Python garde la place d'une clé réaffectée), au contrat
+              `fiches_des_lignes` le replace en DERNIER. Mesuré le 06-11-2026 sur donnees/cac40_strategies.csv, en
+              exécutant cette fonction isolée du radar : mêmes 68 fiches, mêmes lignes, ordre différent —
+              C5-EI-PARAMS 64e ici, 68e au contrat ; dernière fiche C5E10-TP5-SL5 ici, C5-EI-PARAMS au contrat.
+              La fiche de `fiches_des_lignes` l'annonçait en son ⑨ ③, lu et non éprouvé ; l'effet sur les maillons
+              du radar reste non éprouvé. ② Une erreur de lecture (fichier absent : FileNotFoundError, mesuré le 06-11-2026)
+              remonte à l'appelant, dont la boucle l'avale sans la dire et passe au fichier suivant ; si aucun ne se
+              lit, le radar voit un registre absent sans savoir pourquoi. ③ Même clé que le contrat : une espace en
+              trop autour d'un identifiant ferait deux fiches.
+            ⑩ EFFET — Lit le fichier ; n'écrit rien, n'affiche rien.
+            ⑪ TERMINAISON — Rend la main, ou lève l'erreur de lecture (fichier absent, décodage, tableau mal
+              formé). Aucun de ses appels ne peut rester en attente : elle ne lit qu'un fichier du dossier examiné.
+              [sort: non]
             """
             fiches = {}
             with open(ch, newline="", encoding="utf-8-sig") as fh:
