@@ -1637,7 +1637,7 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       par valeur.
     ⑪ TERMINAISON — Rend toujours la main dans les cas que son appelant lui
       donne. PEUT LEVER : ValueError sans `entree` ni `admis` ; et tout ce que lève
-      `entree` (le module des positions sans `tester_seance` ou `frais_aller_retour`) ; le
+      `entree` (le module des positions sans `vendre` ou `frais_aller_retour`) ; le
       juge des stratégies rattrape et affiche « HASARD non mesure ». Ses appels à
       `entree` et `admis` rendent la main : ils ne lisent que la série reçue.
       [sort: non]

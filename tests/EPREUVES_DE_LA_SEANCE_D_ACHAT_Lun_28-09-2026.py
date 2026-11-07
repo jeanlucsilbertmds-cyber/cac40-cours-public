@@ -26,18 +26,21 @@ import csv, importlib.util, json, os, re, shutil, subprocess, sys, tempfile
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
 DEPOT = os.path.abspath(_args[0] if _args else ".")
 TEN, BAN, COM = "programmes/TENIR_LES_POSITIONS.py", "programmes/JUGE_DES_STRATEGIES.py", "programmes/COMMUN.py"
+# Depuis le 07-11-2026 (lot ①a de J1, superviseur R-759), la vente du juge vit dans `MODULE_POSITIONS.vendre`, déplacée
+# sans changement : S2, S6 et E6 y visent les MÊMES lignes, mot pour mot, dans ce fichier-là.
+MODP = "programmes/MODULE_POSITIONS.py"
 
 SABOTAGES = {
     "Z0": [],
     "S1_circuit_saute_la_seance_d_achat": [(TEN, 'apres = sorted((b for b in s if b["date"] >= d_ent),',
                                             'apres = sorted((b for b in s if b["date"] > d_ent),')],
-    "S2_banc_saute_la_seance_d_achat": [(BAN, "    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")],
+    "S2_banc_saute_la_seance_d_achat": [(MODP, "    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")],
     "S3_banc_n_exige_plus_les_sorties": [(BAN, "        ok = ok and _ok_t\n", "        ok = ok\n")],
     "S4_banc_relit_l_horizon_a_sa_facon": [(BAN, '    if "horizon" not in manq and lire_horizon(fiche.get("horizon")) is None:',
                                             '    if "horizon" not in manq and not str(fiche.get("horizon")).strip().lstrip("-").isdigit():')],
     "S5_circuit_recopie_lire_horizon": [(TEN, "from COMMUN import lire_horizon                 # la seule lecture d'un horizon (R-708)",
                                          "lire_horizon = lambda x: (lambda h: int(h) if h.isdecimal() and int(h) > 0 else None)(str(x).strip().lower().rstrip('j'))")],
-    "S6_echeance_comptee_des_l_achat": [(BAN, "        apres = suite[1:]          # l'echeance se compte APRES la seance d'achat",
+    "S6_echeance_comptee_des_l_achat": [(MODP, "        apres = suite[1:]          # l'echeance se compte APRES la seance d'achat",
                                          "        apres = suite[:-1]")],
     "S7_pas_de_second_passage_le_soir_de_l_achat": [(TEN, "    if _juste_entrees:\n", "    if False:\n")],
     "S8_banc_ne_compare_plus_les_dates": [(BAN, ' or _o.get("date_sortie") != _r["date_sortie"]:', ':')],
@@ -153,11 +156,13 @@ def epreuves(sab):
     shutil.rmtree(d)
     # E6 le juge des stratégies S'ARRETE si ses sorties s'ecartent du tableau : on remet le defaut, il doit refuser
     d = copie(sab)
-    p = os.path.join(d, BAN); t = open(p, encoding="utf-8").read()
+    p = os.path.join(d, MODP); t = open(p, encoding="utf-8").read()
     # La ligne visée suit le juge : depuis le 27-10-2026, les sorties se testent sur la série entière (`serie[j:…]`,
     # décision de Jean-Luc du 27-10-2026 à 13h30). Une cible absente laisserait E6 vert sans rien saboter : elle est exigée
     # sur les programmes tels quels (Z0) ; dans une copie où un sabotage l'a déjà changée (S2), le défaut y est déjà.
-    # Depuis le 28-10-2026, la ligne vit dans `jouer_une_entree`, la mécanique partagée avec l'étalon de hasard (R-708).
+    # Depuis le 28-10-2026, la ligne vit dans `jouer_une_entree`, la mécanique partagée avec l'étalon de hasard (R-708) ;
+    # depuis le 07-11-2026, dans `MODULE_POSITIONS.vendre`, que `jouer_une_entree` appelle (lot ①a de J1) : on la
+    # sabote là, et c'est toujours le juge qui doit s'arrêter.
     assert sab or t.count("    suite = serie[j:j + 1 + h]") == 1, "E6 : la ligne des sorties du juge a changé"
     t = t.replace("    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")
     open(p, "w", encoding="utf-8").write(t)

@@ -45,8 +45,9 @@ LES ONZE ÉLÉMENTS — ce programme est une fonction comme les autres
   taxées `donnees/VALEURS_TTF.csv` ; tout autre programme l APPELLE, jamais ne
   recopie un taux (A-550).
 ② CONTEXTE D APPEL — Chargé par `programmes/TENIR_LES_POSITIONS.py`, qui lui
-  demande deux choses : les frais d un ordre, et le verdict d une séance ; et,
-  pour les frais, par le juge des stratégies (`jouer_une_entree`), le module de
+  demande deux choses : les frais d un ordre, et le verdict d une séance ; par le
+  juge des stratégies (`jouer_une_entree`), qui lui demande la vente (`vendre`,
+  depuis le 07-11-2026, lot ①a de J1) et les frais ; et, pour les frais, par le module de
   jugement (point mort), la mesure de la performance, le juge à huit critères et
   le module C5-ETENDU-10 (recalcul du radar).
   **Lancé seul, il ne fait que son calibrage.**
@@ -59,11 +60,11 @@ LES ONZE ÉLÉMENTS — ce programme est une fonction comme les autres
   est à côté (sa clé des valeurs). Les fonctions de sortie (`tester_seance`,
   `parametres_entree`) ne lisent rien.
 ⑤ SORTIE — **Lancé seul : un code de sortie, 0 si le calibrage passe.**
-  Utilisé comme module : ce que rendent ses fonctions publiques (sept, listées au ⑥).
+  Utilisé comme module : ce que rendent ses fonctions publiques (neuf, listées au ⑥).
 ⑥ TRAITEMENT — Il expose cinq constantes (`CAPITAL`, `TP_PCT`, `SL_PCT`, `HORIZON`,
-  `BAREME_PAR_DEFAUT`) et sept fonctions publiques
-  (`cout_d_un_ordre`, `valeur_taxee`, `frais_ordre`, `pnl_net`, `parametres_entree`,
-  `tester_seance`, `sortie_position`). **Rien ne s exécute au chargement**, sinon la
+  `BAREME_PAR_DEFAUT`) et neuf fonctions publiques
+  (`cout_d_un_ordre`, `valeur_taxee`, `frais_ordre`, `frais_aller_retour`, `pnl_net`,
+  `parametres_entree`, `tester_seance`, `vendre`, `sortie_position`). **Rien ne s exécute au chargement**, sinon la
   définition des constantes ; le barème est lu au premier calcul de frais.
 ⑦ UNITÉ — **`CAPITAL` en euros · `TP_PCT`, `SL_PCT` et les taux du barème en
   FRACTIONS, jamais en pourcents — 0,0015 vaut 0,15 %** · `HORIZON` en SÉANCES
@@ -675,7 +676,8 @@ def tester_seance(bar, tp, sl):
 
     ① RÔLE — **Dire si une position sort ce jour-là, et à quel prix.** C est le
       grain le plus fin du moteur.
-    ② CONTEXTE D APPEL — `sortie_position`, une fois par séance de détention.
+    ② CONTEXTE D APPEL — `sortie_position` et `vendre` (la vente du juge des
+      stratégies), une fois par séance de détention.
       **Et `programmes/TENIR_LES_POSITIONS.py` l exige à l import.**
     ③ ENTRÉE — `bar` : une séance, avec ses quatre prix · `tp` : l objectif ·
       `sl` : le stop.
@@ -731,6 +733,101 @@ def tester_seance(bar, tp, sl):
     if bar["high"] >= tp:
         return tp, "TP"
     return None
+
+
+def vendre(serie, j, vente, fin_des_donnees):
+    """Dit quand et à quel prix se revend un achat fait à l'ouverture de la séance `j` : LA décision de vente du juge.
+
+    ① RÔLE — Le seul endroit où le juge des stratégies décide une vente : à partir d'un achat à l'ouverture de la
+      séance `j`, rendre le jour, le prix et le motif de la revente — objectif, stop, ou échéance. Elle ne chiffre
+      rien : ni frais, ni gain.
+    ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py`, `jouer_une_entree`, à chaque entrée jouée ; donc
+      `jouer` (chaque signal d'une fiche), l'étalon de hasard (`MODULE_JUGEMENT.etalon_hasard`, par la fonction que
+      `juger` lui passe), le juge à huit critères et la moulinette, qui jouent tous par `jouer`. Le circuit du soir
+      (`TENIR_LES_POSITIONS.cloturer`), le radar (`MODULE_C5_ETENDU_10…_c5e10_sortie`) et `sortie_position` ne
+      l'appellent PAS encore : ils gardent leur propre boucle (lots ①b et ①c de J1, conception du 07-11-2026).
+    ③ ENTRÉE — `serie` : la série ENTIÈRE des séances d'une valeur, triée par date, chaque séance avec `date`,
+      `open`, `high`, `low`, `close` · `j` : le rang de la séance d'achat dans `serie` · `vente` : un dictionnaire
+      de trois clés — `tp` et `sl`, l'objectif et le stop en FRACTIONS du prix d'achat (0.04 et 0.025 pour
+      « +4 % » et « −2,5 % »), `horizon`, l'échéance en SÉANCES (un entier > 0) · `fin_des_donnees` : ce qu'on fait
+      quand la série s'arrête avant l'échéance ; seule valeur admise aujourd'hui, `"vendre"`.
+    ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; `vente` porte ses trois clés, déjà lues et validées par
+      l'appelant (le juge les lit par `seuil_de_la_fiche` et `lire_horizon`) ; aucune n'est relue ici.
+    ⑤ SORTIE — UNE valeur : None si l'achat tombe sur la DERNIÈRE séance de `serie` sans qu'un seuil y soit
+      touché (aucune séance après lui pour une échéance) ; sinon un dictionnaire de quatre clés — `pe` (le prix
+      d'achat, l'ouverture de `serie[j]`), `px` (le prix de vente), `motif` (`SL_GAP`, `TP_GAP`, `SL`, `TP` ou
+      `HORIZON`) et `date_sortie` (le jour de la vente). Un achat suivi de moins de `horizon` séances est vendu à
+      la dernière clôture connue, motif `HORIZON`.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① refuser tout `fin_des_donnees` autre que `"vendre"` · ② prix d'achat = ouverture de
+      `serie[j]` (R-601 : on achète à l'ouverture qui suit le signal) · ③ objectif = prix × (1 + `tp`), stop =
+      prix × (1 − `sl`), sans arrondi · ④ tester les séances `serie[j]` à `serie[j + horizon]`, séance d'achat
+      comprise (R-608), par `tester_seance`, et vendre à la première qui touche un seuil · ⑤ sinon vendre à la
+      clôture de la `horizon`-ième séance APRÈS l'achat, ou de la dernière séance connue si la série s'arrête avant,
+      motif `HORIZON` · ⑥ si l'achat est la dernière séance et ne touche rien, rendre None.
+    ⑦ UNITÉ — Seuils en FRACTIONS du prix d'achat ; échéance en SÉANCES de bourse, jamais en jours calendaires ;
+      prix en EUROS ; dates en texte AAAA-MM-JJ ; `j` est un rang compté depuis zéro.
+    ⑧ POURQUOI — Deux implémentations d'une même chose divergent toujours (R-708) : la décision « quand vendre »
+      est écrite à quatre endroits, qui divergent déjà (conception J1 du 07-11-2026, §1.4 : une séance qui ouvre
+      au-dessus de l'objectif puis passe sous le stop donne l'objectif au juge et le stop au radar). Ce corps est
+      celui de `jouer_une_entree` du juge, DÉPLACÉ SANS CHANGEMENT DE CALCUL, À UN APPEL PRÈS : le juge appelait
+      `mod_positions.tester_seance`, sur le module qu'on lui passe ; `vendre` appelle `tester_seance`, celle de CE
+      fichier, parce qu'elle ne reçoit pas de module. C'est la même fonction tant que le juge reçoit ce module-ci (le
+      seul cas réel) ; seul un faux module portant ce `vendre` mais un autre `tester_seance` verrait la différence
+      (relecture du 07-11-2026, 05h11, tour 1) (lot ①a, avis du superviseur R-759 du
+      07-11-2026 : « un lot ①a sans rien de neuf est le seul qui se prouve entièrement par une égalité ») ; les
+      100 opérations de l'étalon restent identiques à l'octet (empreinte `788dc3a04cddc988` sous le barème réel,
+      avant et après). Il vit ici, à côté de `tester_seance` et des frais, parce que ce module est déjà celui qui
+      décide des sorties, et que le juge et le soir le chargent déjà. Le paramètre `fin_des_donnees` est la seule
+      différence voulue entre le juge, qui rejoue un passé fini, et le soir, qui vit un présent qui continue ;
+      `"garder"` viendra avec le soir (lot ①b), pas avant.
+    ⑨ CE QUI CLOCHE — Trois faits gardés tels quels, aucun corrigé (R-752 : le ⑨ se consigne) : · une vente forcée
+      par la FIN DES DONNÉES porte le motif `HORIZON`, comme une vraie échéance (décision 7 de la conception J1,
+      lot ①c) · les seuils sont BRUTS, sans arrondi, alors que le soir les arrondit à cinq décimales : 8 sorties
+      sur 24 253 achats possibles du témoin diffèrent (ENGIE acheté le 17-06-2024 à 13,25 : objectif brut
+      13,780000000000001, plus haut du 21-06 13,78, le juge ne vend que le 24-06 ; décision 6, lot ①b) ·
+      la clé `horizon` doit être un entier : la durée « aucune » est refusée en amont (lot ②).
+    ⑩ EFFET — Aucun : ne lit ni n'écrit aucun fichier, ne modifie pas `serie`.
+    ⑪ TERMINAISON — Rend la main ; lève ValueError si `fin_des_donnees` n'est pas `"vendre"`, KeyError si `vente`
+      ou une séance manque d'une clé, IndexError si `j >= len(serie)`. UN `j` NÉGATIF NE LÈVE PAS : Python le compte
+      depuis la fin de `serie`, et `vendre` rend None ou une opération fausse sans rien dire (mesuré par la relecture
+      du 07-11-2026, tour 1 : `j = -1` rend None, `j = -644` rend une opération) ; le ④ l'interdit, rien ne le
+      vérifie ici ; le juge ne passe que des rangs >= 1 (`jouer` : rang du signal + 1 ; l'étalon de hasard :
+      ses candidats sont pris dans `range(1, len(s))`). Aucun de ses appels ne peut ne pas
+      revenir : `tester_seance` ne fait que comparer.
+      [sort: non]
+    ⑫ DÉFINITIONS —
+      le juge des stratégies : `programmes/JUGE_DES_STRATEGIES.py`, qui rejoue une stratégie sur le passé et la juge.
+      une séance : une journée de bourse pour une valeur, avec son ouverture, son plus haut, son plus bas, sa clôture et son volume.
+      une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
+    """
+    if fin_des_donnees != "vendre":
+        raise ValueError("vendre : fin_des_donnees %r non prise en charge ; seule \"vendre\" l'est "
+                         "(\"garder\" viendra avec le circuit du soir, lot 1b de J1)" % (fin_des_donnees,))
+    tp, sl, h = vente["tp"], vente["sl"], vente["horizon"]
+    pe = serie[j]["open"]
+    tp_abs, sl_abs = pe * (1 + tp), pe * (1 - sl)
+    # LA SEANCE D'ACHAT COMPTE (R-608, decision de Jean-Luc du 27-09-2026 a
+    # 19h40 ; defaut 4 de A-491). Les seuils se testent des s[i + 1], la
+    # seance ou l'on achete a l'ouverture : avant, ils ne l'etaient qu'a
+    # partir de s[i + 2]. Exemple reel du tableau de reference : Vinci,
+    # achete le 07-06-2024 a 113,60, plus bas du jour 110,75 sous la vente
+    # forcee 110,76 -> vendu le jour meme. L'echeance, elle, ne change pas :
+    # la h-ieme seance APRES l'achat, serie[j + h].
+    suite = serie[j:j + 1 + h]
+    px = motif = d_sortie = None
+    for b in suite:
+        r = tester_seance(b, tp_abs, sl_abs)
+        if r:
+            px, motif = r
+            d_sortie = b["date"]
+            break
+    if px is None:
+        apres = suite[1:]          # l'echeance se compte APRES la seance d'achat
+        if not apres:
+            return None
+        px, motif, d_sortie = apres[-1]["close"], "HORIZON", apres[-1]["date"]
+    return {"pe": pe, "px": px, "motif": motif, "date_sortie": d_sortie}
 
 
 def sortie_position(seances, prix_entree, valeur, date_entree, bareme=None):

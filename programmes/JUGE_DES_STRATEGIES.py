@@ -2196,7 +2196,7 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       gain, la perte acceptée et l'horizon doivent être lisibles, faute de quoi la
       fonction lève. `mod_signal` doit être un `SignalNomme` — un module, ou une
       fonction prise ailleurs, est refusé par TypeError — et le module de positions
-      doit exposer `tester_seance` et `frais_aller_retour`.
+      doit exposer `vendre` et `frais_aller_retour` (depuis le 07-11-2026, lot ①a de J1 ; avant : `tester_seance`).
     ⑤ SORTIE — DEUX valeurs : la liste des opérations, et la liste des valeurs
       demandées par la fiche mais absentes des cours. Chaque opération porte la
       valeur, la date du signal, le prix d'entrée, le prix de sortie, le motif de
@@ -2434,11 +2434,11 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
     ② CONTEXTE D'APPEL — `jouer`, à chaque signal retenu ; l'étalon de hasard (`MODULE_JUGEMENT.etalon_hasard`),
       par la fonction que `juger` lui passe, à chaque achat tiré au sort.
     ③ ENTRÉE — `v` : la valeur · `serie` : sa série entière · `j` : le rang de la séance d'achat · `tp`, `sl` : les
-      seuils en FRACTIONS · `h` : l'horizon en séances · `mod_positions` : le module des positions (`tester_seance`,
+      seuils en FRACTIONS · `h` : l'horizon en séances · `mod_positions` : le module des positions (`vendre`,
       `frais_aller_retour`) · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None · `bareme` : le nom d'un barème
       de `donnees/BAREME_FRAIS.csv`, None pour le barème des trades vécus (« REEL ») ; un autre nom rejoue un chiffre
       ancien sous le régime qui l'a produit (A-550).
-    ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; le module des positions expose `tester_seance` et `frais_aller_retour` ;
+    ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; le module des positions expose `vendre` et `frais_aller_retour` ;
       chaque séance porte sa `date` ; sous le barème réel, la valeur et l'année de l'achat figurent dans
       `donnees/VALEURS_TTF.csv`.
     ⑤ SORTIE — UNE valeur : None si l'achat n'est pas permis (`achat_admis`) ou s'il tombe sur la DERNIÈRE séance
@@ -2447,15 +2447,19 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
       (euros, frais payés), `date_sortie`, `frais` (euros, les deux ordres), `date_entree` (le jour de l'achat, celui
       où la taxe frappe). [rend: 1]
       [rend: 1]
-    ⑥ TRAITEMENT — ① refuser un achat non permis · ② entrer à l'ouverture de `serie[j]` · ③ tester les séances
-      `serie[j:j + 1 + h]`, séance d'achat comprise (R-608), et sortir à la première qui touche un seuil · ④ sinon
-      sortir à la clôture de la h-ième séance APRÈS l'achat · ⑤ retrancher les frais des deux ordres.
+    ⑥ TRAITEMENT — ① refuser un achat non permis · ② demander la vente à `MODULE_POSITIONS.vendre` (fin des
+      données : `"vendre"`), qui entre à l'ouverture de `serie[j]`, teste les séances `serie[j:j + 1 + h]`, séance
+      d'achat comprise (R-608), sort à la première qui touche un seuil, sinon à la clôture de la h-ième séance APRÈS
+      l'achat · ③ retrancher les frais des deux ordres.
     ⑦ UNITÉ — Seuils en FRACTIONS du prix d'entrée ; horizon en SÉANCES ; prix et gains en EUROS, pour 100 000 €
       engagés.
     ⑧ POURQUOI — Ce corps vivait dans `jouer`, et l'étalon de hasard en avait sa copie ; le superviseur R-759 du
       28-10-2026 a jugé « rustine » de seulement partager le test de l'indice : les deux copies avaient déjà divergé
       deux fois le 28-09-2026 (A-435 ④ sur les frais, R-608 sur la séance d'achat). Le code est celui de `jouer`,
       déplacé sans changement : les opérations du juge restent identiques à l'octet (empreinte avant et après).
+      Le 07-11-2026 (lot ①a de J1, superviseur R-759 du même jour), la boucle de vente est partie, à son tour sans
+      changement, dans `MODULE_POSITIONS.vendre`, pour que la décision « quand vendre » vive à un seul endroit
+      (R-708) : les 100 opérations de l'étalon gardent leur empreinte complète, `788dc3a04cddc988` sous le barème réel.
       LES FRAIS NE S'ÉCRIVENT PAS EN DUR : leur propriétaire est MODULE_POSITIONS, qui les lit dans le barème daté —
       courtage de 0,15 % de la valeur échangée à l'entrée ET à la sortie, et, depuis le 29-10-2026 (A-550), la taxe
       sur les transactions financières à l'achat d'une valeur taxée, au taux de la date (0,3 % puis 0,4 % depuis le
@@ -2463,36 +2467,25 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
     ⑨ CE QUI CLOCHE — Le capital de 100 000 € est écrit ici, comme il l'était dans `jouer` : MODULE_POSITIONS porte le
       sien. Ne pas le changer garde les opérations identiques ; consigné au BACKLOG.
     ⑩ EFFET — Appelle le module des positions.
-    ⑪ TERMINAISON — Rend la main ; lève RuntimeError si le module des positions n'expose pas `frais_aller_retour`, et
-      ce que lève `frais_aller_retour` (une date absente du calendrier, une valeur ou une année absente de la liste des valeurs taxées : un juge qui rejoue
+    ⑪ TERMINAISON — Rend la main ; lève RuntimeError si le module des positions n'expose pas `vendre` ou
+      `frais_aller_retour`, ce que lève `vendre` (une séance sans l'une de ses clés de prix), et ce que lève `frais_aller_retour` (une date absente du calendrier, une valeur ou une année absente de la liste des valeurs taxées : un juge qui rejoue
       2000-2023 sous le barème réel s'arrête là, faute des listes de ces années — voulu, pas de taxe supposée).
       [sort: non]
     """
     bareme = bareme_des_verdicts(bareme, mod_positions)   # le barème des verdicts, sauf barème donné (D2)
     if not achat_admis(v, serie, j, lecture):
         return None
-    pe = serie[j]["open"]
-    tp_abs, sl_abs = pe * (1 + tp), pe * (1 - sl)
-    # LA SEANCE D'ACHAT COMPTE (R-608, decision de Jean-Luc du 27-09-2026 a
-    # 19h40 ; defaut 4 de A-491). Les seuils se testent des s[i + 1], la
-    # seance ou l'on achete a l'ouverture : avant, ils ne l'etaient qu'a
-    # partir de s[i + 2]. Exemple reel du tableau de reference : Vinci,
-    # achete le 07-06-2024 a 113,60, plus bas du jour 110,75 sous la vente
-    # forcee 110,76 -> vendu le jour meme. L'echeance, elle, ne change pas :
-    # la h-ieme seance APRES l'achat, serie[j + h].
-    suite = serie[j:j + 1 + h]
-    px = motif = d_sortie = None
-    for b in suite:
-        r = mod_positions.tester_seance(b, tp_abs, sl_abs)
-        if r:
-            px, motif = r
-            d_sortie = b["date"]
-            break
-    if px is None:
-        apres = suite[1:]          # l'echeance se compte APRES la seance d'achat
-        if not apres:
-            return None
-        px, motif, d_sortie = apres[-1]["close"], "HORIZON", apres[-1]["date"]
+    # LA VENTE SE DÉCIDE DANS `MODULE_POSITIONS.vendre`, ET NULLE PART AILLEURS (R-708 ; lot ①a de J1, superviseur
+    # R-759 du 07-11-2026) : la boucle qui vivait ici y est déplacée sans changement. Pas de copie de repli : un module
+    # des positions sans `vendre` arrête le juge, comme un module sans `frais_aller_retour`.
+    _vendre = getattr(mod_positions, "vendre", None)
+    if not callable(_vendre):
+        raise RuntimeError("MODULE_POSITIONS n'expose pas vendre : "
+                           "le juge des stratégies ne recopie pas la décision de vente")
+    _vente = _vendre(serie, j, {"tp": tp, "sl": sl, "horizon": h}, "vendre")
+    if _vente is None:
+        return None
+    pe, px, motif, d_sortie = _vente["pe"], _vente["px"], _vente["motif"], _vente["date_sortie"]
     q = 100000.0 / pe
     _far = getattr(mod_positions, "frais_aller_retour", None)
     if callable(_far):
