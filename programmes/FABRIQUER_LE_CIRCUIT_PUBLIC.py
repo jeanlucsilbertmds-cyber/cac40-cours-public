@@ -17,7 +17,9 @@
   et nulle part ailleurs, avec les pas de départ et de dépôt de la certification (patch du 04-11-2026) ; ses
   dépôts vont sur des branches à lui du dépôt privé, jamais sur main ; ④ter avant toute écriture, la
   post-condition `verifier_les_gabarits_publics` (actions permises, permissions en lecture, identités distinctes,
-  résultat des parts lu, branches à soi) ;
+  résultat des parts lu, branches à soi) ; ④quater (08-11-2026) le relais des demandes de série,
+  `.github/workflows/demande_de_serie.yml` (RELAIS), écrit ICI, fabriqué comme le circuit des séries depuis la table
+  des séries de `tests/LANCEMENT_DES_EPREUVES.json` (`series_du_circuit`) ;
   ⑤ les fiches de circuit du privé (`.github/workflows/*.yml`), sous
   `circuits_du_prive/`, où GitHub ne les met pas en service.
 ② CONTEXTE D'APPEL — Lancé à la main par le Chat, chaque fois qu'un des
@@ -127,7 +129,9 @@
   le dépôt privé : `jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-`.
   le dépôt public : `jeanlucsilbertmds-cyber/cac40-cours-public`.
 """
+import hashlib
 import importlib.util
+import json
 import os
 import re
 import shlex
@@ -895,7 +899,7 @@ SERIES_IDENTITE = "series-longues-publiques"
 SERIES_BRANCHES = "series-longues/"
 
 
-def depart_pour(fiche, nom, ref=None, apres_le_clonage=""):
+def depart_pour(fiche, nom, ref=None, apres_le_clonage="", aussi=()):
     """Rend les pas de départ de la certification, adaptés à une autre fiche de circuit public.
 
     ① RÔLE — Donner au circuit des séries EXACTEMENT les pas de départ de la certification (clonage du privé avec
@@ -903,7 +907,8 @@ def depart_pour(fiche, nom, ref=None, apres_le_clonage=""):
       contrôle que le circuit qui tourne est celui que fabrique le privé, Python), sans en recopier une ligne (R-708).
     ② CONTEXTE D'APPEL — Le gabarit SERIES, trois fois (une par job : « preparer » à la version demandée, les deux
       autres au commit de la préparation) ; « preparer » et « rassembler » y glissent leurs pas de lecture à jeton.
-    ③ ENTRÉE — `fiche` : le nom du fichier de circuit public (« series_longues.yml ») · `nom` : le circuit en
+    ③ ENTRÉE — `aussi` (08-11-2026) : d'autres fichiers de circuit public, comparés eux aussi à ce que fabrique le
+      privé (le relais demande_de_serie.yml, pour « preparer ») · `fiche` : le nom du fichier de circuit public (« series_longues.yml ») · `nom` : le circuit en
       minuscules, pour le nom du pas et le message (« des series longues ») · `ref` : None, ou la version à cloner
       au privé (une expression de GitHub : l'entrée « version », ou le commit de la préparation), ajoutée au clonage
       du privé sous « ref: » · `apres_le_clonage` (tour 5) : des pas, au format du fichier de circuit, placés JUSTE
@@ -942,6 +947,13 @@ def depart_pour(fiche, nom, ref=None, apres_le_clonage=""):
     if ref is not None:
         remplacements.append(("          fetch-depth: 0\n", "          fetch-depth: 0\n          ref: " + ref + "\n"
                               "          persist-credentials: false\n", 1))
+    for autre in aussi:   # 08-11-2026 (méthode du bloc 2, §5 R7) : un autre circuit fabriqué, comparé lui aussi
+        remplacements.append(("          rm -rf _code\n", "          cp _code/.github/workflows/" + autre
+                              + ' "$RUNNER_TEMP/circuit_public/"\n          rm -rf _code\n', 1))
+        fin = ' N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }\n'
+        remplacements.append((fin, fin + '          cmp "$RUNNER_TEMP/refait/.github/workflows/' + autre
+                              + '" "$RUNNER_TEMP/circuit_public/' + autre + '" \\\n            || { echo "::error::LE CIRCUIT '
+                              + autre + ' N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et publier"; exit 1; }\n', 1))
     if apres_le_clonage:
         public = "      - uses: actions/checkout@v5\n        with:\n          path: _code\n"
         remplacements.append((public, apres_le_clonage + public, 1))
@@ -974,7 +986,7 @@ def depart_pour(fiche, nom, ref=None, apres_le_clonage=""):
 # cloné (les épreuves du circuit en posent elles-mêmes) ne sont pas dans ce dossier. Mesuré par la relecture du tour 2
 # (M-3) : sans cela, des crochets posés au pas 1 ont vu le jeton (fictif) aux pas 2 et 3.
 # TOUR 5 (superviseur R-759 du 06-11-2026, après la relecture de Cowork de 12h59) : ① les pas de LECTURE à jeton
-# (« version », « rien_en_attente », « lire_les_parts ») tournent juste après le clonage du privé, AVANT tout pas qui
+# (« version », « rien_en_attente » — retirée le 08-11-2026 —, « lire_les_parts ») tournent juste après le clonage du privé, AVANT tout pas qui
 # exécute du code de la version (`depart_pour`, `apres_le_clonage`) : ce code n'a encore rien pu écrire, ni dans
 # .git/config du dossier de travail, ni dans les fichiers de commandes de GitHub ; le filet le vérifie (propriété ⑨) ;
 # ② la poussée, seul pas à jeton qui vient après ce code (elle dépose ce qu'il a produit), recopie les résultats comme
@@ -1037,6 +1049,9 @@ SERIES_MEME_DEPOT = """      - name: Le depot prive est-il celui de la preparati
 #     matrice », que clonent les parts, est donc celui de la version demandée.
 # Les valeurs viennent de l'environnement du pas, jamais recopiées dans le script : une entrée « inputs. » écrite en
 # clair dans un script de shell y serait exécutée.
+# La forme d'une version : la version officielle ou la version en attente (A-448). Écrite UNE fois, lue par la porte du
+# circuit des séries (SERIES_VERSION) et par le relais (RELAIS) : deux écritures d'une même chose divergent (R-708).
+MOTIF_DE_VERSION = "^(main|travail-[A-Za-z0-9._-]+)$"
 SERIES_VERSION = """      - name: La version demandee est-elle celle de cette branche publique ?
         id: version
         shell: bash
@@ -1046,7 +1061,7 @@ SERIES_VERSION = """      - name: La version demandee est-elle celle de cette br
         run: |
           set -o pipefail
 """ + SANS_RIEN_DE_LA_VERSION + AUTORISATION + """          cd "$T"
-          [[ "$VERSION" =~ ^(main|travail-[A-Za-z0-9._-]+)$ ]] || { echo "::error::version refusee : $VERSION (main, ou une version en attente travail-...)"; exit 1; }
+          [[ "$VERSION" =~ """ + MOTIF_DE_VERSION + """ ]] || { echo "::error::version refusee : $VERSION (main, ou une version en attente travail-...)"; exit 1; }
           [ "$VERSION" = "$BRANCHE_PUBLIQUE" ] || { echo "::error::la version $VERSION n'est pas la branche publique lancee ($BRANCHE_PUBLIQUE) : lancer ce circuit depuis la branche publique $VERSION"; exit 1; }
           tetes=$(git "${A[@]}" ls-remote --heads "$PRIVE") || { echo "::error::branches du depot prive illisibles"; exit 1; }
           if [ "$VERSION" != "main" ]; then
@@ -1086,19 +1101,13 @@ SERIES_RESEAU = """      - name: Couper le reseau des epreuves
 
 # LES PAS DE LECTURE À JETON, JUSTE APRÈS LE CLONAGE DU PRIVÉ (tour 5, superviseur R-759 du 06-11-2026, §3 : « dans un
 # job, aucun pas à jeton ne vient après un pas qui exécute du code de la version, sauf la poussée finale ») ; posés par
-# `depart_pour(…, apres_le_clonage=…)`. Ils n'emploient que bash, git et des dossiers neufs ou vides. La garde
-# « rien_en_attente » : voir « LA GARDE » dans l'en-tête du gabarit SERIES.
-SERIES_RIEN_EN_ATTENTE = """      - name: Aucun passage precedent n'attend-il d'etre range ?
-        id: rien_en_attente
-        shell: bash
-        env:
-""" + JETON_DU_PAS + """        run: |
-          set -o pipefail
-""" + SANS_RIEN_DE_LA_VERSION + AUTORISATION + """          cd "$T"
-          refs=$(git "${A[@]}" ls-remote --heads "$PRIVE") || { echo "::error::branches du depot prive illisibles"; exit 1; }
-          n=$(printf '%s\\n' "$refs" | grep -c 'refs/heads/""" + SERIES_BRANCHES + """' || true)
-          [ "$n" = "0" ] || { echo "::error::$n branche(s) """ + SERIES_BRANCHES + """* au depot prive : le passage precedent n'est pas range (le Chat range le releve, puis supprime ces branches)"; exit 1; }
-"""
+# `depart_pour(…, apres_le_clonage=…)`. Ils n'emploient que bash, git et des dossiers neufs ou vides.
+# LA GARDE « rien_en_attente » EST RETIRÉE (relevé du Chat n°347, Q4 = 3 : option « retirer la garde
+# rien_en_attente », choisie par le Chat le 08-11-2026 sous la délégation de Jean-Luc ; ces mots sont ceux de l'option,
+# pas ceux de Jean-Luc) : elle refusait un passage tant qu'une branche series-longues/* restait au
+# privé, et la session du Chat ne peut supprimer aucune branche (n°331, trois voies essayées, refusées) ; le second
+# passage aurait donc toujours été refusé. Elle n'était pas nécessaire à la sécurité : chaque nom de branche porte le
+# numéro du passage, deux passages ne se touchent pas. Son texte reste dans l'historique du dépôt (commit 791d317d).
 # La garde des parts vient AVANT la lecture des parts (rien n'est lu si une part n'est pas verte) : sous « bash » et
 # sans programme de la version, elle peut précéder le clonage du public ; elle lit « needs.jouer.result » (propriété ⑤
 # du filet des gabarits).
@@ -1133,20 +1142,115 @@ SERIES_LIRE_LES_PARTS = """      - name: Lire les parts sur leurs branches
           echo "$n part(s) lue(s)"
 """
 
+# LA TABLE DES SÉRIES DU CIRCUIT (décision de Jean-Luc n°309 du 07-11-2026, « 1 » : « une seule table qui dit, pour
+# chaque série, quelle épreuve jouer et avec quels réglages ; tout le circuit est fabriqué depuis cette table »). Elle
+# vit dans tests/LANCEMENT_DES_EPREUVES.json (LANCEMENT) : une entrée de « series_hors_de_la_nuit » qui porte
+# « serie_du_circuit » est une série du circuit. Avant le 08-11-2026, le lien série → épreuve était tapé deux fois à la
+# main dans le pas « Fabriquer la matrice » (motif "HISTORIQUE_LONG" / "COURS_PROPRE_DE_YAHOO", défaut NV-1 : une
+# demande « HL » pouvait jouer l'épreuve Yahoo sans qu'aucune épreuve ne rougisse, relevé n°298).
+TOUTES = "toutes"                   # le choix du bouton et d'une demande qui joue chaque série de la table
+CODE_DE_SERIE = r"[A-Za-z][A-Za-z0-9]{0,19}"
+SERIES_AU_PLUS = 4                  # 2 + 2 × 4 = 10 entrées du bouton : la limite de GitHub lue le 05-11-2026 est 10
+
+
+def series_du_circuit(racine=None):
+    """Rend les séries du circuit lues dans la table : [(code, épreuve, machines, lot), …], dans l'ordre de la table.
+
+    ① RÔLE — Lire UNE fois la table des séries, pour que le bouton du circuit des séries, sa matrice et le relais des
+      demandes en soient fabriqués (décision n°309).
+    ② CONTEXTE D'APPEL — Le haut de ce programme, une fois, pour SERIES_DU_CIRCUIT (lu par les gabarits SERIES et
+      RELAIS) ; l'épreuve tests/EPREUVES_DU_RELAIS_DES_SERIES_Dim_08-11-2026.py, pour sa table de référence.
+    ③ ENTRÉE — `racine` : la racine du dépôt ; None = le dossier parent de celui de ce programme.
+    ④ CONDITIONS D'ENTRÉE — `racine`/tests/LANCEMENT_DES_EPREUVES.json existe et se lit en UTF-8.
+    ⑤ SORTIE — UNE valeur : la liste des quadruplets (code : texte ; épreuve : chemin relatif ; machines, lot :
+      entiers). Lève ValueError si la table ne convient pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — pour chaque entrée de « series_hors_de_la_nuit » qui porte « serie_du_circuit » : le chemin de
+      l'épreuve a la forme tests/<lettres, chiffres, « _ . - »>.py ; le code répond à CODE_DE_SERIE et n'est pas
+      TOUTES ; machines et lot sont des entiers (pas des booléens) de 1 à 99 ; deux codes ne se ressemblent pas à la
+      casse près (les entrées du bouton sont nommées en minuscules, les variables en majuscules) ; au moins une série,
+      au plus SERIES_AU_PLUS.
+    ⑦ UNITÉ — machines : des machines de GitHub ; lot : des sabotages par lot.
+    ⑧ POURQUOI — Décision n°309 ; un réglage écrit à deux endroits finit par différer (R-708). Les formes sont
+      vérifiées ICI parce que les valeurs deviennent du texte du circuit (noms d'entrées, de variables, choix du
+      bouton) : un code avec une espace ou un guillemet casserait le fichier fabriqué.
+    ⑨ CE QUI CLOCHE — La limite de 10 entrées du bouton est celle lue dans la documentation de GitHub le 05-11-2026
+      (relevé du 05-11-2026), pas mesurée par un passage. L'existence du fichier de l'épreuve n'est pas vérifiée ici :
+      le pas « Fabriquer la matrice » la vérifie sur la version jouée.
+    ⑩ EFFET — Lit la table.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    racine = racine or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    with open(os.path.join(racine, LANCEMENT), encoding="utf-8") as f:
+        table = json.load(f)
+    series, vus = [], set()
+    for epreuve, e in (table.get("series_hors_de_la_nuit") or {}).items():
+        s = e.get("serie_du_circuit") if isinstance(e, dict) else None
+        if s is None:
+            continue
+        if not isinstance(s, dict) or not re.fullmatch(r"tests/[A-Za-z0-9_.-]+\.py", epreuve):
+            raise ValueError(f"série du circuit illisible pour {epreuve!r}")
+        code, machines, lot = s.get("code"), s.get("machines"), s.get("lot")
+        if not isinstance(code, str) or not re.fullmatch(CODE_DE_SERIE, code) or code.lower() == TOUTES:
+            raise ValueError(f"code de série refusé pour {epreuve} : {code!r}")
+        for nom, v in (("machines", machines), ("lot", lot)):
+            if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= 99:
+                raise ValueError(f"{nom} refusé pour la série {code} : {v!r} (entier de 1 à 99)")
+        if code.lower() in vus:
+            raise ValueError(f"code de série en double (à la casse près) : {code}")
+        vus.add(code.lower())
+        series.append((code, epreuve, machines, lot))
+    if not 1 <= len(series) <= SERIES_AU_PLUS:
+        raise ValueError(f"{len(series)} série(s) du circuit dans la table (1 à {SERIES_AU_PLUS})")
+    return series
+
+
+# Une table illisible n'empêche pas d'IMPORTER ce programme (tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py en lit
+# FICHIERS_DE_COMMANDES_DE_GITHUB, sur des dépôts d'essai sans séries) : SERIES et RELAIS valent alors None, et `main`
+# refuse de fabriquer (ERREUR_DE_LA_TABLE).
+try:
+    SERIES_DU_CIRCUIT, ERREUR_DE_LA_TABLE = series_du_circuit(), None
+except (OSError, ValueError) as _e:
+    SERIES_DU_CIRCUIT, ERREUR_DE_LA_TABLE = [], f"{type(_e).__name__} : {_e}"
+# Les morceaux du circuit des séries tirés de la table (une boucle chacun, sur la même liste) :
+# les entrées du bouton, et l'environnement du pas « Fabriquer la matrice ».
+SERIES_ENTREES = ("""      serie:
+        description: "Serie a jouer (""" + TOUTES + """ : chaque serie de la table)"
+        required: true
+        type: choice
+        options: [""" + ", ".join('"%s"' % c for c in [TOUTES] + [s[0] for s in SERIES_DU_CIRCUIT]) + """]
+        default: \"""" + TOUTES + """\"
+""" + "".join("""      parts_%s:
+        description: "Nombre de machines pour la serie %s (1 a 99)"
+        type: number
+        default: %d
+      lot_%s:
+        description: "Sabotages par lot pour la serie %s (1 a 99 ; le changer change les lignes lot k du releve)"
+        type: number
+        default: %d
+""" % (c.lower(), c, n, c.lower(), c, l) for c, _, n, l in SERIES_DU_CIRCUIT))
+SERIES_ENV_MATRICE = "".join("          PARTS_%s: ${{ inputs.parts_%s }}\n          LOT_%s: ${{ inputs.lot_%s }}\n"
+                             % (c.upper(), c.lower(), c.upper(), c.lower()) for c, _, _, _ in SERIES_DU_CIRCUIT)
+
+
 SERIES = """# SERIES LONGUES DE SABOTAGES, EN PARALLELE — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
-# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement. Lancé à la main seulement.
+# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement. Lancé par le bouton « Run workflow »,
+# ou par le relais .github/workflows/demande_de_serie.yml, qui appuie sur ce même bouton (une seule porte d'entrée).
+# LA TABLE (décision de Jean-Luc n°309 du 07-11-2026) : les séries, leurs épreuves, leurs nombres de machines et leurs
+# tailles de lot par défaut viennent de tests/LANCEMENT_DES_EPREUVES.json (« serie_du_circuit » d'une entrée de
+# « series_hors_de_la_nuit ») ; les entrées du bouton, leurs valeurs par défaut et la matrice en sont fabriquées.
 # À QUOI IL SERT. Rejouer les séries de sabotages trop longues pour la machine du Chat (historique long « HL », cours
 # propre de Yahoo) sur des machines de ce dépôt public, puis réunir les parts en UN relevé écrit par
-# tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py lui-même. « parts_hl » = 1 joue HL d'un seul tenant (mesure de durée).
-# LE DÉCOUPAGE (05-11-2026) : « lot_hl » et « lot_yahoo » sont ceux des relevés de la machine (HL : 36 lots de 6 ;
-# Yahoo : 2 lots de 21, valeur par défaut du joueur) ; le changer change les lignes « lot k » du relevé. LE DISQUE :
+# tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py lui-même. « parts_<série> » = 1 joue la série d'un seul tenant.
+# LE DÉCOUPAGE (05-11-2026) : les lots par défaut sont ceux des relevés de la machine (la table) ; changer « lot_<série> »
+# change les lignes « lot k » du relevé. LE DISQUE :
 # 14 Go par machine (documentation GitHub lue le 05-11-2026) et environ 2,4 Go par lot HL joué (mesuré le 04-11-2026) ;
 # avec « parts_hl » = 18, une machine joue 2 lots, soit environ 4,8 Go. Un disque plein ne donne jamais « mord » : le
 # joueur déclare NON CONFORME tout lot dont la sortie porte une trace d'erreur système.
 # CE QU'IL FAIT. ① « preparer » clone la version demandée, vérifie aussitôt, avant tout code de la version, qu'elle est
-# la branche publique lancée (voir « LA VERSION ÉPROUVÉE » plus bas) et refuse de partir si une branche
-# %(branches)s* attend encore au dépôt privé ; puis il lit la
-# série dans tests/LANCEMENT_DES_EPREUVES.json (series_hors_de_la_nuit), date le relevé à l'heure de Paris, note le
+# la branche publique lancée (voir « LA VERSION ÉPROUVÉE » plus bas) ; puis il lit l'épreuve de chaque série par son
+# code dans tests/LANCEMENT_DES_EPREUVES.json (« serie_du_circuit »), date le relevé à l'heure de Paris, note le
 # commit du dépôt privé, fabrique la matrice. ② « jouer » : une machine par part, sur CE commit, réseau coupé
 # (tests/outils/jouer_une_part.py). ③ « rassembler » : une machine par série, et SEULEMENT si toutes les parts sont
 # vertes (tests/outils/rassembler_les_parts.py), sur ce même commit.
@@ -1155,19 +1259,16 @@ SERIES = """# SERIES LONGUES DE SABOTAGES, EN PARALLELE — FICHIER FABRIQUÉ, N
 # OÙ VONT LES RÉSULTATS : AU DÉPÔT PRIVÉ, jamais sur main, jamais en archive jointe (lisible par tous ici). Chaque job
 # pousse UNE fois sur SA branche : %(branches)s<passage>/<série>/part_<n> pour une part,
 # %(branches)s<passage>/<série>/releve pour le relevé (dans rapports/series_longues/<passage>/<série>/sortie/).
-# LE MÉNAGE : le Chat lit le relevé, le range dans tests/resultats/ de la version éprouvée, puis supprime TOUTES les branches
-# %(branches)s* du dépôt privé. Tant qu'il en reste une, le passage suivant refuse de partir.
+# LE MÉNAGE : le Chat lit le relevé et le range dans tests/resultats/ de la version éprouvée. Les branches
+# %(branches)s* restent au dépôt privé et se rangent plus tard (choix n°347, Q4 = 3 : la garde qui refusait un passage
+# tant qu'il en restait une est retirée, la session du Chat ne pouvant supprimer aucune branche).
 # PAS DE RELANCE. Un passage rouge NE SE RELANCE PAS, ni par « Re-run failed jobs », ni par « Re-run all jobs ».
 # Pourquoi : chaque job a déjà poussé sa branche (le dépôt tourne même après un échec) ; une nouvelle tentative du même
 # job vise la même branche, et sa poussée est refusée, car elle n'est jamais forcée (MODE_EMPLOI_DEPOT.md, règle
-# absolue : jamais de poussée forcée, le seul geste qui puisse détruire le travail d'un autre) ; et « preparer » refuse de partir
-# tant qu'une branche %(branches)s* existe, y compris celles du passage lui-même. Le message affiché alors (« POUSSEE
-# REFUSEE » ou « le passage precedent n'est pas range ») ne dit pas cette cause.
-# LA MARCHE À SUIVRE : le Chat lit les branches du passage rouge (journaux) ; il vérifie qu'aucun passage ne tourne ; il
-# supprime TOUTES les branches %(branches)s* ; puis Jean-Luc lance un NOUVEAU passage.
-# LA GARDE « rien_en_attente » (pas « Aucun passage precedent n'attend-il d'etre range ? ») n'est pas nécessaire à la
-# sécurité : chaque nom de branche porte le numéro du passage, deux passages ne se touchent pas. Elle rend visible un
-# ménage oublié, sans coût. Elle est gardée pour cela.
+# absolue : jamais de poussée forcée, le seul geste qui puisse détruire le travail d'un autre). Le message affiché alors
+# (« POUSSEE REFUSEE ») ne dit pas cette cause.
+# LA MARCHE À SUIVRE : le Chat lit les branches du passage rouge (journaux) ; il vérifie qu'aucun passage ne tourne ;
+# puis un NOUVEAU passage est lancé (bouton, ou nouvelle demande au relais) : son numéro est neuf, ses branches aussi.
 # LA VERSION ÉPROUVÉE (décision de Jean-Luc du 05-11-2026 à 13h36, « 2 ») : l'entrée « version » nomme la version du
 # dépôt privé à éprouver, « main » (la version officielle) ou la version en attente « travail-… », AVANT sa fusion. Le
 # circuit se lance depuis la branche de CE dépôt public qui porte le même nom, où le Chat a publié le code de cette
@@ -1191,29 +1292,7 @@ on:
         required: true
         type: string
         default: "main"
-      serie:
-        description: "Serie a jouer"
-        required: true
-        type: choice
-        options: ["les deux", "HL", "Yahoo"]
-        default: "les deux"
-      parts_hl:
-        description: "Nombre de machines pour la serie HL (1 a 99 ; 18 = 2 lots par machine, pour le disque de 14 Go)"
-        type: number
-        default: 18
-      parts_yahoo:
-        description: "Nombre de machines pour la serie Yahoo (1 a 99)"
-        type: number
-        default: 2
-      lot_hl:
-        description: "Sabotages par lot pour HL (6 = decoupage du releve de la machine ; le changer change le releve)"
-        type: number
-        default: 6
-      lot_yahoo:
-        description: "Sabotages par lot pour Yahoo (21 = decoupage du releve de la machine ; le changer change le releve)"
-        type: number
-        default: 21
-concurrency:
+%(entrees)sconcurrency:
   group: series-longues
   cancel-in-progress: false
 permissions:
@@ -1231,22 +1310,18 @@ jobs:
         id: matrice
         env:
           SERIE: ${{ inputs.serie }}
-          PARTS_HL: ${{ inputs.parts_hl }}
-          PARTS_YAHOO: ${{ inputs.parts_yahoo }}
-          LOT_HL: ${{ inputs.lot_hl }}
-          LOT_YAHOO: ${{ inputs.lot_yahoo }}
-        run: |
+%(env_matrice)s        run: |
           set -u -o pipefail
           echec () { echo "::error::$1"; exit 1; }
-          case "$SERIE" in
-            "HL") choix="HL" ;;
-            "Yahoo") choix="Yahoo" ;;
-            "les deux") choix="HL Yahoo" ;;
-            *) echec "serie inconnue : $SERIE" ;;
-          esac
-          for v in "$PARTS_HL" "$PARTS_YAHOO" "$LOT_HL" "$LOT_YAHOO"; do
-            [[ "$v" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse : $v (1 a 99)"
+          codes="%(codes)s"
+          choix=""
+          for c in $codes; do
+            if [ "$SERIE" = "%(toutes)s" ] || [ "$SERIE" = "$c" ]; then choix="$choix $c"; fi
+            vp="PARTS_${c^^}"; vl="LOT_${c^^}"
+            [[ "${!vp}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vp : ${!vp} (1 a 99)"
+            [[ "${!vl}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vl : ${!vl} (1 a 99)"
           done
+          [ -n "$choix" ] || echec "serie inconnue : $SERIE"
           interdits=$(python3 -B tests/outils/jouer_une_part.py --interdits) || echec "liste des programmes interdits illisible"
           [ -n "$interdits" ] || echec "liste des programmes interdits vide"
           table=tests/LANCEMENT_DES_EPREUVES.json
@@ -1256,9 +1331,9 @@ jobs:
           horodatage="${jours[$u]}_${jour_heure}"
           series='[]'; matrice='[]'
           for s in $choix; do
-            if [ "$s" = "HL" ]; then motif="HISTORIQUE_LONG"; n="$PARTS_HL"; l="$LOT_HL"; else motif="COURS_PROPRE_DE_YAHOO"; n="$PARTS_YAHOO"; l="$LOT_YAHOO"; fi
-            cles=$(jq -r --arg m "$motif" '.series_hors_de_la_nuit | keys[] | select(contains($m))' "$table") || echec "table illisible"
-            [ "$(printf '%%s\\n' "$cles" | grep -c .)" = "1" ] || echec "serie $s : il faut exactement une epreuve dont le nom contient $motif, trouve : ${cles:-aucune}"
+            vp="PARTS_${s^^}"; vl="LOT_${s^^}"; n="${!vp}"; l="${!vl}"
+            cles=$(jq -r --arg c "$s" '.series_hors_de_la_nuit | to_entries[] | select((.value | type) == "object" and (.value.serie_du_circuit | type) == "object" and .value.serie_du_circuit.code == $c) | .key' "$table") || echec "table illisible"
+            [ "$(printf '%%s\\n' "$cles" | grep -c .)" = "1" ] || echec "serie $s : il faut exactement une epreuve de code $s dans la table, trouve : ${cles:-aucune}"
             epreuve="$cles"
             if grep -qxF -- "${epreuve##*/}" <<<"$interdits"; then echec "epreuve interdite dans ce circuit : $epreuve"; fi
             [ -f "$epreuve" ] || echec "epreuve absente : $epreuve"
@@ -1339,8 +1414,11 @@ jobs:
 %(deposer_final)s""" % {
     "defaults": DEFAULTS, "installer": INSTALLER_LA_MESURE, "en_meme_temps": PARTS_EN_MEME_TEMPS,
     "branches": SERIES_BRANCHES,
+    "entrees": SERIES_ENTREES, "env_matrice": SERIES_ENV_MATRICE, "toutes": TOUTES,
+    "codes": " ".join(s[0] for s in SERIES_DU_CIRCUIT),
     "depart_version": depart_pour(os.path.basename(CIRCUIT_SERIES), "des series longues",
-                                  apres_le_clonage=SERIES_VERSION + SERIES_RIEN_EN_ATTENTE, ref="${{ inputs.version }}"),
+                                  apres_le_clonage=SERIES_VERSION, ref="${{ inputs.version }}",
+                                  aussi=("demande_de_serie.yml",)),
     "depart_fige": depart_pour(os.path.basename(CIRCUIT_SERIES), "des series longues",
                                ref="${{ needs.preparer.outputs.sha }}"),
     "depart_rassembler": depart_pour(os.path.basename(CIRCUIT_SERIES), "des series longues",
@@ -1373,6 +1451,188 @@ jobs:
         "          done\n",
         auteur=SERIES_IDENTITE, message="series longues de sabotages, le releve", reste="le releve",
         branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/releve", valeurs=(("SERIE", "${{ matrix.serie }}"),))}
+
+
+# LE RELAIS DES DEMANDES DE SÉRIE (méthode du bloc 2 du 08-11-2026, action 4 ; options choisies par le Chat sous la
+# délégation de Jean-Luc, relevé du Chat n°347 — les mots cités sont ceux des options : Q1 = 1 « le relais », Q2 = 1 « la version est le nom de la branche », Q5 = 1 « actions: write pour le
+# seul relais, sans secret ni clone du privé, vérifié par le filet », Q7 = 1 « séries seulement »). Le Chat dépose un
+# fichier demandes/DEMANDE_<AAAA-MM-JJ_HHhMM>.txt, seul, dans un commit à lui, sur la branche publique de la version
+# (main ou travail-…), APRÈS la publication du code ; le relais le lit, le valide et appuie sur le bouton du circuit
+# des séries à la place de Jean-Luc (`gh workflow run`), avec le jeton propre du passage (geste prouvé par le passage
+# 42384101504 du 07-11-2026, lancé par github-actions[bot] : relevé n°324). Le circuit des séries garde UNE porte.
+# LE FICHIER DE DEMANDE, ASCII, une clé par ligne, « cle=valeur » sans espace ; lignes vides et lignes « # … »
+# ignorées ; chaque clé au plus une fois ; « serie » obligatoire (TOUTES ou un code de la table) ; « parts_<code> » et
+# « lot_<code> » (1 à 99) facultatifs, sinon la valeur de la table ; « a_blanc » (oui/non, non par défaut) : « oui »
+# écrit au journal ce qui aurait été lancé, et ne lance rien. Exemple :
+#   serie=Yahoo
+#   parts_yahoo=2
+#   a_blanc=oui
+CIRCUIT_RELAIS = os.path.join(".github", "workflows", "demande_de_serie.yml")
+NOM_DE_DEMANDE = r"^demandes/DEMANDE_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}[.]txt$"
+# LES CIRCUITS QUE LE RELAIS PEUT LANCER — une ligne par circuit : (son nom dans la demande, « circuit=… » ; son fichier ;
+# le motif des branches d'où il se lance). Ajout du 08-11-2026 à 18h06, décision de Jean-Luc (« Ok vas y ») : le
+# relais lance aussi l'examen de certification à la demande, parce que, prévu à 22h, GitHub le démarre entre 1h et
+# 3h45 (2 à 5 h d'attente par nuit), alors qu'un lancement à la main du 07-11-2026 a démarré aussitôt. L'examen n'a
+# pas d'entrée : il clone la version officielle du dépôt privé (son clonage ne porte pas « ref: »), il ne se lance
+# donc que depuis main. Seul le circuit des séries reçoit des réglages (serie, parts_<code>, lot_<code>).
+CIRCUITS_DU_RELAIS = (("series", os.path.basename(CIRCUIT_SERIES), MOTIF_DE_VERSION),
+                      ("examen", os.path.basename(CIRCUIT_CERTIFICATION), "^main$"))
+TAILLE_DE_DEMANDE = 1000          # octets au plus
+
+
+def _relais_par_serie(modele):
+    """Rend `modele` répété pour chaque série de la table, %(c)s = le code, %(m)s = minuscules, %(M)s = majuscules,
+    %(n)s et %(l)s = machines et lot par défaut, %(t)s = TOUTES.
+
+    ① RÔLE — Fabriquer une ligne du relais par série, toutes depuis la même boucle.
+    ② CONTEXTE D'APPEL — La construction de RELAIS, quatre fois.
+    ③ ENTRÉE — `modele` : un texte à clés %(…)s.
+    ④ CONDITIONS D'ENTRÉE — SERIES_DU_CIRCUIT est lue.
+    ⑤ SORTIE — UNE valeur : le texte. [rend: 1]
+    ⑥ TRAITEMENT — une copie de `modele` par série, dans l'ordre de la table, mises bout à bout.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Décision n°309 (tout est fabriqué depuis la table) ; un même modèle pour les quatre usages : un code
+      ne peut pas recevoir la valeur d'un autre.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    return "".join(modele % {"c": c, "m": c.lower(), "M": c.upper(), "n": n, "l": l, "t": TOUTES}
+                   for c, _, n, l in SERIES_DU_CIRCUIT)
+
+
+RELAIS = """# DEMANDE DE SERIE — LE RELAIS — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
+# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement.
+# À QUOI IL SERT. Lancer le circuit des séries longues (series_longues.yml), ou l'examen de certification
+# (certifier_la_version.yml, depuis main, ajout du 08-11-2026 décidé par Jean-Luc à 18h06), sans que Jean-Luc clique
+# sur « Run workflow » : le Chat dépose un fichier de demande (« circuit=series » ou « circuit=examen »), ce relais le
+# lit, le valide et appuie sur le bouton du circuit demandé à sa place (table CIRCUITS_DU_RELAIS du fabricant).
+# CE QU'IL FAIT, DANS L'ORDRE : ① la poussée doit porter UN commit, dont le parent est la pointe d'avant, qui AJOUTE UN
+# seul fichier, demandes/DEMANDE_<AAAA-MM-JJ_HHhMM>.txt (une publication de code ne lance donc jamais rien) ; ② le fichier
+# est lu en ASCII strict, une clé par ligne, clés connues seulement, valeurs validées par des motifs tirés de la table
+# des séries (tests/LANCEMENT_DES_EPREUVES.json) ; ③ aucun passage du circuit des séries ne doit être en cours ou en
+# attente (GitHub n'en garde qu'un en attente par groupe : un troisième ferait disparaître le deuxième sans message) ;
+# ④ « a_blanc=oui » : il écrit au journal ce qu'il aurait lancé et s'arrête ; sinon il lance le circuit des séries
+# sur CETTE branche, version = nom de la branche, chaque valeur passée explicitement (celles absentes de la demande
+# prennent la valeur de la table).
+# CE QU'IL N'A PAS : aucune clé du dépôt privé, aucun clonage du privé, aucun programme de la version lancé (seulement
+# des commandes du système et gh) ; permissions : lire le dépôt, lancer un circuit. Ce texte a été relu ; le
+# fabricant refuse de publier un relais qui n'est pas ce texte, octet pour octet (empreinte), et tout autre circuit
+# qui porterait la permission de lancer.
+name: Demande de serie (relais)
+on:
+  push:
+    paths:
+      - "demandes/**"
+concurrency:
+  group: demande-de-serie
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: write
+jobs:
+  relayer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Lire la demande, la valider, appuyer sur le bouton
+        id: relayer
+        shell: bash
+        env:
+          AVANT: ${{ github.event.before }}
+          APRES: ${{ github.sha }}
+          BRANCHE: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u -o pipefail
+          export LC_ALL=C
+          [[ "$BRANCHE" =~ """ + MOTIF_DE_VERSION + """ ]] || { echo "::error::DEMANDE REFUSEE : branche $BRANCHE (main, ou une version en attente travail-...)"; exit 1; }
+          [[ "$AVANT" =~ ^[0-9a-f]{40}$ ]] && [[ "$AVANT" =~ [1-9a-f] ]] || { echo "::error::DEMANDE REFUSEE : pas de pointe d'avant (branche creee par cette poussee ?) : publier le code d'abord, puis la demande seule"; exit 1; }
+          parent=$(git rev-parse -q --verify "$APRES^1") || { echo "::error::DEMANDE REFUSEE : commit sans parent lisible"; exit 1; }
+          [ "$parent" = "$AVANT" ] || { echo "::error::DEMANDE REFUSEE : la poussee porte plus d'un commit ; la demande se depose seule, dans un commit a elle"; exit 1; }
+          [ -z "$(git rev-parse -q --verify "$APRES^2" || true)" ] || { echo "::error::DEMANDE REFUSEE : commit de fusion"; exit 1; }
+          changes=$(git diff-tree --no-commit-id --no-renames -r --name-status "$AVANT" "$APRES") || { echo "::error::DEMANDE REFUSEE : changements illisibles"; exit 1; }
+          [ "$(printf '%s\\n' "$changes" | grep -c .)" = "1" ] || { echo "::error::DEMANDE REFUSEE : la poussee doit ajouter UN seul fichier, sous demandes/ ; elle en touche $(printf '%s\\n' "$changes" | grep -c .)"; exit 1; }
+          statut=$(printf '%s\\n' "$changes" | cut -f1)
+          fichier=$(printf '%s\\n' "$changes" | cut -f2-)
+          [ "$statut" = "A" ] || { echo "::error::DEMANDE REFUSEE : le fichier n'est pas ajoute (etat $statut)"; exit 1; }
+          [[ "$fichier" =~ """ + NOM_DE_DEMANDE + """ ]] || { echo "::error::DEMANDE REFUSEE : nom refuse (demandes/DEMANDE_AAAA-MM-JJ_HHhMM.txt)"; exit 1; }
+          taille=$(git cat-file -s "$APRES:$fichier") || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
+          [[ "$taille" =~ ^[0-9]{1,4}$ ]] && [ "$taille" -le """ + str(TAILLE_DE_DEMANDE) + """ ] || { echo "::error::DEMANDE REFUSEE : plus de """ + str(TAILLE_DE_DEMANDE) + """ octets"; exit 1; }
+          D=$(mktemp -d)
+          git cat-file blob "$APRES:$fichier" > "$D/demande.txt" || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
+          hors=$(tr -d ' -~\\n' < "$D/demande.txt" | wc -c)
+          [ "$hors" = "0" ] || { echo "::error::DEMANDE REFUSEE : $hors octet(s) hors de l'ASCII imprimable (accent, tabulation, retour chariot, caractere de controle)"; exit 1; }
+          vus=" "
+          CIRCUIT=""
+          SERIE=""
+          A_BLANC="non"
+""" + _relais_par_serie("""          PARTS_%(M)s=%(n)d
+          LOT_%(M)s=%(l)d
+""") + """          while IFS= read -r ligne || [ -n "$ligne" ]; do
+            [ -n "$ligne" ] && [[ "$ligne" != "#"* ]] || continue
+            [[ "$ligne" =~ ^([a-z_]{1,20})=([A-Za-z0-9]{1,20})$ ]] || { echo "::error::DEMANDE REFUSEE : ligne illisible (cle=valeur, lettres et chiffres, sans espace) : ${ligne:0:80}"; exit 1; }
+            cle="${BASH_REMATCH[1]}"
+            valeur="${BASH_REMATCH[2]}"
+            [[ "$vus" != *" $cle "* ]] || { echo "::error::DEMANDE REFUSEE : cle donnee deux fois : $cle"; exit 1; }
+            vus="$vus$cle "
+            if [ "$cle" = "circuit" ]; then
+              [[ "$valeur" =~ ^(""" + "|".join(c[0] for c in CIRCUITS_DU_RELAIS) + """)$ ]] || { echo "::error::DEMANDE REFUSEE : circuit inconnu : $valeur"; exit 1; }
+              CIRCUIT="$valeur"
+            elif [ "$cle" = "serie" ]; then
+              [[ "$valeur" =~ ^(""" + "|".join([TOUTES] + [s[0] for s in SERIES_DU_CIRCUIT]) + """)$ ]] || { echo "::error::DEMANDE REFUSEE : serie inconnue : $valeur"; exit 1; }
+              SERIE="$valeur"
+            elif [ "$cle" = "a_blanc" ]; then
+              [[ "$valeur" =~ ^(oui|non)$ ]] || { echo "::error::DEMANDE REFUSEE : a_blanc vaut oui ou non : $valeur"; exit 1; }
+              A_BLANC="$valeur"
+""" + _relais_par_serie("""            elif [ "$cle" = "parts_%(m)s" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : parts_%(m)s de 1 a 99 : $valeur"; exit 1; }
+              PARTS_%(M)s="$valeur"
+            elif [ "$cle" = "lot_%(m)s" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_%(m)s de 1 a 99 : $valeur"; exit 1; }
+              LOT_%(M)s="$valeur"
+""") + """            else
+              echo "::error::DEMANDE REFUSEE : cle inconnue : $cle"
+              exit 1
+            fi
+          done < "$D/demande.txt"
+          [ -n "$CIRCUIT" ] || { echo "::error::DEMANDE REFUSEE : la cle circuit manque (""" + " ou ".join(c[0] for c in CIRCUITS_DU_RELAIS) + """)"; exit 1; }
+          FICHIER=""
+""" + "".join("""          if [ "$CIRCUIT" = "%s" ]; then
+            FICHIER="%s"
+            [[ "$BRANCHE" =~ %s ]] || { echo "::error::DEMANDE REFUSEE : le circuit %s ne se lance pas depuis la branche $BRANCHE"; exit 1; }
+          fi
+""" % (c, f, m, c) for c, f, m in CIRCUITS_DU_RELAIS) + """          [ -n "$FICHIER" ] || { echo "::error::DEMANDE REFUSEE : circuit sans fichier : $CIRCUIT"; exit 1; }
+          if [ "$CIRCUIT" != "series" ]; then
+            [ "$vus" = " circuit " ] || [ "$vus" = " circuit a_blanc " ] || [ "$vus" = " a_blanc circuit " ] || { echo "::error::DEMANDE REFUSEE : le circuit $CIRCUIT ne prend aucun reglage (seulement circuit et a_blanc) :$vus"; exit 1; }
+          fi
+          [ "$CIRCUIT" != "series" ] || [ -n "$SERIE" ] || { echo "::error::DEMANDE REFUSEE : la cle serie manque"; exit 1; }
+""" + _relais_par_serie("""          if [[ "$vus" == *" parts_%(m)s "* || "$vus" == *" lot_%(m)s "* ]] && [ "$SERIE" != "%(t)s" ] && [ "$SERIE" != "%(c)s" ]; then
+            echo "::error::DEMANDE REFUSEE : elle regle la serie %(c)s, qu'elle ne joue pas (serie $SERIE)"
+            exit 1
+          fi
+""") + """          en_cours=$(gh run list --workflow "$FICHIER" --limit 100 --json status --jq '[.[] | select(.status != "completed")] | length') || { echo "::error::DEMANDE REFUSEE : passages de $FICHIER illisibles"; exit 1; }
+          [ "$en_cours" = "0" ] || { echo "::error::DEMANDE REFUSEE : $en_cours passage(s) de $FICHIER en cours ou en attente ; redeposer la demande quand ils sont finis"; exit 1; }
+          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; serie $SERIE""" + _relais_par_serie(" ; parts_%(m)s $PARTS_%(M)s ; lot_%(m)s $LOT_%(M)s") + """ ; a blanc $A_BLANC"
+          if [ "$A_BLANC" = "oui" ]; then
+            echo "A BLANC : rien n'est lance"
+            exit 0
+          fi
+          if [ "$CIRCUIT" != "series" ]; then
+            gh workflow run "$FICHIER" --ref "$BRANCHE" || { echo "::error::le circuit $FICHIER n'a pas pu etre lance"; exit 1; }
+            echo "LANCE : $FICHIER sur $BRANCHE"
+            exit 0
+          fi
+          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "serie=$SERIE\"""" + _relais_par_serie(""" -f "parts_%(m)s=$PARTS_%(M)s" -f "lot_%(m)s=$LOT_%(M)s\"""") + """ || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
+          echo "LANCE : $FICHIER sur $BRANCHE"
+"""
+if ERREUR_DE_LA_TABLE:
+    SERIES = RELAIS = None
 
 
 # LE FILET DES GABARITS PUBLICS (superviseur R-759 du 04-11-2026, R3 ; relecture du 04-11-2026 à 19h53, I3 : quatre
@@ -1594,7 +1854,9 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
       une action de ACTIONS_PERMISES ou un pas « shell: bash » dont chaque commande est dans COMMANDES_DU_SYSTEME ; un
       pas à jeton placé après le premier pas qui en exécute est refusé, sauf s'il est le DERNIER pas de son job et
       qu'il porte « git push » · ⑩ (tour 5) le script (« run: | ») d'un pas à jeton ne porte aucune expression
-      « ${{ ».
+      « ${{ ». · ⑪ (08-11-2026) « actions: write » n'est admis qu'au premier niveau, avec « contents: read », et
+      alors le gabarit doit passer `verifier_un_relais` (choix n°347, Q5 = 1) · ⑫ (08-11-2026, NV-1) aucun gabarit
+      ne porte la souche du nom d'une épreuve de série de la table (`souches_des_epreuves`).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Superviseur R-759 du 04-11-2026, R3 : étendre le filet existant plutôt qu'écrire un second contrôle,
       par des propriétés (SI JE RENOMME UN PAS, LE CONTRÔLE NE CHANGE PAS D'AVIS). ⑥ ④ : programmes/MESSAGE_DU_SOIR.py
@@ -1691,10 +1953,17 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
                     break
                 if suite.strip():
                     bloc.append(suite.strip())
-            if bloc != ["contents: read"]:
-                raise ValueError(f"gabarit {nom} : permissions {bloc} (seul « contents: read » est permis)")
+            if bloc == ["contents: read", "actions: write"] and not m.group(1):
+                verifier_un_relais(nom, texte)    # Q5 = 1 (relevé n°347) : le seul relais, sous conditions
+            elif bloc != ["contents: read"]:
+                raise ValueError(f"gabarit {nom} : permissions {bloc} (seul « contents: read » est permis, et "
+                                 "« actions: write » au premier niveau pour un relais)")
         if RESUME_PUBLIC in texte:
             raise ValueError(f"gabarit {nom} : le résumé public du passage ({RESUME_PUBLIC})")
+        for souche in souches_des_epreuves():   # NV-1 (08-11-2026) : le lien série → épreuve vient de la table
+            if souche in texte:
+                raise ValueError(f"gabarit {nom} : il nomme l'épreuve d'une série (« {souche} ») : le lien série → "
+                                 "épreuve se lit dans la table (serie_du_circuit), jamais tapé dans un gabarit")
         les_miennes = identites(texte)
         if "git commit" in texte and not les_miennes:
             raise ValueError(f"gabarit {nom} : il commite sans identité déclarée (user.name)")
@@ -1835,6 +2104,113 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
                     raise ValueError(f"gabarit {nom} : le jeton (« secrets ») ligne {i + 1} hors des deux places permises "
                                      f"(clonage du privé, « env: » d'un pas permis) : {l.strip()[:100]}")
 
+
+def souches_des_epreuves():
+    """Rend la souche du nom de chaque épreuve de série de la table : « HISTORIQUE_LONG », « COURS_PROPRE_DE_YAHOO »…
+
+    ① RÔLE — Donner au filet ce qu'un lien série → épreuve tapé à la main écrirait (le défaut NV-1).
+    ② CONTEXTE D'APPEL — `verifier_les_gabarits_publics`, une fois par gabarit.
+    ③ ENTRÉE — — (SERIES_DU_CIRCUIT).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste des souches. [rend: 1]
+    ⑥ TRAITEMENT — le nom du fichier sans « .py », sans le préfixe « EPREUVES_ » suivi de « DE_L_ », « DE_LA_ »,
+      « DES_ », « DU_ » ou « DE_ », et sans la date finale « _Jjj_JJ-MM-AAAA ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le pas « Fabriquer la matrice » d'avant le 08-11-2026 cherchait l'épreuve par ces souches
+      (« HISTORIQUE_LONG », « COURS_PROPRE_DE_YAHOO ») : un gabarit qui les porte de nouveau a un lien tapé à la main.
+      Propriété et non liste : une série ajoutée à la table est couverte sans rien déclarer.
+    ⑨ CE QUI CLOCHE — Un morceau plus court de la souche (« LONG ») n'est pas vu.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    souches = []
+    for _, epreuve, _, _ in SERIES_DU_CIRCUIT:
+        s = re.sub(r"^EPREUVES_(?:DE_L_|DE_LA_|DES_|DU_|DE_)?", "", os.path.basename(epreuve)[:-3])
+        souches.append(re.sub(r"_[A-Z][a-z]{2}_[0-9]{2}-[0-9]{2}-[0-9]{4}$", "", s))
+    return souches
+
+
+# LA PROPRIÉTÉ DU RELAIS (superviseur R-759 du 08-11-2026, verdict « ARRÊTER ET SIMPLIFIER » ; réparation de fond
+# choisie par le Chat sous la délégation de Jean-Luc, n°347) : le relais publié est, OCTET POUR OCTET, le texte RELAIS
+# que fabrique ce programme — comparé par empreinte. Le gabarit RELAIS lui-même est relu une fois par un relecteur
+# (protocole de livraison) : aucun filet ne prétend juger tout YAML possible. Avant ce tour, une liste blanche de
+# commandes laissait passer awk system(), git -c alias / core.pager, gh extension install, tar --to-command
+# (essais du superviseur A3, A4, A9, A10, A13 : un relais qui exécute du code avec « actions: write » était ACCEPTÉ).
+# Et AUCUN autre circuit publié ne porte « actions: write » (ni « write-all ») : la permission de lancer un circuit
+# n'existe que dans ce fichier.
+EMPREINTE_DU_RELAIS = hashlib.sha256(RELAIS.encode("utf-8")).hexdigest() if RELAIS is not None else None
+PERMISSION_DE_LANCER = re.compile(r"""["']?actions["']?\s*:\s*["']?write\b|\bwrite-all\b""", re.I)
+
+
+def verifier_un_relais(nom, texte):
+    """Refuse un gabarit qui porte « actions: write » s'il n'est pas, octet pour octet, le relais fabriqué.
+
+    ① RÔLE — La condition de la permission « actions: write » (relevé n°347, Q5 = 1 ; réparation de fond du
+      superviseur R-759 du 08-11-2026).
+    ② CONTEXTE D'APPEL — `verifier_les_gabarits_publics`, quand un gabarit porte « actions: write » au premier niveau ;
+      `refus_des_circuits_publies`, pour chaque circuit publié qui porte la permission de lancer.
+    ③ ENTRÉE — `nom` : le nom du gabarit ou du fichier ; `texte` : son contenu.
+    ④ CONDITIONS D'ENTRÉE — RELAIS est fabriqué (table des séries lisible).
+    ⑤ SORTIE — Aucune valeur ; lève ValueError si l'empreinte diffère. [rend: rien]
+    ⑥ TRAITEMENT — sha256 du texte en UTF-8, comparé à EMPREINTE_DU_RELAIS.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Commentaire de EMPREINTE_DU_RELAIS : une propriété (« c'est le texte fabriqué ») au lieu d'une
+      énumération de commandes, qui laissait chaque tour trouver une nouvelle porte.
+    ⑨ CE QUI CLOCHE — Ce contrôle ne dit rien du gabarit RELAIS lui-même : sa sûreté repose sur sa relecture (une
+      fois, puis à chaque changement de son texte). Il ne protège pas un relais modifié À LA MAIN au dépôt public sans
+      passer par ce programme : celui-là tournerait avant tout contrôle ; seul le pas « circuit_a_jour » du circuit des
+      séries le verrait, après coup.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]
+    """
+    vue = hashlib.sha256(texte.encode("utf-8")).hexdigest()
+    if EMPREINTE_DU_RELAIS is None or vue != EMPREINTE_DU_RELAIS:
+        raise ValueError(f"relais {nom} : il porte la permission de lancer un circuit et n'est pas, octet pour octet, le "
+                         f"relais fabriqué (empreinte {vue[:16]}, attendue {(EMPREINTE_DU_RELAIS or '?')[:16]})")
+
+
+def refus_des_circuits_publies(public):
+    """Rend la liste des circuits du clone public qui portent la permission de lancer sans être le relais fabriqué.
+
+    ① RÔLE — Garder la permission « actions: write » dans le SEUL relais, dans tous les circuits publiés.
+    ② CONTEXTE D'APPEL — `main`, après l'écriture des circuits et avant toute publication ; l'épreuve du relais.
+    ③ ENTRÉE — `public` : le clone public.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste des refus (texte), vide si tout va. [rend: 1]
+    ⑥ TRAITEMENT — chaque fichier .yml ou .yaml de .github/workflows : s'il porte PERMISSION_DE_LANCER (texte, sans
+      égard à la casse, commentaires compris), il doit être le relais (même nom de fichier, empreinte de RELAIS) ; tout
+      fichier qui ne porte pas « permissions: » au premier niveau est refusé (N9 de Cowork, tour 3 : sans ce bloc, le
+      circuit reçoit le réglage « Workflow permissions » du dépôt, illisible sans l'API, peut-être en écriture).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Commentaire de EMPREINTE_DU_RELAIS. Lecture du TEXTE, pas de la structure : elle sur-détecte (un
+      commentaire qui écrit la permission est refusé), et ne dépend d'aucun lecteur YAML.
+    ⑨ CE QUI CLOCHE — Une permission écrite d'une façon que le motif ne voit pas passe : échappement YAML
+      (« \\x61ctions »), ancre YAML (« &w write » plus haut, puis « actions: *w » ; N10 de Cowork, tour 3). Un bloc
+      « permissions: » qui n'est pas au premier niveau mais dans chaque job n'est pas admis : refusé (sur-détection
+      voulue).
+    ⑩ EFFET — Lit les fichiers.
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    dossier = os.path.join(public, ".github", "workflows")
+    refus = []
+    for f in sorted(os.listdir(dossier)) if os.path.isdir(dossier) else []:
+        if not f.endswith((".yml", ".yaml")):
+            continue
+        texte = open(os.path.join(dossier, f), encoding="utf-8", errors="replace").read()
+        if not re.search(r"^permissions:", texte, re.M):   # N9 de Cowork (tour 3)
+            refus.append(f"{f} ne porte pas « permissions: » au premier niveau : il recevrait le réglage par défaut du "
+                         "dépôt public, peut-être la permission de lancer")
+            continue
+        if not PERMISSION_DE_LANCER.search(texte):
+            continue
+        try:
+            if f != os.path.basename(CIRCUIT_RELAIS):
+                raise ValueError(f"{f} porte la permission de lancer un circuit ; seul {os.path.basename(CIRCUIT_RELAIS)} "
+                                 "peut la porter")
+            verifier_un_relais(f, texte)
+        except ValueError as e:
+            refus.append(str(e))
+    return refus
 
 CHECKOUT_PRIVE = re.compile(r"      - uses: actions/checkout@v5\n        with:\n(?:\s*#.*\n)*\s*fetch-depth: 0\n")
 
@@ -2525,8 +2901,12 @@ def main():
     except (OSError, ValueError) as e:
         print("ARRÊT — circuit public non fabriqué :", e)
         return 1
+    if ERREUR_DE_LA_TABLE:
+        print("ARRÊT — table des séries illisible (" + LANCEMENT + ", serie_du_circuit) ; RIEN n'est écrit :",
+              ERREUR_DE_LA_TABLE)
+        return 1
     try:
-        verifier_les_gabarits_publics({"certification": CERTIFICATION, "series": SERIES}, texte)
+        verifier_les_gabarits_publics({"certification": CERTIFICATION, "series": SERIES, "relais": RELAIS}, texte)
     except ValueError as e:
         print("ARRÊT — gabarit public refusé :", e)
         return 1
@@ -2558,7 +2938,8 @@ def main():
     for f in retires:
         os.remove(os.path.join(public, f))
         ecrits.append(f)
-    for chemin, contenu in ((CIRCUIT_PUBLIC, texte), (CIRCUIT_CERTIFICATION, CERTIFICATION), (CIRCUIT_SERIES, SERIES)):
+    for chemin, contenu in ((CIRCUIT_PUBLIC, texte), (CIRCUIT_CERTIFICATION, CERTIFICATION), (CIRCUIT_SERIES, SERIES),
+                             (CIRCUIT_RELAIS, RELAIS)):
         with open(os.path.join(public, chemin), "w", encoding="utf-8") as s:
             s.write(contenu)
         ecrits.append(chemin.replace(os.sep, "/"))
@@ -2568,6 +2949,14 @@ def main():
     print(f"circuit fabriqué : {CIRCUIT_PUBLIC} ({len(texte.splitlines())} lignes)")
     print(f"circuit fabriqué : {CIRCUIT_CERTIFICATION} ({len(CERTIFICATION.splitlines())} lignes)")
     print(f"circuit fabriqué : {CIRCUIT_SERIES} ({len(SERIES.splitlines())} lignes)")
+    print(f"circuit fabriqué : {CIRCUIT_RELAIS} ({len(RELAIS.splitlines())} lignes)")
+    refus = refus_des_circuits_publies(public)
+    if refus:
+        print(f"ARRÊT — {len(refus)} circuit(s) du clone public portent la permission de lancer sans être le relais "
+              "fabriqué ; RIEN n'est publié :")
+        for r in refus:
+            print("  " + r)
+        return 1
     if poser_le_crochet(public):
         print("crochet de poussée posé au clone public (une branche ne se pousse que vers la branche du même nom)")
     if len(sys.argv) == 4:

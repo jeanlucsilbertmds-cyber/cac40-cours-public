@@ -67,7 +67,9 @@
   C (tests/outils/comparer_les_releves.py, relecture du 05-11-2026, B1) : C1 le relevé de P1 contre sa copie en
   « \r\n » → 1 · C2 contre sa copie dont seule la ligne « joué par » diffère → 0 · C3 (tour 3, m-3) sans ligne
   « joué par » à droite → 1 · C4 « --calibrage » entre deux relevés locaux → 1 · C5 « --calibrage », machine contre
-  GitHub → 0. R (tests/outils/ranger_le_releve.py,
+  GitHub → 0 (C3 à C5 : depuis le 08-11-2026, relevé n°327, les deux côtés sont fabriqués par l'épreuve, « machine
+  locale » à gauche et « GitHub » à droite, quelle que soit la machine qui joue l'épreuve : sur GitHub, le relevé de
+  P1 disait déjà « GitHub » et C5 rougissait). R (tests/outils/ranger_le_releve.py,
   N2) : R1 un relevé dont la ligne « joué par » dit un autre commit que la pointe de la version → 1, rien rangé ·
   R2 le commit de la pointe → 0, rangé · R2bis, R3, R4 (tour 3, M-4) la ligne écrite par `ligne_joue_par` du joueur
   puis jugée par le rangeur : pointe propre → 0 ; arbre modifié non commité (« MODIFIÉ ») → 1 ; SERIE_COMMIT posé à
@@ -1016,15 +1018,22 @@ def tour(racine):
             if k != attendu:
                 faux.append(f"{nom_c} (code {k}, attendu {attendu})")
         # C3 à C5 (tour 3, m-3) : une ligne « joué par » de chaque côté ; avec --calibrage, machine à gauche, GitHub à droite
+        # Réparation du 08-11-2026 (relevé n°327, Q6 = 1 du relevé n°347) : sur GitHub, le relevé de P1 dit déjà
+        # « GitHub » (GITHUB_ACTIONS vaut « true ») ; C5 comparait alors deux relevés « GitHub » et rougissait. Les deux
+        # côtés sont donc fabriqués ICI, quelle que soit la machine : « machine locale » à gauche, « GitHub » à droite.
         b = os.path.join(d, "b.txt")
-        sans_ligne = "\n".join(l for l in deux.split("\n") if not l.startswith("# joué par : "))
-        en_github = "\n".join(l.replace("# joué par : machine locale ; ", "# joué par : GitHub ; ") for l in deux.split("\n"))
+        local = "\n".join(l.replace("# joué par : GitHub ; ", "# joué par : machine locale ; ") for l in deux.split("\n"))
+        if local.count("# joué par : machine locale ; ") != 1:
+            faux.append("C3 à C5 (le relevé de P1 ne porte pas exactement une ligne « joué par » lisible)")
+        open(a, "w", encoding="utf-8", newline="").write(local)
+        sans_ligne = "\n".join(l for l in local.split("\n") if not l.startswith("# joué par : "))
+        en_github = "\n".join(l.replace("# joué par : machine locale ; ", "# joué par : GitHub ; ") for l in local.split("\n"))
         for nom_c, texte_c, options, attendu in (("C3 sans ligne « joué par » à droite", sans_ligne, [], 1),
-                                                 ("C4 calibrage entre deux relevés locaux", deux, ["--calibrage"], 1),
+                                                 ("C4 calibrage entre deux relevés locaux", local, ["--calibrage"], 1),
                                                  ("C5 calibrage machine contre GitHub", en_github, ["--calibrage"], 0)):
             open(b, "w", encoding="utf-8", newline="").write(texte_c)
             k = lancer([sys.executable, "-B", os.path.join(racine, COMPARATEUR), a, b] + options)[0]
-            if k != attendu or (attendu == 0 and texte_c == deux):
+            if k != attendu or (attendu == 0 and texte_c == local):
                 faux.append(f"{nom_c} (code {k}, attendu {attendu})")
         cl = os.path.join(d, "clone_version")
         lancer(["git", "clone", "-q", "-b", "travail-essai", prive, cl])

@@ -121,6 +121,41 @@ def trouver_les_parts(depuis, epreuve):
     return sorted(trouvees, key=lambda dm: dm[0])
 
 
+def lire_les_arguments(arguments):
+    """Rend ce que le rassembleur lit de sa ligne de commande : {racine, epreuve, releve, depuis, travail} ; lève
+    ValueError si elle ne convient pas.
+
+    ① RÔLE — Lire la ligne de commande en UN endroit, que l'épreuve du relais des séries appelle elle-même (relevé
+      du Chat n°347, Q3 = 1).
+    ② CONTEXTE D'APPEL — `main` ; tests/EPREUVES_DU_RELAIS_DES_SERIES_Dim_08-11-2026.py.
+    ③ ENTRÉE — `arguments` : sys.argv[1:].
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le dictionnaire (racine, depuis, travail en chemins réels ; raisons_acceptees : le texte
+      de l'option, ou None). [rend: 1]
+    ⑥ TRAITEMENT — trois arguments sans « -- » ; les options « --depuis=… » et « --travail=… », chacune exactement une
+      fois, « --raisons-acceptees=… » au plus une fois ; toute autre option est refusée.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Défaut NV-2 du lot 262 (relevé n°298) : une option donnée deux fois gardait la dernière valeur.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]
+    """
+    pos = [a for a in arguments if not a.startswith("--")]
+    opt = {}
+    for a in arguments:
+        if not a.startswith("--"):
+            continue
+        nom, egal, valeur = a[2:].partition("=")
+        if not egal or nom not in ("depuis", "travail", "raisons-acceptees") or nom in opt:
+            raise ValueError(f"option refusée (inconnue, sans valeur ou donnée deux fois) : {a[:60]}")
+        opt[nom] = valeur
+    if len(pos) != 3 or not {"depuis", "travail"} <= set(opt):
+        raise ValueError("trois arguments sans « -- », --depuis et --travail attendus")
+    return {"racine": os.path.realpath(pos[0]), "epreuve": pos[1], "releve": pos[2],
+            "depuis": os.path.realpath(opt["depuis"]), "travail": os.path.realpath(opt["travail"]),
+            "raisons_acceptees": opt.get("raisons-acceptees")}
+
+
 def main():
     """Le programme entier (voir la fiche en tête).
 
@@ -129,12 +164,11 @@ def main():
     ⑦ UNITÉ — — ⑧ POURQUOI — Fiche en tête. ⑨ CE QUI CLOCHE — Fiche en tête. ⑩ EFFET — Fiche en tête.
     ⑪ TERMINAISON — Fiche en tête.
     """
-    pos = [a for a in sys.argv[1:] if not a.startswith("--")]
-    opt = dict(a[2:].split("=", 1) for a in sys.argv[1:] if a.startswith("--") and "=" in a)
-    if len(pos) != 3 or "depuis" not in opt or "travail" not in opt:
-        return arret("usage : rassembler_les_parts.py <racine> <épreuve> <relevé> --depuis=<parts> --travail=<dossier>")
-    racine, epreuve, releve = os.path.realpath(pos[0]), pos[1], pos[2]
-    depuis, travail = os.path.realpath(opt["depuis"]), os.path.realpath(opt["travail"])
+    try:
+        arguments_lus = lire_les_arguments(sys.argv[1:])
+    except ValueError as e:
+        return arret(f"usage ({e}) : rassembler_les_parts.py <racine> <épreuve> <relevé> --depuis=<parts> --travail=<dossier>")
+    racine, epreuve, releve, depuis, travail = arguments_lus["racine"], arguments_lus["epreuve"], arguments_lus["releve"], arguments_lus["depuis"], arguments_lus["travail"]
     if os.path.exists(travail) and os.listdir(travail):
         return arret(f"le dossier de travail {travail} n'est pas vide : un rassemblement ne se mélange pas à un autre")
     # ① ② les parts et leur accord
@@ -233,7 +267,7 @@ def main():
     joueur = os.path.join(racine, PART.JOUEUR)
     r = subprocess.run([sys.executable, "-B", "-u", joueur, racine, epreuve, releve, f"--lot={taille}",
                         f"--parts={ensemble}", f"--travail={travail}"]
-                       + ([f"--raisons-acceptees={opt['raisons-acceptees']}"] if opt.get("raisons-acceptees") else []),
+                       + ([f"--raisons-acceptees={arguments_lus['raisons_acceptees']}"] if arguments_lus["raisons_acceptees"] else []),
                        capture_output=True, text=True)
     print(r.stdout + r.stderr, end="", flush=True)
     # ⑦ le joueur ne devait rien rejouer

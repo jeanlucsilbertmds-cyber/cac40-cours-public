@@ -9,7 +9,7 @@ le Jeu 05-11-2026 pour la version B (étude github_series/RAPPORT.md). Simulatio
   elle laisse un dossier de travail que rassembler_les_parts.py réunit aux autres parts.
 ② CONTEXTE D'APPEL — Un job de la matrice du circuit public .github/workflows/series_longues.yml (fabriqué par
   programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py), une fois par part :
-  python3 -B -u jouer_une_part.py <racine> <épreuve> <relevé> --part=I --nb-parts=N [--lot=6] [--parallele=2]
+  python3 -B -u jouer_une_part.py <racine> <épreuve> <relevé> --part=I --nb-parts=N --lot=L [--parallele=2]
   --travail=<dossier neuf>   (`épreuve` et `relevé` relatifs à la racine). Aussi à la main, pour l'essai local.
   Et `python3 -B jouer_une_part.py --interdits` : écrit les noms des programmes interdits, un par ligne (le circuit
   les retire de la copie et refuse de les choisir comme épreuve, sans les épeler lui-même).
@@ -193,6 +193,57 @@ def ecoute_nomme(ecoute, chemin):
     return False
 
 
+def lire_les_arguments(arguments):
+    """Rend ce que le joueur lit de sa ligne de commande : {racine, epreuve, releve, part, nb_parts, lot, parallele,
+    travail} ; lève ValueError si elle ne convient pas.
+
+    ① RÔLE — Lire la ligne de commande en UN endroit, que l'épreuve du relais des séries appelle elle-même (choix
+      délégué par Jean-Luc, relevé du Chat n°347, Q3 = 1 : « l'épreuve lit avec la fonction du joueur ») : ce qu'elle
+      compare à la demande est ce que le joueur lit vraiment, pas une seconde lecture qui pourrait différer.
+    ② CONTEXTE D'APPEL — `main` ; tests/EPREUVES_DU_RELAIS_DES_SERIES_Dim_08-11-2026.py.
+    ③ ENTRÉE — `arguments` : la liste des arguments, sans le nom du programme (sys.argv[1:]).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le dictionnaire (racine et travail en chemins réels ; part, nb_parts, lot, parallele en
+      entiers). [rend: 1]
+    ⑥ TRAITEMENT — trois arguments sans « -- » (racine, épreuve, relevé) ; les options « --nom=valeur », chacune AU
+      PLUS UNE FOIS, parmi part, nb-parts, lot, parallele, travail ; part, nb-parts, lot et travail obligatoires,
+      parallele 2 par défaut ; 0 <= part < nb_parts ; lot >= 1 ; parallele >= 1 ; une option inconnue ou sans « = »
+      est refusée.
+    ⑦ UNITÉ — lot : des sabotages par lot ; parallele : des lots joués en même temps.
+    ⑧ POURQUOI — Défaut NV-2 du lot 262 (relevé n°298) : « --lot » donné deux fois, le dictionnaire gardait la
+      dernière valeur (11 au lieu de 13) et tout restait vert. « --lot » n'a plus de valeur par défaut ici (6 avant le
+      08-11-2026) : les valeurs par défaut vivent dans la table des séries (tests/LANCEMENT_DES_EPREUVES.json,
+      « serie_du_circuit »), et le circuit passe toujours « --lot ».
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]
+    """
+    pos = [a for a in arguments if not a.startswith("--")]
+    opt = {}
+    for a in arguments:
+        if not a.startswith("--"):
+            continue
+        if "=" not in a:
+            raise ValueError(f"option sans valeur : {a}")
+        nom, valeur = a[2:].split("=", 1)
+        if nom not in ("part", "nb-parts", "lot", "parallele", "travail"):
+            raise ValueError(f"option inconnue : --{nom}")
+        if nom in opt:
+            raise ValueError(f"option donnée deux fois : --{nom}")
+        opt[nom] = valeur
+    if len(pos) != 3:
+        raise ValueError(f"{len(pos)} argument(s) sans « -- », 3 attendus")
+    for nom in ("part", "nb-parts", "lot", "travail"):
+        if nom not in opt:
+            raise ValueError(f"option --{nom} absente")
+    lu = {"racine": os.path.realpath(pos[0]), "epreuve": pos[1], "releve": pos[2], "part": int(opt["part"]),
+          "nb_parts": int(opt["nb-parts"]), "lot": int(opt["lot"]), "parallele": int(opt.get("parallele", 2)),
+          "travail": os.path.realpath(opt["travail"])}
+    if not (0 <= lu["part"] < lu["nb_parts"] and lu["lot"] >= 1 and lu["parallele"] >= 1):
+        raise ValueError("part hors de 0..nb_parts-1, ou lot, ou parallele, inférieur à 1")
+    return lu
+
+
 def main():
     """Le programme entier (voir la fiche en tête).
 
@@ -204,18 +255,14 @@ def main():
     if sys.argv[1:] == ["--interdits"]:
         print("\n".join(INTERDITS))
         return 0
-    pos = [a for a in sys.argv[1:] if not a.startswith("--")]
-    opt = dict(a[2:].split("=", 1) for a in sys.argv[1:] if a.startswith("--") and "=" in a)
     try:
-        racine, epreuve, releve = os.path.realpath(pos[0]), pos[1], pos[2]
-        part, nb_parts = int(opt["part"]), int(opt["nb-parts"])
-        taille, parallele = int(opt.get("lot", 6)), int(opt.get("parallele", 2))
-        travail = os.path.realpath(opt["travail"])
-        assert len(pos) == 3 and 0 <= part < nb_parts and taille >= 1 and parallele >= 1
-    except (IndexError, KeyError, ValueError, AssertionError):
-        print("ARRET usage : jouer_une_part.py <racine> <épreuve> <relevé> --part=I --nb-parts=N [--lot=6] "
+        lu = lire_les_arguments(sys.argv[1:])
+    except ValueError as e:
+        print(f"ARRET usage ({e}) : jouer_une_part.py <racine> <épreuve> <relevé> --part=I --nb-parts=N --lot=L "
               "[--parallele=2] --travail=<dossier>")
         return 2
+    racine, epreuve, releve, travail = lu["racine"], lu["epreuve"], lu["releve"], lu["travail"]
+    part, nb_parts, taille, parallele = lu["part"], lu["nb_parts"], lu["lot"], lu["parallele"]
     if os.path.basename(epreuve) in INTERDITS:
         print(f"ARRET épreuve interdite dans ce circuit : {epreuve}")
         return 2

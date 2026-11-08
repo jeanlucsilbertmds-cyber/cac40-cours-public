@@ -1,17 +1,20 @@
 # SERIES LONGUES DE SABOTAGES, EN PARALLELE — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
-# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement. Lancé à la main seulement.
+# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement. Lancé par le bouton « Run workflow »,
+# ou par le relais .github/workflows/demande_de_serie.yml, qui appuie sur ce même bouton (une seule porte d'entrée).
+# LA TABLE (décision de Jean-Luc n°309 du 07-11-2026) : les séries, leurs épreuves, leurs nombres de machines et leurs
+# tailles de lot par défaut viennent de tests/LANCEMENT_DES_EPREUVES.json (« serie_du_circuit » d'une entrée de
+# « series_hors_de_la_nuit ») ; les entrées du bouton, leurs valeurs par défaut et la matrice en sont fabriquées.
 # À QUOI IL SERT. Rejouer les séries de sabotages trop longues pour la machine du Chat (historique long « HL », cours
 # propre de Yahoo) sur des machines de ce dépôt public, puis réunir les parts en UN relevé écrit par
-# tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py lui-même. « parts_hl » = 1 joue HL d'un seul tenant (mesure de durée).
-# LE DÉCOUPAGE (05-11-2026) : « lot_hl » et « lot_yahoo » sont ceux des relevés de la machine (HL : 36 lots de 6 ;
-# Yahoo : 2 lots de 21, valeur par défaut du joueur) ; le changer change les lignes « lot k » du relevé. LE DISQUE :
+# tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py lui-même. « parts_<série> » = 1 joue la série d'un seul tenant.
+# LE DÉCOUPAGE (05-11-2026) : les lots par défaut sont ceux des relevés de la machine (la table) ; changer « lot_<série> »
+# change les lignes « lot k » du relevé. LE DISQUE :
 # 14 Go par machine (documentation GitHub lue le 05-11-2026) et environ 2,4 Go par lot HL joué (mesuré le 04-11-2026) ;
 # avec « parts_hl » = 18, une machine joue 2 lots, soit environ 4,8 Go. Un disque plein ne donne jamais « mord » : le
 # joueur déclare NON CONFORME tout lot dont la sortie porte une trace d'erreur système.
 # CE QU'IL FAIT. ① « preparer » clone la version demandée, vérifie aussitôt, avant tout code de la version, qu'elle est
-# la branche publique lancée (voir « LA VERSION ÉPROUVÉE » plus bas) et refuse de partir si une branche
-# series-longues/* attend encore au dépôt privé ; puis il lit la
-# série dans tests/LANCEMENT_DES_EPREUVES.json (series_hors_de_la_nuit), date le relevé à l'heure de Paris, note le
+# la branche publique lancée (voir « LA VERSION ÉPROUVÉE » plus bas) ; puis il lit l'épreuve de chaque série par son
+# code dans tests/LANCEMENT_DES_EPREUVES.json (« serie_du_circuit »), date le relevé à l'heure de Paris, note le
 # commit du dépôt privé, fabrique la matrice. ② « jouer » : une machine par part, sur CE commit, réseau coupé
 # (tests/outils/jouer_une_part.py). ③ « rassembler » : une machine par série, et SEULEMENT si toutes les parts sont
 # vertes (tests/outils/rassembler_les_parts.py), sur ce même commit.
@@ -20,19 +23,16 @@
 # OÙ VONT LES RÉSULTATS : AU DÉPÔT PRIVÉ, jamais sur main, jamais en archive jointe (lisible par tous ici). Chaque job
 # pousse UNE fois sur SA branche : series-longues/<passage>/<série>/part_<n> pour une part,
 # series-longues/<passage>/<série>/releve pour le relevé (dans rapports/series_longues/<passage>/<série>/sortie/).
-# LE MÉNAGE : le Chat lit le relevé, le range dans tests/resultats/ de la version éprouvée, puis supprime TOUTES les branches
-# series-longues/* du dépôt privé. Tant qu'il en reste une, le passage suivant refuse de partir.
+# LE MÉNAGE : le Chat lit le relevé et le range dans tests/resultats/ de la version éprouvée. Les branches
+# series-longues/* restent au dépôt privé et se rangent plus tard (choix n°347, Q4 = 3 : la garde qui refusait un passage
+# tant qu'il en restait une est retirée, la session du Chat ne pouvant supprimer aucune branche).
 # PAS DE RELANCE. Un passage rouge NE SE RELANCE PAS, ni par « Re-run failed jobs », ni par « Re-run all jobs ».
 # Pourquoi : chaque job a déjà poussé sa branche (le dépôt tourne même après un échec) ; une nouvelle tentative du même
 # job vise la même branche, et sa poussée est refusée, car elle n'est jamais forcée (MODE_EMPLOI_DEPOT.md, règle
-# absolue : jamais de poussée forcée, le seul geste qui puisse détruire le travail d'un autre) ; et « preparer » refuse de partir
-# tant qu'une branche series-longues/* existe, y compris celles du passage lui-même. Le message affiché alors (« POUSSEE
-# REFUSEE » ou « le passage precedent n'est pas range ») ne dit pas cette cause.
-# LA MARCHE À SUIVRE : le Chat lit les branches du passage rouge (journaux) ; il vérifie qu'aucun passage ne tourne ; il
-# supprime TOUTES les branches series-longues/* ; puis Jean-Luc lance un NOUVEAU passage.
-# LA GARDE « rien_en_attente » (pas « Aucun passage precedent n'attend-il d'etre range ? ») n'est pas nécessaire à la
-# sécurité : chaque nom de branche porte le numéro du passage, deux passages ne se touchent pas. Elle rend visible un
-# ménage oublié, sans coût. Elle est gardée pour cela.
+# absolue : jamais de poussée forcée, le seul geste qui puisse détruire le travail d'un autre). Le message affiché alors
+# (« POUSSEE REFUSEE ») ne dit pas cette cause.
+# LA MARCHE À SUIVRE : le Chat lit les branches du passage rouge (journaux) ; il vérifie qu'aucun passage ne tourne ;
+# puis un NOUVEAU passage est lancé (bouton, ou nouvelle demande au relais) : son numéro est neuf, ses branches aussi.
 # LA VERSION ÉPROUVÉE (décision de Jean-Luc du 05-11-2026 à 13h36, « 2 ») : l'entrée « version » nomme la version du
 # dépôt privé à éprouver, « main » (la version officielle) ou la version en attente « travail-… », AVANT sa fusion. Le
 # circuit se lance depuis la branche de CE dépôt public qui porte le même nom, où le Chat a publié le code de cette
@@ -57,27 +57,27 @@ on:
         type: string
         default: "main"
       serie:
-        description: "Serie a jouer"
+        description: "Serie a jouer (toutes : chaque serie de la table)"
         required: true
         type: choice
-        options: ["les deux", "HL", "Yahoo"]
-        default: "les deux"
-      parts_hl:
-        description: "Nombre de machines pour la serie HL (1 a 99 ; 18 = 2 lots par machine, pour le disque de 14 Go)"
-        type: number
-        default: 18
+        options: ["toutes", "Yahoo", "HL"]
+        default: "toutes"
       parts_yahoo:
         description: "Nombre de machines pour la serie Yahoo (1 a 99)"
         type: number
         default: 2
-      lot_hl:
-        description: "Sabotages par lot pour HL (6 = decoupage du releve de la machine ; le changer change le releve)"
-        type: number
-        default: 6
       lot_yahoo:
-        description: "Sabotages par lot pour Yahoo (21 = decoupage du releve de la machine ; le changer change le releve)"
+        description: "Sabotages par lot pour la serie Yahoo (1 a 99 ; le changer change les lignes lot k du releve)"
         type: number
         default: 21
+      parts_hl:
+        description: "Nombre de machines pour la serie HL (1 a 99)"
+        type: number
+        default: 18
+      lot_hl:
+        description: "Sabotages par lot pour la serie HL (1 a 99 ; le changer change les lignes lot k du releve)"
+        type: number
+        default: 6
 concurrency:
   group: series-longues
   cancel-in-progress: false
@@ -126,22 +126,6 @@ jobs:
           fi
           pointe=$(printf '%s\n' "$tetes" | awk -v r="refs/heads/$VERSION" '$2 == r { print $1 }')
           [ -n "$pointe" ] && [ "$(git -C "$GITHUB_WORKSPACE" -c core.hooksPath=/dev/null rev-parse HEAD)" = "$pointe" ] || { echo "::error::le clone du depot prive n'est pas la pointe de $VERSION"; exit 1; }
-      - name: Aucun passage precedent n'attend-il d'etre range ?
-        id: rien_en_attente
-        shell: bash
-        env:
-          JETON: ${{ secrets.JETON_DEPOTS }}
-        run: |
-          set -o pipefail
-          export PATH=/usr/bin:/bin GIT_TRACE_REDACT=1 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-          PRIVE=https://github.com/jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-.git
-          T=$(mktemp -d)
-          AIDE='!f() { echo username=x-access-token; echo "password=$JETON"; }; f'
-          A=(-c credential.helper= -c "credential.helper=$AIDE")
-          cd "$T"
-          refs=$(git "${A[@]}" ls-remote --heads "$PRIVE") || { echo "::error::branches du depot prive illisibles"; exit 1; }
-          n=$(printf '%s\n' "$refs" | grep -c 'refs/heads/series-longues/' || true)
-          [ "$n" = "0" ] || { echo "::error::$n branche(s) series-longues/* au depot prive : le passage precedent n'est pas range (le Chat range le releve, puis supprime ces branches)"; exit 1; }
       - uses: actions/checkout@v5
         with:
           path: _code
@@ -185,6 +169,7 @@ jobs:
           cp _code/tests/LANCEMENT_DES_EPREUVES.json tests/
           mkdir -p "$RUNNER_TEMP/circuit_public"
           cp _code/.github/workflows/series_longues.yml "$RUNNER_TEMP/circuit_public/"
+          cp _code/.github/workflows/demande_de_serie.yml "$RUNNER_TEMP/circuit_public/"
           rm -rf _code
       - name: Le circuit des series longues est-il celui que fabrique le depot prive ?
         id: circuit_a_jour
@@ -193,6 +178,8 @@ jobs:
           python3 programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py . "$RUNNER_TEMP/refait"
           cmp "$RUNNER_TEMP/refait/.github/workflows/series_longues.yml" "$RUNNER_TEMP/circuit_public/series_longues.yml" \
             || { echo "::error::LE CIRCUIT DES SERIES LONGUES N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }
+          cmp "$RUNNER_TEMP/refait/.github/workflows/demande_de_serie.yml" "$RUNNER_TEMP/circuit_public/demande_de_serie.yml" \
+            || { echo "::error::LE CIRCUIT demande_de_serie.yml N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et publier"; exit 1; }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -200,22 +187,22 @@ jobs:
         id: matrice
         env:
           SERIE: ${{ inputs.serie }}
-          PARTS_HL: ${{ inputs.parts_hl }}
           PARTS_YAHOO: ${{ inputs.parts_yahoo }}
-          LOT_HL: ${{ inputs.lot_hl }}
           LOT_YAHOO: ${{ inputs.lot_yahoo }}
+          PARTS_HL: ${{ inputs.parts_hl }}
+          LOT_HL: ${{ inputs.lot_hl }}
         run: |
           set -u -o pipefail
           echec () { echo "::error::$1"; exit 1; }
-          case "$SERIE" in
-            "HL") choix="HL" ;;
-            "Yahoo") choix="Yahoo" ;;
-            "les deux") choix="HL Yahoo" ;;
-            *) echec "serie inconnue : $SERIE" ;;
-          esac
-          for v in "$PARTS_HL" "$PARTS_YAHOO" "$LOT_HL" "$LOT_YAHOO"; do
-            [[ "$v" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse : $v (1 a 99)"
+          codes="Yahoo HL"
+          choix=""
+          for c in $codes; do
+            if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "$c" ]; then choix="$choix $c"; fi
+            vp="PARTS_${c^^}"; vl="LOT_${c^^}"
+            [[ "${!vp}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vp : ${!vp} (1 a 99)"
+            [[ "${!vl}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vl : ${!vl} (1 a 99)"
           done
+          [ -n "$choix" ] || echec "serie inconnue : $SERIE"
           interdits=$(python3 -B tests/outils/jouer_une_part.py --interdits) || echec "liste des programmes interdits illisible"
           [ -n "$interdits" ] || echec "liste des programmes interdits vide"
           table=tests/LANCEMENT_DES_EPREUVES.json
@@ -225,9 +212,9 @@ jobs:
           horodatage="${jours[$u]}_${jour_heure}"
           series='[]'; matrice='[]'
           for s in $choix; do
-            if [ "$s" = "HL" ]; then motif="HISTORIQUE_LONG"; n="$PARTS_HL"; l="$LOT_HL"; else motif="COURS_PROPRE_DE_YAHOO"; n="$PARTS_YAHOO"; l="$LOT_YAHOO"; fi
-            cles=$(jq -r --arg m "$motif" '.series_hors_de_la_nuit | keys[] | select(contains($m))' "$table") || echec "table illisible"
-            [ "$(printf '%s\n' "$cles" | grep -c .)" = "1" ] || echec "serie $s : il faut exactement une epreuve dont le nom contient $motif, trouve : ${cles:-aucune}"
+            vp="PARTS_${s^^}"; vl="LOT_${s^^}"; n="${!vp}"; l="${!vl}"
+            cles=$(jq -r --arg c "$s" '.series_hors_de_la_nuit | to_entries[] | select((.value | type) == "object" and (.value.serie_du_circuit | type) == "object" and .value.serie_du_circuit.code == $c) | .key' "$table") || echec "table illisible"
+            [ "$(printf '%s\n' "$cles" | grep -c .)" = "1" ] || echec "serie $s : il faut exactement une epreuve de code $s dans la table, trouve : ${cles:-aucune}"
             epreuve="$cles"
             if grep -qxF -- "${epreuve##*/}" <<<"$interdits"; then echec "epreuve interdite dans ce circuit : $epreuve"; fi
             [ -f "$epreuve" ] || echec "epreuve absente : $epreuve"

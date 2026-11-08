@@ -1,0 +1,145 @@
+# DEMANDE DE SERIE — LE RELAIS — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
+# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement.
+# À QUOI IL SERT. Lancer le circuit des séries longues (series_longues.yml), ou l'examen de certification
+# (certifier_la_version.yml, depuis main, ajout du 08-11-2026 décidé par Jean-Luc à 18h06), sans que Jean-Luc clique
+# sur « Run workflow » : le Chat dépose un fichier de demande (« circuit=series » ou « circuit=examen »), ce relais le
+# lit, le valide et appuie sur le bouton du circuit demandé à sa place (table CIRCUITS_DU_RELAIS du fabricant).
+# CE QU'IL FAIT, DANS L'ORDRE : ① la poussée doit porter UN commit, dont le parent est la pointe d'avant, qui AJOUTE UN
+# seul fichier, demandes/DEMANDE_<AAAA-MM-JJ_HHhMM>.txt (une publication de code ne lance donc jamais rien) ; ② le fichier
+# est lu en ASCII strict, une clé par ligne, clés connues seulement, valeurs validées par des motifs tirés de la table
+# des séries (tests/LANCEMENT_DES_EPREUVES.json) ; ③ aucun passage du circuit des séries ne doit être en cours ou en
+# attente (GitHub n'en garde qu'un en attente par groupe : un troisième ferait disparaître le deuxième sans message) ;
+# ④ « a_blanc=oui » : il écrit au journal ce qu'il aurait lancé et s'arrête ; sinon il lance le circuit des séries
+# sur CETTE branche, version = nom de la branche, chaque valeur passée explicitement (celles absentes de la demande
+# prennent la valeur de la table).
+# CE QU'IL N'A PAS : aucune clé du dépôt privé, aucun clonage du privé, aucun programme de la version lancé (seulement
+# des commandes du système et gh) ; permissions : lire le dépôt, lancer un circuit. Ce texte a été relu ; le
+# fabricant refuse de publier un relais qui n'est pas ce texte, octet pour octet (empreinte), et tout autre circuit
+# qui porterait la permission de lancer.
+name: Demande de serie (relais)
+on:
+  push:
+    paths:
+      - "demandes/**"
+concurrency:
+  group: demande-de-serie
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: write
+jobs:
+  relayer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Lire la demande, la valider, appuyer sur le bouton
+        id: relayer
+        shell: bash
+        env:
+          AVANT: ${{ github.event.before }}
+          APRES: ${{ github.sha }}
+          BRANCHE: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u -o pipefail
+          export LC_ALL=C
+          [[ "$BRANCHE" =~ ^(main|travail-[A-Za-z0-9._-]+)$ ]] || { echo "::error::DEMANDE REFUSEE : branche $BRANCHE (main, ou une version en attente travail-...)"; exit 1; }
+          [[ "$AVANT" =~ ^[0-9a-f]{40}$ ]] && [[ "$AVANT" =~ [1-9a-f] ]] || { echo "::error::DEMANDE REFUSEE : pas de pointe d'avant (branche creee par cette poussee ?) : publier le code d'abord, puis la demande seule"; exit 1; }
+          parent=$(git rev-parse -q --verify "$APRES^1") || { echo "::error::DEMANDE REFUSEE : commit sans parent lisible"; exit 1; }
+          [ "$parent" = "$AVANT" ] || { echo "::error::DEMANDE REFUSEE : la poussee porte plus d'un commit ; la demande se depose seule, dans un commit a elle"; exit 1; }
+          [ -z "$(git rev-parse -q --verify "$APRES^2" || true)" ] || { echo "::error::DEMANDE REFUSEE : commit de fusion"; exit 1; }
+          changes=$(git diff-tree --no-commit-id --no-renames -r --name-status "$AVANT" "$APRES") || { echo "::error::DEMANDE REFUSEE : changements illisibles"; exit 1; }
+          [ "$(printf '%s\n' "$changes" | grep -c .)" = "1" ] || { echo "::error::DEMANDE REFUSEE : la poussee doit ajouter UN seul fichier, sous demandes/ ; elle en touche $(printf '%s\n' "$changes" | grep -c .)"; exit 1; }
+          statut=$(printf '%s\n' "$changes" | cut -f1)
+          fichier=$(printf '%s\n' "$changes" | cut -f2-)
+          [ "$statut" = "A" ] || { echo "::error::DEMANDE REFUSEE : le fichier n'est pas ajoute (etat $statut)"; exit 1; }
+          [[ "$fichier" =~ ^demandes/DEMANDE_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}[.]txt$ ]] || { echo "::error::DEMANDE REFUSEE : nom refuse (demandes/DEMANDE_AAAA-MM-JJ_HHhMM.txt)"; exit 1; }
+          taille=$(git cat-file -s "$APRES:$fichier") || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
+          [[ "$taille" =~ ^[0-9]{1,4}$ ]] && [ "$taille" -le 1000 ] || { echo "::error::DEMANDE REFUSEE : plus de 1000 octets"; exit 1; }
+          D=$(mktemp -d)
+          git cat-file blob "$APRES:$fichier" > "$D/demande.txt" || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
+          hors=$(tr -d ' -~\n' < "$D/demande.txt" | wc -c)
+          [ "$hors" = "0" ] || { echo "::error::DEMANDE REFUSEE : $hors octet(s) hors de l'ASCII imprimable (accent, tabulation, retour chariot, caractere de controle)"; exit 1; }
+          vus=" "
+          CIRCUIT=""
+          SERIE=""
+          A_BLANC="non"
+          PARTS_YAHOO=2
+          LOT_YAHOO=21
+          PARTS_HL=18
+          LOT_HL=6
+          while IFS= read -r ligne || [ -n "$ligne" ]; do
+            [ -n "$ligne" ] && [[ "$ligne" != "#"* ]] || continue
+            [[ "$ligne" =~ ^([a-z_]{1,20})=([A-Za-z0-9]{1,20})$ ]] || { echo "::error::DEMANDE REFUSEE : ligne illisible (cle=valeur, lettres et chiffres, sans espace) : ${ligne:0:80}"; exit 1; }
+            cle="${BASH_REMATCH[1]}"
+            valeur="${BASH_REMATCH[2]}"
+            [[ "$vus" != *" $cle "* ]] || { echo "::error::DEMANDE REFUSEE : cle donnee deux fois : $cle"; exit 1; }
+            vus="$vus$cle "
+            if [ "$cle" = "circuit" ]; then
+              [[ "$valeur" =~ ^(series|examen)$ ]] || { echo "::error::DEMANDE REFUSEE : circuit inconnu : $valeur"; exit 1; }
+              CIRCUIT="$valeur"
+            elif [ "$cle" = "serie" ]; then
+              [[ "$valeur" =~ ^(toutes|Yahoo|HL)$ ]] || { echo "::error::DEMANDE REFUSEE : serie inconnue : $valeur"; exit 1; }
+              SERIE="$valeur"
+            elif [ "$cle" = "a_blanc" ]; then
+              [[ "$valeur" =~ ^(oui|non)$ ]] || { echo "::error::DEMANDE REFUSEE : a_blanc vaut oui ou non : $valeur"; exit 1; }
+              A_BLANC="$valeur"
+            elif [ "$cle" = "parts_yahoo" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : parts_yahoo de 1 a 99 : $valeur"; exit 1; }
+              PARTS_YAHOO="$valeur"
+            elif [ "$cle" = "lot_yahoo" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_yahoo de 1 a 99 : $valeur"; exit 1; }
+              LOT_YAHOO="$valeur"
+            elif [ "$cle" = "parts_hl" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : parts_hl de 1 a 99 : $valeur"; exit 1; }
+              PARTS_HL="$valeur"
+            elif [ "$cle" = "lot_hl" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_hl de 1 a 99 : $valeur"; exit 1; }
+              LOT_HL="$valeur"
+            else
+              echo "::error::DEMANDE REFUSEE : cle inconnue : $cle"
+              exit 1
+            fi
+          done < "$D/demande.txt"
+          [ -n "$CIRCUIT" ] || { echo "::error::DEMANDE REFUSEE : la cle circuit manque (series ou examen)"; exit 1; }
+          FICHIER=""
+          if [ "$CIRCUIT" = "series" ]; then
+            FICHIER="series_longues.yml"
+            [[ "$BRANCHE" =~ ^(main|travail-[A-Za-z0-9._-]+)$ ]] || { echo "::error::DEMANDE REFUSEE : le circuit series ne se lance pas depuis la branche $BRANCHE"; exit 1; }
+          fi
+          if [ "$CIRCUIT" = "examen" ]; then
+            FICHIER="certifier_la_version.yml"
+            [[ "$BRANCHE" =~ ^main$ ]] || { echo "::error::DEMANDE REFUSEE : le circuit examen ne se lance pas depuis la branche $BRANCHE"; exit 1; }
+          fi
+          [ -n "$FICHIER" ] || { echo "::error::DEMANDE REFUSEE : circuit sans fichier : $CIRCUIT"; exit 1; }
+          if [ "$CIRCUIT" != "series" ]; then
+            [ "$vus" = " circuit " ] || [ "$vus" = " circuit a_blanc " ] || [ "$vus" = " a_blanc circuit " ] || { echo "::error::DEMANDE REFUSEE : le circuit $CIRCUIT ne prend aucun reglage (seulement circuit et a_blanc) :$vus"; exit 1; }
+          fi
+          [ "$CIRCUIT" != "series" ] || [ -n "$SERIE" ] || { echo "::error::DEMANDE REFUSEE : la cle serie manque"; exit 1; }
+          if [[ "$vus" == *" parts_yahoo "* || "$vus" == *" lot_yahoo "* ]] && [ "$SERIE" != "toutes" ] && [ "$SERIE" != "Yahoo" ]; then
+            echo "::error::DEMANDE REFUSEE : elle regle la serie Yahoo, qu'elle ne joue pas (serie $SERIE)"
+            exit 1
+          fi
+          if [[ "$vus" == *" parts_hl "* || "$vus" == *" lot_hl "* ]] && [ "$SERIE" != "toutes" ] && [ "$SERIE" != "HL" ]; then
+            echo "::error::DEMANDE REFUSEE : elle regle la serie HL, qu'elle ne joue pas (serie $SERIE)"
+            exit 1
+          fi
+          en_cours=$(gh run list --workflow "$FICHIER" --limit 100 --json status --jq '[.[] | select(.status != "completed")] | length') || { echo "::error::DEMANDE REFUSEE : passages de $FICHIER illisibles"; exit 1; }
+          [ "$en_cours" = "0" ] || { echo "::error::DEMANDE REFUSEE : $en_cours passage(s) de $FICHIER en cours ou en attente ; redeposer la demande quand ils sont finis"; exit 1; }
+          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; serie $SERIE ; parts_yahoo $PARTS_YAHOO ; lot_yahoo $LOT_YAHOO ; parts_hl $PARTS_HL ; lot_hl $LOT_HL ; a blanc $A_BLANC"
+          if [ "$A_BLANC" = "oui" ]; then
+            echo "A BLANC : rien n'est lance"
+            exit 0
+          fi
+          if [ "$CIRCUIT" != "series" ]; then
+            gh workflow run "$FICHIER" --ref "$BRANCHE" || { echo "::error::le circuit $FICHIER n'a pas pu etre lance"; exit 1; }
+            echo "LANCE : $FICHIER sur $BRANCHE"
+            exit 0
+          fi
+          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "serie=$SERIE" -f "parts_yahoo=$PARTS_YAHOO" -f "lot_yahoo=$LOT_YAHOO" -f "parts_hl=$PARTS_HL" -f "lot_hl=$LOT_HL" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
+          echo "LANCE : $FICHIER sur $BRANCHE"

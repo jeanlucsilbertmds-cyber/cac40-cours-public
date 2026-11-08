@@ -73,7 +73,7 @@
    "pourquoi": "fiche ③ : la racine, puis le mot epreuves — 21 cas (valeurs attendues d'un calcul indépendant, pages simulées), ajouté le 29-10-2026"
   }
  },
- "format_des_options": "delais : « chemin et arguments sans {copie}, séparés par une espace » → secondes (1 à 21 600) et pourquoi ; series_hors_de_la_nuit : chemin de l'épreuve → releve (motif du relevé, un seul fichier doit y répondre), essais_refaits_chaque_nuit (0 à 50), pourquoi, et portee_du_releve, facultative : ce dont le changement fait rejouer la série — « lectures » (chaque fichier que l'épreuve a lu, la règle d'origine, prise quand la clé manque), « epreuve » (le seul code de l'épreuve, décision de Jean-Luc n°71 du 01-11-2026, lue au mot) ou « code_execute » (l'épreuve et chaque programme qu'elle exécute, sans les données ; choix D43 du Chat du 05-11-2026, à confirmer par Jean-Luc) ; les valeurs vivent dans programmes/SERIES_DE_SABOTAGES.py (PORTEES). Lu par options_de_lancement (programmes/CERTIFIER_LA_VERSION.py), ajouté le 16-10-2026.",
+ "format_des_options": "delais : « chemin et arguments sans {copie}, séparés par une espace » → secondes (1 à 21 600) et pourquoi ; series_hors_de_la_nuit : chemin de l'épreuve → releve (motif du relevé, un seul fichier doit y répondre), essais_refaits_chaque_nuit (0 à 50), pourquoi, et portee_du_releve, facultative : ce dont le changement fait rejouer la série — « lectures » (chaque fichier que l'épreuve a lu, la règle d'origine, prise quand la clé manque), « epreuve » (le seul code de l'épreuve, décision de Jean-Luc n°71 du 01-11-2026, lue au mot) ou « code_execute » (l'épreuve et chaque programme qu'elle exécute, sans les données ; choix D43 du Chat du 05-11-2026, à confirmer par Jean-Luc) ; les valeurs vivent dans programmes/SERIES_DE_SABOTAGES.py (PORTEES). Lu par options_de_lancement (programmes/CERTIFIER_LA_VERSION.py), ajouté le 16-10-2026. ; serie_du_circuit, facultative (ajoutée le 08-11-2026, décision de Jean-Luc n°309 du 07-11-2026) : la série jouée par le circuit public des séries et son relais (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, SERIES et RELAIS, en tirent tout) — code (lettres et chiffres, commence par une lettre : le nom de la série sur le bouton et dans une demande), machines et lot (1 à 99 : les valeurs par défaut), pourquoi.",
  "delais": {
   "tests/EPREUVES_DE_LA_LECTURE_DES_COURS_Sam_10-10-2026.py --saboter": {
    "secondes": 10800,
@@ -104,12 +104,24 @@
   "tests/EPREUVES_DU_COURS_PROPRE_DE_YAHOO_Jeu_22-10-2026.py": {
    "releve": "tests/resultats/SERIE_DE_SABOTAGES_DU_COURS_PROPRE_DE_YAHOO_*.txt",
    "pourquoi": "Décisions de Jean-Luc du 23-10-2026 à 16h29 (« Oui, je suis d'accord avec ces quatre points ») et 16h33 (« 1 ») : le fichier des 20 ans est figé et surveillé chaque nuit par les empreintes de toute sa chaîne ; chaque nuit, l'essai court de cette épreuve (sans sabotages) ; la série de sabotages (leur nombre se lit dans le dictionnaire SABOTAGES de l'épreuve, et leur durée dans le relevé) seulement quand le programme, l'épreuve ou un fichier qu'elle lit change, rejouée par tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py (BACKLOG A-599 ⑭). Aucun essai refait la nuit : la décision dit « sans sabotages » ; la certification vérifie chaque nuit que le relevé vaut encore (empreintes des fichiers lus).",
-   "essais_refaits_chaque_nuit": 0
+   "essais_refaits_chaque_nuit": 0,
+   "serie_du_circuit": {
+    "code": "Yahoo",
+    "machines": 2,
+    "lot": 21,
+    "pourquoi": "Valeurs reprises du circuit des séries en service (.github/workflows/series_longues.yml, entrées parts_yahoo et lot_yahoo) : 2 lots de 21, valeur par défaut du joueur et découpage du relevé de la machine du 05-11-2026. Décision de Jean-Luc n°309 du 07-11-2026 : une seule table d'où tout le circuit est fabriqué."
+   }
   },
   "tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py": {
    "releve": "tests/resultats/SERIE_DE_SABOTAGES_DE_L_HISTORIQUE_LONG_*.txt",
    "pourquoi": "Décision de Jean-Luc du 16-10-2026 à 14h30 (« Uniquement quand il y a un changement. Très bien, avec une alarme si on oublie. ») : 167 sabotages, environ 6 heures (27 en 62 minutes mesurés le 16-10-2026) ; rejoués par tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py quand l'épreuve ou un fichier qu'elle lit change ; chaque nuit, la certification vérifie que le relevé vaut encore. Chaque nuit, 3 essais tirés au hasard sont refaits et doivent rendre, mot pour mot, la ligne du relevé (relecture de Cowork du 16-10-2026, cassure M2 : rien ne prouvait que la série avait tourné ; décision de Jean-Luc du 16-10-2026 à 18h53, « 1 » à « 3 essais par nuit (Recommandé) »).",
-   "essais_refaits_chaque_nuit": 3
+   "essais_refaits_chaque_nuit": 3,
+   "serie_du_circuit": {
+    "code": "HL",
+    "machines": 18,
+    "lot": 6,
+    "pourquoi": "Valeurs reprises du circuit des séries en service (.github/workflows/series_longues.yml, entrées parts_hl et lot_hl) : 36 lots de 6, découpage des relevés de la machine ; 18 machines = 2 lots par machine, pour le disque de 14 Go (environ 2,4 Go par lot HL mesuré le 04-11-2026). Décision de Jean-Luc n°309 du 07-11-2026 : une seule table d'où tout le circuit est fabriqué."
+   }
   },
   "tests/EPREUVES_DE_LA_BOUCLE_DE_CHECK_Ven_16-10-2026.py": {
    "releve": "tests/resultats/SERIE_DE_SABOTAGES_DE_LA_BOUCLE_DE_CHECK_*.txt",
