@@ -582,7 +582,7 @@ NOMS = ["Z0"] + [f"S{i}" for i in range(1, 43)]
 SABOTAGES = [
     ("crédit sans empreinte", CREDULE, "S10"),
     ("copie effacée non vue", [("        sys.addaudithook(_ecoute)\n", "")], "S28"),
-    ("délai propre ignoré", [("delais.get(cle, DUREE_MAX_EPREUVE), lectures)", "DUREE_MAX_EPREUVE, lectures)")], "S30"),
+    ("délai propre ignoré", [("coupure(cle, delais, durees), lectures)", "DUREE_MAX_EPREUVE, lectures)")], "S30"),
     ("série jouée la nuit malgré sa déclaration",
      [('        if chemin in series and "--saboter" in arguments:\n', "        if False:\n")], "S31"),
     ("relevé cru sans regarder les fichiers",

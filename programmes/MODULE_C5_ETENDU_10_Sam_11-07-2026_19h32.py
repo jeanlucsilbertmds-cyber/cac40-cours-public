@@ -584,6 +584,36 @@ def signaux_c5etendu10(ohlcv):
     return out
 
 
+def memoire_signaux_c5etendu10():
+    """Rend la mémoire de `signaux_c5etendu10` : le nombre de séances, jour décidé compris, dont elle a besoin.
+
+    ① RÔLE — Déclarer, à côté de la fonction qui décide l'achat, combien de séances passées elle lit, pour que
+      l'épreuve d'arrivée des signaux (`tests/EPREUVES_DE_L_ARRIVEE_DES_SIGNAUX_Sam_31-10-2026.py`) ne lui donne,
+      sur les 20 ans, que ces séances-là pour chaque date vérifiée (décision de Jean-Luc du 06-11-2026 à 19h41 :
+      « chaque stratégie dira de combien de jours passés elle a besoin, et un programme vérifiera ce chiffre »).
+    ② CONTEXTE D'APPEL — `memoire_declaree` de l'épreuve d'arrivée des signaux, qui la trouve par son nom :
+      « memoire_ » suivi du nom de la fonction de signal. Aucun programme du circuit du soir ne l'appelle.
+    ③ ENTRÉE — Aucune : `signaux_c5etendu10` n'a pas de réglages.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un entier, 16 avec les constantes d'aujourd'hui (C5E10_CMF_P = C5E10_CCI_P = 14).
+      [rend: 1]
+    ⑥ TRAITEMENT — Le plus grand de C5E10_CMF_P + 2 et C5E10_CCI_P.
+    ⑦ UNITÉ — Des séances de bourse, le jour décidé compris.
+    ⑧ POURQUOI — Lu dans `signaux_c5etendu10` : la décision du jour i lit le flux du jour (séances i − 13 à i) et
+      celui de la veille (i − 14 à i − 1), et l'indice du jour (i − 13 à i) ; la fonction refuse une histoire de moins
+      de C5E10_CMF_P + 2 séances. D'où C5E10_CMF_P + 2 = 16, ou la fenêtre de l'indice si elle devenait plus longue.
+      Mesuré par l'étude « 54 heures » (06-11-2026, hors dépôt) : avec 15 séances, C5 est refusé dès ACCOR au
+      2024-04-08 ; avec 16 et 64, il passe sur toutes les valeurs des deux fichiers. L'épreuve VÉRIFIE ce chiffre à
+      chaque lancement, par décalage (`verifier_la_memoire`).
+    ⑨ CE QUI CLOCHE — La règle vient de la lecture du code de `signaux_c5etendu10`, pas d'un calcul automatique : si
+      la fonction se met à lire plus loin, ce chiffre ne suit pas de lui-même ; c'est la vérification de l'épreuve qui
+      le refusera, avec le motif « MÉMOIRE DÉCLARÉE TROP COURTE ».
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main ; aucun de ses appels ne peut ne pas revenir. [sort: non]
+    """
+    return max(C5E10_CMF_P + 2, C5E10_CCI_P)
+
+
 def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
     """Rejoue la vie d'un trade, de l'entrée du lendemain jusqu'à sa sortie.
 

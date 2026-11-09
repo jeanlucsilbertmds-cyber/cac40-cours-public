@@ -12,7 +12,8 @@ CE QU'IL NE FAIT PAS
     fenetres glissantes. Il les APPELLE (R-708).
 
 CE QU'IL AJOUTE, ET QUI MANQUAIT
-    le point mort · les episodes independants · la coupure 70/30 avec nettoyage
+    le point mort · les observations independantes (mesurees, n°106 ; ex-episodes)
+    · la coupure 70/30 avec nettoyage
     de la frontiere · la borne basse du gain moyen · l'etalon de hasard · la
     courbe de capital QUOTIDIENNE · le glissement · le temoin miroir.
 
@@ -28,7 +29,8 @@ CE QU'IL AJOUTE, ET QUI MANQUAIT
 ② CONTEXTE D'APPEL — Il est chargé par deux programmes, et un seul des deux
   tourne sans intervention humaine.
   ① `programmes/JUGE_DES_STRATEGIES.py`, lancé à la main, appelle huit de ses fonctions —
-  relevé le 19-09-2026 : `point_mort_en_fractions`, `episodes`, `coupure_70_30`,
+  relevé le 19-09-2026 : `point_mort_en_fractions`, `episodes` (remplacée le 05-11-2026 par
+  `observations_independantes`, n°106), `coupure_70_30`,
   `wilson_bas`, `fenetres_glissantes`, `borne_basse_gain`,
   `plus_longue_serie_de_pertes` et `etalon_hasard`.
   Depuis la décision de Jean-Luc du 29-10-2026 à 21h28 (« A »), le juge demande son
@@ -50,7 +52,11 @@ CE QU'IL AJOUTE, ET QUI MANQUAIT
   `requests`, `socket` et `subprocess` dans ce fichier, le 19-09-2026, rend
   zéro occurrence.
 ⑤ SORTIE — Deux formes selon l'usage. Chargé comme bibliothèque : il ne rend
-  rien et expose quinze fonctions. Lancé en ligne de commande : il SORT DU
+  rien et expose quinze fonctions (05-11-2026, lot S_per : six s'ajoutent pour R-505 ⑦ et ⑪ —
+  `lire_les_epoques`, `loi_de_student_inferieure`, `probabilite_epoque_perdante`,
+  `minimum_d_epoques_gagnantes`, `controle_des_epoques`, `afficher_le_groupe_temoin` ; leur seul
+  appelant aujourd'hui est `tests/EPREUVES_DES_EPOQUES_Jeu_05-11-2026.py`, le juge de la loi (lot JG)
+  les branchera). Lancé en ligne de commande : il SORT DU
   PROGRAMME avec 0 si tous les contrôles de calibrage passent, 1 si l'un
   échoue, après avoir affiché une ligne par contrôle.
 ⑥ TRAITEMENT — ① poser le capital simulé, les frais de repli et la graine de
@@ -118,7 +124,10 @@ CE QU'IL AJOUTE, ET QUI MANQUAIT
   apparaissent pas, `point_mort` non plus. C'est exactement le défaut que le
   texte de `_calibrage` dit avoir fermé le 29-08-2026 : le texte d'`episodes`
   annonce « 33 episodes retrouves exactement » et ce résultat n'est rejouable
-  par aucun contrôle du fichier.
+  par aucun contrôle du fichier. (05-11-2026 : `episodes` est retirée (n°106) ;
+  sa remplaçante, `observations_independantes`, est éprouvée à vérité connue
+  et sur les 100 opérations étalons de C5 par
+  `tests/EPREUVES_DES_OBSERVATIONS_INDEPENDANTES_Jeu_05-11-2026.py`, pas par `_calibrage`.)
   ④ Deux fonctions ne sont appelées par personne. Mesuré le 19-09-2026 en
   cherchant chaque nom dans tous les fichiers `.py` de `programmes/` hors ce
   fichier : `courbe_quotidienne` et `glissement` rendent zéro appelant, alors
@@ -126,7 +135,7 @@ CE QU'IL AJOUTE, ET QUI MANQUAIT
   écrites, elles sont justes, et aucun rapport ne les affiche.
   ⑤ Les seuils de la méthode de jugement sont écrits dans le code et nulle part
   ailleurs. Les 21 séances d'embargo entre deux morceaux de période, les 5
-  séances qui séparent deux épisodes, la coupure au sept dixièmes de la période
+  séances qui séparent deux épisodes (retirées le 05-11-2026 : n°106, lot S_ep), la coupure au sept dixièmes de la période
   et les 5 opérations minimales pour juger une fenêtre vivent tous ici.
   Recherche du mot « embargo » dans `gouvernance/REGISTRE_REGLES.md` le
   19-09-2026 : zéro occurrence. Les seuils PROPRES À UNE STRATÉGIE, eux, sont
@@ -753,145 +762,338 @@ def wilson_bas(n, wr_pct, z=1.96):
 
 
 # ─────────────────────────────────────────────────────────────────────
-# LES ÉPISODES INDÉPENDANTS — combien d'observations VRAIMENT distinctes
+# LES OBSERVATIONS INDÉPENDANTES — combien d'occasions VRAIMENT distinctes, MESURÉ
 # ─────────────────────────────────────────────────────────────────────
 
-def episodes(ops, seances_projet, seuil=5):
-    """Regroupe les signaux separes de MOINS DE `seuil` SEANCES.
+def observations_independantes(ops):
+    """Mesure le nombre d'observations indépendantes d'une liste d'opérations, par le chevauchement réel des positions.
 
-    LA REGLE VIENT D'A-210, elle n'est pas reinventee : « 100 operations = 85
-    jours de signal distincts = 33 episodes independants — signaux regroupes
-    s'ils sont a moins de 5 seances ; 28 a 7 seances, 20 a 10 ».
-
-    CALIBRAGE DU 28-08-2026 : la valeur principale est retrouvee EXACTEMENT,
-    33 episodes a 5 seances, avec la lecture « ecart STRICTEMENT superieur au
-    seuil ouvre un nouvel episode ». Les deux valeurs secondaires donnent 26 et
-    19 contre 28 et 20 documentes — ecart de 1 et 2, tres probablement du au
-    trou du 29-10-2024 repare le 25/08, qui a ajoute cinq seances aux donnees.
-    **Ce n'est PAS verifie, et c'est dit plutot que masque.**
-
-    DEUX PIEGES QUE CETTE FONCTION EVITE, tous deux commis le 28/08 avant
-    correction : compter en JOURS CALENDAIRES au lieu de SEANCES — un week-end
-    compte alors comme deux jours de marche ; et employer l'horizon de detention
-    comme critere de regroupement, ce qui mesure le chevauchement des POSITIONS
-    (consequence de nos reglages) au lieu de la proximite des SIGNAUX (cause de
-    marche). A-211 a deja tranche ce point : une mesure qui bouge quand on change
-    l'objectif ou le stop mesure autre chose que ce qu'elle pretend.
-
-    POURQUOI CETTE MESURE EXISTE : cent operations nees du meme creux de marche
-    ne sont pas cent observations. Tout test statistique qui compte 100 la ou il
-    y a 33 episodes surestime la certitude — c'est ce qui fondait a tort le
-    statut « validee stricte » de C5-ETENDU-10 (A-210).
-
-    ① RÔLE — Dire combien d'observations VRAIMENT distinctes portent un
-      résultat, et non combien d'opérations il compte. Cent opérations nées du
-      même creux de marché ne sont pas cent observations indépendantes : elles
-      décrivent un seul événement vu cent fois. Le chiffre de référence du
-      projet est écrit au BACKLOG sous l'action A-210 : 100 opérations, 85 jours
-      de signal distincts, 33 épisodes indépendants.
-    ② CONTEXTE D'APPEL — Un seul appelant : `programmes/JUGE_DES_STRATEGIES.py`, à la
-      main, une fois par stratégie jugée, sans préciser le seuil. Aucun autre
-      appel dans le dépôt — recherche dans tous les fichiers `.py` de
-      `programmes/` le 19-09-2026, une seule ligne.
+    ① RÔLE — Dire combien d'occasions VRAIMENT distinctes portent le gain moyen
+      d'une stratégie, en le MESURANT pour chaque stratégie, et non en le
+      supposant. Deux opérations dont les positions sont ouvertes en même temps
+      subissent les mêmes séances de marché : si leurs gains s'écartent de la
+      moyenne dans le même sens, elles n'apportent pas deux informations
+      distinctes. Cent opérations qui ne se chevauchent jamais valent cent
+      observations ; cent opérations rangées en vingt groupes de cinq copies
+      ouvertes ensemble en valent vingt. C'est la mesure que demande R-505 ④
+      (loi G, non figée) : « Le nombre se mesure pour chaque stratégie, par la
+      ressemblance des opérations proches comparée au hasard ; jamais par un
+      nombre fixe de séances » (décision de Jean-Luc du 01-11-2026 à 13h19,
+      « 1 », n°106 : « A-304 S'APPLIQUE »). « Proches » veut dire ici : ouvertes
+      en même temps, ce que disent les propres positions de la stratégie ; aucun
+      nombre de séances, aucun seuil, aucune règle à choisir n'y entre.
+      HISTOIRE, POUR NE RIEN SUPPRIMER SANS LE DIRE : elle remplace `episodes`
+      (signaux distants de 5 séances ou moins regroupés), retirée le 05-11-2026
+      (lot S_ep, tour 1, n°106). Au tour 1, elle mesurait la ressemblance des
+      opérations voisines DANS L'ORDRE DES NUMÉROS, avec deux règles au choix
+      (« prudente », « si_le_hasard_est_battu », constante `REGLES_DE_DEPENDANCE`),
+      la troncature de Geyer, le test de Ljung et Box et sa fonction
+      `_khi2_au_dela`. Tout cela est SUPPRIMÉ au tour 2 (05-11-2026, avis du
+      superviseur R-759 « ARRÊTER ET SIMPLIFIER ») : le rangement par numéro
+      mélangeait voisins d'un jour et d'un an, ce qui fabriquait une fausse
+      question à Jean-Luc (Q-Sep1, retirée), un réglage en trop et un test sans
+      dent. Au tour 3 (05-11-2026, avis du superviseur R-759 « DE FOND ») : la
+      mesure du tour 2 est GARDÉE et BORNÉE par le nombre de périodes de marché
+      distinctes (voir ⑥ ⑧) — rien n'est supprimé, deux cases s'ajoutent.
+      Au tour 4 (05-11-2026, n°194, avis du superviseur R-759 « ARRÊTER ET
+      SIMPLIFIER ») : une mesure qui verrait aussi la ressemblance entre
+      opérations successives a été éprouvée et N'A PAS été écrite (voir ⑨ ①) ;
+      rien n'est supprimé. Le même jour, Jean-Luc a rendu la borne K
+      DÉFINITIVE (décision du 05-11-2026 à 18h33, « 1 », n°197 : « le nombre
+      d'observations indépendantes retenu = le plus petit de la mesure de
+      ressemblance (④, n°106) et du nombre d'opérations qui ne se recouvrent
+      pas (K) ; prudence décidée ») : elle n'est plus un choix provisoire du
+      Chat (n°194). La méthode entière est expliquée pas à pas dans
+      `gouvernance/COMMENT_UNE_STRATEGIE_EST_REGLEE_PUIS_JUGEE.md`, partie 9
+      (décision de Jean-Luc du 05-11-2026 à 18h08, « 1 », n°195).
+    ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py`, fonction `juger`,
+      une fois par stratégie jugée, pour l'AFFICHER ; puis le juge de la loi
+      (lot JG), qui comparera `n_observations` au plancher
+      `plancher_observations` qu'il LIT dans la table de R-505 (jamais écrit
+      ici) ; puis le tirage par groupes de n°107, qui lira
+      `taille_des_groupes`. JG et n°107 lisent ces deux cases-là, JAMAIS
+      `observations_mesurees`, qui est affichée et ne décide pas. JG et n°107 sont À VENIR : relevé le 05-11-2026 par
+      recherche du nom dans `programmes/` et `tests/`, les seuls appelants
+      AUJOURD'HUI sont le juge (affichage) et l'épreuve
+      `tests/EPREUVES_DES_OBSERVATIONS_INDEPENDANTES_Jeu_05-11-2026.py`.
     ③ ENTRÉE — `ops` : la liste des opérations, chacune étant un dictionnaire
-      dont seule la case `date_signal` est lue ici · `seances_projet` : toutes
-      les dates de séance connues, qui servent à compter en séances et non en
-      jours · `seuil` : le nombre de séances au-delà duquel deux signaux
-      appartiennent à deux épisodes, 5 par défaut, et l'unique appelant laisse
-      ce défaut.
-    ④ CONDITIONS D'ENTRÉE — Les dates doivent s'écrire de la même façon dans
-      les opérations et dans le calendrier, sinon aucune n'est reconnue. Une
-      liste d'opérations vide est acceptée.
-    ⑤ SORTIE — UNE valeur : un dictionnaire, et il prend TROIS formes
-      différentes. Sur une liste vide, deux cases seulement : le nombre
-      d'opérations à zéro et le nombre d'épisodes à zéro — mesuré le
-      19-09-2026. Quand aucune date n'est reconnue au calendrier : le nombre
-      d'opérations, un nombre d'épisodes à `None`, et un motif en clair. Dans le
-      cas normal : cinq cases, dont le nombre de jours de signal, le nombre
-      d'épisodes, le seuil employé et le nombre moyen d'opérations par épisode.
+      dont trois cases sont lues : `date_entree` et `date_sortie` (textes
+      « AAAA-MM-JJ », le jour de l'achat et le jour de la revente) et `net` (le
+      gain net en euros). La case `valeur`, si elle existe, ne sert qu'à nommer
+      l'opération dans un motif. AUCUN AUTRE ARGUMENT : ni règle, ni seuil, ni
+      nombre de séances.
+    ④ CONDITIONS D'ENTRÉE — `net` présent et nombre fini, sinon `ValueError`
+      qui nomme l'opération. Une date absente, vide, d'un autre type qu'un texte
+      ou mal écrite (autre chose que AAAA-MM-JJ, ou un jour qui n'existe pas)
+      rend la mesure INCONNUE avec un motif qui nomme l'opération — jamais un
+      rangement silencieux (défaut D6 du tour 1). Une date de sortie antérieure
+      à la date d'entrée : `ValueError`, une telle opération est impossible.
+      Une liste vide est acceptée.
+    ⑤ SORTIE — UNE valeur : un dictionnaire, toujours avec les mêmes neuf
+      cases : `n_operations` (entier, les opérations reçues) ·
+      `n_observations` (le nombre RETENU : le plus petit de
+      `observations_mesurees` et `periodes_distinctes` ; nombre à virgule,
+      jamais arrondi ici, ou `None` quand la mesure est INCONNUE) ·
+      `observations_mesurees` (opérations ÷ facteur, la mesure du tour 2,
+      AFFICHÉE, ne décide pas ; ou `None`) · `periodes_distinctes` (K, entier :
+      le plus grand nombre de positions deux à deux jamais ouvertes en même
+      temps ; `None` si les dates sont illisibles) · `taille_des_groupes`
+      (combien d'opérations valent une observation RETENUE : opérations ÷
+      `n_observations`, 1,0 au moins, ou `None`) ·
+      `paires_qui_se_chevauchent` (entier, ou `None` si les dates sont
+      illisibles) · `p_hasard` (la part des tirages au hasard dont le facteur
+      atteint celui mesuré, ou `None` sans paire ou sans mesure — AFFICHÉE,
+      ELLE NE DÉCIDE RIEN) · `methode` (une phrase qui nomme la méthode) ·
+      `motif` (`None`, ou la raison en clair d'une mesure INCONNUE).
       [rend: 1]
-    ⑥ TRAITEMENT — ① rendre deux cases à zéro si la liste est vide · ② numéroter
-      les séances du calendrier dans l'ordre · ③ relever les jours de signal
-      distincts reconnus au calendrier · ④ rendre un motif si aucun ne l'est ·
-      ⑤ parcourir ces jours deux à deux et ouvrir un nouvel épisode chaque fois
-      que l'écart, compté en séances, dépasse STRICTEMENT le seuil · ⑥ rendre
-      les comptes.
-    ⑦ UNITÉ — Les écarts se comptent en SÉANCES de bourse et jamais en jours de
-      calendrier. Les épisodes et les opérations sont des NOMBRES.
-    ⑧ POURQUOI — Le comptage en séances plutôt qu'en jours évite qu'un week-end
-      compte pour deux jours de marché. Et c'est la proximité des SIGNAUX qui
-      regroupe, jamais l'horizon de détention : l'horizon est un réglage, et une
-      mesure qui bouge quand on change l'objectif ou le stop mesure les réglages
-      et non le marché. Les deux pièges ont été commis le 28-08-2026 avant
-      correction.
-      Ce que la mesure sert à éviter est écrit : un test statistique qui compte
-      100 là où il y a 33 épisodes surestime la certitude, et c'est ce qui
-      fondait à tort le statut de la stratégie C5-ETENDU-10.
+    ⑥ TRAITEMENT — ① contrôler le gain et lire les deux dates de chaque
+      opération ; noter chaque date illisible ; refuser une sortie avant
+      l'entrée · ② si une date est illisible, rendre INCONNU avec son motif ·
+      ③ à 0 ou 1 opération, rendre ce nombre · ④ ranger les opérations par
+      (entrée, sortie, gain), pour que la probabilité affichée ne dépende pas
+      de l'ordre où l'appelant les donne · ④bis compter K, les périodes
+      distinctes : parcourir les positions par date de sortie croissante et
+      garder chacune dont l'entrée est APRÈS la sortie de la dernière gardée
+      (bornes comprises : une entrée le jour même de cette sortie n'est pas
+      gardée) ; ce parcours rend exactement le plus grand nombre de positions
+      deux à deux jamais ouvertes en même temps. Raison : une ressemblance
+      commune à un paquet de positions ouvertes ensemble ne se voit qu'en
+      COMPARANT des paquets entre eux ; avec deux paquets, la moyenne tombe
+      entre les deux et la ressemblance disparaît (deux paquets de 50 à
+      ressemblance vraie 0,5 : vérité 3,9, la mesure seule rend 100 une fois
+      sur dix — relecture du tour 2, R-1). Les données ne peuvent donc pas
+      garantir plus d'observations indépendantes que de périodes distinctes ·
+      ⑤ lister les paires dont les
+      positions sont ouvertes en même temps, BORNES COMPRISES (une sortie le
+      jour même d'une entrée compte : les deux positions vivent cette séance) ·
+      ⑥ calculer l'écart de chaque gain à la moyenne et leur somme des carrés ;
+      si elle est nulle (tous les gains égaux), rendre INCONNU avec son motif ·
+      ⑦ facteur = 1 + 2 × (somme, sur les paires du ⑤, du produit des deux
+      écarts) ÷ (somme des carrés) · ⑧ le facteur est ramené à 1 s'il est
+      plus petit ; observations mesurées = opérations ÷ facteur ; observations
+      RETENUES (`n_observations`) = le plus petit des observations mesurées et
+      de K ; taille des groupes = opérations ÷ observations retenues · ⑨ s'il y
+      a au moins une paire : rebattre les écarts 2 000 fois (graine 20261105)
+      sur la même liste de paires et compter la part des tirages dont le
+      facteur atteint celui mesuré (elle porte sur le facteur, pas sur K).
+    ⑦ UNITÉ — `n_operations`, `n_observations`, `observations_mesurees` et
+      `periodes_distinctes` sont des NOMBRES d'opérations ; les dates sont des jours du calendrier ; le facteur et
+      `p_hasard` sont sans unité. Le gain lu est en euros, mais le résultat ne
+      dépend pas de l'unité (multiplier tous les gains par un même nombre ne
+      change pas le facteur).
+    ⑧ POURQUOI — R-505 ⑤ teste le gain MOYEN ; l'incertitude de cette moyenne
+      vaut (variance ÷ n) × (1 + 2 × somme des covariances de toutes les
+      paires ÷ (n × variance)). Deux positions qui ne sont jamais ouvertes
+      ensemble ne partagent aucune séance de marché : leur covariance est
+      supposée nulle, et seules les paires qui se chevauchent comptent. C'est
+      le raisonnement classique des rendements qui se chevauchent (Hansen et
+      Hodrick, Journal of Political Economy 88(5), 1980 ; Newey et West,
+      Econometrica 55(3), 1987, pour la forme pondérée). Une dépendance
+      négative n'est jamais créditée — jamais plus d'observations que
+      d'opérations — parce que la règle la plus stricte prime. A-304 (BACKLOG,
+      28-08-2026) a écrit « 96 À 100 OBSERVATIONS » pour les 100 opérations
+      étalons de C5, en comptant les paires « qui font la même chose »
+      (gagnant ou perdant) ; cette proportion ne voit pas qu'une période
+      entière peut tirer les gains vers le bas (24-04 au 10-06-2026 : 8
+      gagnantes sur 20, contre 61 sur 100, sur le tableau du 01-08-2026 ; 7
+      sur 20 contre 60 sur 100 sur les opérations rejouées par le juge au
+      barème réel — une opération, ENGIE du 27-05-2026, change de signe).
+      CHAQUE NOMBRE DE C5 ET SA SOURCE : sur le tableau du 01-08-2026
+      (`donnees/TABLEAU_100_TRADES_C5E10_Sam_01-08-2026_23h35.csv`),
+      observations mesurées 68,82 (mesure du superviseur R-759 du
+      05-11-2026, recalculée en fractions exactes par le relecteur du tour 2) ;
+      sur les opérations rejouées par le juge (calibrage, barème réel),
+      observations mesurées 70,585 (relevé au tour 2, recalculé à
+      l'identique par le relecteur) ; les deux sur 143 paires, mêmes dates,
+      seuls les gains diffèrent ; périodes distinctes K = 52 (superviseur
+      R-759, avant le tour 3, `superviseur_nuit/sep_t3/sortie_disjointes.txt`,
+      mêmes dates donc même K pour les deux) ; RETENU : 52, le plus petit.
+      Tous les quatre sont rejoués par l'épreuve E3. A-304 comptait la
+      dépendance mesurée SANS test qui décide (ρ = 0,024, non significatif,
+      porté quand même) : la probabilité sous le hasard est donc AFFICHÉE et
+      ne décide pas ; c'est pourquoi le nombre de tirages et la graine,
+      constantes de calcul, peuvent vivre ici sans être une règle de la loi.
+      Deux références vérifiées s'ajoutent au tour 4 (05-11-2026) : Newey et
+      West (1994), « Automatic Lag Selection in Covariance Matrix
+      Estimation », Review of Economic Studies 61(4), p. 631-653,
+      https://ideas.repec.org/a/oup/restud/v61y1994i4p631-653..html (la
+      règle qui choisit par les données la largeur de la fenêtre, essayée au
+      ⑨ ①) ; Britten-Jones, Neuberger et Nolte (2011), Journal of Business
+      Finance & Accounting,
+      https://openaccess.city.ac.uk/id/eprint/15212/1/JBFA%20Overlapping%20observations%20with%20BrittenJones.pdf
+      (« Hansen-Hodrick and Newey-West standard errors tend to be severely
+      biased down », cité au ⑨ ①).
     ⑨ CE QUI CLOCHE —
-      ① Le calibrage annoncé par ce texte n'est rejouable par rien. Le texte
-      affirme « la valeur principale est retrouvee EXACTEMENT, 33 episodes a 5
-      seances ». Recherche du nom `episodes` dans le corps de `_calibrage` le
-      19-09-2026 : absent. C'est précisément le défaut que le texte de
-      `_calibrage` dit avoir fermé le 29-08-2026 — un calibrage qu'on ne peut
-      pas rejouer est une affirmation, pas un calibrage — et il est resté ouvert
-      pour cette fonction.
-      ② Les deux valeurs secondaires annoncées ne sont pas retrouvées, et le
-      texte le dit sans le trancher : 26 et 19 obtenus contre 28 et 20
-      documentés. L'explication avancée, cinq séances ajoutées par une
-      réparation du 25-08-2026, est écrite comme une hypothèse et n'a pas été
-      vérifiée depuis.
-      ③ Les opérations dont la date de signal n'est pas au calendrier
-      DISPARAISSENT du comptage sans un mot. La case rendue qui compte les
-      opérations porte le total reçu, mais les épisodes ne sont construits que
-      sur les dates reconnues : sur un jeu où la moitié des dates seraient
-      inconnues, le nombre moyen d'opérations par épisode serait deux fois trop
-      grand, et rien ne le signalerait.
-      ④ Le seuil de 5 séances vit dans la signature et nulle part ailleurs. Il
-      vient du BACKLOG, action A-210, et non du REGISTRE : recherche du mot
-      « episode » dans `gouvernance/REGISTRE_REGLES.md` à faire avant tout
-      changement. Le modifier ici changerait le nombre d'observations déclaré
-      sans trace dans la loi du projet.
+      ⓪ LE PRIX DE LA BORNE K : quand des positions ouvertes ensemble sont en
+      réalité indépendantes, K les sous-compte (dix paquets de dix positions
+      indépendantes : vérité 100, rendu 10 ; trente positions toutes ouvertes
+      ensemble : rendu 1 — superviseur R-759, sortie_disjointes.txt). C'est
+      voulu : dans une seule période, l'indépendance des positions ne peut pas
+      se vérifier. En mode « un jeton » (positions jamais simultanées), K vaut
+      le nombre d'opérations et la borne ne mord jamais.
+      Ce que vaut la borne, mesuré dans un monde simulé aux dates de C5
+      (superviseur R-759 du 05-11-2026, `mesure_complete/sortie_final.txt`,
+      300 mondes par cas, médiane) : sans régime de marché, le plus petit de
+      la mesure et de K vaut 52 pour une vérité de 59,2 (prudent) ; avec un
+      régime, 52 pour une vérité de 44,1 et 50,3 pour une vérité de 26,4
+      (optimiste dans 87 % et 99 % des tirages). K ne mesure aucune
+      ressemblance : c'est une prudence. Elle est DÉCIDÉE par Jean-Luc,
+      définitivement (05-11-2026 à 18h33, « 1 », n°197), et n'est plus
+      provisoire ; les régimes de marché sont confiés à R-505 ⑦ (tenir dans
+      chaque époque), selon la même décision. Pour C5, la borne décide :
+      52 < 70,585.
+      ① La mesure ne voit pas toute la dépendance : une ressemblance commune à
+      un paquet de positions ouvertes ensemble n'est mesurable qu'avec
+      beaucoup de paquets (c'est pourquoi K la borne, ⑥ ④bis), et une
+      dépendance entre positions qui ne se chevauchent pas (un régime de
+      marché qui dure plus longtemps qu'une position) est supposée nulle et
+      n'est pas vue. C'est une limite à afficher, pas à corriger par un nombre
+      de séances.
+      Éprouvé au tour 4 (05-11-2026, superviseur R-759, n°194 et n°196) dans
+      un monde simulé aux dates de C5, avec un régime commun qui persiste
+      d'une séance à l'autre (AR(1), φ = 0,97) ; médianes sur 300 mondes :
+      vérité 27,2 ; cette fonction 48,9 ; la même mesure étendue aux paires
+      qui ne se chevauchent pas, avec une largeur choisie par la règle de
+      Newey et West (1994), 47,2 ; le portefeuille quotidien avec
+      Newey-West 97,0 SANS régime, pour une vérité de 60,3
+      (`mesure_complete/sortie_etalon.txt`) ; aucune largeur fixe ne descend
+      sous 42,6 pour une vérité de 27,3
+      (`mesure_complete/sortie_balayage_m.txt`). Aucune n'a donc été écrite.
+      La cause : une ressemblance qui dure une part notable de la période se
+      confond avec la moyenne estimée (Britten-Jones, Neuberger et Nolte,
+      2011 : « Hansen-Hodrick and Newey-West standard errors tend to be
+      severely biased down »). Même sans régime, aux durées de C5, cette
+      mesure est optimiste : 70,4 en médiane pour une vérité de 60,3
+      (`sortie_etalon.txt`). Sur C5 réelle, avec une largeur choisie par les
+      données (m = 8), la ressemblance des opérations disjointes est à la
+      limite du hasard : p = 0,055 ; la mesure étendue donnerait 62,067
+      (`mesure_complete/sortie_final.txt`). Ces fichiers sont dans le
+      dossier de travail du Chat du 05-11-2026, pas au dépôt.
+      ② Sur une cinquantaine d'opérations, le facteur est bruité ; le bruit
+      mesuré sur C5E10-QA-V1 (51 opérations) est déclaré au RAPPORT du lot
+      S_ep, tour 2 ; aucun contrôle de ce fichier ne le rejoue.
+      ③ Toute paire qui se chevauche pèse autant, qu'elle partage une séance
+      ou vingt ; la forme pondérée par la part de séances communes rend 72,1
+      au lieu de 68,8 sur le tableau de C5 (superviseur, même sortie). Le
+      choix « non pondéré » est celui du superviseur ; non éprouvé au-delà.
+      ④ Le calcul des paires est en n² ÷ 2 et la probabilité en 2 000 × (nombre
+      de paires) : quelques dixièmes de seconde sur cent opérations ; non
+      mesuré au-delà de quelques centaines.
+      ⑤ `p_hasard` dépend de la graine : une autre graine donne un autre
+      chiffre, à quelques centièmes près ; c'est pourquoi il ne décide rien.
     ⑩ EFFET — Aucun : elle lit. Aucun fichier, aucun réseau, aucune donnée
-      modifiée, rien d'affiché. Elle construit une copie triée du calendrier.
-    ⑪ TERMINAISON — Rend toujours la main. Elle ne lève pas dans les cas que
-      son appelant lui donne : le juge des stratégies enveloppe malgré tout l'appel et
-      afficherait « EPISODES non mesures » suivi du message. Aucun de ses
-      appels ne se termine.
+      modifiée, rien d'affiché. Elle construit une copie triée des dates et
+      des gains.
+    ⑪ TERMINAISON — Rend la main, ou LÈVE `ValueError` (gain absent ou non
+      fini, sortie avant l'entrée) ; l'erreur remonte à l'appelant (le juge
+      l'enveloppe et affiche « non mesurées »). Toutes ses boucles sont bornées
+      par le nombre d'opérations et le nombre de tirages. Aucun de ses appels
+      ne peut ne pas revenir : elle n'appelle que des fonctions de la
+      bibliothèque standard (dates, tri, tirage au hasard), qui reviennent
+      toutes.
       [sort: non]
     ⑫ DÉFINITIONS
-      un épisode : un groupe de signaux assez proches dans le temps pour
-        décrire le même mouvement de marché, et qui ne compte donc que pour une
-        observation
-      une séance : une journée de bourse pour une valeur, avec son ouverture, son plus haut, son plus bas, sa clôture et son volume.
-      le signal : le jour où la stratégie dit d'acheter ; l'achat lui-même a
-        lieu à l'ouverture de la séance suivante
+      les périodes distinctes (K) : le plus grand nombre de positions deux à
+        deux jamais ouvertes en même temps (bornes comprises) ; dans une même
+        période, le mouvement commun du marché n'est tiré qu'une fois
       une opération : un achat simulé suivi de sa revente, avec son gain net en euros ; aucun ordre réel n'est jamais passé
+      une observation indépendante : une opération dont l'issue n'apprend
+        rien sur celle d'une autre ; n opérations dont le facteur vaut τ
+        valent n ÷ τ observations
+      ouvertes en même temps : la date d'entrée de chacune n'est pas après la
+        date de sortie de l'autre (bornes comprises)
+      le hasard : les mêmes gains, redistribués au hasard sur les mêmes
+        positions ; seule la place des gains change, pas les dates
+      le plancher : le nombre minimal d'observations indépendantes sous lequel
+        R-505 ④ rend NON TRANCHÉE (TROP PETIT) ; il vit dans la table de R-505
+        (`gouvernance/REGISTRE_REGLES.md`, clé `plancher_observations`) et
+        n'entre pas dans cette fonction
       le juge des stratégies : `programmes/JUGE_DES_STRATEGIES.py`, le programme qui rejoue une stratégie sur l'historique des cours et rend la liste de ses opérations
       le BACKLOG : `BACKLOG_DECISIONS.md`, le tableau daté des décisions et des
         actions du projet, où chaque ligne porte un identifiant en `A-`
-    
       C5-ETENDU-10 : le nom de la stratégie vivante ; ses seuils et son horizon sont lus dans `donnees/cac40_strategies.csv`.
-      l'horizon : le nombre de séances pendant lesquelles une position est tenue si ni l'objectif de gain ni la perte acceptée ne sont atteints
-      le calibrage : le contrôle qui rejoue une stratégie déjà mesurée et exige de retrouver son résultat connu avant que le juge des stratégies ne juge quoi que ce soit.
-      le dépôt : le dépôt GitHub où vivent les fichiers du système, le projet n'en étant qu'une copie de lecture
-      un motif : un morceau de nom passé à une fonction de recherche, par exemple trouve("REGISTRE_REGLES"), au lieu du nom complet du fichier.
-      un réglage : un des nombres qui définissent une stratégie — l'objectif de gain, la perte acceptée, l'horizon
 """
-    if not ops:
-        return {"n_operations": 0, "n_episodes": 0}
-    rang = {d: i for i, d in enumerate(sorted(seances_projet))}
-    jours = sorted({o["date_signal"] for o in ops if o["date_signal"] in rang})
-    if not jours:
-        return {"n_operations": len(ops), "n_episodes": None,
-                "motif": "aucune date de signal reconnue au calendrier"}
-    n = 1
-    for a, b in zip(jours, jours[1:]):
-        if rang[b] - rang[a] > seuil:
-            n += 1
-    return {"n_operations": len(ops), "n_jours_signal": len(jours),
-            "n_episodes": n, "seuil_seances": seuil,
-            "operations_par_episode": round(len(ops) / n, 2)}
-
+    import datetime
+    import math
+    import random
+    tirages, graine = 2000, 20261105   # constantes de CALCUL de la probabilité affichée, qui ne décide rien (⑧)
+    methode = ("chevauchement reel des positions : facteur = 1 + 2 x (somme, sur les paires d'operations ouvertes en "
+               "meme temps, bornes comprises, du produit des ecarts de gain a la moyenne) / (somme des carres des "
+               "ecarts), ramene a 1 s'il est plus petit ; observations mesurees = operations / facteur ; observations "
+               "retenues = le plus petit des observations mesurees et du nombre K de periodes distinctes (positions "
+               "deux a deux jamais ouvertes en meme temps) ; probabilite sous le hasard par %d permutations des gains "
+               "(graine %d), affichee, ne decide pas" % (tirages, graine))
+    rendu = {"n_operations": len(ops), "n_observations": None, "observations_mesurees": None,
+             "periodes_distinctes": None, "taille_des_groupes": None,
+             "paires_qui_se_chevauchent": None, "p_hasard": None, "methode": methode, "motif": None}
+    illisibles, lues = [], []
+    for i, o in enumerate(ops):
+        if "net" not in o:
+            raise ValueError("operation n°%d : case 'net' absente (%r)" % (i, o))
+        g = o["net"]
+        if isinstance(g, bool) or not isinstance(g, (int, float)) or not math.isfinite(g):
+            raise ValueError("operation n°%d (%s, entree %s) : gain net %r, pas un nombre fini"
+                             % (i, o.get("valeur", "valeur inconnue"), o.get("date_entree"), g))
+        bornes = []
+        for cle in ("date_entree", "date_sortie"):
+            t = o.get(cle)
+            try:
+                if not isinstance(t, str) or len(t) != 10 or t[4] != "-" or t[7] != "-":
+                    raise ValueError(t)
+                bornes.append(datetime.date.fromisoformat(t))
+            except ValueError:
+                illisibles.append("operation n°%d (%s, gain %r) : %s %s"
+                                  % (i, o.get("valeur", "valeur inconnue"), g, cle,
+                                     "absente" if cle not in o else "%r illisible (attendu AAAA-MM-JJ)" % (t,)))
+                break
+        if len(bornes) == 2:
+            if bornes[1] < bornes[0]:
+                raise ValueError("operation n°%d (%s) : sortie %s avant l'entree %s"
+                                 % (i, o.get("valeur", "valeur inconnue"), bornes[1], bornes[0]))
+            lues.append((bornes[0], bornes[1], float(g)))
+    if illisibles:
+        rendu["motif"] = ("%d operation(s) sans date d'entree ou de sortie lisible, la mesure est INCONNUE : %s"
+                          % (len(illisibles), " ; ".join(illisibles[:3]) + (" ; ..." if len(illisibles) > 3 else "")))
+        return rendu
+    n = len(lues)
+    if n <= 1:
+        rendu.update(n_observations=float(n), observations_mesurees=float(n), periodes_distinctes=n,
+                     taille_des_groupes=1.0, paires_qui_se_chevauchent=0)
+        return rendu
+    lues.sort()
+    periodes, fin = 0, None   # K : positions deux a deux jamais ouvertes ensemble, par date de sortie croissante
+    for debut, sortie, _ in sorted(lues, key=lambda x: x[1]):
+        if fin is None or debut > fin:
+            periodes += 1
+            fin = sortie
+    rendu["periodes_distinctes"] = periodes
+    paires = [(i, j) for i in range(n) for j in range(i + 1, n)
+              if not (lues[i][1] < lues[j][0] or lues[j][1] < lues[i][0])]
+    rendu["paires_qui_se_chevauchent"] = len(paires)
+    gains = [g for _, _, g in lues]
+    moyenne = sum(gains) / n
+    ecart = [g - moyenne for g in gains]
+    somme_carres = sum(e * e for e in ecart)
+    if somme_carres == 0.0:
+        rendu["motif"] = ("les %d gains sont tous egaux : leur ressemblance n'a pas de sens, "
+                          "la mesure est INCONNUE" % n)
+        return rendu
+    facteur = 1.0 + 2.0 * sum(ecart[i] * ecart[j] for i, j in paires) / somme_carres
+    taille = max(facteur, 1.0)
+    observations_mesurees = n / taille
+    retenu = min(observations_mesurees, float(periodes))
+    rendu.update(n_observations=retenu, observations_mesurees=observations_mesurees,
+                 taille_des_groupes=n / retenu)
+    if paires:
+        hasard = random.Random(graine)
+        melange = list(ecart)
+        atteint = 0
+        for _ in range(tirages):
+            hasard.shuffle(melange)
+            if 1.0 + 2.0 * sum(melange[i] * melange[j] for i, j in paires) / somme_carres >= facteur - 1e-12:
+                atteint += 1
+        rendu["p_hasard"] = atteint / tirages
+    return rendu
 
 # ─────────────────────────────────────────────────────────────────────
 # LA COUPURE 70 / 30 — avec nettoyage de la frontière
@@ -1368,6 +1570,591 @@ def fenetres_glissantes(ops, seances_projet, n=3, embargo=None, horizon=None,
 
 
 # ─────────────────────────────────────────────────────────────────────
+# LES ÉPOQUES — R-505 ⑦ — et LE GROUPE TÉMOIN — R-505 ⑪ (lot S_per, étape D, 05-11-2026)
+# ─────────────────────────────────────────────────────────────────────
+
+def lire_les_epoques(texte, annees_d_examen, seances):
+    """Lit le champ « epoques » d'une déclaration datée et rend les époques, avec leur part des séances.
+
+    ① RÔLE — Transformer le découpage écrit dans la déclaration (« AAAA-MM-JJ..AAAA-MM-JJ ; … ») en
+      une liste d'époques vérifiée, et dire, pour chacune, quelle part des séances des années d'examen
+      elle porte. R-505 ⑦ exige que les époques soient « fixées d'avance » : le découpage vient donc de
+      la déclaration et de nulle part ailleurs ; s'il manque ou s'il est faux, rien ne le remplace.
+    ② CONTEXTE D'APPEL — Le juge de la loi (lot JG, À VENIR) une fois par verdict, avec le champ
+      `epoques` et le champ `annees_d_examen` de la déclaration datée (contrat DECLARATION_DATEE) et les
+      séances du calendrier (`programmes/CALENDRIER_DE_LA_BOURSE.py`, `seances_entre`). Relevé le
+      05-11-2026 : seule l'épreuve `tests/EPREUVES_DES_EPOQUES_Jeu_05-11-2026.py` l'appelle aujourd'hui.
+    ③ ENTRÉE — `texte` : le champ `epoques`, des morceaux « début..fin » séparés par « ; » ·
+      `annees_d_examen` : le champ du même nom, un seul morceau « début..fin » · `seances` : les
+      séances de bourse qui couvrent les années d'examen, des dates (`datetime.date`) ou des textes
+      AAAA-MM-JJ, dans n'importe quel ordre.
+    ④ CONDITIONS D'ENTRÉE — Aucune sur `texte` et `annees_d_examen` : tout défaut y est RENDU comme un
+      motif, jamais levé. `seances` doit être itérable ; un élément qui n'est ni une date ni un texte
+      AAAA-MM-JJ lève `ValueError`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire à trois cases. `epoques` : la liste, dans l'ordre du temps,
+      de {"debut", "fin" (textes AAAA-MM-JJ), "seances" (entier)}, ou `None` · `parts_des_seances` : la
+      liste des parts (séances de l'époque ÷ séances des années d'examen), même ordre, ou `None` ·
+      `motif` : `None`, ou « NON JUGEABLE — <champ> : <raison> », qui nomme le champ de la déclaration
+      en défaut (`epoques`, ou `annees_d_examen` s'il est illisible).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire les années d'examen ; illisibles → motif qui nomme `annees_d_examen` ·
+      ② champ `epoques` vide ou absent → motif « champ vide » · ③ lire chaque morceau ; date illisible,
+      séparateur absent ou début après la fin → motif · ④ ranger par début ; un début qui n'est pas
+      APRÈS la fin de l'époque précédente → motif « chevauchement » · ⑤ une époque qui sort des années
+      d'examen → motif « débordement » · ⑥ compter les séances de chaque époque ; une séance des années
+      d'examen qui n'est dans aucune époque → motif « trou », qui nomme la première ; une époque sans
+      séance → motif · ⑦ rendre les époques et leurs parts.
+    ⑦ UNITÉ — Les dates sont des jours du calendrier ; `seances` se compte en SÉANCES ; les parts sont
+      des fractions sans unité dont la somme vaut 1.
+    ⑧ POURQUOI — R-505 ⑦ : « le découpage exact est fixé dans la déclaration, avant de regarder »
+      (décision de Jean-Luc du 31-10-2026 à 22h49, n°58) ; « ces 4 époques sont fixées avant le test »
+      (n°80). Un découpage écrit en repli dans le code serait choisi par le programme, pas déclaré :
+      c'est pourquoi un champ vide rend NON JUGEABLE et n'est jamais complété. Le trou se compte en
+      SÉANCES et non en jours : entre une époque qui finit le 31-12 et une qui commence le 02-01, le
+      1er janvier n'est pas un trou, puisque la Bourse est fermée (R-110 : une séance se lit dans un
+      calendrier, jamais dans les cours). Les parts servent au minimum calculé
+      (`minimum_d_epoques_gagnantes`) : une époque longue a plus de chances d'être gagnante qu'une
+      courte, à avantage égal.
+    ⑨ CE QUI CLOCHE — ① Si le calendrier reçu ne couvre pas toutes les années d'examen (il commence
+      après leur début, par exemple), les parts sont calculées sur ce qu'il porte, sans le dire : la
+      couverture est l'affaire de l'appelant (`seances_entre` lève hors couverture). ② Les époques sont
+      rangées par leur début : un champ écrit dans le désordre est accepté s'il est par ailleurs juste.
+      ③ Le séparateur « .. » et « ; » est celui du commentaire du contrat (DECLARATION_DATEE) ; aucun
+      autre n'est lu.
+    ⑩ EFFET — Aucun : elle lit ses arguments, n'écrit rien, n'affiche rien.
+    ⑪ TERMINAISON — Rend la main, ou lève `ValueError` sur une séance mal formée. Ses boucles sont
+      bornées par le nombre de morceaux et de séances. Aucun de ses appels ne peut ne pas revenir : elle
+      n'appelle que la bibliothèque standard (dates).
+      [sort: non]
+    ⑫ DÉFINITIONS
+      une époque : un morceau des années d'examen, fixé dans la déclaration avant de regarder
+      une séance : un jour où la Bourse de Paris tient séance, lu au calendrier
+    """
+    import datetime
+    rendu = {"epoques": None, "parts_des_seances": None, "motif": None}
+    morceaux_examen = annees_d_examen.split("..") if isinstance(annees_d_examen, str) else []
+    dates_examen = []
+    for morceau in morceaux_examen:
+        m = morceau.strip()
+        try:
+            lue = datetime.date.fromisoformat(m)
+            if lue.isoformat() != m:
+                raise ValueError(m)
+            dates_examen.append(lue)
+        except ValueError:
+            break
+    if len(morceaux_examen) != 2 or len(dates_examen) != 2 or dates_examen[0] > dates_examen[1]:
+        rendu["motif"] = "NON JUGEABLE — annees_d_examen : %r illisible (attendu AAAA-MM-JJ..AAAA-MM-JJ)" % (
+            annees_d_examen,)
+        return rendu
+    debut_examen, fin_examen = dates_examen
+    if not isinstance(texte, str) or not texte.strip():
+        rendu["motif"] = ("NON JUGEABLE — epoques : champ vide, aucune époque déclarée ; le découpage se fixe "
+                          "dans la déclaration, avant de regarder (R-505 ⑦), il n'est jamais complété ici")
+        return rendu
+    lues = []
+    for morceau in texte.split(";"):
+        bornes = morceau.strip().split("..")
+        dates = []
+        for b in bornes:
+            b = b.strip()
+            try:
+                lue = datetime.date.fromisoformat(b)
+                if lue.isoformat() != b:
+                    raise ValueError(b)
+                dates.append(lue)
+            except ValueError:
+                break
+        if len(bornes) != 2 or len(dates) != 2:
+            rendu["motif"] = ("NON JUGEABLE — epoques : morceau %r illisible (attendu AAAA-MM-JJ..AAAA-MM-JJ, "
+                              "morceaux séparés par « ; »)" % (morceau.strip(),))
+            return rendu
+        if dates[0] > dates[1]:
+            rendu["motif"] = "NON JUGEABLE — epoques : époque %r, le début est après la fin" % (morceau.strip(),)
+            return rendu
+        lues.append((dates[0], dates[1]))
+    lues.sort()
+    for precedente, suivante in zip(lues, lues[1:]):
+        if suivante[0] <= precedente[1]:
+            rendu["motif"] = ("NON JUGEABLE — epoques : chevauchement, l'époque qui commence le %s commence "
+                              "avant la fin de la précédente (%s)" % (suivante[0], precedente[1]))
+            return rendu
+    if lues[0][0] < debut_examen or lues[-1][1] > fin_examen:
+        rendu["motif"] = ("NON JUGEABLE — epoques : débordement, les époques vont du %s au %s et les années "
+                          "d'examen du %s au %s" % (lues[0][0], lues[-1][1], debut_examen, fin_examen))
+        return rendu
+    jours = set()
+    for s in seances:
+        if isinstance(s, datetime.date):
+            jours.add(s if not isinstance(s, datetime.datetime) else s.date())
+        else:
+            try:
+                lue = datetime.date.fromisoformat(s) if isinstance(s, str) else None
+            except ValueError:
+                lue = None
+            if lue is None or lue.isoformat() != s:
+                raise ValueError("seance %r : ni une date ni un texte AAAA-MM-JJ" % (s,))
+            jours.add(lue)
+    jours_examen = sorted(j for j in jours if debut_examen <= j <= fin_examen)
+    comptes = [0] * len(lues)
+    for j in jours_examen:
+        place = [i for i, (a, b) in enumerate(lues) if a <= j <= b]
+        if not place:
+            rendu["motif"] = ("NON JUGEABLE — epoques : trou, la séance du %s est dans les années d'examen et "
+                              "dans aucune époque déclarée" % (j,))
+            return rendu
+        comptes[place[0]] += 1
+    for (a, b), c in zip(lues, comptes):
+        if c == 0:
+            rendu["motif"] = "NON JUGEABLE — epoques : l'époque %s..%s ne porte aucune séance" % (a, b)
+            return rendu
+    total = sum(comptes)
+    rendu["epoques"] = [{"debut": a.isoformat(), "fin": b.isoformat(), "seances": c}
+                        for (a, b), c in zip(lues, comptes)]
+    rendu["parts_des_seances"] = [c / total for c in comptes]
+    return rendu
+
+
+def loi_de_student_inferieure(t, ddl):
+    """Rend la probabilité qu'une variable de Student à `ddl` degrés de liberté soit inférieure ou égale à `t`.
+
+    ① RÔLE — Donner la probabilité d'un résultat aussi bas que `t` sous la loi de Student, celle de la
+      moyenne d'un petit échantillon dont l'écart-type est estimé. Elle sert à dire si une époque est
+      « perdante à coup sûr » (R-505 ⑦).
+    ② CONTEXTE D'APPEL — `probabilite_epoque_perdante`, une fois par époque ; l'épreuve
+      `tests/EPREUVES_DES_EPOQUES_Jeu_05-11-2026.py` (E4, valeurs connues).
+    ③ ENTRÉE — `t` : un nombre réel · `ddl` : le nombre de degrés de liberté, un nombre réel strictement
+      positif (il peut avoir une virgule : le nombre d'observations retenu en a souvent une).
+    ④ CONDITIONS D'ENTRÉE — `t` fini, `ddl` fini et > 0 ; sinon `ValueError`. Un booléen est refusé.
+    ⑤ SORTIE — UNE valeur : la probabilité, entre 0 et 1.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① t = 0 rend un demi · ② sinon x = ddl ÷ (ddl + t²) et la fonction bêta incomplète
+      régularisée I_x(ddl ÷ 2, ½) se calcule par sa fraction continue (méthode de Lentz modifiée), sur
+      x ou sur 1 − x selon le côté où elle converge vite · ③ P(T ≤ t) = ½ I_x pour t < 0, 1 − ½ I_x
+      sinon.
+    ⑦ UNITÉ — Sans unité : `t` est un nombre d'écarts-types, la sortie une probabilité.
+    ⑧ POURQUOI — Sur une époque de peu d'observations, la loi normale rend des probabilités trop
+      petites et déclarerait « perdante » une époque saine (superviseur R-759 du 05-11-2026, lot S_per,
+      §3). Aucune loi de Student n'existait dans `programmes/` (seule `phi_inv`, enfermée dans le module
+      de statistiques), et scipy n'est pas dans le circuit. La formule est celle des manuels :
+      Abramowitz et Stegun, 26.7.1 et 26.5.8 ; fraction continue de la bêta incomplète, Press et al.,
+      « Numerical Recipes », §6.4.
+    ⑨ CE QUI CLOCHE — ① Le plafond d'itérations est un nombre de calcul (100 fois la racine de
+      ddl ÷ 2 + ½, plus 100) ; s'il est atteint, elle lève au lieu de rendre une valeur fausse.
+      ② Précision éprouvée à 10⁻³ près sur trois valeurs de table (E4), pas au-delà.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève `ValueError` (entrée invalide) ou `ArithmeticError` (fraction
+      continue non convergée au plafond). La boucle est bornée par le plafond. Aucun de ses appels ne
+      peut ne pas revenir : `math` seulement.
+      [sort: non]
+    """
+    import math
+    import sys
+    for nom, v in (("t", t), ("ddl", ddl)):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+            raise ValueError("%s = %r : pas un nombre fini" % (nom, v))
+    if ddl <= 0:
+        raise ValueError("ddl = %r : doit être strictement positif" % (ddl,))
+    if t == 0:
+        return 0.5
+    x = ddl / (ddl + t * t)
+    a, b = ddl / 2, 0.5
+    if x >= 1:
+        return 0.5
+    tete = math.exp(math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b) + a * math.log(x) + b * math.log1p(-x))
+    symetrique = x >= (a + 1) / (a + b + 2)
+    aa, bb, xx = (b, a, 1 - x) if symetrique else (a, b, x)
+    minuscule, eps = sys.float_info.min, sys.float_info.epsilon
+    c, d = 1.0, 1 - (aa + bb) * xx / (aa + 1)
+    d = 1 / (d if abs(d) >= minuscule else minuscule)
+    h = d
+    plafond = (math.isqrt(int(aa + bb)) + 1) * 100
+    m = 1
+    while True:
+        if m > plafond:
+            raise ArithmeticError("loi de Student : fraction continue non convergée (t=%r, ddl=%r)" % (t, ddl))
+        num = m * (bb - m) * xx / ((aa - 1 + 2 * m) * (aa + 2 * m))
+        d = 1 + num * d
+        d = 1 / (d if abs(d) >= minuscule else minuscule)
+        c = 1 + num / c
+        c = c if abs(c) >= minuscule else minuscule
+        h *= d * c
+        num = -(aa + m) * (aa + bb + m) * xx / ((aa + 2 * m) * (aa + 1 + 2 * m))
+        d = 1 + num * d
+        d = 1 / (d if abs(d) >= minuscule else minuscule)
+        c = 1 + num / c
+        c = c if abs(c) >= minuscule else minuscule
+        h *= d * c
+        if abs(d * c - 1) <= 2 * eps:
+            break
+        m += 1
+    i_x = 1 - tete * h / aa if symetrique else tete * h / aa
+    return 0.5 * i_x if t < 0 else 1 - 0.5 * i_x
+
+
+def probabilite_epoque_perdante(gains_eur, n_retenu):
+    """Rend la probabilité qu'une époque aussi mauvaise vienne d'une stratégie qui ne perd pas, par Student.
+
+    ① RÔLE — Dire si une époque est « perdante à coup sûr » au sens de R-505 ⑦ : la probabilité p de
+      voir un gain moyen aussi bas si le vrai gain moyen était nul ; p petit = perdante à coup sûr.
+      La comparaison au seuil est faite par l'appelant (`controle_des_epoques`), qui lit le seuil.
+    ② CONTEXTE D'APPEL — `controle_des_epoques`, une fois par époque qui porte au moins une opération ;
+      l'épreuve `tests/EPREUVES_DES_EPOQUES_Jeu_05-11-2026.py` (E5, E9).
+    ③ ENTRÉE — `gains_eur` : les gains nets des opérations de l'époque, en euros · `n_retenu` : le
+      nombre d'observations indépendantes RETENU pour ces opérations
+      (`observations_independantes(ops_de_l_epoque)["n_observations"]`), ou `None` s'il est INCONNU.
+    ④ CONDITIONS D'ENTRÉE — Chaque gain est un nombre fini, sinon `ValueError` ; `n_retenu` est `None`
+      ou un nombre fini, sinon `ValueError`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire {"p_perdante", "t", "ddl", "motif"} ; `p_perdante`, `t` et
+      `ddl` valent `None` et `motif` dit pourquoi quand la probabilité ne se calcule pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① contrôler les gains · ② `n_retenu` absent → motif « mesure manquante » ;
+      `n_retenu` < 2 → motif (aucun degré de liberté) ; moins de deux gains → motif · ③ s = écart-type
+      des gains (diviseur n − 1) ; s nul → motif · ④ t = moyenne ÷ (s ÷ √n_retenu), ddl = n_retenu − 1
+      · ⑤ p = `loi_de_student_inferieure(t, ddl)`, unilatéral.
+    ⑦ UNITÉ — Gains en EUROS ; `t` sans unité ; `ddl` en observations ; `p_perdante` probabilité.
+    ⑧ POURQUOI — Le nombre qui divise l'écart-type est le nombre RETENU et pas le nombre d'opérations :
+      des opérations ouvertes ensemble n'apportent pas autant d'information qu'elles sont nombreuses ;
+      c'est la décision de Jean-Luc du 05-11-2026 à 18h33 (« 1 », n°197 : « le nombre d'observations
+      indépendantes retenu = le plus petit de la mesure de ressemblance (④, n°106) et du nombre
+      d'opérations qui ne se recouvrent pas (K) »). Compter les opérations ferait passer pour
+      « perdante à coup sûr » une époque qui n'a que quelques occasions vraiment distinctes (E5 : 20
+      opérations en 4 paquets → p 0,003 à n = 20, 0,15 à n = 4). Student plutôt que la loi normale :
+      voir `loi_de_student_inferieure`, ⑧.
+    ⑨ CE QUI CLOCHE — ① L'écart-type est celui des opérations, pas celui des observations retenues :
+      c'est l'écart-type d'une opération, divisé par la racine du nombre retenu (formule du superviseur,
+      §3). ② Le test suppose des gains à peu près normaux ; non éprouvé sur des gains très asymétriques.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève `ValueError`, ou laisse remonter `ArithmeticError` de
+      `loi_de_student_inferieure`. Aucune boucle hors de la lecture des gains. Aucun de ses appels ne
+      peut ne pas revenir : `loi_de_student_inferieure` est bornée par son plafond.
+      [sort: non]
+    """
+    import math
+    import statistics
+    gains = list(gains_eur)
+    for i, g in enumerate(gains):
+        if isinstance(g, bool) or not isinstance(g, (int, float)) or not math.isfinite(g):
+            raise ValueError("gain n°%d = %r : pas un nombre fini" % (i, g))
+    rendu = {"p_perdante": None, "t": None, "ddl": None, "motif": None}
+    if n_retenu is None:
+        rendu["motif"] = "MESURE MANQUANTE : nombre d'observations indépendantes retenu INCONNU"
+        return rendu
+    if isinstance(n_retenu, bool) or not isinstance(n_retenu, (int, float)) or not math.isfinite(n_retenu):
+        raise ValueError("n_retenu = %r : pas un nombre fini" % (n_retenu,))
+    if n_retenu < 2:
+        rendu["motif"] = ("NON TRANCHÉE : %s observation(s) retenue(s), il en faut au moins 2 pour un écart-type"
+                          % (n_retenu,))
+        return rendu
+    if len(gains) < 2:
+        rendu["motif"] = "NON TRANCHÉE : %d gain(s), il en faut au moins 2 pour un écart-type" % len(gains)
+        return rendu
+    s = statistics.stdev(gains)
+    if s == 0:
+        rendu["motif"] = "NON TRANCHÉE : les %d gains sont égaux, écart-type nul" % len(gains)
+        return rendu
+    t = (math.fsum(gains) / len(gains)) / (s / math.sqrt(n_retenu))
+    ddl = n_retenu - 1
+    rendu.update(t=t, ddl=ddl, p_perdante=loi_de_student_inferieure(t, ddl))
+    return rendu
+
+
+def minimum_d_epoques_gagnantes(parts_des_seances, seuil_de_preuve, seuil_epoque):
+    """Calcule, avant tout regard, le nombre minimal d'époques gagnantes qu'exige R-505 ⑦.
+
+    ① RÔLE — Rendre le « minimum calculé par programme » de R-505 ⑦ (table : clé
+      `epoques_gagnantes_minimum`), pour une stratégie, à partir de ce que sa déclaration fixe : le
+      seuil de preuve de ⑤ (0,05 ÷ k) et la part de séances de chaque époque. ELLE NE REÇOIT AUCUNE
+      OPÉRATION NI AUCUN GAIN : le minimum se calcule dès la déclaration, avant le regard.
+    ② CONTEXTE D'APPEL — `controle_des_epoques` ; plus tard le juge de la loi (lot JG, À VENIR), qui
+      peut l'appeler dès la déclaration pour afficher le minimum avant de jouer ; l'épreuve
+      `tests/EPREUVES_DES_EPOQUES_Jeu_05-11-2026.py` (E1, E2, E3).
+    ③ ENTRÉE — `parts_des_seances` : la part de séances de chaque époque (`lire_les_epoques`) ·
+      `seuil_de_preuve` : le seuil de ⑤, 0,05 ÷ k, calculé par l'appelant avec la valeur lue dans la
+      table de R-505 (clé `seuil_de_preuve`) · `seuil_epoque` : la clé `epoque_perdante` de la table.
+      AUCUN ARGUMENT N'A DE VALEUR PAR DÉFAUT.
+    ④ CONDITIONS D'ENTRÉE — Au moins une part ; chaque part dans ]0, 1] ; leur somme vaut 1 (à
+      l'arrondi près) ; les deux seuils dans ]0, 1[. Sinon `ValueError`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire {"minimum" (entier entre 0 et le nombre d'époques),
+      "probabilites_attendues" (la probabilité que chaque époque soit gagnante pour une stratégie juste
+      assez bonne pour passer ⑤), "methode" (une phrase)}.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① contrôler les entrées · ② z = le point de la loi normale sous lequel tombe
+      1 − seuil_de_preuve · ③ p_e = Φ(z × √part_e) pour chaque époque · ④ la loi du nombre d'époques
+      gagnantes (somme de tirages à pile ou face de probabilités p_e : loi de Poisson-binomiale), par
+      convolution · ⑤ minimum = le plus grand m tel que P(nombre < m) ≤ seuil_epoque.
+    ⑦ UNITÉ — Le minimum est un NOMBRE D'ÉPOQUES ; les parts et les probabilités sont sans unité.
+    ⑧ POURQUOI — La propriété (n°58 : « la part de périodes gagnantes n'est pas nettement plus basse
+      qu'attendu ») : une stratégie dont l'avantage est le même dans chaque époque, et qui passe ⑤,
+      n'est refusée par ce minimum qu'au plus seuil_epoque fois (5 fois sur 100). La stratégie la plus
+      faible qui passe ⑤ a un gain moyen μ* = z × σ ÷ √N ; dans une époque de n_e = part_e × N
+      observations, son gain moyen est positif avec la probabilité Φ(μ* √n_e ÷ σ) = Φ(z √part_e) :
+      σ et N s'annulent, AUCUN GAIN N'ENTRE. Toute stratégie homogène plus forte a des p_e plus grands,
+      donc la propriété tient pour elle aussi. Le minimum dépend de k, du nombre d'époques et de leurs
+      séances : ce n'est jamais un chiffre fixe (décision de Jean-Luc du 01-11-2026 à 12h28, « 3 »,
+      n°80 : « Un seuil calculé par programme, à partir des propres chiffres de C5 »). Étalonnage
+      (superviseur R-759 du 05-11-2026, lot S_per, §2) : 4 époques 8/5/7/4 ans, k = 69 → 3 ; refus des
+      stratégies homogènes qui passent ⑤ : 0,0 à 0,2 % ; un minimum fixé à 4, ou calculé sur les
+      années de réglage, en refuse 7,6 à 8,0 %. « Nettement » est lu au seuil `epoque_perdante` de la
+      table, faute d'une clé propre (lecture du Chat, consignée au BACKLOG).
+    ⑨ CE QUI CLOCHE — ① Ce minimum ne protège pas seul contre une stratégie sans avantage : même
+      « toutes les époques gagnantes » laisse passer 1 ÷ 2^E des stratégies nulles (6,25 % pour 4
+      époques) ; c'est ⑤ qui donne cette protection (⑤ et ⑦ ensemble : 0,06 %, superviseur §2).
+      ② Une stratégie qui ne gagne que dans une époque sur quatre et passe ⑤ n'est refusée par ⑦
+      qu'une fois sur trois environ (33,6 %, superviseur §2) : les régimes de marché, que n°197 confie
+      à ⑦, ne sont couverts qu'en partie. ③ Le calcul suppose que la part d'observations retenues d'une
+      époque suit sa part de séances ; mesuré dans le monde simulé du superviseur, un écart d'un facteur
+      trois sur une époque ne change pas le minimum (0,2 % de refus) ; non éprouvé au-delà.
+      ④ La loi normale remplace celle de Student pour z : N n'est pas connu avant le regard.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève `ValueError`. Boucles bornées par le nombre d'époques.
+      Aucun de ses appels ne peut ne pas revenir : `math` et `statistics.NormalDist` seulement.
+      [sort: non]
+    """
+    import math
+    import statistics
+    parts = list(parts_des_seances)
+    if not parts:
+        raise ValueError("aucune part de séances : aucune époque")
+    for i, p in enumerate(parts):
+        if isinstance(p, bool) or not isinstance(p, (int, float)) or not math.isfinite(p) or not 0 < p <= 1:
+            raise ValueError("part n°%d = %r : hors de ]0, 1]" % (i, p))
+    if not math.isclose(math.fsum(parts), 1):
+        raise ValueError("les parts de séances font %r, pas 1" % (math.fsum(parts),))
+    for nom, s in (("seuil_de_preuve", seuil_de_preuve), ("seuil_epoque", seuil_epoque)):
+        if isinstance(s, bool) or not isinstance(s, (int, float)) or not 0 < s < 1:
+            raise ValueError("%s = %r : hors de ]0, 1[" % (nom, s))
+    loi = statistics.NormalDist()
+    z = loi.inv_cdf(1 - seuil_de_preuve)
+    probabilites = [loi.cdf(z * math.sqrt(p)) for p in parts]
+    loi_du_nombre = [1.0]
+    for p in probabilites:
+        suivante = [0.0] * (len(loi_du_nombre) + 1)
+        for j, q in enumerate(loi_du_nombre):
+            suivante[j] += q * (1 - p)
+            suivante[j + 1] += q * p
+        loi_du_nombre = suivante
+    minimum, sous_m = 0, 0.0
+    for m in range(1, len(parts) + 1):
+        sous_m += loi_du_nombre[m - 1]
+        if sous_m > seuil_epoque:
+            break
+        minimum = m
+    return {"minimum": minimum, "probabilites_attendues": probabilites,
+            "methode": ("plus grand m tel que P(epoques gagnantes < m) <= seuil_epoque pour une strategie "
+                        "d'avantage egal partout, juste assez bonne pour passer le gain moyen au seuil de "
+                        "preuve : p_e = Phi(z(1 - seuil_de_preuve) x racine(part de seances de l'epoque)), "
+                        "loi de Poisson-binomiale ; aucun gain n'entre (superviseur R-759, lot S_per, methode C)")}
+
+
+def controle_des_epoques(ops, epoques, parts_des_seances, seuil_de_preuve, seuil_epoque):
+    """Juge R-505 ⑦ : aucune époque perdante à coup sûr, et assez d'époques gagnantes.
+
+    ① RÔLE — Rendre le contrôle ⑦ du verdict : répartir les opérations dans les époques déclarées,
+      dire pour chacune si elle est gagnante et si elle est perdante à coup sûr, et comparer le nombre
+      d'époques gagnantes au minimum calculé avant le regard.
+    ② CONTEXTE D'APPEL — Le juge de la loi (lot JG, À VENIR), une fois par verdict, avec les époques
+      et les parts rendues par `lire_les_epoques` et les deux seuils lus dans la table de R-505.
+      Relevé le 05-11-2026 : seule l'épreuve `tests/EPREUVES_DES_EPOQUES_Jeu_05-11-2026.py` l'appelle.
+      Elle ne reçoit pas le groupe témoin : le témoin informe, il ne décide pas (n°79).
+    ③ ENTRÉE — `ops` : les opérations, des dictionnaires dont sont lues `date_entree`, `date_sortie`
+      et `net` (gain net en euros), comme `observations_independantes` · `epoques` : la liste
+      {"debut", "fin", …} de `lire_les_epoques` (ou `None`) · `parts_des_seances` : la liste de même
+      longueur · `seuil_de_preuve` : 0,05 ÷ k · `seuil_epoque` : la clé `epoque_perdante`.
+      AUCUN ARGUMENT N'A DE VALEUR PAR DÉFAUT.
+    ④ CONDITIONS D'ENTRÉE — `parts_des_seances` de même longueur que `epoques`, sinon `ValueError` ;
+      les conditions de `minimum_d_epoques_gagnantes` ; `net` comme `observations_independantes`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire au contrat CONTROLE_DU_VERDICT : `etat` (PASSE, BLOQUE ou
+      INCONNU), `valeur` (le nombre d'époques gagnantes, ou `None`), `seuil` (le minimum, ou `None`),
+      `raison`, `role` (« CONDITION »), `detail` ({} ou {"epoques", "epoques_gagnantes",
+      "minimum_d_epoques_gagnantes", "parts_des_seances"} ; chaque époque porte EPOQUE_DU_VERDICT et
+      `observations_retenues`). Un défaut de la déclaration rend INCONNU avec une raison qui commence
+      par « NON JUGEABLE — epoques : ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① aucune époque reçue → INCONNU, « NON JUGEABLE — epoques » · ② calculer le
+      minimum (`minimum_d_epoques_gagnantes`, sans aucun gain) · ③ ranger les opérations par
+      `date_entree` et placer chacune dans l'époque qui contient sa date d'entrée ; une date illisible
+      ou hors de toute époque → INCONNU, « NON JUGEABLE — epoques », qui nomme l'opération · ④ pour
+      chaque époque : nombre d'opérations, gain moyen, observations retenues
+      (`observations_independantes(ops_de_l_epoque)["n_observations"]`), p perdante
+      (`probabilite_epoque_perdante`) ; gagnante si le gain moyen est > 0 ; perdante à coup sûr si
+      p < seuil_epoque ; une époque sans opération n'est ni gagnante ni perdante et compte dans le
+      total · ⑤ BLOQUE si une époque est perdante à coup sûr ou si les gagnantes sont moins que le
+      minimum ; sinon INCONNU si une époque n'a pas pu être mesurée (nommée) ; sinon PASSE.
+    ⑦ UNITÉ — Gains en EUROS ; époques et minimum en NOMBRE D'ÉPOQUES ; observations en nombre
+      d'observations ; p probabilité ; dates AAAA-MM-JJ.
+    ⑧ POURQUOI — R-505 ⑦ : « Exiger qu'aucune époque fixée d'avance ne soit perdante à coup sûr (seuil
+      de 5 %), et que le nombre d'époques gagnantes atteigne un minimum calculé par programme »
+      (n°58, n°80). Une opération appartient à l'époque de son ACHAT : son gain est décidé par le
+      signal de ce jour-là. Une opération hors de toute époque prouve que le découpage déclaré ne
+      couvre pas ce qui est jugé : l'écarter en silence changerait le résultat sans le dire. Un
+      contrôle qui n'a pas pu se mesurer ne rend jamais PASSE (R-734). BLOQUE passe avant INCONNU
+      quand le refus est déjà certain avec les époques mesurées : ce qui manque ne peut pas le lever.
+    ⑨ CE QUI CLOCHE — ① Quatre tests « perdante » au seuil de 5 % chacun, sans correction : une
+      stratégie nulle est refusée environ 18 fois sur 100 (1 − 0,95⁴) par cette moitié ; la loi dit
+      « seuil de 5 % » par époque, appliqué tel quel (BACKLOG). ② « NON JUGEABLE » n'est pas un état
+      d'un contrôle au contrat (ETATS_D_UN_CONTROLE) : il voyage dans la raison d'un INCONNU, que le
+      juge de la loi devra lire (fragment remis au lot C). ③ Une époque d'une seule opération rend
+      tout le contrôle INCONNU, sauf refus déjà certain.
+    ⑩ EFFET — Aucun : elle lit, n'écrit rien, n'affiche rien.
+    ⑪ TERMINAISON — Rend la main, ou lève `ValueError` (entrées hors conditions) ou laisse remonter
+      celles de ses appels. Boucles bornées par le nombre d'opérations et d'époques. Aucun de ses
+      appels ne peut ne pas revenir : `observations_independantes` et `loi_de_student_inferieure` sont
+      bornées.
+      [sort: non]
+    """
+    import datetime
+    import math
+    rendu = {"etat": "INCONNU", "valeur": None, "seuil": None, "raison": "", "role": "CONDITION", "detail": {}}
+    if not epoques:
+        rendu["raison"] = ("NON JUGEABLE — epoques : aucune époque reçue (la déclaration n'en porte pas, ou "
+                           "lire_les_epoques l'a refusée) ; aucun découpage n'est choisi ici")
+        return rendu
+    parts = list(parts_des_seances)
+    if len(parts) != len(epoques):
+        raise ValueError("%d parts de séances pour %d époques" % (len(parts), len(epoques)))
+    minimum = minimum_d_epoques_gagnantes(parts, seuil_de_preuve, seuil_epoque)["minimum"]
+    rendu["seuil"] = minimum
+    rangees, illisibles = [], []
+    for i, o in enumerate(ops):
+        d = o.get("date_entree")
+        try:
+            if not isinstance(d, str) or datetime.date.fromisoformat(d).isoformat() != d:
+                raise ValueError(d)
+            rangees.append((d, i, o))
+        except ValueError:
+            illisibles.append("operation n°%d (%s) : date_entree %r illisible" % (i, o.get("valeur", "?"), d))
+    if illisibles:
+        rendu["raison"] = "NON JUGEABLE — epoques : " + " ; ".join(illisibles)
+        return rendu
+    rangees.sort()
+    groupes = [[] for _ in epoques]
+    hors = []
+    for d, i, o in rangees:
+        place = [e for e, ep in enumerate(epoques) if ep["debut"] <= d <= ep["fin"]]
+        if not place:
+            hors.append("operation n°%d (%s, achat %s)" % (i, o.get("valeur", "?"), d))
+            continue
+        groupes[place[0]].append(o)
+    if hors:
+        rendu["raison"] = ("NON JUGEABLE — epoques : %d opération(s) hors de toute époque déclarée : %s"
+                           % (len(hors), " ; ".join(hors)))
+        return rendu
+    lignes, inconnues, perdantes = [], [], []
+    for ep, ops_e in zip(epoques, groupes):
+        nom = "%s..%s" % (ep["debut"], ep["fin"])
+        ligne = {"debut": ep["debut"], "fin": ep["fin"], "n_operations": len(ops_e), "gain_moyen_eur": None,
+                 "p_perdante": None, "gagnante": False, "observations_retenues": 0}
+        if ops_e:
+            gains = [o["net"] for o in ops_e]
+            mesure = observations_independantes(ops_e)
+            n_retenu = mesure["n_observations"]
+            ligne["observations_retenues"] = n_retenu
+            ligne["gain_moyen_eur"] = math.fsum(gains) / len(gains)
+            ligne["gagnante"] = ligne["gain_moyen_eur"] > 0
+            if n_retenu is None:
+                inconnues.append("époque %s : observations INCONNUES (%s)" % (nom, mesure["motif"]))
+            else:
+                proba = probabilite_epoque_perdante(gains, n_retenu)
+                if proba["motif"]:
+                    inconnues.append("époque %s : %s" % (nom, proba["motif"]))
+                else:
+                    ligne["p_perdante"] = proba["p_perdante"]
+                    if proba["p_perdante"] < seuil_epoque:
+                        perdantes.append("époque %s perdante à coup sûr (p = %.4g < %s)"
+                                         % (nom, proba["p_perdante"], seuil_epoque))
+        lignes.append(ligne)
+    gagnantes = sum(1 for ligne in lignes if ligne["gagnante"])
+    rendu["valeur"] = gagnantes
+    rendu["detail"] = {"epoques": lignes, "epoques_gagnantes": gagnantes, "minimum_d_epoques_gagnantes": minimum,
+                       "parts_des_seances": parts}
+    raisons = list(perdantes)
+    if gagnantes < minimum:
+        raisons.append("%d époque(s) gagnante(s) sur %d, minimum calculé %d" % (gagnantes, len(lignes), minimum))
+    if raisons:
+        rendu["etat"] = "BLOQUE"
+        rendu["raison"] = " ; ".join(raisons + (["non mesurées : " + " ; ".join(inconnues)] if inconnues else []))
+    elif inconnues:
+        rendu["etat"] = "INCONNU"
+        rendu["raison"] = "MESURE MANQUANTE — " + " ; ".join(inconnues)
+    else:
+        rendu["etat"] = "PASSE"
+    return rendu
+
+
+def afficher_le_groupe_temoin(ops_strategie, ops_temoin, epoques):
+    """Montre, sans rien décider, la stratégie à côté de son groupe témoin, sur le tout et par époque.
+
+    ① RÔLE — Porter l'affichage de R-505 ⑪ : « le même signal, mêmes réglages, sur TOUTES les actions
+      du CAC 40 à chaque date » (n°57), mis à côté de la stratégie, pour que Jean-Luc voie si l'avantage
+      vient du choix des valeurs ou du moment. Le nom est « groupe témoin » : « TEMOIN » désigne déjà
+      dans le juge le jeu de données du golden.
+    ② CONTEXTE D'APPEL — Le juge de la loi (lot JG, À VENIR), après `controle_des_epoques`, avec les
+      opérations du groupe témoin s'il a pu être joué. Relevé le 05-11-2026 : seule l'épreuve
+      `tests/EPREUVES_DES_EPOQUES_Jeu_05-11-2026.py` l'appelle.
+    ③ ENTRÉE — `ops_strategie`, `ops_temoin` : des opérations (`date_entree`, `net` lus) ; `ops_temoin`
+      vaut `None` quand le groupe témoin n'a pas pu être joué · `epoques` : la liste de
+      `lire_les_epoques`, ou `None` (seul le tout est montré).
+    ④ CONDITIONS D'ENTRÉE — `net` est un nombre fini, sinon `ValueError`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire au contrat CONTROLE_DU_VERDICT : `role` « AFFICHAGE » ;
+      `etat` « PASSE » (montré) ou « INCONNU » (avec sa raison), JAMAIS « BLOQUE » ; `valeur` le gain
+      moyen du groupe témoin en euros, ou `None` ; `seuil` `None` ; `detail` {"strategie",
+      "groupe_temoin", "par_epoque"}, chaque résumé portant `n_operations`, `gain_moyen_eur`,
+      `part_gagnante`.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① témoin absent → INCONNU, raison « composition du CAC 40 à chaque date absente
+      (I-8) » · ② résumer chaque groupe sur le tout · ③ si des époques sont données, résumer chaque
+      groupe dans chaque époque (par date d'achat) · ④ rendre PASSE.
+    ⑦ UNITÉ — Gains en EUROS ; parts gagnantes en fraction ; opérations en nombre.
+    ⑧ POURQUOI — « le TÉMOIN INFORME, il ne fait pas échouer C5 » (décision de Jean-Luc du 01-11-2026 à
+      12h27, « 2 », n°79). L'état ne dépend donc d'aucune comparaison : il dit seulement si le témoin a
+      pu être montré. Le témoin compte dans k (n°57), ce que fait le compteur de k (lot S_kk), pas
+      cette fonction.
+    ⑨ CE QUI CLOCHE — ① La table « membres du CAC 40 à chaque date » (I-8) n'existe pas au 05-11-2026 :
+      le groupe témoin ne peut pas être joué, cette fonction rend donc INCONNU sur données réelles.
+      ② Le contrat porte déjà un affichage nommé `temoin` (AFFICHAGES_DU_VERDICT, forme AFFICHAGE_DU_VERDICT)
+      ; ce rendu suit CONTROLE_DU_VERDICT avec le rôle AFFICHAGE, comme le demande la consigne du lot :
+      le choix entre les deux formes revient au lot C (fragment).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève `ValueError`. Boucles bornées par le nombre d'opérations et
+      d'époques. Aucun de ses appels ne peut ne pas revenir : `math` seulement.
+      [sort: non]
+    """
+    import math
+    rendu = {"etat": "INCONNU", "valeur": None, "seuil": None, "raison": "", "role": "AFFICHAGE", "detail": {}}
+    if ops_temoin is None:
+        rendu["raison"] = ("composition du CAC 40 à chaque date absente (I-8) : le groupe témoin n'est pas joué ; "
+                           "il informe, il ne décide pas (n°79)")
+        return rendu
+    tranches = [("tout", None, None)]
+    for ep in epoques or []:
+        tranches.append(("%s..%s" % (ep["debut"], ep["fin"]), ep["debut"], ep["fin"]))
+    resumes = {}
+    for nom_groupe, ops in (("strategie", ops_strategie), ("groupe_temoin", ops_temoin)):
+        for nom_tranche, debut, fin in tranches:
+            gains = []
+            for o in ops:
+                g = o.get("net")
+                if isinstance(g, bool) or not isinstance(g, (int, float)) or not math.isfinite(g):
+                    raise ValueError("%s : gain %r, pas un nombre fini" % (nom_groupe, g))
+                d = o.get("date_entree")
+                if debut is None or (isinstance(d, str) and debut <= d <= fin):
+                    gains.append(g)
+            resumes[(nom_groupe, nom_tranche)] = {
+                "n_operations": len(gains),
+                "gain_moyen_eur": math.fsum(gains) / len(gains) if gains else None,
+                "part_gagnante": sum(1 for g in gains if g > 0) / len(gains) if gains else None}
+    rendu["detail"] = {"strategie": resumes[("strategie", "tout")],
+                       "groupe_temoin": resumes[("groupe_temoin", "tout")],
+                       "par_epoque": [{"epoque": nom, "strategie": resumes[("strategie", nom)],
+                                       "groupe_temoin": resumes[("groupe_temoin", nom)]}
+                                      for nom, _, _ in tranches[1:]]}
+    rendu["valeur"] = resumes[("groupe_temoin", "tout")]["gain_moyen_eur"]
+    rendu["etat"] = "PASSE"
+    return rendu
+
+
+# ─────────────────────────────────────────────────────────────────────
 # LA BORNE BASSE DU GAIN MOYEN — par rééchantillonnage
 # ─────────────────────────────────────────────────────────────────────
 
@@ -1436,7 +2223,9 @@ def borne_basse_gain(ops, n_tirages=2000, graine=GRAINE):
       que la fonction `episodes` du même fichier existe précisément pour dire
       qu'elles ne le sont pas : cent opérations peuvent ne valoir que 33
       observations. La borne basse est donc plus étroite que la réalité, dans
-      le sens qui flatte la stratégie.
+      le sens qui flatte la stratégie. (05-11-2026 : `episodes` est remplacée
+      par `observations_independantes`, qui rend `taille_des_groupes` ; le
+      tirage par groupes de cette taille (n°107) n'est pas branché ici.)
     ⑩ EFFET — Aucun sur les données reçues : elle lit. Aucun fichier, aucun
       réseau, rien d'affiché. Elle construit deux mille échantillons en mémoire.
     ⑪ TERMINAISON — Rend toujours la main. Elle ne lève pas dans les cas que son
@@ -2121,7 +2910,8 @@ def _calibrage():
       ② Le texte de cette fonction cite « 33 episodes retrouves exactement »
       comme exemple de ce qu'elle a rendu rejouable, et ce calibrage-là est
       justement celui qui ne l'est pas. Un lecteur qui lit ce texte croit que le
-      défaut a été fermé partout.
+      défaut a été fermé partout. (05-11-2026 : `episodes` est retirée, n°106 ;
+      voir le ⑨③ de l'en-tête du fichier.)
       ③ Les contrôles sont écrits en dur dans le corps de la fonction, dont les
       trois calendriers fabriqués qui attribuent 28 jours à chaque mois. Ces
       dates ne sont pas de vraies séances de bourse : elles suffisent pour

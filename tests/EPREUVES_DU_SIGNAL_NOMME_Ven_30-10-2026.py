@@ -3,14 +3,16 @@
 """EPREUVES_DU_SIGNAL_NOMME — Ven 30-10-2026 20h10 (Paris)
 EN ESSAI · Rôle : prouver que chaque fiche du registre des stratégies est jouée par le signal QU'ELLE NOMME, et que
 l'épreuve a des dents. SIMULATION UNIQUEMENT : aucun ordre réel.
-Quand l'appeler : avant toute livraison qui touche `manques_du_signal`, `signal_de_la_fiche`, `SignalNomme`, `jouer`,
+Quand l'appeler : avant toute livraison qui touche `declaration_du_signal`, `manques_du_signal`, `signal_de_la_fiche`,
+`forme_du_module`, `lecture_de_jeu`, `SignalNomme`, `jouer`,
 `porte_0` ou `calibrer` de programmes/JUGE_DES_STRATEGIES.py, `jouer_une` de programmes/JOUER_LES_VERSIONS.py,
 `_juger_une` de programmes/JUGER_SUR_8_CRITERES.py, ou un module de signal.
 
 À QUOI ÇA SERT (A-542 ① ②, plan du circuit validé par Jean-Luc le 30-10-2026). Jusqu'au 30-10-2026, le juge, la
 moulinette et le juge à 8 critères imposaient le signal C5-ETENDU-10 à N'IMPORTE QUELLE fiche. Désormais la fiche
 nomme son signal dans trois colonnes (`module_signal`, `fonction_signal`, `reglages_signal`), lues par UNE seule
-fonction, `signal_de_la_fiche` du juge. Cette épreuve vérifie, sur une copie du dépôt :
+fonction, `declaration_du_signal` du juge (depuis le 05-11-2026), et traduites en signal jouable par
+`signal_de_la_fiche`. Cette épreuve vérifie, sur une copie du dépôt :
   E1 le calibrage du juge retrouve ses 100 opérations de référence, sortie par sortie (le calibrage existant du juge,
      lancé par son programme principal) ; et `calibrer` refuse un golden qui déclare un autre module ;
   E2 les trois fiches C5 du registre (C5E10-QA-V1, C5E10-OBS-V1, C5-EI-PARAMS) rendent EXACTEMENT les opérations
@@ -31,7 +33,11 @@ fonction, `signal_de_la_fiche` du juge. Cette épreuve vérifie, sur une copie d
      module illisible, ou déclaré mais qui lève ou fait `sys.exit` au chargement, est refusé, un `sys.exit` au jeu met
      la fiche EN ÉCHEC ; et un `juger` en panne pour C5E10-QA-V1 laisse juger C5E10-OBS-V1, code 1 ;
   E7 propriété du code : dans programmes/, aucune lecture d'une colonne du signal (ni de l'ancien `_fonction_signal`)
-     hors des deux fonctions de lecture, et tout programme qui appelle `jouer` appelle aussi `signal_de_la_fiche`.
+     hors de la SEULE fonction de lecture, `declaration_du_signal` du juge ; les trois colonnes y sont TROUVÉES lues
+     par leur nom (calibrage : une lecture par boucle rendrait E7 vert à vide) ; et tout programme qui appelle `jouer`
+     appelle aussi `signal_de_la_fiche`. RESSERRÉ le 05-11-2026 (superviseur R-759 du lot S_kk, 17h33-17h38) : avant,
+     deux fonctions avaient le droit de lire (`signal_de_la_fiche`, `manques_du_signal`), et le compte de k en ajoutait
+     deux autres ; les quatre appellent désormais `declaration_du_signal` (sabotages S11, S12).
 
 USAGE : python3 -B tests/EPREUVES_DU_SIGNAL_NOMME_Ven_30-10-2026.py <racine du dépôt> [--saboter | nom]
   sans option : Z0, le dépôt tel quel (environ une minute) ; --saboter : Z0 puis chaque sabotage (environ dix minutes) ;
@@ -57,7 +63,9 @@ de sabotage est introuvable (R-734 : un contrôle qui n'a pas pu tourner ne rend
   C5-EI-PARAMS et MA200-S1 du registre, le vrai maître des cours.
 ⑨ CE QUI CLOCHE — ① Les empreintes figées de E2 ne valent que pour le maître mesuré le 30-10-2026 (empreinte
   95533af96e512515) : sur un autre maître, E2 le DIT et ne compare plus qu'à l'ancienne lecture. ② E7 lit le code
-  sans l'exécuter : une lecture des colonnes par un nom calculé (`getattr`, chaîne composée) lui échappe ; et un appel
+  sans l'exécuter : une lecture des colonnes par un nom calculé (`getattr`, chaîne composée, `fiche[c]` dans une
+  boucle, `dict(**fiche)`) ou hors de `programmes/` lui échappe — sauf DANS la lecture unique, où son calibrage
+  exige de trouver les trois noms ; et un appel
   de `jouer` du juge par son nom nu, dans un programme qui définit sa propre `jouer`, n'est pas compté. ③ La
   moulinette refuse une fiche sans signal parce que le juge, qu'elle lance d'abord, la refuse : son propre repli
   éventuel n'est vu que par E7.
@@ -159,6 +167,18 @@ SABOTAGES = {
                                      "        except Exception as _e_charge:\n")],
     "T5_SystemExit_hors_de_l_isolation_du_jeu": [(JUGE, "        except (Exception, SystemExit) as _ex_jeu:\n",
                                                   "        except Exception as _ex_jeu:\n")],
+    # tour 2 du lot S_kk (superviseur R-759 du 05-11-2026, 17h33-17h38) : jugés sur la SEULE ligne E7, car Z0 est
+    # rouge en E3 et E6 avant comme après ce lot (un sabotage y « mord » donc toujours, à vide)
+    # S11 : la lecture de jeu relit elle-même la colonne `fonction_signal` au lieu de la prendre à la lecture unique
+    "S11_lecture_recopiee_dans_la_lecture_de_jeu": [(JUGE, "            forme, emp, fonction,\n",
+                                                     "            forme, emp, fiche[\"fonction_signal\"].strip(),\n")],
+    # S12 : la lecture unique écrite par une boucle sur COLONNES_DU_SIGNAL — même effet, mais E7 ne voit plus aucun nom
+    # en clair : son calibrage doit rougir
+    "S12_lecture_unique_par_boucle": [(JUGE, "    module = str(fiche.get(\"module_signal\") or \"\").strip()\n"
+                                             "    fonction = str(fiche.get(\"fonction_signal\") or \"\").strip()\n"
+                                             "    reglages = str(fiche.get(\"reglages_signal\") or \"\").strip()\n",
+                                       "    module, fonction, reglages = (str(fiche.get(c) or \"\").strip() "
+                                       "for c in COLONNES_DU_SIGNAL)\n")],
 }
 
 
@@ -561,20 +581,26 @@ def cas(copie):
     un("E6 les trois programmes refusent une fiche sans signal ; jouer refuse un module", e6_puis_ranger)
 
     # ── E7 propriété du code ───────────────────────────────────────────────────────────────────────────────────────
+    # RESSERRÉ le 05-11-2026 (superviseur R-759 du lot S_kk, 17h33-17h38, décision du superviseur d'ajouter ce fichier
+    # au tour 2) : la lecture unique est UNE fonction, `declaration_du_signal`, et non plus deux ; `signal_de_la_fiche`
+    # et `manques_du_signal` l'appellent et perdent leur droit de lire. CALIBRAGE : E7 cherche des noms écrits en
+    # clair ; une lecture unique écrite par une boucle sur `COLONNES_DU_SIGNAL` le rendrait vert quoi qu'il arrive
+    # ailleurs. Il exige donc de TROUVER les trois colonnes lues dans `declaration_du_signal` (sabotage S12).
     def e7():
         cles = set(B.COLONNES_DU_SIGNAL) | {"_fonction_signal"}
         foyers = []          # les fichiers qui définissent la lecture unique
         lectures, sans_lecture = [], []
+        lues_au_foyer = set()   # les colonnes trouvées lues DANS `declaration_du_signal` (calibrage)
         for p in sorted(glob.glob("programmes/*.py")):
             arbre = ast.parse(open(p, encoding="utf-8").read())
             noms_def = {n.name for n in ast.walk(arbre) if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
-            foyer = {"SignalNomme", "signal_de_la_fiche", "manques_du_signal"} <= noms_def
+            foyer = {"SignalNomme", "signal_de_la_fiche", "manques_du_signal", "declaration_du_signal"} <= noms_def
             if foyer:
                 foyers.append(p)
             permis = set()
             if foyer:
                 for n in ast.walk(arbre):
-                    if isinstance(n, ast.FunctionDef) and n.name in ("signal_de_la_fiche", "manques_du_signal"):
+                    if isinstance(n, ast.FunctionDef) and n.name == "declaration_du_signal":
                         permis |= {id(x) for x in ast.walk(n)}
             appelle_jouer = appelle_lecture = False
             for n in ast.walk(arbre):
@@ -598,13 +624,17 @@ def cas(copie):
                             cle = k.arg
                 if cle and id(n) not in permis:
                     lectures.append("%s:%d %s" % (p, n.lineno, cle))
+                elif cle:
+                    lues_au_foyer.add(cle)
             if appelle_jouer and not appelle_lecture and not foyer:
                 sans_lecture.append(p)
         vu = {"une seule lecture définie": len(foyers) == 1,
               "aucune lecture ailleurs": not lectures,
-              "qui joue lit la fiche": not sans_lecture}
-        return all(vu.values()), "foyer %s · lectures hors foyer %s · appellent jouer sans lire %s · %s" % (
-            foyers, lectures[:4], sans_lecture, " · ".join("%s %s" % (k, "oui" if v else "NON") for k, v in vu.items()))
+              "qui joue lit la fiche": not sans_lecture,
+              "les trois colonnes lues dans declaration_du_signal": set(B.COLONNES_DU_SIGNAL) <= lues_au_foyer}
+        return all(vu.values()), "foyer %s · lectures hors foyer %s · lues dans la lecture unique %s · appellent " \
+            "jouer sans lire %s · %s" % (foyers, lectures[:4], sorted(lues_au_foyer), sans_lecture,
+                                        " · ".join("%s %s" % (k, "oui" if v else "NON") for k, v in vu.items()))
     un("E7 propriété : les colonnes du signal ne se lisent qu'à un endroit", e7)
     return res
 

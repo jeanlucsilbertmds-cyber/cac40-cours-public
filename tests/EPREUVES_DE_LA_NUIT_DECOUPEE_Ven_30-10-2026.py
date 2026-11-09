@@ -12,7 +12,7 @@
 ③ ENTRÉE — La racine du dépôt (le fabricant et le certificateur sont pris dans son programmes/, les journaux des
   nuits dans son rapports/journal_du_circuit/).
 ④ CONDITIONS D'ENTRÉE — PyYAML et coverage installés (le circuit les installe) ; sinon code 2.
-⑤ SORTIE — Le code de sortie : 0 si les cas N1 à N8, D1 et F0 à F9 donnent la réponse attendue et, avec --saboter, si
+⑤ SORTIE — Le code de sortie : 0 si les cas N1 à N10, D1 et F0 à F9 donnent la réponse attendue et, avec --saboter, si
   chaque sabotage en fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus ou si un module manque.
   [rend: 1]
 ⑥ TRAITEMENT — Sur une copie restreinte du dépôt (programmes, tests, fiches de circuit, journaux de certification) :
@@ -36,7 +36,12 @@
   autant d'essais de poussée qu'il y a de tranches · D1 `reunir_les_mesures` sur des mesures écrites à la main
   (intersection des lignes, des embranchements, des fonctions ; empreintes différentes écartées). Et (01-11-2026,
   relecture neuve, M8) : N8 la copie restreinte porte chaque fichier .py de chaque emplacement de code que le
-  fabricant de la source publie (DOSSIERS_DE_CODE) — la copie ne garde pas sa propre liste.
+  fabricant de la source publie (DOSSIERS_DE_CODE) — la copie ne garde pas sa propre liste. Et (09-11-2026, relecture
+  de Cowork, B3-2) : N9 la coupure d'un lancement est le plus grand de son délai déclaré et de 3 × sa durée relevée,
+  ce triple plafonné à 3 × DUREE_MAX_EPREUVE (relecture 4dcffa32, point 1 ; le délai déclaré n'est jamais raccourci)
+  (`coupure`), et la boucle de jeu (`jouer_les_lancements`) la passe à `jouer` comme à `refaire_des_essais`. Et
+  (09-11-2026, relecture de Cowork 4dcffa32, B3-9) : N10 `main` passe les durées relevées à cette boucle, en mode
+  entier ET en mode tranche (voir `n10`).
 ⑦ UNITÉ — Des minutes (limites des jobs) et des secondes (charges).
 ⑧ POURQUOI — Décision de Jean-Luc du 30-10-2026 à 19h02 (réponse « 1 ») : « Couper la nuit en plusieurs tâches qui
   tournent en même temps, chacune avec ses propres 6 heures, plus une tâche finale qui réunit les résultats et dit
@@ -51,7 +56,9 @@
   une tranche du dépôt d'essai) ; sort par sys.exit.
   [sort: oui]
 """
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import re
@@ -82,8 +89,17 @@ SABOTAGES = {
     "S3_partiel_manquant_accepte": [(CERTIF,
         '            fautes.append(f"tranche {i} : certificat partiel absent ou illisible ({type(e).__name__})")\n',
         "            pass\n")],
-    "S4_tranche_a_400_minutes": [(FAB, "    timeout-minutes: 330\n", "    timeout-minutes: 400\n")],
-    "S5_arret_au_premier_echec": [(FAB, "      fail-fast: false\n", "")],
+    # S4 et S5 s'ancrent sur le COMMENTAIRE propre au job « certifier » : depuis le circuit des séries (fusion
+    # 6c46ea65, 06-11-2026), le fabricant porte deux autres jobs avec « timeout-minutes: 330 » et « fail-fast: false »,
+    # et l'ancre seule était trouvée 2 et 3 fois → « NE S'APPLIQUE PLUS », code 2 (diagnostic de l'examen 42384101504,
+    # 08-11-2026). L'ancre reste unique dans la version du bloc 2 (travail-relais-des-series, e50dd73c).
+    "S4_tranche_a_400_minutes": [(FAB, "    # 330 minutes PAR TRANCHE : GitHub coupe toute tâche à 6 heures ; chaque tranche a les siennes.\n"
+                                      "    timeout-minutes: 330\n",
+                                      "    # 330 minutes PAR TRANCHE : GitHub coupe toute tâche à 6 heures ; chaque tranche a les siennes.\n"
+                                      "    timeout-minutes: 400\n")],
+    "S5_arret_au_premier_echec": [(FAB, "      # une tranche rouge n'arrête pas les autres : la tâche finale doit voir chacune\n"
+                                       "      fail-fast: false\n",
+                                       "      # une tranche rouge n'arrête pas les autres : la tâche finale doit voir chacune\n")],
     "S6_autre_passage_accepte": [(CERTIF, 'attendu = {"passage": passage, "nombre"', 'attendu = {"nombre"')],
     "S7_doublon_accepte": [(CERTIF, '("joué(s) par plusieurs tranches", doubles)', '("joué(s) par plusieurs tranches", [])')],
     "S8_partiel_impossible_accepte": [(CERTIF, '        elif p.get("impossible"):\n', '        elif False:\n')],
@@ -98,6 +114,28 @@ SABOTAGES = {
     "Sc_empreinte_du_code_non_verifiee": [(CERTIF, ', "tranche": i, "empreinte_du_code": empreinte}', ', "tranche": i}')],
     "Sd_union_des_embranchements": [(CERTIF, 'set.intersection(*({tuple(p) for p in x["branches"]} for x in v))',
                                      'set.union(*({tuple(p) for p in x["branches"]} for x in v))')],
+    # B3-2 et B3-4 (relecture de Cowork du 09-11-2026) : la coupure suit la durée relevée (N9), et la charge prévue d'un
+    # lancement jamais joué est son DÉLAI DÉCLARÉ (N5 : sans lui, chaque lancement nouveau compterait 1 500 s).
+    "Se_coupure_sans_le_max": [(CERTIF, "        return max(delai, min(FACTEUR_DE_COUPURE * durees[cle], FACTEUR_DE_COUPURE * DUREE_MAX_EPREUVE))\n",
+                                "        return delai\n")],
+    # Le plafond (relecture de Cowork 4dcffa32, point 1) : sans lui, la coupure triple à chaque nuit ; et appliqué au
+    # délai déclaré, il couperait la série de la lecture des cours (10 800 s déclarées, 5 097 s relevées).
+    "Sk_coupure_sans_plafond": [(CERTIF, "        return max(delai, min(FACTEUR_DE_COUPURE * durees[cle], FACTEUR_DE_COUPURE * DUREE_MAX_EPREUVE))\n",
+                                 "        return max(delai, FACTEUR_DE_COUPURE * durees[cle])\n")],
+    "Sl_plafond_sur_le_delai_declare": [(CERTIF, "        return max(delai, min(FACTEUR_DE_COUPURE * durees[cle], FACTEUR_DE_COUPURE * DUREE_MAX_EPREUVE))\n",
+                                         "        return min(max(delai, FACTEUR_DE_COUPURE * durees[cle]), FACTEUR_DE_COUPURE * DUREE_MAX_EPREUVE)\n")],
+    "Sf_jeu_coupe_au_seul_delai": [(CERTIF, "coupure(cle, delais, durees), lectures)",
+                                    "delais.get(cle, DUREE_MAX_EPREUVE), lectures)")],
+    "Sg_essais_coupes_au_seul_delai": [(CERTIF, "                                                         coupure(cle, delais, durees))\n",
+                                        "                                                         delais.get(cle, DUREE_MAX_EPREUVE))\n")],
+    "Sh_prevue_sans_le_delai_declare": [(CERTIF, "        return durees.get(cle, delais.get(cle, DUREE_MAX_EPREUVE))\n",
+                                         "        return durees.get(cle, DUREE_MAX_EPREUVE)\n")],
+    # B3-9 (relecture de Cowork du 09-11-2026, 4dcffa32) : `main` passe les durées relevées à la boucle de jeu, dans
+    # les deux modes (N10) ; un « {} » à la place faisait revenir en silence la coupure au seul délai déclaré (B3-2).
+    "Si_entier_sans_les_durees": [(CERTIF, "                                             series, durees_relevees(racine, passage))\n",
+                                   "                                             series, {})\n")],
+    "Sj_tranche_sans_les_durees": [(CERTIF, "a_jouer, delais, series,\n                                         durees)\n",
+                                    "a_jouer, delais, series,\n                                         {})\n")],
     "S11_epreuve_coupee_en_deux": [(CERTIF, "        groupes.setdefault(l[0], []).append(l)\n",
                                     "        groupes.setdefault(cle_de(l[0], l[2]), []).append(l)\n"),
                                    (CERTIF, "    return [[l for l in lancements if l[0] in choisies[i]] for i in range(nombre)], charges",
@@ -321,8 +359,71 @@ def essai(copie, circuit, faux):
         shutil.rmtree(d, ignore_errors=True)
 
 
+def n10(C, faux):
+    """N10 — `main` du certificateur passe les durées relevées à la boucle de jeu, en mode entier ET en mode tranche.
+
+    ① RÔLE — Garder le câblage de la coupure dans `main` (relecture de Cowork du 09-11-2026, 4dcffa32, B3-9).
+    ② CONTEXTE D'APPEL — `tour`, une fois. ③ ENTRÉE — `C` : le certificateur de la copie, chargé · `faux` : la liste
+      des fautes, complétée. ④ CONDITIONS D'ENTRÉE — coverage installé (`main` l'importe).
+    ⑤ SORTIE — Rien ; ajoute à `faux`. [rend: rien]
+    ⑥ TRAITEMENT — ① une racine témoin : programmes/ vide, une référence « {} », un journal témoin d'un passage 111
+      écrit par `ligne_du_journal` (« t.py » : 700 s) · ② ÉTALONNAGE : `durees_relevees` lit 700 s sur ce journal,
+      sinon le cas serait vide · ③ les fonctions qui copient, mesurent, listent, écrivent et concluent sont remplacées
+      par des témoins ; `jouer` par un témoin qui note la coupure reçue · ④ `main` est appelé deux fois, sans option
+      (mode entier) puis avec « --tranche 1/1 », GITHUB_RUN_ID valant 999 (le passage 111 n'est pas écarté) ·
+      ⑤ la coupure reçue doit valoir 3 × 700 = 2 100 s dans les deux modes (délai déclaré : 300 s).
+    ⑦ UNITÉ — Des secondes. ⑧ POURQUOI — B3-9 : remplacer les durées par « {} » dans l'un ou l'autre appel de `main`
+      laissait N1 à N9 verts, et la coupure revenait au seul délai déclaré (le défaut B3-2). Sabotages Si et Sj.
+    ⑨ CE QUI CLOCHE — La copie, la mesure, la conclusion et l'écriture du partiel ne sont pas jouées ici (témoins) :
+      les autres cas les éprouvent. ⑩ EFFET — Écrit une racine jetable, effacée ; remet les fonctions et l'environnement.
+    ⑪ TERMINAISON — Rend la main ; rien n'est lancé. [sort: non]
+    """
+    rac = tempfile.mkdtemp(prefix="nuit_main_")
+    noms = ("copier", "armer_la_mesure", "calibrer_la_mesure", "lister_les_epreuves", "options_de_lancement", "jouer",
+            "ecrire_le_partiel", "mesure_brute", "lire_la_mesure", "conclure", "empreinte_du_code")
+    garde, recus = {n: getattr(C, n) for n in noms}, {}
+    argv, env = sys.argv, os.environ.get("GITHUB_RUN_ID")
+    try:
+        os.makedirs(os.path.join(rac, "programmes"))
+        os.makedirs(os.path.join(rac, C.JOURNAUX))
+        os.makedirs(os.path.dirname(os.path.join(rac, C.REFERENCE)), exist_ok=True)
+        open(os.path.join(rac, C.REFERENCE), "w", encoding="utf-8").write("{}")
+        open(os.path.join(rac, C.JOURNAUX, "circuit_111_1_certifier.log"), "w", encoding="utf-8").write(
+            C.ligne_du_journal("t.py", [], 0, 700) + "\n")
+        if C.durees_relevees(rac, "999") != {"t.py": 700}:
+            faux.append(f"N10 étalonnage : le journal témoin rend {C.durees_relevees(rac, '999')}, attendu {{'t.py': 700}}")
+            return
+        C.copier = lambda racine, dossier: dossier
+        C.armer_la_mesure = lambda dossier: ("py", None, None)
+        C.calibrer_la_mesure = lambda dossier, py: (True, "")
+        C.lister_les_epreuves = lambda copie: ([["t.py", "", []]], [])
+        C.options_de_lancement = lambda copie: ({"t.py": 300}, {})
+        C.ecrire_le_partiel = lambda racine, contenu: None
+        C.mesure_brute = C.lire_la_mesure = lambda *a: {}
+        C.conclure = lambda *a, **k: 0
+        C.empreinte_du_code = lambda racine: "E"
+        os.environ["GITHUB_RUN_ID"] = "999"
+        for mode, options in (("entier", []), ("tranche", ["--tranche", "1/1"])):
+            C.jouer = lambda copie, py, reg, man, chemin, dossier, arguments, delai, lectures=None, m=mode: (
+                recus.__setitem__(m, delai) or (0, 0, []))
+            sys.argv = ["CERTIFIER_LA_VERSION.py", rac] + options
+            with contextlib.redirect_stdout(io.StringIO()):
+                C.main()
+    finally:
+        for n, f in garde.items():
+            setattr(C, n, f)
+        sys.argv = argv
+        if env is None:
+            os.environ.pop("GITHUB_RUN_ID", None)
+        else:
+            os.environ["GITHUB_RUN_ID"] = env
+        shutil.rmtree(rac, ignore_errors=True)
+    if recus != {"entier": 2100, "tranche": 2100}:
+        faux.append(f"N10 coupures reçues de `main` : {recus}, attendu {{'entier': 2100, 'tranche': 2100}} (3 × 700 s)")
+
+
 def tour(depot):
-    """Joue N1 à N8, D1, puis F0 à F9 sur une copie de `depot`, et rend la liste des cas faux.
+    """Joue N1 à N10, D1, puis F0 à F9 sur une copie de `depot`, et rend la liste des cas faux.
 
     ① RÔLE — Un tour d'épreuves. ② CONTEXTE D'APPEL — `main`, une fois tel quel puis une fois par sabotage.
     ③ ENTRÉE — `depot` : la copie restreinte à éprouver. ④ CONDITIONS D'ENTRÉE — —
@@ -414,6 +515,36 @@ def tour(depot):
         ou = {i for i, p in enumerate(parts) for l in p if l[0] == e}
         if len(ou) != 1:
             faux.append(f"N6 série hors de la nuit {e} : son lancement et sa vérification dans {len(ou)} tranches")
+    # N9 — la coupure d'un lancement (relecture de Cowork du 09-11-2026, B3-2) : le plus grand du délai déclaré et de
+    # 3 × la durée relevée ; puis la boucle de jeu la passe bien à `jouer` ET à `refaire_des_essais` (fonctions
+    # remplacées par des témoins qui notent le délai reçu, rien n'est lancé)
+    for d_, r_, voulu in (({"a": 300}, {"a": 400}, 1200), ({"a": 300}, {"a": 50}, 300), ({"a": 300}, {}, 300),
+                          ({}, {}, C.DUREE_MAX_EPREUVE), ({}, {"a": 1000}, 3000),
+                          # le plafond : 3 × DUREE_MAX_EPREUVE pour la croissance, jamais sous le délai déclaré
+                          ({}, {"a": 4500}, 3 * C.DUREE_MAX_EPREUVE), ({"a": 10800}, {"a": 5097}, 10800)):
+        if C.coupure("a", d_, r_) != voulu:
+            faux.append(f"N9 coupure(délai {d_}, durée {r_}) = {C.coupure('a', d_, r_)}, attendu {voulu}")
+    recus, garde = {}, (C.jouer, C.verifier_une_serie, C.refaire_des_essais)
+    try:
+        C.jouer = lambda copie, py, reg, man, chemin, dossier, arguments, delai, lectures=None: (
+            recus.__setitem__(chemin, delai) or (0, 0, []))
+        C.verifier_une_serie = lambda *a, **k: (0, 0, [])
+        C.refaire_des_essais = lambda copie, py, reg, man, chemin, motif, nombre, delai: (
+            recus.__setitem__(chemin + " essais", delai) or (0, 0, []))
+        jet = tempfile.mkdtemp(prefix="nuit_coupure_")
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):   # ses lignes de journal ne regardent pas ce cas
+                C.jouer_les_lancements(depot, jet, depot, "py", None, None,
+                                       [["t.py", "", []], ["s.py", "", ["--saboter"]]],
+                                       {"t.py": 300, "s.py --saboter": 300}, {"s.py": {"essais": 2, "releve": "m"}},
+                                       {"t.py": 500, "s.py --saboter": 400})
+        finally:
+            shutil.rmtree(jet, ignore_errors=True)
+    finally:
+        C.jouer, C.verifier_une_serie, C.refaire_des_essais = garde
+    if recus != {"t.py": 1500, "s.py essais": 1200}:
+        faux.append(f"N9 coupures reçues par la boucle de jeu : {recus}, attendu {{'t.py': 1500, 's.py essais': 1200}}")
+    n10(C, faux)
     essai(depot, y, faux)
     return faux
 

@@ -37,9 +37,17 @@ Quand l'appeler : par tout programme qui écrit ou lit un fichier de liaison. Ja
   stratégie (depuis le 27-09-2026) · ①ter nommer UNE fois le registre des stratégies et le
   lire, la dernière ligne d'un identifiant faisant foi (`chemin_du_registre`,
   `lignes_du_registre`, `fiches_du_registre`, `fiches_des_lignes`, `lire_les_fiches` ; décision n°83,
-  depuis le 05-11-2026) · ② déclarer la table qui
-  relie dix noms de fichiers à dix de ces listes · ③ définir cinq fonctions ·
-  ④ lancé à la main, jouer les six épreuves du contrat des signaux et sortir.
+  depuis le 05-11-2026) · ①quater déclarer les contrats de la loi et du juge (lot C de
+  l'étape D, 05-11-2026) : la déclaration datée et ses champs P0, l'entrée du registre des
+  essais, le verdict, le tableau de bord, et les fichiers « à venir » (FICHIERS_A_VENIR) ;
+  lire la déclaration (`declaration_de_la_fiche`, `champs_de_la_declaration_manquants`) ;
+  confronter une entrée JSON (`ecarts_d_une_entree`, `confronter_les_fichiers_a_venir`) ; dire ce qu'est une
+  VERSION que k compte (décision de Jean-Luc du 05-11-2026 à 13h40) par une PROPRIÉTÉ en une phrase — la même
+  lecture de jeu du juge —, que le lot S_kk écrit et éprouve, et son étalon en données
+  (ETALON_DES_VERSIONS, lu par `cas_de_l_etalon_des_versions`) ; les contrats du lot DIV (TABLE_DES_DIVIDENDES, DISTRIBUTIONS_DECIDEES) ; lire un en-tête en
+  colonnes à un seul endroit (`champs_de_l_en_tete`) ·
+  ② déclarer la table qui relie les noms de fichiers à ces listes · ③ définir les
+  fonctions · ④ lancé à la main, jouer les six épreuves du contrat des signaux et sortir.
 ⑦ UNITÉ — Aucune grandeur physique : des NOMS DE CHAMPS et des NOMBRES DE CHAMPS.
   Les dates comparées par deux de ses fonctions sont des JOURS de calendrier, en
   heure de Paris.
@@ -92,6 +100,21 @@ Quand l'appeler : par tout programme qui écrit ou lit un fichier de liaison. Ja
   d'une même chose divergent toujours (R-708), et elles ont déjà divergé : le
   19-09-2026, sur le même rapports/audit_du_jour.md, l'une trouve la date du
   17-09-2026 et l'autre répond qu'il n'y a pas de date.
+  ⑤ (05-11-2026, lot C) Le seuil C8 de SEUILS_D_EXIGENCE_SUR_LES_FRAIS (0,005) appartient
+  à l'ancienne grille : R-505 ⑤ l'a remplacé par le barème réel. Il reste écrit ici, le
+  seul nombre d'une donnée déclarée (épreuve C13 du lot C) ; le retirer est au BACKLOG.
+  ⑥ (05-11-2026, lot C) Les contrats « à venir » (registre des essais, verdict, tableau de
+  bord) se taisent tant que leur fichier n'existe pas ; le lot qui écrit le fichier les
+  fait mordre en l'écrivant.
+  ⑦ (05-11-2026, lot C) L'entrée PREENREGISTREMENT du registre des essais (L4) porte quatre
+  champs P0 (`periode_conception`, `part_regardee`, `regle_univers`, `date_regle_univers`)
+  que la déclaration datée porte aussi : deux écritures d'une même chose divergent toujours
+  (R-708). Posé tel que L4 l'écrit ; à trancher au branchement de L4 (RAPPORT du lot C).
+  ⑧ (05-11-2026, lot C, tours 2 et 3) La fonction qui dit si deux lignes sont la même version n'existe pas encore :
+  le lot S_kk l'écrit dans le juge, avec sa règle et son épreuve. D'ici là, l'étalon des versions n'est confronté à
+  aucun calcul réel, seulement à sa FORME, à ses ancres dans le registre et à sa couverture (épreuve du lot C) — pas
+  à la vérité de ses cas. Les deux fichiers du lot DIV sont « à venir » : ils se taisent tant que le lot DIV n'est
+  pas fusionné.
 ⑩ EFFET — LIT des fichiers, n'en écrit aucun, ne touche pas au réseau. Lancé à la
   main, il affiche huit lignes.
 ⑪ TERMINAISON — Lancé à la main, SORT DU PROGRAMME : 0 si les six épreuves
@@ -866,8 +889,329 @@ FICHIERS_REPARES = {
     "donnees/sources_yahoo/historique_long_repare.csv": "programmes/REPARER_L_HISTORIQUE_LONG.py",
 }
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# LES CONTRATS DE LA LOI ET DU JUGE — lot C de l'étape D, Jeu 05-11-2026 (plan V3, lot C ; superviseur R-759 « avant
+# D » du 05-11-2026, §1 « C »). Ce que la déclaration datée, le juge, le registre des essais et le cockpit se
+# partagent. POUR L'ÉTAPE D, CE FICHIER N'A QU'UN ÉCRIVAIN, LE LOT C : les autres lots (DIV, S_ep, S_per, S_kk, J1…)
+# lui remettent leurs champs dans un FRAGMENT_CONTRAT.md, pour que les conflits se règlent à un seul endroit
+# (superviseur, §3 point 3). La loi qu'ils servent est R-505, préparée le 04-11-2026 et NON FIGÉE : ses seuils vivent
+# dans la table « LES SEUILS DE CETTE LOI » du REGISTRE, et AUCUN seuil n'est écrit ici (R-743 ②, R-708).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# LA DÉCLARATION DATÉE (R-505 ①) — « le texte, écrit et daté avant de regarder, qui fixe tout ce qui sera jugé » (R-505,
+# LES MOTS). Sans elle, ou incomplète, le juge rend NON JUGEABLE en nommant le champ qui manque (R-505 ①, ⑫).
+# ÉCRIT À LA MAIN (lot P0D : le Chat prépare, Jean-Luc confirme, DÉL-D21) ; LU par `declaration_de_la_fiche` et
+# `champs_de_la_declaration_manquants`, plus bas, et par elles seules : le NOM et la LECTURE du fichier vivent ici,
+# comme pour le registre des stratégies (n°83). Une ligne = une déclaration ; on n'efface ni ne modifie jamais une
+# ligne : une déclaration corrigée est une ligne de plus, et la dernière écrite AVANT le regard fait foi.
+# POURQUOI UN FICHIER À PART, et non des colonnes du registre des stratégies (choix technique du lot C, annoncé avant
+# d'écrire, `D/lot_C/PROGRES.md`, 13h08 ; raison ① reprise après la décision de Jean-Luc du 05-11-2026 à 13h40) :
+# ① le registre ne se corrige pas en place (n°83, R-727) : remplir les déclarations de 68 fiches en colonnes du
+# registre y ajouterait 68 lignes. Depuis la décision de Jean-Luc du 05-11-2026 à 13h40 (Q-G5, COMPTES_DE_K plus bas),
+# k ne compte que les lignes qui changent un calcul : ces 68 lignes ne changeraient donc pas k, mais elles
+# doubleraient le registre sans aucune stratégie de plus, et chaque lecteur du registre les lirait ; ② 32 programmes et épreuves nomment le registre, dont tout le circuit du
+# soir (relevé par programmes/QUI_TOUCHE_CE_FICHIER.py le 05-11-2026) — un fichier neuf n'en touche aucun ; ③ « rejuger
+# crée une nouvelle entrée, datée » (R-505 ③) : c'est un journal daté, pas un état civil.
+# Le fichier est né le 05-11-2026 avec son seul en-tête : aucune fiche n'est déclarée, toutes sont NON JUGEABLES, ce
+# qui est la vérité du jour (grille ⓪ ligne 10 : « en l'état NON JUGEABLE »).
+DECLARATIONS_DATEES = "donnees/DECLARATIONS_DATEES.csv"
+NOM_DES_DECLARATIONS_DATEES = DECLARATIONS_DATEES.rsplit("/", 1)[-1]
+# Les champs P0 de la grille (plan V3, lot C : période de conception, part déjà regardée, univers défini par une règle
+# datée, lignée mère → fille, hypothèse écrite d'avance, nombre de paramètres libres, moment du regard écrit d'avance,
+# biais du survivant). Les quatre premiers portent LES NOMS QUE LE REGISTRE DES ESSAIS EMPLOIE DÉJÀ (fragment de L4,
+# `ENTREE_PREENREGISTREMENT`, plus bas) : traduire en aval, c'est entretenir le désaccord. Le neuvième champ du plan,
+# « N », n'est PAS ici : la grille le dit « tenu par le juge » (C-9) et le registre des essais le CALCULE
+# (`compter_les_essais`, « N n'est écrit nulle part », fragment de L4) ; il est un affichage du verdict, plus bas.
+CHAMPS_P0 = [
+    "periode_conception",     # les années regardées pour inventer et régler (« années de réglage », R-505 LES MOTS) :
+                              # « 2024-01-02..2026-07-10 »
+    "part_regardee",          # chaque période dont un résultat a été vu, avec la date du regard ; « aucune » s'écrit
+                              # (grille P0 : « 2000-2023, rejeu du 28-10, pour C5E10-QA-V1 »)
+    "regle_univers",          # l'univers défini par une règle datée, et les seules valeurs présentes dans le CAC 40 à
+                              # chaque date (R-505 ①, I-8, C-6)
+    "date_regle_univers",     # AAAA-MM-JJ, la date où cette règle a été écrite
+    "lignee",                 # mère → filles, par leurs identifiants au registre (C-9) ; « aucune » s'écrit
+    "hypothese",              # l'hypothèse écrite d'avance, en une phrase (C-16)
+    "parametres_libres",      # le nombre de réglages libres (C-16), un entier
+    "moment_du_regard",       # quand les années d'examen seront regardées, écrit d'avance (R-505 ③, C-4)
+    "biais_du_survivant",     # la déclaration du biais du survivant, même pour 2024-2026 (C-20)
+]
+DECLARATION_DATEE = [
+    "fiche_id",               # l'identifiant de la fiche au registre des stratégies (colonne `id`)
+    "date_declaration",       # AAAA-MM-JJTHH:MM+01:00, heure de Paris avec son décalage : k se compte À CETTE DATE
+                              # (R-505 ⑤) ; c'est ainsi que la déclaration « fixe k » (R-505 ①) — k se calcule, il ne
+                              # s'écrit pas à la main (R-728)
+    "declaree_par",           # qui a écrit la ligne (« Chat », « Jean-Luc »)
+    "confirmee_par",          # « Jean-Luc, JJ-MM-AAAA HHhMM, <ses mots ou le n° du relevé> » (DÉL-D21) ; vide = non confirmée
+    "cas",                    # 1 (stratégie figée) ou 2 (réglée sur les 20 ans) — R-505, LES DEUX CAS
+] + CHAMPS_P0 + [
+    # le reste de ce que R-505 ① dit que la déclaration fixe
+    "annees_d_examen",        # les années qui jugent : « 2000-01-03..2023-12-29 »
+    "regard_sans_decision",   # l'exception des années déjà regardées (R-505) : la déclaration de Jean-Luc, sa date et sa
+                              # source (n°26 pour C5) ; LE SEUL CHAMP QUI PEUT RESTER VIDE (CHAMPS_FACULTATIFS_…)
+    "empreinte_code_juge",    # la règle figée : l'empreinte du code du juge…
+    "empreinte_code_signal",  # … et celle du code du signal (sans ses textes)
+    "reglages",               # … et ses réglages, en JSON {"nom": valeur}
+    "bareme",                 # les lignes de donnees/BAREME_FRAIS.csv et l'année de donnees/VALEURS_TTF.csv employées
+    "reference_hasard",       # la référence d'achat au hasard (R-505 ⑥)
+    "temoins",                # les témoins déclarés, qui comptent dans k (n°57, DÉL-D37) ; « aucun » s'écrit
+    "epoques",                # le découpage, fixé avant de regarder (R-505 ⑦) : « 2000-01-03..2007-12-31 ; 2008-… »
+    "regle_de_departage",     # quand plusieurs valeurs signalent le même jour en un jeton (R-207bis, DÉL-D17)
+    "source",                 # d'où vient chaque valeur de la ligne (R-728)
+]
+# Le seul champ de la déclaration qui peut rester vide : l'exception n'existe que si Jean-Luc l'a déclarée. Tout autre
+# champ vide est un champ qui MANQUE : « aucune », « aucun » ou « 0 » s'écrivent (vide n'est pas « aucune »).
+CHAMPS_FACULTATIFS_DE_LA_DECLARATION = ("regard_sans_decision",)
+# Les deux cas de R-505 (décision de Jean-Luc du 01-11-2026 à 00h12, n°61), tels que la colonne `cas` les écrit.
+CAS_DE_LA_LOI = ("1", "2")
+
+# LE REGISTRE DES ESSAIS — fragment de L4, tour 3 (31-10-2026, `lot_L4/FRAGMENT_CONTRAT.md`, commit 5f2880c), POSÉ TEL
+# QUEL : une entrée = un fichier JSON immuable `registre_essais/<16 hex>.json`, nommé par l'empreinte de ses octets,
+# écrit par TENIR_LE_REGISTRE_DES_ESSAIS seul (appelé par `jouer` du juge branché). Le choix du contrat d'une entrée se
+# fait par sa clé `nature`. Le 05-11-2026, ce programme et ce dossier ne sont PAS dans la base de D (le lot L4 est
+# clos sur copie, pas fusionné) : le contrat est « à venir » (FICHIERS_A_VENIR, plus bas).
+ENTREE_ESSAI_COMMUNS = [
+    "nature",            # PREENREGISTREMENT (écrit AVANT le calcul) ou RESULTAT (écrit après)
+    "horodatage_paris",  # 2026-10-31T02:30:00+01:00 — n'ordonne rien, aucune propriété n'en dépend
+    "alea",              # 8 caractères hexadécimaux : rend uniques deux entrées identiques écrites la même seconde
+]
+ENTREE_PREENREGISTREMENT = ENTREE_ESSAI_COMMUNS + [
+    "fiche_id",            # identifiant de la fiche (un fait, hors de l'hypothèse) ; « CALIBRAGE:C5-ETENDU-10 » au calibrage
+    "famille",             # famille déclarée (--famille= du juge), NON_DECLARE sinon
+    "mere",                # empreinte_hypothese du contexte qui englobe le calcul (lignée, C-9) ; vide sinon
+    "hypothese",           # ce que `jouer` calcule vraiment : tp_pct, sl_pct (POURCENTS, 6 décimales), horizon (séances),
+                           # univers, signal ([fonction, empreinte du module sans ses textes]), periode, bareme
+    "empreinte_hypothese", # empreinte de `hypothese` en écriture canonique : CE QUI COMPTE DANS N
+    "octets",              # {libellé: [chemin relatif, empreinte des octets ou ABSENT]} — sert à refaire l'essai
+    "periode_conception", "part_regardee", "regle_univers", "date_regle_univers",   # grille C-2, C-6 ; NON_DECLARE
+]
+ENTREE_RESULTAT = ENTREE_ESSAI_COMMUNS + [
+    "preenregistrement",   # nom (sans .json) de l'entrée PREENREGISTREMENT de cet essai
+    "resultat",            # dictionnaire (juge : n, wr, net, motifs, empreinte_operations…) ou null
+    "echec",               # « TypeErreur: message » si le calcul est tombé, vide sinon
+]
+NATURES_DES_ENTREES_D_ESSAI = {"PREENREGISTREMENT": ENTREE_PREENREGISTREMENT, "RESULTAT": ENTREE_RESULTAT}
+
+# LE VERDICT (R-505 ⑫ : « Écrire le verdict dans un fichier, avec sa date, le nom de sa règle, k, le seuil, l'empreinte
+# du code du juge, et le premier contrôle qui bloque » ; plan V3, lot C : « grille et date, motifs, risque, k, empreinte
+# du code du juge »). Écrit par le juge (lot JG), une entrée JSON immuable par verdict dans `verdicts/` — « un verdict
+# ne se réécrit jamais : rejuger crée une nouvelle entrée, datée, à côté de la première » (R-505 ③) ; le dossier et la
+# forme d'entrée immuable reprennent ceux du registre des essais (L4), choix du lot C que JG peut contester par son
+# fragment. « À venir » tant que JG n'écrit pas.
+# LE JUGE CALCULE ET AFFICHE TOUS LES CONTRÔLES (grille, règle commune (a)) : chaque clé de CONTROLES_DU_VERDICT est
+# présente dans chaque verdict, avec son état ; un contrôle sans objet (la PBO en cas 1) porte SANS_OBJET, jamais rien.
+VERDICT = [
+    "regle",                      # le nom de la règle, LU AU REGISTRE (« R-505 v1 du 04-11-2026 », DÉL-D24)
+    "date_verdict",               # AAAA-MM-JJTHH:MM:SS+01:00, heure de Paris
+    "fiche_id",                   # l'identifiant de la fiche jugée
+    "cas",                        # une valeur de CAS_DE_LA_LOI
+    "declaration",                # {"date_declaration": …, "empreinte": …} de la ligne lue, ou null (→ NON JUGEABLE)
+    "verdict",                    # un mot de MOTS_DU_VERDICT
+    "motif",                      # NON TRANCHÉE : un mot de MOTIFS_DE_NON_TRANCHEE (MESURE MANQUANTE suivi du contrôle) ;
+                                  # NON JUGEABLE : le champ de la déclaration qui manque ; sinon vide
+    "premier_controle_bloquant",  # la clé du premier contrôle BLOQUE ou INCONNU, dans l'ordre de CONTROLES_DU_VERDICT
+    "k",                          # un objet K_DU_VERDICT
+    "seuil_de_preuve",            # le nombre 0,05 ÷ k, calculé avec la valeur LUE dans la table de la loi
+    "controles",                  # {clé de CONTROLES_DU_VERDICT : objet CONTROLE_DU_VERDICT}
+    "affichages",                 # {clé de AFFICHAGES_DU_VERDICT : objet AFFICHAGE_DU_VERDICT} — ne décide jamais
+    "empreinte_code_juge",        # l'empreinte du code du juge qui a rendu ce verdict
+    "preenregistrement",          # le nom de l'entrée PREENREGISTREMENT du registre des essais qui a produit les chiffres
+]
+# Les mots du verdict et les motifs de NON TRANCHÉE, tels que R-505 ⑫ les écrit (DÉL-D16, DÉL-D40). Ce sont des VALEURS
+# ADMISES, comme COMPTABILITES ; l'épreuve du lot C rougit si l'un d'eux n'est plus écrit tel quel au REGISTRE.
+MOTS_DU_VERDICT = ("Validée sur des années jamais utilisées pour la régler (R-505)", "RÉFUTÉE", "NON TRANCHÉE",
+                   "NON JUGEABLE")
+MOTIFS_DE_NON_TRANCHEE = ("TROP PETIT", "DONNÉES DE CHOIX", "NE BAT PAS ZÉRO", "NE BAT PAS LE HASARD",
+                          "ÉPOQUE PERDANTE", "TROP D'ESSAIS", "KELLY", "DRAPEAU", "MESURE MANQUANTE")
+# Les contrôles, dans l'ordre de R-505 (① à ⑩), puis ceux dont le RÔLE attend Jean-Luc : le taux face au point mort et
+# la borne basse du gain (anciens C7 et C8, question Q-G3), le gain et le creux en un jeton (question Q-G2 ; le creux
+# est le « risque » du plan V3 et de la grille ⑤).
+CONTROLES_DU_VERDICT = (
+    "declaration",                 # ① déclaration datée, écrite avant le regard
+    "annees_d_examen",             # ② aucune séance qui n'est pas une année d'examen
+    "regard_unique",               # ③ un seul regard, au moment écrit
+    "observations_independantes",  # ④ mesurées (lot S_ep) ; plancher lu à la table
+    "gain_bat_zero",               # ⑤ gain moyen frais et taxe payés, au seuil 0,05 ÷ k
+    "bat_le_hasard",               # ⑥ au même seuil
+    "epoques",                     # ⑦ aucune époque perdante à coup sûr ; minimum d'époques gagnantes calculé (lot S_per)
+    "surapprentissage",            # ⑧ cas 2 seulement (lot S_dsr)
+    "sharpe_degonfle",             # ⑧ cas 2 seulement (lot S_dsr)
+    "kelly",                       # ⑨ filet (lot S_kk)
+    "voisins",                     # ⑩ drapeau
+    "frais_doubles",               # ⑩ drapeau
+    "taux_face_au_point_mort",     # Q-G3
+    "borne_basse_du_gain",         # Q-G3
+    "gain_un_jeton",               # Q-G2
+    "creux_un_jeton",              # Q-G2
+)
+CONTROLE_DU_VERDICT = [
+    "etat",     # une valeur de ETATS_D_UN_CONTROLE
+    "valeur",   # le nombre mesuré, ou null
+    "seuil",    # le seuil appliqué, LU à la table de la loi ou calculé, ou null
+    "raison",   # pourquoi INCONNU, BLOQUE ou SANS_OBJET ; vide si PASSE
+    "role",     # une valeur de ROLES_D_UN_CONTROLE
+    "detail",   # objet : les champs de DETAILS_DES_CONTROLES pour ce contrôle, ou {}
+]
+ETATS_D_UN_CONTROLE = ("PASSE", "BLOQUE", "INCONNU", "SANS_OBJET")
+# LE RÔLE D'UN CONTRÔLE : une CONDITION fait le verdict ; un AFFICHAGE est calculé et montré, il ne décide pas. Les
+# questions Q-G2 et Q-G3 (« condition, simple affichage, ou rien ») se répondent donc par une VALEUR que le juge lit, et
+# jamais par une réécriture du code (consigne du lot C). La source de ce rôle, une fois Jean-Luc décidé, est la loi.
+ROLES_D_UN_CONTROLE = ("CONDITION", "AFFICHAGE")
+# LES CHAMPS QUE LES LOTS DE MESURE DEMANDENT, par contrôle (superviseur « avant D », §1 : S_ep, S_per, S_kk, S_dsr). Ils
+# sont exigés dans `detail` quand le contrôle est PASSE ou BLOQUE, c'est-à-dire mesuré. PROPOSITION DU LOT C : chaque lot
+# peut les renommer par son fragment, et le second commit de C les aligne (rien n'est figé ici avant ce fragment).
+DETAILS_DES_CONTROLES = {
+    # S_ep (n°106, n°107) : la mesure, la taille des groupes qui sert au tirage, la méthode et sa référence
+    "observations_independantes": ["n_operations", "observations_independantes", "taille_des_groupes", "methode"],
+    # S_per (n°58, n°80, n°79) : chaque époque déclarée, et le minimum calculé AVANT le regard
+    "epoques": ["epoques", "epoques_gagnantes", "minimum_d_epoques_gagnantes"],
+    # S_kk (n°88) : le Kelly entier, sur les gains réels nets
+    "kelly": ["kelly", "gain_moyen_net_eur"],
+    # S_dsr (n°109) : sans nombre d'essais compté, l'état est INCONNU (A-525), jamais 0 ni 1
+    "surapprentissage": ["pbo", "nombre_d_essais"],
+    "sharpe_degonfle": ["sharpe_degonfle", "nombre_d_essais"],
+}
+# Une époque du contrôle ⑦, dans la liste `detail.epoques` (lot S_per).
+EPOQUE_DU_VERDICT = ["debut", "fin", "n_operations", "gain_moyen_eur", "p_perdante", "gagnante"]
+# k (R-505 ⑤, lot S_kk) : compté À LA DATE DE LA DÉCLARATION, témoins déclarés compris.
+K_DU_VERDICT = [
+    "valeur",               # k
+    "date_de_comptage",     # la date de la déclaration, à laquelle le registre a été compté
+    "lignes_du_registre",   # le nombre de lignes du registre à cette date
+    "fiches_du_registre",   # le nombre de fiches (identifiants distincts) à cette date
+    "versions_comptees",    # le nombre de VERSIONS du registre à cette date (la propriété, plus bas)
+    "temoins",              # le nombre de témoins déclarés comptés
+    "compte",               # une valeur de COMPTES_DE_K : ce que k a compté
+]
+# Q-G5 TRANCHÉE par Jean-Luc le 05-11-2026 à 13h40, réponse « 1 », précisée ainsi : k compte chaque VERSION QUI CHANGE UN
+# CALCUL — « une ligne ajoutée au registre des stratégies qui modifie un réglage de calcul (signal, valeurs, objectif,
+# stop, horizon, entrée effective) compte comme un essai, une ligne qui ne change aucun calcul ne compte pas » ; le
+# programme le décide « en comparant les réglages de calcul de la ligne à ceux de la ligne précédente de la même
+# stratégie ». Exemple réel donné par Jean-Luc : C5-EI-PARAMS, lignes 65 et 70 DU FICHIER donnees/cac40_strategies.csv
+# (en-tête = ligne 1 du fichier), case `entree` vide puis « DÉFAUT », mêmes 48 opérations : la ligne 70 du fichier ne
+# compte pas. Lecture du lot C, à confirmer par S_kk : la première ligne d'une fiche compte toujours, elle n'a pas de
+# précédente. Le programme qui compte est au lot S_kk ; il écrit cette valeur dans `compte`, et la lit ici (« trancher
+# Q-G5 dans le code » reste une rustine interdite, superviseur « avant D », S_kk). Les lignes et les fiches restent
+# affichées dans K_DU_VERDICT.
+COMPTES_DE_K = ("chaque_version_qui_change_un_calcul",)
+
+# CE QU'EST UNE VERSION — LA PROPRIÉTÉ, EN UNE PHRASE (superviseur R-759 du 05-11-2026, 14h58-15h05) : DEUX LIGNES
+# D'UNE MÊME FICHE SONT LA MÊME VERSION SI ET SEULEMENT SI LE JUGE, EN LES LISANT COMME IL LES LIT POUR JOUER, EN TIRE
+# EXACTEMENT LA MÊME CHOSE ; la fonction du juge qui la porte, sa règle et son épreuve sont écrites et éprouvées par
+# le lot S_kk, dans le même geste — ce contrat ne les déclare pas.
+# RETIRÉS (directive ⑩ : rien ne se supprime sans le dire ; RAPPORT du lot C, tours 2 et 3) :
+#   · au tour 2 — REGLAGES_DE_CALCUL, COLONNES_LUES_PAR_LE_JUGE_SANS_CALCUL et COLONNES_DE_CALCUL_EN_ATTENTE_DE_JEAN_LUC :
+#     une liste de colonnes oubliait `indicateurs` et comparait des textes (« +5.0 % » comptait comme un calcul neuf) ;
+#   · au tour 3 (superviseur R-759 du 05-11-2026, 15h55-15h57, « ARRÊTER ET SIMPLIFIER ») — FONCTIONS_A_VENIR,
+#     DEFINITION_DU_VIDE, ENTREE_VIDE_LUE_POUR_COMPTER_LES_VERSIONS, le paragraphe « LA FONCTION QUI PORTE LA
+#     PROPRIÉTÉ… », celui de « LA SEULE LECTURE QUI S'AJOUTE… » et la description de ce que le juge tire d'une ligne :
+#     un contrat décrit les FICHIERS que deux programmes se partagent, pas le cahier des charges d'une fonction qui
+#     n'existe pas ; cette déclaration n'avait aucun lecteur hors de l'épreuve du lot C, et elle se contredisait
+#     (« porte_0 et jouer la consomment » contre « vide → DÉFAUT pour cette comparaison seulement »). Tout ce contenu
+#     part au lot S_kk (D/lot_C_t3/TRANSMIS_A_S_KK.md), avec la règle qui lève la contradiction : seul le programme
+#     qui compte k remplace une entrée vide par DÉFAUT avant de lire la ligne ; porte_0 et jouer continuent de
+#     refuser la case vide.
+# L'ÉTALON — les six réglages nommés par Jean-Luc le 05-11-2026 à 13h40 (« signal, valeurs, objectif, stop, horizon,
+# entrée effective »). ILS NE DÉCIDENT PLUS RIEN : ils sont l'étalon de l'épreuve. Pour chacun, l'étalon des versions
+# (plus bas) porte au moins un cas où une ligne qui le change fait 2 versions.
+REGLAGES_NOMMES_PAR_JEAN_LUC = ("signal", "valeurs", "objectif", "stop", "horizon", "entree_effective")
+# Ce que le juge tire d'une ligne pour jouer, élément par élément (la liste du superviseur R-759 du 05-11-2026,
+# 14h58-15h05). Sert à l'ÉTALON seulement : chaque cas à 2 versions dit lequel change, et chaque élément a au moins un
+# cas. Ne décide rien — c'est la fonction du juge, écrite par S_kk, qui décide ; si elle tire un jour autre chose, la
+# trace de S_kk le verra.
+ELEMENTS_DE_LA_LECTURE_DE_JEU = ("seuils", "horizon", "valeurs", "moment_d_achat", "signal", "bornes_de_la_periode",
+                                 "donnees_demandees")
+# L'ÉTALON DES VERSIONS, EN DONNÉES — des paires de lignes d'une même fiche, avec le nombre de versions attendu. Lu par
+# l'épreuve du lot C (sa forme, ses ancres, sa couverture) et par l'épreuve de S_kk (qui confronte la fonction du
+# juge à chaque cas), par `cas_de_l_etalon_des_versions` et par elle seule. Nom fixe, comme les déclarations datées : il est lu
+# par son nom, au contrat. Une paire est soit DEUX VRAIES LIGNES du registre (`ligne_du_fichier_b` remplie), soit UNE
+# vraie ligne et sa copie dont UNE case change (`colonne_changee`, `valeur_b`). Les numéros sont des LIGNES DU FICHIER
+# du registre, en-tête = ligne 1 (relecture du lot C, D7 : l'unité voyage avec le nombre).
+# SENS DE `versions_attendues` (superviseur R-759 du 05-11-2026, 15h55-15h57, (b)3) : `versions_attendues` est ce que
+# le compteur de k (lot S_kk) doit rendre pour cette paire ; la façon de lire appartient à S_kk. L'épreuve du lot C
+# n'éprouve que la FORME de l'étalon, jamais la vérité de ses cas.
+ETALON_DES_VERSIONS = "temoins/ETALON_DES_VERSIONS.csv"
+NOM_DE_L_ETALON_DES_VERSIONS = ETALON_DES_VERSIONS.rsplit("/", 1)[-1]
+CAS_D_ETALON = [
+    "cas",                            # un nom court, unique
+    "fiche",                          # l'identifiant (`id`) des deux lignes
+    "ligne_du_fichier_a",             # ligne du fichier du registre de la première ligne
+    "ligne_du_fichier_b",             # ligne du fichier de la seconde, ou vide si la seconde est fabriquée
+    "colonne_changee",                # la case changée dans la copie fabriquée, ou vide
+    "valeur_b",                       # sa valeur dans la copie fabriquée, TELLE QUELLE (blancs compris)
+    "versions_attendues",             # une valeur de VERSIONS_D_UN_CAS
+    "ce_que_le_juge_tire_autrement",  # un élément de ELEMENTS_DE_LA_LECTURE_DE_JEU si 2 versions, vide si 1
+    "mot_de_jean_luc",                # un mot de REGLAGES_NOMMES_PAR_JEAN_LUC, ou vide
+    "source",                         # qui a mesuré ou décidé ce cas, et quand
+]
+VERSIONS_D_UN_CAS = ("1", "2")
+# Les affichages de R-505 ⑪ et ④, qui ne décident jamais : le témoin (n°79), la phrase « l'avantage vient du moment »
+# (DÉL-D14), la probabilité de gain et le gain moyen avec leur confiance (n°94, n°98), le nombre d'opérations nécessaire
+# pour conclure (n°42, DÉL-D39), et N, le nombre d'essais compté par le registre des essais (grille C-9).
+AFFICHAGES_DU_VERDICT = ("temoin", "avantage_du_moment", "probabilite_de_gain", "gain_moyen_par_operation",
+                         "operations_necessaires", "nombre_d_essais")
+AFFICHAGE_DU_VERDICT = ["valeur", "confiance", "raison"]
+
+# LE TABLEAU DE BORD DU COCKPIT (AVIS_COCKPIT.md, §2.1 et §3.1 point 7) : « les programmes calculent, un seul fichier
+# résume, la page affiche ». Écrit par le programme résumeur RESUMER_POUR_LE_COCKPIT (lot CKa, pas encore écrit), lu par
+# le générateur du cockpit. Un bloc par écran de l'avis (0 bandeau, 1 circuit, 2 positions, 3 signaux, 4 cours,
+# 5 calendrier, 6 stratégies, 7 alertes) ; « fabrique_le » (AAAA-MM-JJTHH:MM+01:00) est un ajout du lot C, pour que la page
+# dise la date du fichier sans la calculer. Chaque chiffre est un objet CHIFFRE_DU_TABLEAU ; une source absente s'écrit
+# CHIFFRE_ABSENT, que la page affiche « absente », jamais « 0 » (avis, §2.1 point 3).
+TABLEAU_DE_BORD = ["fabrique_le", "bandeau", "circuit", "positions", "signaux", "cours", "calendrier", "strategies",
+                   "alertes"]
+CHIFFRE_DU_TABLEAU = ["valeur", "source", "date"]
+CHIFFRE_ABSENT = ["valeur", "etat"]
+
+# LA TABLE DES DIVIDENDES — fragment du lot DIV, TOUR 3 (D/lot_DIV_t3/FRAGMENT_CONTRAT.md, 05-11-2026, qui remplace
+# celui du tour 2, gardé sous FRAGMENT_CONTRAT_TOUR2_REMPLACE_PAR_LE_TOUR3.md), POSÉ TEL QUEL. UN CHAMP AJOUTÉ au tour
+# 3, `couverte_jusqu_au` (superviseur R-759 du 05-11-2026 avant le tour 3 de DIV, T1) : le dernier jour que la SOURCE
+# de la ligne couvre pour cette valeur (AAAA-MM-JJ). Au tour 2, la table avait perdu les onze
+# colonnes qui dépendaient d'une courbe (superviseur R-759 du 05-11-2026, « ARRÊTER ET SIMPLIFIER » ; décision de
+# Jean-Luc du 05-11-2026 à 14h22, « 1 », Q-DIV5 : date et montant de Yahoo tels quels, écarts signalés, jamais
+# corrigés). Écrite par FABRIQUER_LA_TABLE_DES_DIVIDENDES (lot DIV, commits 49261cb7, c4bd620e et 8317391c, pas encore
+# fusionnés le 05-11-2026) ; lue par son épreuve, par CONFRONTER_LES_DIVIDENDES_A_LA_COURBE (qui signale et n'écrit rien), demain par
+# `jouer` (lot J3, R-113). Une ligne par dividende déclaré par une source ; une valeur inconnue est une case VIDE,
+# jamais 0 ; la clé (`mnemonique`, `date_detachement`) est unique, toutes sources confondues. Le sens et l'unité de
+# chaque colonne sont au fragment. RÈGLE POUR LE LECTEUR (J3), du fragment : le montant à retirer du stop et de
+# l'objectif, et à ajouter au gain, se calcule dans la courbe que `jouer` lit — montant = `rendement` × clôture de la
+# veille de `date_detachement` dans cette courbe ; une ligne « MONTANT INCONNU » ne se crédite pas, et cela se dit.
+# COUVERTURE, du fragment du tour 3 : la table couvre une valeur jusqu'au plus tard des `couverte_jusqu_au` de SES
+# lignes ; au-delà, l'absence de ligne veut dire « on ne sait pas », jamais « aucun dividende » — `jouer` doit refuser
+# ou signaler une position de cette valeur qui dépasse ce jour (BACKLOG proposé par DIV, avec A-555). Une valeur sans
+# aucune ligne n'a aucune couverture écrite. La table ne porte plus ni le nom ni l'empreinte d'une courbe : une seule
+# table sert au maître et à l'historique long.
+TABLE_DES_DIVIDENDES = ["valeur", "mnemonique", "source", "date_detachement", "montant_source", "unite_source",
+                        "cloture_source_veille", "rendement", "statut", "couverte_jusqu_au"]
+# LES DISTRIBUTIONS DÉCIDÉES — même fragment (inchangées aux tours 2 et 3). Fichier ÉCRIT À LA MAIN, sur décision de Jean-Luc (n°89 : Unibail,
+# 07-10-2010) ; lu par FABRIQUER_LA_TABLE_DES_DIVIDENDES (`lire_les_decidees`). Seule unité lue : « euro du jour ».
+DISTRIBUTIONS_DECIDEES = ["valeur", "date", "montant", "unite"] + list(COLONNES_DES_SOURCES_A_LA_MAIN)
+
+# LES FICHIERS « À VENIR » — des contrats que les lots de D et la suite CODENT, pour des fichiers que personne n'écrit
+# encore le 05-11-2026 : {chemin depuis la racine : (nom du contrat, programme écrivain SANS « .py », lot qui l'écrit)}.
+# Un chemin qui finit par « / » est un DOSSIER d'entrées JSON (`*.json`), chacune confrontée ; un chemin en « .csv » est
+# un fichier en colonnes, confronté par son en-tête (lot DIV, 05-11-2026). Le programme est nommé sans
+# son extension : écrit avec, il passerait pour une dépendance de ce module aux yeux de l'épreuve de la copie des boucles
+# (même raison que EXEMPTIONS_DU_GARDE_FOU_DES_FRAIS). DÈS QU'UN FICHIER DE CE CHEMIN EXISTE, IL EST CONFRONTÉ par
+# `confronter_tous` ; TANT QU'IL N'EXISTE PAS, LE CONTRAT SE TAIT — c'est la limite (son ⑨) : le lot qui écrit le
+# fichier le fait passer dans CONTRATS_PAR_FICHIER, ou le laisse ici, dans le même geste que son écrivain.
+FICHIERS_A_VENIR = {
+    "registre_essais/": ("NATURES_DES_ENTREES_D_ESSAI", "TENIR_LE_REGISTRE_DES_ESSAIS", "L4"),
+    "verdicts/": ("VERDICT", "JUGE_DES_STRATEGIES", "JG"),
+    "rapports/tableau_de_bord.json": ("TABLEAU_DE_BORD", "RESUMER_POUR_LE_COCKPIT", "CKa"),
+    # Le lot DIV demandait ces deux lignes dans CONTRATS_PAR_FICHIER (fragment, §3). Elles sont ici, parce que
+    # CONTRATS_PAR_FICHIER rend « INTROUVABLE » pour un fichier absent : tant que le lot DIV n'est pas fusionné, le
+    # circuit du soir rougirait. Elles passent dans CONTRATS_PAR_FICHIER à l'assemblage de D (RAPPORT du lot C).
+    "donnees/TABLE_DES_DIVIDENDES.csv": ("TABLE_DES_DIVIDENDES", "FABRIQUER_LA_TABLE_DES_DIVIDENDES", "DIV"),
+    "donnees/sources_dividendes/DISTRIBUTIONS_DECIDEES.csv": ("DISTRIBUTIONS_DECIDEES", "ÉCRIT À LA MAIN", "DIV"),
+}
+
 # La table qui relie un fichier à son contrat — un seul endroit.
 CONTRATS_PAR_FICHIER = {
+    # la déclaration datée, née avec son seul en-tête le 05-11-2026 (lot C) : confrontée dès le premier jour
+    NOM_DES_DECLARATIONS_DATEES: DECLARATION_DATEE,
+    # l'étalon des versions, écrit à la main au tour 2 du lot C (05-11-2026) : confronté dès le premier jour
+    NOM_DE_L_ETALON_DES_VERSIONS: CAS_D_ETALON,
     "journal_des_reparations.csv": JOURNAL_DES_REPARATIONS,
     "PROVENANCE_DES_FICHIERS.csv": PROVENANCE_DES_FICHIERS,
     "bnains_cac40.csv": COURS_BNAINS,
@@ -957,7 +1301,7 @@ def chemin_du_registre(racine):
     ④ CONDITIONS D'ENTRÉE — Aucune : un dossier sans registre rend le chemin du dépôt, qui n'existe pas.
     ⑤ SORTIE — UNE valeur : un chemin. Le premier qui existe parmi, dans cet ordre : `<racine>/donnees/<nom>`,
       `<racine>/<nom>`, puis les deux mêmes avec les soulignés du nom changés en espaces ; sinon
-      `<racine>/donnees/<nom>`. Exemple : au dépôt, `<racine>/donnees/cac40_strategies.csv`. [rend: 1]
+      `<racine>/donnees/<nom>`. Exemple : au dépôt, `<racine>/donnees/cac40_strategies.csv`.
       [rend: 1]
     ⑥ TRAITEMENT — ① former les quatre chemins à partir de REGISTRE_DES_STRATEGIES · ② rendre le premier qui existe,
       sinon le premier.
@@ -970,7 +1314,7 @@ def chemin_du_registre(racine):
       d'aujourd'hui ne les porte (non mesuré au-delà du dépôt), elles sont gardées pour ne rien retirer sans accord.
       ② `CONSTRUIRE_LE_REGISTRE_EXPERIENCES` n'essayait pas les graphies à espaces : il les accepte désormais.
     ⑩ EFFET — Regarde si des fichiers existent ; n'en lit aucun.
-    ⑪ TERMINAISON — Rend la main. [sort: non]
+    ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     import os as _os
@@ -989,7 +1333,8 @@ def lignes_du_registre(chemin):
     ② CONTEXTE D'APPEL — `fiches_du_registre`, une fois par appel ; et les ÉPREUVES qui ont besoin de l'historique
       (aujourd'hui : `tests/EPREUVES_DE_LA_LECTURE_DE_LA_FICHE_Sam_31-10-2026.py`, qui éprouve la première ligne de
       `C5-EI-PARAMS`, gardée telle quelle ; `tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py`, qui réécrit le
-      registre de sa copie ; `tests/EPREUVES_DU_REGISTRE_DES_STRATEGIES_Jeu_05-11-2026.py`). AUCUN fichier de
+      registre de sa copie ; `tests/EPREUVES_DU_REGISTRE_DES_STRATEGIES_Jeu_05-11-2026.py`) ; et
+      `lignes_du_registre_pour_compter_k`, ici, pour le compte de k du juge. AUCUN fichier de
       `programmes/` autre que ce contrat ne l'appelle : un programme qui lirait toutes les lignes jugerait une ligne
       que n°83 a remplacée (superviseur R-759 du 05-11-2026 à 09h05, propriété P1). Le cas G4 de
       `tests/EPREUVES_DU_REGISTRE_DES_STRATEGIES_Jeu_05-11-2026.py` le garde.
@@ -998,7 +1343,7 @@ def lignes_du_registre(chemin):
     ④ CONDITIONS D'ENTRÉE — Le fichier existe, en UTF-8 (avec ou sans marque d'ordre d'octets), une première ligne
       d'en-tête.
     ⑤ SORTIE — UNE valeur : la liste des lignes, chacune un dictionnaire {colonne : texte}. Exemple réel au
-      05-11-2026 : 69 lignes, dont deux d'identifiant `C5-EI-PARAMS` (la 64e et la 69e). [rend: 1]
+      05-11-2026 : 69 lignes, dont deux d'identifiant `C5-EI-PARAMS` (la 64e et la 69e).
       [rend: 1]
     ⑥ TRAITEMENT — Ouvrir le fichier, le lire par `csv.DictReader`, rendre la liste.
     ⑦ UNITÉ — Des lignes du fichier, en-tête exclu.
@@ -1007,12 +1352,45 @@ def lignes_du_registre(chemin):
     ⑨ CE QUI CLOCHE — Une ligne plus courte que l'en-tête porte None dans ses dernières cases (comportement de
       `csv.DictReader`), comme avant n°83.
     ⑩ EFFET — Lit le fichier.
-    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque. [sort: non]
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque.
       [sort: non]
     """
     import csv as _csv
     with open(chemin, encoding="utf-8-sig", newline="") as f:
         return list(_csv.DictReader(f))
+
+
+def lignes_du_registre_pour_compter_k(octets):
+    """Rend toutes les lignes d'un registre des stratégies PASSÉ, donné par ses octets, pour compter k.
+
+    ① RÔLE — La lecture de l'historique dont a besoin le compte de k (lot S_kk) : k compte chaque version écrite au
+      registre, doublons compris, au commit de la date de déclaration. Elle vit ici, au contrat, parce que la lecture
+      de l'historique est réservée au contrat (superviseur R-759 du 05-11-2026 à 09h05, propriété P1, gardée par G4 de
+      `tests/EPREUVES_DU_REGISTRE_DES_STRATEGIES_Jeu_05-11-2026.py`).
+    ② CONTEXTE D'APPEL — `JUGE_DES_STRATEGIES.k_a_la_date`, une fois par compte de k.
+    ③ ENTRÉE — `octets` : le contenu du registre à un commit passé (sortie de `git show <commit>:<registre>`).
+    ④ CONDITIONS D'ENTRÉE — Des octets UTF-8 (avec ou sans marque d'ordre d'octets), une première ligne d'en-tête.
+    ⑤ SORTIE — UNE valeur : la liste des lignes, chacune un dictionnaire {colonne : texte}, comme `lignes_du_registre`.
+      [rend: 1]
+    ⑥ TRAITEMENT — Écrire les octets dans un fichier temporaire, le lire par `lignes_du_registre` (la seule lecture du
+      fichier, R-708), effacer le fichier.
+    ⑦ UNITÉ — Des lignes du fichier, en-tête exclu.
+    ⑧ POURQUOI — Fusion du bloc 3 (08-11-2026) : le lot S_kk, écrit avant P1, lisait cette histoire depuis le juge par
+      `lignes_du_registre`, et G4 rougissait. Compter k exige toutes les lignes : la lecture se déplace ici, le compte
+      reste au juge, inchangé.
+    ⑨ CE QUI CLOCHE — Rien n'empêche un programme d'appeler cette fonction pour JUGER une ligne remplacée : son nom dit
+      à quoi elle sert, aucun contrôle ne le garde (G4 ne voit que `lignes_du_registre`).
+    ⑩ EFFET — Écrit puis efface un fichier temporaire.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import os as _os
+    import tempfile as _tempfile
+    with _tempfile.TemporaryDirectory() as dossier:
+        chemin = _os.path.join(dossier, NOM_DU_REGISTRE_DES_STRATEGIES)
+        with open(chemin, "wb") as f:
+            f.write(octets)
+        return lignes_du_registre(chemin)
 
 
 def fiches_du_registre(chemin):
@@ -1029,14 +1407,14 @@ def fiches_du_registre(chemin):
       cet identifiant, et chaque fiche rangée À LA PLACE DE CETTE DERNIÈRE LIGNE dans le fichier (voir
       `fiches_des_lignes`, ⑤ et ⑧). Exemple réel au 05-11-2026 : 68 fiches pour 69 lignes ; `C5-EI-PARAMS` rend la
       ligne ajoutée par la décision n°53, celle dont la case `entree` vaut « DÉFAUT », et vient en dernier, après
-      `C5E10-TP5-SL5`. [rend: 1]
+      `C5E10-TP5-SL5`.
       [rend: 1]
     ⑥ TRAITEMENT — ① lire toutes les lignes par `lignes_du_registre` · ② les ranger par `fiches_des_lignes`.
     ⑦ UNITÉ — Des fiches (une par identifiant).
     ⑧ POURQUOI — Voir ① ; pour l'ordre, `fiches_des_lignes`, ⑧.
     ⑨ CE QUI CLOCHE — Voir `fiches_des_lignes`, ⑨.
     ⑩ EFFET — Lit le fichier.
-    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque. [sort: non]
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque.
       [sort: non]
     """
     return fiches_des_lignes(lignes_du_registre(chemin))
@@ -1058,7 +1436,7 @@ def fiches_des_lignes(lignes):
       cet identifiant, et chaque fiche rangée À LA PLACE DE CETTE DERNIÈRE LIGNE : les fiches se suivent dans l'ordre
       où leurs lignes qui font foi se suivent dans le fichier. Exemple réel au 05-11-2026 : 68 fiches pour les 69
       lignes du registre ; `C5-EI-PARAMS` (64e et 69e lignes) rend la ligne ajoutée par la décision n°53, celle dont
-      la case `entree` vaut « DÉFAUT », et vient en dernier, après `C5E10-TP5-SL5` (68e ligne). [rend: 1]
+      la case `entree` vaut « DÉFAUT », et vient en dernier, après `C5E10-TP5-SL5` (68e ligne).
       [rend: 1]
     ⑥ TRAITEMENT — Pour chaque ligne, dans l'ordre du fichier : retirer la fiche déjà rangée sous sa case `id` telle
       qu'elle est écrite, s'il y en a une, puis ranger la ligne sous cette case, en dernière place.
@@ -1080,7 +1458,7 @@ def fiches_des_lignes(lignes):
       et cherche dans ces fiches, il n'en tire aucun « plus récent » ; non éprouvé (au BACKLOG avec X7, le repli sans
       dent).
     ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main. [sort: non]
+    ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     fiches = {}
@@ -1099,7 +1477,7 @@ def lire_les_fiches(racine):
       de positions, l'épreuve de l'arrivée des signaux, l'épreuve du registre…).
     ③ ENTRÉE — `racine` : la racine du dépôt ou d'une copie qui en garde l'arborescence.
     ④ CONDITIONS D'ENTRÉE — `<racine>/donnees/cac40_strategies.csv` existe (REGISTRE_DES_STRATEGIES).
-    ⑤ SORTIE — UNE valeur : celle de `fiches_du_registre`. [rend: 1]
+    ⑤ SORTIE — UNE valeur : celle de `fiches_du_registre`.
       [rend: 1]
     ⑥ TRAITEMENT — Joindre REGISTRE_DES_STRATEGIES à la racine, appeler `fiches_du_registre`.
     ⑦ UNITÉ — Des fiches.
@@ -1108,11 +1486,427 @@ def lire_les_fiches(racine):
     ⑨ CE QUI CLOCHE — Ne cherche pas la copie à plat (voir `chemin_du_registre`) : un programme qui tourne aussi à
       plat passe par `chemin_du_registre` puis `fiches_du_registre`.
     ⑩ EFFET — Lit le fichier.
-    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque. [sort: non]
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le fichier manque.
       [sort: non]
     """
     import os as _os
     return fiches_du_registre(_os.path.join(racine, REGISTRE_DES_STRATEGIES))
+
+
+def declaration_de_la_fiche(racine, fiche_id, avant):
+    """Rend la déclaration datée d'une fiche qui fait foi pour un regard : la dernière écrite AVANT lui (R-505 ①).
+
+    ① RÔLE — LA lecture de `donnees/DECLARATIONS_DATEES.csv` (DECLARATIONS_DATEES). R-505 ① : « Exiger la déclaration
+      datée, écrite avant le regard, sinon rendre NON JUGEABLE en nommant le champ qui manque ». Cette fonction trouve
+      la ligne ; `champs_de_la_declaration_manquants` nomme ce qui manque.
+    ② CONTEXTE D'APPEL — Le 05-11-2026 : l'épreuve du lot C seule (tests/EPREUVES_DES_CONTRATS_DE_LA_LOI_Jeu_05-11-2026.py).
+      Destinée au juge (lot JG) et aux épreuves du lot P0D, qui ne relisent jamais ce fichier à leur façon (R-708).
+    ③ ENTRÉE — `racine` : la racine du dépôt ou d'une copie qui en garde l'arborescence. `fiche_id` : un identifiant
+      du registre des stratégies, tel qu'écrit (« C5E10-QA-V1 »). `avant` : la date du regard, texte ISO AVEC son
+      décalage horaire (« 2026-11-20T20:00:00+01:00 ») — sans valeur par défaut : une lecture sans date de regard
+      prendrait une déclaration écrite après lui.
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe, en UTF-8, et son en-tête est exactement DECLARATION_DATEE.
+    ⑤ SORTIE — UNE valeur : la ligne retenue, un dictionnaire {champ : texte}, ou None si la fiche n'a aucune
+      déclaration datée strictement avant `avant`. Exemple réel au 05-11-2026 : None pour toute fiche, le fichier
+      n'ayant que son en-tête.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire le fichier par `csv.DictReader` · ② refuser un en-tête différent du contrat · ③ lire `avant`
+      en date avec décalage · ④ parcourir les lignes de la fiche dans l'ordre du fichier, lire la date de chacune, et
+      garder la DERNIÈRE dont la date précède strictement `avant` · ⑤ la rendre.
+    ⑦ UNITÉ — Des lignes du fichier ; les dates sont des instants, comparés avec leur décalage.
+    ⑧ POURQUOI — La dernière ligne dans l'ORDRE DU FICHIER, comme pour le registre (n°83 : le fichier ne fait
+      qu'ajouter, sa place est sa chronologie) ; parmi celles écrites AVANT le regard (R-505 ① : « écrite avant le
+      regard »), parce qu'une déclaration écrite après avoir vu le résultat ne protège de rien (R-505 ①, Raison).
+      Une date illisible LÈVE au lieu d'être sautée : sautée, elle ferait retenir une déclaration plus ancienne sans
+      le dire.
+    ⑨ CE QUI CLOCHE — ① La date est celle que la ligne déclare ; rien ici ne la confronte à la date du commit qui a
+      ajouté la ligne (à faire par le lot P0D ou JG, avec l'historique du dépôt). ② Deux lignes de même fiche dans le
+      désordre des dates : c'est l'ordre du fichier qui décide, pas la plus grande date.
+    ⑩ EFFET — Lit le fichier.
+    ⑪ TERMINAISON — Rend la main. LÈVE ValueError (en-tête hors contrat, `avant` sans décalage, date de ligne
+      illisible ou sans décalage) et FileNotFoundError (fichier absent).
+      [sort: non]
+    """
+    import csv as _csv
+    import datetime as _dt
+    import os as _os
+    with open(_os.path.join(racine, DECLARATIONS_DATEES), encoding="utf-8-sig", newline="") as f:
+        lecteur = _csv.DictReader(f)
+        lignes = list(lecteur)
+        if lecteur.fieldnames != DECLARATION_DATEE:
+            raise ValueError(f"{DECLARATIONS_DATEES} : en-tête hors contrat DECLARATION_DATEE ({lecteur.fieldnames})")
+    limite = _dt.datetime.fromisoformat(avant)
+    if limite.tzinfo is None:
+        raise ValueError(f"date du regard sans décalage horaire : « {avant} »")
+    retenue = None
+    for numero, ligne in enumerate(lignes, 2):          # la ligne 1 est l'en-tête
+        if ligne["fiche_id"] != fiche_id:
+            continue
+        try:
+            date = _dt.datetime.fromisoformat(ligne["date_declaration"])
+        except (TypeError, ValueError):
+            raise ValueError(f"{DECLARATIONS_DATEES}, ligne {numero} : date_declaration illisible "
+                             f"« {ligne['date_declaration']} »")
+        if date.tzinfo is None:
+            raise ValueError(f"{DECLARATIONS_DATEES}, ligne {numero} : date_declaration sans décalage horaire")
+        if date < limite:
+            retenue = ligne
+    return retenue
+
+
+def champs_de_la_declaration_manquants(declaration):
+    """Nomme les champs qui manquent à une déclaration datée — ce qui la rend NON JUGEABLE (R-505 ①, ⑫).
+
+    ① RÔLE — Dire, champ par champ, pourquoi une fiche n'est pas jugeable, au lieu de la juger « par défaut » (plan V3,
+      lot P0D : « Une fiche sans déclaration complète reste NON JUGEABLE, jamais jugée par défaut »).
+    ② CONTEXTE D'APPEL — Le 05-11-2026 : l'épreuve du lot C seule. Destinée au juge (JG), juste après
+      `declaration_de_la_fiche`.
+    ③ ENTRÉE — `declaration` : la ligne rendue par `declaration_de_la_fiche`, ou None.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste des champs manquants, dans l'ordre de DECLARATION_DATEE ; vide si la déclaration
+      est complète. None (aucune déclaration) rend tous les champs non facultatifs. Exemple : une ligne de C5E10-QA-V1
+      dont `lignee` est vide rend ["lignee"].
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque champ du contrat qui n'est pas dans CHAMPS_FACULTATIFS_DE_LA_DECLARATION : manquant
+      si la case est absente ou vide après retrait des espaces ; et `cas` manquant si sa valeur n'est pas dans
+      CAS_DE_LA_LOI.
+    ⑦ UNITÉ — Des noms de champs.
+    ⑧ POURQUOI — « vide n'est pas aucune » : une case vide peut être un oubli ; « aucune » écrit est une déclaration.
+      Le juge nomme le premier champ de cette liste dans le `motif` du verdict NON JUGEABLE (VERDICT).
+    ⑨ CE QUI CLOCHE — Elle ne juge pas le CONTENU d'une case remplie (une hypothèse d'un mot passe) : c'est le travail
+      du relecteur des déclarations (P0D), pas d'un contrat.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    exiges = [c for c in DECLARATION_DATEE if c not in CHAMPS_FACULTATIFS_DE_LA_DECLARATION]
+    if declaration is None:
+        return exiges
+    manquants = [c for c in exiges if not (declaration.get(c) or "").strip()]
+    if "cas" not in manquants and (declaration.get("cas") or "").strip() not in CAS_DE_LA_LOI:
+        manquants.append("cas")
+        manquants.sort(key=DECLARATION_DATEE.index)
+    return manquants
+
+
+def cas_de_l_etalon_des_versions(racine):
+    """Rend les cas de l'étalon des versions, chacun une paire de lignes d'une même fiche et son nombre de versions.
+
+    ① RÔLE — LA lecture de l'étalon des versions (ETALON_DES_VERSIONS) : pour chaque cas, bâtir les DEUX lignes que le
+      compteur de k (lot S_kk) devra lire, et dire combien de versions il doit en tirer. L'épreuve de S_kk appelle
+      cette fonction, puis son compteur sur chaque paire ; la façon de lire appartient à S_kk.
+    ② CONTEXTE D'APPEL — L'épreuve du lot C (`tests/EPREUVES_DES_CONTRATS_DE_LA_LOI_Jeu_05-11-2026.py`, C18 et C19),
+      demain l'épreuve du lot S_kk. Aucune tâche du soir.
+    ③ ENTRÉE — `racine` : la racine du dépôt, ou d'une copie qui garde l'arborescence (`temoins/`, `donnees/`).
+    ④ CONDITIONS D'ENTRÉE — L'étalon et le registre des stratégies existent sous la racine (le registre est trouvé par
+      `chemin_du_registre`).
+    ⑤ SORTIE — DEUX valeurs : ① la liste des cas BIEN FORMÉS, chacun un dictionnaire {cas, fiche, ligne_a, ligne_b
+      (deux dictionnaires {colonne : texte}, des copies), versions_attendues (l'entier 1 ou 2), colonne_changee,
+      ce_que_le_juge_tire_autrement, mot_de_jean_luc, source} ; ② la liste des fautes, une phrase par cas écarté.
+      Exemple réel au 05-11-2026 : le cas `jean_luc_lignes_65_70` rend les lignes 65 et 70 du fichier du registre,
+      fiche C5-EI-PARAMS, 1 version.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① lire le registre par `lignes_du_registre` ; si le fichier compte plus de lignes que de lignes de
+      données plus l'en-tête, une ligne s'étend sur plusieurs lignes du fichier : rendre ([], une faute), les numéros
+      ne sont pas fiables · ② lire l'étalon par `csv.DictReader` · ③ pour chaque cas : nom non vide et unique ; ligne
+      a du fichier présente, d'identifiant `fiche` ; si `ligne_du_fichier_b` est remplie, la ligne b est cette vraie
+      ligne, de même identifiant, et aucune case n'est changée ; sinon la ligne b est une copie de la ligne a où
+      `colonne_changee` (une colonne de STRATEGIE, jamais `id`, qui fait la fiche) prend `valeur_b`, qui doit
+      différer · ④ `versions_attendues` dans VERSIONS_D_UN_CAS ; `ce_que_le_juge_tire_autrement` dans
+      ELEMENTS_DE_LA_LECTURE_DE_JEU et rempli SI ET SEULEMENT SI 2 versions ; `mot_de_jean_luc` dans
+      REGLAGES_NOMMES_PAR_JEAN_LUC, et seulement sur un cas à 2 versions ; `source` remplie.
+    ⑦ UNITÉ — Des cas ; les numéros sont des LIGNES DU FICHIER du registre, en-tête = ligne 1.
+    ⑧ POURQUOI — Le superviseur R-759 du 05-11-2026 (« tour suivant », 4) : écrire l'étalon EN DONNÉES, lisibles par
+      l'épreuve de S_kk, et non par une seconde lecture du juge écrite dans une épreuve (R-708 : deux implémentations
+      d'une même chose divergent toujours). Une seule lecture de l'étalon, ici, comme pour le registre (n°83).
+    ⑨ CE QUI CLOCHE — ① Elle ne dit pas si un cas est VRAI (si le juge en tire bien 1 ou 2 versions) : cela, seule
+      la fonction que S_kk écrit dans le juge le dira, et elle n'existe pas le 05-11-2026. ② Une copie fabriquée ne change qu'UNE case : un
+      cas qui en changerait deux doit être écrit avec deux vraies lignes. ③ Les numéros tiennent tant que le registre
+      ne fait que grandir par le bas (n°83, R-727) ; une ligne insérée au milieu les décalerait, et la faute
+      « identifiant » le dirait.
+    ⑩ EFFET — Lit deux fichiers.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si l'étalon ou le registre manque. Aucun de ses appels ne
+      boucle.
+      [sort: non]
+    """
+    import csv as _csv
+    import os as _os
+    une_version, deux_versions = VERSIONS_D_UN_CAS
+    chemin = chemin_du_registre(racine)
+    lignes = lignes_du_registre(chemin)
+    with open(chemin, encoding="utf-8-sig", newline="") as f:
+        lignes_du_fichier = sum(1 for _ in f)
+    if lignes_du_fichier != len(lignes) + 1:
+        return [], [f"registre : {lignes_du_fichier} lignes du fichier pour {len(lignes)} lignes de données et l'en-tête "
+                    f"— une ligne s'étend sur plusieurs lignes du fichier, les numéros de l'étalon ne sont pas fiables"]
+
+    def ligne_du_fichier(texte):
+        """Rend la ligne de données du registre qui occupe une ligne du fichier, ou None.
+
+        ① RÔLE — Traduire un numéro de LIGNE DU FICHIER (en-tête = 1) en ligne de données.
+        ② CONTEXTE D'APPEL — `cas_de_l_etalon_des_versions`, deux fois par cas au plus.
+        ③ ENTRÉE — `texte` : la case `ligne_du_fichier_a` ou `ligne_du_fichier_b` de l'étalon, telle quelle.
+        ④ CONDITIONS D'ENTRÉE — Aucune ligne de données ne s'étend sur plusieurs lignes du fichier (vérifié avant).
+        ⑤ SORTIE — UNE valeur : le dictionnaire de la ligne, ou None si le texte n'est pas un entier entre 2 et le
+          nombre de lignes de données plus 1. Exemple réel : « 65 » rend la première ligne de C5-EI-PARAMS.
+          [rend: 1]
+        ⑥ TRAITEMENT — lire l'entier, rendre la ligne de données de rang n − 2 (l'en-tête est la ligne 1 du fichier).
+        ⑦ UNITÉ — Lignes du fichier.
+        ⑧ POURQUOI — Jean-Luc a donné son exemple en lignes du fichier (65 et 70) ; l'unité voyage avec le nombre (D7).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        n = int(texte) if texte.strip().isdigit() else 0
+        return lignes[n - 2] if 2 <= n <= len(lignes) + 1 else None
+
+    with open(_os.path.join(racine, ETALON_DES_VERSIONS), encoding="utf-8-sig", newline="") as f:
+        lus = list(_csv.DictReader(f))
+    cas, fautes, noms = [], [], set()
+    for brut in lus:
+        e = {c: (brut.get(c) or "") for c in CAS_D_ETALON}
+        nom, fiche = e["cas"].strip(), e["fiche"].strip()
+        if not nom or nom in noms:
+            fautes.append(f"cas « {nom} » : nom vide ou en double")
+            continue
+        noms.add(nom)
+        a = ligne_du_fichier(e["ligne_du_fichier_a"])
+        if a is None or (a.get("id") or "").strip() != fiche:
+            fautes.append(f"{nom} : la ligne {e['ligne_du_fichier_a']!r} du fichier n'est pas une ligne de « {fiche} »")
+            continue
+        colonne = e["colonne_changee"].strip()
+        if e["ligne_du_fichier_b"].strip():
+            b = ligne_du_fichier(e["ligne_du_fichier_b"])
+            if b is None or (b.get("id") or "").strip() != fiche or colonne or e["valeur_b"]:
+                fautes.append(f"{nom} : la ligne {e['ligne_du_fichier_b']!r} du fichier n'est pas une ligne de "
+                              f"« {fiche} », ou une paire de vraies lignes change une case")
+                continue
+            b = dict(b)
+        else:
+            if colonne not in STRATEGIE or colonne == "id" or (a.get(colonne) or "") == e["valeur_b"]:
+                fautes.append(f"{nom} : colonne « {colonne} » hors contrat STRATEGIE, `id`, ou valeur inchangée")
+                continue
+            b = dict(a)
+            b[colonne] = e["valeur_b"]
+        attendu, tire, mot = (e["versions_attendues"].strip(), e["ce_que_le_juge_tire_autrement"].strip(),
+                              e["mot_de_jean_luc"].strip())
+        if (attendu not in VERSIONS_D_UN_CAS or (tire and tire not in ELEMENTS_DE_LA_LECTURE_DE_JEU)
+                or (mot and mot not in REGLAGES_NOMMES_PAR_JEAN_LUC) or bool(tire) != (attendu == deux_versions)
+                or (mot and attendu != deux_versions) or not e["source"].strip()):
+            fautes.append(f"{nom} : versions « {attendu} », élément « {tire} », mot « {mot} » ou source vide — un cas à "
+                          f"{deux_versions} versions dit ce que le juge tire autrement, un cas à {une_version} ne le dit pas")
+            continue
+        cas.append({"cas": nom, "fiche": fiche, "ligne_a": dict(a), "ligne_b": b, "versions_attendues": int(attendu),
+                    "colonne_changee": colonne, "ce_que_le_juge_tire_autrement": tire, "mot_de_jean_luc": mot,
+                    "source": e["source"].strip()})
+    return cas, fautes
+
+def _ecarts_de_cles(nom, nom_du_contrat, trouves, attendus):
+    """Nomme les champs du contrat absents et les champs hors contrat d'un objet — sans couper la liste.
+
+    ① RÔLE — La comparaison d'un ensemble de clés à un contrat, pour les fichiers « à venir » et leurs sous-objets.
+    ② CONTEXTE D'APPEL — `ecarts_d_une_entree` et `_ecarts_d_un_verdict`, une fois par objet confronté.
+    ③ ENTRÉE — `nom` : ce qu'on confronte, pour la phrase (« verdicts/ab12.json, controles.kelly ») ; `nom_du_contrat` :
+      le nom du contrat, pour la phrase ; `trouves` : les clés présentes ; `attendus` : les clés du contrat.
+    ④ CONDITIONS D'ENTRÉE — `trouves` et `attendus` sont des suites de textes.
+    ⑤ SORTIE — UNE valeur : une liste de phrases, vide si les deux ensembles sont égaux. Deux formes : « N champ(s) du
+      contrat X ABSENT(s) — a, b » et « N champ(s) HORS CONTRAT X — c ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① les attendus absents, dans l'ordre du contrat · ② les présents hors contrat, dans l'ordre trouvé.
+    ⑦ UNITÉ — Des noms de champs.
+    ⑧ POURQUOI — Les mêmes phrases que `confronter_tous`, pour que le circuit du soir les lise de la même façon ; mais
+      la liste n'est jamais coupée (le ⑨ ④ de `confronter_tous` : coupée à cinq sans le dire).
+    ⑨ CE QUI CLOCHE — L'ordre des clés et leurs doublons ne sont pas vus (un objet JSON n'a pas de doublon après
+      lecture).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    manquants = [c for c in attendus if c not in trouves]
+    surnumeraires = [c for c in trouves if c not in attendus]
+    ecarts = []
+    if manquants:
+        ecarts.append(f"{nom} : {len(manquants)} champ(s) du contrat {nom_du_contrat} ABSENT(s) — " + ", ".join(manquants))
+    if surnumeraires:
+        ecarts.append(f"{nom} : {len(surnumeraires)} champ(s) HORS CONTRAT {nom_du_contrat} — "
+                      + ", ".join(str(c) for c in surnumeraires))
+    return ecarts
+
+
+def _ecarts_d_un_verdict(nom, v):
+    """Confronte l'INTÉRIEUR d'un verdict à ses sous-contrats : contrôles, affichages, k, mots admis.
+
+    ① RÔLE — Un verdict a la bonne liste de clés et pourtant un contrôle oublié, un état mal écrit ou un k sans sa
+      façon de compter : ce sont les fautes que les lots S_ep, S_per, S_kk et JG peuvent faire chacun de leur côté.
+    ② CONTEXTE D'APPEL — `ecarts_d_une_entree`, pour une entrée dont le contrat est VERDICT.
+    ③ ENTRÉE — `nom` : le chemin de l'entrée, pour la phrase. `v` : l'objet du verdict, déjà lu.
+    ④ CONDITIONS D'ENTRÉE — `v` est un dictionnaire (vérifié par l'appelant).
+    ⑤ SORTIE — UNE valeur : une liste de phrases, vide si tout tient.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① `verdict` dans MOTS_DU_VERDICT ; `motif` d'un NON TRANCHÉE commençant par un mot de
+      MOTIFS_DE_NON_TRANCHEE ; `cas` dans CAS_DE_LA_LOI · ② `k` : clés de K_DU_VERDICT, `compte` dans COMPTES_DE_K ·
+      ③ `controles` : exactement les clés de CONTROLES_DU_VERDICT, chacune un objet CONTROLE_DU_VERDICT, `etat` et
+      `role` dans leurs valeurs admises ; si l'état est PASSE ou BLOQUE et que le contrôle est dans
+      DETAILS_DES_CONTROLES, son `detail` porte exactement ces champs ; chaque époque de `detail.epoques` porte
+      EPOQUE_DU_VERDICT · ④ `affichages` : exactement AFFICHAGES_DU_VERDICT, chacun un objet AFFICHAGE_DU_VERDICT.
+    ⑦ UNITÉ — Des noms de champs et des valeurs admises.
+    ⑧ POURQUOI — « Le juge calcule et affiche tous les contrôles » (grille, règle commune (a)) : un contrôle absent du
+      fichier est un contrôle que personne ne peut relire. Les valeurs admises sont confrontées, comme les sources du
+      maître (SOURCES_ADMISES) : un « PASSÉ » accentué serait lu par le cockpit comme un état inconnu.
+    ⑨ CE QUI CLOCHE — ① Les valeurs NUMÉRIQUES (k, seuil, valeurs mesurées) ne sont pas confrontées à leur calcul :
+      c'est le travail des épreuves du juge. ② `premier_controle_bloquant` n'est pas confronté à l'ordre des contrôles.
+      ③ Le `detail` d'un contrôle INCONNU ou SANS_OBJET n'est pas confronté (il peut être vide).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    ecarts = []
+    if v.get("verdict") not in MOTS_DU_VERDICT:
+        ecarts.append(f"{nom} : verdict « {v.get('verdict')} » HORS CONTRAT MOTS_DU_VERDICT")
+    if v.get("verdict") == "NON TRANCHÉE" and not str(v.get("motif") or "").startswith(MOTIFS_DE_NON_TRANCHEE):
+        ecarts.append(f"{nom} : motif « {v.get('motif')} » HORS CONTRAT MOTIFS_DE_NON_TRANCHEE")
+    if str(v.get("cas")) not in CAS_DE_LA_LOI:
+        ecarts.append(f"{nom} : cas « {v.get('cas')} » HORS CONTRAT CAS_DE_LA_LOI")
+    k = v.get("k")
+    if not isinstance(k, dict):
+        ecarts.append(f"{nom} : k n'est pas un objet K_DU_VERDICT")
+    else:
+        ecarts += _ecarts_de_cles(f"{nom}, k", "K_DU_VERDICT", list(k), K_DU_VERDICT)
+        if k.get("compte") not in COMPTES_DE_K:
+            ecarts.append(f"{nom}, k : compte « {k.get('compte')} » HORS CONTRAT COMPTES_DE_K")
+    controles = v.get("controles")
+    if not isinstance(controles, dict):
+        ecarts.append(f"{nom} : controles n'est pas un objet")
+        controles = {}
+    ecarts += _ecarts_de_cles(f"{nom}, controles", "CONTROLES_DU_VERDICT", list(controles), CONTROLES_DU_VERDICT)
+    for cle, c in controles.items():
+        ici = f"{nom}, controles.{cle}"
+        if not isinstance(c, dict):
+            ecarts.append(f"{ici} : n'est pas un objet CONTROLE_DU_VERDICT")
+            continue
+        ecarts += _ecarts_de_cles(ici, "CONTROLE_DU_VERDICT", list(c), CONTROLE_DU_VERDICT)
+        if c.get("etat") not in ETATS_D_UN_CONTROLE:
+            ecarts.append(f"{ici} : etat « {c.get('etat')} » HORS CONTRAT ETATS_D_UN_CONTROLE")
+        if c.get("role") not in ROLES_D_UN_CONTROLE:
+            ecarts.append(f"{ici} : role « {c.get('role')} » HORS CONTRAT ROLES_D_UN_CONTROLE")
+        if c.get("etat") in ("PASSE", "BLOQUE") and cle in DETAILS_DES_CONTROLES:
+            detail = c.get("detail") if isinstance(c.get("detail"), dict) else {}
+            ecarts += _ecarts_de_cles(f"{ici}.detail", f"DETAILS_DES_CONTROLES[{cle}]", list(detail),
+                                      DETAILS_DES_CONTROLES[cle])
+            epoques = detail.get("epoques") if cle == "epoques" else []
+            for i, epoque in enumerate(epoques if isinstance(epoques, list) else [epoques]):
+                trouves = list(epoque) if isinstance(epoque, dict) else []
+                ecarts += _ecarts_de_cles(f"{ici}.detail.epoques[{i}]", "EPOQUE_DU_VERDICT", trouves, EPOQUE_DU_VERDICT)
+    affichages = v.get("affichages")
+    if not isinstance(affichages, dict):
+        ecarts.append(f"{nom} : affichages n'est pas un objet")
+        affichages = {}
+    ecarts += _ecarts_de_cles(f"{nom}, affichages", "AFFICHAGES_DU_VERDICT", list(affichages), AFFICHAGES_DU_VERDICT)
+    for cle, a in affichages.items():
+        trouves = list(a) if isinstance(a, dict) else []
+        ecarts += _ecarts_de_cles(f"{nom}, affichages.{cle}", "AFFICHAGE_DU_VERDICT", trouves, AFFICHAGE_DU_VERDICT)
+    return ecarts
+
+
+# Les confrontations de l'INTÉRIEUR d'une entrée, par nom de contrat : un contrat absent d'ici n'est confronté que sur
+# ses clés du premier niveau.
+CONFRONTATIONS_INTERIEURES = {"VERDICT": _ecarts_d_un_verdict}
+
+
+def ecarts_d_une_entree(nom, objet, nom_du_contrat):
+    """Confronte un objet JSON (une entrée, un fichier « à venir ») au contrat nommé.
+
+    ① RÔLE — Une seule façon de confronter une entrée JSON, que le circuit du soir et les épreuves des lots appellent :
+      un lot qui écrit une entrée peut s'y confronter AVANT de l'écrire, comme le détecteur le fait avec `verifier`.
+    ② CONTEXTE D'APPEL — `confronter_les_fichiers_a_venir`, une fois par fichier trouvé ; l'épreuve du lot C.
+    ③ ENTRÉE — `nom` : le chemin de l'entrée, pour la phrase. `objet` : ce que `json.load` a rendu. `nom_du_contrat` :
+      le nom, en toutes lettres, d'une liste de ce module, ou d'un dictionnaire {valeur de la clé « nature » : liste}
+      (NATURES_DES_ENTREES_D_ESSAI).
+    ④ CONDITIONS D'ENTRÉE — `nom_du_contrat` est déclaré dans ce module (sinon KeyError).
+    ⑤ SORTIE — UNE valeur : une liste de phrases, vide si l'entrée tient.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① refuser ce qui n'est pas un objet · ② pour un contrat à natures, choisir la liste par la clé
+      « nature », et refuser une nature inconnue · ③ confronter les clés · ④ appeler la confrontation intérieure du
+      contrat s'il en a une (CONFRONTATIONS_INTERIEURES).
+    ⑦ UNITÉ — Des noms de champs.
+    ⑧ POURQUOI — Le registre des essais a deux sortes d'entrées dans un même dossier (fragment de L4) : le contrat se
+      choisit par ce que l'entrée dit d'elle-même, jamais par son nom de fichier (une empreinte).
+    ⑨ CE QUI CLOCHE — Le tableau de bord n'est confronté qu'à son premier niveau : la forme de chaque chiffre
+      (CHIFFRE_DU_TABLEAU, CHIFFRE_ABSENT) attend que le lot CKa fixe la forme de ses blocs.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève KeyError sur un nom de contrat inconnu.
+      [sort: non]
+    """
+    contrat = globals()[nom_du_contrat]
+    if not isinstance(objet, dict):
+        return [f"{nom} : n'est pas un objet JSON — contrat {nom_du_contrat}"]
+    if isinstance(contrat, dict):
+        nature = objet.get("nature")
+        if nature not in contrat:
+            return [f"{nom} : nature « {nature} » HORS CONTRAT {nom_du_contrat}"]
+        contrat, nom_du_contrat = contrat[nature], f"{nom_du_contrat}[{nature}]"
+    ecarts = _ecarts_de_cles(nom, nom_du_contrat, list(objet), contrat)
+    interieur = CONFRONTATIONS_INTERIEURES.get(nom_du_contrat)
+    if interieur is not None:
+        ecarts += interieur(nom, objet)
+    return ecarts
+
+
+def confronter_les_fichiers_a_venir(base):
+    """Confronte chaque fichier « à venir » QUI EXISTE à son contrat ; se tait sur ceux qui n'existent pas encore.
+
+    ① RÔLE — Faire mordre les contrats que les lots de D codent (registre des essais, verdict, tableau de bord, table
+      des dividendes et distributions décidées du lot DIV) dès le
+      premier fichier écrit, sans faire rougir le circuit du soir tant que leur écrivain n'existe pas.
+    ② CONTEXTE D'APPEL — `confronter_tous`, une fois, à la fin : le pas « Confronter les fichiers a leurs contrats » du
+      circuit du soir le reçoit donc sans changement. L'épreuve du lot C.
+    ③ ENTRÉE — `base` : la racine du dépôt ou d'une copie.
+    ④ CONDITIONS D'ENTRÉE — La racine est un dossier lisible.
+    ⑤ SORTIE — UNE valeur : une liste de phrases ; vide le 05-11-2026, aucun de ces fichiers n'existant.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque chemin de FICHIERS_A_VENIR : ① un chemin en « / » est un dossier : prendre ses
+      `*.json`, triés ; sinon le fichier seul · ② rien s'il n'existe pas · ③ un fichier qui ne finit pas par « .json »
+      est en colonnes (la table des dividendes, lot DIV, depuis le 05-11-2026) : son en-tête, lu par
+      `champs_de_l_en_tete`, est confronté au contrat · ④ sinon lire le fichier en JSON, un fichier illisible étant un
+      écart, et le confronter par `ecarts_d_une_entree`.
+    ⑦ UNITÉ — Des noms de champs et des fichiers.
+    ⑧ POURQUOI — Le chemin est déclaré, pas cherché dans l'arborescence comme le fait `confronter_tous` (son ⑨ ② :
+      deux fichiers de même nom, le premier trouvé gagne) : une copie de travail ailleurs ne masque pas le vrai.
+    ⑨ CE QUI CLOCHE — ① UN CONTRAT À VENIR SE TAIT TANT QUE SON FICHIER N'EXISTE PAS : un écrivain qui écrirait
+      ailleurs, ou jamais, ne serait pas vu. Le lot qui crée l'écrivain fait passer la ligne dans CONTRATS_PAR_FICHIER
+      ou la garde ici, dans le même geste. ② Les fichiers d'un dossier qui ne finissent pas par « .json » sont ignorés.
+    ⑩ EFFET — Lit les fichiers trouvés.
+    ⑪ TERMINAISON — Rend la main ; peut lever si un fichier existe mais ne s'ouvre pas (droits).
+      [sort: non]
+    """
+    import json as _json
+    import os as _os
+    ecarts = []
+    for chemin, (nom_du_contrat, _ecrivain, _lot) in FICHIERS_A_VENIR.items():
+        cible = _os.path.join(base, chemin)
+        if chemin.endswith("/"):
+            entrees = sorted(_os.path.join(cible, f) for f in _os.listdir(cible)
+                             if f.endswith(".json")) if _os.path.isdir(cible) else []
+        else:
+            entrees = [cible] if _os.path.isfile(cible) else []
+        for entree in entrees:
+            nom = _os.path.relpath(entree, base)
+            if not entree.endswith(".json"):       # un fichier en colonnes : son en-tête, lu comme confronter_tous le lit
+                trouves = champs_de_l_en_tete(entree)
+                if trouves is None:
+                    ecarts.append(f"{nom} : VIDE — pas même un en-tête")
+                else:
+                    ecarts += _ecarts_de_cles(nom, nom_du_contrat, trouves, globals()[nom_du_contrat])
+                continue
+            try:
+                with open(entree, encoding="utf-8") as f:
+                    objet = _json.load(f)
+            except ValueError as e:
+                ecarts.append(f"{nom} : ILLISIBLE ({type(e).__name__})")
+                continue
+            ecarts += ecarts_d_une_entree(nom, objet, nom_du_contrat)
+    return ecarts
 
 
 def date_ecrite(base, chemin, motif):
@@ -1387,6 +2181,42 @@ def audit_du_jour_est_du_jour(base):
     return None
 
 
+def champs_de_l_en_tete(chemin):
+    """Lit les noms de champs de l'en-tête d'un fichier en colonnes — LA lecture d'en-tête de la confrontation.
+
+    ① RÔLE — Porter à un seul endroit la lecture de l'en-tête que `confronter_tous` faisait en ligne, pour que les
+      fichiers « à venir » en colonnes (la table des dividendes, lot DIV) soient lus de la même façon (R-708).
+    ② CONTEXTE D'APPEL — `confronter_tous`, pour chaque fichier en colonnes de CONTRATS_PAR_FICHIER ;
+      `confronter_les_fichiers_a_venir`, pour chaque fichier « à venir » qui n'est pas du JSON (depuis le 05-11-2026,
+      lot C, qui l'a sortie de `confronter_tous` sans changer un geste).
+    ③ ENTRÉE — `chemin` : le chemin d'un fichier en colonnes.
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe et s'ouvre.
+    ⑤ SORTIE — UNE valeur : la liste des noms de champs, dans l'ordre de l'en-tête ; None si le fichier n'a aucune ligne
+      utile. Exemple réel : ["valeur", "date", "montant", "unite", "source", "citation", "fichiers_cites"] pour
+      donnees/sources_dividendes/DISTRIBUTIONS_DECIDEES.csv du lot DIV.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① prendre la première ligne qui n'est ni vide ni un commentaire (« # » ou « "# ») · ② choisir comme
+      séparateur celui des trois — point-virgule, virgule, tabulation — qui la découpe en le plus de morceaux ·
+      ③ découper, ôter les espaces et les guillemets de bord.
+    ⑦ UNITÉ — Des noms de champs.
+    ⑧ POURQUOI — Le séparateur est mesuré sur l'en-tête, pas supposé (⑧ de `confronter_tous`, mesuré le 19-09-2026 :
+      gouvernance/SOCLE.csv sépare par des points-virgules, donnees/cours_maitre.csv par des virgules).
+    ⑨ CE QUI CLOCHE — Les ⑨ ⑤ et ⑥ de `confronter_tous` vivent ici : aucun des trois séparateurs présent → le
+      point-virgule est choisi et l'en-tête entier devient un seul nom ; le découpage ignore les guillemets.
+    ⑩ EFFET — Lit le fichier jusqu'à sa première ligne utile.
+    ⑪ TERMINAISON — Rend la main ; peut lever si le fichier ne s'ouvre pas (droits).
+      [sort: non]
+    """
+    ligne = None
+    for l in open(chemin, encoding="utf-8-sig", errors="replace"):
+        if l.strip() and not l.startswith("#") and not l.startswith(chr(34) + "#"):
+            ligne = l.rstrip("\n\r"); break
+    if ligne is None:
+        return None
+    sep = max((";", ",", "\t"), key=lambda x: ligne.count(x))
+    return [c.strip().strip(chr(34)) for c in ligne.split(sep)]
+
+
 def confronter_tous(base):
     """Confronte CHAQUE fichier de liaison à son contrat. Rend la liste des écarts.
 
@@ -1419,8 +2249,10 @@ def confronter_tous(base):
       signal · ④ pour un fichier en colonnes, prendre la première ligne qui n'est ni
       vide ni un commentaire, choisir comme séparateur celui des trois — point-
       virgule, virgule, tabulation — qui découpe cette ligne en le plus de morceaux,
-      puis découper · ⑤ nommer les champs du contrat absents, puis les champs
-      présents que le contrat ne nomme pas.
+      puis découper — ce geste vit dans `champs_de_l_en_tete` depuis le 05-11-2026
+      (lot C), sans changement · ⑤ nommer les champs du contrat absents, puis les champs
+      présents que le contrat ne nomme pas · ⑥ ajouter les écarts des fichiers « à venir »
+      qui existent (`confronter_les_fichiers_a_venir`, depuis le 05-11-2026, lot C).
     ⑦ UNITÉ — Un NOMBRE DE CHAMPS, et un nombre de fichiers. Aucune grandeur
       physique.
     ⑧ POURQUOI — Le séparateur n'est pas supposé, il est mesuré sur l'en-tête
@@ -1469,6 +2301,8 @@ def confronter_tous(base):
       il est importé en tête de la fonction, et aucun appel ne s'en sert. Le
       découpage est fait à la main, ce qui ignore les guillemets : un nom de colonne
       contenant le séparateur serait coupé en deux.
+      ⑦ (05-11-2026, lot C) Les fichiers « à venir » qui n'existent pas encore se taisent :
+      voir le ⑨ de `confronter_les_fichiers_a_venir`.
     ⑩ EFFET — LIT l'arborescence sous la racine, puis la première ligne utile de
       chacun des fichiers trouvés — ou le contenu entier pour le fichier de signaux,
       qui est chargé en mémoire. N'écrit rien, n'affiche rien, ne touche pas au
@@ -1514,14 +2348,9 @@ def confronter_tous(base):
                 continue   # pas de signal ce jour-la : rien a confronter, et ce n est pas un ecart
             trouves = list(sg[0].keys())
         else:
-            ligne = None
-            for l in open(chemin, encoding="utf-8-sig", errors="replace"):
-                if l.strip() and not l.startswith("#") and not l.startswith(chr(34) + "#"):
-                    ligne = l.rstrip("\n\r"); break
-            if ligne is None:
+            trouves = champs_de_l_en_tete(chemin)
+            if trouves is None:
                 ecarts.append(f"{nom} : VIDE — pas même un en-tête"); continue
-            sep = max((";", ",", "\t"), key=lambda x: ligne.count(x))
-            trouves = [c.strip().strip(chr(34)) for c in ligne.split(sep)]
         manquants = [c for c in attendus if c not in trouves]
         surnumeraires = [c for c in trouves if c not in attendus]
         if manquants:
@@ -1530,6 +2359,8 @@ def confronter_tous(base):
         if surnumeraires:
             ecarts.append(f"{nom} : {len(surnumeraires)} champ(s) HORS CONTRAT — "
                           + ", ".join(surnumeraires[:5]))
+    # LES FICHIERS « À VENIR » (lot C, 05-11-2026) : confrontés s'ils existent, muets sinon (FICHIERS_A_VENIR).
+    ecarts += confronter_les_fichiers_a_venir(base)
     return ecarts
 
 

@@ -38,7 +38,9 @@
   [sort: oui]
 ⑫ DÉFINITIONS
   une fiche : le texte explicatif en tête d une fonction, qui porte ses onze ou douze éléments
-  la marque : `[rend: …]` à la fin du ⑤ et `[sort: oui|non]` à la fin du ⑪, écrits par ce
+  la marque : `[rend: …]` à la fin du ⑤ et `[sort: oui|non]` à la fin du ⑪, chacune SEULE SUR
+    SA LIGNE, qu elle ouvre (le garde-fou ne lit qu une marque en tête de ligne ; la forme
+    collée au bout de la dernière phrase est abandonnée), écrits par ce
     programme et comparés au code par le garde-fou
   le garde-fou : `programmes/CONTROLER_MA_LIVRAISON.py`, qui accepte ou refuse une livraison
 """
@@ -71,7 +73,8 @@ def marquer_un_fichier(chemin, essai):
       doit jamais arriver.
       [sort: non]
     ⑫ DÉFINITIONS
-      la marque : `[rend: …]` à la fin du ⑤ et `[sort: oui|non]` à la fin du ⑪
+      la marque : `[rend: …]` à la fin du ⑤ et `[sort: oui|non]` à la fin du ⑪, chacune
+        seule sur sa ligne, qu elle ouvre (voir ⑫ de la fiche du fichier)
     """
     source = open(chemin, encoding="utf-8").read()
     avant = empreinte_du_code(source)

@@ -19,8 +19,8 @@ COMMENT UNE FICHE LE NOMME (A-542, 30-10-2026) — trois colonnes de `donnees/ca
   nomme ; `signaux_rsi2` est appelée par `jouer` du juge, une fois par morceau de série de chaque valeur.
 ③ ENTRÉE — Voir `signaux_rsi2`.
 ④ CONDITIONS D'ENTRÉE — Voir `signaux_rsi2`.
-⑤ SORTIE — Le module expose `signaux_rsi2` et `rsi_wilder`. [rend: 2]
-⑥ TRAITEMENT — Voir les deux fonctions.
+⑤ SORTIE — Le module expose `signaux_rsi2`, `rsi_wilder` et `memoire_signaux_rsi2`. [rend: 3]
+⑥ TRAITEMENT — Voir les trois fonctions.
 ⑦ UNITÉ — Le RSI va de 0 à 100. Les périodes se comptent en SÉANCES.
 ⑧ POURQUOI — Connors et Alvarez, « Short Term Trading Strategies That Work » (2008), chapitre sur le RSI(2) :
   acheter une valeur au-dessus de sa moyenne mobile à 200 séances quand son RSI à 2 séances descend sous 10 (ou 5).
@@ -35,6 +35,12 @@ COMMENT UNE FICHE LE NOMME (A-542, 30-10-2026) — trois colonnes de `donnees/ca
 ⑩ EFFET — Aucun : n'écrit rien, ne lit rien, ne touche pas au réseau. Le charger ne fait que définir des fonctions.
 ⑪ TERMINAISON — Rend la main. [sort: non]
 """
+import math
+
+# L'OUBLI DU LISSAGE DE WILDER, en bits (tour t6 de l'épreuve d'arrivée des signaux, 06-11-2026) : la mémoire déclarée
+# compte assez de séances pour que l'état de départ ne pèse plus que 2⁻⁶⁴ dans le RSI, sous la précision des nombres à
+# virgule (2⁻⁵², avec une marge de 2¹² pour un état de départ très différent). Voir `memoire_signaux_rsi2`.
+OUBLI_EN_BITS = 64
 
 
 def rsi_wilder(clotures, periode):
@@ -127,3 +133,42 @@ def signaux_rsi2(ohlcv, periode, seuil, tendance):
                 continue
         out.append({"i": i, "rsi": r})
     return out
+
+
+def memoire_signaux_rsi2(periode, seuil, tendance):
+    """Rend la mémoire de `signaux_rsi2` à ces réglages : le nombre de séances, jour décidé compris, dont elle a besoin.
+
+    ① RÔLE — Déclarer, à côté de la fonction de signal, combien de séances passées elle lit, pour que l'épreuve
+      d'arrivée des signaux (`tests/EPREUVES_DE_L_ARRIVEE_DES_SIGNAUX_Sam_31-10-2026.py`) ne lui donne, sur les 20 ans,
+      que ces séances-là pour chaque date vérifiée (décision de Jean-Luc du 06-11-2026 à 19h41).
+    ② CONTEXTE D'APPEL — `memoire_declaree` de l'épreuve d'arrivée des signaux, qui la trouve par son nom (« memoire_ »
+      suivi du nom de la fonction de signal) et lui passe les réglages de la fiche. Aucun programme du circuit du soir
+      ne l'appelle.
+    ③ ENTRÉE — `periode`, `seuil`, `tendance` : les réglages de `signaux_rsi2`, tels que la fiche les nomme.
+    ④ CONDITIONS D'ENTRÉE — Celles de `signaux_rsi2` (`periode` entier ≥ 1, `tendance` entier ≥ 0) ; le seuil n'entre
+      pas dans le calcul.
+    ⑤ SORTIE — UNE valeur : un entier. Exemples : (2, 10, 200) → 200, la tendance domine ; (2, 10, 0) → 68 ;
+      (14, 30, 0) → 615 ; (1, 10, 0) → 3. [rend: 1]
+    ⑥ TRAITEMENT — ① l'oubli du lissage : 0 pour une période de 1 (le lissage ne garde rien), sinon le nombre de pas de
+      lissage après lesquels l'état de départ pèse moins de 2^-OUBLI_EN_BITS, arrondi au-dessus :
+      OUBLI_EN_BITS × ln 2 / ln(période / (période − 1)) · ② rendre le plus grand de la tendance et de
+      période + 2 + l'oubli.
+    ⑦ UNITÉ — Des séances de bourse, le jour décidé compris.
+    ⑧ POURQUOI — Lu dans `signaux_rsi2` : la décision du jour i demande le RSI du jour ET de la veille, défini à partir
+      du rang `periode` (d'où période + 2) ; le filtre de tendance demande `tendance` clôtures, jour compris, et refuse
+      un rang plus petit ; le lissage de Wilder a une mémoire SANS FIN : chaque pas garde (période − 1) / période de
+      l'état d'avant. La mémoire déclarée en est donc une mémoire PRATIQUE (superviseur R-759 du 06-11-2026,
+      condition ③) : au-delà, l'écart avec un calcul depuis l'origine est sous la précision des nombres, il n'est pas
+      nul. Mesuré par l'étude « 54 heures » (06-11-2026, hors dépôt) aux réglages d'exemple : avec 199 séances, le
+      RSI(2) est refusé dès ACCOR au 2024-11-22 ; avec 200 et 264, il passe sur toutes les valeurs des deux fichiers.
+      L'épreuve VÉRIFIE ce chiffre à chaque lancement, par décalage (`verifier_la_memoire`).
+    ⑨ CE QUI CLOCHE — ① La règle vient de la lecture du code de `signaux_rsi2` : si la fonction se met à lire plus
+      loin, ce chiffre ne suit pas de lui-même ; la vérification de l'épreuve le refusera. ② Pour une grande période
+      sans tendance, la mémoire déclarée est longue (615 séances pour 14) : l'épreuve est alors plus lente, jamais
+      moins sûre.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève l'erreur de `math` sur une période qui n'est pas un nombre ≥ 1 ; aucun de
+      ses appels ne peut ne pas revenir. [sort: non]
+    """
+    oubli = 0 if periode == 1 else math.ceil(OUBLI_EN_BITS * math.log(2) / math.log(periode / (periode - 1)))
+    return max(tendance, periode + 2 + oubli)

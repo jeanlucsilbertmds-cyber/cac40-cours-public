@@ -202,19 +202,24 @@ def est_une_action(octets):
     return m.get("instrumentType") == TYPE_ACTION and m.get("currency") == DEVISE
 
 
-def barres(valeur, octets):
+def barres(valeur, octets, jusqu_au=COUPURE):
     """Rend les barres gardées d'une valeur, au format du fichier propre.
 
     ① RÔLE — Appliquer les règles du fichier propre aux cours d'une réponse.
-    ② CONTEXTE D'APPEL — `fabriquer`, une fois par action.
-    ③ ENTRÉE — `valeur` : le nom usuel de la valeur ; `octets` : la réponse de Yahoo.
+    ② CONTEXTE D'APPEL — `fabriquer`, une fois par action, sans `jusqu_au` (la coupure du fichier propre) ;
+      programmes/FABRIQUER_LA_TABLE_DES_DIVIDENDES.py, une fois par valeur, avec `jusqu_au` None (toute la réponse).
+    ③ ENTRÉE — `valeur` : le nom usuel de la valeur ; `octets` : la réponse de Yahoo ; `jusqu_au` : la dernière date
+      gardée (AAAA-MM-JJ), COUPURE si rien n'est dit, None pour garder toute la réponse.
     ④ CONDITIONS D'ENTRÉE — La réponse se lit en JSON et porte chart.result[0], ses horodatages et ses cours.
     ⑤ SORTIE — UNE valeur : la liste des lignes [valeur, date, ouverture, haut, bas, clôture, volume], textes.
      
       [rend: 1]
-    ⑥ TRAITEMENT — Voir la fiche en tête, ⑥ ③.
+    ⑥ TRAITEMENT — Voir la fiche en tête, ⑥ ③ ; la date de fin est `jusqu_au` au lieu de COUPURE quand elle est dite.
     ⑦ UNITÉ — Euros, titres, dates de Paris.
-    ⑧ POURQUOI — Ces règles redonnent, mesuré, le fichier propre (voir la fiche en tête, ⑧).
+    ⑧ POURQUOI — Ces règles redonnent, mesuré, le fichier propre (voir la fiche en tête, ⑧). La date de fin est un
+      réglage depuis le 05-11-2026 (superviseur R-759, lot DIV, T1) : la table des dividendes empruntait la coupure de
+      ce fichier, et perdait en silence trois dividendes de Yahoo d'après le 02-10-2026 (Société Générale 05-10,
+      Crédit Agricole et Vinci 13-10). Sa valeur par défaut reste COUPURE : le fichier propre se refait à l'identique.
     ⑨ CE QUI CLOCHE — Une barre écartée ne laisse pas de trace ici ; une action dont toutes les barres seraient
       écartées disparaîtrait du fichier sans un mot (seule l'empreinte attendue par l'épreuve le verrait).
     ⑩ EFFET — —
@@ -230,7 +235,7 @@ def barres(valeur, octets):
         o, h, b, c, vol = (q[k][i] for k in ("open", "high", "low", "close", "volume"))
         if None in (o, h, b, c, vol) or vol == 0 or not (b <= o <= h and b <= c <= h):
             continue
-        if d > COUPURE or (valeur == "STELLANTIS" and d < DEBUT_STELLANTIS):
+        if (jusqu_au is not None and d > jusqu_au) or (valeur == "STELLANTIS" and d < DEBUT_STELLANTIS):
             continue
         lignes.append([valeur, d, *(repr(round(x, 4)) for x in (o, h, b, c)), str(int(vol))])
     return lignes

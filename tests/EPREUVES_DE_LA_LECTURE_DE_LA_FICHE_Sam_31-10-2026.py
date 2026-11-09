@@ -122,7 +122,8 @@ SABOTAGES = {
                                   "                sl = abs(float(str(x[\"sl\"]).replace(\"%\", \"\")))\n"
                                   "                sl = sl / 100.0 if sl >= 1 else sl\n")],
     # point 5 : la case entree n'est plus lue
-    "P5_entree_non_lue": [(JUGE, "    elif entree.upper().replace(\" \", \"\").replace(\"_\", \"\") not in ENTREES_JOUABLES:\n",
+    # (cible reprise le 09-11-2026, bloc 3 : le lot S_kk, 2c12a8db, a confié la mise en forme de la case à cle_d_entree)
+    "P5_entree_non_lue": [(JUGE, "    elif cle_d_entree(entree) not in ENTREES_JOUABLES:\n",
                            "    elif False:\n")],
     # point 5 : une case entree vide est jouée à l'ouverture
     "P6_entree_vide_acceptee": [(JUGE, "    if entree.lower() in VIDE:\n        manq.append(\"entree (aucun",

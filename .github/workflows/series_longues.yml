@@ -309,7 +309,7 @@ jobs:
           python-version: "3.11"
       - name: Installer la mesure et les dependances des programmes
         id: installer
-        run: python3 -m pip install --quiet "coverage==7.16.2" "pyflakes==4.1.0" cryptography pyyaml
+        run: python3 -m pip install --quiet "coverage==7.16.2" "numpy==2.2.6" "pyflakes==4.1.0" cryptography pyyaml
       - name: Le depot prive est-il celui de la preparation ?
         id: meme_depot
         env:
@@ -497,7 +497,7 @@ jobs:
           python-version: "3.11"
       - name: Installer la mesure et les dependances des programmes
         id: installer
-        run: python3 -m pip install --quiet "coverage==7.16.2" "pyflakes==4.1.0" cryptography pyyaml
+        run: python3 -m pip install --quiet "coverage==7.16.2" "numpy==2.2.6" "pyflakes==4.1.0" cryptography pyyaml
       - name: Le depot prive est-il celui de la preparation ?
         id: meme_depot
         env:

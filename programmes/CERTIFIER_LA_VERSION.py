@@ -863,7 +863,8 @@ def durees_relevees(racine, passage_exclu=""):
     """Rend, pour chaque lancement déjà joué une nuit, sa durée relevée dans les journaux de la certification.
 
     ① RÔLE — Donner à `repartir` la durée de chaque lancement, MESURÉE et non écrite à la main (R-728).
-    ② CONTEXTE D'APPEL — `main`, en mode tranche ; tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py.
+    ② CONTEXTE D'APPEL — `main`, dans les deux modes qui jouent (entier et tranche : la coupure de `coupure` la lit
+      aussi) ; tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py.
     ③ ENTRÉE — `racine` : le dépôt · `passage_exclu` : le numéro du passage en cours (GITHUB_RUN_ID), dont les
       journaux sont écartés.
     ④ CONDITIONS D'ENTRÉE — —
@@ -1236,9 +1237,10 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
     ③ ENTRÉE — `copie` · `py` : le Python jetable · `reglages` · `manifestes` · `chemin` :
       l'épreuve, relative à la copie · `dossier` : le dossier de lancement, relatif à la
       copie · `arguments` : où `{copie}` est remplacé par le chemin de la copie · `delai` : en
-      secondes, `DUREE_MAX_EPREUVE` sauf délai déclaré à la table de lancement (« delais ») · `lectures` : un
-      dossier où chaque processus note les fichiers qu'il ouvre en lecture, ou None · `garder` : le nombre de
-      dernières lignes de sortie rendues (None : toutes).
+      secondes, la coupure rendue par `coupure` (délai déclaré à la table de lancement, « delais », sinon
+      `DUREE_MAX_EPREUVE` ; porté à 3 × la durée relevée si c'est plus, ce triple plafonné à
+      3 × `DUREE_MAX_EPREUVE`) · `lectures` : un dossier où chaque processus note les fichiers
+      qu'il ouvre en lecture, ou None · `garder` : le nombre de dernières lignes de sortie rendues (None : toutes).
     ④ CONDITIONS D'ENTRÉE — La mesure est armée.
     ⑤ SORTIE — TROIS valeurs : le code de sortie (124 si l'épreuve a dépassé son délai), la
       durée en secondes, les trois dernières lignes de sa sortie.
@@ -1411,25 +1413,77 @@ def ecrire_le_rapport(racine, horodatage, resultats, tableau, reculs, verdict, c
         f.write("\n".join(t) + "\n")
 
 
-def jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lancements, delais, series):
+FACTEUR_DE_COUPURE = 3          # la coupure d'un lancement déjà joué une nuit : au moins 3 fois sa durée relevée
+
+
+def coupure(cle, delais, durees):
+    """Rend le délai au-delà duquel un lancement est coupé (code 124) : le plus grand du délai et de 3 × sa durée relevée,
+    ce triple plafonné à 3 × `DUREE_MAX_EPREUVE`.
+
+    ① RÔLE — Donner à `jouer` et à `refaire_des_essais` la coupure d'un lancement, qui suit sa durée MESURÉE au lieu de
+      rester pour toujours au chiffre déclaré.
+    ② CONTEXTE D'APPEL — `jouer_les_lancements`, une fois par lancement joué ou par série dont les essais sont refaits ;
+      tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py, cas N9.
+    ③ ENTRÉE — `cle` : la clé du lancement (`cle_de`) · `delais` : {clé : secondes} de `options_de_lancement` ·
+      `durees` : {clé : secondes} de `durees_relevees`.
+    ④ CONDITIONS D'ENTRÉE — Les valeurs des deux dictionnaires sont des nombres de secondes.
+    ⑤ SORTIE — UNE valeur : la coupure, en secondes. Délai = le délai déclaré, sinon `DUREE_MAX_EPREUVE` ; coupure =
+      max(délai, min(`FACTEUR_DE_COUPURE` × durée relevée, `FACTEUR_DE_COUPURE` × `DUREE_MAX_EPREUVE`)) quand une
+      durée est relevée, sinon le délai.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① le délai : `delais`, sinon `DUREE_MAX_EPREUVE` · ② si `durees` porte la clé, le plus grand du
+      délai et de 3 fois la durée relevée, ce triple ramené au plus à 3 × `DUREE_MAX_EPREUVE`.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Relecture de Cowork du 09-11-2026, B3-2 : la note du bloc 3 disait « la première nuit remplace ces
+      délais par la durée relevée » ; c'était vrai pour la répartition (`repartir`), faux pour la coupure, qui lisait
+      le seul délai déclaré. Les délais des onze lancements nouveaux du bloc 3 (300 s au moins) viennent de mesures
+      faites SANS la mesure de couverture, que la certification multiplie par environ 2,2 (tests/LANCEMENT_DES_EPREUVES
+      .json, l'épreuve d'arrivée des signaux) : un lancement de 950 s coupé à 900 s rougissait chaque nuit, et la
+      durée relevée valait 900. Décision du Chat, sous la délégation de Jean-Luc n°129, du 09-11-2026 : coupure =
+      max(délai déclaré, 3 × durée relevée). Le max : un délai déclaré n'est jamais raccourci par une nuit rapide.
+      Le facteur 3 : les durées relevées ont varié du simple au double d'une nuit à l'autre (le ⑧ de
+      `durees_relevees`), et la répartition vise une tranche au tiers de sa limite.
+      LE PLAFOND (relecture de Cowork du 09-11-2026, 4dcffa32, point 1 : sans lui, un lancement qui ne finit jamais
+      voyait sa coupure tripler à chaque nuit, 1 500 s, 4 500 s, 13 500 s, jusqu'à faire tomber la tranche entière
+      sur la limite de GitHub) : décision du Chat sous la délégation n°129, du 09-11-2026, À CONFIRMER PAR JEAN-LUC.
+      Le plafond borne la croissance par la durée relevée, jamais le délai déclaré : la formule demandée,
+      min(max(délai, 3 × durée), 3 × `DUREE_MAX_EPREUVE`), aurait coupé à 4 500 s les cinq lancements déclarés à plus
+      de 4 500 s, dont la série de la lecture des cours (délai 10 800 s, durée relevée 5 097 s) : rouge sûr chaque
+      nuit. Mesure du 09-11-2026 sur les journaux du dépôt (etudes/BLOC3_SORTIES/11c_plafond_sur_les_vraies_durees.log).
+    ⑨ CE QUI CLOCHE — Un lancement non déclaré dont la durée vraie dépasse 3 × `DUREE_MAX_EPREUVE` est coupé chaque
+      nuit : son rouge reste visible, et le remède est de lui déclarer un délai (« delais »). Le plafond n'est confirmé par personne
+      d'autre que le Chat (BACKLOG, à consigner).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    delai = delais.get(cle, DUREE_MAX_EPREUVE)
+    if cle in durees:
+        return max(delai, min(FACTEUR_DE_COUPURE * durees[cle], FACTEUR_DE_COUPURE * DUREE_MAX_EPREUVE))
+    return delai
+
+
+def jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lancements, delais, series, durees):
     """Joue des lancements dans l'ordre donné, sous la mesure, et rend leurs résultats.
 
     ① RÔLE — La boucle des épreuves, la même pour la certification entière et pour une tranche de la nuit.
     ② CONTEXTE D'APPEL — `main`, une fois.
     ③ ENTRÉE — `copie` · `jetable` : le dossier jetable · `racine` : le dépôt certifié · `py`, `reglages`,
-      `manifestes` : la mesure armée · `lancements` : ceux à jouer · `delais`, `series` : de `options_de_lancement`.
+      `manifestes` : la mesure armée · `lancements` : ceux à jouer · `delais`, `series` : de `options_de_lancement` ·
+      `durees` : de `durees_relevees`, obligatoire (un appelant qui l'oublierait tombe, il ne coupe pas en silence).
     ④ CONDITIONS D'ENTRÉE — La mesure est armée et calibrée.
     ⑤ SORTIE — UNE valeur : la liste des [chemin, dossier, arguments, code, durée, lignes], dans l'ordre joué.
       [rend: 1]
     ⑥ TRAITEMENT — une série déclarée « series_hors_de_la_nuit » n'est pas rejouée : son relevé est vérifié
       (`verifier_une_serie`), puis des essais refaits (`refaire_des_essais`) ; tout autre lancement est joué
-      (`jouer`) avec son délai ; une ligne par lancement à l'écran (`ligne_du_journal`).
+      (`jouer`) ; chacun est coupé à `coupure` (délai déclaré, ou 3 × la durée relevée plafonné, s'il est plus grand) ; une
+      ligne par lancement à l'écran (`ligne_du_journal`).
     ⑦ UNITÉ — Des secondes.
     ⑧ POURQUOI — Une seule rédaction de la boucle (R-708) pour les deux modes.
     ⑨ CE QUI CLOCHE — La vérification d'une série lit ce que le lancement normal de la même épreuve a lu : il doit
       être joué AVANT, dans le même appel (`repartir` garde une épreuve entière dans une tranche).
     ⑩ EFFET — Lance les épreuves ; écrit à l'écran.
-    ⑪ TERMINAISON — Rend la main ; chaque épreuve est bornée par son délai.
+    ⑪ TERMINAISON — Rend la main ; chaque épreuve est bornée par sa coupure (`coupure`).
       [sort: non]
     """
     resultats, lus_par_epreuve = [], {}
@@ -1441,7 +1495,7 @@ def jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lance
             if code == 0 and series[chemin]["essais"]:
                 code, duree, autres = refaire_des_essais(copie, py, reglages, manifestes, chemin,
                                                          series[chemin]["releve"], series[chemin]["essais"],
-                                                         delais.get(cle, DUREE_MAX_EPREUVE))
+                                                         coupure(cle, delais, durees))
                 lignes = (lignes + autres)[-3:]
         else:
             lectures = None
@@ -1449,7 +1503,7 @@ def jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lance
                 lectures = os.path.join(jetable, "lectures", os.path.basename(chemin))
                 os.makedirs(lectures, exist_ok=True)
             code, duree, lignes = jouer(copie, py, reglages, manifestes, chemin, dossier, arguments,
-                                        delais.get(cle, DUREE_MAX_EPREUVE), lectures)
+                                        coupure(cle, delais, durees), lectures)
             if lectures:
                 lus_par_epreuve[chemin] = fichiers_lus(lectures, copie, racine)
         resultats.append([chemin, dossier, arguments, code, duree, lignes])
@@ -1742,13 +1796,15 @@ def main():
             return impossible(raison, "échouée" if not calibree else "réussie", non_declarees)
         if tranche is None:
             resultats = jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lancements, delais,
-                                             series)
+                                             series, durees_relevees(racine, passage))
             return conclure(racine, copie, horodatage, [(r[0], r[2], r[3], r[4], r[5]) for r in resultats],
                             lancements, lire_la_mesure(jetable, reglages, manifestes, copie), reference, empreinte,
                             ecrire, accord, non_declarees, [])
-        tranches, charges = repartir(lancements, durees_relevees(racine, passage), delais, tranche[1])
+        durees = durees_relevees(racine, passage)
+        tranches, charges = repartir(lancements, durees, delais, tranche[1])
         a_jouer = tranches[tranche[0] - 1]
-        resultats = jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, a_jouer, delais, series)
+        resultats = jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, a_jouer, delais, series,
+                                         durees)
         partiel.update({"repartition": empreinte_de_la_repartition(tranches), "charges_prevues_secondes": charges,
                         "joues": a_jouer, "resultats": resultats,
                         "mesure": mesure_brute(jetable, reglages, manifestes, copie)})

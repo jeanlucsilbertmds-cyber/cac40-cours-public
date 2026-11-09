@@ -660,9 +660,11 @@ LOGICIELS_DE_LA_CERTIFICATION = """      # Les logiciels que les programmes cher
 # pyflakes : l'épreuve E12 des frais (A-550, 29-10-2026) cherche les noms lus jamais définis ; absent, elle rougit. Il
 # manquait ici : E12 a rougi au certificat public du 31-10-2026 (7980a86, « pyflakes absent »), relecture de Cowork du
 # 31-10-2026 à 18h49. L'épreuve E6 bis du circuit public rougit si un paquet du privé manque ici.
+# numpy : le cas E7 de EPREUVES_DE_LA_LECTURE_DE_LA_FICHE éprouve des rangs numpy et rougit sans lui (R-734) ; il
+# manquait, d'où le rouge du certificat du 08-11-2026 à 22h57 (82c92ace). 2.2.6 : la dernière version pour Python 3.11.
 INSTALLER_LA_MESURE = """      - name: Installer la mesure et les dependances des programmes
         id: installer
-        run: python3 -m pip install --quiet "coverage==7.16.2" "pyflakes==4.1.0" cryptography pyyaml
+        run: python3 -m pip install --quiet "coverage==7.16.2" "numpy==2.2.6" "pyflakes==4.1.0" cryptography pyyaml
 """
 
 VERDICT_DE_LA_CERTIFICATION = """      - name: Rougir si la version n'est pas certifiee

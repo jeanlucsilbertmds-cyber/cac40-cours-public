@@ -316,7 +316,8 @@ SABOTAGES = {
     "S119_module_non_appele": [(FAB, "            if forme.porte_une_forme_de_jeton(octets):\n", "            if False:\n")],
     "S120_controles_admis": [(FAB, "            if controle is not None:\n", "            if False:\n")],
     "S121_borne_gh_remise_a_b": [(MOD, '(?<![A-Za-z0-9])gh[pousr]_', '\\bgh[pousr]_')],
-    "S95_installation_en_echo": [(FAB, "        run: python3 -m pip install --quiet \"coverage==7.16.2\" \"pyflakes", "        run: echo pip install --quiet \"coverage==7.16.2\" \"pyflakes")],
+    # Ancre sans le paquet qui suit coverage : numpy y a été inséré le 08-11-2026 (bloc 3, cas E7 de la lecture de la fiche).
+    "S95_installation_en_echo": [(FAB, "        run: python3 -m pip install --quiet \"coverage==7.16.2\"", "        run: echo pip install --quiet \"coverage==7.16.2\"")],
     # LE FILET DES GABARITS PUBLICS (circuit des séries, 04-11-2026, superviseur R-759, R3 ; tour 4, R2 : les poussées
     # hors de la forme permise) : chaque propriété de `verifier_les_gabarits_publics` sabotée SÉPARÉMENT ; la variante
     # renomme la garde des parts et doit rester verte (le filet lit une propriété, pas un nom). Numéros S122 à S136 et V6
@@ -339,7 +340,9 @@ SABOTAGES = {
     # LA VERSION EN ATTENTE (décision de Jean-Luc du 05-11-2026 à 13h36, « 2 ») : la branche du clone public non
     # comparée à celle du privé (E9), et le clonage de la version demandée sans « ref: » (filet, propriété ⑦).
     'S137_branche_publique_non_comparee': [(FAB, '        refus = refus_de_branche(prive, public)\n', '        refus = None\n')],
-    'S138_series_preparation_sans_version': [(FAB, 'ref="${{ inputs.version }}"),', '),')],
+    # Ancre reprise le 08-11-2026 (bloc 3) : le bloc 2 (e50dd73c) a ajouté « aussi=… » après ce « ref: », et l'ancienne
+    # ancre « ref=…), » n'existait plus (INAPPLICABLE, code 2).
+    'S138_series_preparation_sans_version': [(FAB, 'apres_le_clonage=SERIES_VERSION, ref="${{ inputs.version }}",', 'apres_le_clonage=SERIES_VERSION,')],
     'V6_series_garde_renommee': [(FAB, '      - name: Toutes les parts sont-elles vertes ?\n        id: parts_vertes\n', '      - name: Les parts ont-elles toutes reussi ?\n        id: verifier_les_parts\n')],
 }
 for _k, (_n, (_r, _m)) in enumerate(FORMES_HORS_SOUS_ENSEMBLE.items()):

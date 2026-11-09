@@ -726,7 +726,14 @@ def seuils_du_registre(base):
     t = open(ch, encoding="utf-8", errors="replace").read()
     if GRILLE not in t:
         return [f"{GRILLE} absente du REGISTRE — le verdict ne peut pas nommer sa grille"]
-    bloc = t[t.find(GRILLE):t.find(GRILLE) + 2200]
+    # Le bloc est la SECTION titrée « #### GRILLE-26-04 », jusqu'au titre suivant : depuis la loi G (REGISTRE v8.11),
+    # R-505 nomme la grille bien plus haut, et « 2 200 caractères après la première mention » lisait R-505 (bloc 3,
+    # 08-11-2026 : SIGNAL_NOMME E3/E6 rouges, « C5 (seuil 0,05) absent du bloc »).
+    titre = _re.search(r"^#{1,4} " + _re.escape(GRILLE) + r"\b.*$", t, _re.M)
+    if not titre:
+        return [f"{GRILLE} : aucune section titrée « #### {GRILLE} » au REGISTRE"]
+    suite = _re.search(r"^#{1,4} ", t[titre.end():], _re.M)
+    bloc = t[titre.start():titre.end() + (suite.start() if suite else len(t))]
     attendus = {"0,05": "C1", "0,95": "C2", "0,30": "C3", "25 %": "C4a",
                 "365": "C4b", "0,05": "C5", "0,005": "C8"}
     manquants = [f"{v} (seuil {k}) absent du bloc {GRILLE}"

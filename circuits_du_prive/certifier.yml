@@ -48,7 +48,7 @@ jobs:
           python-version: "3.11"
       - name: Installer la mesure et les dépendances des programmes
         # pyflakes : l'épreuve E12 des frais (A-550, 29-10-2026) cherche les noms lus jamais définis ; absent, elle rougit
-        run: python3 -m pip install --quiet "coverage==7.16.2" "pyflakes==4.1.0" cryptography pyyaml
+        run: python3 -m pip install --quiet "coverage==7.16.2" "numpy==2.2.6" "pyflakes==4.1.0" cryptography pyyaml
       - name: Certifier
         run: |
           set +e

@@ -20,7 +20,7 @@ COMMENT UNE FICHE LE NOMME (A-542, 30-10-2026) — trois colonnes de `donnees/ca
   nomme ; sa fonction est appelée par `jouer` du juge, une fois par morceau de série de chaque valeur.
 ③ ENTRÉE — Voir `signaux_au_hasard`.
 ④ CONDITIONS D'ENTRÉE — Voir `signaux_au_hasard`.
-⑤ SORTIE — Le module expose `signaux_au_hasard`. [rend: 1]
+⑤ SORTIE — Le module expose `signaux_au_hasard` et `memoire_signaux_au_hasard`. [rend: 2]
 ⑥ TRAITEMENT — Voir `signaux_au_hasard`.
 ⑦ UNITÉ — La proportion est une FRACTION des séances (0,02 = 2 %).
 ⑧ POURQUOI — A-542 ④ (plan du circuit validé par Jean-Luc le 30-10-2026) : chaque famille de signal se branche par
@@ -99,3 +99,29 @@ def signaux_au_hasard(ohlcv, graine, proportion):
         if t < proportion:
             out.append({"i": i, "tirage": t})
     return out
+
+
+def memoire_signaux_au_hasard(graine, proportion):
+    """Rend la mémoire de `signaux_au_hasard` : une séance, le jour décidé lui-même.
+
+    ① RÔLE — Déclarer, à côté de la fonction de signal, combien de séances passées elle lit, pour que l'épreuve
+      d'arrivée des signaux (`tests/EPREUVES_DE_L_ARRIVEE_DES_SIGNAUX_Sam_31-10-2026.py`) ne lui donne, sur les 20 ans,
+      que ces séances-là pour chaque date vérifiée (décision de Jean-Luc du 06-11-2026 à 19h41).
+    ② CONTEXTE D'APPEL — `memoire_declaree` de l'épreuve d'arrivée des signaux, qui la trouve par son nom (« memoire_ »
+      suivi du nom de la fonction de signal) et lui passe les réglages de la fiche. Aucun programme du circuit du soir
+      ne l'appelle.
+    ③ ENTRÉE — `graine`, `proportion` : les réglages de `signaux_au_hasard` ; ils n'entrent pas dans le calcul.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : 1. [rend: 1]
+    ⑥ TRAITEMENT — Rendre 1.
+    ⑦ UNITÉ — Des séances de bourse, le jour décidé compris.
+    ⑧ POURQUOI — Lu dans `signaux_au_hasard` et `tirage` : le tirage d'une séance ne dépend que de la graine, de la date
+      et de la clôture de cette séance. Mesuré par l'étude « 54 heures » (06-11-2026, hors dépôt) : avec une mémoire
+      de 1, le hasard passe sur toutes les valeurs des deux fichiers. L'épreuve VÉRIFIE ce chiffre à chaque lancement,
+      par décalage (`verifier_la_memoire`).
+    ⑨ CE QUI CLOCHE — Les réglages sont reçus pour que l'épreuve appelle toutes les fonctions de mémoire de la même
+      façon ; ils ne servent pas.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main. [sort: non]
+    """
+    return 1

@@ -22,7 +22,8 @@ VERSION 1.5 — 29-08-2026. Le juge des stratégies lit le REGISTRE DES STRATEGI
 
 VERSION 1.2 — LE JUGEMENT EST BRANCHE. Le juge des stratégies rendait les gains ; il rend
     desormais les mesures qui disent si ces gains veulent dire quelque chose :
-    point mort, episodes independants, coupure sur le TEMPS avec embargo de
+    point mort, observations independantes (mesurees depuis le 05-11-2026, n°106 ;
+    avant : episodes a 5 seances), coupure sur le TEMPS avec embargo de
     21 seances, gain au pire, pire serie de pertes, pire creux, et l'etalon de
     hasard en deux modes. Toutes ces mesures ont ete produites le 28/08 dans des
     scripts jetables : elles ne vivaient donc NULLE PART. Le juge des stratégies n'en implemente
@@ -960,6 +961,45 @@ class SignalNomme:
         return self.fonction(serie, **self.reglages)
 
 
+def declaration_du_signal(fiche):
+    """Rend les trois cases du signal d'une fiche, en texte : LA SEULE lecture des colonnes du signal (A-542, R-708).
+
+    ① RÔLE — Lire, une seule fois pour tout le juge, ce que la fiche déclare de son signal : les cases
+      `module_signal`, `fonction_signal` et `reglages_signal`, chacune par SON NOM.
+    ② CONTEXTE D'APPEL — `manques_du_signal` (une fois par fiche, depuis `porte_0` et `signal_de_la_fiche`),
+      `signal_de_la_fiche` (une fois par fiche jouée), `forme_du_module` et `lecture_de_jeu` (une fois par ligne lue
+      pour compter k).
+    ③ ENTRÉE — `fiche` : la fiche reçue (ligne du registre des stratégies, fiche construite, ou `_FicheLue`).
+    ④ CONDITIONS D'ENTRÉE — `fiche` a une méthode `get`. Une case absente, ou vide, vaut le texte vide.
+    ⑤ SORTIE — TROIS valeurs, trois textes sans blancs de bord : le module, la fonction, le texte des réglages, NON
+      décodé. Exemple réel : C5-EI-PARAMS, ligne 70 du registre → (« programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py »,
+      « signaux_c5etendu10 », « ») ; C5-EI, ligne 6, sans signal → (« », « », « »).
+      [rend: 3]
+    ⑥ TRAITEMENT — ① lire `fiche.get("module_signal")`, `fiche.get("fonction_signal")`, `fiche.get("reglages_signal")`
+      sur la fiche REÇUE · ② une case absente ou vide devient « » · ③ mettre en texte et retirer les blancs de bord ·
+      ④ rendre les trois, sans rien juger.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 05-11-2026, 17h33-17h38 (lot S_kk, avant le tour 2) : la « lecture unique » du
+      signal comptait déjà DEUX lecteurs (`manques_du_signal` et `signal_de_la_fiche`), et le compte de k en ajoutait
+      deux autres (`forme_du_module`, `lecture_de_jeu`) ; deux implémentations d'une même chose divergent toujours
+      (R-708). Elle NE DÉCODE PAS le JSON et ne lève pas : `manques_du_signal` doit pouvoir DIRE « réglages
+      illisibles » sans exception ; le décodage reste à `reglages_du_texte`. Elle lit la fiche REÇUE, jamais une
+      copie : `lecture_de_jeu` passe une `_FicheLue` à `porte_0`, qui retient les cases lues ; une copie ferait perdre
+      les cases du signal aux lignes refusées, et deux lignes refusées aux signaux différents compteraient pour une
+      seule version. Chaque case est lue par son nom écrit en clair, et non par une boucle sur `COLONNES_DU_SIGNAL` :
+      l'épreuve E7 du signal nommé cherche ces noms, et rougit si elle ne les trouve pas ici (sabotage S12).
+    ⑨ CE QUI CLOCHE — Elle ne dit rien de la validité : un chemin hors de la racine, une fonction illisible ou un
+      JSON faux sont rendus tels quels ; c'est `manques_du_signal` et `signal_de_la_fiche` qui jugent.
+    ⑩ EFFET — Aucun, sinon celui du `get` de la fiche reçue (une `_FicheLue` note la case lue).
+    ⑪ TERMINAISON — Rend toujours la main ; aucun de ses appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    module = str(fiche.get("module_signal") or "").strip()
+    fonction = str(fiche.get("fonction_signal") or "").strip()
+    reglages = str(fiche.get("reglages_signal") or "").strip()
+    return module, fonction, reglages
+
+
 def manques_du_signal(fiche):
     """Dit ce qui manque, ou est illisible, dans la déclaration du signal d'une fiche.
 
@@ -973,9 +1013,10 @@ def manques_du_signal(fiche):
       réel : une ligne du registre sans signal rend ["module_signal (aucun signal nommé)",
       "fonction_signal (aucun signal nommé)"].
       [rend: 1]
-    ⑥ TRAITEMENT — ① `module_signal` vide → manque ; sinon il doit être un chemin relatif sous la racine, sans
-      « .. », finissant par « .py » · ② `fonction_signal` vide → manque ; sinon un nom Python · ③ `reglages_signal`
-      vide, ou un objet JSON dont les clés sont des noms Python.
+    ⑥ TRAITEMENT — ⓪ lire les trois cases par `declaration_du_signal` (la seule lecture des colonnes du signal,
+      superviseur R-759 du 05-11-2026, 17h33-17h38) · ① `module_signal` vide → manque ; sinon il doit être un chemin
+      relatif sous la racine, sans « .. », finissant par « .py » · ② `fonction_signal` vide → manque ; sinon un nom
+      Python · ③ `reglages_signal` vide, ou un objet JSON dont les clés sont des noms Python.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — A-542 : le signal C5 était imposé à toute fiche par défaut. Un défaut qui choisit le signal à la
       place de la fiche fait juger une stratégie sur une autre, sans que rien ne le dise. Le chemin est EXACT, et non
@@ -988,9 +1029,7 @@ def manques_du_signal(fiche):
       [sort: non]
     """
     manq = []
-    module = (fiche.get("module_signal") or "").strip()
-    fonction = (fiche.get("fonction_signal") or "").strip()
-    reglages = (fiche.get("reglages_signal") or "").strip()
+    module, fonction, reglages = declaration_du_signal(fiche)
     if module.lower() in VIDE:
         manq.append("module_signal (aucun signal nommé)")
     elif (os.path.isabs(module) or "\\" in module or ".." in module.split("/")
@@ -1002,7 +1041,7 @@ def manques_du_signal(fiche):
         manq.append("fonction_signal illisible : lu %r, attendu un nom de fonction" % fonction)
     if reglages.lower() not in VIDE:
         try:
-            r = json.loads(reglages)
+            r = reglages_du_texte(reglages)
         except ValueError as e:
             manq.append("reglages_signal illisible : lu %r (%s)" % (reglages, e))
         else:
@@ -1056,10 +1095,11 @@ def declaration_de_signal(chemin):
 
 
 def signal_de_la_fiche(base, fiche):
-    """Rend le signal que la fiche nomme : la SEULE lecture des colonnes du signal (A-542, R-708).
+    """Rend le signal que la fiche nomme : la SEULE traduction des colonnes du signal en signal jouable (A-542, R-708).
 
     ① RÔLE — Traduire la déclaration de la fiche (`module_signal`, `fonction_signal`, `reglages_signal`) en un signal
-      prêt à jouer. Dans le juge, la moulinette et le juge à 8 critères, aucun programme ne lit ces colonnes
+      prêt à jouer. Les trois cases sont LUES par `declaration_du_signal`, la seule lecture (superviseur R-759 du
+      05-11-2026, 17h33-17h38) ; dans le juge, la moulinette et le juge à 8 critères, aucun programme ne les lit
       ailleurs et aucun ne choisit un signal à la place de la fiche. HORS DE CE PÉRIMÈTRE : le programme du soir
       `programmes/DETECTER_LES_SIGNAUX_GITHUB.py` calcule toujours le signal C5 par son chemin écrit en dur, quelle
       que soit la fiche (A-542 ③, à faire).
@@ -1072,7 +1112,8 @@ def signal_de_la_fiche(base, fiche):
     ⑤ SORTIE — UNE valeur : un `SignalNomme`. Exemple réel : la fiche C5E10-QA-V1 rend la fonction
       `signaux_c5etendu10` de `programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py`, sans réglages.
       [rend: 1]
-    ⑥ TRAITEMENT — ① refuser si `manques_du_signal` trouve un manque · ② refuser un chemin qui sort de la racine
+    ⑥ TRAITEMENT — ① refuser si `manques_du_signal` trouve un manque ; sinon lire les trois cases par
+      `declaration_du_signal` et décoder les réglages par `reglages_du_texte` · ② refuser un chemin qui sort de la racine
       ou qui n'est pas un fichier · ③ au premier appel pour ce chemin, lire SANS L'EXÉCUTER si le fichier se déclare
       module de signal (`declaration_de_signal`) et le refuser sinon ; puis le charger (`charger_module`), toute erreur
       du chargement, `SystemExit` compris, devenant un refus « ne se charge pas » · ④ refuser une
@@ -1105,10 +1146,8 @@ def signal_de_la_fiche(base, fiche):
     manq = manques_du_signal(fiche)
     if manq:
         raise ValueError("fiche %s : signal refusé — %s" % (ident, " ; ".join(manq)))
-    module = fiche["module_signal"].strip()
-    fonction = fiche["fonction_signal"].strip()
-    texte = (fiche.get("reglages_signal") or "").strip()
-    reglages = json.loads(texte) if texte.lower() not in VIDE else {}
+    module, fonction, texte = declaration_du_signal(fiche)
+    reglages = reglages_du_texte(texte)
     racine = os.path.realpath(base)
     chemin = os.path.realpath(os.path.join(racine, module))
     if os.path.commonpath([racine, chemin]) != racine:
@@ -1246,14 +1285,14 @@ def manques_du_jeu(fiche):
     entree = (fiche.get("entree") or "").strip()
     if entree.lower() in VIDE:
         manq.append("entree (aucun moment d'achat déclaré — écrire DÉFAUT pour l'ouverture du lendemain)")
-    elif entree.upper().replace(" ", "").replace("_", "") not in ENTREES_JOUABLES:
+    elif cle_d_entree(entree) not in ENTREES_JOUABLES:
         manq.append("NON JUGEABLE — moment d'achat non jouable : entree lu %r ; le juge n'achète qu'à l'ouverture du "
                     "lendemain (OPEN_J+1, Open J+1, DÉFAUT)" % entree)
     donnees = (fiche.get("donnees_demandees") or "").strip()
     if donnees.lower() in VIDE:
         manq.append("donnees_demandees (aucune donnée déclarée — écrire « cours »)")
     else:
-        absentes = [d for d in (x.strip().lower() for x in re.split(r"[,;+]", donnees)) if d and d not in DONNEES_FOURNIES]
+        absentes = [d for d in donnees_du_texte(donnees) if d not in DONNEES_FOURNIES]
         if absentes:
             manq.append("NON JUGEABLE — donnée absente : %s ; le juge ne fournit au signal que : %s"
                         % (", ".join(absentes), ", ".join(DONNEES_FOURNIES)))
@@ -2136,6 +2175,423 @@ def porte_0(fiche):
     return (not manq), manq, _b
 
 
+# ══ LE COMPTE DES ESSAIS (lot S_kk, étape D, 05-11-2026) ═════════════════════════════════════════════════════════════
+# Quatre LECTURES extraites, chacune écrite UNE fois et appelée par son ancien appelant ET par `lecture_de_jeu` (R-708 :
+# deux implémentations d'une même chose divergent toujours) ; puis la lecture de jeu, le compteur de versions et k à la
+# date d'une déclaration. Décision de Jean-Luc du 05-11-2026 à 13h40 (Q-G5, « 1 ») : k compte chaque VERSION QUI CHANGE
+# UN CALCUL, en comparant une ligne « à la ligne précédente de la même stratégie ».
+
+
+def mnemoniques_de_l_univers(texte):
+    """Rend les mnémoniques d'un univers écrit, dans l'ordre : LA lecture de la case `univers`.
+
+    ① RÔLE — Découper la case `univers` d'une fiche en mnémoniques, une seule fois pour tout le juge.
+    ② CONTEXTE D'APPEL — `jouer` (une fois par fiche jouée), `juger` (une fois, pour le hasard « valeur ») et
+      `lecture_de_jeu` (une fois par ligne lue).
+    ③ ENTRÉE — `texte` : la case `univers`, telle qu'écrite au registre.
+    ④ CONDITIONS D'ENTRÉE — `texte` est un texte (une case absente lève, comme avant l'extraction).
+    ⑤ SORTIE — UNE valeur : la liste des mnémoniques, en majuscules, sans blancs ni case vide. Exemple réel :
+      C5-EI-PARAMS, « TTE,ENGI,VIE,EN,FGR,AIR,SAF,HO,DSY » → ['TTE', 'ENGI', …, 'DSY'], 9 mnémoniques.
+      [rend: 1]
+    ⑥ TRAITEMENT — couper aux virgules, retirer les blancs, mettre en majuscules, écarter les morceaux vides.
+    ⑦ UNITÉ — Des mnémoniques.
+    ⑧ POURQUOI — `jouer` et `juger` écrivaient chacun cette lecture, et le prototype du superviseur la recopiait une
+      troisième fois (superviseur R-759 du 05-11-2026, §3.2) : une seule écriture, sinon elles divergent (R-708).
+    ⑨ CE QUI CLOCHE — L'ORDRE est gardé : c'est à l'appelant de prendre un ensemble s'il compare (`lecture_de_jeu`
+      le fait). Un doublon (« TTE,TTE ») est gardé deux fois.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève AttributeError si `texte` n'est pas un texte.
+      [sort: non]
+    """
+    return [x.strip().upper() for x in texte.split(",") if x.strip()]
+
+
+def cle_d_entree(texte):
+    """Rend la clé sous laquelle le juge cherche un moment d'achat dans `ENTREES_JOUABLES`.
+
+    ① RÔLE — LA lecture de la case `entree` en clé : majuscules, sans espace ni souligné.
+    ② CONTEXTE D'APPEL — `manques_du_jeu` (une fois par fiche) et `lecture_de_jeu` (une fois par ligne jouable).
+    ③ ENTRÉE — `texte` : la case `entree`, déjà débarrassée de ses blancs de bord par l'appelant.
+    ④ CONDITIONS D'ENTRÉE — `texte` est un texte.
+    ⑤ SORTIE — UNE valeur : la clé. Exemples réels : « Open J+1 » → « OPENJ+1 » ; « DÉFAUT » → « DÉFAUT ».
+      [rend: 1]
+    ⑥ TRAITEMENT — majuscules, puis retrait des espaces et des soulignés.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Copiée par le prototype du superviseur depuis `manques_du_jeu` (R-708).
+    ⑨ CE QUI CLOCHE — « DEFAUT » sans accent ne donne pas « DÉFAUT » (⑨ ① de `manques_du_jeu`).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return texte.upper().replace(" ", "").replace("_", "")
+
+
+def reglages_du_texte(texte):
+    """Rend les réglages d'un signal lus dans la case `reglages_signal` : LA lecture JSON de cette case.
+
+    ① RÔLE — Traduire la case `reglages_signal` en dictionnaire, une seule fois pour tout le juge.
+    ② CONTEXTE D'APPEL — `manques_du_signal` (case non vide), `signal_de_la_fiche` et `lecture_de_jeu`.
+    ③ ENTRÉE — `texte` : la case, ou None.
+    ④ CONDITIONS D'ENTRÉE — Aucune : None ou vide au sens de `VIDE` rend {}.
+    ⑤ SORTIE — UNE valeur : ce que rend `json.loads` (un dictionnaire pour une case valide), {} pour une case vide.
+      Exemple réel : C5-EI-PARAMS, case vide → {} ; « {"periode_cci": 20} » → {'periode_cci': 20}.
+      [rend: 1]
+    ⑥ TRAITEMENT — retirer les blancs de bord ; vide → {} ; sinon `json.loads`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le juge l'écrivait deux fois (`manques_du_signal`, `signal_de_la_fiche`) et le prototype une
+      troisième (R-708).
+    ⑨ CE QUI CLOCHE — Elle ne vérifie pas que le résultat est un objet : `manques_du_signal` le fait.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ValueError (json) sur un texte illisible.
+      [sort: non]
+    """
+    t = (texte or "").strip()
+    return json.loads(t) if t.lower() not in VIDE else {}
+
+
+def donnees_du_texte(texte):
+    """Rend les données demandées par une fiche, lues dans la case `donnees_demandees`.
+
+    ① RÔLE — LA lecture de la case `donnees_demandees` : chaque donnée, séparée par « , », « ; » ou « + ».
+    ② CONTEXTE D'APPEL — `manques_du_jeu` (case non vide) et `lecture_de_jeu`.
+    ③ ENTRÉE — `texte` : la case, texte.
+    ④ CONDITIONS D'ENTRÉE — `texte` est un texte.
+    ⑤ SORTIE — UNE valeur : la liste des données, en minuscules, sans morceau vide. Exemple réel : « cours » → ['cours'].
+      [rend: 1]
+    ⑥ TRAITEMENT — couper aux séparateurs, retirer les blancs, minuscules, écarter le vide.
+    ⑦ UNITÉ — Des noms de données.
+    ⑧ POURQUOI — Copiée par le prototype depuis `manques_du_jeu` (R-708).
+    ⑨ CE QUI CLOCHE — L'ordre et les doublons sont gardés : `lecture_de_jeu` prend un ensemble.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return [x.strip().lower() for x in re.split(r"[,;+]", texte) if x.strip()]
+
+
+class _FicheLue(dict):
+    """Une fiche qui retient les cases qu'on y lit, sans la recopier.
+
+    ① RÔLE — Dire quelles cases `porte_0` a examinées sur une ligne refusée.
+    ② CONTEXTE D'APPEL — `lecture_de_jeu`, une fois par ligne.
+    ③ ENTRÉE — `fiche` : le dictionnaire lu ; il n'est PAS copié, chaque lecture passe par lui.
+    ④ CONDITIONS D'ENTRÉE — `fiche` a `get` et `[]`.
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — `get` et `[]` notent la case dans `lues`, puis lisent la fiche reçue.
+    ⑦ UNITÉ — Des noms de cases.
+    ⑧ POURQUOI — Ne pas recopier : une fiche qui retient elle-même ses lectures (l'épreuve de la trace) les voit ainsi.
+    ⑨ CE QUI CLOCHE — Un parcours (`items`, `in`) ne passe pas par la fiche reçue : porte_0 n'en fait pas.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — —
+    """
+
+    def __init__(self, fiche):
+        """Garde la fiche reçue.
+        ① RÔLE — envelopper.
+        ② CONTEXTE D'APPEL — `lecture_de_jeu`.
+        ③ ENTRÉE — `self` : l'enveloppe · `fiche` : la fiche reçue.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — —
+        [rend: rien]
+        ⑥ TRAITEMENT — garder la fiche, liste des lues vide.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — ne pas recopier.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main.
+        [sort: non]"""
+        super().__init__()
+        self._fiche = fiche
+        self.lues = []
+
+    def get(self, cle, defaut=None):
+        """Lit une case et la note.
+        ① RÔLE — lire.
+        ② CONTEXTE D'APPEL — `porte_0` et ses lecteurs.
+        ③ ENTRÉE — `self` : l'enveloppe · `cle` : la case · `defaut` : la valeur si elle manque.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur, celle de la fiche.
+        [rend: 1]
+        ⑥ TRAITEMENT — noter,
+        lire.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — savoir ce que porte_0 examine.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main.
+        [sort: non]"""
+        self.lues.append(cle)
+        return self._fiche.get(cle, defaut)
+
+    def __getitem__(self, cle):
+        """Lit une case et la note.
+        ① RÔLE — lire.
+        ② CONTEXTE D'APPEL — les lecteurs du juge.
+        ③ ENTRÉE — `self` : l'enveloppe · `cle` : la case.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur, celle de la fiche.
+        [rend: 1]
+        ⑥ TRAITEMENT — noter, lire.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — savoir ce que porte_0 examine.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main ; lève KeyError si la case manque.
+        [sort: non]"""
+        self.lues.append(cle)
+        return self._fiche[cle]
+
+
+def forme_du_module(fiche, lire_module):
+    """Range la déclaration du module de signal d'une ligne : « sans module », « module déclaré » ou « module
+    déclaré, introuvable ».
+
+    ① RÔLE — Dire si une ligne DÉCLARE un module (au sens de `VIDE`), et, si oui, si son octet a été trouvé.
+    ② CONTEXTE D'APPEL — `lecture_de_jeu` (une fois par ligne) et l'épreuve du compte des essais (M1 de n°184).
+    ③ ENTRÉE — `fiche` : un dictionnaire de champs · `lire_module` : une fonction (chemin) qui rend l'empreinte du
+      module ou None.
+    ④ CONDITIONS D'ENTRÉE — Aucune.
+    ⑤ SORTIE — DEUX valeurs : la forme (un des trois textes) et l'empreinte (None sans module ou introuvable).
+      Exemples réels : C5-EI-PARAMS ligne 70 → « module déclaré » ; C5-EI ligne 6 (case vide) → « sans module ».
+      [rend: 2]
+    ⑥ TRAITEMENT — ① lire la case `module_signal` par `declaration_du_signal` (la seule lecture des colonnes du
+      signal) · ② case vide au sens de `VIDE` → « sans module » ; sinon demander l'empreinte à `lire_module`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relecture du lot C, T7 et T8 (n°184, M1) : juger « avec module » par l'EXISTENCE d'un fichier change
+      d'avis quand on renomme, et range un module déclaré mais inexistant avec les lignes sans module. La déclaration
+      se lit dans la case ; l'octet se demande à l'appelant. La case se lit par `declaration_du_signal` et non ici
+      (superviseur R-759 du 05-11-2026, 17h33-17h38 : une seconde lecture des colonnes du signal, R-708).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Celui de `lire_module` (lecture de l'octet, chez l'appelant).
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    chemin = declaration_du_signal(fiche)[0]
+    if chemin.lower() in VIDE:
+        return "sans module", None
+    emp = lire_module(chemin)
+    return ("module déclaré" if emp is not None else "module déclaré, introuvable"), emp
+
+
+def lecture_de_jeu(fiche, lire_module):
+    """Rend ce que le juge tire d'une ligne pour jouer : deux lignes de même lecture sont la même version.
+
+    ① RÔLE — Porter la propriété du superviseur R-759 du lot C (05-11-2026, 14h58-15h05) : « deux lignes d'une même
+      fiche sont la même version si et seulement si le juge, en les lisant comme il les lit pour jouer, en tire
+      exactement la même chose ».
+    ② CONTEXTE D'APPEL — `versions_du_registre`, une fois par ligne ; l'épreuve du compte des essais.
+    ③ ENTRÉE — `fiche` : une ligne du registre (un dictionnaire) · `lire_module` : une fonction (chemin) qui rend
+      l'empreinte du module nommé, ou None s'il est introuvable ; c'est l'appelant qui fournit l'octet (au jour, ou à
+      une date).
+    ④ CONDITIONS D'ENTRÉE — Aucune. Elle NE CONNAÎT PAS la règle « entrée vide → DÉFAUT » (règle de D1, n°177) : une
+      entrée vide est refusée ici comme par `porte_0`.
+    ⑤ SORTIE — UN tuple comparable par `==` d'un bloc : DOUZE valeurs (ligne jouable) ou DEUX (ligne refusée), ce que
+      la marque compte. Ligne jouable : ("JOUABLE", tp, sl, horizon, ensemble des valeurs,
+      moment d'achat, forme du module, empreinte, fonction, réglages en JSON trié, bornes de la période, ensemble des
+      données). Ligne refusée : ("REFUSÉE", tuple trié des (case, texte aux blancs normalisés) que `porte_0` a lues).
+      Exemple réel : C5-EI-PARAMS ligne 70 → jouable, tp 0,05, sl 0,02, horizon 30, 9 valeurs, « ouverture du
+      lendemain ».
+      [rend: 2 ou 12]
+    ⑥ TRAITEMENT — ① appeler `porte_0` sur la fiche enveloppée (`_FicheLue`) · ② refusée : rendre les textes lus ·
+      ③ jouable : appeler `seuil_de_la_fiche`, `lire_horizon`, `mnemoniques_de_l_univers`, `cle_d_entree`,
+      `declaration_du_signal` (la seule lecture des colonnes du signal : la fonction et le texte des réglages),
+      `forme_du_module`, `reglages_du_texte`, `donnees_du_texte` — les lecteurs mêmes du jeu — et prendre les bornes
+      rendues par `porte_0`. Elle ne lit elle-même aucune colonne du signal (superviseur R-759 du 05-11-2026,
+      17h33-17h38 ; épreuve E7 du signal nommé, sabotage S11).
+    ⑦ UNITÉ — Seuils en fraction positive · horizon en séances · bornes en dates AAAA-MM-JJ.
+    ⑧ POURQUOI — Une liste de colonnes oubliait `indicateurs` et comparait des textes (« +5.0 % » comptait comme un
+      calcul neuf, relecture du lot C). Appeler les lecteurs du jeu, et non les recopier, empêche la lecture et le jeu
+      de diverger (R-708). ÉCART VOLONTAIRE au point 6 du superviseur du lot C (« porte_0 et jouer la consomment ») :
+      c'est la lecture qui appelle porte_0 et les lecteurs du jeu ; `jouer` ne la consomme pas, pour ne pas changer le
+      chemin de calcul de C5 avant la série unique de fin de D. L'unicité tient par les lecteurs partagés et la trace.
+    ⑨ CE QUI CLOCHE — ① Les cases lues par `main` seul (`etat_vie`, pour ETATS_JUGEABLES) et par `signal_de_la_fiche`
+      au chargement ne sont pas dans la trace de l'épreuve (elle suit `jouer` et `juger`). ② La colonne `indicateurs`
+      n'entre dans la lecture que sur une ligne refusée : sur une ligne jouable, le signal est le module.
+      ③ L'empreinte est celle que rend `lire_module` : si l'appelant la prend sur le fichier du jour, une ligne
+      ancienne est lue avec le module d'aujourd'hui.
+    ⑩ EFFET — Celui de `lire_module`.
+    ⑪ TERMINAISON — Rend la main ; lève si un lecteur du juge lève (réglages illisibles sur une ligne qui a passé
+      `porte_0` : impossible, `manques_du_signal` les refuse).
+      [sort: non]
+    """
+    lue = _FicheLue(fiche)
+    rendu = porte_0(lue)
+    ok, bornes = rendu[0], (rendu[2] if len(rendu) > 2 else None)
+    if not ok:
+        return ("REFUSÉE", tuple(sorted({(c, " ".join(str(fiche.get(c) or "").split())) for c in lue.lues})))
+    _module, fonction, texte = declaration_du_signal(fiche)
+    forme, emp = forme_du_module(fiche, lire_module)
+    return ("JOUABLE",
+            seuil_de_la_fiche(fiche, "tp"), seuil_de_la_fiche(fiche, "sl"),
+            lire_horizon(fiche["horizon"]),
+            frozenset(mnemoniques_de_l_univers(fiche["univers"])),
+            ENTREES_JOUABLES[cle_d_entree(fiche["entree"].strip())],
+            forme, emp, fonction,
+            json.dumps(reglages_du_texte(texte), sort_keys=True),
+            bornes,
+            frozenset(donnees_du_texte(fiche["donnees_demandees"])))
+
+
+def versions_du_registre(lignes, lire_module):
+    """Compte les VERSIONS du registre des stratégies : une ligne compte si sa lecture de jeu diffère de celle de la
+    ligne précédente de la même fiche.
+
+    ① RÔLE — Appliquer la décision de Jean-Luc du 05-11-2026 à 13h40 (Q-G5, « 1 ») : k compte chaque version qui
+      change un calcul ; « une ligne qui ne change aucun calcul ne compte pas » ; la comparaison se fait « avec la
+      ligne précédente de la même stratégie ». Et n°175 : un changement de période ou de données compte.
+    ② CONTEXTE D'APPEL — `k_a_la_date`, une fois ; l'épreuve du compte des essais.
+    ③ ENTRÉE — `lignes` : les lignes du registre, dans l'ordre du fichier (dictionnaires) · `lire_module` : une fonction
+      (chemin, rang) qui rend l'empreinte du module nommé par la ligne de rang `rang` (0 = première ligne de données),
+      ou None.
+    ④ CONDITIONS D'ENTRÉE — Chaque ligne porte `id`.
+    ⑤ SORTIE — DEUX valeurs : un dictionnaire {fiche : nombre de versions} et le total. Exemple réel : sur le registre
+      du 05-11-2026, C5-EI-PARAMS (lignes 65 et 70 du fichier) → 1.
+      [rend: 2]
+    ⑥ TRAITEMENT — pour chaque ligne, dans l'ordre : ① LA RÈGLE DE D1, ICI SEULEMENT (n°177 ; n°53 du 31-10-2026 à
+      22h26, « sa case entree vide reçoit DÉFAUT, par une LIGNE AJOUTÉE ») : une `entree` vide au sens de `VIDE` est
+      lue « DÉFAUT », sur une COPIE de la ligne · ② lire la ligne par `lecture_de_jeu` · ③ la compter si sa fiche n'a
+      pas de ligne précédente, ou si la lecture diffère de celle de la précédente.
+    ⑦ UNITÉ — Des versions.
+    ⑧ POURQUOI — Mots de Jean-Luc, 13h40 : « ce n'est pas un essai » (la ligne 70 de C5-EI-PARAMS, mêmes 48
+      opérations). La première ligne d'une fiche compte : elle n'a pas de précédente (lecture du lot C, confirmée).
+    ⑨ CE QUI CLOCHE — ① Une suite A → B → A compte TROIS versions : on compare à la ligne précédente, pas à toutes
+      (côté strict, mots de Jean-Luc). ② Seule `entree` reçoit la règle du vide : une autre case vide est refusée.
+    ⑩ EFFET — Celui de `lire_module`.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    precedente, par_fiche = {}, {}
+    for rang, ligne in enumerate(lignes):
+        copie = dict(ligne)
+        if (copie.get("entree") or "").strip().lower() in VIDE:
+            copie["entree"] = "DÉFAUT"
+        lue = lecture_de_jeu(copie, lambda chemin, _r=rang: lire_module(chemin, _r))
+        ident = copie["id"]
+        if ident not in precedente or precedente[ident] != lue:
+            par_fiche[ident] = par_fiche.get(ident, 0) + 1
+        precedente[ident] = lue
+    return par_fiche, sum(par_fiche.values())
+
+
+def k_a_la_date(racine, date_declaration, temoins):
+    """Rend k, le nombre d'essais, tel que le registre des stratégies le donnait À LA DATE d'une déclaration.
+
+    ① RÔLE — Compter les versions du registre tel qu'il était à `date_declaration` (R-505 ⑤ : k se compte à la date
+      de la déclaration), plus les témoins déclarés.
+    ② CONTEXTE D'APPEL — Aucun programme du circuit aujourd'hui ; l'épreuve du compte des essais.
+    ③ ENTRÉE — `racine` : un dépôt git · `date_declaration` : AAAA-MM-JJTHH:MM+01:00 (contrat DECLARATION_DATEE) ·
+      `temoins` : le nombre de témoins déclarés, entier ou texte ; « aucun » vaut 0.
+    ④ CONDITIONS D'ENTRÉE — Aucune : histoire absente, date illisible ou témoins illisibles rendent INCONNU.
+    ⑤ SORTIE — DEUX valeurs : un dictionnaire aux clés de `K_DU_VERDICT` (lues au contrat), `compte` =
+      `COMPTES_DE_K[0]`, `valeur` = versions + témoins, ou « INCONNU » ; et la raison (vide si k est compté).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① refuser un dépôt superficiel (`git rev-parse --is-shallow-repository`) · ② prendre le dernier
+      commit au plus à la date (`git rev-list -1 --before=… HEAD -- <registre>`) · ③ lire le registre à ce commit
+      (`git show`, puis `lignes_du_registre_pour_compter_k` du contrat) · ④ pour chaque ligne, le commit qui l'a ajoutée
+      (`git blame --porcelain`) · ⑤ l'empreinte du module AU COMMIT DE LA LIGNE (`git show <commit>:<module>`) ·
+      ⑥ `versions_du_registre` · ⑦ ajouter les témoins.
+    ⑦ UNITÉ — Des essais ; la date en heure de Paris avec son décalage.
+    ⑧ POURQUOI — Sans histoire, compter le registre du jour donnerait un k qui grandit avec le temps et contredit la
+      déclaration (R-734 : ce qui n'a pas pu se mesurer se dit INCONNU, jamais remplacé). L'empreinte du module à la
+      date de la ligne : point 8 du superviseur du lot C, sa limite 2.
+    ⑨ CE QUI CLOCHE — ① Une réécriture du registre (colonne ajoutée) fait pointer `git blame` sur le commit de
+      réécriture : le module est alors pris à cette date-là. ② Un rebase change la date de commit, donc le registre
+      retenu. ③ `donnees/DECLARATIONS_DATEES.csv` n'a encore aucune ligne : aucun k réel n'est calculable aujourd'hui.
+      ④ Une ligne du registre sur plusieurs lignes du fichier rend INCONNU (le blame ne se rapporte plus aux lignes).
+    ⑩ EFFET — Lance `git` en lecture ; le contrat écrit puis efface un fichier temporaire (le registre à la date,
+      `lignes_du_registre_pour_compter_k`).
+    ⑪ TERMINAISON — Rend la main ; un appel à `git` peut ne pas revenir si git bloque (aucun délai posé).
+      [sort: non]
+    """
+    import subprocess
+    from CONTRATS_DES_FICHIERS import K_DU_VERDICT, COMPTES_DE_K, REGISTRE_DES_STRATEGIES, lignes_du_registre_pour_compter_k
+    k = {c: None for c in K_DU_VERDICT}
+    k.update(valeur="INCONNU", date_de_comptage=date_declaration, compte=COMPTES_DE_K[0])
+
+    def git(*args):
+        """Lance git dans `racine`.
+        ① RÔLE — lire l'histoire.
+        ② CONTEXTE D'APPEL — `k_a_la_date`.
+        ③ ENTRÉE — `*args` : les arguments de git.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — DEUX valeurs : le code et les octets de sortie.
+        [rend: 2]
+        ⑥ TRAITEMENT — lancer, capturer.
+        ⑦ UNITÉ — octets.
+        ⑧ POURQUOI — une seule façon d'appeler git ici.
+        ⑨ CE QUI CLOCHE — aucun délai.
+        ⑩ EFFET — lance git en lecture.
+        ⑪ TERMINAISON — Rend la main ; git peut ne
+        pas revenir.
+        [sort: non]"""
+        r = subprocess.run(["git", "-C", racine] + list(args), capture_output=True)
+        return r.returncode, r.stdout
+
+    try:
+        datetime.fromisoformat(date_declaration)
+    except (TypeError, ValueError):
+        return k, "date de déclaration illisible : %r" % (date_declaration,)
+    t = str(temoins).strip().lower()
+    if t == "aucun":
+        nb_temoins = 0
+    elif t.isdigit():
+        nb_temoins = int(t)
+    else:
+        return k, "témoins illisibles : %r" % (temoins,)
+    code, sortie = git("rev-parse", "--is-shallow-repository")
+    if code != 0 or sortie.strip() != b"false":
+        return k, "histoire absente : dépôt superficiel ou illisible — k ne se compte pas sur le registre du jour"
+    code, sortie = git("rev-list", "-1", "--before=" + date_declaration, "HEAD", "--", REGISTRE_DES_STRATEGIES)
+    commit = sortie.decode().strip()
+    if code != 0 or not commit:
+        return k, "histoire absente : aucun commit du registre au plus à %s" % date_declaration
+    code, octets = git("show", "%s:%s" % (commit, REGISTRE_DES_STRATEGIES))
+    if code != 0:
+        return k, "registre illisible au commit %s" % commit[:12]
+    lignes = lignes_du_registre_pour_compter_k(octets)
+    texte = octets.decode("utf-8-sig")
+    if texte.count("\n") + (0 if texte.endswith("\n") else 1) != len(lignes) + 1:
+        return k, "une ligne du registre s'étend sur plusieurs lignes du fichier : le blame ne s'y rapporte plus"
+    code, sortie = git("blame", "--porcelain", commit, "--", REGISTRE_DES_STRATEGIES)
+    if code != 0:
+        return k, "blame impossible au commit %s" % commit[:12]
+    auteur_de_la_ligne = {}
+    for l in sortie.decode("utf-8", "replace").splitlines():
+        m = re.match(r"^([0-9a-f]{40}) \d+ (\d+)", l)
+        if m:
+            auteur_de_la_ligne[int(m.group(2))] = m.group(1)
+    empreintes = {}
+
+    def lire_module(chemin_module, rang):
+        """Empreinte du module au commit qui a ajouté la ligne.
+        ① RÔLE — fournir l'octet daté à `lecture_de_jeu`.
+        ② CONTEXTE D'APPEL — `versions_du_registre`.
+        ③ ENTRÉE — `chemin_module` : le chemin du module · `rang` : le rang de la ligne (0 = ligne 2 du fichier).
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : 16 caractères hexadécimaux, ou None si le
+        module n'existe pas à ce commit.
+        [rend: 1]
+        ⑥ TRAITEMENT — commit de la ligne par le blame, `git show`, sha256.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — limite 2 du point 8 du superviseur du lot C.
+        ⑨ CE QUI CLOCHE — ⑨ ① de `k_a_la_date`.
+        ⑩ EFFET — lance git.
+        ⑪ TERMINAISON — Rend la main.
+        [sort: non]"""
+        sha = auteur_de_la_ligne.get(rang + 2)
+        if (sha, chemin_module) not in empreintes:
+            c, o = git("show", "%s:%s" % (sha, chemin_module)) if sha else (1, b"")
+            empreintes[(sha, chemin_module)] = hashlib.sha256(o).hexdigest()[:16] if c == 0 else None
+        return empreintes[(sha, chemin_module)]
+
+    par_fiche, total = versions_du_registre(lignes, lire_module)
+    k.update(valeur=total + nb_temoins, lignes_du_registre=len(lignes), fiches_du_registre=len(par_fiche),
+             versions_comptees=total, temoins=nb_temoins)
+    if set(k) != set(K_DU_VERDICT):
+        raise ValueError("k_a_la_date : clés %s, contrat K_DU_VERDICT %s" % (sorted(k), sorted(K_DU_VERDICT)))
+    return k, ""
+
+
 def bareme_des_verdicts(bareme, mod_positions):
     """Rend le barème sous lequel le juge chiffre : celui qu'on lui donne, sinon le barème des verdicts.
 
@@ -2348,7 +2804,7 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
     sl = seuil_de_la_fiche(fiche, "sl")
     h = lire_horizon(fiche["horizon"])
 
-    demandes = [x.strip().upper() for x in fiche["univers"].split(",") if x.strip()]
+    demandes = mnemoniques_de_l_univers(fiche["univers"])
     univers, inconnus = [], []
     for m in demandes:
         v = mnemo.get(m, cle_valeur(m))
@@ -2540,7 +2996,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       produites · ② calculer le taux de réussite et le point mort — la moyenne des
       points morts des opérations jugées, chacune à sa valeur et à sa date d'achat
       (`point_mort_des_operations`, décision de Jean-Luc du 29-10-2026 à 21h28,
-      « A ») —, et afficher la marge · ③ compter les épisodes indépendants · ④ couper la période en sept
+      « A ») —, et afficher la marge · ③ mesurer et afficher les observations indépendantes (`observations_independantes`, n°106, depuis le 05-11-2026 ; avant : les épisodes à 5 séances) · ④ couper la période en sept
       dixièmes appris et trois dixièmes jamais vus, avec un embargo entre les deux,
       et afficher le taux de la partie jamais vue avec sa borne basse · ⑤ découper
       la même période en trois fenêtres successives et dire si chacune tient face à
@@ -2711,12 +3167,34 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
     print("    (point mort moyen des {} operations jouees, bareme {} : chacune a sa valeur et a sa date d'achat)"
           .format(n, bareme))
 
+    # LES OBSERVATIONS INDÉPENDANTES SE MESURENT, ELLES NE SE COMPTENT PLUS PAR UN SEUIL DE SÉANCES (décision de
+    # Jean-Luc du 01-11-2026 à 13h19, « 1 », n°106 : « A-304 S'APPLIQUE » ; R-505 ④ ; lot S_ep du 05-11-2026). L'ancien
+    # appel regroupait les signaux distants de 5 séances ou moins en « épisodes » ; ce seuil fixe est retiré. Ce pas
+    # AFFICHE la mesure ; la comparer au plancher (`plancher_observations`, lu dans la table de R-505) revient au juge
+    # de la loi (lot JG), jamais à un nombre écrit ici. Une mesure impossible s'affiche INCONNUE, jamais comme un nombre.
+    # LA MESURE EST CELLE DU CHEVAUCHEMENT RÉEL DES POSITIONS (lot S_ep, tour 2, 05-11-2026, avis du superviseur R-759
+    # « ARRÊTER ET SIMPLIFIER ») : les paires d'opérations ouvertes en même temps, sans nombre de séances, sans règle à
+    # choisir, sans test qui décide. Au tour 1, ce pas appelait la mesure avec la règle « prudente » écrite ici en dur et
+    # renvoyait à la question Q-Sep1 ; règle et question sont SUPPRIMÉES. La probabilité sous le hasard est AFFICHÉE et
+    # ne décide rien.
+    # LE NOMBRE RETENU EST BORNÉ PAR LES PÉRIODES DISTINCTES (lot S_ep, tour 3, 05-11-2026, avis du superviseur R-759
+    # « DE FOND ») : retenu = le plus petit des observations mesurées et de K, le nombre de positions deux à deux jamais
+    # ouvertes en même temps, parce qu'une ressemblance à l'intérieur d'une même période ne peut pas se vérifier. La
+    # ligne affiche les trois : retenu (ce que JG et n°107 liront), mesurées et K (affichés, ne décident pas).
     try:
-        e = J.episodes(ops, seances)
-        print("    EPISODES             {} operations . {} jours . {} episodes"
-              .format(e["n_operations"], e.get("n_jours_signal", "?"), e["n_episodes"]))
+        e = J.observations_independantes(ops)
+        if e["n_observations"] is None:
+            print("    OBSERVATIONS         INCONNUES : %s" % e["motif"])
+        else:
+            print("    OBSERVATIONS         {} operations . {:.1f} observations independantes retenues . groupes de "
+                  "{:.2f} operation(s) . le plus petit de {:.1f} mesurees et {} periodes distinctes . {} paires de "
+                  "positions ouvertes en meme temps . sous le hasard p = {} (affichee, ne decide pas ; A-304, n°106)"
+                  .format(e["n_operations"], e["n_observations"], e["taille_des_groupes"],
+                          e["observations_mesurees"], e["periodes_distinctes"],
+                          e["paires_qui_se_chevauchent"],
+                          "sans objet (aucune paire)" if e["p_hasard"] is None else "%.3f" % e["p_hasard"]))
     except Exception as ex:
-        print("    EPISODES             non mesures : %s" % ex)
+        print("    OBSERVATIONS         non mesurees : %s" % ex)
 
     try:
         # LA COUPURE DECOUPE LA PERIODE DE LA FICHE, PAS LE CALENDRIER ENTIER.
@@ -2958,8 +3436,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
         # +22 153 EUR avec les 9 de la fiche. Il paraissait SEPT FOIS ET DEMIE
         # plus mauvais qu'il ne l'est, et le rapport concluait donc dans le sens
         # flatteur. La strategie reste devant, l'ecart reel est bien plus mince.
-        univ = [mnemo.get(x.strip().upper(), cle_valeur(x))
-                for x in fiche["univers"].split(",") if x.strip()]
+        univ = [mnemo.get(m, cle_valeur(m)) for m in mnemoniques_de_l_univers(fiche["univers"])]
         univ = [v for v in univ if v in cours]
         for mode, lib in (("valeur", "l'ACTION au hasard"),
                           ("date", "les DATES au hasard")):

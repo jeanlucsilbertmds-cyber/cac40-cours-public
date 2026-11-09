@@ -181,7 +181,8 @@ SABOTAGES = {
                                     "            continue\n")],
     "S3_doublon_au_carnet_tolere": [("        if len(lignes) != 1:\n", "        if len(lignes) < 1:\n")],
     "S4_sorte_non_verifiee": [("        if lignes[0][\"produit_par\"] != TELECHARGEMENT:\n", "        if False:\n")],
-    "S5_cours_sans_coupure": [("        if d > COUPURE or (valeur", "        if False or (valeur")],
+    # S5 suit le texte du 05-11-2026 (lot DIV, tour 3) : la date de fin de `barres` est devenue un réglage, COUPURE par défaut.
+    "S5_cours_sans_coupure": [("        if (jusqu_au is not None and d > jusqu_au) or (valeur", "        if False or (valeur")],
     "S6_stellantis_avec_peugeot": [("(valeur == \"STELLANTIS\" and d < DEBUT_STELLANTIS)", "False")],
     "S7_volume_nul_garde": [("if None in (o, h, b, c, vol) or vol == 0 or", "if None in (o, h, b, c, vol) or")],
     "S8_barre_incoherente_gardee": [(" or not (b <= o <= h and b <= c <= h):", ":")],
