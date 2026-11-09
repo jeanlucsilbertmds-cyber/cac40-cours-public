@@ -669,6 +669,39 @@ STRATEGIE = [
     "donnees_demandees",
 ]
 
+# LOT 0 — INTERFACES COMMUNES DES AGENTS DE MERCREDI 11-11-2026 (plan V7 ; écrit le Lun 09-11-2026). Ce que A, B, C et D
+# LISENT dans la fiche et les fichiers partagés, fixé une fois, pour qu'aucun d'eux n'écrive dans ce fichier-ci. Un besoin
+# nouveau mercredi ne s'ajoute pas ici par un agent : il se signale au Chat, qui l'ajoute en un seul geste.
+#
+# ① LA COLONNE `horizon` DE LA FICHE (agent A écrit la vente, B la reçoit au jugement) — trois formes, et elles seules :
+#    « N » ou « Nj », N entier > 0, en SÉANCES · le mot `MOT_DE_L_HORIZON_AUCUNE` de programmes/COMMUN.py (« aucune » au
+#    09-11-2026 ; il vit LÀ, une fois — R-708 : deux exemplaires d'une même valeur divergent toujours) = aucune durée
+#    maximale, la position ne sort que sur objectif ou stop · tout le reste (vide, « 0 », « Intraday » de la fiche
+#    C2-001…) est ILLISIBLE et refusé. En mémoire, « aucune » est `COMMUN.HORIZON_AUCUNE`, jamais None ; `lire_horizon`
+#    le refuse (None), `lire_horizon_ou_aucune` le rend. Dans un fichier JSON — l'`hypothese` d'une entrée du registre des
+#    essais, les `reglages` d'une déclaration datée — il s'écrit par la chaîne de ce même mot, jamais par null : null y
+#    veut déjà dire « absent ». Deux essais qui ne diffèrent que par « 20 » / « aucune » sont deux essais différents.
+#
+# ② CE QUE LE CIRCUIT DU SOIR LIT DANS LA FICHE (agent C, détecteur seul) — les colonnes ci-dessous, chacune par LE
+#    lecteur qui existe déjà, en l'IMPORTANT sans le modifier : C n'écrit pas dans le juge. Les lecteurs sont nommés
+#    « programme:fonction », sans extension (même raison que FICHIERS_A_VENIR, plus bas).
+LECTEURS_DE_LA_FICHE_POUR_LE_SOIR = {
+    "module_signal": "JUGE_DES_STRATEGIES:signal_de_la_fiche",     # rend la fonction de signal et ses réglages
+    "fonction_signal": "JUGE_DES_STRATEGIES:signal_de_la_fiche",
+    "reglages_signal": "JUGE_DES_STRATEGIES:signal_de_la_fiche",
+    "univers": "JUGE_DES_STRATEGIES:mnemoniques_de_l_univers",      # rend la liste des mnémoniques, la clé des valeurs
+    "tp": "TENIR_LES_POSITIONS:reglages_du_registre",              # seuils et horizon : déjà lus par le soir
+    "sl": "TENIR_LES_POSITIONS:reglages_du_registre",
+    "horizon": "TENIR_LES_POSITIONS:reglages_du_registre",
+}
+# La GARDE DU SOIR (refuser une stratégie que le juge refuse, plan V6 bloc 9, confiée à C) : la colonne ou le fichier
+# qui porte le refus N'EST PAS TRANCHÉ au 09-11-2026 (`etat_vie` de la fiche, ou le dernier verdict de `verdicts/`) —
+# voir la note du lot 0. Rien n'est donc déclaré ici pour elle.
+#
+# ③ LE REGISTRE DES ESSAIS ET LA DÉCLARATION DATÉE (agent B) : leurs contrats existent déjà, plus bas
+#    (NATURES_DES_ENTREES_D_ESSAI, DECLARATION_DATEE) et NE CHANGENT PAS au lot 0, hormis la façon d'écrire « aucune »
+#    (①). Le BANC d'essai et l'épreuve à vérité connue (agent D) n'ont pas encore de fichier nommé : pas de contrat.
+
 # journal des passages de collecte
 LECTURE = [
     "horodatage_passage_paris", "modifiedTime_sheet_paris", "derniere_date_vue", "seance_nouvelle_oui_non",

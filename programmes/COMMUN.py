@@ -1667,10 +1667,143 @@ def lire_horizon(x):
       28-09-2026 (défaut 4 de A-491) : le juge des stratégies lisait la même colonne par son
       propre code, `int(str(fiche["horizon"]).strip())`, qui refusait « 20j » et
       acceptait « 0 ». Deux implémentations d'une même chose divergent toujours.
-    ⑨ CE QUI CLOCHE — —
+    ⑨ CE QUI CLOCHE — « aucune » (une stratégie sans durée maximale) rend None, donc
+      refusé, EXPRÈS : contrat du lot 0 du 09-11-2026, en fin de ce fichier. Un
+      lecteur qui accepte ce cas appelle `lire_horizon_ou_aucune`.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend toujours la main.
       [sort: non]
     """
     h = str(x).strip().lower().rstrip("j")
     return int(h) if h.isdecimal() and int(h) > 0 else None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# LOT 0 — LE CONTRAT DE L'HORIZON « AUCUNE » (Lun 09-11-2026, interfaces communes des agents A, B, C, D du plan V7).
+# Une stratégie peut désormais n'avoir AUCUNE durée maximale de détention : elle ne vend que sur son objectif ou son stop.
+# Ce bloc fixe UNE FOIS comment ce cas s'écrit, se lit et voyage, pour que personne ne le réinvente. Il n'écrit PAS la
+# vente (c'est l'agent A). Trois décisions de prudence, prises ici et soumises à Jean-Luc :
+#   ① « aucune » n'est PAS None. None veut déjà dire « illisible » pour `lire_horizon`, et « non fourni » pour les
+#     fonctions du jugement (`max(21, int(horizon or 0))` y donne 21 séances). Les confondre ferait passer en silence
+#     une stratégie sans durée pour une stratégie à embargo de 21 séances.
+#   ② `lire_horizon` NE CHANGE PAS : « aucune » y reste illisible (None), donc REFUSÉ par ses lecteurs d'aujourd'hui : dix appels dans cinq programmes (JUGE_DES_STRATEGIES ×4,
+#     TENIR_LES_POSITIONS ×3, DECLINER, PREPARER, JOUER_LES_VERSIONS ; grep du 09-11-2026, RELU Cowork L0-2).
+#     Un lecteur qui accepte « aucune » passe, explicitement, à `lire_horizon_ou_aucune` (travail de A).
+#   ③ la valeur sentinelle REFUSE tout calcul (int, float, comparaison, addition) par une TypeError qui dit pourquoi :
+#     un programme qui n'a pas été adapté tombe bruyamment au lieu de calculer faux.
+#   LIMITE (RELU Cowork L0-1 et L0-6, 09-11-2026) : un lecteur qui filtre par `isinstance(h, int)` ne passe par aucune
+#     opération refusée. TENIR_LES_POSITIONS lit l'horizon à la l.437 (`reglages_du_registre` : `lire_horizon(...)`) ;
+#     si A remplace cette lecture par `lire_horizon_ou_aucune` sans plus, la sentinelle traverse `horizon_connu` (l.848,
+#     filtre `isinstance`) et `horizon_de` (l.879) la change en 20 séances, EN SILENCE. A doit donc faire les DEUX :
+#     remplacer la lecture l.437 ET faire traiter HORIZON_AUCUNE explicitement par `horizon_connu`. Tant que ce n'est
+#     pas fait, « aucune » ne doit être écrit dans AUCUNE fiche. L'épreuve E5 le vérifie QUAND on la lance : aucun
+#     circuit ne la joue tant que les déclenchements automatiques de la certification restent coupés (A-543, depuis le
+#     11-10-2026) (RELU Cowork L0-5).
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# Le mot écrit dans la colonne `horizon` du registre des stratégies, en minuscules. Proposition du lot 0, NON TRANCHÉE
+# par Jean-Luc (le plan V6, bloc 4, écrit « une durée "aucune" ») : un autre mot se change ICI seulement.
+MOT_DE_L_HORIZON_AUCUNE = "aucune"
+
+MESSAGE_DE_L_HORIZON_AUCUNE = (
+    "horizon « aucune » : ce n'est pas un nombre de séances, il ne se calcule pas (contrat du lot 0, 09-11-2026). "
+    "Un embargo ou une échéance pour une stratégie sans durée se passe explicitement ; un lecteur non adapté "
+    "doit continuer de la refuser")
+
+
+def _refuser_le_calcul(self, *autres):
+    """Refuse tout calcul sur l'horizon « aucune » : lève une TypeError qui dit pourquoi.
+
+    ① RÔLE — Faire tomber, avec un message clair, tout programme qui traite
+      l'horizon « aucune » comme un nombre de séances.
+    ② CONTEXTE D'APPEL — Jamais appelée par son nom : Python l'appelle quand un
+      programme écrit `int(h)`, `float(h)`, `h > 0`, `h + 1`, `range(h)`… avec
+      h = HORIZON_AUCUNE (elle est posée sous ces noms dans `_HorizonAucune`).
+    ③ ENTRÉE — `self` : la valeur HORIZON_AUCUNE ; `autres` : l'autre opérande
+      d'une comparaison ou d'une addition, ignoré.
+    ④ CONDITIONS D'ENTRÉE — Aucune.
+    ⑤ SORTIE — AUCUNE valeur : elle lève toujours.
+      [rend: 0]
+    ⑥ TRAITEMENT — Lever TypeError(MESSAGE_DE_L_HORIZON_AUCUNE).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le jugement calcule `max(21, int(horizon or 0))` (coupure 70/30,
+      fenêtres glissantes) : sans ce refus, une valeur fausse ou nulle donnerait
+      21 séances en silence. Une erreur bruyante vaut mieux qu'un embargo faux.
+    ⑨ CE QUI CLOCHE — Ne couvre que les opérations posées dans `_HorizonAucune` ;
+      `str(h)`, `h == 20` et `bool(h)` passent (le dernier vaut True, exprès :
+      `h or 0` ne doit pas tomber à 0). Un programme qui écrit l'horizon dans un
+      fichier écrit donc « aucune » sans tomber.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Lève toujours, ne rend jamais. Aucun appel.
+      [sort: oui]
+    """
+    raise TypeError(MESSAGE_DE_L_HORIZON_AUCUNE)
+
+
+class _HorizonAucune:
+    """La valeur unique qui dit « cette stratégie n'a aucune durée maximale de détention ».
+
+    ① RÔLE — Porter le cas « aucune » d'un programme à l'autre sans le
+      confondre avec None ni avec un nombre.
+    ② CONTEXTE D'APPEL — Construite UNE fois, ci-dessous (HORIZON_AUCUNE).
+      Rendue par `lire_horizon_ou_aucune` ; reçue par les fonctions qui prennent
+      un horizon (vente, positions, jugement), qui la reconnaissent par
+      `horizon is HORIZON_AUCUNE`, jamais par son texte ni par son type.
+    ③ ENTRÉE — Aucune.
+    ④ CONDITIONS D'ENTRÉE — Aucune.
+    ⑤ SORTIE — UN objet. Vrai en logique (bool → True), égal seulement à
+      lui-même, écrit « aucune » par str(), refusant tout calcul.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pose `_refuser_le_calcul` sous les noms de calcul de Python.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir l'en-tête du lot 0 ① et ③.
+    ⑨ CE QUI CLOCHE — Une copie par `copy`/`pickle` créerait un second objet, que
+      `is HORIZON_AUCUNE` ne reconnaîtrait pas ; aucun programme ne le fait au
+      09-11-2026 (non éprouvé au-delà de ce constat). En JSON, l'horizon
+      « aucune » s'écrit par la chaîne MOT_DE_L_HORIZON_AUCUNE.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    __slots__ = ()
+    __int__ = __index__ = __float__ = _refuser_le_calcul
+    __lt__ = __le__ = __gt__ = __ge__ = _refuser_le_calcul
+    __add__ = __radd__ = __sub__ = __rsub__ = __mul__ = __rmul__ = _refuser_le_calcul
+    __str__ = __repr__ = lambda self: MOT_DE_L_HORIZON_AUCUNE  # noqa: E731 — str() et repr() rendent « aucune »
+
+
+HORIZON_AUCUNE = _HorizonAucune()
+
+
+def lire_horizon_ou_aucune(x):
+    """Lit un horizon écrit, « aucune » compris : rend un entier positif, HORIZON_AUCUNE, ou None.
+
+    ① RÔLE — LA lecture d'un horizon pour tout programme qui ACCEPTE une
+      stratégie sans durée maximale (contrat du lot 0, 09-11-2026).
+    ② CONTEXTE D'APPEL — Au 09-11-2026, aucun programme du circuit ne l'appelle :
+      l'agent A y fait passer, un par un, les lecteurs de `lire_horizon` qu'il
+      adapte au cas « aucune » ; les autres restent sur `lire_horizon`, qui le refuse.
+    ③ ENTRÉE — `x` : la valeur de la colonne `horizon` d'une fiche, par exemple
+      « 20 », « 20j », « aucune », « AUCUNE », «  Aucune  », None, « Intraday ».
+    ④ CONDITIONS D'ENTRÉE — Aucune.
+    ⑤ SORTIE — UNE valeur parmi trois : un entier > 0 (même règle que
+      `lire_horizon`) · HORIZON_AUCUNE si `x`, sans espaces autour et en
+      minuscules, vaut MOT_DE_L_HORIZON_AUCUNE · None sinon (illisible).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① comparer le texte nettoyé au mot « aucune » · ② sinon
+      déléguer à `lire_horizon`, pour qu'un nombre se lise d'une seule façon.
+    ⑦ UNITÉ — Des SÉANCES de bourse, pour l'entier.
+    ⑧ POURQUOI — Le plan V6 (bloc 4) rend possible une durée « aucune » ; les
+      relecteurs du plan V7 (tour 2, point 3) ont demandé que ce contrat soit
+      écrit avant que A et B ne travaillent en parallèle, pour qu'ils ne
+      l'inventent pas chacun de leur côté.
+    ⑨ CE QUI CLOCHE — « aucun », « none », « 0 », « ∞ », un vide ne sont PAS
+      « aucune » : ils rendent None. Le mot exact n'est pas tranché par Jean-Luc.
+      Un vide qui voudrait dire « aucune » serait refusé : c'est voulu.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main ; son seul appel (`lire_horizon`) aussi.
+      [sort: non]
+    """
+    if str(x).strip().lower() == MOT_DE_L_HORIZON_AUCUNE:
+        return HORIZON_AUCUNE
+    return lire_horizon(x)

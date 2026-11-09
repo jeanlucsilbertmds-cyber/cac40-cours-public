@@ -1148,6 +1148,10 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None,
       position est tenue, que le juge des stratégies lit sur la fiche de la stratégie ·
       `part` : la fraction du temps qui va dans la première partie, 0,70 par
       défaut, aucun appelant ne la change.
+      CONTRAT DU LOT 0 (09-11-2026) — `horizon` est un entier > 0, None (non
+      fourni), ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale). Ce dernier
+      refuse tout calcul par une TypeError : il n'est accepté qu'avec un
+      embargo explicite (`embargo_seances`), sinon elle tombe (`int(horizon or 0)`). Rien n'y lit « aucune » en texte.
     ④ CONDITIONS D'ENTRÉE — Les dates doivent s'écrire de la même façon dans
       les opérations et dans le calendrier. Le calendrier ne doit pas être vide,
       sans quoi la recherche de la frontière tombe.
@@ -1401,6 +1405,10 @@ def fenetres_glissantes(ops, seances_projet, n=3, embargo=None, horizon=None,
       nombre de séances pendant lesquelles une position est tenue, lu sur la
       fiche de la stratégie · `point_mort_pct` : le point mort de la stratégie
       en pourcents, `None` par défaut ; sans lui, aucun verdict n'est rendu.
+      CONTRAT DU LOT 0 (09-11-2026) — `horizon` est un entier > 0, None (non
+      fourni), ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale). Ce dernier
+      refuse tout calcul par une TypeError : il n'est accepté qu'avec un
+      embargo explicite (`embargo`), sinon elle tombe (`int(horizon or 0)`). Rien n'y lit « aucune » en texte.
     ④ CONDITIONS D'ENTRÉE — Les dates doivent s'écrire de la même façon dans les
       opérations et dans le calendrier. Le nombre de fenêtres demandé doit être
       au moins 1. Le calendrier doit porter au moins autant de séances que de
@@ -2332,6 +2340,11 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       d'achat, vrai si l'achat est permis (`JUGE_DES_STRATEGIES.achat_admis`) ·
       `periode` : le couple des bornes de la fiche, ou None. `mod_positions` n'est
       plus lu ici depuis le 28-10-2026 : la mécanique le porte.
+      CONTRAT DU LOT 0 (09-11-2026) — `horizon` est un entier > 0, None (non
+      fourni), ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale). Ce dernier
+      refuse tout calcul par une TypeError. ICI le corps ne lit PAS `horizon`
+      (vérifié le 09-11-2026) : la durée voyage dans `entree`, construite par le
+      juge ; c'est elle (agent A) qui doit savoir traiter « aucune ».
     ④ CONDITIONS D'ENTRÉE — L'univers passé doit être celui de la FICHE et non
       celui du projet entier. Chaque valeur retenue doit porter plus de séances
       que l'horizon plus trois (exigence levée le 28-10-2026 : un achat sans assez
