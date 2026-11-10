@@ -219,7 +219,7 @@ supprimé ou doublé, un « corrigé » inventé ; Air Liquide 27-04-2012 bâtie
 03-01-2000, retirée au journal et remise au fichier · H57 sur des cas fabriqués : une chaîne juste passe (geste depuis
 Yahoo, ligne comblée depuis Paris, « gardé » à 1 et 1) ; dix-neuf règles cassées une à une sont vues, chacune par son
 motif ; un journal à l'en-tête faux, ou portant « inf » ou « nan », est refusé · H58 la provenance : registre absent,
-chaîne juste jusqu'à un téléchargement (chemins avec « \ » et « ./ » compris), empreinte fausse ou inscrite deux
+chaîne juste jusqu'à un téléchargement (chemins avec « \\ » et « ./ » compris), empreinte fausse ou inscrite deux
 fois, téléchargement sans adresse http(s) ou sans empreinte, programme absent ou qui n'est pas un programme, aucun
 fichier lu, un dossier lu, fichier absent qui n'est pas un téléchargement, boucle, boucle sans téléchargement, en-tête
 faux · H59 de bout en bout par `main` sur l'extrait 2005 : registre juste, K23 se tait ; une clôture retouchée, K23 la

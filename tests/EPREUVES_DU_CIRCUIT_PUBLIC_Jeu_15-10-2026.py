@@ -89,6 +89,7 @@
   [sort: oui]
 """
 import ast
+import json
 import os
 import re
 import shlex
@@ -894,7 +895,15 @@ def cas_m5(r, d):
                   octets=(loin + f"X = '{jeton}'\n").encode())
         lanc = os.path.join(r, PROPRIETE.LANCEMENT)
         avant = open(lanc, "rb").read()
-        open(lanc, "wb").write(avant + ("\n" + loin + f'"{jeton}"\n').encode())
+        # Le jeton est posé DANS la table, qui reste du JSON lisible : depuis que le fabricant lit la table des séries
+        # avant de publier (« serie_du_circuit »), une table rendue illisible l'arrêtait d'elle-même (code 1), et S98
+        # (garde retirée) rougissait pour cette autre raison au lieu de « publié, fabricant au code 0 » (R0 du
+        # 10-11-2026). Seule la garde doit pouvoir arrêter ce jeton.
+        _t = avant.decode("utf-8").rstrip()
+        if not _t.endswith("}"):
+            raise ValueError(f"{PROPRIETE.LANCEMENT} ne finit pas par « }} » : le jeton ne peut pas y être posé")
+        open(lanc, "wb").write((_t[:-1].rstrip() + ',\n "_jeton_m5_loin": ' + json.dumps(loin + jeton, ensure_ascii=False)
+                                + "\n}\n").encode())
         retraits.append(lambda: open(lanc, "wb").write(avant))
         poses.append((PROPRIETE.LANCEMENT, "jeton après 9 000 octets", "forme d'un jeton"))
         poser(fiches + "/lien_m5_hors.yml", "fiche liée hors du dépôt", HORS, cible=secret)

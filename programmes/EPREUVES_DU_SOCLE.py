@@ -723,11 +723,16 @@ def main():
             f"verdict rendu : {lgs[0] if lgs else 'ligne absente'}")
 
     # ─── K5 : l'appareil de preuve n'est pas DORMANT
+    # L'appareil, c'est le PROGRAMME programmes/<nom>.py, pas tout fichier dont le chemin contient le nom : depuis le
+    # 05-11-2026 (e88377e1), deux sorties de brouillon « …txt.TESTS_AUDIT.log » sous etudes/ sont rangées DORMANT, et
+    # l'ancien filtre « n in k » les prenait pour l'appareil (rouge de l'examen du 09-11-2026, R0 du 10-11-2026).
+    # Le programme absent de la sortie est une faute aussi : sans lui, K5 ne mesurerait rien.
     preuve = ["PROUVER_L_EXECUTION", "TESTS_AUDIT", "verif_backlog", "protocole_qualite"]
-    morts = [n for n in preuve
-             for k, v in lg.items() if n in k and v[0] == "DORMANT"]
+    lignes_preuve = {n: [v for k, v in lg.items() if k.replace("\\", "/") == f"programmes/{n}.py"] for n in preuve}
+    morts = [n for n, vs in lignes_preuve.items() for v in vs if v[0] == "DORMANT"]
+    absents = [n for n, vs in lignes_preuve.items() if not vs]
     verdict("K5 — l'appareil de preuve n'est jamais DORMANT",
-            not morts, f"rangés dormants : {morts}")
+            not morts and not absents, f"rangés dormants : {morts} · absents de la sortie : {absents}")
 
     # ─── K7 : la sortie sépare le mesuré du présumé, jamais un total
     verdict("K7 — deux natures affichées, jamais un total",

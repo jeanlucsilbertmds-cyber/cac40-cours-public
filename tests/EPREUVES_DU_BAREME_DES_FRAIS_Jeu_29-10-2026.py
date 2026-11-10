@@ -499,11 +499,17 @@ def epreuves(sab):
         w = csv.DictWriter(f, fieldnames=champs); w.writeheader(); w.writerows(lignes)
     fp = os.path.join(d9, "donnees", "claude_positions_ouvertes.csv")
     pl = list(csv.DictReader(open(fp, encoding="utf-8", newline="")))
-    ch = list(pl[0].keys()) if pl else []
+    ch = list(pl[0].keys()) if pl else next(csv.reader(open(fp, encoding="utf-8", newline="")), [])
     if "frais_non_chiffrables" not in ch:
         ch.append("frais_non_chiffrables")
     for x in pl:
         x.setdefault("frais_non_chiffrables", "")
+    # Aucune position ouverte dans les données du jour (le cas du 09-11-2026, main 5007a1c9 : fichier réduit à son
+    # en-tête) : la faute « vente bloquée » se pose sur une position bâtie depuis la vraie première ligne du journal
+    # (stratégie, valeur, entrée), au lieu de laisser E9 rougir selon le jour de l'examen (R0 du 10-11-2026).
+    if not pl and ch and lignes:
+        pl = [{k: lignes[0].get(k, "") for k in ch}]
+        pl[0]["statut"] = "OUVERTE"
     if pl:
         pl[0]["frais_non_chiffrables"] = "2027-01-04 TP : liste 2027 absente"
     with open(fp, "w", encoding="utf-8", newline="") as f:
