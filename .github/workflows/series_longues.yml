@@ -60,7 +60,7 @@ on:
         description: "Serie a jouer (toutes : chaque serie de la table)"
         required: true
         type: choice
-        options: ["toutes", "Yahoo", "HL"]
+        options: ["toutes", "Yahoo", "HL", "Boucle", "Signaux"]
         default: "toutes"
       parts_yahoo:
         description: "Nombre de machines pour la serie Yahoo (1 a 99)"
@@ -78,6 +78,22 @@ on:
         description: "Sabotages par lot pour la serie HL (1 a 99 ; le changer change les lignes lot k du releve)"
         type: number
         default: 6
+      parts_boucle:
+        description: "Nombre de machines pour la serie Boucle (1 a 99)"
+        type: number
+        default: 3
+      lot_boucle:
+        description: "Sabotages par lot pour la serie Boucle (1 a 99 ; le changer change les lignes lot k du releve)"
+        type: number
+        default: 6
+      parts_signaux:
+        description: "Nombre de machines pour la serie Signaux (1 a 99)"
+        type: number
+        default: 2
+      lot_signaux:
+        description: "Sabotages par lot pour la serie Signaux (1 a 99 ; le changer change les lignes lot k du releve)"
+        type: number
+        default: 21
 concurrency:
   group: series-longues
   cancel-in-progress: false
@@ -191,10 +207,14 @@ jobs:
           LOT_YAHOO: ${{ inputs.lot_yahoo }}
           PARTS_HL: ${{ inputs.parts_hl }}
           LOT_HL: ${{ inputs.lot_hl }}
+          PARTS_BOUCLE: ${{ inputs.parts_boucle }}
+          LOT_BOUCLE: ${{ inputs.lot_boucle }}
+          PARTS_SIGNAUX: ${{ inputs.parts_signaux }}
+          LOT_SIGNAUX: ${{ inputs.lot_signaux }}
         run: |
           set -u -o pipefail
           echec () { echo "::error::$1"; exit 1; }
-          codes="Yahoo HL"
+          codes="Yahoo HL Boucle Signaux"
           choix=""
           for c in $codes; do
             if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "$c" ]; then choix="$choix $c"; fi

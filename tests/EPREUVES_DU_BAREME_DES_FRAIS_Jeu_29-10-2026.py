@@ -48,7 +48,7 @@ CE QUE CE FICHIER ÉPROUVE (Z0, tout doit être vert) :
      dans cette épreuve (jamais par `cout_d_un_ordre`, sinon l'épreuve se vérifierait elle-même) : un chemin qui
      n'irait pas lire le barème ne bougerait pas. Achat d'Airbus à 100 € le 04-05-2026, vente à 104 € : le lendemain
      4 000 − 210 − 130 − 218,40 = +3 441,60 € ; le jour même, sans taxe, +3 571,60 €. Les chemins : `pnl_net`,
-     `jouer_une_entree` du juge, `_c5e10_sortie`, `cloturer` du teneur, `point_mort_en_fractions`, `sortie_position`. ET L'ÉPREUVE CHERCHE
+     `jouer_une_entree` du juge, `_c5e10_sortie`, `cloturer` du teneur, `point_mort_en_fractions` (`sortie_position`, retirée le 11-11-2026). ET L'ÉPREUVE CHERCHE
      ELLE-MÊME, dans l'arbre syntaxique de `programmes/*.py`, toute fonction qui appelle un calcul de frais : une
      fonction trouvée qui n'est ni éprouvée ici ni un contrôle (calibrage, radar) rougit.
   E12 (C1) AUCUN NOM LU N'EST JAMAIS DÉFINI dans `programmes/*.py` (pyflakes, « undefined name ») : le 29-10-2026, la
@@ -261,8 +261,8 @@ def _env_horloge(H, dossier, heure):
 # LE BARÈME PIÈGE de E10 : les lignes réelles de courtage au-delà de 3 000 € et de taxe sont REMPLACÉES.
 PIEGE_COURTAGE, PIEGE_TAXE_AVANT, PIEGE_TAXE_APRES, PIEGE_FRONTIERE = 0.0021, 0.0057, 0.0013, "2026-05-01"
 # Les fonctions qui chiffrent des frais et que E10 éprouve ; celles du module des frais lui-même ; les contrôles.
-CHEMINS_EPROUVES = {"pnl_net", "jouer_une_entree", "_c5e10_sortie", "cloturer", "point_mort_en_fractions",
-                    "sortie_position"}
+# `sortie_position` retirée du module le 11-11-2026 (plan V7, bloc 4, n°351) : son cas est retiré d'ici le même jour.
+CHEMINS_EPROUVES = {"pnl_net", "jouer_une_entree", "_c5e10_sortie", "cloturer", "point_mort_en_fractions"}
 APPELS_DE_FRAIS = {"frais_aller_retour", "frais_ordre", "pnl_net", "cout_d_un_ordre"}
 # Les fonctions qui chiffrent des frais et qu'une AUTRE épreuve garde, nommée ici avec le cas qui rougirait.
 EPROUVES_AILLEURS = {
@@ -464,6 +464,9 @@ def epreuves(sab):
             "      any('VENTE BLOQUEE' in x for x in inc))\n"
             "class Faux:\n"
             "    tester_seance = staticmethod(p.tester_seance); CAPITAL = p.CAPITAL; BAREME_PAR_DEFAUT = 'REEL'\n"
+            # le teneur vend par `vendre` et chiffre la convention par `prix_de_convention` depuis le 11-11-2026
+            # (plan V7, bloc 4) : le faux module les prête du vrai, seuls les frais lèvent.
+            "    vendre = staticmethod(p.vendre); prix_de_convention = staticmethod(p.prix_de_convention)\n"
             "    FraisNonChiffrables = p.FraisNonChiffrables\n"
             "    @staticmethod\n"
             "    def frais_aller_retour(*a, **k):\n"
@@ -566,7 +569,6 @@ def epreuves(sab):
         "juge AIRBUS acheté le 04-05": 4000 - K * cg - K * PIEGE_TAXE_APRES - 104000 * cg,
         "c5e10 AIRBUS acheté le 04-05": 4000 - K * cg - K * PIEGE_TAXE_APRES - 104000 * cg,
         "teneur AIRBUS acheté le 04-05": 4000 - K * cg - K * PIEGE_TAXE_APRES - 104000 * cg,
-        "sortie_position AIRBUS achetée le 04-05": 4000 - K * cg - K * PIEGE_TAXE_APRES - 104000 * cg,
         "teneur AIRBUS, montant de convention": 4000 - K * cg - K * PIEGE_TAXE_APRES - 104000 * cg,
         "point mort AIRBUS le 04-05": 100.0 * (2500 + K * cg + K * PIEGE_TAXE_APRES + 97500 * cg)
                                       / ((4000 - K * cg - K * PIEGE_TAXE_APRES - 104000 * cg)
@@ -592,7 +594,6 @@ def epreuves(sab):
             "tr, _r, _i = T.cloturer([pos], {'AIRBUS': s}, p)\n"
             "o['teneur AIRBUS acheté le 04-05'] = float(tr[0]['pnl_net_eur']) if tr else None\n"
             "o['teneur AIRBUS, montant de convention'] = float(tr[0]['pnl_net_convention_eur']) if tr else None\n"
-            "o['sortie_position AIRBUS achetée le 04-05'] = p.sortie_position(s[2:], 100.0, 'AIRBUS', '2026-05-04')['pnl_net_convention_eur']\n"
             "o['point mort AIRBUS le 04-05'] = J.point_mort_en_fractions(0.04, 0.025, p, 'AIRBUS', '2026-05-04')\n"
             "print('OBTENU', repr(o))\n")
     c, o = run(d, "-c", code)

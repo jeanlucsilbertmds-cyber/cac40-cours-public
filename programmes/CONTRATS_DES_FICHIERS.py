@@ -165,7 +165,12 @@ SIGNAUX_DU_JOUR = ["seance", "strategie", "calcule_le", "signaux",
                    "calibrage", "detail_indicateurs",
                    # écrits par programmes/DETECTER_LES_SIGNAUX_GITHUB.py et lus par
                    # programmes/MESSAGE_DU_SOIR.py, déclarés le 30-09-2026 (relecteur).
-                   "univers", "valeurs_sans_cette_seance"]
+                   "univers", "valeurs_sans_cette_seance",
+                   # écrit par programmes/DETECTER_LES_SIGNAUX_GITHUB.py les seuls soirs où la garde du
+                   # soir mord (A-706, 11-11-2026), lu par programmes/MESSAGE_DU_SOIR.py.
+                   "garde_du_soir"]
+# Les champs de l'enveloppe que l'écrivain peut omettre : garde_du_soir n'est écrit que si la garde mord.
+CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR = ("garde_du_soir",)
 
 # LES FICHIERS FABRIQUÉS CHAQUE SOIR ET LE MOTIF DE LEUR DATE, écrits une fois (R-708 :
 # deux implémentations d'une même chose divergent toujours). Lus par programmes/

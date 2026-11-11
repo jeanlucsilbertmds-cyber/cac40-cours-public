@@ -32,16 +32,18 @@ MODP = "programmes/MODULE_POSITIONS.py"
 
 SABOTAGES = {
     "Z0": [],
-    "S1_circuit_saute_la_seance_d_achat": [(TEN, 'apres = sorted((b for b in s if b["date"] >= d_ent),',
-                                            'apres = sorted((b for b in s if b["date"] > d_ent),')],
+    # S1 et S6 visent, depuis le 11-11-2026 (plan V7, bloc 4), les lignes réécrites : `cloturer` passe par `vendre`
+    # (son rang d'achat), et `vendre` compte l'échéance à son niveau d'indentation.
+    "S1_circuit_saute_la_seance_d_achat": [(TEN, 'j = next((k for k, b in enumerate(serie) if b["date"] >= d_ent), None)',
+                                            'j = next((k for k, b in enumerate(serie) if b["date"] > d_ent), None)')],
     "S2_banc_saute_la_seance_d_achat": [(MODP, "    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")],
     "S3_banc_n_exige_plus_les_sorties": [(BAN, "        ok = ok and _ok_t\n", "        ok = ok\n")],
-    "S4_banc_relit_l_horizon_a_sa_facon": [(BAN, '    if "horizon" not in manq and lire_horizon(fiche.get("horizon")) is None:',
+    "S4_banc_relit_l_horizon_a_sa_facon": [(BAN, '    if "horizon" not in manq and lire_horizon_ou_aucune(fiche.get("horizon")) is None:',
                                             '    if "horizon" not in manq and not str(fiche.get("horizon")).strip().lstrip("-").isdigit():')],
     "S5_circuit_recopie_lire_horizon": [(TEN, "from COMMUN import lire_horizon                 # la seule lecture d'un horizon (R-708)",
                                          "lire_horizon = lambda x: (lambda h: int(h) if h.isdecimal() and int(h) > 0 else None)(str(x).strip().lower().rstrip('j'))")],
-    "S6_echeance_comptee_des_l_achat": [(MODP, "        apres = suite[1:]          # l'echeance se compte APRES la seance d'achat",
-                                         "        apres = suite[:-1]")],
+    "S6_echeance_comptee_des_l_achat": [(MODP, "    apres = suite[1:]          # l'echeance se compte APRES la seance d'achat",
+                                         "    apres = suite[:-1]")],
     "S7_pas_de_second_passage_le_soir_de_l_achat": [(TEN, "    if _juste_entrees:\n", "    if False:\n")],
     "S8_banc_ne_compare_plus_les_dates": [(BAN, ' or _o.get("date_sortie") != _r["date_sortie"]:', ':')],
     "S9_banc_ne_compare_plus_les_familles": [(BAN, ' or _fam(_o["motif"]) != _fam(_r["motif"])', '')],

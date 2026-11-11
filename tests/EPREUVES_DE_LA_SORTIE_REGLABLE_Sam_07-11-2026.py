@@ -53,7 +53,13 @@ DEPOT = os.path.abspath(_args[0] if _args else ".")
 MODP, BAN = "programmes/MODULE_POSITIONS.py", "programmes/JUGE_DES_STRATEGIES.py"
 
 # Les valeurs figées, mesurées sur `main` 95666ac3 le 07-11-2026 (sorties du lot ①a, J1a/sorties/) AVANT le lot.
-FIGE_E2 = "96049b1558e218a3"   # 100 444 entrées (4 réglages × 25 111 séances du témoin)
+# E2 REFIGÉE LE 11-11-2026 (agent A, plan V7 bloc 4) : les seuils sont arrondis à cinq décimales (décision de Jean-Luc
+# du 07-11-2026 à 15h49, n°311). Avant : « 96049b1558e218a3 ». Écarts mesurés entrée par entrée contre l'ancienne
+# `vendre` (main 8fc26e6f) : 17 010 sur 100 444, dont 16 993 où seul le prix écrit change à moins de 1e-6 (13.78 au
+# lieu de 13.780000000000001) et 17 où la vente change de jour ou de motif — chacun parce qu'un prix de la séance vaut
+# EXACTEMENT le seuil arrondi (liste dans echanges/A_RELIRE_A.md) ; 8 d'entre eux sous le réglage de C5 (+4 % / −2,5 % /
+# 20), le chiffre de la conception J1. Les 100 opérations de l'étalon (E3) ne changent pas.
+FIGE_E2 = "3be8709635df423a"   # 100 444 entrées (4 réglages × 25 111 séances du témoin)
 FIGE_E3 = {"REEL": "788dc3a04cddc988", "HIST_FORFAIT_300": "484bfe7935a44017"}
 FIGE_E1 = {"A": ["TP_GAP", "2026-01-03", 105], "B": ["SL", "2026-01-02", 97.5],
            "C": ["HORIZON", "2026-01-07", 100], "D": ["HORIZON", "2026-01-22", 100.5]}
@@ -63,18 +69,18 @@ SABOTAGES = {
     # dans `vendre`
     "S1_echeance_un_cran_trop_tot": [(MODP, "    suite = serie[j:j + 1 + h]", "    suite = serie[j:j + h]")],
     "S2_seance_d_achat_sautee": [(MODP, "    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")],
-    "S3_achat_a_l_ouverture_de_la_veille": [(MODP, '    pe = serie[j]["open"]\n    tp_abs', '    pe = serie[j - 1]["open"]\n    tp_abs')],
-    "S4_echeance_vendue_a_l_ouverture": [(MODP, 'px, motif, d_sortie = apres[-1]["close"], "HORIZON"',
-                                          'px, motif, d_sortie = apres[-1]["open"], "HORIZON"')],
-    "S5_vendu_au_seuil_meme_sur_un_saut": [(MODP, "            px, motif = r\n            d_sortie = b[\"date\"]",
-                                            "            px, motif = (tp_abs if r[1].startswith(\"TP\") else sl_abs), r[1]\n"
-                                            "            d_sortie = b[\"date\"]")],
-    "S6_seuils_arrondis": [(MODP, "    tp_abs, sl_abs = pe * (1 + tp), pe * (1 - sl)\n    # LA SEANCE",
-                            "    tp_abs, sl_abs = round(pe * (1 + tp), 5), round(pe * (1 - sl), 5)\n    # LA SEANCE")],
-    "S7_fin_des_donnees_vendue_le_jour_d_achat": [(MODP, "        if not apres:\n            return None\n        px, motif, d_sortie",
-                                                   "        apres = apres or suite\n        px, motif, d_sortie")],
-    "S8_garder_accepte_en_silence": [(MODP, '    if fin_des_donnees != "vendre":\n        raise',
-                                      '    if fin_des_donnees not in ("vendre", "garder"):\n        raise')],
+    # Cibles de S3 à S8, N4, N12 recalées le 11-11-2026 sur `vendre` réécrite (plan V7, bloc 4), même intention.
+    "S3_achat_a_l_ouverture_de_la_veille": [(MODP, '    pe = serie[j]["open"]\n    en_euros', '    pe = serie[j - 1]["open"]\n    en_euros')],
+    "S4_echeance_vendue_a_l_ouverture": [(MODP, '    if not aucune and len(apres) == h:\n        return {"pe": pe, "px": apres[-1]["close"]',
+                                          '    if not aucune and len(apres) == h:\n        return {"pe": pe, "px": apres[-1]["open"]')],
+    "S5_vendu_au_seuil_meme_sur_un_saut": [(MODP, '            return {"pe": pe, "px": r[0], "motif": r[1]',
+                                            '            return {"pe": pe, "px": (objectif if r[1].startswith("TP") else stop), "motif": r[1]')],
+    "S6_seuils_bruts": [(MODP, '    return float("%.5f" % (prix_entree * (1.0 + tp))), float("%.5f" % (prix_entree * (1.0 - sl)))',
+                         '    return prix_entree * (1.0 + tp), prix_entree * (1.0 - sl)')],
+    "S7_fin_des_donnees_vendue_le_jour_d_achat": [(MODP, '    if fin_des_donnees == "garder" or not apres:\n        return None',
+                                                   '    apres = apres or suite\n    if fin_des_donnees == "garder":\n        return None')],
+    "S8_fin_inconnue_acceptee_en_silence": [(MODP, '    if fin_des_donnees not in ("vendre", "garder"):\n        raise',
+                                             '    if False:\n        raise')],
     # dans `tester_seance`, qu'elle emploie (ordre et comparaisons)
     "S9_stop_compare_un_cran_trop_strict": [(MODP, '    if bar["low"] <= sl:\n        return sl, "SL"',
                                              '    if bar["low"] < sl:\n        return sl, "SL"')],
@@ -110,11 +116,12 @@ SABOTAGES = {
         '        return {"pe": pe, "px": apres[-1]["close"], "motif": "HORIZON", "date_sortie": apres[-1]["date"]}\n'
         '    _vente = _vendre_local(serie, j, {"tp": tp, "sl": sl, "horizon": h}, "vendre")\n')],
     "N4_vendre_remplace_une_cle_absente_par_un_defaut": [(MODP,
-        '    tp, sl, h = vente["tp"], vente["sl"], vente["horizon"]',
-        '    tp, sl, h = vente.get("tp", 0.04), vente.get("sl", 0.025), vente.get("horizon", 20)')],
+        '        objectif, stop = seuils_de_vente(pe, vente["tp"], vente["sl"])',
+        '        objectif, stop = seuils_de_vente(pe, vente.get("tp", 0.04), vente.get("sl", 0.025))'),
+        (MODP, '    h = vente["horizon"]\n', '    h = vente.get("horizon", 20)\n')],
     "N12_vendre_avale_une_seance_incomplete": [(MODP,
-        '        r = tester_seance(b, tp_abs, sl_abs)\n',
-        '        try:\n            r = tester_seance(b, tp_abs, sl_abs)\n        except KeyError:\n            r = None\n')],
+        '        r = tester_seance(b, objectif, stop)\n',
+        '        try:\n            r = tester_seance(b, objectif, stop)\n        except KeyError:\n            r = None\n')],
     # les deux sabotages de la seconde relecture du 07-11-2026 (tour 2) que E8 et E9 laissaient passer
     'R1_boucle_dans_une_fonction_du_module_filtre_sur_le_motif': [(BAN, 'def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme=None):', 'def _r1_vente_du_juge(serie, j, tp, sl, h, mp):\n    pe = serie[j]["open"]\n    ta, sa = pe * (1 + tp), pe * (1 - sl)\n    suite = serie[j:j + 1 + h]\n    for b in suite:\n        r = mp.tester_seance(b, ta, sa)\n        if r:\n            return {"pe": pe, "px": r[0], "motif": r[1], "date_sortie": b["date"]}\n    apres = suite[1:]\n    if not apres:\n        return None\n    return {"pe": pe, "px": apres[-1]["close"], "motif": "HORIZON", "date_sortie": apres[-1]["date"]}\n\n\ndef jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme=None):'), (BAN, '    _vente = _vendre(serie, j, {"tp": tp, "sl": sl, "horizon": h}, "vendre")\n', '    _vente = _vendre(serie, j, {"tp": tp, "sl": sl, "horizon": h}, "vendre")\n    if _vente is not None and _vente["motif"] in ("TP", "SL", "TP_GAP", "SL_GAP", "HORIZON"):\n        _vente = _r1_vente_du_juge(serie, j, tp, sl, h, mod_positions)\n')],
     'R2_next_filter_dans_le_juge_filtre_sur_le_motif': [(BAN, '    _vente = _vendre(serie, j, {"tp": tp, "sl": sl, "horizon": h}, "vendre")\n', '    _vente = _vendre(serie, j, {"tp": tp, "sl": sl, "horizon": h}, "vendre")\n    if _vente is not None and _vente["motif"] in ("TP", "SL", "TP_GAP", "SL_GAP", "HORIZON"):\n        _pe = serie[j]["open"]; _ta, _sa = _pe * (1 + tp), _pe * (1 - sl)\n        _b = next(filter(lambda x: mod_positions.tester_seance(x, _ta, _sa), serie[j:j + 1 + h]), None)\n        if _b is not None:\n            _r = mod_positions.tester_seance(_b, _ta, _sa)\n            _vente = {"pe": _pe, "px": _r[0], "motif": _r[1], "date_sortie": _b["date"]}\n')],
@@ -206,14 +213,16 @@ def e4():
     s = cours["ENGIE"]; j = [k for k, x in enumerate(s) if x["date"] == "2024-06-17"][0]
     op = B.jouer_une_entree("ENGIE", s, j, 0.04, 0.025, 20, P, None, HIST)
     obtenu = (op["pe"], op["motif"], op["date_sortie"], repr(op["px"]))
-    ok = ok and obtenu == (13.25, "TP", "2024-06-24", "13.780000000000001"); det.append(("ENGIE", obtenu))
+    # n°311 (07-11-2026) : seuils à cinq décimales, l'objectif vaut 13.78 et le plus haut du 21-06 le touche.
+    ok = ok and obtenu == (13.25, "TP", "2024-06-21", "13.78"); det.append(("ENGIE", obtenu))
     note("E4 vraies lignes : Vinci, Airbus, Veolia du tableau ; Engie du temoin", ok, det)
 essai("E4 vraies lignes : Vinci, Airbus, Veolia du tableau ; Engie du temoin", e4)
 
 def e5():
     s = CAS["D"]
     try:
-        P.vendre(s, 1, {"tp": 0.04, "sl": 0.025, "horizon": 20}, "garder"); a = "rien leve"
+        # depuis le 11-11-2026, « garder » est admise (le soir, le radar) : c'est une fin inconnue qui lève
+        P.vendre(s, 1, {"tp": 0.04, "sl": 0.025, "horizon": 20}, "attendre"); a = "rien leve"
     except ValueError:
         a = "ValueError"
     faux = types.SimpleNamespace(**{n: getattr(P, n) for n in dir(P) if not n.startswith("__") and n != "vendre"})
@@ -221,8 +230,8 @@ def e5():
         B.jouer_une_entree("AIRBUS", s, 1, 0.04, 0.025, 20, faux, None, HIST); c = "rien leve"
     except RuntimeError as e:
         c = "RuntimeError" if "vendre" in str(e) else "RuntimeError sans le mot vendre"
-    note("E5 refus : garder leve, module sans vendre arrete le juge", (a, c) == ("ValueError", "RuntimeError"), (a, c))
-essai("E5 refus : garder leve, module sans vendre arrete le juge", e5)
+    note("E5 refus : une fin inconnue leve, module sans vendre arrete le juge", (a, c) == ("ValueError", "RuntimeError"), (a, c))
+essai("E5 refus : une fin inconnue leve, module sans vendre arrete le juge", e5)
 
 def e6():
     s1 = [b(1, 100, 100, 100, 100), b(2, 100, 104.5, 97.0, 100)] + [b(3 + i, 100, 101, 99, 100) for i in range(25)]

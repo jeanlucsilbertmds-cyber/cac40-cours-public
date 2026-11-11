@@ -186,6 +186,9 @@ from CONTRATS_DES_FICHIERS import COMPTABILITES, TRADE, POSITION, UN_JETON, JETO
 from CONTRATS_DES_FICHIERS import (REGISTRE_DES_STRATEGIES, NOM_DU_REGISTRE_DES_STRATEGIES, chemin_du_registre,
                                    fiches_du_registre)
 from COMMUN import lire_horizon                 # la seule lecture d'un horizon (R-708)
+# « aucune » (aucune durée maximale, contrat du lot 0 du 09-11-2026) est lisible par le soir depuis le 11-11-2026
+# (plan V7, bloc 4) : `reglages_du_registre`, `horizon_connu`, `completer_echeances`, `horizons_illisibles`.
+from COMMUN import lire_horizon_ou_aucune, HORIZON_AUCUNE, MOT_DE_L_HORIZON_AUCUNE
 
 # les statuts d'une ligne de positions_ouvertes.csv
 EN_ATTENTE = "EN_ATTENTE_ENTREE"
@@ -239,8 +242,10 @@ def charger_module_positions(chemin):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     # on n'exige QUE ce qu'on appelle : `pnl_net` ne l'est plus depuis que
-    # le gain est calcule sur les seuils de la position.
-    for f in ("frais_aller_retour", "tester_seance"):
+    # le gain est calcule sur les seuils de la position. DEPUIS LE 11-11-2026 (plan V7,
+    # bloc 4), la vente passe par `vendre`, les seuils par `seuils_de_vente` et le prix
+    # de convention par `prix_de_convention` : `tester_seance` n'est plus appele ici.
+    for f in ("frais_aller_retour", "vendre", "seuils_de_vente", "prix_de_convention"):
         if not hasattr(mod, f):
             raise RuntimeError("le module des positions n'expose pas " + f)
     return mod
@@ -433,8 +438,10 @@ def reglages_du_registre(base):
                     # du registre qui n avait pas eu lieu.
                     # UNE SEULE LECTURE DE L'HORIZON (R-708) : `lire_horizon`,
                     # aussi employee par le garde-fou `horizons_illisibles`.
+                    # DEPUIS LE 11-11-2026 (plan V7, bloc 4) : `lire_horizon_ou_aucune`, qui rend
+                    # aussi HORIZON_AUCUNE pour « aucune » ; `horizon_connu` le garde tel quel.
                     r[k] = {"tp": tp, "sl": sl,
-                            "horizon": lire_horizon(x.get("horizon", ""))}
+                            "horizon": lire_horizon_ou_aucune(x.get("horizon", ""))}
         return r
     raise FileNotFoundError(
         "le registre des strategies est introuvable dans %r : sans lui, aucune "
@@ -829,10 +836,14 @@ def horizon_connu(p, reglages):
       None.
     ④ CONDITIONS D ENTRÉE — Aucune.
     ⑤ SORTIE — UNE valeur : un nombre entier de séances, strictement positif,
-      ou None s il manque ou vaut 0.
+      `COMMUN.HORIZON_AUCUNE` si la stratégie n a aucune durée maximale (depuis le
+      11-11-2026), ou None s il manque ou vaut 0.
       [rend: 1]
     ⑥ TRAITEMENT — ① chercher la stratégie, sans ses espaces · ② rendre son
-      horizon s il est un entier positif, None sinon.
+      horizon s il est HORIZON_AUCUNE ou un entier positif, None sinon. Le cas
+      « aucune » est traité AVANT le filtre `isinstance` : sans cela, il tombait à
+      None, et `horizon_de` le changeait en 20 séances, en silence (RELU Cowork
+      L0-1 et L0-6 du 09-11-2026).
     ⑦ UNITÉ — Des SÉANCES de bourse.
     ⑧ POURQUOI — **Un horizon à 0 mettrait l échéance sur la séance d achat
       elle-même** : c est exactement la forme du défaut 2 (27-09-2026). Relevé
@@ -845,6 +856,8 @@ def horizon_connu(p, reglages):
     if not reglages:
         return None
     h = (reglages.get((p.get("strategie") or "").strip()) or {}).get("horizon")
+    if h is HORIZON_AUCUNE:
+        return h
     return h if isinstance(h, int) and h > 0 else None
 
 
@@ -860,7 +873,8 @@ def horizon_de(p, reglages, horizon_seances):
       dans `donnees/cac40_strategies.csv`, ou None · `horizon_seances` : la
       valeur de repli.
     ④ CONDITIONS D ENTRÉE — Aucune.
-    ⑤ SORTIE — UNE valeur : un nombre entier de séances.
+    ⑤ SORTIE — UNE valeur : un nombre entier de séances, ou
+      `COMMUN.HORIZON_AUCUNE` (vrai en logique : il traverse le « or » tel quel).
       [rend: 1]
     ⑥ TRAITEMENT — ① lire l horizon par `horizon_connu` · ② rendre la valeur
       de repli s il manque ou vaut 0.
@@ -985,6 +999,14 @@ def completer_echeances(positions, cours, reglages, horizon_seances=20, cle=None
             if not _est_date(ancienne):
                 p["horizon_fin"] = INCONNU
             continue
+        # SANS DUREE MAXIMALE (« aucune », plan V7 bloc 4, 11-11-2026) : pas d'echeance ; la case porte le mot,
+        # que le cockpit affiche (« echeance aucune ») et que `cloturer` lit comme « pas de vente a l'echeance ».
+        if h is HORIZON_AUCUNE:
+            if ancienne not in ("", INCONNU, MOT_DE_L_HORIZON_AUCUNE):
+                incidents.append("position %s : echeance ecrite %r remplacee par %s (strategie sans duree maximale)"
+                                 % (v, ancienne, MOT_DE_L_HORIZON_AUCUNE))
+            p["horizon_fin"] = MOT_DE_L_HORIZON_AUCUNE
+            continue
         fin = echeance(s, d, h)
         nouvelle = fin or INCONNU
         if ancienne != nouvelle and ancienne not in ("", INCONNU):
@@ -1036,10 +1058,13 @@ def cloturer(positions, cours, mod, horizon_seances=20, cle=None, bareme=None):
       les incidents.
       [rend: 3]
     ⑥ TRAITEMENT — ① pour chaque position ouverte, retrouver sa série ·
-      ② parcourir les séances DEPUIS LA SÉANCE D ACHAT COMPRISE (R-608) · ③ **s arrêter à la première qui
-      touche le stop, l objectif ou l échéance** — l échéance seulement si elle
-      est une date ; inconnue, elle n est pas encore publiée · ④ écrire les
-      DEUX prix.
+      ② traduire l échéance de la ligne en rang après l achat — une date ; pas une date
+      (pas encore publiée, ou « aucune ») : aucune vente à l échéance · ③ demander la
+      vente à `MODULE_POSITIONS.vendre` (depuis le 11-11-2026, plan V7 bloc 4 : le juge
+      et le radar vendent par elle), avec les deux prix de la ligne et « garder » :
+      séances DEPUIS LA SÉANCE D ACHAT COMPRISE (R-608), arrêt à la première qui
+      touche le stop, l objectif ou l échéance · ④ écrire les DEUX prix, la
+      convention par `MODULE_POSITIONS.prix_de_convention`.
     ⑦ UNITÉ — **Les seuils sont en POURCENTS, les prix en euros, l horizon en
       JOURS DE BOURSE.** Le gain net est en euros, frais compris.
     ⑧ POURQUOI — **Deux prix sont écrits pour chaque sortie, et c est voulu.** Le
@@ -1078,14 +1103,14 @@ def cloturer(positions, cours, mod, horizon_seances=20, cle=None, bareme=None):
 
         # les séances depuis l'entrée, dans l'ordre — on ne saute rien
         # LES SEUILS VIENNENT DE LA POSITION, JAMAIS DU MODULE.
-        # `sortie_position` et `parametres_entree` RECALCULENT les seuils a
-        # partir de deux constantes fixes du module — TP_PCT 4,0 % et SL_PCT
+        # `sortie_position` et `parametres_entree` (retirees du module le 11-11-2026,
+        # plan V7 bloc 4) RECALCULAIENT les seuils a partir de deux constantes fixes du module — TP_PCT 4,0 % et SL_PCT
         # 2,5 %. Or le registre porte des seuils PAR STRATEGIE : MA200-S1, en
         # PRODUCTION, est a +5,0 % / -2,0 %. Une position de cette strategie
         # serait donc cloturee aux seuils d'une AUTRE, en silence.
         # Mesure du 02-09-2026 : ces deux fonctions ne sont appelees par aucun
         # autre programme du projet. Le juge des stratégies, lui, lit les seuils de la fiche
-        # et n'emprunte au module que `tester_seance` et ses frais, qui ne
+        # et n'emprunte au module que la vente (`vendre`, depuis le 07-11-2026) et ses frais, qui ne
         # dependent d'aucun reglage. On fait pareil : c'est la seule facon de
         # servir plusieurs strategies sans toucher au module, donc sans
         # toucher au juge des stratégies ni au radar qui l'utilisent.
@@ -1097,44 +1122,40 @@ def cloturer(positions, cours, mod, horizon_seances=20, cle=None, bareme=None):
         # plus bas du jour 110,75 sous la vente forcee 110,76, n'etait pas vendu.
         # Le juge des stratégies fait de meme depuis le meme jour (R-708). L'echeance, elle,
         # tombe toujours h seances APRES l'achat (`completer_echeances`).
-        apres = sorted((b for b in s if b["date"] >= d_ent),
-                       key=lambda b: b["date"])
-        if not apres:
+        # LA VENTE SE DECIDE DANS `MODULE_POSITIONS.vendre`, COMME POUR LE JUGE ET LE RADAR (plan V7, bloc 4,
+        # 11-11-2026 ; R-708 : deux implementations d'une meme chose divergent toujours). Elle recoit les deux
+        # PRIX fixes le soir de l'achat (`objectif`, `stop`, ceux de la ligne), l'echeance traduite en rang, et
+        # « garder » : une serie qui s'arrete avant l'echeance laisse la position ouverte.
+        serie = sorted(s, key=lambda b: b["date"])
+        j = next((k for k, b in enumerate(serie) if b["date"] >= d_ent), None)
+        if j is None:
             restantes.append(p)
             continue
-
-        px = motif = None
-        for k, bar in enumerate(apres):
-            r = mod.tester_seance(bar, tp, sl)
-            if r:
-                px, motif = r[0], r[1]
-                d_sortie = bar["date"]
-                break
-            # L ECHEANCE EST PORTEE PAR LA POSITION, pas par un compte global :
-            # `cloturer` lit la date dans la ligne qu il traite. Depuis le
-            # 27-09-2026, cette date est recalculee chaque soir par
-            # `completer_echeances`, avec l horizon de SA strategie.
-            # DEPUIS LE 27-09-2026 (defaut 2), L'ECHEANCE N'A PLUS DE REPLI :
-            # `completer_echeances` la calcule juste avant. Inconnue, elle veut
-            # dire que sa seance n'est pas encore publiee — ou que la seance
-            # d'achat est absente ou illisible, ce que `completer_echeances` dit
-            # par un incident. Dans les deux cas, pas de vente a l'echeance.
-            _fin = (p.get("horizon_fin") or "").strip()
-            if _est_date(_fin) and bar["date"] >= _fin:
-                px, motif = bar["close"], "HORIZON"
-                d_sortie = bar["date"]
-                break
-
-        if px is None:
+        # L'ECHEANCE EST PORTEE PAR LA POSITION : `completer_echeances` la recalcule chaque soir, juste avant,
+        # avec l'horizon de SA strategie. Une date : la premiere seance de la serie a cette date ou apres, en
+        # rang APRES l'achat. Pas une date (pas encore publiee, ou « aucune ») : aucune vente a l'echeance dans
+        # les seances connues — HORIZON_AUCUNE avec « garder » dit exactement cela.
+        _fin = (p.get("horizon_fin") or "").strip()
+        if _est_date(_fin):
+            k = next((k for k, b in enumerate(serie) if b["date"] >= _fin), len(serie))
+            h = k - j
+            if h <= 0:
+                incidents.append("position %s : echeance %s anterieure ou egale a l'achat du %s : position "
+                                 "laissee ouverte, a trancher" % (v, _fin, d_ent))
+                restantes.append(p)
+                continue
+        else:
+            h = HORIZON_AUCUNE
+        vente = mod.vendre(serie, j, {"objectif": tp, "stop": sl, "horizon": h}, "garder")
+        if vente is None:
             restantes.append(p)
             continue
+        px, motif, d_sortie = vente["px"], vente["motif"], vente["date_sortie"]
 
-        # LE PRIX DE CONVENTION : le seuil theorique, jamais le prix vecu.
-        # Hors saut d'ouverture les deux sont identiques ; sur un saut ils
-        # different, et c'est ce qui permet de comparer une operation vecue a
-        # un backtest sans confondre les deux — deux prix sont écrits, le réel et celui de convention (R-602).
-        prix_conv = sl if motif.startswith("SL") else (
-            tp if motif.startswith("TP") else px)
+        # LE PRIX DE CONVENTION : le seuil theorique, jamais le prix vecu (R-602), calcule a UN endroit,
+        # `MODULE_POSITIONS.prix_de_convention` (plan V7, bloc 4, 11-11-2026) ; le radar garde son recalcul
+        # independant (BACKLOG A-208 ⑤).
+        prix_conv = mod.prix_de_convention(motif, px, tp, sl)
 
         # LES FRAIS VIENNENT DU MODULE. On ne recopie jamais un taux.
         # LE CAPITAL VIENT DU MODULE. Il y porte le nom `CAPITAL`. L'ecrire
@@ -1390,8 +1411,10 @@ def entrer(positions, cours, mod, horizon_seances=20, cle=None,
                 "Le programme n'INVENTE pas de seuils — il attend qu'on les "
                 "lui donne." % strat)
             continue
-        tp = pe * (1.0 + r_["tp"])
-        sl = pe * (1.0 - r_["sl"])
+        # LES DEUX SEUILS SE POSENT A UN SEUL ENDROIT, `MODULE_POSITIONS.seuils_de_vente` (plan V7, bloc 4,
+        # 11-11-2026 ; R-708) : le juge et le radar les posent par la meme fonction, arrondis a cinq decimales
+        # (decision de Jean-Luc du 07-11-2026 a 15h49, n°311). L'ecriture « %.5f » ci-dessous ne change donc rien.
+        tp, sl = mod.seuils_de_vente(pe, r_["tp"], r_["sl"])
 
         # l'échéance se compte en SÉANCES DE BOURSE, jamais en jours calendaires,
         # sur une serie TRIEE : c'est `echeance` qui trie et qui compte.
@@ -1399,7 +1422,8 @@ def entrer(positions, cours, mod, horizon_seances=20, cle=None,
         # L ECHEANCE : h seances APRES la seance d achat, et seulement si elle
         # existe deja — le soir de l achat, elle n existe jamais (defaut 2,
         # 27-09-2026 : elle tombait sur la seance d achat elle-meme).
-        fin = echeance(s, bar["date"], horizon_de(p, reglages, horizon_seances)) or INCONNU
+        _h = horizon_de(p, reglages, horizon_seances)
+        fin = MOT_DE_L_HORIZON_AUCUNE if _h is HORIZON_AUCUNE else (echeance(s, bar["date"], _h) or INCONNU)
 
         p["prix_entree"] = "%.5f" % pe
         p["tp"] = "%.5f" % tp
@@ -2640,7 +2664,8 @@ def horizons_illisibles(lignes):
     ⑪ TERMINAISON — Rend toujours la main.
       [sort: non]
     """
-    return [l.get("id", "?") for l in lignes if lire_horizon(l.get("horizon", "")) is None]
+    # « aucune » n'est pas illisible depuis le 11-11-2026 (plan V7, bloc 4) : le soir le tient.
+    return [l.get("id", "?") for l in lignes if lire_horizon_ou_aucune(l.get("horizon", "")) is None]
 
 
 def _lire_csv(chemin):
@@ -2899,8 +2924,19 @@ def tenir_pour_de_vrai(base):
     _registre = os.path.join(base, REGISTRE_DES_STRATEGIES)
     _fiches = list(fiches_du_registre(_registre).values()) if os.path.isfile(_registre) else []
     strategies = []
+    _mnemo_du_juge = None
     for ligne in _fiches:
         if "VIVANTE" in (ligne.get("statut") or "") and (ligne.get("univers") or "").strip():
+            # UNE FICHE QUE LE JUGE REFUSE NE RECOIT PLUS DE SIGNAL (BACKLOG A-706 ④, 10-11-2026 ; plan V7, bloc 4,
+            # 11-11-2026) : on le dit, et la tenue des positions continue.
+            # LE CRITÈRE VIT DANS LE JUGE (`fiche_suivie`), le même que celui du détecteur, référentiel compris (RELU
+            # Cowork ab8fc49f, LC-1) : `refus_du_juge`, qui ne rejouait que la porte et le signal, est retirée.
+            if _mnemo_du_juge is None:
+                _mnemo_du_juge = juge.table_mnemoniques(juge.trouver(base, "REFERENTIEL_VALEURS"))
+            _refus = juge.fiche_suivie(base, ligne, _mnemo_du_juge)[2]
+            if _refus:
+                print(f"  ⛔ FICHE {ligne['id']} REFUSEE PAR LE JUGE — aucun signal ne lui est attribue : {_refus}")
+                continue
             strategies.append((ligne["id"], {m.strip().upper()
                                              for m in ligne["univers"].split(",") if m.strip()}))
     mnemo = {}
@@ -2998,9 +3034,14 @@ def tenir_pour_de_vrai(base):
     lignes_v = [l for l in _fiches          # les fiches lues plus haut, la dernière ligne faisant foi (n°83)
                 if "VIVANTE" in (l.get("statut") or "")]
     illisibles = horizons_illisibles(lignes_v)
+    # AUCUNE FICHE VIVANTE N'EST PAS UNE PANNE (message du Chat du 11-11-2026 a 02h35, mesure de l'agent C ; BACKLOG
+    # A-706) : une fermeture de strategie est une decision de Jean-Luc. Avant, le teneur rendait 1 ici, et les
+    # positions deja ouvertes n'etaient plus tenues (objectif, stop, echeance), le passage rougissait. Desormais il
+    # le DIT et continue : aucun signal n'est attribue (aucune strategie ne le recoit), les positions ouvertes se
+    # tiennent, code 0. L'alerte « aucune vivante » est portee par le detecteur (garde du soir, en orange).
     if not lignes_v:
-        print("  ❌ AUCUNE STRATEGIE VIVANTE au registre — rien a tenir.")
-        return 1
+        print("  ⚠️ AUCUNE STRATEGIE VIVANTE au registre — aucun signal n'est attribue ; "
+              "les positions deja ouvertes sont tenues.")
     if illisibles:
         print(f"  ❌ HORIZON ILLISIBLE pour : {', '.join(illisibles)}")
         print("     Un horizon absent ou mal ecrit n est PAS un 20 par defaut :")
@@ -3008,7 +3049,7 @@ def tenir_pour_de_vrai(base):
         return 1
     for l in lignes_v:
         print(f"  horizon lu au registre · {l['id']} : "
-              f"{lire_horizon(l['horizon'])} seances")
+              f"{lire_horizon_ou_aucune(l['horizon'])} seances")
 
     r = tenir(positions, cours, signaux, prochaine, mod, base=base, lecture=lecture, juge=juge)
 

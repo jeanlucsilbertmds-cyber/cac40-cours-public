@@ -22,6 +22,9 @@ est au-dessus du point mort, les trois fenêtres tiennent, et la stratégie bat 
 modes (action au hasard, dates au hasard). Quand la grille de B sera branchée, son verdict s'ajoute ici (à faire, voir
 echanges/A_RELIRE.md) ; le verdict provisoire reste comme second regard.
 
+DEPUIS LE 11-11-2026 (modification de l'agent A, par décision du Chat) : `juger` refuse une fiche « aucune » par la
+ValueError nommée `MOTIF_AUCUNE_NON_TRANCHEE` du juge, tant que Jean-Luc n'a pas tranché l'embargo ; ce refus-là, et lui
+seul (texte exact de la constante lue dans le juge), s'écrit « ATTENTE JL », ni vert ni rouge ; sabotage S12.
 LES CAS « AUCUNE » (A1, A2) ATTENDENT L'AGENT A. Une stratégie sans durée maximale (horizon « aucune », contrat du lot 0
 dans `programmes/COMMUN.py`) n'est pas jouable par le juge du 10-11-2026 : `lire_horizon` rend None et la vente lève
 TypeError. Tant que `AUCUNE_ACTIVE` vaut False, un REFUS du juge sur ces cas s'écrit « ATTENTE A », ni vert ni rouge,
@@ -109,6 +112,10 @@ SABOTAGES = {
         (JUGE, '"au-dessus du" if b["wr"] > pm else "sous le"', '"au-dessus du" if True else "sous le"'),
         (JUGE, '"encore au-dessus du point mort" if _bb > pm', '"encore au-dessus du point mort" if True'),
         (MODULE, 'f["tient"] = f["au_pire"] > point_mort_pct', 'f["tient"] = True')],
+    # S12 (agent A, 11-11-2026, par décision du Chat) : le juge refuse « aucune » par un AUTRE motif que la constante
+    # nommée ; l'attente ne doit pas l'absorber : A1 et A2 rougissent.
+    "S12_refus_d_aucune_par_un_autre_motif": [(JUGE, "        raise ValueError(MOTIF_AUCUNE_NON_TRANCHEE)",
+                                               '        raise ValueError("horizon aucune refuse")')],
 }
 
 
@@ -430,6 +437,14 @@ def cas(copie, racine):
                 res.append(("%s · %s" % (nom, lib), "VERT" if ok else "ROUGE", "%d op ; %s" % (len(ops), det)))
         except Exception as ex:
             etat = "ATTENTE A" if horizon == "aucune" and not aucune_active and refus_attendu(ex) else "ROUGE"
+            # LE REFUS NOMMÉ DU JUGE (11-11-2026, par décision du Chat) : `juger` refuse une fiche « aucune » tant que
+            # Jean-Luc n'a pas tranché l'embargo. Seule CETTE ValueError, au texte EXACT de la constante lue dans le
+            # juge (jamais recopiée), est une attente ; toute autre erreur reste ROUGE.
+            motif_jl = getattr(JU, "MOTIF_AUCUNE_NON_TRANCHEE", None)
+            if horizon == "aucune" and motif_jl and type(ex) is ValueError and str(ex) == motif_jl:
+                etat = "ATTENTE JL"
+                res.append((nom, etat, "en attente : décision de Jean-Luc sur l'embargo de « aucune » (%s)" % str(ex)[:80]))
+                continue
             res.append((nom, etat, "le juge refuse : %s: %s" % (type(ex).__name__, str(ex)[:160])))
     return res
 
@@ -474,8 +489,8 @@ def main():
             return 2
         for nom, e, det in r:
             print("  %-9s %s — %s" % (e, nom, det))
-        print("  %d vert(s), %d rouge(s), %d en attente de l'agent A" % tuple(
-            sum(1 for _, e, _ in r if e == x) for x in ("VERT", "ROUGE", "ATTENTE A")))
+        print("  %d vert(s), %d rouge(s), %d en attente de l'agent A, %d en attente de Jean-Luc" % tuple(
+            sum(1 for _, e, _ in r if e == x) for x in ("VERT", "ROUGE", "ATTENTE A", "ATTENTE JL")))
         return 0 if all(e != "ROUGE" for _, e, _ in r) else 1
     if len(sys.argv) < 2:
         print(__doc__.split("\n\n")[0])

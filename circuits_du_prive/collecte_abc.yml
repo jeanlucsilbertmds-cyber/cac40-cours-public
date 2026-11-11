@@ -461,6 +461,37 @@ jobs:
           echo "::error::DES LIGNES DE COURS ONT ETE MISES A PART CE SOIR — lire rapports/ALERTE_LIGNES_MISES_A_PART.md (decision de Jean-Luc : corriger ou retirer la ligne dans donnees/claude_cours_nouveaux.csv)"
           exit 1
 
+      - name: Rougir si la garde du soir a mordu
+        id: rougir_si_la_garde_du_soir_a_mordu
+        # A-706 (superviseur R-759 du 10-11-2026 sur le defaut C9-1) : quand le detecteur ne suit aucune fiche du
+        # registre, il publie la seance SANS SIGNAL, avec le champ garde_du_soir, sort en 0 et dit garde=<verdict>.
+        # La tenue des positions, le cockpit, la publication et la mesure tournent donc comme un soir ordinaire. Ce pas
+        # de fin, copie sur « Rougir si des lignes de cours ont ete mises a part », dit la garde : ROUGE pour
+        # refus_total (des strategies VIVANTES toutes refusees par le juge : leurs signaux du soir sont perdus pour
+        # toujours) et signaux_multiples (et pour tout verdict inconnu ici) ; seulement un AVERTISSEMENT pour
+        # aucune_vivante (une fermeture voulue par Jean-Luc au registre : un rouge chaque soir apprendrait a ignorer
+        # le rouge). Place apres tout pas sans always(), comme son modele.
+        # LA TENUE DES POSITIONS SE LIT, ELLE NE SE SUPPOSE PAS (C11-1, RELU Cowork afcdb05c du 11-11-2026) : ce pas
+        # ne dit « tenues » que si le pas « Tenir les positions » a l issue success ; sinon il dit « NON TENUES » et
+        # ROUGIT, meme pour aucune_vivante. Cas rejoue par Cowork : registre FERMEE, teneur a 1, et ce pas disait
+        # « les positions ont ete tenues ».
+        if: always() && steps.detecter_les_signaux_du_jour_le_calcul.outputs.garde != ''
+        env:
+          GARDE: ${{ steps.detecter_les_signaux_du_jour_le_calcul.outputs.garde }}
+          TENUE: ${{ steps.tenir_les_positions.outcome }}
+        run: |
+          if [ "$TENUE" = "success" ]; then
+            POSITIONS="les positions ont ete tenues"
+          else
+            POSITIONS="positions NON TENUES — le teneur a echoue (issue du pas : ${TENUE:-inconnue})"
+          fi
+          if [ "$GARDE" = "aucune_vivante" ] && [ "$TENUE" = "success" ]; then
+            echo "::warning::GARDE DU SOIR « aucune_vivante » — aucune strategie VIVANTE au registre, aucun signal calcule ce soir ; $POSITIONS — lire donnees/signaux_du_jour.json, champ garde_du_soir"
+          else
+            echo "::error::GARDE DU SOIR « $GARDE » — aucun signal calcule ce soir ; $POSITIONS — lire donnees/signaux_du_jour.json, champ garde_du_soir (decision de Jean-Luc : registre des strategies)"
+            exit 1
+          fi
+
       - name: Dire quels pas non bloquants sont tombes
         id: dire_quels_pas_non_bloquants_sont_tomb
         # DEFAUT NOMME PAR JEAN-LUC LE 16-09-2026 : « ces etapes peuvent tomber

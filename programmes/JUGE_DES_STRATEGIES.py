@@ -330,6 +330,9 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from COMMUN import lire_horizon       # la seule lecture d'un horizon (R-708, défaut 4 de A-491)
+# la lecture qui accepte « aucune » (contrat du lot 0, 09-11-2026) : porte_0, lecture_de_jeu, jouer, juger depuis le
+# 11-11-2026 (plan V7, bloc 4) — une stratégie sans durée maximale se juge
+from COMMUN import lire_horizon_ou_aucune, HORIZON_AUCUNE
 
 VERSION = "generique-1.6"
 PARIS = ZoneInfo("Europe/Paris")
@@ -2161,7 +2164,9 @@ def porte_0(fiche):
                 manq.append(str(_e_seuil))
     # L'HORIZON SE LIT PAR LA MEME FONCTION QUE LE PROGRAMME DU SOIR (defaut 4 de
     # A-491, 28-09-2026) : l'ancienne lecture refusait « 20j » et acceptait « 0 ».
-    if "horizon" not in manq and lire_horizon(fiche.get("horizon")) is None:
+    # DEPUIS LE 11-11-2026 (plan V7, bloc 4), « aucune » (aucune durée maximale) est lisible : la vente unique
+    # (`MODULE_POSITIONS.vendre`) et le programme du soir la traitent.
+    if "horizon" not in manq and lire_horizon_ou_aucune(fiche.get("horizon")) is None:
         manq.append("horizon illisible")
     # LA PORTE REND LES BORNES QU'ELLE VIENT DE VALIDER. Sans cela, main()
     # redecoupait le champ a la main alors que la porte venait de le lire
@@ -2204,6 +2209,49 @@ def mnemoniques_de_l_univers(texte):
       [sort: non]
     """
     return [x.strip().upper() for x in texte.split(",") if x.strip()]
+
+
+def fiche_suivie(racine, fiche, mnemo):
+    """Dit si le soir peut suivre une fiche : le signal et les valeurs qu'elle déclare, ou le motif de son refus.
+
+    ① RÔLE — LE seul critère de la garde du soir (« une fiche que le juge refuse ne reçoit pas de signal »), pour le
+      détecteur ET pour le teneur des positions.
+    ② CONTEXTE D'APPEL — `programmes/DETECTER_LES_SIGNAUX_GITHUB.py`, `fiches_du_soir` (quelles fiches donnent leur
+      signal et leur univers) ; `programmes/TENIR_LES_POSITIONS.py`, `tenir_pour_de_vrai` (quelles fiches reçoivent
+      les signaux du jour). Les deux l'appellent pour chaque fiche VIVANTE à univers non vide.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `fiche` : la ligne du registre des stratégies (la dernière d'un
+      identifiant) · `mnemo` : la table du référentiel des valeurs, mnémonique → clé de valeur (`table_mnemoniques`).
+    ④ CONDITIONS D'ENTRÉE — La fiche porte `univers`.
+    ⑤ SORTIE — TROIS valeurs : le signal (`SignalNomme`), la liste des clés de valeurs de l'univers, None — si la
+      fiche est suivie ; sinon None, None, et le motif du refus (texte).
+      [rend: 3]
+    ⑥ TRAITEMENT — ① `porte_0` : refus avec ses motifs · ② `signal_de_la_fiche` : refus si elle lève ValueError ·
+      ③ chaque mnémonique de l'univers doit être au référentiel, sinon la fiche ENTIÈRE est refusée, mnémonique(s)
+      nommé(s).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le critère était écrit deux fois (détecteur de C, `refus_du_juge` du teneur de A) et divergeait :
+      RELU Cowork ab8fc49f du 11-11-2026, LC-1 — avec un univers « TTE,ZZZ », le détecteur disait la fiche « PAS
+      suivie » et le teneur lui ouvrait quand même des positions sur TOTALENERGIES (A-706 ④ non tenu). Deux
+      implémentations d'une même chose divergent toujours (R-708). Elle vit DANS LE JUGE, pas au contrat : elle
+      rejoue la porte et la lecture du signal du juge, et le contrat ne porte que des déclarations de champs.
+    ⑨ CE QUI CLOCHE — Une autre exception que ValueError, levée par le module de signal, n'est pas un refus : elle
+      remonte (une vraie panne, pas une fiche mal écrite), et arrête l'appelant.
+    ⑩ EFFET — `signal_de_la_fiche` charge (exécute) le module de signal de la fiche.
+    ⑪ TERMINAISON — Rend la main, ou lève ce que lève le module de signal (hors ValueError).
+      [sort: non]
+    """
+    porte = porte_0(fiche)
+    if not porte[0]:
+        return None, None, "porte du juge : " + " ; ".join(map(str, porte[1]))
+    try:
+        sig = signal_de_la_fiche(racine, fiche)
+    except ValueError as e:
+        return None, None, str(e)
+    codes = mnemoniques_de_l_univers(fiche["univers"])
+    inconnus = [c for c in codes if c not in mnemo]
+    if inconnus:
+        return None, None, "mnémonique(s) absent(s) du référentiel : " + ", ".join(inconnus)
+    return sig, [mnemo[c] for c in codes], None
 
 
 def cle_d_entree(texte):
@@ -2423,7 +2471,7 @@ def lecture_de_jeu(fiche, lire_module):
     forme, emp = forme_du_module(fiche, lire_module)
     return ("JOUABLE",
             seuil_de_la_fiche(fiche, "tp"), seuil_de_la_fiche(fiche, "sl"),
-            lire_horizon(fiche["horizon"]),
+            lire_horizon_ou_aucune(fiche["horizon"]),
             frozenset(mnemoniques_de_l_univers(fiche["univers"])),
             ENTREES_JOUABLES[cle_d_entree(fiche["entree"].strip())],
             forme, emp, fonction,
@@ -2650,7 +2698,8 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       nom d'un barème de frais, None pour le barème réel (A-550, voir `jouer_une_entree`).
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0 : l'objectif de
       gain, la perte acceptée et l'horizon doivent être lisibles, faute de quoi la
-      fonction lève. `mod_signal` doit être un `SignalNomme` — un module, ou une
+      fonction lève (un horizon illisible : ValueError depuis le 11-11-2026 ; « aucune »
+      est lisible, par `lire_horizon_ou_aucune`). `mod_signal` doit être un `SignalNomme` — un module, ou une
       fonction prise ailleurs, est refusé par TypeError — et le module de positions
       doit exposer `vendre` et `frais_aller_retour` (depuis le 07-11-2026, lot ①a de J1 ; avant : `tester_seance`).
     ⑤ SORTIE — DEUX valeurs : la liste des opérations, et la liste des valeurs
@@ -2802,7 +2851,12 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
         raise ValueError("fiche %s non jouable : %s" % (fiche.get("id") or "(sans identifiant)", " ; ".join(_non_jouable)))
     tp = seuil_de_la_fiche(fiche, "tp")
     sl = seuil_de_la_fiche(fiche, "sl")
-    h = lire_horizon(fiche["horizon"])
+    # L'HORIZON : un entier de séances, ou « aucune » (HORIZON_AUCUNE, plan V7 bloc 4, 11-11-2026). Illisible, la
+    # fiche est refusée ici, avec son motif, au lieu de tomber plus loin dans la vente.
+    h = lire_horizon_ou_aucune(fiche["horizon"])
+    if h is None:
+        raise ValueError("fiche %s non jouable : horizon illisible %r" % (fiche.get("id") or "(sans identifiant)",
+                                                                       fiche.get("horizon")))
 
     demandes = mnemoniques_de_l_univers(fiche["univers"])
     univers, inconnus = [], []
@@ -2890,7 +2944,9 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
     ② CONTEXTE D'APPEL — `jouer`, à chaque signal retenu ; l'étalon de hasard (`MODULE_JUGEMENT.etalon_hasard`),
       par la fonction que `juger` lui passe, à chaque achat tiré au sort.
     ③ ENTRÉE — `v` : la valeur · `serie` : sa série entière · `j` : le rang de la séance d'achat · `tp`, `sl` : les
-      seuils en FRACTIONS · `h` : l'horizon en séances · `mod_positions` : le module des positions (`vendre`,
+      seuils en FRACTIONS · `h` : l'horizon en séances, ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale, depuis le
+      11-11-2026, plan V7 bloc 4 : `vendre` ne vend alors que sur l'objectif, le stop ou la fin des données) ·
+      `mod_positions` : le module des positions (`vendre`,
       `frais_aller_retour`) · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None · `bareme` : le nom d'un barème
       de `donnees/BAREME_FRAIS.csv`, None pour le barème des trades vécus (« REEL ») ; un autre nom rejoue un chiffre
       ancien sous le régime qui l'a produit (A-550).
@@ -2953,6 +3009,51 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
                            "le juge des stratégies ne recopie pas un taux de frais")
     return {"pe": pe, "px": px, "motif": motif, "net": q * (px - pe) - f_tot, "date_sortie": d_sortie,
             "frais": f_tot, "date_entree": serie[j]["date"]}
+
+
+# LE REFUS NOMMÉ D'UNE FICHE « AUCUNE » PAR `juger`, tant que Jean-Luc n'a pas tranché l'embargo (plan V7, bloc 4 ;
+# message du Chat du 11-11-2026, après le relecteur neuf et le superviseur R-759 du même jour).
+MOTIF_AUCUNE_NON_TRANCHEE = (
+    "NON JUGEABLE — horizon « aucune » : l'embargo de la coupure 70/30 et des fenêtres n'est pas tranché (plafond ; "
+    "plus longue détention ou quantile) ; décision de Jean-Luc attendue — la fiche se JOUE (`jouer`), elle ne se JUGE pas")
+
+
+def duree_d_embargo_sans_horizon(ops, seances, frontiere):
+    """Rend la plus longue détention, en séances, des opérations d'APPRENTISSAGE d'une stratégie sans durée maximale.
+
+    ① RÔLE — Donner un nombre de séances à l'embargo de la coupure 70/30 quand la fiche n'a AUCUNE durée maximale.
+      PROPOSITION de l'agent A, non tranchée ; `juger` ne l'emploie pas tant que Jean-Luc n'a pas décidé.
+    ② CONTEXTE D'APPEL — L'épreuve de la vente unique (V12) ; aucun programme du circuit au 11-11-2026.
+    ③ ENTRÉE — `ops` : les opérations jouées (`date_signal`, `date_entree`, `date_sortie`, `motif`) · `seances` : les
+      séances de bourse, dates AAAA-MM-JJ · `frontiere` : la date de la frontière 70/30, celle que rend
+      `MODULE_JUGEMENT.coupure_70_30` (qui la calcule sans dépendre de l'embargo).
+    ④ CONDITIONS D'ENTRÉE — Les opérations d'une fiche « aucune » : chez elles, un motif `HORIZON` ne peut venir que de
+      la FIN DES DONNÉES (`vendre`).
+    ⑤ SORTIE — UNE valeur : un entier >= 1, le plus grand nombre de séances entre l'achat (exclu) et la vente (incluse)
+      parmi les opérations signalées au plus tard à la frontière et vendues sur un seuil ; 1 s'il n'y en a aucune.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① écarter les opérations signalées après la frontière (les 30 % jamais vus) · ② écarter les ventes
+      `HORIZON` (fin des données) · ③ compter les séances de chacune, garder le maximum, au moins 1.
+    ⑦ UNITÉ — Des SÉANCES de bourse.
+    ⑧ POURQUOI — Mesurer l'embargo sur les opérations des 30 % ferait dépendre la coupure des données de test (une
+      fuite) ; une vente forcée par la fin des données n'est pas une durée de la stratégie : le relecteur neuf du
+      11-11-2026 a montré qu'une seule opération gardée jusqu'à la fin donnait un embargo de 698 séances et vidait la
+      partie 70 % (n_70 = 0). Le plancher de 21 séances reste celui de `coupure_70_30`.
+    ⑨ CE QUI CLOCHE — Aucun plafond : une stratégie qui tient une position d'apprentissage très longtemps reçoit un
+      très long embargo. Le plafond, et le choix maximum ou quantile, reviennent à Jean-Luc.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève KeyError si une opération n'a pas ses dates ou son motif.
+      [sort: non]
+    """
+    import bisect
+    cal = sorted(seances)
+    plus_longue = 1
+    for o in ops:
+        if o["date_signal"] > frontiere or o["motif"] == "HORIZON":
+            continue
+        n = bisect.bisect_right(cal, o["date_sortie"]) - bisect.bisect_right(cal, o["date_entree"])
+        plus_longue = max(plus_longue, n)
+    return plus_longue
 
 
 def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
@@ -3145,12 +3246,23 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
     mnemo = mnemo or {}
     tp = seuil_de_la_fiche(fiche, "tp")
     sl = seuil_de_la_fiche(fiche, "sl")
-    h = lire_horizon(fiche["horizon"])
+    h = lire_horizon_ou_aucune(fiche["horizon"])
+    # UN HORIZON ILLISIBLE N'OBTIENT PAS DE VERDICT (relecteur neuf du 11-11-2026, tour 2, N2) : `jouer` le refuse
+    # déjà ; sans ce refus, `juger` le changeait en un embargo de 21 séances (« "" », None, 0, « 0 », « aucun »…).
+    if h is None:
+        raise ValueError("fiche %s non jugeable : horizon illisible %r" % (fiche.get("id") or "(sans identifiant)",
+                                                                         fiche.get("horizon")))
     n = len(ops)
     if n < 5:
         print("    JUGEMENT : trop peu d'operations pour juger")
         return
     wr = round(100.0 * sum(1 for o in ops if o["net"] > 0) / n, 1)
+
+    # SANS DURÉE MAXIMALE (« aucune », plan V7 bloc 4, 11-11-2026) : l'embargo n'est pas tranché par Jean-Luc ; le
+    # juge REFUSE de juger, avec un motif nommé, plutôt que de juger sur un embargo choisi par le code.
+    if h is HORIZON_AUCUNE:
+        raise ValueError(MOTIF_AUCUNE_NON_TRANCHEE)
+    _h_emb = h
 
     # LE POINT MORT DEPEND DES FRAIS, DONC DE LA VALEUR ET DE LA DATE (A-550, 29-10-2026) : la
     # taxe sur les transactions financieres frappe l'achat des valeurs taxees. DECISION DE
@@ -3207,7 +3319,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
         _sea = seances
         if _bornes:
             _sea = {d for d in seances if _bornes[0] <= d <= _bornes[1]}
-        c = J.coupure_70_30(ops, _sea, horizon=h)
+        c = J.coupure_70_30(ops, _sea, horizon=_h_emb)
         a, b = c["res_70"], c["res_30"]
         print("    COUPURE 70/30        frontiere {} . embargo {} seances"
               .format(c["frontiere"], c["embargo_seances"]))
@@ -3236,7 +3348,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
     # sur la fin ? » ; trois fenetres disent « tient-elle A CHAQUE FOIS ? ».
     try:
         fg = J.fenetres_glissantes(ops, _sea if _bornes else seances, n=3,
-                                   horizon=h, point_mort_pct=pm)
+                                   horizon=_h_emb, point_mort_pct=pm)
         if fg.get("fenetres"):
             print("    TROIS FENETRES       embargo {} seances"
                   .format(fg["embargo_seances"]))
@@ -3384,13 +3496,14 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
             f2 = dict(fiche)
             f2["tp"] = str(p["tp"])
             f2["sl"] = str(p["sl"])
-            f2["horizon"] = str(int(round(p["horizon"])))
+            # « aucune » ne varie pas : le voisinage ne bouge alors que l'objectif et la perte acceptée.
+            f2["horizon"] = str(int(round(p["horizon"]))) if "horizon" in p else fiche["horizon"]
             o2, _ = jouer(f2, cours, mnemo, mod_pos_sig[0], mod_pos,
                           periode=_bornes, lecture=lecture)
             r2 = resumer(o2)
             return {"net": r2.get("net", 0.0), "wr": r2.get("wr", 0.0)}
         st = S.calculer_stabilite_parametrique(
-            _rejouer, {"tp": tp, "sl": sl, "horizon": float(h)},
+            _rejouer, ({"tp": tp, "sl": sl} if h is HORIZON_AUCUNE else {"tp": tp, "sl": sl, "horizon": float(h)}),
             pourcentage=0.10, n_variations=5)
         print("    VOISINAGE            gain de {:+,.0f} a {:+,.0f} EUR "
               "(ecart {:.0f} %)"

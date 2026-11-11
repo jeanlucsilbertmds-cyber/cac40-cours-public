@@ -39,6 +39,7 @@ valeurs à chaque passage, et chacun doit la faire rougir.
   T0 (cas réel, R-732) : la table de la racine dit, pour HL et Yahoo, l'épreuve, les machines et le lot du circuit
   en service avant le 08-11-2026 (series_longues.yml publié : entrées parts_hl 18, lot_hl 6, parts_yahoo 2,
   lot_yahoo 21 ; motifs "HISTORIQUE_LONG" et "COURS_PROPRE_DE_YAHOO" du pas matrice) — le TÉMOIN ci-dessous.
+  Depuis le 11-11-2026 (plan V7, bloc 2bis), T0 ne compare que les séries du témoin : la table en porte d'autres.
   V (demandes valides) : V1 la demande réelle prévue au premier passage (méthode §4, action 7 : Yahoo, 2 machines,
   lots de 21) sur main · V2 « toutes », quatre nombres tous différents entre eux et des valeurs de la table, sur une
   version en attente · V3 HL seul, sans nombre (valeurs de la table), avec une ligne vide, un commentaire et sans fin
@@ -346,8 +347,10 @@ def tour(racine):
             s = e.get("serie_du_circuit")
             if isinstance(s, dict):
                 ref[s.get("code")] = (epreuve, s.get("machines"), s.get("lot"), e.get("releve"))
-        # T0 : le cas réel
-        if {c: v[:3] for c, v in ref.items()} != TEMOIN:
+        # T0 : le cas réel — HL et Yahoo seulement : la table peut porter d'autres séries (bloc 2bis du plan V7,
+        # 11-11-2026, agent E : séries Boucle et Signaux ajoutées), le témoin ne dit que ce que jouait le circuit
+        # en service avant le 08-11-2026 ; une série du témoin disparue de la table reste un écart
+        if {c: v[:3] for c, v in ref.items() if c in TEMOIN} != TEMOIN:
             faux.append(f"T0 la table ne dit plus ce que jouait le circuit en service : {ref}")
         entrees = entrees_declarees(F.SERIES)
         outils = os.path.join(d, "outils")

@@ -389,6 +389,25 @@ jobs:
           echo "::error::DES LIGNES DE COURS ONT ETE MISES A PART CE SOIR — lire rapports/ALERTE_LIGNES_MISES_A_PART.md (decision de Jean-Luc : corriger ou retirer la ligne dans donnees/claude_cours_nouveaux.csv)"
           exit 1
 
+      - name: Rougir si la garde du soir a mordu
+        id: rougir_si_la_garde_du_soir_a_mordu
+        if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (always() && steps.detecter_les_signaux_du_jour_le_calcul.outputs.garde != '') }}
+        env:
+          GARDE: ${{ steps.detecter_les_signaux_du_jour_le_calcul.outputs.garde }}
+          TENUE: ${{ steps.tenir_les_positions.outcome }}
+        run: |
+          if [ "$TENUE" = "success" ]; then
+            POSITIONS="les positions ont ete tenues"
+          else
+            POSITIONS="positions NON TENUES — le teneur a echoue (issue du pas : ${TENUE:-inconnue})"
+          fi
+          if [ "$GARDE" = "aucune_vivante" ] && [ "$TENUE" = "success" ]; then
+            echo "::warning::GARDE DU SOIR « aucune_vivante » — aucune strategie VIVANTE au registre, aucun signal calcule ce soir ; $POSITIONS — lire donnees/signaux_du_jour.json, champ garde_du_soir"
+          else
+            echo "::error::GARDE DU SOIR « $GARDE » — aucun signal calcule ce soir ; $POSITIONS — lire donnees/signaux_du_jour.json, champ garde_du_soir (decision de Jean-Luc : registre des strategies)"
+            exit 1
+          fi
+
       - name: Dire quels pas non bloquants sont tombes
         id: dire_quels_pas_non_bloquants_sont_tomb
         if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (always()) }}

@@ -73,6 +73,10 @@ jobs:
           LOT_YAHOO=21
           PARTS_HL=18
           LOT_HL=6
+          PARTS_BOUCLE=3
+          LOT_BOUCLE=6
+          PARTS_SIGNAUX=2
+          LOT_SIGNAUX=21
           while IFS= read -r ligne || [ -n "$ligne" ]; do
             [ -n "$ligne" ] && [[ "$ligne" != "#"* ]] || continue
             [[ "$ligne" =~ ^([a-z_]{1,20})=([A-Za-z0-9]{1,20})$ ]] || { echo "::error::DEMANDE REFUSEE : ligne illisible (cle=valeur, lettres et chiffres, sans espace) : ${ligne:0:80}"; exit 1; }
@@ -84,7 +88,7 @@ jobs:
               [[ "$valeur" =~ ^(series|examen)$ ]] || { echo "::error::DEMANDE REFUSEE : circuit inconnu : $valeur"; exit 1; }
               CIRCUIT="$valeur"
             elif [ "$cle" = "serie" ]; then
-              [[ "$valeur" =~ ^(toutes|Yahoo|HL)$ ]] || { echo "::error::DEMANDE REFUSEE : serie inconnue : $valeur"; exit 1; }
+              [[ "$valeur" =~ ^(toutes|Yahoo|HL|Boucle|Signaux)$ ]] || { echo "::error::DEMANDE REFUSEE : serie inconnue : $valeur"; exit 1; }
               SERIE="$valeur"
             elif [ "$cle" = "a_blanc" ]; then
               [[ "$valeur" =~ ^(oui|non)$ ]] || { echo "::error::DEMANDE REFUSEE : a_blanc vaut oui ou non : $valeur"; exit 1; }
@@ -101,6 +105,18 @@ jobs:
             elif [ "$cle" = "lot_hl" ]; then
               [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_hl de 1 a 99 : $valeur"; exit 1; }
               LOT_HL="$valeur"
+            elif [ "$cle" = "parts_boucle" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : parts_boucle de 1 a 99 : $valeur"; exit 1; }
+              PARTS_BOUCLE="$valeur"
+            elif [ "$cle" = "lot_boucle" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_boucle de 1 a 99 : $valeur"; exit 1; }
+              LOT_BOUCLE="$valeur"
+            elif [ "$cle" = "parts_signaux" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : parts_signaux de 1 a 99 : $valeur"; exit 1; }
+              PARTS_SIGNAUX="$valeur"
+            elif [ "$cle" = "lot_signaux" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_signaux de 1 a 99 : $valeur"; exit 1; }
+              LOT_SIGNAUX="$valeur"
             else
               echo "::error::DEMANDE REFUSEE : cle inconnue : $cle"
               exit 1
@@ -129,9 +145,17 @@ jobs:
             echo "::error::DEMANDE REFUSEE : elle regle la serie HL, qu'elle ne joue pas (serie $SERIE)"
             exit 1
           fi
+          if [[ "$vus" == *" parts_boucle "* || "$vus" == *" lot_boucle "* ]] && [ "$SERIE" != "toutes" ] && [ "$SERIE" != "Boucle" ]; then
+            echo "::error::DEMANDE REFUSEE : elle regle la serie Boucle, qu'elle ne joue pas (serie $SERIE)"
+            exit 1
+          fi
+          if [[ "$vus" == *" parts_signaux "* || "$vus" == *" lot_signaux "* ]] && [ "$SERIE" != "toutes" ] && [ "$SERIE" != "Signaux" ]; then
+            echo "::error::DEMANDE REFUSEE : elle regle la serie Signaux, qu'elle ne joue pas (serie $SERIE)"
+            exit 1
+          fi
           en_cours=$(gh run list --workflow "$FICHIER" --limit 100 --json status --jq '[.[] | select(.status != "completed")] | length') || { echo "::error::DEMANDE REFUSEE : passages de $FICHIER illisibles"; exit 1; }
           [ "$en_cours" = "0" ] || { echo "::error::DEMANDE REFUSEE : $en_cours passage(s) de $FICHIER en cours ou en attente ; redeposer la demande quand ils sont finis"; exit 1; }
-          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; serie $SERIE ; parts_yahoo $PARTS_YAHOO ; lot_yahoo $LOT_YAHOO ; parts_hl $PARTS_HL ; lot_hl $LOT_HL ; a blanc $A_BLANC"
+          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; serie $SERIE ; parts_yahoo $PARTS_YAHOO ; lot_yahoo $LOT_YAHOO ; parts_hl $PARTS_HL ; lot_hl $LOT_HL ; parts_boucle $PARTS_BOUCLE ; lot_boucle $LOT_BOUCLE ; parts_signaux $PARTS_SIGNAUX ; lot_signaux $LOT_SIGNAUX ; a blanc $A_BLANC"
           if [ "$A_BLANC" = "oui" ]; then
             echo "A BLANC : rien n'est lance"
             exit 0
@@ -141,5 +165,5 @@ jobs:
             echo "LANCE : $FICHIER sur $BRANCHE"
             exit 0
           fi
-          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "serie=$SERIE" -f "parts_yahoo=$PARTS_YAHOO" -f "lot_yahoo=$LOT_YAHOO" -f "parts_hl=$PARTS_HL" -f "lot_hl=$LOT_HL" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
+          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "serie=$SERIE" -f "parts_yahoo=$PARTS_YAHOO" -f "lot_yahoo=$LOT_YAHOO" -f "parts_hl=$PARTS_HL" -f "lot_hl=$LOT_HL" -f "parts_boucle=$PARTS_BOUCLE" -f "lot_boucle=$LOT_BOUCLE" -f "parts_signaux=$PARTS_SIGNAUX" -f "lot_signaux=$LOT_SIGNAUX" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
           echo "LANCE : $FICHIER sur $BRANCHE"

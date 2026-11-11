@@ -675,6 +675,12 @@ def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
       le plus bas ont été atteints ; choisir systématiquement le moins favorable
       fait des résultats un plancher plutôt qu'une promesse.
     ⑨ CE QUI CLOCHE —
+      ⓪ GARDÉE INDÉPENDANTE LE 11-11-2026 (plan V7, bloc 4) : un premier lot l'avait
+        branchée sur `MODULE_POSITIONS.vendre` ; retiré, parce que BACKLOG A-208 ⑤
+        (décision de Jean-Luc du 14-08-2026) dit « audit_ecosysteme.py garde son
+        recalcul indépendant : DOUBLON VOLONTAIRE, on n'y touche jamais », et que
+        l'accord n°351 ne porte que sur la vente du module des positions. Jean-Luc
+        tranchera : recalcul indépendant, ou radar vérificateur de propriétés.
       ① C'est une seconde implémentation de la mécanique de sortie, et elle
         diverge de la première. `MODULE_POSITIONS.sortie_position` teste quatre
         choses dans l'ordre, en commençant par l'OUVERTURE, ce qui attrape les

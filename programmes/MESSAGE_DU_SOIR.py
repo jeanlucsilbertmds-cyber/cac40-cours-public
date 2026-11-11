@@ -34,7 +34,9 @@
   lire le score, les ❌ et les ⚠️ · ② relire la version précédente du même rapport
   dans l'historique git, pour dire ce qui est nouveau · ③ lire les signaux et
   confronter leurs champs au contrat, et la séance à la séance attendue selon le
-  calendrier de la Bourse · ④ lire les positions ouvertes et les trades
+  calendrier de la Bourse ; dire la garde du soir si le fichier la porte (11-11-2026, A-706 ;
+  le mot « aucune_vivante », qui n'avertit qu'en ⚠️, est écrit aussi dans le détecteur et dans le
+  pas de fin du circuit : trois écritures, R-708) · ④ lire les positions ouvertes et les trades
   clos à la date de la séance, chacun compté une fois quelle que soit sa comptabilité
   · ④bis lire dans l'historique git le dernier dépôt du certificat de la version par
   son auteur `certification-publique`, et dire s'il est plus ancien que la nuit
@@ -480,7 +482,8 @@ def composer(racine):
       [rend: 2]
     ⑥ TRAITEMENT — ① date du rapport par `date_ecrite`, circuit passé ou non par
       `fabrique_du_jour`, score, alertes, et ce qui
-      est nouveau · ② signaux, confrontés au contrat · ③ positions et trades, confrontés
+      est nouveau · ② signaux, confrontés au contrat, et la garde du soir dite si le fichier la
+      porte (11-11-2026, A-706) · ③ positions et trades, confrontés
       au contrat et comptés une fois · ④bis certification de la nuit, par
       `juger_la_certification` · ④ bilan : ce qui alerte d'abord, l'alerte de la certification
       après celles du radar, coupé à 200 caractères · ⑤ détail.
@@ -533,7 +536,7 @@ def composer(racine):
     nouv_r = [x for x in rouges if cles_avant is not None and cle(x) not in cles_avant]
     nouv_o = [x for x in oranges if cles_avant is not None and cle(x) not in cles_avant]
     # ② les signaux
-    seance, signaux, manquantes, seance_d = None, [], [], None
+    seance, signaux, manquantes, seance_d, garde_dite = None, [], [], None, None
     try:
         s = json.load(open(os.path.join(racine, SIGNAUX), encoding="utf-8"))
         if not isinstance(s, dict) or not isinstance(s.get("signaux", []), list):
@@ -561,6 +564,22 @@ def composer(racine):
                     ec.append("signal sans « valeur »")
         if ec:
             illisibles.append(SIGNAUX + " (" + " ; ".join(ec) + ")")
+        # LA GARDE DU SOIR SE DIT (A-706, 11-11-2026) : un soir où le détecteur ne suit aucune fiche, il publie la
+        # séance avec « signaux » vide et « garde_du_soir » = {verdict, fiches}. Sans cette ligne, le message dirait
+        # un soir sans signal. « aucune_vivante » (fermeture voulue au registre) avertit ; tout autre verdict — refus
+        # du juge, signaux multiples, ou un verdict inconnu ici — alerte, comme le pas de fin du circuit.
+        garde = s.get("garde_du_soir")
+        if garde is not None:
+            if not (isinstance(garde, dict) and isinstance(garde.get("verdict"), str)
+                    and isinstance(garde.get("fiches"), list)):
+                illisibles.append(SIGNAUX + " (« garde_du_soir » illisible)")
+            else:
+                niveau = "avertissement" if garde["verdict"] == "aucune_vivante" else "ALERTE"
+                alertes.append(("⚠️" if niveau == "avertissement" else "🚨")
+                               + f" Garde du soir « {garde['verdict'][:40]} » : aucun signal calculé")
+                garde_dite = (f"Garde du soir : {garde['verdict'][:40]} ({niveau}) — aucun signal calculé ; "
+                              + (" ; ".join(f"{x.get('fiche', '?')} : {str(x.get('motif', '?'))[:90]}"
+                                            for x in garde["fiches"] if isinstance(x, dict)) or "aucune fiche dite"))
     except Exception as e:
         illisibles.append(f"{SIGNAUX} ({type(e).__name__})")
     # LA SÉANCE ATTENDUE vient du calendrier de la Bourse : un samedi ou un jour férié,
@@ -655,6 +674,8 @@ def composer(racine):
     detail.append(f"Séance lue : {jj(seance if seance_d else None)}" + (f" · valeurs sans cette séance : {', '.join(map(str, manquantes))}" if manquantes else ""))
     detail.append("Signal du jour : " + ("aucun" if not signaux else " ; ".join(
         f"{x.get('valeur', '?')} (clôture {x.get('close', '?')})" for x in signaux if isinstance(x, dict))))
+    if garde_dite:   # A-706 : les fiches et leurs motifs, en entier dans le détail — la bannière peut les couper
+        detail.append(garde_dite)
     detail.append(f"Positions ouvertes : {len(ouvertes)}" + ("" if not ouvertes else " — " + " ; ".join(
         f"{p.get('valeur', '?')} ({p.get('strategie', '?')} · {', '.join(cs)})" for p, cs in ouvertes)))
     detail.append(f"Trades clos ce soir : {len(clos)}" + ("" if not clos else " — " + " ; ".join(
