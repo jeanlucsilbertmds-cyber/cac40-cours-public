@@ -6,7 +6,7 @@
 # (réussite) ou à donnees/echecs_archivage_perpetuels.csv (échec, avec le détail que ce journal public tait) ;
 # ce circuit les dépose au dépôt privé. La plateforme efface au-delà des ~5 000 dernières heures (~208 jours) : un
 # passage par semaine suffit, et le radar du soir alerte si le journal a plus de 8 jours.
-# Journal public muet : le détail est dans le journal déposé au dépôt privé. Simulation uniquement.
+# Journal public muet : tout le détail va au dépôt privé, rapports/sortie_archivage_perpetuels.txt. Simulation uniquement.
 name: Archiver les perpetuels
 on:
   workflow_dispatch:
@@ -31,19 +31,23 @@ jobs:
       - name: Archiver
         id: archiver
         continue-on-error: true
-        run: python3 programmes/ARCHIVER_LES_PERPETUELS.py prive > /dev/null 2>&1
+        # Toute la sortie va au dépôt PRIVÉ, jamais au journal public (superviseur R-759 du 12-11-2026, tour 3) :
+        # elle porte le motif de TOUT échec, y compris en code 2 (contrats introuvables, fichier abîmé), où le
+        # programme n'écrit rien dans ses fichiers. Réécrite à chaque passage ; l'historique git garde les autres.
+        run: mkdir -p prive/rapports && python3 programmes/ARCHIVER_LES_PERPETUELS.py prive > prive/rapports/sortie_archivage_perpetuels.txt 2>&1
       - name: Deposer au depot prive
         if: always()
         run: |
           cd prive
           git config user.name "archivage-perpetuels"
           git config user.email "archivage-perpetuels@localhost"
-          # Les trois fichiers existent au dépôt privé depuis leur dépôt initial (A-733) : un `git add` qui en
+          # Les trois fichiers de données existent au dépôt privé depuis leur dépôt initial (A-733), la sortie est écrite
+          # par le pas précédent : un `git add` qui en
           # manque un échoue, et cet échec doit se voir (superviseur R-759 du 12-11-2026 : un `|| true` ici
           # cachait un dépôt qui n'ajoutait plus rien).
           git add donnees/perpetuels_hyperliquid_horaires.csv donnees/journal_archivage_perpetuels.csv \
-                  donnees/echecs_archivage_perpetuels.csv \
-            || { echo "::error::git add A ECHOUE — un des trois fichiers de l'archivage manque au depot prive"; exit 1; }
+                  donnees/echecs_archivage_perpetuels.csv rapports/sortie_archivage_perpetuels.txt \
+            || { echo "::error::git add A ECHOUE — un des fichiers de l'archivage manque au depot prive"; exit 1; }
           git commit -q -m "archivage des perpétuels Hyperliquid [skip ci]" || exit 0
           for i in 1 2 3; do git pull -q --rebase && git push -q && exit 0; sleep 10; done
           exit 1
