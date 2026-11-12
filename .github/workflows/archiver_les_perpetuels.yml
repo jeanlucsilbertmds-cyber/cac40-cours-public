@@ -1,0 +1,52 @@
+# ARCHIVER LES PERPÉTUELS — circuit SÉPARÉ du circuit du soir (A-733, décision de Jean-Luc du 12-11-2026 à 19h01).
+# Pourquoi séparé : une panne de Hyperliquid ne doit jamais arrêter la collecte des cours.
+# Ce qu'il fait : chaque lundi matin, lance la copie PUBLIQUE de programmes/ARCHIVER_LES_PERPETUELS.py sur un clone
+# du dépôt privé ; le programme ajoute les bougies horaires closes de 17 contrats perpétuels (indices et grandes actions
+# américaines) à donnees/perpetuels_hyperliquid_horaires.csv, et une ligne à donnees/journal_archivage_perpetuels.csv
+# (réussite) ou à donnees/echecs_archivage_perpetuels.csv (échec, avec le détail que ce journal public tait) ;
+# ce circuit les dépose au dépôt privé. La plateforme efface au-delà des ~5 000 dernières heures (~208 jours) : un
+# passage par semaine suffit, et le radar du soir alerte si le journal a plus de 8 jours.
+# Journal public muet : le détail est dans le journal déposé au dépôt privé. Simulation uniquement.
+name: Archiver les perpetuels
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"     # lundi 6h17 l'hiver · 7h17 l'été (Paris) : avant l'ouverture, week-end compris
+permissions:
+  contents: read
+concurrency:
+  group: archiver-perpetuels
+  cancel-in-progress: false
+jobs:
+  archiver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
+          token: ${{ secrets.JETON_DEPOTS }}
+          path: prive
+      - name: Archiver
+        id: archiver
+        continue-on-error: true
+        run: python3 programmes/ARCHIVER_LES_PERPETUELS.py prive > /dev/null 2>&1
+      - name: Deposer au depot prive
+        if: always()
+        run: |
+          cd prive
+          git config user.name "archivage-perpetuels"
+          git config user.email "archivage-perpetuels@localhost"
+          # Les trois fichiers existent au dépôt privé depuis leur dépôt initial (A-733) : un `git add` qui en
+          # manque un échoue, et cet échec doit se voir (superviseur R-759 du 12-11-2026 : un `|| true` ici
+          # cachait un dépôt qui n'ajoutait plus rien).
+          git add donnees/perpetuels_hyperliquid_horaires.csv donnees/journal_archivage_perpetuels.csv \
+                  donnees/echecs_archivage_perpetuels.csv \
+            || { echo "::error::git add A ECHOUE — un des trois fichiers de l'archivage manque au depot prive"; exit 1; }
+          git commit -q -m "archivage des perpétuels Hyperliquid [skip ci]" || exit 0
+          for i in 1 2 3; do git pull -q --rebase && git push -q && exit 0; sleep 10; done
+          exit 1
+      - name: Rougir si l'archivage n'est pas complet
+        if: steps.archiver.outcome != 'success'
+        run: exit 1
