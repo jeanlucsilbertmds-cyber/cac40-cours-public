@@ -609,7 +609,8 @@ def memoire_signaux_c5etendu10():
       la fonction se met à lire plus loin, ce chiffre ne suit pas de lui-même ; c'est la vérification de l'épreuve qui
       le refusera, avec le motif « MÉMOIRE DÉCLARÉE TROP COURTE ».
     ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend toujours la main ; aucun de ses appels ne peut ne pas revenir. [sort: non]
+    ⑪ TERMINAISON — Rend toujours la main ; aucun de ses appels ne peut ne pas revenir.
+      [sort: non]
     """
     return max(C5E10_CMF_P + 2, C5E10_CCI_P)
 

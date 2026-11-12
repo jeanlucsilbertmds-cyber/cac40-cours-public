@@ -504,16 +504,22 @@ def controler(textes):
     def attribuer(mq, ou_regle, ou_ligne, phrase):
         """Range chaque source d'une marque DÉCISION JL avec la phrase qui s'en réclame.
 
-        ① RÔLE — Remplir les attributions. ② CONTEXTE D'APPEL — `controler`, pour chaque marque
-        DÉCISION JL. ③ ENTRÉE — `mq` : le texte entre crochets · `ou_regle`, `ou_ligne` : règle et
-        n° de ligne · `phrase` : la phrase ou la ligne de table. ④ CONDITIONS D'ENTRÉE — `mq` est de
-        genre DÉCISION JL. ⑤ SORTIE — Aucune valeur.
+        ① RÔLE — Remplir les attributions.
+        ② CONTEXTE D'APPEL — `controler`, pour chaque marque DÉCISION JL.
+        ③ ENTRÉE — `mq` : le texte entre crochets · `ou_regle`, `ou_ligne` : règle et
+          n° de ligne · `phrase` : la phrase ou la ligne de table.
+        ④ CONDITIONS D'ENTRÉE — `mq` est de genre DÉCISION JL.
+        ⑤ SORTIE — Aucune valeur.
           [rend: rien]
         ⑥ TRAITEMENT — Pour chaque morceau séparé par « ; » qui suit le motif DECISION, ajouter
-        (règle, ligne, phrase, date, heure) sous sa source. ⑦ UNITÉ — Des marques.
+          (règle, ligne, phrase, date, heure) sous sa source.
+        ⑦ UNITÉ — Des marques.
         ⑧ POURQUOI — Fabriquer « ce que la loi vous attribue » (avis du superviseur R-759, tour 4,
-        condition 1). ⑨ CE QUI CLOCHE — Un morceau mal écrit n'est pas rangé ; il est déjà une
-        faute de `verifier_une_marque`. ⑩ EFFET — Modifie `attribuees`. ⑪ TERMINAISON — Rend la main.
+          condition 1).
+        ⑨ CE QUI CLOCHE — Un morceau mal écrit n'est pas rangé ; il est déjà une
+          faute de `verifier_une_marque`.
+        ⑩ EFFET — Modifie `attribuees`.
+        ⑪ TERMINAISON — Rend la main.
           [sort: non]
         """
         for x in mq.split(";"):
@@ -609,12 +615,19 @@ def mots_de_la_source(ref, citations, textes):
       [sort: non]
     """
     def cite(t):
-        """Rend `t` en citation Markdown. ① RÔLE — préfixer « > ». ② CONTEXTE D'APPEL —
-        `mots_de_la_source`. ③ ENTRÉE — un texte. ④ CONDITIONS D'ENTRÉE — —
+        """Rend `t` en citation Markdown.
+
+        ① RÔLE — préfixer « > ».
+        ② CONTEXTE D'APPEL — `mots_de_la_source`.
+        ③ ENTRÉE — `t` : un texte.
+        ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — UNE valeur : liste de lignes.
           [rend: 1]
-        ⑥ TRAITEMENT — une ligne « > … » par ligne du texte. ⑦ UNITÉ — — ⑧ POURQUOI — garder le
-        texte tel quel et le distinguer de la liste. ⑨ CE QUI CLOCHE — — ⑩ EFFET — —
+        ⑥ TRAITEMENT — une ligne « > … » par ligne du texte.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — garder le texte tel quel et le distinguer de la liste.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — —
         ⑪ TERMINAISON — Rend la main.
           [sort: non]
         """
@@ -646,12 +659,18 @@ def mots_de_la_source(ref, citations, textes):
 def rang_de_source(ref):
     """Rend la clé de tri d'une source : les n° du relevé, puis les A-NNN, puis les R-NNN.
 
-    ① RÔLE — Ordonner « ce que la loi vous attribue ». ② CONTEXTE D'APPEL — `ecrire_la_liste`.
-    ③ ENTRÉE — `ref` : « n°93 bis », « A-305 », « R-708 »… ④ CONDITIONS D'ENTRÉE — `ref` porte un
-    chiffre. ⑤ SORTIE — TROIS valeurs, en un triplet qui sert de clé de tri : 0, 1 ou 2 ; numéro ; suffixe.
+    ① RÔLE — Ordonner « ce que la loi vous attribue ».
+    ② CONTEXTE D'APPEL — `ecrire_la_liste`.
+    ③ ENTRÉE — `ref` : « n°93 bis », « A-305 », « R-708 »…
+    ④ CONDITIONS D'ENTRÉE — `ref` porte un chiffre.
+    ⑤ SORTIE — TROIS valeurs, en un triplet qui sert de clé de tri : 0, 1 ou 2 ; numéro ; suffixe.
       [rend: 3]
-    ⑥ TRAITEMENT — premier nombre de `ref`, et ce qui le suit. ⑦ UNITÉ — — ⑧ POURQUOI — lire les
-    décisions dans l'ordre de leur numéro. ⑨ CE QUI CLOCHE — — ⑩ EFFET — — ⑪ TERMINAISON — Rend la main.
+    ⑥ TRAITEMENT — premier nombre de `ref`, et ce qui le suit.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — lire les décisions dans l'ordre de leur numéro.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     m = re.search(r"(\d+)(.*)$", ref)
@@ -690,16 +709,20 @@ def ecrire_la_liste(a_confirmer, choix, questions, attribuees=None, textes=None)
     def rang(i):
         """Rend la clé de tri d'un identifiant : les questions d'abord, puis par numéro.
 
-        ① RÔLE — Ordonner la liste. ② CONTEXTE D'APPEL — `sorted`, dans `ecrire_la_liste`.
-        ③ ENTRÉE — `i` : « Q-Gn » ou « DÉL-Dnn ». ④ CONDITIONS D'ENTRÉE — `i` porte au moins un chiffre.
+        ① RÔLE — Ordonner la liste.
+        ② CONTEXTE D'APPEL — `sorted`, dans `ecrire_la_liste`.
+        ③ ENTRÉE — `i` : « Q-Gn » ou « DÉL-Dnn ».
+        ④ CONDITIONS D'ENTRÉE — `i` porte au moins un chiffre.
         ⑤ SORTIE — DEUX valeurs, en un couple qui sert de clé de tri : 0 pour une question, 1 sinon ; numéro
           (fiche corrigée le 04-11-2026 au tour 4 : elle disait « UNE valeur »).
           [rend: 2]
-        ⑥ TRAITEMENT — garder les chiffres de `i`. ⑦ UNITÉ — —
+        ⑥ TRAITEMENT — garder les chiffres de `i`.
+        ⑦ UNITÉ — —
         ⑧ POURQUOI — une question ouverte bloque le premier jugement de C5 : elle se lit en premier.
         ⑨ CE QUI CLOCHE — « DÉL-D1-bis » donnerait 11 (chiffres collés) ; aucun identifiant de ce
           genre n'est porté par une marque, le motif DELEGUE l'interdit.
-        ⑩ EFFET — — ⑪ TERMINAISON — Rend la main.
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
           [sort: non]
         """
         n = int(re.sub(r"\D", "", i))
@@ -794,13 +817,18 @@ def calibrer(textes):
     def avec(**k):
         """Rend une copie des textes où les clés données sont remplacées.
 
-        ① RÔLE — Fabriquer un cas sabotage. ② CONTEXTE D'APPEL — `calibrer`, une fois par cas.
-        ③ ENTRÉE — `k` : {clé des textes : texte remplaçant}. ④ CONDITIONS D'ENTRÉE — —
+        ① RÔLE — Fabriquer un cas sabotage.
+        ② CONTEXTE D'APPEL — `calibrer`, une fois par cas.
+        ③ ENTRÉE — `k` : {clé des textes : texte remplaçant}.
+        ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — UNE valeur : un dictionnaire de textes.
           [rend: 1]
-        ⑥ TRAITEMENT — copier, puis mettre à jour. ⑦ UNITÉ — —
-        ⑧ POURQUOI — saboter en mémoire, jamais sur un fichier. ⑨ CE QUI CLOCHE — —
-        ⑩ EFFET — — ⑪ TERMINAISON — Rend la main.
+        ⑥ TRAITEMENT — copier, puis mettre à jour.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — saboter en mémoire, jamais sur un fichier.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
           [sort: non]
         """
         t = dict(textes)
@@ -810,15 +838,19 @@ def calibrer(textes):
     def choix_vide(t):
         """Rend le fichier des choix où le champ « comment le défaire » du premier choix cité est vidé.
 
-        ① RÔLE — Fabriquer le sabotage C6. ② CONTEXTE D'APPEL — `calibrer`.
-        ③ ENTRÉE — `t` : le texte du fichier des choix. ④ CONDITIONS D'ENTRÉE — —
+        ① RÔLE — Fabriquer le sabotage C6.
+        ② CONTEXTE D'APPEL — `calibrer`.
+        ③ ENTRÉE — `t` : le texte du fichier des choix.
+        ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — UNE valeur : le texte saboté.
           [rend: 1]
         ⑥ TRAITEMENT — trouver la ligne du premier « DÉL-Dnn » cité par la loi et vider sa dernière case.
-        ⑦ UNITÉ — — ⑧ POURQUOI — prouver que les quatre champs sont vérifiés (n°129).
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — prouver que les quatre champs sont vérifiés (n°129).
         ⑨ CE QUI CLOCHE — si la loi ne cite aucun choix délégué, rien n'est vidé et C6 resterait vert :
           le calibrage le dirait (CALIBRAGE ROMPU).
-        ⑩ EFFET — — ⑪ TERMINAISON — Rend la main.
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
           [sort: non]
         """
         lignes_c = t.split("\n")

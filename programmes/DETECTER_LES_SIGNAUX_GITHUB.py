@@ -172,18 +172,25 @@ class SuiviDuSoir:
     def __init__(self, signal, univers, fiches, refusees, garde=None):
         """Range les quatre lectures, et la garde du soir quand elle a mordu.
 
-        ① RÔLE — Construire l'objet. ② CONTEXTE D'APPEL — `fiches_du_soir`, les épreuves C.
-        ③ ENTRÉE — voir ③ de la classe ; `garde` : None (aucune garde, cas ordinaire) ou le dictionnaire
+        ① RÔLE — Construire l'objet.
+        ② CONTEXTE D'APPEL — `fiches_du_soir`, les épreuves C.
+        ③ ENTRÉE — `self` : l'objet en construction · `signal`, `univers`, `fiches`, `refusees` : voir ③ de la
+          classe ; `garde` : None (aucune garde, cas ordinaire) ou le dictionnaire
           {"verdict", "fiches"} que `fiches_du_soir` construit quand le soir ne peut suivre aucune fiche (11-11-2026) ;
-          `signal` vaut alors None. ④ CONDITIONS D'ENTRÉE — voir ④ de la classe ; `signal` peut être None si `garde`
+          `signal` vaut alors None.
+        ④ CONDITIONS D'ENTRÉE — voir ④ de la classe ; `signal` peut être None si `garde`
           ne l'est pas.
-        ⑤ SORTIE — Aucune valeur (constructeur). [rend: rien]
-        ⑥ TRAITEMENT — Ranger ; `module` repris du signal, None sans signal. ⑦ UNITÉ — —
+        ⑤ SORTIE — Aucune valeur (constructeur).
+          [rend: rien]
+        ⑥ TRAITEMENT — Ranger ; `module` repris du signal, None sans signal.
+        ⑦ UNITÉ — —
         ⑧ POURQUOI — Un seul objet voyage là où voyageait le module ; la garde voyage avec lui jusqu'à `main`, qui
           publie alors la séance sans signal au lieu d'arrêter le soir (superviseur R-759 du 10-11-2026 sur C9-1).
         ⑨ CE QUI CLOCHE — Rien n'interdit un `garde` à None avec un `signal` à None : `fiches_du_soir` ne le construit
           jamais, mais l'objet ne le vérifie pas.
-        ⑩ EFFET — Aucun hors de l'objet. ⑪ TERMINAISON — Rend la main. [sort: non]
+        ⑩ EFFET — Aucun hors de l'objet.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
         """
         self.signal, self.univers, self.fiches, self.refusees = signal, list(univers), list(fiches), list(refusees)
         self.garde = garde
@@ -192,12 +199,19 @@ class SuiviDuSoir:
     def __call__(self, serie):
         """Rend les séances de signal de la série, par le signal de la fiche.
 
-        ① RÔLE — Appliquer le signal. ② CONTEXTE D'APPEL — `signaux_sur`, une fois par valeur.
-        ③ ENTRÉE — `serie` : les séances d'une valeur. ④ CONDITIONS D'ENTRÉE — Celles du signal.
-        ⑤ SORTIE — UNE valeur : la liste rendue par le signal. [rend: 1]
-        ⑥ TRAITEMENT — Déléguer. ⑦ UNITÉ — Rangs dans `serie`.
+        ① RÔLE — Appliquer le signal.
+        ② CONTEXTE D'APPEL — `signaux_sur`, une fois par valeur.
+        ③ ENTRÉE — `self` : le suivi du soir · `serie` : les séances d'une valeur.
+        ④ CONDITIONS D'ENTRÉE — Celles du signal.
+        ⑤ SORTIE — UNE valeur : la liste rendue par le signal.
+          [rend: 1]
+        ⑥ TRAITEMENT — Déléguer.
+        ⑦ UNITÉ — Rangs dans `serie`.
         ⑧ POURQUOI — `SignalNomme` contrôle la forme de la sortie : on passe par lui, jamais par la fonction nue.
-        ⑨ CE QUI CLOCHE — — ⑩ EFFET — Celui du signal. ⑪ TERMINAISON — Celle du signal. [sort: non]
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Celui du signal.
+        ⑪ TERMINAISON — Celle du signal.
+          [sort: non]
         """
         return self.signal(serie)
 
@@ -548,7 +562,8 @@ def confronter_l_enveloppe(sortie):
     ③ ENTRÉE — `sortie` : le dictionnaire qui va être écrit dans `donnees/signaux_du_jour.json`.
     ④ CONDITIONS D'ENTRÉE — `programmes/` est au chemin de recherche (posé par `charger`).
     ⑤ SORTIE — Aucune valeur : revient si l'enveloppe tient, ou si le contrat est introuvable (dit, comme pour le
-      contrat SIGNAL). [rend: rien]
+      contrat SIGNAL).
+      [rend: rien]
     ⑥ TRAITEMENT — ① importer `CONTRATS_DES_FICHIERS` · ② lire les champs FACULTATIFS de l'enveloppe, s'il en
       déclare (`CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR`, aucun sinon) · ③ compter comme écrits les champs facultatifs
       absents, et confronter le reste avec `verifier(…, "ECRIT")` : un champ hors contrat, ou un champ obligatoire
@@ -564,7 +579,9 @@ def confronter_l_enveloppe(sortie):
       contrat par le Chat le 11-11-2026 ; si l'un des deux en disparaissait, un soir de garde (ou, sans le champ mais
       avec le nom, chaque soir) s'arrêterait en code 3 — l'épreuve C11 le joue. ② Le contrat introuvable laisse écrire sans contrôle, comme pour
       le contrat SIGNAL (choix ancien, gardé).
-    ⑩ EFFET — Affiche les écarts. ⑪ TERMINAISON — PEUT NE PAS RENDRE LA MAIN : code 3. [sort: oui]
+    ⑩ EFFET — Affiche les écarts.
+    ⑪ TERMINAISON — PEUT NE PAS RENDRE LA MAIN : code 3.
+      [sort: oui]
     """
     try:
         import CONTRATS_DES_FICHIERS as C

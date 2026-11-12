@@ -148,7 +148,8 @@ def memoire_signaux_rsi2(periode, seuil, tendance):
     ④ CONDITIONS D'ENTRÉE — Celles de `signaux_rsi2` (`periode` entier ≥ 1, `tendance` entier ≥ 0) ; le seuil n'entre
       pas dans le calcul.
     ⑤ SORTIE — UNE valeur : un entier. Exemples : (2, 10, 200) → 200, la tendance domine ; (2, 10, 0) → 68 ;
-      (14, 30, 0) → 615 ; (1, 10, 0) → 3. [rend: 1]
+      (14, 30, 0) → 615 ; (1, 10, 0) → 3.
+      [rend: 1]
     ⑥ TRAITEMENT — ① l'oubli du lissage : 0 pour une période de 1 (le lissage ne garde rien), sinon le nombre de pas de
       lissage après lesquels l'état de départ pèse moins de 2^-OUBLI_EN_BITS, arrondi au-dessus :
       OUBLI_EN_BITS × ln 2 / ln(période / (période − 1)) · ② rendre le plus grand de la tendance et de
@@ -168,7 +169,8 @@ def memoire_signaux_rsi2(periode, seuil, tendance):
       moins sûre.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main, ou lève l'erreur de `math` sur une période qui n'est pas un nombre ≥ 1 ; aucun de
-      ses appels ne peut ne pas revenir. [sort: non]
+      ses appels ne peut ne pas revenir.
+      [sort: non]
     """
     oubli = 0 if periode == 1 else math.ceil(OUBLI_EN_BITS * math.log(2) / math.log(periode / (periode - 1)))
     return max(tendance, periode + 2 + oubli)

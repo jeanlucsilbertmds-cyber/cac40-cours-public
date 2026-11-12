@@ -814,8 +814,8 @@ def vendre(serie, j, vente, fin_des_donnees):
       `open`, `high`, `low`, `close` · `j` : le rang de la séance d'achat dans `serie` · `vente` : un dictionnaire
       qui porte `horizon` et, AU CHOIX, soit `tp` et `sl` (les seuils en FRACTIONS du prix d'achat, 0.04 et 0.025
       pour « +4 % » et « −2,5 % » ; les prix sont alors posés par `seuils_de_vente`), soit `objectif` et `stop` (les
-      prix en euros, déjà posés : ceux qu'une position du soir porte depuis son achat). `horizon` : l'échéance en
-      SÉANCES après l'achat, un entier > 0, ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale) · `fin_des_donnees` :
+      prix en euros, déjà posés : ceux qu'une position du soir porte depuis son achat). La clé `horizon` porte
+      l'échéance en SÉANCES après l'achat, un entier > 0, ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale) · `fin_des_donnees` :
       `"vendre"` (le juge rejoue un passé fini : une série qui s'arrête avant l'échéance vend à la dernière clôture)
       ou `"garder"` (le soir vit un présent qui continue : la position reste ouverte).
     ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; `vente` porte `horizon` et exactement l'une des deux paires.

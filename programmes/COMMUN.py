@@ -1723,7 +1723,7 @@ def _refuser_le_calcul(self, *autres):
       d'une comparaison ou d'une addition, ignoré.
     ④ CONDITIONS D'ENTRÉE — Aucune.
     ⑤ SORTIE — AUCUNE valeur : elle lève toujours.
-      [rend: 0]
+      [rend: rien]
     ⑥ TRAITEMENT — Lever TypeError(MESSAGE_DE_L_HORIZON_AUCUNE).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Le jugement calcule `max(21, int(horizon or 0))` (coupure 70/30,

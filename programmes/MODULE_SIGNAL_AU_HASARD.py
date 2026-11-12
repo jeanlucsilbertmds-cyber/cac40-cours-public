@@ -112,7 +112,8 @@ def memoire_signaux_au_hasard(graine, proportion):
       ne l'appelle.
     ③ ENTRÉE — `graine`, `proportion` : les réglages de `signaux_au_hasard` ; ils n'entrent pas dans le calcul.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : 1. [rend: 1]
+    ⑤ SORTIE — UNE valeur : 1.
+      [rend: 1]
     ⑥ TRAITEMENT — Rendre 1.
     ⑦ UNITÉ — Des séances de bourse, le jour décidé compris.
     ⑧ POURQUOI — Lu dans `signaux_au_hasard` et `tirage` : le tirage d'une séance ne dépend que de la graine, de la date
@@ -122,6 +123,7 @@ def memoire_signaux_au_hasard(graine, proportion):
     ⑨ CE QUI CLOCHE — Les réglages sont reçus pour que l'épreuve appelle toutes les fonctions de mémoire de la même
       façon ; ils ne servent pas.
     ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend toujours la main. [sort: non]
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
     """
     return 1

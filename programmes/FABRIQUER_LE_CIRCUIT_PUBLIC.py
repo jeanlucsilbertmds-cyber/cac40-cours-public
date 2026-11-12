@@ -1490,14 +1490,16 @@ def _relais_par_serie(modele):
     ② CONTEXTE D'APPEL — La construction de RELAIS, quatre fois.
     ③ ENTRÉE — `modele` : un texte à clés %(…)s.
     ④ CONDITIONS D'ENTRÉE — SERIES_DU_CIRCUIT est lue.
-    ⑤ SORTIE — UNE valeur : le texte. [rend: 1]
+    ⑤ SORTIE — UNE valeur : le texte.
+      [rend: 1]
     ⑥ TRAITEMENT — une copie de `modele` par série, dans l'ordre de la table, mises bout à bout.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Décision n°309 (tout est fabriqué depuis la table) ; un même modèle pour les quatre usages : un code
       ne peut pas recevoir la valeur d'un autre.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — —
-    ⑪ TERMINAISON — Rend la main. [sort: non]
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
     """
     return "".join(modele % {"c": c, "m": c.lower(), "M": c.upper(), "n": n, "l": l, "t": TOUTES}
                    for c, _, n, l in SERIES_DU_CIRCUIT)
@@ -2114,7 +2116,8 @@ def souches_des_epreuves():
     ② CONTEXTE D'APPEL — `verifier_les_gabarits_publics`, une fois par gabarit.
     ③ ENTRÉE — — (SERIES_DU_CIRCUIT).
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : la liste des souches. [rend: 1]
+    ⑤ SORTIE — UNE valeur : la liste des souches.
+      [rend: 1]
     ⑥ TRAITEMENT — le nom du fichier sans « .py », sans le préfixe « EPREUVES_ » suivi de « DE_L_ », « DE_LA_ »,
       « DES_ », « DU_ » ou « DE_ », et sans la date finale « _Jjj_JJ-MM-AAAA ».
     ⑦ UNITÉ — —
@@ -2123,7 +2126,8 @@ def souches_des_epreuves():
       Propriété et non liste : une série ajoutée à la table est couverte sans rien déclarer.
     ⑨ CE QUI CLOCHE — Un morceau plus court de la souche (« LONG ») n'est pas vu.
     ⑩ EFFET — —
-    ⑪ TERMINAISON — Rend la main. [sort: non]
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
     """
     souches = []
     for _, epreuve, _, _ in SERIES_DU_CIRCUIT:
@@ -2153,7 +2157,8 @@ def verifier_un_relais(nom, texte):
       `refus_des_circuits_publies`, pour chaque circuit publié qui porte la permission de lancer.
     ③ ENTRÉE — `nom` : le nom du gabarit ou du fichier ; `texte` : son contenu.
     ④ CONDITIONS D'ENTRÉE — RELAIS est fabriqué (table des séries lisible).
-    ⑤ SORTIE — Aucune valeur ; lève ValueError si l'empreinte diffère. [rend: rien]
+    ⑤ SORTIE — Aucune valeur ; lève ValueError si l'empreinte diffère.
+      [rend: rien]
     ⑥ TRAITEMENT — sha256 du texte en UTF-8, comparé à EMPREINTE_DU_RELAIS.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Commentaire de EMPREINTE_DU_RELAIS : une propriété (« c'est le texte fabriqué ») au lieu d'une
@@ -2163,7 +2168,8 @@ def verifier_un_relais(nom, texte):
       passer par ce programme : celui-là tournerait avant tout contrôle ; seul le pas « circuit_a_jour » du circuit des
       séries le verrait, après coup.
     ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
     """
     vue = hashlib.sha256(texte.encode("utf-8")).hexdigest()
     if EMPREINTE_DU_RELAIS is None or vue != EMPREINTE_DU_RELAIS:
@@ -2178,7 +2184,8 @@ def refus_des_circuits_publies(public):
     ② CONTEXTE D'APPEL — `main`, après l'écriture des circuits et avant toute publication ; l'épreuve du relais.
     ③ ENTRÉE — `public` : le clone public.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : la liste des refus (texte), vide si tout va. [rend: 1]
+    ⑤ SORTIE — UNE valeur : la liste des refus (texte), vide si tout va.
+      [rend: 1]
     ⑥ TRAITEMENT — chaque fichier .yml ou .yaml de .github/workflows : s'il porte PERMISSION_DE_LANCER (texte, sans
       égard à la casse, commentaires compris), il doit être le relais (même nom de fichier, empreinte de RELAIS) ; tout
       fichier qui ne porte pas « permissions: » au premier niveau est refusé (N9 de Cowork, tour 3 : sans ce bloc, le
@@ -2191,7 +2198,8 @@ def refus_des_circuits_publies(public):
       « permissions: » qui n'est pas au premier niveau mais dans chaque job n'est pas admis : refusé (sur-détection
       voulue).
     ⑩ EFFET — Lit les fichiers.
-    ⑪ TERMINAISON — Rend la main. [sort: non]
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
     """
     dossier = os.path.join(public, ".github", "workflows")
     refus = []

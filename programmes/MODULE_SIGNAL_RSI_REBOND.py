@@ -93,14 +93,16 @@ def _controler_reglages(periode, seuil, chauffe):
     ② CONTEXTE D'APPEL — `signaux_rsi_rebond` et `memoire_signaux_rsi_rebond`, à leur entrée.
     ③ ENTRÉE — `periode`, `seuil`, `chauffe` : les réglages lus dans la fiche.
     ④ CONDITIONS D'ENTRÉE — Aucune : c'est elle qui les vérifie.
-    ⑤ SORTIE — Aucune valeur. [rend: rien]
+    ⑤ SORTIE — Aucune valeur.
+      [rend: rien]
     ⑥ TRAITEMENT — ① `periode` entier ≥ 1 · ② `seuil` nombre de ]0, 100[ · ③ `chauffe` entier ≥ 0 ; un booléen est refusé
       partout (en Python, vrai vaut 1).
     ⑦ UNITÉ — Séances pour `periode` et `chauffe` ; points de RSI pour `seuil`.
     ⑧ POURQUOI — Une valeur mal tapée dans la fiche (« 14 » en texte) doit arrêter le jeu, pas être devinée.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main, ou lève ValueError. [sort: non]
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError.
+      [sort: non]
     """
     if isinstance(periode, bool) or not isinstance(periode, int) or periode < 1:
         raise ValueError("signaux_rsi_rebond : la periode doit etre un entier >= 1 (lu %r)" % (periode,))
@@ -146,7 +148,8 @@ def signaux_rsi_rebond(ohlcv, periode, seuil, chauffe):
     ⑪ TERMINAISON — Rend la main, ou lève ValueError (réglage mal formé, séance sans date ou dont la date n'est pas un texte
       AAAA-MM-JJ — relecture Cowork du 11-11-2026, RB-3 —, clôture absente,
       illisible, None, NaN ou infinie, dates non croissantes). Aucun de ses appels ne peut ne pas revenir : ses boucles et celle de `rsi_wilder` sont bornées
-      par le nombre de séances. [sort: non]
+      par le nombre de séances.
+      [sort: non]
     """
     _controler_reglages(periode, seuil, chauffe)
     clotures = []
@@ -187,7 +190,8 @@ def memoire_signaux_rsi_rebond(periode, seuil, chauffe):
     ② CONTEXTE D'APPEL — `memoire_declaree` de l'épreuve d'arrivée des signaux, qui la trouve par son nom.
     ③ ENTRÉE — `periode`, `seuil`, `chauffe` : les réglages de `signaux_rsi_rebond`, tels que la fiche les nomme.
     ④ CONDITIONS D'ENTRÉE — Celles de `_controler_reglages`.
-    ⑤ SORTIE — UNE valeur : un entier. Exemple : (14, 30, 100) → 615. [rend: 1]
+    ⑤ SORTIE — UNE valeur : un entier. Exemple : (14, 30, 100) → 615.
+      [rend: 1]
     ⑥ TRAITEMENT — ① contrôler les réglages · ② rendre le plus grand de `memoire_signaux_rsi2(periode, seuil, 0)` du
       module RSI(2) (le jour, la veille et l'oubli du lissage de Wilder) et de `chauffe + 1`.
     ⑦ UNITÉ — Des séances de bourse, le jour décidé compris.
@@ -198,7 +202,8 @@ def memoire_signaux_rsi_rebond(periode, seuil, chauffe):
     ⑨ CE QUI CLOCHE — Si la fonction de signal se met à lire plus loin, ce chiffre ne suit pas de lui-même ; l'épreuve
       d'arrivée des signaux le refuserait. NON ÉPROUVÉ par cette épreuve-là (elle tourne aussi sur les 20 ans).
     ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main, ou lève ValueError sur un réglage mal formé. [sort: non]
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError sur un réglage mal formé.
+      [sort: non]
     """
     _controler_reglages(periode, seuil, chauffe)
     return max(_RSI2.memoire_signaux_rsi2(periode, seuil, 0), chauffe + 1)
