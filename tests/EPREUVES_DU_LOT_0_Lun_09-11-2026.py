@@ -107,12 +107,17 @@ def epreuves(dossier_programmes):
         ops = [{"date_signal": "1999-01-04"}]
         tombe = []
         for f, kw in ((MJ.coupure_70_30, "embargo_seances"), (MJ.fenetres_glissantes, "embargo")):
+            # la coupure reçoit sa frontière (exigée depuis le 12-11-2026, mission TRI) : le refus attendu est alors
+            # CELUI DE L'HORIZON « aucune », quel que soit l'ordre des contrôles dans la coupure (tour 5, E4)
+            extra = {"frontiere": MJ.frontiere_de_la_fiche({}, cal, None)} if f is MJ.coupure_70_30 else {}
             try:
-                f(ops, cal, horizon=H)
+                f(ops, cal, horizon=H, **extra)
                 tombe.append("PASSE")
             except TypeError as e:
                 tombe.append("lot 0" in str(e))
-        explicite = [isinstance(MJ.coupure_70_30(ops, cal, embargo_seances=40, horizon=H), dict),
+        # la frontière est exigée par la coupure depuis le 12-11-2026 (mission TRI, tour 4, M1) : elle est donnée ici
+        explicite = [isinstance(MJ.coupure_70_30(ops, cal, embargo_seances=40, horizon=H,
+                                                 frontiere=MJ.frontiere_de_la_fiche({}, cal, None)), dict),
                      isinstance(MJ.fenetres_glissantes(ops, cal, embargo=40, horizon=H), dict)]
         return all(t is True for t in tombe) and all(explicite), "sans embargo %s · avec embargo %s" % (tombe, explicite)
     jouer("E4", e4)

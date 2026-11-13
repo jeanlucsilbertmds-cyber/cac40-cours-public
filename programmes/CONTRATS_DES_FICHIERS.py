@@ -40,7 +40,8 @@ Quand l'appeler : par tout programme qui écrit ou lit un fichier de liaison. Ja
   depuis le 05-11-2026) · ①quater déclarer les contrats de la loi et du juge (lot C de
   l'étape D, 05-11-2026) : la déclaration datée et ses champs P0, l'entrée du registre des
   essais, le verdict, le tableau de bord, et les fichiers « à venir » (FICHIERS_A_VENIR) ;
-  lire la déclaration (`declaration_de_la_fiche`, `champs_de_la_declaration_manquants`) ;
+  lire la déclaration (`declarations_du_fichier`, `declaration_de_la_fiche`, `champs_de_la_declaration_manquants`) ;
+  ramener un identifiant de fiche à sa forme canonique (`cle_d_identite`, `identite_de_la_fiche`, B2 du 11-11-2026) ;
   confronter une entrée JSON (`ecarts_d_une_entree`, `confronter_les_fichiers_a_venir`) ; dire ce qu'est une
   VERSION que k compte (décision de Jean-Luc du 05-11-2026 à 13h40) par une PROPRIÉTÉ en une phrase — la même
   lecture de jeu du juge —, que le lot S_kk écrit et éprouve, et son étalon en données
@@ -953,6 +954,37 @@ FICHIERS_REPARES = {
 # Le fichier est né le 05-11-2026 avec son seul en-tête : aucune fiche n'est déclarée, toutes sont NON JUGEABLES, ce
 # qui est la vérité du jour (grille ⓪ ligne 10 : « en l'état NON JUGEABLE »).
 DECLARATIONS_DATEES = "donnees/DECLARATIONS_DATEES.csv"
+# LA BRANCHE PRINCIPALE — la version officielle, dont l'histoire fait foi pour le juge (instructions du projet, §6 :
+# « Aucune → la version officielle »). UNE constante, ici (superviseur R-759 de B2/B3 du 11-11-2026, 23h32, section 1 :
+# « origin/main » était écrit à quatre endroits, R-708). Ajoutée par les missions J et B2 (tour 2) du plan V7, chacune
+# de son côté ; la fusion de la mission REGARD (12-11-2026) n'en garde qu'une définition. La porte du juge la lit, une
+# fois, pour exiger que HEAD SOIT cette branche, avec un arbre propre (mission REGARD ; c'était « contienne »), et
+# `JUGE_DES_STRATEGIES.k_a_la_date` y lit k (et non sur HEAD). TENIR_LE_REGISTRE_DES_ESSAIS la prend pour défaut ;
+# DECLARER_UNE_STRATEGIE la lit dedans (plus de paramètre `branche` : ancrage réparé, mission REGARD tour 3).
+BRANCHE_PRINCIPALE = "origin/main"
+# LA BRANCHE DES REGARDS — LA seule inscription du regard pour tout le système (superviseur R-759 de la porte J, 12-11-2026,
+# 00h09, réponse 1 : « Le support est le registre des essais […] sur une branche dédiée du dépôt privé, en avance rapide
+# seulement »). Le registre des essais (`registre_essais/<16 hex>.json`, NATURES_DES_ENTREES_D_ESSAI plus bas) ne vit
+# PLUS sur le disque de travail ni sur la branche principale : `TENIR_LE_REGISTRE_DES_ESSAIS._ecrire` le commite et le
+# POUSSE sur cette branche avant de rendre la main, et `lire_le_registre` lit l'UNION des entrées jamais ajoutées sur
+# elle, après `fetch`. Le dépôt distant est celui de BRANCHE_PRINCIPALE (le préfixe avant « / » : « origin »), jamais
+# écrit une seconde fois (R-708). Le nom commence par « regards/ » pour qu'une règle GitHub « pas de forçage, pas de
+# suppression » sur `regards/**` la couvre si elle est un jour posée (impossible sur le dépôt privé avec l'abonnement
+# actuel : 403, superviseur REGARD, M2) ; la réécriture forcée et la suppression sont des voies de faussaire, hors de la
+# limite J1 décidée par Jean-Luc le 12-11-2026 à 08h58 (« 1 · Empêcher l'erreur (recommandé) », BACKLOG A-708).
+BRANCHE_DES_REGARDS = "regards/registre-des-essais"
+# LA FENÊTRE DU REGARD UNIQUE PAR DÉFAUT — les années que R-505 ③ réserve à un seul regard (« années jamais vues,
+# regardées une seule fois ») tant qu'aucune déclaration datée ne fixe d'autres années d'examen pour une fiche
+# (superviseur GITHUB du 11-11-2026, réponse 2 : « Tant qu'aucune fiche n'est déclarée, la fenêtre par défaut 2000-2023
+# s'applique à tout, et elle bloque »). Déplacée depuis `donnees/REGARD_UNIQUE.csv` de la branche v7-github (« fenêtre
+# écrite par l'agent GITHUB du plan V7 le 11-11-2026, À CONFIRMER par Jean-Luc »), où elle vivait dans la version même
+# qu'elle garde (M3 du superviseur GITHUB). `JUGE_DES_STRATEGIES.jouer` la lit ici : toute séance jouée qui y tombe exige
+# le reçu d'une inscription au registre des essais. SON EMPREINTE est figée à côté, comme FICHIERS_DE_COURS_FIGES :
+# `fenetre_du_regard_unique` la recalcule et lève si l'une change sans l'autre — un filet contre l'ACCIDENT (une
+# borne retouchée en passant), pas contre un auteur qui change les deux (limite J1, décidée par Jean-Luc le 12-11-2026 à 08h58, « 1 · Empêcher l'erreur (recommandé) », BACKLOG A-708).
+# Le cas 2 de R-505 (la moulinette RÈGLE sur 70 % des 20 ans) n'a pas de sortie ici : question J1 du superviseur GITHUB.
+FENETRE_DU_REGARD_UNIQUE = ("2000-01-01", "2023-12-31")
+EMPREINTE_DE_LA_FENETRE_DU_REGARD_UNIQUE = "332a6feabeaae51d"
 NOM_DES_DECLARATIONS_DATEES = DECLARATIONS_DATEES.rsplit("/", 1)[-1]
 # Les champs P0 de la grille (plan V3, lot C : période de conception, part déjà regardée, univers défini par une règle
 # datée, lignée mère → fille, hypothèse écrite d'avance, nombre de paramètres libres, moment du regard écrit d'avance,
@@ -1002,6 +1034,40 @@ DECLARATION_DATEE = [
 CHAMPS_FACULTATIFS_DE_LA_DECLARATION = ("regard_sans_decision",)
 # Les deux cas de R-505 (décision de Jean-Luc du 01-11-2026 à 00h12, n°61), tels que la colonne `cas` les écrit.
 CAS_DE_LA_LOI = ("1", "2")
+# LES CHAMPS QUI SE CALCULENT (R-728 : « ce qui se calcule ne s'écrit jamais à la main ») — ajouté le 11-11-2026 par
+# la mission B3 du plan V7 (découpe du lot B par le superviseur R-759 du 11-11-2026, 22h19, point 5 : « B3 — la
+# déclaration datée »). `DECLARER_UNE_STRATEGIE.preparer_une_declaration` les REMPLIT et refuse qu'un appelant les
+# donne ; `DECLARER_UNE_STRATEGIE.lire_la_declaration` RECALCULE les deux empreintes au moment du regard et rend la
+# fiche NON JUGEABLE si elles diffèrent : le code jugé n'est plus la « règle figée » que la déclaration fixait (R-505 ①).
+# La date se calcule à l'horloge (heure de Paris) : écrite à la main, elle pourrait précéder un regard qu'elle suit.
+CHAMPS_CALCULES_DE_LA_DECLARATION = ("date_declaration", "empreinte_code_juge", "empreinte_code_signal")
+# LA LECTURE CONTRÔLÉE DE LA DÉCLARATION — ce que rend `DECLARER_UNE_STRATEGIE.lire_la_declaration`, la porte que le
+# juge (agent J du plan V7, `juger_une_fiche`) appelle au lieu de recevoir une liste de champs manquants de son
+# appelant. Raison (superviseur R-759 du 11-11-2026, 22h19, point 2) : la grille passait la déclaration sur
+# `declaration_manquants == []` venu de l'appelant ; « une liste vide ne distingue pas « j'ai lu et il n'y a rien »
+# de « je n'ai pas lu » ». Ici la liste est calculée en lisant le fichier, jamais reçue.
+LECTURE_DE_LA_DECLARATION = [
+    "fiche_id",                  # la fiche demandée
+    "instant_du_regard",         # l'instant du regard demandé, ISO avec décalage (« 2026-11-20T20:00:00+01:00 »)
+    "branche",                   # la branche dont l'histoire prouve l'antériorité (« origin/main »), ou None
+    "etat",                      # une valeur de ETATS_DE_LA_LECTURE_DE_LA_DECLARATION
+    "champs_en_defaut",          # COMPLETE : [] · NON_JUGEABLE : liste NON VIDE de champs de DECLARATION_DATEE, dans
+                                 # l'ordre du contrat · ILLISIBLE : None. C'est l'entrée `declaration_manquants` de
+                                 # `MODULE_JUGEMENT.grille_de_validation`, passée TELLE QUELLE.
+    "raisons",                   # liste de phrases « champ : raison » (ou « fichier : raison »), vide si COMPLETE
+    "declaration",               # la ligne qui fait foi, {champ : texte}, ou None
+    "engagee",                   # True : la ligne était sur la branche avant le premier regard · False : non, ou non
+                                 # vérifiable · None : aucune ligne lue
+    "empreintes_calculees",      # {"empreinte_code_juge": …, "empreinte_code_signal": …} recalculées au moment de la
+                                 # lecture ; une valeur None si elle n'a pas pu se calculer
+    "empreinte_de_la_declaration",  # 16 caractères hexadécimaux : sha256 de la ligne CSV de la déclaration telle que
+                                 # `ajouter_une_declaration` l'écrit ; la clé « empreinte » de VERDICT.declaration ; None
+]
+# COMPLETE : aucun champ en défaut · NON_JUGEABLE : déclaration absente, incomplète, mal formée, non engagée avant le
+# regard, ou dont une empreinte recalculée diffère (le juge rend NON JUGEABLE en nommant le premier champ, R-505 ①) ·
+# ILLISIBLE : le fichier ou l'instant n'a pas pu se lire (R-734 : ce qui n'a pas pu se mesurer ne passe jamais ; la
+# grille reçoit None, son contrôle ① est INCONNU, aucune validation possible).
+ETATS_DE_LA_LECTURE_DE_LA_DECLARATION = ("COMPLETE", "NON_JUGEABLE", "ILLISIBLE")
 
 # LE REGISTRE DES ESSAIS — fragment de L4, tour 3 (31-10-2026, `lot_L4/FRAGMENT_CONTRAT.md`, commit 5f2880c), POSÉ TEL
 # QUEL : une entrée = un fichier JSON immuable `registre_essais/<16 hex>.json`, nommé par l'empreinte de ses octets,
@@ -1014,7 +1080,13 @@ ENTREE_ESSAI_COMMUNS = [
     "alea",              # 8 caractères hexadécimaux : rend uniques deux entrées identiques écrites la même seconde
 ]
 ENTREE_PREENREGISTREMENT = ENTREE_ESSAI_COMMUNS + [
-    "fiche_id",            # identifiant de la fiche (un fait, hors de l'hypothèse) ; « CALIBRAGE:C5-ETENDU-10 » au calibrage
+    "fiche_id",            # identifiant de la fiche (un fait, hors de l'hypothèse), TEL QU'ÉCRIT au registre des
+                           # stratégies (`identite_de_la_fiche`, B2 du 11-11-2026) ; jamais de préfixe : le calibrage est
+                           # un GENRE (case suivante), pas une partie de l'identité (superviseur R-759 du 11-11-2026,
+                           # 23h32, point 4.4). L'ancien exemple « CALIBRAGE:C5-ETENDU-10 » était faux : C5-ETENDU-10
+                           # n'est pas un identifiant du registre (relecteur de B2, D4 ; question J4 pour Jean-Luc)
+    "genre_d_essai",       # l'un de GENRES_D_ESSAI : « ESSAI » (un calcul de la stratégie), « CALIBRAGE » (un calcul qui
+                           # règle un outil sur la fiche) ; ajouté par B2 le 11-11-2026
     "famille",             # famille déclarée (--famille= du juge), NON_DECLARE sinon
     "mere",                # empreinte_hypothese du contexte qui englobe le calcul (lignée, C-9) ; vide sinon
     "hypothese",           # ce que `jouer` calcule vraiment : tp_pct, sl_pct (POURCENTS, 6 décimales), horizon (séances),
@@ -1022,6 +1094,9 @@ ENTREE_PREENREGISTREMENT = ENTREE_ESSAI_COMMUNS + [
     "empreinte_hypothese", # empreinte de `hypothese` en écriture canonique : CE QUI COMPTE DANS N
     "octets",              # {libellé: [chemin relatif, empreinte des octets ou ABSENT]} — sert à refaire l'essai
     "periode_conception", "part_regardee", "regle_univers", "date_regle_univers",   # grille C-2, C-6 ; NON_DECLARE
+    "sommet_principal",    # CALCULÉ : le commit (40 caractères) de BRANCHE_PRINCIPALE que ce regard voit, ou « INCONNU » —
+                           # l'ancre de la déclaration datée (superviseur ANCRAGE du 12-11-2026, §4.1 ; décision de
+                           # Jean-Luc du 12-11-2026 à 09h04, « Reparer ») ; ajouté par la mission REGARD, tour 3
 ]
 ENTREE_RESULTAT = ENTREE_ESSAI_COMMUNS + [
     "preenregistrement",   # nom (sans .json) de l'entrée PREENREGISTREMENT de cet essai
@@ -1029,6 +1104,11 @@ ENTREE_RESULTAT = ENTREE_ESSAI_COMMUNS + [
     "echec",               # « TypeErreur: message » si le calcul est tombé, vide sinon
 ]
 NATURES_DES_ENTREES_D_ESSAI = {"PREENREGISTREMENT": ENTREE_PREENREGISTREMENT, "RESULTAT": ENTREE_RESULTAT}
+# Les genres d'un essai préenregistré (case `genre_d_essai`). Le calibrage reste RATTACHÉ à sa fiche ; s'il compte comme
+# regard est un réglage lu par le registre des essais (question J3 pour Jean-Luc), jamais décidé ici.
+GENRES_D_ESSAI = ("ESSAI", "CALIBRAGE")
+# LA branche principale : définie UNE fois plus haut, à côté de DECLARATIONS_DATEES (fusion J + B2 tour 2 par la mission
+# REGARD du 12-11-2026 : les deux branches l'avaient ajoutée chacune ; une seule définition reste, R-708).
 
 # LE VERDICT (R-505 ⑫ : « Écrire le verdict dans un fichier, avec sa date, le nom de sa règle, k, le seuil, l'empreinte
 # du code du juge, et le premier contrôle qui bloque » ; plan V3, lot C : « grille et date, motifs, risque, k, empreinte
@@ -1531,54 +1611,210 @@ def lire_les_fiches(racine):
     return fiches_du_registre(_os.path.join(racine, REGISTRE_DES_STRATEGIES))
 
 
+def cle_d_identite(identifiant):
+    """Rend la forme sous laquelle deux identifiants de fiche se comparent : sans espaces autour, casse ignorée.
+
+    ① RÔLE — La seule comparaison d'identifiants de fiche du projet (R-708) ; `identite_de_la_fiche` s'en sert.
+    ② CONTEXTE D'APPEL — `identite_de_la_fiche`, une fois par identifiant du registre et une fois pour le nom cherché.
+    ③ ENTRÉE — `identifiant` : un texte.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le texte comparable.
+      [rend: 1]
+    ⑥ TRAITEMENT — `str(identifiant).strip().casefold()`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relecteur neuf du lot B, tour 4, N1 MAJEUR (11-11-2026) : « C5-ETENDU-10 » suivi d'une espace, ou en
+      minuscules, faisait tomber le regard à zéro sur la même hypothèse.
+    ⑨ CE QUI CLOCHE — Les espaces insécables, tirets typographiques et autres variantes Unicode ne sont pas ramenés
+      (non éprouvé, relecteur de B2).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return str(identifiant).strip().casefold()
+
+
+def identite_de_la_fiche(racine, fiche_id, fiches=None):
+    """Rend la FORME CANONIQUE d'un identifiant de fiche : l'identifiant tel qu'il figure au registre des stratégies.
+
+    ① RÔLE — Le SEUL endroit où un identifiant écrit devient canonique (superviseur R-759 du 11-11-2026, 23h32, point
+      4.1) ; chaque lecture d'un fichier qui nomme une fiche (déclarations, registre des essais) passe par lui.
+    ② CONTEXTE D'APPEL — `declarations_du_fichier`, `declaration_de_la_fiche` ; le registre des essais
+      (`TENIR_LE_REGISTRE_DES_ESSAIS`, à l'écriture et à la lecture) ; la porte du juge (agent J).
+    ③ ENTRÉE — `racine` · `fiche_id` : le nom écrit · `fiches` : {identifiant : ligne} du registre déjà lu
+      (`lire_les_fiches`), ou None pour le lire.
+    ④ CONDITIONS D'ENTRÉE — `donnees/cac40_strategies.csv` sous la racine (si `fiches` est None).
+    ⑤ SORTIE — DEUX valeurs : l'identifiant tel qu'écrit au registre, ou None ; et la raison (vide s'il est rendu).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① pas un texte, ou vide → None · ② lire le registre (illisible → None) · ③ les identifiants dont la
+      `cle_d_identite` est celle du nom : aucun → None (INCONNU) ; plusieurs → None (ambigu) ; un → le rendre.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un nom mal écrit faisait une fiche nouvelle, sans regard ni essai (N1 ; D1, D2, D5 du relecteur de
+      B2). R-505 : « toute version essayée compte comme un essai et comme une stratégie à part entière » (n°25,
+      A-666) : elle a sa ligne au registre. Un identifiant inconnu est INCONNU, jamais une fiche vide (A-226).
+    ⑨ CE QUI CLOCHE — ① Aucun préfixe n'est admis : « CALIBRAGE:X » est inconnu (le calibrage est un genre,
+      GENRES_D_ESSAI). ② `C5-ETENDU-10`, nom de la stratégie de production (R-201), n'est pas au registre : il est
+      inconnu ici ; quel identifiant porte C5 est la question J4 pour Jean-Luc.
+    ⑩ EFFET — Lit un fichier si `fiches` est None.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if not isinstance(fiche_id, str) or not fiche_id.strip():
+        return None, "fiche non nommée : %r" % (fiche_id,)
+    if fiches is None:
+        try:
+            fiches = lire_les_fiches(racine)
+        except (OSError, ValueError) as ex:
+            return None, "registre des stratégies illisible : %s" % ex
+    trouvees = [i for i in fiches if cle_d_identite(i) == cle_d_identite(fiche_id)]
+    if not trouvees:
+        return None, "fiche « %s » inconnue du registre des stratégies" % fiche_id
+    if len(trouvees) > 1:
+        return None, "fiche « %s » ambiguë au registre des stratégies : %s" % (fiche_id, ", ".join(trouvees))
+    return trouvees[0], ""
+
+
+def declarations_du_fichier(racine):
+    """Rend TOUTES les lignes de `donnees/DECLARATIONS_DATEES.csv`, dans l'ordre du fichier, chaque `fiche_id` sous sa
+    forme canonique.
+
+    ① RÔLE — LA lecture du fichier des déclarations (R-708) : `declaration_de_la_fiche` et la lignée du registre des
+      essais lisent par elle.
+    ② CONTEXTE D'APPEL — `declaration_de_la_fiche` ; `TENIR_LE_REGISTRE_DES_ESSAIS.lignee_de_la_fiche` et
+      `bilan_de_la_fiche`.
+    ③ ENTRÉE — `racine`.
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe, en UTF-8, son en-tête est exactement DECLARATION_DATEE ; le registre des
+      stratégies existe.
+    ⑤ SORTIE — UNE valeur : la liste des lignes, des dictionnaires {champ : texte} (copies), `fiche_id` canonique.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire par `csv.DictReader` · ② refuser un en-tête hors contrat · ③ pour chaque ligne,
+      `identite_de_la_fiche` : un identifiant inconnu, vide ou ambigu LÈVE, en nommant la ligne.
+    ⑦ UNITÉ — Des lignes du fichier.
+    ⑧ POURQUOI — Superviseur R-759 du 11-11-2026, 23h32, point 4.2 : « chaque LECTURE de fichier rend des identifiants
+      déjà canoniques » ; « une entrée dont l'identifiant est inconnu est un DÉFAUT du fichier », jamais ignorée (D5 du
+      relecteur de B2). Avant, `declaration_de_la_fiche` comparait à l'octet (relecteur de B2, D1 et D6c).
+    ⑨ CE QUI CLOCHE — Le fichier est lu en entier à chaque appel (il est petit : une ligne par déclaration).
+    ⑩ EFFET — Lit deux fichiers.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError (fichier absent) ou ValueError (en-tête, identifiant).
+      [sort: non]
+    """
+    import csv as _csv
+    import os as _os
+    with open(_os.path.join(racine, DECLARATIONS_DATEES), encoding="utf-8-sig", newline="") as f:
+        lecteur = _csv.DictReader(f)
+        lignes = [dict(l) for l in lecteur]
+        if lecteur.fieldnames != DECLARATION_DATEE:
+            raise ValueError(f"{DECLARATIONS_DATEES} : en-tête hors contrat DECLARATION_DATEE ({lecteur.fieldnames})")
+    if not lignes:
+        return []
+    fiches = lire_les_fiches(racine)
+    for numero, ligne in enumerate(lignes, 2):          # la ligne 1 est l'en-tête
+        canon, raison = identite_de_la_fiche(racine, ligne.get("fiche_id"), fiches)
+        if canon is None:
+            raise ValueError(f"{DECLARATIONS_DATEES}, ligne {numero} : {raison}")
+        ligne["fiche_id"] = canon
+    return lignes
+
+
+def fenetre_du_regard_unique():
+    """Rend la fenêtre du regard unique par défaut, après avoir confronté ses bornes à leur empreinte figée.
+
+    ① RÔLE — LA lecture de FENETRE_DU_REGARD_UNIQUE (R-708) : `JUGE_DES_STRATEGIES.jouer` l'appelle pour savoir si une
+      séance jouée exige le reçu d'une inscription au registre des essais.
+    ② CONTEXTE D'APPEL — `JUGE_DES_STRATEGIES._garde_du_regard_unique`, à chaque `jouer` ; l'épreuve du regard unique.
+    ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le couple (début, fin), textes AAAA-MM-JJ, bornes comprises.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① écrire « début..fin » · ② SHA-256, 16 premiers caractères · ③ différent de
+      EMPREINTE_DE_LA_FENETRE_DU_REGARD_UNIQUE → lever.
+    ⑦ UNITÉ — Des jours.
+    ⑧ POURQUOI — Une borne retouchée en passant (« 2000 » devenu « 2010 ») rétrécirait la garde sans que rien rougisse ;
+      l'empreinte figée exige de changer DEUX choses ensemble, et le dit (superviseur GITHUB, réponse 2a : « une
+      empreinte figée comme FICHIERS_DE_COURS_FIGES. Cela attrape l'accident »).
+    ⑨ CE QUI CLOCHE — ① Un auteur qui change les deux passe : la garde est écrite dans la version qu'elle garde (M3 du
+      superviseur GITHUB) ; le contrôle « la fenêtre de la version CONTIENT celle de main » est au pas 7, côté circuit,
+      non fait (GitHub, hors mission). ② Le cas 2 de R-505 n'a pas de fenêtre propre (J1 GITHUB, en attente).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ValueError si l'empreinte ne tient pas.
+      [sort: non]
+    """
+    import hashlib as _hashlib
+    texte = "%s..%s" % FENETRE_DU_REGARD_UNIQUE
+    if _hashlib.sha256(texte.encode("utf-8")).hexdigest()[:16] != EMPREINTE_DE_LA_FENETRE_DU_REGARD_UNIQUE:
+        raise ValueError("fenêtre du regard unique %s : son empreinte n'est plus %s — une borne a changé sans elle"
+                         % (texte, EMPREINTE_DE_LA_FENETRE_DU_REGARD_UNIQUE))
+    return FENETRE_DU_REGARD_UNIQUE
+
+
+# LES MESUREURS DE LA PORTE DU JUGE — les mesures que la grille de R-505 attend de l'extérieur (`mesures_externes` de
+# `MODULE_JUGEMENT.grille_de_validation`), et QUI les prend : {clé de la mesure : « MODULE.fonction » ou None}. Une clé à
+# None n'a pas encore d'auteur : la porte ne la passe pas, la grille rend le contrôle INCONNU et le nomme. Chaque fonction
+# nommée reçoit (racine, fiche, ops) et rend (mesure ou None, raison). DÉCLARÉS ICI ET LUS PAR LA PORTE, jamais un
+# dictionnaire du module de la porte que l'appelant remplace (relecteur J, D4 ; superviseur J du 12-11-2026, réponse 3d :
+# « V2 ne doit plus exister QUE par une mutation globale. Ce n'est pas une défense : la réassignation reste possible »).
+# Un futur auteur se branche en écrivant son nom ICI, dans un commit — le chemin qui se relit.
+MESUREURS_DU_JUGE = {
+    "kelly": "JUGER_UNE_FICHE._kelly",   # R-505 ⑨ : le Kelly entier sur les gains réels nets (lu par J)
+    "voisins": None,            # R-505 ⑩ : les 26 voisins à ±10 % — lot du voisinage (v7-voisinage)
+    "frais_doubles": None,      # R-505 ⑩ : courtage et taxe × 2 — sans auteur
+    "gain_un_jeton": None,      # Q-G2 — sans auteur
+    "creux_un_jeton": None,     # Q-G2 — sans auteur
+    "surapprentissage": None,   # R-505 ⑧, cas 2 : attend le nombre d'essais (A-226)
+    "sharpe_degonfle": None,    # R-505 ⑧, cas 2 : attend le nombre d'essais (A-226)
+}
+
+
 def declaration_de_la_fiche(racine, fiche_id, avant):
     """Rend la déclaration datée d'une fiche qui fait foi pour un regard : la dernière écrite AVANT lui (R-505 ①).
 
-    ① RÔLE — LA lecture de `donnees/DECLARATIONS_DATEES.csv` (DECLARATIONS_DATEES). R-505 ① : « Exiger la déclaration
+    ① RÔLE — Retenir, parmi les lignes rendues par `declarations_du_fichier` (LA lecture du fichier), celle qui fait foi. R-505 ① : « Exiger la déclaration
       datée, écrite avant le regard, sinon rendre NON JUGEABLE en nommant le champ qui manque ». Cette fonction trouve
       la ligne ; `champs_de_la_declaration_manquants` nomme ce qui manque.
     ② CONTEXTE D'APPEL — Le 05-11-2026 : l'épreuve du lot C seule (tests/EPREUVES_DES_CONTRATS_DE_LA_LOI_Jeu_05-11-2026.py).
       Destinée au juge (lot JG) et aux épreuves du lot P0D, qui ne relisent jamais ce fichier à leur façon (R-708).
     ③ ENTRÉE — `racine` : la racine du dépôt ou d'une copie qui en garde l'arborescence. `fiche_id` : un identifiant
-      du registre des stratégies, tel qu'écrit (« C5E10-QA-V1 »). `avant` : la date du regard, texte ISO AVEC son
+      du registre des stratégies (« C5E10-QA-V1 » ; « c5e10-qa-v1 » ou « C5E10-QA-V1 » suivi d'une espace se ramènent à
+      lui par `identite_de_la_fiche`). `avant` : la date du regard, texte ISO AVEC son
       décalage horaire (« 2026-11-20T20:00:00+01:00 ») — sans valeur par défaut : une lecture sans date de regard
       prendrait une déclaration écrite après lui.
-    ④ CONDITIONS D'ENTRÉE — Le fichier existe, en UTF-8, et son en-tête est exactement DECLARATION_DATEE.
-    ⑤ SORTIE — UNE valeur : la ligne retenue, un dictionnaire {champ : texte}, ou None si la fiche n'a aucune
-      déclaration datée strictement avant `avant`. Exemple réel au 05-11-2026 : None pour toute fiche, le fichier
+    ④ CONDITIONS D'ENTRÉE — Celles de `declarations_du_fichier` (le registre des stratégies n'est lu que si le fichier
+      porte au moins une ligne).
+    ⑤ SORTIE — UNE valeur : la ligne retenue, un dictionnaire {champ : texte}, `fiche_id` canonique, ou None si la fiche
+      n'a aucune déclaration datée strictement avant `avant`, ou si elle est inconnue du registre des stratégies. Exemple réel au 05-11-2026 : None pour toute fiche, le fichier
       n'ayant que son en-tête.
       [rend: 1]
-    ⑥ TRAITEMENT — ① lire le fichier par `csv.DictReader` · ② refuser un en-tête différent du contrat · ③ lire `avant`
-      en date avec décalage · ④ parcourir les lignes de la fiche dans l'ordre du fichier, lire la date de chacune, et
+    ⑥ TRAITEMENT — ① `declarations_du_fichier` (identifiants canoniques ; en-tête ou identifiant faux → lève) · ③ lire
+      `avant` en date avec décalage · ③bis forme canonique de `fiche_id` (inconnue → None) · ④ parcourir les lignes de
+      la fiche dans l'ordre du fichier, lire la date de chacune, et
       garder la DERNIÈRE dont la date précède strictement `avant` · ⑤ la rendre.
     ⑦ UNITÉ — Des lignes du fichier ; les dates sont des instants, comparés avec leur décalage.
     ⑧ POURQUOI — La dernière ligne dans l'ORDRE DU FICHIER, comme pour le registre (n°83 : le fichier ne fait
       qu'ajouter, sa place est sa chronologie) ; parmi celles écrites AVANT le regard (R-505 ① : « écrite avant le
       regard »), parce qu'une déclaration écrite après avoir vu le résultat ne protège de rien (R-505 ①, Raison).
       Une date illisible LÈVE au lieu d'être sautée : sautée, elle ferait retenir une déclaration plus ancienne sans
-      le dire.
+      le dire. La comparaison des identifiants se fait sur la forme canonique (B2, 11-11-2026) : elle se faisait à
+      l'octet (relecteur de B2, D1, D6c).
     ⑨ CE QUI CLOCHE — ① La date est celle que la ligne déclare ; rien ici ne la confronte à la date du commit qui a
       ajouté la ligne (à faire par le lot P0D ou JG, avec l'historique du dépôt). ② Deux lignes de même fiche dans le
       désordre des dates : c'est l'ordre du fichier qui décide, pas la plus grande date.
     ⑩ EFFET — Lit le fichier.
-    ⑪ TERMINAISON — Rend la main. LÈVE ValueError (en-tête hors contrat, `avant` sans décalage, date de ligne
-      illisible ou sans décalage) et FileNotFoundError (fichier absent).
+    ⑪ TERMINAISON — Rend la main. LÈVE ValueError (en-tête hors contrat, identifiant de ligne inconnu ou ambigu,
+      `avant` sans décalage, date de ligne illisible ou sans décalage) et FileNotFoundError (fichier absent).
       [sort: non]
     """
-    import csv as _csv
     import datetime as _dt
-    import os as _os
-    with open(_os.path.join(racine, DECLARATIONS_DATEES), encoding="utf-8-sig", newline="") as f:
-        lecteur = _csv.DictReader(f)
-        lignes = list(lecteur)
-        if lecteur.fieldnames != DECLARATION_DATEE:
-            raise ValueError(f"{DECLARATIONS_DATEES} : en-tête hors contrat DECLARATION_DATEE ({lecteur.fieldnames})")
+    lignes = declarations_du_fichier(racine)
     limite = _dt.datetime.fromisoformat(avant)
     if limite.tzinfo is None:
         raise ValueError(f"date du regard sans décalage horaire : « {avant} »")
+    if not lignes:
+        return None
+    canon, _raison = identite_de_la_fiche(racine, fiche_id)
+    if canon is None:
+        return None                                     # une fiche inconnue n'a pas de déclaration (NON JUGEABLE)
     retenue = None
     for numero, ligne in enumerate(lignes, 2):          # la ligne 1 est l'en-tête
-        if ligne["fiche_id"] != fiche_id:
+        if ligne["fiche_id"] != canon:
             continue
         try:
             date = _dt.datetime.fromisoformat(ligne["date_declaration"])
@@ -2254,6 +2490,37 @@ def champs_de_l_en_tete(chemin):
     sep = max((";", ",", "\t"), key=lambda x: ligne.count(x))
     return [c.strip().strip(chr(34)) for c in ligne.split(sep)]
 
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# LE FICHIER DE RÉSULTATS DE LA MOULINETTE — Mer 11-11-2026 (plan V7, bloc 5l ①, mission « TRI »).
+# ÉCRIT par `programmes/JOUER_LES_VERSIONS.py` (une ligne par version jouée, `RESULTATS_<STRATÉGIE>_<ESSAI>.csv`) ;
+# LU par `programmes/TRIER_LES_VARIANTES.py` (le tri, A-541 fonction ③) et, pour ses trois chiffres, par la
+# comparaison au témoin de résultats de JOUER_LES_VERSIONS. Les quatorze premiers champs sont ceux que JOUER écrivait
+# avant ce jour, relevés dans son code et sur le vrai fichier
+# etudes/IND-001-RETEST/moulinette_a_blanc_2024-2026/RESULTATS_IND-001-RETEST_E01.csv (9 800 lignes).
+# Les sept derniers sont ajoutés le 11-11-2026 : `fin_ecrite_dans_la_fiche` (la fin de période de la fiche ; la
+# colonne `periode_fin` porte désormais la FIN CALCULÉE, plan V7 bloc 5g) ; `cours_joues` et `empreinte_des_cours` (le
+# fichier de cours joué, relatif à la racine, et l'empreinte de ses séances jusqu'à la fin de la fiche (12-11-2026,
+# M2 : `JOUER_LES_VERSIONS.empreinte_des_cours_jusqu_a`) : le 11-11-2026, des résultats disaient « 2000-01-03 »
+# joués sur des cours qui commencent en 2024) ; `frontiere_70_30`, `embargo_seances` et les trois colonnes « _70 » :
+# les chiffres de la SEULE partie de réglage, coupée par `MODULE_JUGEMENT.coupure_70_30` comme le juge la coupe
+# (relecteur neuf du tour 1 de la mission TRI, D1 : le tri choisissait sur les 30 % gardés pour le jugement).
+# Un fichier écrit avant le 11-11-2026 n'a pas ces colonnes : le tri le refuse, il ne sait pas séparer ses 30 %.
+# Pas de confrontation automatique : ces fichiers n'ont pas de chemin fixe (un par stratégie et par essai).
+RESULTATS_DES_VERSIONS = [
+    "id_version", "strategie", "essai", "versions_dans_l_essai", "tp", "sl", "horizon", "univers",
+    "periode_debut", "periode_fin", "operations", "reussite_pourcents_exacte", "gain_net_euros", "bareme",
+    "fin_ecrite_dans_la_fiche", "cours_joues", "empreinte_des_cours", "frontiere_70_30", "embargo_seances",
+    "operations_70", "reussite_pourcents_exacte_70", "gain_net_euros_70",
+]
+# Les SEULES colonnes qu'un critère du tri peut lire : celles de la partie de réglage. Les colonnes `operations`,
+# `reussite_pourcents_exacte` et `gain_net_euros` portent la période ENTIÈRE, 30 % compris : elles servent à la
+# comparaison au témoin de résultats de JOUER_LES_VERSIONS, jamais au tri.
+COLONNES_DU_TRI = ("operations_70", "reussite_pourcents_exacte_70", "gain_net_euros_70")
+# Les colonnes qui doivent porter UNE seule valeur sur tous les fichiers que le tri réunit : sinon les versions n'ont
+# pas été jouées dans les mêmes conditions (relecteur neuf, D4).
+COLONNES_COMMUNES_A_UN_TRI = ("periode_debut", "periode_fin", "fin_ecrite_dans_la_fiche", "bareme", "cours_joues",
+                              "empreinte_des_cours", "frontiere_70_30")
 
 def confronter_tous(base):
     """Confronte CHAQUE fichier de liaison à son contrat. Rend la liste des écarts.

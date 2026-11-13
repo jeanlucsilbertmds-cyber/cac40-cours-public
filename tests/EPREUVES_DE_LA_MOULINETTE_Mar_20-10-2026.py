@@ -503,8 +503,14 @@ def cas_jouer_dehors(racine):
            "le juge des stratégies ne se calibre pas")
     un_cas("JOUER, version marquée identique qui ne l'est pas", None, "identique à la fiche, ne retrouve pas la fiche",
            fiche="%s-%s-0001" % (SID, ESSAI))
-    un_cas("JOUER, horizon de 500 séances : marge de cours insuffisante", sur_0500(horizon="500"),
-           "pas assez de cours après la période")
+    # LA FIN DE LA PÉRIODE SE CALCULE (plan V7, bloc 5g, 11-11-2026) : un horizon de 500 séances la ramènerait de près
+    # de deux ans ; le recul est borné par donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv (valeur provisoire, à
+    # décider par Jean-Luc ; relecteur neuf de la mission TRI, D6) : refus. Un horizon que les cours ne peuvent pas
+    # porter du tout refuse avant, « pas assez de cours ».
+    un_cas("JOUER, horizon de 500 séances : la fin reculerait au-delà du réglage, refus",
+           sur_0500(horizon="500"), ("la fin calculée recule de", "rien n'est joué"))
+    un_cas("JOUER, horizon de 5000 séances : aucune fin possible, marge de cours insuffisante",
+           sur_0500(horizon="5000"), "pas assez de cours après la période")
     d, f_out, _ = un_cas("JOUER, objectif écrit 1.5 au lieu d'une fraction : fusion fausse",
                          sur_0500(tp="1.5"),
                          ("fusion fausse pour %s-%s-0500" % (SID, ESSAI), "tp lu '1.5', version '1.5'"))
@@ -609,7 +615,8 @@ def faux_juge(base, **reglages):
     dossier_j = os.path.join(dossier(), "programmes") if reglages.get("ailleurs") else os.path.join(base, "programmes")
     J.__file__ = os.path.join(dossier_j, "JUGE_DES_STRATEGIES.py")
     bornes = ("2024-01-02", "2026-07-10")
-    J.fichiers_de_cours = lambda b: ["cours"]
+    # (12-11-2026) JOUER hache les séances du fichier de cours jusqu'à la fin de la fiche : le faux fichier existe
+    J.fichiers_de_cours = lambda b: [os.path.join(b, "cours")]
     J.charger_cours = lambda f: {"TTE": [{"date": "2026-08-%02d" % k} for k in range(1, 31)]}
     # JOUER_LES_VERSIONS lit les cours par le lecteur unique, comme le juge, depuis le 27-10-2026 (A-577, étape 1) :
     # le faux juge rend les mêmes séances et une lecture neutre — aucun passage, aucun trou, aucun défaut.
@@ -620,7 +627,15 @@ def faux_juge(base, **reglages):
     J.lire_par_le_lecteur = lire_par_le_lecteur
     J.table_mnemoniques = lambda f: {"TTE": "TTE"}
     J.cle_valeur = lambda m: m
-    J.charger_module = lambda f, nom: None
+    # le module de jugement (coupure 70/30, mission TRI du 11-11-2026) : le faux juge rend une coupure fixe
+    # (12-11-2026) : la frontière vient de `frontiere_de_la_fiche`, que la coupure reçoit
+    J.charger_module = lambda f, nom: types.SimpleNamespace(
+        frontiere_de_la_fiche=lambda fiche, seances, bornes: "2025-06-02",
+        coupure_70_30=lambda ops, sea, horizon=None, frontiere=None: {
+            "frontiere": frontiere, "embargo_seances": 21, "res_70": {"n": 1, "wr_exact": 100.0, "net": 10.0}}) \
+        if nom == "jug" else None
+    J.lire_horizon = lambda x: int(x)
+    J.empreinte = lambda chemin: "0000000000000000"
     # le signal que la fiche nomme (A-542, 30-10-2026) : le faux juge n'en lit pas, son faux `jouer` n'en a pas besoin
     J.signal_de_la_fiche = lambda b, f: None
     # le barème des verdicts (A-550, 29-10-2026) : le faux juge n'a pas de module des positions, il en donne le nom
@@ -697,6 +712,11 @@ def cas_jouer_dedans(racine):
         d = dossier()
         base = os.path.join(d, "depot")
         os.makedirs(os.path.join(base, "programmes"))
+        open(os.path.join(base, "cours"), "w", encoding="utf-8").write("valeur,date\n")   # le faux fichier de cours
+        # le réglage du recul maximum de la fin (mission TRI, 11-11-2026), lu par JOUER sous sa racine
+        os.makedirs(os.path.join(base, "donnees", "combinatoires"))
+        shutil.copy(os.path.join(racine, "donnees", "combinatoires", "RECUL_MAXIMUM_DE_LA_FIN.csv"),
+                    os.path.join(base, "donnees", "combinatoires"))
         f_reg = ecrire(os.path.join(d, "registre.csv"), list(fiche),
                        [fiche] * (nb_fiches - 1) + [dict(fiche, **(derniere or {}))])
         f_comb = ecrire(os.path.join(d, "COMBINATOIRE_F_E01.csv"), colonnes, deux)
@@ -705,7 +725,7 @@ def cas_jouer_dedans(racine):
         avant_mod, avant_argv, avant_cal = sys.modules.get("JUGE_DES_STRATEGIES"), sys.argv, jouer.calibrer_par_le_juge
         sys.modules["JUGE_DES_STRATEGIES"] = J
         sys.argv = ["JOUER_LES_VERSIONS.py", base, f_comb, f_out]
-        jouer.calibrer_par_le_juge = lambda b, i: (True, ligne_juge)
+        jouer.calibrer_par_le_juge = lambda b, i, cours=None: (True, ligne_juge)   # `cours` : --cours=, 11-11-2026
         tampon, code, erreur = io.StringIO(), None, ""
         try:
             with contextlib.redirect_stdout(tampon):

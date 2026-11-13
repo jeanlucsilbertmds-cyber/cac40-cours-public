@@ -33,7 +33,8 @@
 ⑨ CE QUI CLOCHE — La lecture passée à `_rejouer` dans `juger` (stabilité paramétrique) n'a pas de cas : la retirer
   ne fait échouer aucun cas d'ici. · Le refus d'un fichier figé modifié ou allongé n'a pas de
   cas. · L'argument `jusqu_au` de `lire_par_le_lecteur` n'est pas éprouvé : aucun
-  appelant ne le donne. · Le cas M2 dépend de l'historique des 20 ans : s'il disparaît, le cas échoue (et le dit).
+  appelant ne le donne. · Le cas M2 dépend de l'historique des 20 ans, dont il ne garde que les séances APRÈS la fenêtre du regard
+  unique (mission REGARD, 12-11-2026) : s'il disparaît, le cas échoue (et le dit).
 ⑩ EFFET — Écrit le relevé ; écrit des copies du juge et un fichier de cours dans des dossiers temporaires, effacés.
   N'écrit rien sous la racine.
 ⑪ TERMINAISON — Un lancement de ce programme en mode « --un » pour le juge tel quel et un par sabotage de `SAB`,
@@ -56,8 +57,8 @@ SAB = {
                                   '    if True:\n        return True'),
     "S5 les séries jamais coupées": ('if k < len(trous) and trous[k] < b["date"]:', "if False:"),
     # (29-10-2026, A-550 : l'appel porte le barème, le sabotage le garde)
-    "S6 les sorties testées dans le seul morceau": ("                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme)",
-                                                    "                op = jouer_une_entree(v, s, i + 1, tp, sl, h, mod_positions, lecture, bareme) if i + 1 < len(s) else None"),
+    "S6 les sorties testées dans le seul morceau": ("                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu)",
+                                                    "                op = jouer_une_entree(v, s, i + 1, tp, sl, h, mod_positions, lecture, bareme, recu) if i + 1 < len(s) else None"),
     "S7 le signal de fin de morceau perdu": ("                j = rang[d_sig] + 1           #",
                                              "                j = rang[d_sig] + 1 if i + 1 < len(s) else len(serie)           #"),
     "S8 les lignes mises à part ignorées": ("    if a_part:\n", "    if False:\n"),
@@ -158,6 +159,64 @@ class Signal:
 
     def signaux(self, s):
         return [{"i": k} for k, b in enumerate(s) if b["date"] in self.dates]
+
+
+def copie_sans_la_fenetre(source, cible, fenetre):
+    """Écrit une copie d'un fichier de cours SANS AUCUNE SÉANCE jusqu'à la fin de la fenêtre du regard unique, et avec
+    deux trous fabriqués ; rend ce qui a été gardé, écarté, troué, et les séances de la fenêtre RELUES dans la copie.
+
+    ① RÔLE — Fermer le cas M2 par une PROPRIÉTÉ (mission REGARD du 12-11-2026, pas 1 ; superviseur GITHUB, marche 1) :
+      M2 lançait le juge sur l'historique des 20 ans avec C5E10-QA-V1, une version de C5, à chaque certification de
+      nuit — le seul calcul de C5 sur 2000-2023 qui tournait. Il ne calculait que 2024-2026 parce que la fiche borne sa
+      période (`JUGE_DES_STRATEGIES`, `_bornes`) : la garde tenait à une case de la fiche.
+    ② CONTEXTE D'APPEL — Le cas M2 de `cas` ; l'épreuve du regard unique (`tests/EPREUVES_DU_REGARD_UNIQUE_Jeu_12-11-2026.py`),
+      qui la sabote.
+    ③ ENTRÉE — `source` : un fichier de cours (en-tête, puis « valeur,date,… ») · `cible` : le chemin de la copie ·
+      `fenetre` : (début, fin) en textes AAAA-MM-JJ, LUE au contrat (`CONTRATS_DES_FICHIERS.fenetre_du_regard_unique`).
+    ④ CONDITIONS D'ENTRÉE — La date est la deuxième case de chaque ligne.
+    ⑤ SORTIE — QUATRE valeurs : lignes gardées, lignes écartées, lignes retirées pour faire les trous, séances de la
+      fenêtre relues dans la copie (0 attendu).
+      [rend: 4]
+    ⑥ TRAITEMENT — ① garder l'en-tête et les lignes datées APRÈS la fin de la fenêtre · ② retirer, de la première
+      valeur gardée, sa 100e et sa 200e séance (deux trous au milieu de sa série) · ③ relire la copie et compter les
+      lignes dont la date tombe dans la fenêtre.
+    ⑦ UNITÉ — Des lignes de cours.
+    ⑧ POURQUOI — Le cas éprouve que « --cours lit le fichier donné » : il n'a pas besoin des 20 ans (superviseur
+      GITHUB, M2). Il le prouve par les SÉANCES SANS COURS, que le maître n'a pas ; la partie 2024 et suivantes de
+      l'historique n'en a pas non plus (mesuré le 12-11-2026 : « 0 coupures des series, sur 0 seances sans cours ») —
+      d'où les deux trous fabriqués. La fenêtre vient du contrat : si elle grandit, la copie suit.
+    ⑨ CE QUI CLOCHE — La relecture ③ compte les lignes de la COPIE, pas ce que le juge lit : le juge lit le fichier
+      qu'on lui passe, et ce fichier est la copie (M2 passe son chemin).
+    ⑩ EFFET — Écrit `cible`.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    debut, fin = fenetre
+    garde, ecarte, par_valeur, lignes = 0, 0, {}, []
+    with open(source, encoding="utf-8") as e:
+        tete = e.readline()
+        for l in e:
+            if l.split(",", 2)[1] > fin:
+                lignes.append(l)
+            else:
+                ecarte += 1
+    premiere = lignes[0].split(",", 1)[0] if lignes else None
+    a_trouer = {i for i, l in enumerate(lignes) if l.split(",", 1)[0] == premiere}
+    rangs = sorted(a_trouer)
+    retirees = {rangs[k] for k in (100, 200) if k < len(rangs)}
+    with open(cible, "w", encoding="utf-8") as s:
+        s.write(tete)
+        for i, l in enumerate(lignes):
+            if i not in retirees:
+                s.write(l)
+                garde += 1
+    dans = 0
+    with open(cible, encoding="utf-8") as e:
+        e.readline()
+        for l in e:
+            if debut <= l.split(",", 2)[1] <= fin:
+                dans += 1
+    return garde, ecarte, len(retirees), dans
 
 
 def lancer_le_juge(copie, racine, *options):
@@ -400,11 +459,20 @@ def cas(copie, racine):
             return ok, "nom inconnu dans --cours : code %d, arrêt dit : %s" % (code, "ARRET : le lecteur unique" in out)
 
         def m2():
-            code, out = lancer_le_juge(copie, racine, FICHE, "--cours=" + HISTORIQUE)
+            # LE REGARD UNIQUE (R-505 ③ ; mission REGARD du 12-11-2026, pas 1) : M2 ne lit PLUS l'historique des 20 ans,
+            # mais une copie SANS AUCUNE SÉANCE de la fenêtre du regard unique (lue au contrat), avec deux trous.
+            import CONTRATS_DES_FICHIERS as CF
+            sans = os.path.join(d, "historique_sans_la_fenetre.csv")
+            garde, ecarte, trous, dans = copie_sans_la_fenetre(os.path.join(racine, HISTORIQUE), sans,
+                                                              CF.fenetre_du_regard_unique())
+            if dans:
+                return False, "la copie passée au juge porte %d séance(s) de la fenêtre du regard unique" % dans
+            code, out = lancer_le_juge(copie, racine, FICHE, "--cours=" + sans)
             n = re.search(r"LECTURE :.* (\d+) seances sans cours", out)
             ok = code == 0 and n is not None and int(n.group(1)) > 0
-            return ok, "historique des 20 ans par --cours : code %d, séances sans cours %s (attendu : plus de 0)" % (
-                code, n.group(1) if n else "non dites")
+            return ok, ("historique sans la fenêtre du regard unique (%d lignes gardées, %d écartées, %d trous) par "
+                        "--cours : code %d, séances sans cours %s (attendu : plus de 0)" % (
+                            garde, ecarte, trous, code, n.group(1) if n else "non dites"))
 
         def m3():
             code, out = lancer_le_juge(copie, racine, FICHE)

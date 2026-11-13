@@ -1099,8 +1099,63 @@ def observations_independantes(ops):
 # LA COUPURE 70 / 30 — avec nettoyage de la frontière
 # ─────────────────────────────────────────────────────────────────────
 
-def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None,
-                  part=0.70):
+def frontiere_de_la_fiche(fiche, seances, bornes, part=0.70):
+    """Rend LA frontière 70/30 d'une fiche : la date qui sépare les années de réglage des années d'examen.
+
+    ① RÔLE — Être le SEUL endroit où la frontière 70/30 s'établit, pour le juge, pour JOUER_LES_VERSIONS et
+      pour le tri (superviseur R-759 de la mission TRI, tour 3, 12-11-2026 : « la frontière doit être UNE
+      donnée, établie une fois, lue partout, jamais recalculée »).
+    ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py` (`juger`, avant la coupure) ; `_calibrage` de ce
+      module (une fois) ; `programmes/JOUER_LES_VERSIONS.py`
+      (`main`, une fois) ; `programmes/TRIER_LES_VARIANTES.py` (`frontiere_attendue`, une fois).
+    ③ ENTRÉE — `fiche` : la ligne du registre des stratégies (un dictionnaire, éventuellement vide) ·
+      `seances` : les dates de séance des cours lus (AAAA-MM-JJ), toutes valeurs réunies · `bornes` : le
+      couple (début, fin) de la fiche rendu par la porte 0 du juge, ou None pour tout le calendrier ·
+      `part` : la fraction du temps qui va aux années de réglage, 0,70.
+    ④ CONDITIONS D'ENTRÉE — Les dates s'écrivent AAAA-MM-JJ.
+    ⑤ SORTIE — UNE valeur : la date de la frontière (AAAA-MM-JJ), ou None si aucune séance ne tombe dans les
+      bornes.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① si la fiche porte une frontière DÉCLARÉE (case `frontiere_70_30` non vide) : la rendre,
+      après avoir exigé une date AAAA-MM-JJ comprise dans les bornes ET qui soit une séance du calendrier reçu
+      (relecteur de la mission TRI, tour 3, M1 : la coupure coupe à une séance ; une date sans séance ferait
+      écrire une frontière et couper à une autre) · ② sinon : trier les séances comprises
+      dans les bornes, et rendre celle de rang `int(nombre × part)` (la dernière si ce rang déborde) — SANS
+      regarder les opérations.
+    ⑦ UNITÉ — Des dates ; `part` est une FRACTION du temps.
+    ⑧ POURQUOI — Jusqu'au 12-11-2026, la frontière se calculait dans `coupure_70_30` à partir du calendrier
+      reçu, et trois programmes lui passaient chacun leur calendrier : rien ne garantissait qu'ils parlaient de
+      la même date (relecteur neuf de la mission TRI, tour 2, N1 et N2). La formule est celle que
+      `coupure_70_30` appliquait (`cal[min(int(len(cal) * part), len(cal) - 1)]`), déplacée ici sans
+      changement : la frontière de C5 ne bouge pas. La frontière DÉCLARÉE est une question posée à Jean-Luc
+      (superviseur R-759, point A) : sa lecture est prévue, rien ne l'exige ; aucune fiche n'en porte le
+      12-11-2026.
+    ⑨ CE QUI CLOCHE — ① Une frontière déclarée qui n'est pas une séance est REFUSÉE (depuis le 12-11-2026) :
+      Jean-Luc devra déclarer une date de séance. ② Le nom de la case déclarée, `frontiere_70_30`, est
+      celui de la colonne des fichiers de résultats ; si Jean-Luc décide qu'elle vit dans la déclaration datée
+      de R-505, c'est cette fonction qui changera, et elle seule.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ValueError sur une frontière déclarée illisible, hors des bornes, ou qui
+      n'est pas une séance des cours lus.
+      [sort: non]
+    """
+    declaree = (fiche.get("frontiere_70_30") or "").strip() if fiche else ""
+    if declaree:
+        if len(declaree) != 10 or declaree[4] != "-" or declaree[7] != "-" \
+                or not (declaree[:4] + declaree[5:7] + declaree[8:]).isdigit():
+            raise ValueError("frontière 70/30 déclarée illisible : %r" % declaree)
+        if bornes and not (bornes[0] <= declaree <= bornes[1]):
+            raise ValueError("frontière 70/30 déclarée hors des bornes de la fiche : %s pour %s" % (declaree, bornes))
+        if declaree not in set(seances):
+            raise ValueError("frontière 70/30 déclarée %s : ce n'est pas une séance des cours lus" % declaree)
+        return declaree
+    cal = sorted(d for d in seances if not bornes or bornes[0] <= d <= bornes[1])
+    if not cal:
+        return None
+    return cal[min(int(len(cal) * part), len(cal) - 1)]
+
+
+def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, frontiere=None):
     """Coupe le TEMPS en deux, avec PURGE et EMBARGO. Aucun chiffre invente.
 
     LA METHODE VIENT DE LA LITTERATURE, elle n'est pas de nous : purge et
@@ -1135,19 +1190,24 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None,
       qui gagne sur la période où on l'a réglée n'a rien prouvé. Entre les deux
       parties, une zone est retirée des deux côtés pour qu'aucune opération
       ouverte avant la frontière ne déborde dans la partie jamais vue.
-    ② CONTEXTE D'APPEL — Deux appelants. ① `programmes/JUGE_DES_STRATEGIES.py`, à la
-      main, une fois par stratégie jugée, en lui passant l'horizon de la fiche
-      et le calendrier réduit à la période que la fiche déclare. ② `_calibrage`,
-      deux fois, pour vérifier que la zone retirée ne peut pas être plus courte
-      que l'horizon.
+    ② CONTEXTE D'APPEL — Trois appelants. ① `programmes/JUGE_DES_STRATEGIES.py`, à la
+      main, une fois par stratégie jugée, en lui passant l'horizon de la fiche,
+      le calendrier réduit à la période que la fiche déclare et la frontière de
+      `frontiere_de_la_fiche`. ② `_calibrage`, deux fois, pour vérifier que la
+      zone retirée ne peut pas être plus courte que l'horizon. ③
+      `partie_de_reglage` de `programmes/JOUER_LES_VERSIONS.py`, une fois par
+      version jouée (12-11-2026).
     ③ ENTRÉE — `ops` : la liste des opérations, dont seules les cases
       `date_signal` et `net` sont lues · `seances_projet` : toutes les dates de
       séance de la période à couper · `embargo_seances` : la largeur en séances
       de la zone retirée, `None` par défaut, et l'appelant de production laisse
       ce défaut · `horizon` : le nombre de séances pendant lesquelles une
       position est tenue, que le juge des stratégies lit sur la fiche de la stratégie ·
-      `part` : la fraction du temps qui va dans la première partie, 0,70 par
-      défaut, aucun appelant ne la change.
+      `frontiere` : la date rendue par `frontiere_de_la_fiche`, EXIGÉE. Le
+      paramètre `part` et le repli « sans frontière, la calculer sur tout le
+      calendrier » sont retirés le 12-11-2026 (relecteur de la mission TRI,
+      tour 3, M1) : ce repli ignorait une frontière déclarée dans la fiche, et
+      un appelant qui oubliait `frontiere=` faisait fuir les 30 % sans bruit.
       CONTRAT DU LOT 0 (09-11-2026) — `horizon` est un entier > 0, None (non
       fourni), ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale). Ce dernier
       refuse tout calcul par une TypeError : il n'est accepté qu'avec un
@@ -1167,12 +1227,14 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None,
       deux valeurs entre 21 séances et l'horizon · ② rendre trois zéros si la
       liste est vide · ③ numéroter les séances dans l'ordre · ④ ne garder que
       les opérations dont la date de signal est au calendrier, et rendre un
-      motif s'il n'en reste aucune · ⑤ placer la frontière aux sept dixièmes du
-      calendrier · ⑥ ranger chaque opération avant la zone retirée, après la
+      motif s'il n'en reste aucune · ⑤ prendre la frontière reçue (refus si elle
+      manque) et la situer dans le calendrier (rang de la première séance qui ne
+      la précède pas) ; la case `frontiere` rendue est la séance où la coupure a
+      RÉELLEMENT coupé, que l'appelant compare à celle qu'il écrit · ⑥ ranger chaque opération avant la zone retirée, après la
       frontière, ou dans la zone retirée · ⑦ rendre les effectifs et le résumé
       de chaque côté.
     ⑦ UNITÉ — Les largeurs et les positions se comptent en SÉANCES de bourse.
-      `part` est une FRACTION du temps, jamais un nombre d'opérations. Les
+      La part de 70 % est une FRACTION du temps (dans `frontiere_de_la_fiche`), jamais un nombre d'opérations. Les
       résumés portent un taux de réussite en POURCENTS et un gain en EUROS.
     ⑧ POURQUOI — La coupure se fait sur le TEMPS et jamais sur le nombre
       d'opérations, parce qu'une stratégie doit faire ses preuves sur des
@@ -1213,9 +1275,12 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None,
     ⑩ EFFET — Aucun : elle lit. Aucun fichier, aucun réseau, aucune donnée
       modifiée, rien d'affiché. Elle construit une copie triée du calendrier et
       trois listes d'opérations.
-    ⑪ TERMINAISON — Rend la main dans tous les cas que son appelant lui donne.
-      PEUT LEVER sur un calendrier vide, la recherche de la frontière échouant
-      alors ; le juge des stratégies rattrape et affiche « COUPURE 70/30 non mesuree ».
+    ⑪ TERMINAISON — Rend la main dans tous les cas que son appelant lui donne,
+      calendrier vide compris (mesuré le 12-11-2026 : elle rend alors le motif
+      « aucune date de signal reconnue au calendrier »). LÈVE ValueError si la
+      frontière manque (« la frontière est exigée »), et TypeError si l'horizon
+      vaut « aucune » sans embargo explicite ; le juge des stratégies rattrape
+      et affiche « COUPURE 70/30 non mesuree ».
       Un de ses appels peut ne pas revenir : `_resume` rend toujours la main.
       [sort: non]
     ⑫ DÉFINITIONS
@@ -1250,6 +1315,8 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None,
     # court ; on prend donc le PLUS GRAND des deux.
     if embargo_seances is None:
         embargo_seances = max(21, int(horizon or 0))
+    if frontiere is None:
+        raise ValueError("coupure_70_30 : la frontière est exigée (frontiere=, rendue par frontiere_de_la_fiche)")
     if not ops:
         return {"n_70": 0, "n_30": 0, "n_ecartes": 0}
     cal = sorted(seances_projet)
@@ -1257,8 +1324,12 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None,
     connues = [o for o in ops if o["date_signal"] in rang]
     if not connues:
         return {"motif": "aucune date de signal reconnue au calendrier"}
-    i_frontiere = int(len(cal) * part)
-    frontiere = cal[min(i_frontiere, len(cal) - 1)]
+    # LA FRONTIÈRE N'EST PLUS CALCULÉE ICI (superviseur R-759 de la mission TRI, 12-11-2026) : elle est REÇUE de
+    # `frontiere_de_la_fiche`, la seule fonction qui l'établit. Son rang est celui de la première séance qui ne la
+    # précède pas : pour une frontière calculée, c'est exactement l'ancien `int(len(cal) * part)` (borné). La date
+    # rendue est la séance où l'on coupe RÉELLEMENT (M1, 12-11-2026).
+    i_frontiere = next((i for i, d in enumerate(cal) if d >= frontiere), len(cal))
+    frontiere = cal[i_frontiere] if i_frontiere < len(cal) else frontiere
 
     avant, apres, ecartes = [], [], []
     for o in connues:
@@ -2360,7 +2431,9 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       tirages retenus, trois taux de réussite — médian, au quatre-vingt-quinzième
       centile, maximal — trois gains aux mêmes rangs, et la graine ; depuis le
       28-10-2026, douze cases : s'y ajoutent le nombre d'opérations réelles et le
-      plus petit et le plus grand nombre d'opérations jouées par un tirage.
+      plus petit et le plus grand nombre d'opérations jouées par un tirage ; depuis
+      le 11-11-2026, treize : `gains_des_tirages`, la liste triée des gains totaux
+      de chaque tirage, en euros, que lit `p_du_hasard` (R-505 ⑥).
       [rend: 1]
     ⑥ TRAITEMENT (depuis le 28-10-2026) — ① refuser sans `entree` ni `admis` ·
       ② dresser les achats que la stratégie aurait pu faire : une séance d'achat
@@ -2532,7 +2605,10 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
             "gain_max": round(gains[-1], 0),
             "graine": graine,
             "operations_reelles": len(ops),
-            "jouees_par_tirage_min": min(joues), "jouees_par_tirage_max": max(joues)}
+            "jouees_par_tirage_min": min(joues), "jouees_par_tirage_max": max(joues),
+            # LA PART DE TIRAGES BATTUS se lit sur tous les gains, pas sur trois rangs (A-305 ⑤ ; R-505 ⑥ ;
+            # `p_du_hasard`, 11-11-2026) : la liste triée des gains totaux de chaque tirage, en euros.
+            "gains_des_tirages": list(gains)}
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2840,6 +2916,1105 @@ def glissement(ops):
 
 
 # ─────────────────────────────────────────────────────────────────────
+# LA GRILLE DE VALIDATION — R-505 (plan V7, bloc 5a, agent B, Mer 11-11-2026 ; reprise de 03h00 sur l'avis du
+# superviseur R-759 « À REPRENDRE EN PROPRIÉTÉ » : verdict par INCLUSION, une seule garde d'entrée, rôles lus par la
+# grille et jamais chez l'appelant, domaines des seuils, NaN refusés)
+# Elle LIT ses seuils et les rôles discutés dans la table « LES SEUILS DE CETTE LOI » de R-505, au REGISTRE ; aucun
+# seuil n'est écrit ici. Le juge des stratégies (propriétaire : agent A) l'appelle ; elle ne lit aucun fichier.
+# ─────────────────────────────────────────────────────────────────────
+
+# LES CLÉS QUE LA GRILLE LIT DANS LA TABLE DE R-505, avec le DOMAINE de chaque nombre. Une clé absente, illisible ou
+# hors de son domaine rend le contrôle qui la lit INCONNU, jamais une valeur par défaut (grille, règle commune (b) :
+# « un contrôle non calculable est INCONNU et empêche la validation », DÉL-D26). « proba » = dans ]0, 1] ; « positif » =
+# strictement > 0 ; « entier » = entier ≥ 1 ; « rôle » = exactement « condition » ou « affichage ». Les six dernières
+# n'existent pas au REGISTRE le 11-11-2026 à 03h : elles sont demandées à l'agent A, qui écrit le REGISTRE mercredi.
+DOMAINES_DES_CLES_DE_LA_TABLE = {
+    "seuil_de_preuve": "proba",          # ⑤ : « 0,05 ÷ k » au 11-11 (n°42)
+    "seuil_du_hasard": "proba",          # ⑥ : « 0,05 ÷ k » (décision de Jean-Luc du 31-10-2026 à 19h46, n°42)
+    "plancher_observations": "positif",  # ④ : « 30 » (n°81, DÉL-D35)
+    "kelly_minimum": "positif",          # ⑨ : « 0,05 » (n°88)
+    "epoque_perdante": "proba",          # ⑦ : « 0,05 » (n°58) — lu par l'appelant pour `controle_des_epoques`
+    "taux_face_au_point_mort": "rôle",   # ancien C7 (Q-G3 ; n°352 : condition) — À ÉCRIRE PAR A
+    "borne_basse_du_gain": "rôle",       # ancien C8 (Q-G3 ; n°352 : condition) — À ÉCRIRE PAR A
+    "gain_un_jeton": "rôle",             # Q-G2 (en attendant : affichage) — À ÉCRIRE PAR A
+    "creux_un_jeton": "rôle",            # Q-G2 (en attendant : affichage) — À ÉCRIRE PAR A
+    "refutation_borne_haute": "proba",   # RÉFUTÉE : DÉL-D40 (« 95 % » → 0,05) — À ÉCRIRE PAR A
+    "embargo_sans_duree": "texte",       # embargo d'une stratégie sans durée (« non tranché » ⑤) — À ÉCRIRE PAR A
+    "surapprentissage_maximum": "proba", # ⑧ : « 0,30 » (n°109)
+    "voisins": "texte",                  # ⑩ : « 26 voisins à ±10 %, tous gagnants » (DÉL-D13, DÉL-D36)
+    "frais_doubles": "texte",            # ⑩ : « courtage et taxe × 2, gain > 0 » (DÉL-D13, DÉL-D36)
+}
+
+# LA RÉFÉRENCE DE STRICTESSE DE CHAQUE SEUIL (superviseur R-759, 3e saisine, N-D) : un seuil lu à la table n'est accepté
+# que s'il est AU MOINS AUSSI STRICT que cette référence ; sinon le contrôle est INCONNU. Chaque référence est la valeur
+# qu'une DÉCISION DE JEAN-LUC a fixée (sa source à côté). « ÷ k » se calcule avec le k du jugement.
+# ⚠ Le contrat (gelé) ne porte pas ces références : elles sont ici en attendant que le Chat les y porte (note de B).
+# Elles RÉPÈTENT volontairement la décision que la table porte aussi : une référence qui se lirait dans la table qu'elle
+# contrôle ne contrôlerait rien (une table retouchée se validerait elle-même).
+# LE SEUIL DU HASARD est 0,05 ÷ k, k compté sur TOUT le registre des stratégies : décisions de Jean-Luc du 31-10-2026 à
+# 19h46 (n°42 : « on valide si le gain frais payés bat zéro ET l'achat au hasard au seuil 0,05 ÷ k ») et à 16h05 (n°26,
+# rapportée par R-505 : « seuil sur tout le registre »). Le 0,00135 (choix n°352 du Chat, jamais accepté par Jean-Luc) est RETIRÉ ; écrit à
+# la table, il est refusé dès que k > 37 (0,05 ÷ 38 = 0,001316 < 0,00135), donc toujours aujourd'hui (k = 68 ou 69).
+REFERENCES_DE_STRICTESSE = {
+    "seuil_de_preuve": ("<=", "0,05 ÷ k", "n°42"),
+    "seuil_du_hasard": ("<=", "0,05 ÷ k", "n°42"),
+    "plancher_observations": (">=", "30", "n°81"),
+    "kelly_minimum": (">=", "0,05", "n°88"),
+    "epoque_perdante": (">=", "0,05", "n°58"),
+    "surapprentissage_maximum": ("<=", "0,30", "n°109"),
+    "refutation_borne_haute": ("<=", "0,05", "DÉL-D40"),
+    "embargo_sans_duree": (">=", "21", "A-305 ②"),
+}
+
+# LES RÉFÉRENCES DES DEUX DRAPEAUX DE R-505 ⑩ (relecteur du tour 3, D4 : « 1 voisin à ±10 %, tous gagnants » avec un
+# voisin validait). Leurs cases sont du texte : elles se lisent par `_voisins_exiges` et `_frais_exiges`, et chaque
+# nombre lu est confronté ici. Source : DÉL-D36, un CHOIX DÉLÉGUÉ AU CHAT (« les 26 voisins à ±10 % de chaque réglage
+# doivent tous gagner ; le gain doit survivre au courtage et à la taxe multipliés par deux »), pas une décision de
+# Jean-Luc : la référence est la valeur écrite au REGISTRE le 04-11-2026. Plus de voisins, un écart plus large, un
+# multiplicateur plus grand sont plus stricts.
+REFERENCES_DES_DRAPEAUX = {
+    "voisins_nombre": (">=", "26", "DÉL-D36"),
+    "voisins_ecart_pct": (">=", "10", "DÉL-D36"),
+    "frais_multiplicateur": (">=", "2", "DÉL-D36"),
+}
+
+# LES MESURES QUE LA GRILLE ATTEND, PAR CONTRÔLE MESURÉ HORS D'ELLE (simplification 1 du superviseur : la grille ne
+# reçoit JAMAIS d'état, seulement des mesures, et calcule l'état). Pour les clés que le contrat déclare
+# (DETAILS_DES_CONTROLES : époques, surapprentissage, Sharpe dégonflé, Kelly), les champs sont LUS au contrat ; pour les
+# quatre autres, le contrat n'a rien : PROPOSITION DE B, à porter au contrat par le Chat (note de B).
+MESURES_PROPOSEES_HORS_CONTRAT = {
+    "voisins": ["n_voisins", "n_voisins_gagnants", "ecart_pct"],
+    "frais_doubles": ["gain_moyen_frais_doubles_eur", "multiplicateur_des_frais"],
+    "gain_un_jeton": ["gain_un_jeton_eur"],
+    "creux_un_jeton": ["creux_un_jeton_eur"],
+}
+CLES_DE_LA_TABLE_LUES_PAR_LA_GRILLE = tuple(DOMAINES_DES_CLES_DE_LA_TABLE)
+
+# LE RÔLE DES CONTRÔLES ① À ⑩ : des CONDITIONS, par la loi elle-même (R-505, « CE QUE FAIT LE JUGE, DANS L'ORDRE » ①
+# à ⑩, chacun « exiger » ou « lever un drapeau qui arrête » ; DÉL-D40 : « tous les contrôles ① à ⑨ passés, aucun
+# INCONNU, aucun drapeau levé »). Les quatre autres contrôles du contrat (Q-G2, Q-G3) ont leur rôle à la table.
+# Le rôle n'est JAMAIS pris chez l'appelant : un `role` écrit dans les époques ou dans une mesure externe est ignoré.
+ROLE_DONNE_PAR_LA_LOI = {cle: "CONDITION" for cle in (
+    "declaration", "annees_d_examen", "regard_unique", "observations_independantes", "gain_bat_zero",
+    "bat_le_hasard", "epoques", "surapprentissage", "sharpe_degonfle", "kelly", "voisins", "frais_doubles")}
+ROLE_LU_A_LA_TABLE = ("taux_face_au_point_mort", "borne_basse_du_gain", "gain_un_jeton", "creux_un_jeton")
+# LES SEULS CONTRÔLES QUI PEUVENT ÊTRE SANS OBJET, et quand : la grille le décide elle-même (R-505 ⑧, cas 1).
+SANS_OBJET_EN_CAS_1 = ("surapprentissage", "sharpe_degonfle")
+
+# LE MOTIF D'UNE NON TRANCHÉE, PAR CONTRÔLE QUI BLOQUE (R-505 ⑫, DÉL-D40 ; mots lus au contrat MOTIFS_DE_NON_TRANCHEE).
+# Les anciens C7 et C8 n'ont pas de mot à eux au contrat gelé : ils portent « NE BAT PAS ZÉRO », le contrôle étant nommé
+# dans `premier_controle_bloquant` ; un mot propre est demandé au Chat (note de B).
+MOTIF_DU_CONTROLE_QUI_BLOQUE = {
+    "annees_d_examen": "DONNÉES DE CHOIX",
+    "regard_unique": "DONNÉES DE CHOIX",     # des années déjà regardées ne sont plus jamais vues (R-505, principe)
+    "observations_independantes": "TROP PETIT",
+    "gain_bat_zero": "NE BAT PAS ZÉRO",
+    "bat_le_hasard": "NE BAT PAS LE HASARD",
+    "epoques": "ÉPOQUE PERDANTE",
+    "surapprentissage": "TROP D'ESSAIS",
+    "sharpe_degonfle": "TROP D'ESSAIS",
+    "kelly": "KELLY",
+    "voisins": "DRAPEAU",
+    "frais_doubles": "DRAPEAU",
+    "taux_face_au_point_mort": "NE BAT PAS ZÉRO",
+    "borne_basse_du_gain": "NE BAT PAS ZÉRO",
+    "gain_un_jeton": "NE BAT PAS ZÉRO",
+    "creux_un_jeton": "MESURE MANQUANTE",
+}
+
+
+def _nombre_fini(x):
+    """Dit si `x` est un nombre fini qui n'est pas un booléen.
+    ① RÔLE — Le test de type de la garde d'entrée et des valeurs reçues.
+    ② CONTEXTE D'APPEL — `_garde_d_entree`, `grille_de_validation`, `p_du_hasard`, `seuil_de_la_loi`.
+    ③ ENTRÉE — `x` : n'importe quelle valeur.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un booléen.
+      [rend: 1]
+    ⑥ TRAITEMENT — entier ou flottant, pas booléen, et fini.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — `nan >= x` vaut faux : un NaN abaissait p et favorisait le passage (superviseur, point 8).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import math
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+
+
+def table_de_la_loi(texte_du_registre):
+    """Lit la table « LES SEUILS DE CETTE LOI » de R-505 dans le texte du REGISTRE et la rend clé par clé.
+
+    ① RÔLE — Donner à la grille de validation les seuils de la loi, là où ils vivent : R-743 ② (« le juge les lit ici »)
+      et R-708 (un chiffre qui existe ailleurs ne se recopie pas). Aucun seuil de la grille n'est écrit dans ce module.
+    ② CONTEXTE D'APPEL — Le juge des stratégies, une fois par jugement, avec le texte de `gouvernance/REGISTRE_REGLES.md`
+      qu'il a lu ; l'épreuve `tests/EPREUVES_B_DU_BLOC_5A_Mer_11-11-2026.py`.
+    ③ ENTRÉE — `texte_du_registre` : le texte entier du REGISTRE (une chaîne).
+    ④ CONDITIONS D'ENTRÉE — Le texte porte la ligne « **LES SEUILS DE CETTE LOI** », suivie (après des lignes blanches
+      seulement) de la table en Markdown dont chaque ligne commence par « | » et porte quatre cases : clé, valeur, sens,
+      source.
+    ⑤ SORTIE — UNE valeur : un dictionnaire {clé : {"valeur": texte, "sens": texte, "source": texte}}. Exemple réel au
+      11-11-2026 : table["plancher_observations"]["valeur"] == "30".
+      [rend: 1]
+    ⑥ TRAITEMENT — ① trouver la ligne du titre · ② lire les lignes suivantes qui commencent par « | », jusqu'à la
+      première qui n'en commence pas ; un texte entre le titre et la table est refusé · ③ sauter l'en-tête (« clé ») et
+      la ligne de séparation · ④ ranger chaque ligne sous sa clé.
+    ⑦ UNITÉ — Des textes ; aucun nombre n'est converti ici (voir `seuil_de_la_loi`).
+    ⑧ POURQUOI — Le juge appliquait des seuils écrits dans son code (« 5 opérations », « 21 séances » : ⑨ ⑤ de l'en-tête
+      de ce module) ; une loi dont les seuils changent sans que le code change exige que le code les lise.
+    ⑨ CE QUI CLOCHE — ① Le titre est cherché par son texte exact : renommé, la table devient introuvable (la fonction
+      lève, elle ne rend pas une table vide). ② Une case qui contient « | » couperait la ligne : aucune ne le fait au
+      11-11-2026.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError (titre absent, table vide, clé écrite deux fois, ligne qui n'a pas
+      quatre cases, texte entre le titre et la table).
+      [sort: non]
+    """
+    lignes = texte_du_registre.splitlines()
+    debut = None
+    for i, l in enumerate(lignes):
+        if "**LES SEUILS DE CETTE LOI**" in l:
+            debut = i
+            break
+    if debut is None:
+        raise ValueError("table de la loi introuvable : la ligne « **LES SEUILS DE CETTE LOI** » manque au REGISTRE")
+    table, vue = {}, False
+    for l in lignes[debut + 1:]:
+        s = l.strip()
+        if not s.startswith("|"):
+            if vue:
+                break                      # la table est finie
+            if s:
+                raise ValueError("table de la loi : texte entre le titre et la table : « %s »" % s[:80])
+            continue                       # ligne blanche avant la table
+        vue = True
+        cases = [c.strip() for c in s.strip("|").split("|")]
+        if len(cases) != 4:
+            raise ValueError("table de la loi : ligne à %d case(s), il en faut 4 : « %s »" % (len(cases), s))
+        if cases[0] in ("clé", "cle") or set(cases[0]) <= set("-: "):
+            continue
+        if cases[0] in table:
+            raise ValueError("table de la loi : la clé « %s » est écrite deux fois" % cases[0])
+        table[cases[0]] = {"valeur": cases[1], "sens": cases[2], "source": cases[3]}
+    if not table:
+        raise ValueError("table de la loi : aucune ligne lue sous le titre")
+    return table
+
+
+def seuil_de_la_loi(table, cle, k=None):
+    """Rend le nombre que la table de la loi porte pour une clé, k appliqué s'il le faut, ou la raison qui l'empêche.
+
+    ① RÔLE — Convertir une case de la table de R-505 en nombre, sans jamais inventer de valeur, et refuser un nombre
+      hors du domaine que DOMAINES_DES_CLES_DE_LA_TABLE déclare pour la clé.
+    ② CONTEXTE D'APPEL — `grille_de_validation`, une fois par seuil ; `embargo_de_la_strategie`.
+    ③ ENTRÉE — `table` : le rendu de `table_de_la_loi` · `cle` : une clé de la table · `k` : le nombre d'essais (un
+      entier ≥ 1, pas un booléen), ou autre chose s'il n'a pas pu se compter.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : le nombre (ou None) et la raison (vide si le nombre est rendu). Exemple : sur la table du
+      11-11-2026, ("seuil_de_preuve", k=69) → (0,000724…, "").
+      [rend: 2]
+    ⑥ TRAITEMENT — ① clé absente → None · ② lire un nombre décimal (virgule ou point), suivi ou non de « ÷ k » ; toute
+      autre écriture (« 0,05 / k », « 1/20 ») → None · ③ « ÷ k » sans k entier ≥ 1 → None · ④ vérifier le domaine :
+      « proba » dans ]0, 1], « positif » > 0, « entier » entier ≥ 1 ; hors domaine → None · ⑤ vérifier la STRICTESSE :
+      au moins aussi strict que REFERENCES_DE_STRICTESSE (un « <= » : le seuil lu ne dépasse pas la référence ; un
+      « >= » : il ne lui est pas inférieur) ; moins strict → None.
+    ⑦ UNITÉ — Celle de la case : une probabilité, un nombre d'observations, une fraction de capital, des séances.
+    ⑧ POURQUOI — Les deux écritures d'un seuil se lisent : un nombre (« 0,30 ») ou un nombre divisé par k
+      (« 0,05 ÷ k », le seuil du hasard et le seuil de preuve, décision de Jean-Luc du 31-10-2026 à 19h46, n°42). Le domaine seul ne suffisait pas : « 5 ÷ k » avec k = 69 vaut 0,072, une probabilité
+      valable, et faisait valider (relecteur du tour 2, N-D). C'est la STRICTESSE qui l'attrape : 0,072 dépasse la
+      référence 0,05 ÷ 69. Le domaine attrape encore un filet nul (« kelly_minimum 0 »).
+    ⑨ CE QUI CLOCHE — Une case en prose (« calculé par programme ») rend None avec sa raison : c'est voulu.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import re
+    if not isinstance(table, dict) or cle not in table:
+        return None, "ligne « %s » absente de la table de R-505" % cle
+    texte = table[cle].get("valeur", "") if isinstance(table[cle], dict) else ""
+    m = re.match(r"^\s*(\d+(?:[.,]\d+)?)\s*(÷\s*k)?\s*$", texte or "")
+    if not m:
+        return None, "la case « %s » de la table de R-505 n'est pas un nombre : « %s »" % (cle, texte)
+    nombre = float(m.group(1).replace(",", "."))
+    if m.group(2):
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            return None, "k inconnu (%r) : « %s » ne se calcule pas" % (k, texte)
+        nombre = nombre / k
+    domaine = DOMAINES_DES_CLES_DE_LA_TABLE.get(cle, "positif")
+    dans = {"proba": 0.0 < nombre <= 1.0, "positif": nombre > 0.0,
+            "entier": nombre >= 1.0 and nombre == int(nombre), "texte": nombre >= 1.0 and nombre == int(nombre)}
+    if not dans.get(domaine, False):
+        return None, "« %s » = %r hors de son domaine (%s)" % (cle, nombre, domaine)
+    if cle in REFERENCES_DE_STRICTESSE:
+        r = _au_moins_aussi_strict(cle, nombre, REFERENCES_DE_STRICTESSE[cle], k)
+        if r:
+            return None, r
+    return nombre, ""
+
+
+def _reference(texte, k):
+    """Calcule une référence de strictesse écrite « 0,05 » ou « 0,05 ÷ k ».
+    ① RÔLE — Donner le nombre auquel un seuil lu est comparé.
+    ② CONTEXTE D'APPEL — `seuil_de_la_loi`.
+    ③ ENTRÉE — `texte` : la référence · `k` : le nombre d'essais.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : le nombre ou None, et la raison.
+      [rend: 2]
+    ⑥ TRAITEMENT — lire le nombre, diviser par k si « ÷ k » (k entier ≥ 1 non booléen, sinon None).
+    ⑦ UNITÉ — celle du seuil.
+    ⑧ POURQUOI — une seule écriture pour les références et la table.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]"""
+    import re
+    m = re.match(r"^\s*(\d+(?:[.,]\d+)?)\s*(÷\s*k)?\s*$", texte)
+    nombre = float(m.group(1).replace(",", "."))
+    if m.group(2):
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            return None, "k inconnu"
+        return nombre / k, ""
+    return nombre, ""
+
+
+def role_du_controle(table, cle):
+    """Rend le rôle d'un contrôle — CONDITION (il fait le verdict) ou AFFICHAGE (il est montré).
+
+    ① RÔLE — Répondre aux questions Q-G2 et Q-G3 par une VALEUR lue à la table, jamais par le code ni par l'appelant
+      (contrat du verdict, ROLES_D_UN_CONTROLE : « se répondent donc par une VALEUR que le juge lit »).
+    ② CONTEXTE D'APPEL — `grille_de_validation`, pour chaque contrôle.
+    ③ ENTRÉE — `table` : le rendu de `table_de_la_loi` · `cle` : la clé du contrôle.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : « CONDITION », « AFFICHAGE » ou None, et la raison (vide si un rôle est rendu).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① contrôle ① à ⑩ → le rôle de la loi (ROLE_DONNE_PAR_LA_LOI) · ② contrôle de ROLE_LU_A_LA_TABLE :
+      la case, en minuscules, sans espaces autour, vaut EXACTEMENT « condition » ou « affichage » ; toute autre écriture
+      (« conditionnel à Q-G3 : affichage en attendant ») ou une ligne absente → None · ③ autre clé → None.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une lecture par début de mot faisait de « conditionnel … affichage en attendant » une CONDITION
+      (sonde du relecteur, P18). Absente, une ligne ne reçoit plus de rôle « en attendant » : le plus strict prime.
+    ⑨ CE QUI CLOCHE — « Condition (n°352) » est refusé aussi : la case porte le mot seul, la source va dans sa colonne.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if cle in ROLE_DONNE_PAR_LA_LOI:
+        return ROLE_DONNE_PAR_LA_LOI[cle], ""
+    if cle not in ROLE_LU_A_LA_TABLE:
+        return None, "contrôle « %s » inconnu de la grille" % cle
+    if isinstance(table, dict) and cle in table:
+        v = str(table[cle].get("valeur", "")).strip().lower() if isinstance(table[cle], dict) else ""
+        if v == "condition":
+            return "CONDITION", ""
+        if v == "affichage":
+            return "AFFICHAGE", ""
+        return None, "rôle illisible à la table de R-505 : « %s »" % table[cle]["valeur"]
+    return None, "rôle de « %s » absent de la table de R-505 (Q-G2 / Q-G3 ; ligne à écrire)" % cle
+
+
+def embargo_de_la_strategie(horizon, ops, seances, table):
+    """Rend l'embargo à passer à `coupure_70_30` et `fenetres_glissantes` pour une stratégie SANS durée maximale.
+
+    ① RÔLE — Donner la valeur que le contrat du lot 0 exige d'un appelant quand l'horizon est « aucune » : ces deux
+      fonctions refusent HORIZON_AUCUNE sans embargo explicite (TypeError), parce qu'un embargo ne peut pas être plus
+      court que la détention et que « aucune » n'en donne pas.
+    ② CONTEXTE D'APPEL — Le juge des stratégies, avant la coupure et les fenêtres, quand `lire_horizon_ou_aucune` a
+      rendu HORIZON_AUCUNE ; l'épreuve de B.
+    ③ ENTRÉE — `horizon` : un entier > 0, None ou `COMMUN.HORIZON_AUCUNE` · `ops` : les opérations, avec `date_entree`
+      et `date_sortie` · `seances` : le calendrier des séances de la période · `table` : le rendu de `table_de_la_loi`.
+    ④ CONDITIONS D'ENTRÉE — Les dates des opérations s'écrivent comme celles du calendrier.
+    ⑤ SORTIE — DEUX valeurs : l'embargo en séances (entier) ou None, et la raison. Pour un horizon qui n'est pas
+      « aucune », (None, "") : la coupure garde sa propre règle.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① horizon ≠ « aucune » → (None, "") · ② lire la case `embargo_sans_duree` : un entier ≥ 1 → ce
+      nombre ; un texte qui contient « plus longue détention » → la plus longue détention observée, en séances du
+      calendrier (rang de sortie − rang d'entrée), et si le texte porte « au moins N », le plus grand des deux ·
+      ③ autre chose ou ligne absente → (None, raison) : l'appelant ne coupe pas (la coupure lèvera, c'est le contrat).
+    ⑦ UNITÉ — Des SÉANCES de bourse.
+    ⑧ POURQUOI — La valeur est à décider avec Jean-Luc (« non tranché » ⑤ de PROPRIETAIRES_DES_FICHIERS.md, « par
+      exemple la plus longue détention observée ») : elle se lit, elle ne s'écrit pas ici.
+    ⑨ CE QUI CLOCHE — ① La plus longue détention se mesure sur les opérations jugées : une opération future plus longue
+      déborderait. ② Une date absente du calendrier fait rendre None.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import re
+    if not _est_aucune(horizon):
+        return None, ""
+    if "embargo_sans_duree" not in table:
+        return None, "ligne « embargo_sans_duree » absente de la table de R-505 : pas d'embargo pour « aucune »"
+    texte = table["embargo_sans_duree"]["valeur"]
+    nombre, _r = seuil_de_la_loi(table, "embargo_sans_duree")
+    if nombre is not None:
+        return int(nombre), ""
+    if "plus longue détention" not in texte.lower():
+        return None, "case « embargo_sans_duree » illisible : « %s »" % texte
+    rang = {d: i for i, d in enumerate(sorted(seances))}
+    if not ops:
+        return None, "aucune opération : la plus longue détention ne se mesure pas"
+    durees = []
+    for o in ops:
+        if o.get("date_entree") not in rang or o.get("date_sortie") not in rang:
+            return None, "date d'entrée ou de sortie hors calendrier (%s → %s)" % (o.get("date_entree"),
+                                                                                  o.get("date_sortie"))
+        durees.append(rang[o["date_sortie"]] - rang[o["date_entree"]])
+    m = re.search(r"au moins\s+(\d+)", texte.lower())
+    return max([max(durees)] + ([int(m.group(1))] if m else [])), ""
+
+
+def _est_aucune(horizon):
+    """Dit si `horizon` est la valeur HORIZON_AUCUNE de COMMUN, par identité (jamais par son texte ni son type).
+    ① RÔLE — La reconnaissance prescrite par le contrat du lot 0 (« horizon is HORIZON_AUCUNE »).
+    ② CONTEXTE D'APPEL — `embargo_de_la_strategie`.
+    ③ ENTRÉE — `horizon` : n'importe quelle valeur.
+    ④ CONDITIONS D'ENTRÉE — —.
+    ⑤ SORTIE — UNE valeur : un booléen.
+      [rend: 1]
+    ⑥ TRAITEMENT — comparer par `is`.
+    ⑦ UNITÉ — —.
+    ⑧ POURQUOI — le texte « aucune » écrit à la main ne doit pas passer.
+    ⑨ CE QUI CLOCHE — une copie de l'objet (pickle) ne serait pas reconnue (⑨ de `_HorizonAucune`).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]"""
+    return horizon is _commun().HORIZON_AUCUNE
+
+
+def _commun():
+    """Charge `programmes/COMMUN.py`, voisin de ce module, une seule fois.
+    ① RÔLE — Atteindre HORIZON_AUCUNE et son mot sans les recopier.
+    ② CONTEXTE D'APPEL — `_est_aucune`, `_contrat`.
+    ③ ENTRÉE — —.
+    ④ CONDITIONS D'ENTRÉE — COMMUN.py dans le même dossier que ce module.
+    ⑤ SORTIE — UNE valeur : le module COMMUN.
+      [rend: 1]
+    ⑥ TRAITEMENT — ajouter le dossier de ce module au chemin
+    d'import s'il manque, puis `import COMMUN` (le module déjà chargé est réutilisé par Python).
+    ⑦ UNITÉ — —.
+    ⑧ POURQUOI — le juge charge déjà COMMUN par ce nom : un second chargement sous un autre nom ferait
+    deux HORIZON_AUCUNE, que `is` ne reconnaîtrait pas.
+    ⑨ CE QUI CLOCHE — modifie `sys.path` au premier appel.
+    ⑩ EFFET — peut ajouter un dossier à `sys.path`.
+    ⑪ TERMINAISON — Rend la main ; lève ImportError.
+      [sort: non]"""
+    import os
+    import sys
+    ici = os.path.dirname(os.path.abspath(__file__))
+    if ici not in sys.path:
+        sys.path.insert(0, ici)
+    import COMMUN
+    return COMMUN
+
+
+def p_du_hasard(net_strategie, hasard):
+    """Rend la part des tirages au hasard qui font AU MOINS aussi bien que la stratégie — sa probabilité sous le hasard.
+
+    ① RÔLE — Lire la comparaison au hasard en PROPORTION de tirages battus, jamais contre un maximum (A-305 ⑤, validé
+      le 28-08-2026 ; R-505 ⑥).
+    ② CONTEXTE D'APPEL — `grille_de_validation`, une fois par mode de l'étalon de hasard.
+    ③ ENTRÉE — `net_strategie` : le gain net total de la stratégie, en euros · `hasard` : un rendu d'`etalon_hasard`
+      qui porte `gains_des_tirages` (depuis le 11-11-2026).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — TROIS valeurs : p (ou None), le nombre de tirages, la raison (vide si p est rendu).
+      [rend: 3]
+    ⑥ TRAITEMENT — ① refuser un gain de stratégie ou un gain de tirage qui n'est pas un nombre fini (NaN compris) ·
+      ② p = (1 + nombre de tirages dont le gain ≥ celui de la stratégie) ÷ (1 + nombre de tirages).
+    ⑦ UNITÉ — p est une probabilité ; les gains des EUROS.
+    ⑧ POURQUOI — Le « + 1 » compte la stratégie parmi les tirages : un p ne vaut jamais zéro, et la plus petite valeur
+      atteignable est 1 ÷ (tirages + 1). Un NaN rendait « g >= net » faux et abaissait p (superviseur, point 8).
+    ⑨ CE QUI CLOCHE — Le tirage de l'étalon se fait sur toute la période, pas « dans la même année » (DÉL-D38) ; un
+      tirage qui joue moins d'opérations que la stratégie a une somme plus petite, ce qui avantage la stratégie :
+      écarts consignés dans la note de B, la mécanique du tirage est dans `etalon_hasard`.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if not isinstance(hasard, dict) or not isinstance(hasard.get("gains_des_tirages"), list) \
+            or not hasard["gains_des_tirages"]:
+        motif = hasard.get("motif") if isinstance(hasard, dict) else None
+        return None, 0, "étalon de hasard sans tirages (%s)" % (motif or "gains des tirages absents")
+    gains = hasard["gains_des_tirages"]
+    if not _nombre_fini(net_strategie) or not all(_nombre_fini(g) for g in gains):
+        return None, len(gains), "gain non fini (NaN ou texte) dans la stratégie ou les tirages"
+    au_moins = sum(1 for g in gains if g >= net_strategie)
+    return (1 + au_moins) / (1 + len(gains)), len(gains), ""
+
+
+def _controle(etat, valeur=None, seuil=None, raison="", role="CONDITION", detail=None):
+    """Fabrique un contrôle au contrat CONTROLE_DU_VERDICT.
+    ① RÔLE — Une seule forme de contrôle dans la grille.
+    ② CONTEXTE D'APPEL — `grille_de_validation`, `_epoques_calculees`.
+    ③ ENTRÉE — `etat`, `valeur`, `seuil`, `raison`, `role`, `detail` : les six champs du contrat.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le dictionnaire.
+      [rend: 1]
+    ⑥ TRAITEMENT — assembler.
+    ⑦ UNITÉ — —.
+    ⑧ POURQUOI — R-708.
+    ⑨ CE QUI CLOCHE — le rôle posé ici est provisoire : `grille_de_validation` le remplace par celui de la loi.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]"""
+    return {"etat": etat, "valeur": valeur, "seuil": seuil, "raison": raison, "role": role, "detail": detail or {}}
+
+
+def _garde_d_entree(cas, k, ops, point_mort_pct, declaration_manquants, seances_hors_examen, regards_anterieurs,
+                    hasard, epoques_declarees, annees_d_examen, seances_d_examen, mesures_externes):
+    """LA SEULE GARDE D'ENTRÉE DE LA GRILLE : rend les entrées dont le type est strictement celui du contrat, et None
+    à la place de toute autre, avec la raison par entrée.
+
+    ① RÔLE — Faire qu'une entrée mal formée (« False » en texte, NaN, nombre négatif, dictionnaire au lieu d'une liste)
+      ne soit jamais LUE comme une entrée valable : elle devient « absente », donc INCONNU, donc pas de validation
+      (superviseur R-759, point 1 : « tests d'entrée stricts dans une seule garde, au bord de la grille »).
+    ② CONTEXTE D'APPEL — `grille_de_validation`, une fois, avant tout calcul.
+    ③ ENTRÉE — `cas`, `k`, `ops`, `point_mort_pct`, `declaration_manquants`, `seances_hors_examen`,
+      `regards_anterieurs`, `hasard`, `epoques_declarees`, `annees_d_examen`, `seances_d_examen`, `mesures_externes` :
+      les entrées de `grille_de_validation`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : un dictionnaire {nom d'entrée : valeur gardée ou None} et un dictionnaire {nom d'entrée :
+      raison du rejet}.
+      [rend: 2]
+    ⑥ TRAITEMENT — `cas` dans CAS_DE_LA_LOI exactement · `k` entier ≥ 1 non booléen (sinon None) · `ops` liste non
+      vide de dictionnaires dont `net` est un nombre fini · `point_mort_pct` nombre fini dans [0, 100] (des POURCENTS ;
+      le nom porte l'unité) · `declaration_manquants` liste de textes · `seances_hors_examen` entier ≥ 0 non booléen ·
+      `regards_anterieurs` liste de textes (les noms d'entrées rendus par
+      `TENIR_LE_REGISTRE_DES_ESSAIS.regards_sur_les_annees`) · `hasard` liste non vide de dictionnaires ·
+      `epoques_declarees` et `annees_d_examen` textes · `seances_d_examen` liste non vide de textes · `mesures_externes`
+      dictionnaire de dictionnaires.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Les sondes du relecteur : `regard_unique="False"` (texte lu d'un CSV) validait ; `seances_hors_examen`
+      NaN ou −5 validait ; `hasard` en dictionnaire seul était parcouru clé par clé.
+    ⑨ CE QUI CLOCHE — Le point mort en FRACTION (0,40, la valeur que rend aujourd'hui le juge de A) est dans [0, 100] :
+      la garde ne peut pas deviner l'unité (superviseur, point 2 : deviner est une rustine) ; c'est le NOM qui la porte,
+      et la conversion se fait au branchement (note de B).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    rejets = {}
+
+    def garder(nom, valeur, ok, pourquoi):
+        """Garde une entrée si `ok`, sinon la note.
+        ① RÔLE — un pas de la garde.
+        ② CONTEXTE D'APPEL — `_garde_d_entree`.
+        ③ ENTRÉE — `nom`, `valeur`, `ok` : le test, `pourquoi` : la forme attendue.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : `valeur` ou None.
+          [rend: 1]
+        ⑥ TRAITEMENT — None reste None sans rejet ; sinon `ok` décide.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — une seule forme de refus.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — modifie `rejets`.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]"""
+        if valeur is None:
+            return None
+        if ok:
+            return valeur
+        rejets[nom] = "entrée « %s » hors contrat (%s) : %r" % (nom, pourquoi, valeur if not isinstance(valeur, list)
+                                                                 else "liste de %d" % len(valeur))
+        return None
+
+    entier = lambda x, mini: isinstance(x, int) and not isinstance(x, bool) and x >= mini
+    textes = lambda x: isinstance(x, list) and all(isinstance(t, str) for t in x)
+    g = {
+        "cas": garder("cas", cas, isinstance(cas, str) and cas in _contrat("CAS_DE_LA_LOI"), "« 1 » ou « 2 »"),
+        "k": garder("k", k, entier(k, 1), "entier ≥ 1") if k != "INCONNU" else None,
+        "ops": garder("ops", ops, isinstance(ops, list) and len(ops) > 0
+                      and all(isinstance(o, dict) and _nombre_fini(o.get("net")) for o in ops),
+                      "liste d'opérations au gain fini"),
+        "point_mort_pct": garder("point_mort_pct", point_mort_pct,
+                                 _nombre_fini(point_mort_pct) and 0.0 <= point_mort_pct <= 100.0, "pourcent fini"),
+        "declaration_manquants": garder("declaration_manquants", declaration_manquants, textes(declaration_manquants),
+                                        "liste de champs"),
+        "seances_hors_examen": garder("seances_hors_examen", seances_hors_examen, entier(seances_hors_examen, 0),
+                                      "entier ≥ 0"),
+        "regards_anterieurs": garder("regards_anterieurs", regards_anterieurs, textes(regards_anterieurs),
+                                     "liste de noms d'entrées du registre des essais"),
+        "hasard": garder("hasard", hasard, isinstance(hasard, list) and len(hasard) > 0
+                         and all(isinstance(h, dict) for h in hasard), "liste de rendus d'etalon_hasard"),
+        "epoques_declarees": garder("epoques_declarees", epoques_declarees, isinstance(epoques_declarees, str),
+                                    "le champ « epoques » de la déclaration, un texte"),
+        "annees_d_examen": garder("annees_d_examen", annees_d_examen, isinstance(annees_d_examen, str),
+                                  "le champ « annees_d_examen » de la déclaration, un texte"),
+        "seances_d_examen": garder("seances_d_examen", seances_d_examen, textes(seances_d_examen)
+                                   and len(seances_d_examen) > 0, "liste des séances AAAA-MM-JJ des années d'examen"),
+        "mesures_externes": garder("mesures_externes", mesures_externes, isinstance(mesures_externes, dict)
+                                   and all(isinstance(v, dict) for v in mesures_externes.values()),
+                                   "dictionnaire de contrôles"),
+    }
+    return g, rejets
+
+
+def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declaration_manquants=None,
+                         seances_hors_examen=None, regards_anterieurs=None, hasard=None, epoques_declarees=None,
+                         annees_d_examen=None, seances_d_examen=None, mesures_externes=None):
+    """Rend le verdict de R-505 et ses seize contrôles, à partir des mesures du juge et des seuils lus dans la loi.
+
+    ① RÔLE — Décider si une stratégie est réelle ou due au hasard (plan V7, bloc 5 : « un verdict « validée » qui veut
+      dire quelque chose »). Elle range TOUS les contrôles de CONTROLES_DU_VERDICT, puis rend le mot du verdict et le
+      premier contrôle qui bloque (grille, règle commune (a), DÉL-D26). Elle ne lit aucun fichier.
+    ② CONTEXTE D'APPEL — Le juge des stratégies (`juger`, propriété de l'agent A), une fois par fiche jugée ; l'appel
+      exact est écrit dans echanges/A_RELIRE_B.md. L'épreuve `tests/EPREUVES_B_DU_BLOC_5A_Mer_11-11-2026.py`.
+    ③ ENTRÉE — `table` : `table_de_la_loi(texte du REGISTRE)` · `cas` : « 1 » ou « 2 » (CAS_DE_LA_LOI) · `k` : la
+      valeur de k (entier) ou « INCONNU » · `ops` : les opérations jugées (`net`, `date_entree`, `date_sortie`) ·
+      `point_mort_pct` : le point mort en POURCENTS (0 à 100) · `declaration_manquants` : la liste rendue par
+      `CONTRATS_DES_FICHIERS.champs_de_la_declaration_manquants`, ou None si non lue · `seances_hors_examen` : le
+      nombre de séances jugées qui ne sont pas des années d'examen (R-505 ②), ou None · `regards_anterieurs` : la liste
+      des entrées du registre des essais qui ont déjà joué ces années pour CETTE FICHE, rendue par
+      `TENIR_LE_REGISTRE_DES_ESSAIS.regards_sur_les_annees(racine, annees, fiche_id)` (R-505 ③), ou None · `hasard` :
+      une liste de rendus d'`etalon_hasard` (un par mode), ou None · `epoques_declarees` : le champ `epoques` de la
+      déclaration datée, tel quel (« début..fin ; … »), ou None · `annees_d_examen` : le champ du même nom de la
+      déclaration (« début..fin »), ou None · `seances_d_examen` : les séances de bourse des années d'examen, textes
+      AAAA-MM-JJ, lues au calendrier (`CALENDRIER_DE_LA_BOURSE.seances_entre`), ou None · `mesures_externes` : {clé de
+      contrôle : MESURE} — pour `surapprentissage`, `sharpe_degonfle` et `kelly`, les champs de DETAILS_DES_CONTROLES du
+      contrat ; pour `voisins`, `frais_doubles`, `gain_un_jeton`, `creux_un_jeton`, ceux de
+      MESURES_PROPOSEES_HORS_CONTRAT. AUCUN ÉTAT N'EST REÇU : un champ `etat` ou `role` donné par l'appelant est ignoré ;
+      une mesure absente ou mal typée rend le contrôle INCONNU ; LES ÉPOQUES SE CALCULENT ICI (`lire_les_epoques`, puis
+      `controle_des_epoques` avec le seuil de preuve et le seuil d'époque lus à la table).
+    ④ CONDITIONS D'ENTRÉE — Aucune : toute entrée hors de sa forme est écartée par `_garde_d_entree` et devient INCONNU.
+    ⑤ SORTIE — UNE valeur : un dictionnaire de six clés : `verdict` (un mot de MOTS_DU_VERDICT), `motif`,
+      `premier_controle_bloquant` (une clé, ou vide), `seuil_de_preuve`, `seuil_du_hasard` (nombres ou None) et
+      `controles` ({clé de CONTROLES_DU_VERDICT : CONTROLE_DU_VERDICT}). Le juge y ajoute ce que le contrat VERDICT
+      demande d'autre (règle, date, fiche, déclaration, k, affichages, empreinte, préenregistrement).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① la garde d'entrée · ② lire les seuils (`seuil_de_la_loi`, domaines compris) · ③ ranger chaque
+      contrôle, PASSE / BLOQUE / INCONNU / SANS_OBJET (seulement ⑧ en cas 1), l'état étant CALCULÉ depuis la mesure et
+      le seuil (strictesse comprise) · ④ imposer à chaque contrôle le rôle de la loi ou de la table (`role_du_controle`), jamais celui de l'appelant · ⑤ NON JUGEABLE si la déclaration manque un
+      champ (motif : le premier champ) · ⑥ RÉFUTÉE si la déclaration, les années et le regard passent, si les
+      observations atteignent le plancher et si la borne haute du gain moyen, au niveau `refutation_borne_haute`, est
+      sous zéro (DÉL-D40 : « seule voie ») · ⑦ « Validée … » PAR INCLUSION (`verdict_par_inclusion`) · ⑧ sinon NON
+      TRANCHÉE, avec le motif du premier contrôle qui empêche l'inclusion.
+    ⑦ UNITÉ — Probabilités sans unité ; point mort et bornes de taux en POURCENTS ; gains en EUROS ; observations en
+      nombre d'observations indépendantes.
+    ⑧ POURQUOI — Les seuils et les rôles se LISENT (R-743 ②, R-708). Le verdict se calcule par INCLUSION, pas par
+      exclusion : au tour 1, tout ce qui n'était ni INCONNU ni CONDITION+BLOQUE validait, donc une époque à l'état
+      « ROUGE » ou un rôle « AFFICHAGE » écrit par l'appelant validait (superviseur R-759 du 11-11-2026, cause commune
+      des défauts 1, 3, 6 et 8). Les anciens C7 (borne basse de Wilson du taux, au-dessus du point mort, R-502) et C8
+      (borne basse à 95 % du gain moyen > 0, R-502bis) se mesurent ici avec `wilson_bas` et `borne_basse_gain`. La
+      borne de Wilson se calcule sur le nombre d'observations indépendantes RETENU (④), pas sur le nombre d'opérations
+      (relecteur du tour 3, D5) : R-502 C7 ne dit pas sur quel nombre (« la borne basse à 95 % du taux de réussite se
+      calcule par la formule de WILSON ») ; le statisticien du 01-11-2026 (fiche PROBA, 12h52) le pose « sur le nombre
+      effectif d'observations » ; c'est aussi la lecture la plus stricte (une borne plus basse) — lecture de B, à
+      confirmer par Jean-Luc. Le nombre d'essais d'une mesure de cas 2 inférieur à k rend ⑧ INCONNU (D2, lecture de B).
+    ⑨ CE QUI CLOCHE — ① « Aucun INCONNU, affichages compris » est la lecture la plus stricte de DÉL-D40. ② Le seuil est
+      franchi par p < seuil, strictement. ③ C7 et C8 portent le motif « NE BAT PAS ZÉRO », faute d'un mot au contrat
+      gelé. ④ Le Kelly, le surapprentissage, le Sharpe dégonflé, les voisins et les frais doublés ne sont pas mesurés
+      ici. ⑤ Plusieurs modes de hasard : le plus grand p décide. ⑥ Aucun « Validée » n'est à tenir pour vrai tant que
+      les épreuves de JONCTION avec `juger` et `jouer` n'existent pas (superviseur).
+    ⑩ EFFET — Aucun : elle ne lit ni n'écrit de fichier.
+    ⑪ TERMINAISON — Rend la main ; aucun de ses appels ne peut ne pas revenir : `borne_basse_gain` fait 2 000 tirages,
+      `observations_independantes` 2 000 permutations, bornés.
+      [sort: non]
+    """
+    import math
+    g, rejets = _garde_d_entree(cas, k, ops, point_mort_pct, declaration_manquants, seances_hors_examen,
+                                regards_anterieurs, hasard, epoques_declarees, annees_d_examen, seances_d_examen,
+                                mesures_externes)
+    cas, ops, point_mort_pct = g["cas"], g["ops"] or [], g["point_mort_pct"]
+    declaration_manquants, seances_hors_examen = g["declaration_manquants"], g["seances_hors_examen"]
+    regards_anterieurs, hasard = g["regards_anterieurs"], g["hasard"]
+    externes = dict(g["mesures_externes"] or {})
+    kk = g["k"]
+    s_preuve, r_preuve = seuil_de_la_loi(table, "seuil_de_preuve", kk)
+    s_hasard, r_hasard = seuil_de_la_loi(table, "seuil_du_hasard", kk)
+    plancher, r_plancher = seuil_de_la_loi(table, "plancher_observations")
+    rejet = lambda *noms: " ; ".join(rejets[n] for n in noms if n in rejets)
+    c = {}
+
+    # ① LA DÉCLARATION DATÉE
+    if declaration_manquants is None:
+        c["declaration"] = _controle("INCONNU", raison=rejet("declaration_manquants") or "déclaration non lue par le juge")
+    elif declaration_manquants:
+        c["declaration"] = _controle("BLOQUE", valeur=len(declaration_manquants),
+                                     raison="champ(s) manquant(s) : " + ", ".join(declaration_manquants))
+    else:
+        c["declaration"] = _controle("PASSE")
+    # ② AUCUNE SÉANCE HORS DES ANNÉES D'EXAMEN
+    if seances_hors_examen is None:
+        c["annees_d_examen"] = _controle("INCONNU", raison=rejet("seances_hors_examen")
+                                         or "séances jugées non confrontées aux années d'examen")
+    elif seances_hors_examen > 0:
+        c["annees_d_examen"] = _controle("BLOQUE", valeur=seances_hors_examen, seuil=0,
+                                         raison="%d séance(s) jugée(s) hors des années d'examen" % seances_hors_examen)
+    else:
+        c["annees_d_examen"] = _controle("PASSE", valeur=0, seuil=0)
+    # ③ UN SEUL REGARD — lu au registre des essais (superviseur, défaut 4)
+    if regards_anterieurs is None:
+        c["regard_unique"] = _controle("INCONNU", raison=rejet("regards_anterieurs")
+                                       or "regards antérieurs non lus au registre des essais")
+    elif regards_anterieurs:
+        c["regard_unique"] = _controle("BLOQUE", valeur=len(regards_anterieurs),
+                                       raison="ces années ont déjà été jouées pour cette fiche (R-505 ③) : "
+                                       + ", ".join(regards_anterieurs[:3]))
+    else:
+        c["regard_unique"] = _controle("PASSE", valeur=0)
+    # ④ LES OBSERVATIONS INDÉPENDANTES
+    n_obs = None
+    if not ops:
+        c["observations_independantes"] = _controle("INCONNU", raison=rejet("ops") or "aucune opération")
+    else:
+        e = observations_independantes(ops)
+        n_obs = e["n_observations"] if _nombre_fini(e["n_observations"]) else None
+        detail = {"n_operations": e["n_operations"], "observations_independantes": n_obs,
+                  "taille_des_groupes": e["taille_des_groupes"], "methode": e["methode"]}
+        if n_obs is None:
+            c["observations_independantes"] = _controle("INCONNU", raison=e["motif"] or "mesure impossible")
+        elif plancher is None:
+            c["observations_independantes"] = _controle("INCONNU", valeur=n_obs, raison=r_plancher)
+        else:
+            c["observations_independantes"] = _controle("PASSE" if n_obs >= plancher else "BLOQUE", valeur=n_obs,
+                                                        seuil=plancher, detail=detail,
+                                                        raison="" if n_obs >= plancher else "TROP PETIT")
+    gains = [o["net"] for o in ops]
+    # ⑤ LE GAIN BAT ZÉRO, DÉPENDANCE COMPRISE : p = probabilité d'un gain moyen aussi haut si le vrai gain était nul
+    p_gain = None
+    if not ops or n_obs is None:
+        c["gain_bat_zero"] = _controle("INCONNU", raison="observations indépendantes inconnues")
+    else:
+        rg = probabilite_epoque_perdante([-x for x in gains], n_obs)
+        p_gain = rg["p_perdante"] if _nombre_fini(rg["p_perdante"]) else None
+        if p_gain is None:
+            c["gain_bat_zero"] = _controle("INCONNU", raison=rg["motif"] or "probabilité non finie")
+        elif s_preuve is None:
+            c["gain_bat_zero"] = _controle("INCONNU", valeur=p_gain, raison=r_preuve or rejet("k"))
+        else:
+            c["gain_bat_zero"] = _controle("PASSE" if p_gain < s_preuve else "BLOQUE", valeur=p_gain, seuil=s_preuve,
+                                           detail={"t": rg["t"], "ddl": rg["ddl"]})
+    # ⑥ LE HASARD : la plus grande part de tirages qui font aussi bien, sur tous les modes reçus
+    if not hasard or not ops:
+        c["bat_le_hasard"] = _controle("INCONNU", raison=rejet("hasard", "ops") or "étalon de hasard non reçu")
+    elif s_hasard is None:
+        c["bat_le_hasard"] = _controle("INCONNU", raison=r_hasard)
+    else:
+        net = math.fsum(gains)
+        ps, raisons, tirages = [], [], []
+        for h in hasard:
+            p, n_t, r = p_du_hasard(net, h)
+            tirages.append(n_t)
+            if p is None:
+                raisons.append(r)
+            elif 1.0 / n_t >= s_hasard:
+                raisons.append("%d tirages : 1 ÷ tirages = %.5f ne passe pas sous le seuil %.5f (DÉL-D38)"
+                               % (n_t, 1.0 / n_t, s_hasard))
+            else:
+                ps.append(p)
+        if raisons:
+            c["bat_le_hasard"] = _controle("INCONNU", seuil=s_hasard, raison=" ; ".join(raisons),
+                                           detail={"tirages": tirages})
+        else:
+            p = max(ps)
+            c["bat_le_hasard"] = _controle("PASSE" if p < s_hasard else "BLOQUE", valeur=p, seuil=s_hasard,
+                                           detail={"tirages": tirages, "p_par_mode": ps})
+    # ⑦ À ⑩ ET Q-G2 : DES MESURES, JAMAIS UN ÉTAT (simplification 1 du superviseur) — la grille calcule l'état
+    s_epoque, r_epoque = seuil_de_la_loi(table, "epoque_perdante")
+    c["epoques"] = _epoques_calculees(ops, g["epoques_declarees"], g["annees_d_examen"], g["seances_d_examen"],
+                                      s_preuve, r_preuve, s_epoque, r_epoque,
+                                      rejet("ops", "epoques_declarees", "annees_d_examen", "seances_d_examen"))
+    # ⑧ CAS 2 SEULEMENT
+    s_pbo, r_pbo = seuil_de_la_loi(table, "surapprentissage_maximum")
+    for cle in ("surapprentissage", "sharpe_degonfle"):
+        if cas is None:
+            c[cle] = _controle("INCONNU", raison=rejet("cas") or "cas de la loi inconnu")
+        elif cas == "1":
+            c[cle] = _controle("SANS_OBJET", raison="cas 1 : stratégie figée (R-505 ⑧)")
+        else:
+            m, r = _mesure(externes.get(cle), cle)
+            if m is None:
+                c[cle] = _controle("INCONNU", raison=r)
+            elif kk is None or m["nombre_d_essais"] < kk:
+                # D2 (relecteur du tour 3) : une correction qui compte moins d'essais que de stratégies jugées corrige
+                # moins que le seuil 0,05 ÷ k ; lecture de B, la plus stricte (R-505 ⑧ ne dit pas comment se compte
+                # le nombre d'essais : A-226) — question pour Jean-Luc
+                c[cle] = _controle("INCONNU", valeur=m["nombre_d_essais"], seuil=kk, detail=m,
+                                   raison="nombre d'essais %r inférieur à k = %r (ou k inconnu) : la correction du "
+                                   "nombre d'essais ne couvre pas toutes les stratégies jugées" % (m["nombre_d_essais"], kk))
+            elif cle == "surapprentissage":
+                c[cle] = (_controle("INCONNU", raison=r_pbo) if s_pbo is None else
+                          _controle("PASSE" if m["pbo"] < s_pbo else "BLOQUE", valeur=m["pbo"], seuil=s_pbo, detail=m))
+            else:   # la probabilité que le vrai Sharpe dépasse la barre dégonflée ; échec = 1 − elle, au seuil de preuve
+                c[cle] = (_controle("INCONNU", raison=r_preuve) if s_preuve is None else
+                          _controle("PASSE" if 1.0 - m["sharpe_degonfle"] < s_preuve else "BLOQUE",
+                                    valeur=m["sharpe_degonfle"], seuil=s_preuve, detail=m))
+    # ⑨ KELLY
+    kmin, r_kmin = seuil_de_la_loi(table, "kelly_minimum")
+    m, r = _mesure(externes.get("kelly"), "kelly")
+    if m is None:
+        c["kelly"] = _controle("INCONNU", raison=r)
+    elif kmin is None:
+        c["kelly"] = _controle("INCONNU", valeur=m["kelly"], raison=r_kmin)
+    else:
+        c["kelly"] = _controle("PASSE" if m["kelly"] >= kmin else "BLOQUE", valeur=m["kelly"], seuil=kmin, detail=m)
+    # ⑩ LES DEUX DRAPEAUX
+    m, r = _mesure(externes.get("voisins"), "voisins")
+    n_exige, ecart_exige, r_exige = _voisins_exiges(table)
+    if m is None:
+        c["voisins"] = _controle("INCONNU", raison=r)
+    elif n_exige is None:
+        c["voisins"] = _controle("INCONNU", raison=r_exige)
+    elif m["ecart_pct"] != ecart_exige:
+        c["voisins"] = _controle("INCONNU", valeur=m["ecart_pct"], seuil=ecart_exige, detail=m,
+                                 raison="voisins mesurés à ±%r %%, la table de R-505 dit ±%r %%" % (m["ecart_pct"],
+                                                                                                   ecart_exige))
+    else:
+        ok_v = m["n_voisins"] == n_exige and m["n_voisins_gagnants"] == m["n_voisins"]
+        c["voisins"] = _controle("PASSE" if ok_v else "BLOQUE", valeur=m["n_voisins_gagnants"], seuil=n_exige, detail=m)
+    m, r = _mesure(externes.get("frais_doubles"), "frais_doubles")
+    mult, r_mult = _frais_exiges(table)
+    if m is None:
+        c["frais_doubles"] = _controle("INCONNU", raison=r)
+    elif mult is None:
+        c["frais_doubles"] = _controle("INCONNU", raison=r_mult)
+    elif not m["multiplicateur_des_frais"] >= mult:
+        c["frais_doubles"] = _controle("INCONNU", valeur=m["multiplicateur_des_frais"], seuil=mult, detail=m,
+                                       raison="frais mesurés × %r, la table de R-505 dit × %r"
+                                       % (m["multiplicateur_des_frais"], mult))
+    else:
+        c["frais_doubles"] = _controle("PASSE" if m["gain_moyen_frais_doubles_eur"] > 0 else "BLOQUE",
+                                       valeur=m["gain_moyen_frais_doubles_eur"], seuil=0, detail=m)
+    # ANCIEN C7 : borne basse de Wilson du taux de réussite au-dessus du point mort (R-502, C7 révisée), calculée sur
+    # le nombre d'observations indépendantes RETENU (④), pas sur le nombre d'opérations (relecteur du tour 3, D5)
+    if not ops or point_mort_pct is None:
+        c["taux_face_au_point_mort"] = _controle("INCONNU", raison=rejet("ops", "point_mort_pct")
+                                                 or "opérations ou point mort absents")
+    elif n_obs is None:
+        c["taux_face_au_point_mort"] = _controle("INCONNU", raison="observations indépendantes inconnues")
+    else:
+        wr = 100.0 * sum(1 for x in gains if x > 0) / len(gains)
+        bas = wilson_bas(n_obs, wr)
+        etat = "PASSE" if (bas is not None and bas > point_mort_pct) else "BLOQUE"
+        c["taux_face_au_point_mort"] = _controle(etat, valeur=bas, seuil=point_mort_pct,
+                                                 detail={"taux_pct": wr, "n_wilson": n_obs})
+    # ANCIEN C8 : borne basse à 95 % du gain moyen au-dessus de zéro (R-502bis)
+    bb = borne_basse_gain(ops) if ops else {"motif": "aucune opération"}
+    basse = bb.get("borne_basse_5pct")
+    if not _nombre_fini(basse):
+        c["borne_basse_du_gain"] = _controle("INCONNU", raison=bb.get("motif") or "borne basse non calculée")
+    else:
+        c["borne_basse_du_gain"] = _controle(("PASSE" if basse > 0 else "BLOQUE"), valeur=basse, seuil=0)
+    # Q-G2 : gain et creux en un jeton, mesurés ailleurs
+    m, r = _mesure(externes.get("gain_un_jeton"), "gain_un_jeton")
+    c["gain_un_jeton"] = (_controle("INCONNU", raison=r) if m is None else
+                          _controle("PASSE" if m["gain_un_jeton_eur"] > 0 else "BLOQUE", valeur=m["gain_un_jeton_eur"],
+                                    seuil=0, detail=m))
+    m, r = _mesure(externes.get("creux_un_jeton"), "creux_un_jeton")
+    role_creux, _rc = role_du_controle(table, "creux_un_jeton")
+    if m is None:
+        c["creux_un_jeton"] = _controle("INCONNU", raison=r)
+    elif role_creux == "AFFICHAGE":
+        c["creux_un_jeton"] = _controle("PASSE", valeur=m["creux_un_jeton_eur"], raison="mesuré, affiché", detail=m)
+    else:   # en CONDITION, il faudrait une limite (« risque DANS LA LIMITE », Q-G2) : elle n'est pas à la table
+        c["creux_un_jeton"] = _controle("INCONNU", valeur=m["creux_un_jeton_eur"],
+                                        raison="limite du creux en un jeton absente de la table de R-505", detail=m)
+
+    # LES RÔLES : la loi ou la table, jamais l'appelant (superviseur, point 1 (b))
+    role8, r8 = role_du_controle(table, "borne_basse_du_gain")
+    for cle, x in c.items():
+        role, r = (role8, r8) if cle == "borne_basse_du_gain" else role_du_controle(table, cle)
+        if role is None:
+            x["etat"], x["raison"] = "INCONNU", r
+            role = "CONDITION"       # un rôle inconnu compte comme le plus strict : il empêche la validation
+        x["role"] = role
+    if cas != "1":
+        for cle in SANS_OBJET_EN_CAS_1:
+            if c[cle]["etat"] == "SANS_OBJET":
+                c[cle]["etat"], c[cle]["raison"] = "INCONNU", "SANS_OBJET n'est admis qu'en cas 1"
+
+    # LE VERDICT
+    ordre = _contrat("CONTROLES_DU_VERDICT")
+    controles = {cle: c[cle] for cle in ordre}
+    rendu = {"verdict": None, "motif": "", "premier_controle_bloquant": "", "seuil_de_preuve": s_preuve,
+             "seuil_du_hasard": s_hasard, "controles": controles}
+    mots = _contrat("MOTS_DU_VERDICT")
+    if c["declaration"]["etat"] == "BLOQUE":
+        rendu.update(verdict=mots[3], motif=declaration_manquants[0], premier_controle_bloquant="declaration")
+        return rendu
+    if c["declaration"]["etat"] != "PASSE":
+        rendu.update(verdict=mots[2], motif="MESURE MANQUANTE declaration", premier_controle_bloquant="declaration")
+        return rendu
+    # RÉFUTÉE — seule voie (DÉL-D40) : années, regard, plancher atteint, borne haute du gain moyen sous zéro
+    niveau, _rn = seuil_de_la_loi(table, "refutation_borne_haute")
+    if (niveau is not None and c["annees_d_examen"]["etat"] == "PASSE" and c["regard_unique"]["etat"] == "PASSE"
+            and c["observations_independantes"]["etat"] == "PASSE"):
+        rr = probabilite_epoque_perdante(gains, n_obs)
+        if _nombre_fini(rr["p_perdante"]) and rr["p_perdante"] < niveau:
+            rendu.update(verdict=mots[1], motif="", premier_controle_bloquant="gain_bat_zero")
+            return rendu
+    premier = verdict_par_inclusion(controles, ordre, cas)
+    if not premier:
+        rendu.update(verdict=mots[0], motif="")
+        return rendu
+    rendu["premier_controle_bloquant"] = premier
+    if controles[premier]["etat"] == "BLOQUE" and premier in MOTIF_DU_CONTROLE_QUI_BLOQUE:
+        motif = MOTIF_DU_CONTROLE_QUI_BLOQUE[premier]
+    else:
+        motif = "MESURE MANQUANTE " + premier     # INCONNU, état hors contrat, ou contrôle sans mot à lui
+    rendu.update(verdict=mots[2], motif=motif)
+    return rendu
+
+
+def verdict_par_inclusion(controles, ordre, cas):
+    """Rend le premier contrôle qui empêche « Validée », ou "" si TOUS l'autorisent — le verdict par INCLUSION.
+
+    ① RÔLE — Écrire une fois la condition de « Validée sur des années jamais utilisées pour la régler (R-505) » :
+      CHAQUE clé du contrat est présente, son état est dans ETATS_D_UN_CONTROLE, son rôle dans ROLES_D_UN_CONTROLE ;
+      une CONDITION est exactement PASSE, ou SANS_OBJET pour ⑧ en cas 1 ; un AFFICHAGE n'est jamais INCONNU.
+    ② CONTEXTE D'APPEL — `grille_de_validation` ; l'épreuve de B (cas générés depuis le contrat).
+    ③ ENTRÉE — `controles` : {clé : contrôle} · `ordre` : CONTROLES_DU_VERDICT · `cas` : « 1 », « 2 » ou None.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la clé du premier contrôle qui empêche, dans l'ordre du contrat, ou "".
+      [rend: 1]
+    ⑥ TRAITEMENT — pour chaque clé de `ordre` : absente, pas un dictionnaire, état ou rôle hors contrat → elle ;
+      SANS_OBJET hors de ⑧ en cas 1 → elle ; CONDITION dont l'état n'est pas PASSE → elle ; AFFICHAGE INCONNU → elle.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 (11-11-2026), point 1 (a) : « Validée seulement si CHAQUE clé … ; tout autre cas
+      donne INCONNU ». Un état « ROUGE », « passe » ou NaN ne fait plus jamais valider.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    etats, roles = _contrat("ETATS_D_UN_CONTROLE"), _contrat("ROLES_D_UN_CONTROLE")
+    for cle in ordre:
+        x = controles.get(cle)
+        if not isinstance(x, dict):
+            return cle
+        etat, role = x.get("etat"), x.get("role")
+        if not isinstance(etat, str) or etat not in etats or not isinstance(role, str) or role not in roles:
+            return cle
+        if etat == "SANS_OBJET":
+            if cas == "1" and cle in SANS_OBJET_EN_CAS_1:
+                continue
+            return cle                   # SANS_OBJET n'est admis que pour ⑧ en cas 1, quel que soit le rôle
+        if role == "CONDITION":
+            if etat == "PASSE":
+                continue
+            return cle
+        if etat == "INCONNU":
+            return cle
+    return ""
+
+
+def _mesure(detail, cle):
+    """Contrôle une mesure reçue : tous les champs attendus présents (vérificateur du contrat), chacun un nombre fini.
+
+    ① RÔLE — La seule porte des mesures faites hors de la grille (simplification 1 : la grille ne reçoit jamais d'état).
+    ② CONTEXTE D'APPEL — `grille_de_validation`, pour ⑧, ⑨, ⑩ et Q-G2.
+    ③ ENTRÉE — `detail` : le dictionnaire de la mesure, ou None · `cle` : le contrôle.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : le dictionnaire des champs attendus (et d'eux seuls), ou None ; et la raison.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① les champs attendus : `DETAILS_DES_CONTROLES[cle]` du contrat, sinon
+      MESURES_PROPOSEES_HORS_CONTRAT · ② les champs absents, nommés par `CONTRATS_DES_FICHIERS._ecarts_de_cles`
+      (le vérificateur du contrat, l.1826, réutilisé et non recopié : R-708) · ③ chaque champ : nombre fini non
+      booléen ; `nombre_d_essais`, `n_voisins`, `n_voisins_gagnants` : entiers ≥ 0 (≥ 1 pour `nombre_d_essais`) ;
+      `pbo` et `sharpe_degonfle` : dans [0, 1].
+    ⑦ UNITÉ — Celle de chaque champ (euros pour `_eur`, probabilités, nombres).
+    ⑧ POURQUOI — Relecteur du tour 2, N-A : un {"etat": "PASSE"} vide faisait valider des contrôles NON MESURÉS. Un
+      champ en trop n'est pas une mesure manquante : seuls les champs attendus sont gardés.
+    ⑨ CE QUI CLOCHE — La grille ne refait pas la mesure : elle exige qu'elle soit entière et bien typée.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import CONTRATS_DES_FICHIERS as CT
+    attendus = list(_contrat("DETAILS_DES_CONTROLES").get(cle) or MESURES_PROPOSEES_HORS_CONTRAT[cle])
+    if not isinstance(detail, dict):
+        return None, "%s : mesure non reçue" % cle
+    ecarts = CT._ecarts_de_cles("mesure %s" % cle, "mesure de %s" % cle,
+                                [c for c in detail if c in attendus], attendus)
+    if ecarts:
+        return None, " ; ".join(ecarts)
+    entiers = {"nombre_d_essais": 1, "n_voisins": 0, "n_voisins_gagnants": 0}
+    for c in attendus:
+        v = detail[c]
+        if c in entiers:
+            if isinstance(v, bool) or not isinstance(v, int) or v < entiers[c]:
+                return None, "%s : %s = %r n'est pas un entier ≥ %d" % (cle, c, v, entiers[c])
+        elif not _nombre_fini(v):
+            return None, "%s : %s = %r n'est pas un nombre fini" % (cle, c, v)
+        elif c in ("pbo", "sharpe_degonfle") and not 0.0 <= v <= 1.0:
+            return None, "%s : %s = %r hors de [0, 1]" % (cle, c, v)
+    return {c: detail[c] for c in attendus}, ""
+
+
+def _epoques_calculees(ops, epoques_declarees, annees_d_examen, seances_d_examen, s_preuve, r_preuve, s_epoque,
+                       r_epoque, rejet_d_entree):
+    """Calcule le contrôle ⑦ (les époques) DANS la grille, depuis la déclaration, le calendrier et les opérations.
+
+    ① RÔLE — R-505 ⑦ : « aucune époque fixée d'avance ne soit perdante à coup sûr (seuil de 5 %), et le nombre d'époques
+      gagnantes atteigne un minimum calculé par programme » (décisions de Jean-Luc du 31-10-2026 à 22h49, n°58, et du
+      01-11-2026 à 12h28, n°80). Rien de ce contrôle ne vient plus de l'appelant : ni l'état, ni le booléen
+      « gagnante », ni le minimum.
+    ② CONTEXTE D'APPEL — `grille_de_validation`, une fois.
+    ③ ENTRÉE — `ops` : les opérations gardées par la garde d'entrée (liste, vide si absentes) · `epoques_declarees`,
+      `annees_d_examen` : les deux champs de la déclaration (textes, ou None) · `seances_d_examen` : les séances des
+      années d'examen (liste de textes, ou None) · `s_preuve`, `r_preuve` : le seuil de preuve lu à la table (0,05 ÷ k)
+      et la raison s'il manque · `s_epoque`, `r_epoque` : la clé `epoque_perdante` et la raison s'il manque ·
+      `rejet_d_entree` : la raison de la garde si une de ces entrées a été écartée.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un contrôle (son rôle est imposé ensuite par la grille), dont le détail ne garde que les
+      champs du contrat (DETAILS_DES_CONTROLES["epoques"], EPOQUE_DU_VERDICT).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① une entrée absente → INCONNU, avec la raison de la garde · ② un seuil absent → INCONNU ·
+      ③ `lire_les_epoques` ; un motif (champ vide, trou, chevauchement, débordement) → INCONNU, motif rendu ·
+      ④ `controle_des_epoques(ops, époques, parts, s_preuve, s_epoque)` : c'est lui qui range les opérations, mesure
+      chaque époque, calcule le minimum au seuil de preuve DU JUGEMENT et rend l'état ; une ValueError ou une TypeError →
+      INCONNU · ⑤ garder les champs du contrat.
+    ⑦ UNITÉ — Des époques ; des probabilités ; gains en EUROS.
+    ⑧ POURQUOI — Relecteur du tour 3, D1 (bloquant) : `_etat_des_epoques` croyait le minimum et le booléen « gagnante »
+      de l'appelant ; un minimum 0 ou « gagnante » sur une époque à −5 000 € validait, et l'épreuve calculait le
+      minimum au seuil 0,05 au lieu de 0,05 ÷ k (minimum réel 2 à k = 69, 1 fourni). Superviseur R-759, 3e saisine,
+      simplification 1 : « la grille ne reçoit JAMAIS d'état, seulement des mesures ». Le découpage vient de la
+      déclaration (« le découpage exact est fixé dans la déclaration, avant de regarder », n°58).
+    ⑨ CE QUI CLOCHE — ① Le calendrier (`seances_d_examen`) vient encore de l'appelant : la grille ne lit aucun fichier ;
+      un calendrier faux donne des parts fausses, donc un minimum faux (épreuve de JONCTION, agent A). ② Une opération
+      dont l'ACHAT est hors des années d'examen rend ce contrôle INCONNU (`controle_des_epoques`) ; une VENTE après leur
+      fin n'est vue ni ici ni au ② (BACKLOG).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; `controle_des_epoques` est borné (voir sa fiche).
+      [sort: non]
+    """
+    if not ops or epoques_declarees is None or annees_d_examen is None or seances_d_examen is None:
+        return _controle("INCONNU", raison=rejet_d_entree or "époques : déclaration, années d'examen, séances ou "
+                         "opérations non reçues")
+    if s_preuve is None:
+        return _controle("INCONNU", raison="époques : seuil de preuve inconnu (%s)" % r_preuve)
+    if s_epoque is None:
+        return _controle("INCONNU", raison="époques : %s" % r_epoque)
+    try:
+        lu = lire_les_epoques(epoques_declarees, annees_d_examen, seances_d_examen)
+        if lu["motif"]:
+            return _controle("INCONNU", raison=lu["motif"])
+        x = controle_des_epoques(ops, lu["epoques"], lu["parts_des_seances"], s_preuve, s_epoque)
+    except (ValueError, TypeError) as ex:
+        return _controle("INCONNU", raison="époques non calculables : %s" % ex)
+    attendus = list(_contrat("DETAILS_DES_CONTROLES")["epoques"])
+    champs = list(_contrat("EPOQUE_DU_VERDICT"))
+    detail = None
+    if x["detail"]:
+        detail = {c: x["detail"][c] for c in attendus if c != "epoques"}
+        detail["epoques"] = [{c: e[c] for c in champs} for e in x["detail"]["epoques"]]
+    return _controle(x["etat"], valeur=x["valeur"], seuil=x["seuil"], raison=x["raison"], detail=detail)
+
+
+def _voisins_exiges(table):
+    """Lit dans la table de R-505 le nombre de voisins qui doivent tous gagner et leur écart (« 26 voisins à ±10 %, tous
+    gagnants »), confrontés à leurs références.
+    ① RÔLE — Le seuil du drapeau des voisins (R-505 ⑩), lu et jamais écrit ici, et refusé s'il est moins strict que sa
+      référence (REFERENCES_DES_DRAPEAUX).
+    ② CONTEXTE D'APPEL — `grille_de_validation`, une fois.
+    ③ ENTRÉE — `table` : le rendu de `table_de_la_loi`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — TROIS valeurs : le nombre de voisins (entier) ou None, l'écart en POURCENTS (nombre) ou None, et la
+      raison (vide si les deux nombres sont rendus). Exemple : table du 11-11-2026 → (26, 10.0, "").
+      [rend: 3]
+    ⑥ TRAITEMENT — ① la case `voisins` doit s'écrire « N voisins à ±E %, … tous gagnants » ; sinon None · ② N au moins
+      la référence `voisins_nombre`, E au moins la référence `voisins_ecart_pct` (`_au_moins_aussi_strict`) ; sinon
+      None.
+    ⑦ UNITÉ — des voisins ; l'écart en POURCENTS du réglage.
+    ⑧ POURQUOI — Relecteur du tour 3, D4 : sans référence, « 1 voisin à ±10 %, tous gagnants » avec un voisin
+      validait. Le critère : un seuil lu n'est accepté que s'il est au moins aussi strict que sa référence (superviseur
+      R-759, 3e saisine, N-D), comme les seuils numériques de `seuil_de_la_loi`.
+    ⑨ CE QUI CLOCHE — La référence est un choix délégué au Chat (DÉL-D36), pas une décision de Jean-Luc.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]"""
+    import re
+    v = table.get("voisins", {}).get("valeur", "") if isinstance(table, dict) else ""
+    m = re.match(r"^\s*(\d+)\s+voisins\s+à\s+±\s*(\d+(?:[.,]\d+)?)\s*%.*\btous gagnants\b", v or "")
+    if not m:
+        return None, None, "case « voisins » absente ou illisible à la table de R-505 : « %s »" % v
+    n, ecart = int(m.group(1)), float(m.group(2).replace(",", "."))
+    for nom, x in (("voisins_nombre", n), ("voisins_ecart_pct", ecart)):
+        r = _au_moins_aussi_strict(nom, x, REFERENCES_DES_DRAPEAUX[nom])
+        if r:
+            return None, None, r
+    return n, ecart, ""
+
+
+def _frais_exiges(table):
+    """Lit dans la table de R-505 le multiplicateur des frais du drapeau « frais doublés » (« courtage et taxe × 2, gain
+    > 0 »), confronté à sa référence.
+    ① RÔLE — Le seuil du second drapeau de R-505 ⑩, lu et jamais écrit ici.
+    ② CONTEXTE D'APPEL — `grille_de_validation`, une fois.
+    ③ ENTRÉE — `table` : le rendu de `table_de_la_loi`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : le multiplicateur (nombre) ou None, et la raison. Exemple : table du 11-11-2026 → (2.0, "").
+      [rend: 2]
+    ⑥ TRAITEMENT — ① la case `frais_doubles` doit porter « × M » et « gain > 0 » ; sinon None · ② M au moins la
+      référence `frais_multiplicateur` ; sinon None.
+    ⑦ UNITÉ — un multiplicateur sans unité.
+    ⑧ POURQUOI — Jusqu'au tour 3, la grille ne lisait pas cette case : une mesure faite à frais × 1 passait pour une
+      mesure à frais doublés (même défaut que D4, relecteur du tour 3).
+    ⑨ CE QUI CLOCHE — La référence est un choix délégué au Chat (DÉL-D36).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]"""
+    import re
+    v = table.get("frais_doubles", {}).get("valeur", "") if isinstance(table, dict) else ""
+    m = re.search(r"×\s*(\d+(?:[.,]\d+)?)\b", v or "")
+    if not m or "gain > 0" not in v:
+        return None, "case « frais_doubles » absente ou illisible à la table de R-505 : « %s »" % v
+    mult = float(m.group(1).replace(",", "."))
+    r = _au_moins_aussi_strict("frais_multiplicateur", mult, REFERENCES_DES_DRAPEAUX["frais_multiplicateur"])
+    if r:
+        return None, r
+    return mult, ""
+
+
+def _au_moins_aussi_strict(nom, valeur, reference, k=None):
+    """Dit si un seuil lu est au moins aussi strict que sa référence, et sinon pourquoi.
+    ① RÔLE — L'UNIQUE comparaison d'un seuil lu à sa référence (superviseur R-759, 3e saisine, N-D), pour les seuils
+      numériques (`seuil_de_la_loi`) et ceux des drapeaux (`_voisins_exiges`, `_frais_exiges`).
+    ② CONTEXTE D'APPEL — `seuil_de_la_loi`, `_voisins_exiges`, `_frais_exiges`.
+    ③ ENTRÉE — `nom` : la clé, pour la raison · `valeur` : le nombre lu · `reference` : (sens « <= » ou « >= », texte
+      « 0,05 » ou « 0,05 ÷ k », source) · `k` : le nombre de stratégies jugées, si la référence le divise.
+    ④ CONDITIONS D'ENTRÉE — `reference` vient de REFERENCES_DE_STRICTESSE ou REFERENCES_DES_DRAPEAUX.
+    ⑤ SORTIE — UNE valeur : "" si le seuil est accepté, sinon la raison du refus.
+      [rend: 1]
+    ⑥ TRAITEMENT — calculer la référence (`_reference`) ; « <= » : la valeur ne la dépasse pas ; « >= » : elle ne lui est
+      pas inférieure ; l'égalité est acceptée.
+    ⑦ UNITÉ — celle du seuil.
+    ⑧ POURQUOI — Une seule écriture de la comparaison : deux implémentations d'une même chose divergent (R-708).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]"""
+    sens, ref_texte, source = reference
+    ref, r = _reference(ref_texte, k)
+    if ref is None:
+        return "référence de « %s » non calculable : %s" % (nom, r)
+    if (sens == "<=" and not valeur <= ref) or (sens == ">=" and not valeur >= ref):
+        return "« %s » = %r MOINS STRICT que la référence %s %s (%s)" % (nom, valeur, sens, ref_texte, source)
+    return ""
+
+
+def _contrat(nom):
+    """Lit une liste du contrat `programmes/CONTRATS_DES_FICHIERS.py` (R-708 : les mots et l'ordre n'y vivent qu'une fois).
+    ① RÔLE — Donner à la grille l'ordre des contrôles, les états, les rôles et les mots du verdict.
+    ② CONTEXTE D'APPEL — `grille_de_validation`, `verdict_par_inclusion`, `_garde_d_entree`.
+    ③ ENTRÉE — `nom` : un nom de ce module.
+    ④ CONDITIONS D'ENTRÉE — le contrat est voisin
+    de ce module.
+    ⑤ SORTIE — UNE valeur : l'objet nommé.
+      [rend: 1]
+    ⑥ TRAITEMENT — importer, lire.
+    ⑦ UNITÉ — —.
+    ⑧ POURQUOI — R-708.
+    ⑨ CE QUI CLOCHE — —.
+    ⑩ EFFET — peut ajouter un dossier à `sys.path` (`_commun`).
+    ⑪ TERMINAISON — Rend la main ; lève ImportError ou AttributeError.
+      [sort: non]"""
+    _commun()
+    import CONTRATS_DES_FICHIERS
+    return getattr(CONTRATS_DES_FICHIERS, nom)
+
+
+# ─────────────────────────────────────────────────────────────────────
 # CALIBRAGE — ce module se prouve lui-meme, comme le socle commun
 # ─────────────────────────────────────────────────────────────────────
 
@@ -3126,9 +4301,10 @@ def _calibrage():
     # Un temoin qui ne peut pas tomber ne garde rien.
     _cal = {f"2026-0{1+i//28}-{1+i%28:02d}" for i in range(120)}
     _faux = [{"date_signal": d, "net": 1.0} for d in sorted(_cal)[:40]]
-    _r = coupure_70_30(_faux, _cal, horizon=30)
+    _fr = frontiere_de_la_fiche({}, _cal, None)     # la frontière est exigée depuis le 12-11-2026 (M1)
+    _r = coupure_70_30(_faux, _cal, horizon=30, frontiere=_fr)
     dire("embargo >= horizon (30 -> 30)", _r.get("embargo_seances"), 30)
-    _r21 = coupure_70_30(_faux, _cal, horizon=5)
+    _r21 = coupure_70_30(_faux, _cal, horizon=5, frontiere=_fr)
     dire("embargo plancher a 21 si horizon court", _r21.get("embargo_seances"), 21)
 
     # la plus longue serie de pertes

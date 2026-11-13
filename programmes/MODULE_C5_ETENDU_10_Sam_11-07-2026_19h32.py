@@ -778,7 +778,7 @@ def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
             "px_out": round(px_out, 4), "motif": motif, "pnl": round(pnl, 2)}
 
 
-def backtest_c5etendu10(donnees, bareme=None):
+def backtest_c5etendu10(donnees, bareme=None, recu=None):
     """Rejoue toute l'histoire de la stratégie et rend les deux comptabilités.
 
     ① RÔLE — Donner les chiffres de référence de la stratégie : combien
@@ -798,6 +798,8 @@ def backtest_c5etendu10(donnees, bareme=None):
       et chaque contenu la liste des séances de cette valeur, triée par date
       croissante. Les valeurs absentes du dictionnaire sont ignorées.
       `bareme` : le nom d'un barème de `donnees/BAREME_FRAIS.csv`, ou None pour le barème des trades vécus (« REEL ») ; passé à chaque `_c5e10_sortie` (A-550, 29-10-2026).
+      `recu` : (racine, nom) d'un préenregistrement poussé au registre des essais, EXIGÉ dès qu'une séance des données
+      touche la fenêtre du regard unique (R-505 ③ ; relecteur REGARD, R-D4, 12-11-2026), ou None.
     ④ CONDITIONS D'ENTRÉE — Les clés doivent être écrites EXACTEMENT comme dans
       `C5E10_UNIVERS`, sans quoi la valeur est ignorée en silence. Les listes
       doivent être triées par date croissante et partager le même calendrier de
@@ -878,9 +880,11 @@ def backtest_c5etendu10(donnees, bareme=None):
         les valeurs écrivent leurs dates dans le même format, année d'abord ; un
         fichier qui écrirait le jour d'abord donnerait un ordre faux sans lever
         la moindre erreur.
-    ⑩ EFFET — Aucun. N'écrit rien, ne lit aucun fichier, ne touche pas au
-      réseau, et ne modifie pas le dictionnaire qu'elle reçoit.
-    ⑪ TERMINAISON — Rend toujours la main. LÈVE `KeyError` ou `TypeError` par
+    ⑩ EFFET — Aucun hors de la fenêtre du regard unique. N'écrit rien, ne lit aucun fichier, ne touche pas au
+      réseau, et ne modifie pas le dictionnaire qu'elle reçoit. DANS la fenêtre, la garde lit la branche des regards
+      (fetch) avant tout calcul.
+    ⑪ TERMINAISON — Rend toujours la main. LÈVE `RegardNonInscrit` (du juge des stratégies) si les données touchent
+      la fenêtre du regard unique sans reçu valable, avant tout calcul ; `KeyError` ou `TypeError` par
       l'intermédiaire des fonctions de calcul et de sortie qu'elle appelle, si
       une séance ne porte pas ses clés ou porte du texte à la place d'un nombre.
       Aucun de ses appels ne se termine : `signaux_c5etendu10`, `_c5e10_sortie`
@@ -912,6 +916,20 @@ def backtest_c5etendu10(donnees, bareme=None):
       les chiffres figés : les résultats d'un test sur le passé, enregistrés une fois pour toutes, auxquels on compare ce que le système obtient vraiment
       ne s'additionnent jamais : « un jeton » et « jetons illimités »
 """
+    # LA GARDE DU REGARD UNIQUE (R-505 ③ ; relecteur REGARD, R-D4) : la fenêtre se lit au contrat ; hors fenêtre, deux
+    # comparaisons de dates et rien d'autre — C5 reste identique au golden. Le juge n'est chargé que dans la fenêtre.
+    import os as _os, sys as _sys
+    _ici = _os.path.dirname(_os.path.abspath(__file__))
+    if _ici not in _sys.path:
+        _sys.path.insert(0, _ici)
+    import CONTRATS_DES_FICHIERS as _C
+    _d = [str(donnees[v][k]["date"]) for v in C5E10_UNIVERS if donnees.get(v) for k in (0, -1)]
+    _deb, _fin = _C.fenetre_du_regard_unique()
+    if _d and min(_d) <= _fin and max(_d) >= _deb:
+        import JUGE_DES_STRATEGIES as _J
+        _J._garde_du_regard_unique(None, min(_d), max(_d), (min(_d), max(_d)), recu,
+                                   nom_du_module=_os.path.basename(__file__))
+
     # 1. Tous les signaux, par valeur, avec dates
     par_date = {}
     for val in C5E10_UNIVERS:

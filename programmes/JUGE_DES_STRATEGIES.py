@@ -221,7 +221,9 @@ USAGE
   `open(` en écriture, de `.write(`, de `makedirs`, de `remove(`, de `requests`,
   de `urllib`, de `socket` et de `subprocess` dans ce fichier le 20-09-2026,
   zéro occurrence, et `git status` reste vide après un passage complet sur une
-  copie du dépôt. Il LIT sept fichiers et EXÉCUTE le code de quatre modules
+  copie du dépôt. EXCEPTION depuis la mission REGARD (12-11-2026) : quand une séance jouée tombe dans la fenêtre du
+  regard unique, `jouer` lit la branche des regards au dépôt distant (`fetch`, par TENIR_LE_REGISTRE_DES_ESSAIS) pour
+  vérifier le reçu ; `k_a_la_date` lance git par le lanceur unique du même programme. Il LIT sept fichiers et EXÉCUTE le code de quatre modules
   Python qu'il charge depuis le disque : ce qu'ils font, il le fait.
 ⑪ TERMINAISON — SORT DU PROGRAMME avec le code rendu par `main`. Et un de ses
   appels peut ne pas revenir : `main` lève une erreur non rattrapée sur une
@@ -2529,12 +2531,18 @@ def k_a_la_date(racine, date_declaration, temoins):
     ② CONTEXTE D'APPEL — Aucun programme du circuit aujourd'hui ; l'épreuve du compte des essais.
     ③ ENTRÉE — `racine` : un dépôt git · `date_declaration` : AAAA-MM-JJTHH:MM+01:00 (contrat DECLARATION_DATEE) ·
       `temoins` : le nombre de témoins déclarés, entier ou texte ; « aucun » vaut 0.
-    ④ CONDITIONS D'ENTRÉE — Aucune : histoire absente, date illisible ou témoins illisibles rendent INCONNU.
+    ④ CONDITIONS D'ENTRÉE — Le dépôt porte la branche principale du contrat (`BRANCHE_PRINCIPALE`, lue à
+      `CONTRATS_DES_FICHIERS`) ; sinon INCONNU, avec la raison « branche principale … absente du dépôt » — JAMAIS de
+      repli sur HEAD (relecture Cowork du 12-11-2026, E-3 ; superviseur R-759 du 12-11-2026, 13h46). Histoire absente,
+      date illisible ou témoins illisibles rendent aussi INCONNU.
     ⑤ SORTIE — DEUX valeurs : un dictionnaire aux clés de `K_DU_VERDICT` (lues au contrat), `compte` =
       `COMPTES_DE_K[0]`, `valeur` = versions + témoins, ou « INCONNU » ; et la raison (vide si k est compté).
       [rend: 2]
-    ⑥ TRAITEMENT — ① refuser un dépôt superficiel (`git rev-parse --is-shallow-repository`) · ② prendre le dernier
-      commit au plus à la date (`git rev-list -1 --before=… HEAD -- <registre>`) · ③ lire le registre à ce commit
+    ⑥ TRAITEMENT — ⓪ AVANT TOUT, vérifier que la branche principale existe (`git rev-parse --verify --quiet
+      <branche>^{commit}`) : sans elle, la raison d'après (« aucun commit du registre ») mentait sur la cause ·
+      ① refuser un dépôt superficiel (`git rev-parse --is-shallow-repository`) · ② prendre le dernier
+      commit au plus à la date SUR LA BRANCHE PRINCIPALE du contrat (`git rev-list -1 --before=… origin/main --
+      <registre>`, mission REGARD du 12-11-2026 ; c'était HEAD) · ③ lire le registre à ce commit
       (`git show`, puis `lignes_du_registre_pour_compter_k` du contrat) · ④ pour chaque ligne, le commit qui l'a ajoutée
       (`git blame --porcelain`) · ⑤ l'empreinte du module AU COMMIT DE LA LIGNE (`git show <commit>:<module>`) ·
       ⑥ `versions_du_registre` · ⑦ ajouter les témoins.
@@ -2546,34 +2554,26 @@ def k_a_la_date(racine, date_declaration, temoins):
       réécriture : le module est alors pris à cette date-là. ② Un rebase change la date de commit, donc le registre
       retenu. ③ `donnees/DECLARATIONS_DATEES.csv` n'a encore aucune ligne : aucun k réel n'est calculable aujourd'hui.
       ④ Une ligne du registre sur plusieurs lignes du fichier rend INCONNU (le blame ne se rapporte plus aux lignes).
-    ⑩ EFFET — Lance `git` en lecture ; le contrat écrit puis efface un fichier temporaire (le registre à la date,
-      `lignes_du_registre_pour_compter_k`).
+    ⑩ EFFET — Lance `git` en lecture, par le lanceur unique `TENIR_LE_REGISTRE_DES_ESSAIS.git_de` ; le contrat écrit
+      puis efface un fichier temporaire (le registre à la date, `lignes_du_registre_pour_compter_k`).
     ⑪ TERMINAISON — Rend la main ; un appel à `git` peut ne pas revenir si git bloque (aucun délai posé).
       [sort: non]
     """
-    import subprocess
     from CONTRATS_DES_FICHIERS import K_DU_VERDICT, COMPTES_DE_K, REGISTRE_DES_STRATEGIES, lignes_du_registre_pour_compter_k
+    from CONTRATS_DES_FICHIERS import BRANCHE_PRINCIPALE
+    import TENIR_LE_REGISTRE_DES_ESSAIS as _TR
     k = {c: None for c in K_DU_VERDICT}
     k.update(valeur="INCONNU", date_de_comptage=date_declaration, compte=COMPTES_DE_K[0])
-
-    def git(*args):
-        """Lance git dans `racine`.
-        ① RÔLE — lire l'histoire.
-        ② CONTEXTE D'APPEL — `k_a_la_date`.
-        ③ ENTRÉE — `*args` : les arguments de git.
-        ④ CONDITIONS D'ENTRÉE — —
-        ⑤ SORTIE — DEUX valeurs : le code et les octets de sortie.
-        [rend: 2]
-        ⑥ TRAITEMENT — lancer, capturer.
-        ⑦ UNITÉ — octets.
-        ⑧ POURQUOI — une seule façon d'appeler git ici.
-        ⑨ CE QUI CLOCHE — aucun délai.
-        ⑩ EFFET — lance git en lecture.
-        ⑪ TERMINAISON — Rend la main ; git peut ne
-        pas revenir.
-        [sort: non]"""
-        r = subprocess.run(["git", "-C", racine] + list(args), capture_output=True)
-        return r.returncode, r.stdout
+    # LE LANCEUR GIT UNIQUE (superviseur J du 12-11-2026, réponse 3a ; R-708) : environnement purgé des variables de
+    # LIEU du dépôt (GIT_DIR…), configuration gardée — il remplace le lanceur qui vivait ici.
+    git = _TR.git_de(racine)
+    # LA BRANCHE PRINCIPALE D'ABORD (relecture Cowork du 12-11-2026, E-3) : sans elle, rev-list échouait et la raison
+    # disait « aucun commit du registre », alors que le registre en avait. Aucun repli sur HEAD : ce serait rouvrir la
+    # faille du commit antidaté posé au-dessus de la branche (superviseur J, réponse 3b).
+    branche = BRANCHE_PRINCIPALE
+    code, _ = git("rev-parse", "--verify", "--quiet", branche + "^{commit}")
+    if code != 0:
+        return k, "branche principale %s absente du dépôt — k ne se lit que sur elle, jamais sur HEAD" % branche
 
     try:
         datetime.fromisoformat(date_declaration)
@@ -2589,7 +2589,10 @@ def k_a_la_date(racine, date_declaration, temoins):
     code, sortie = git("rev-parse", "--is-shallow-repository")
     if code != 0 or sortie.strip() != b"false":
         return k, "histoire absente : dépôt superficiel ou illisible — k ne se compte pas sur le registre du jour"
-    code, sortie = git("rev-list", "-1", "--before=" + date_declaration, "HEAD", "--", REGISTRE_DES_STRATEGIES)
+    # k SE LIT SUR LA BRANCHE PRINCIPALE, JAMAIS SUR HEAD (superviseur J, réponse 3b ; relecteur J, D2) : un commit
+    # antidaté posé au-dessus d'elle choisissait le registre compté.
+    code, sortie = git("rev-list", "-1", "--before=" + date_declaration, branche, "--",
+                       REGISTRE_DES_STRATEGIES)
     commit = sortie.decode().strip()
     if code != 0 or not commit:
         return k, "histoire absente : aucun commit du registre au plus à %s" % date_declaration
@@ -2669,7 +2672,108 @@ def bareme_des_verdicts(bareme, mod_positions):
     return b
 
 
-def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=None, bareme=None):
+class RegardNonInscrit(RuntimeError):
+    """Le refus de jouer une séance de la fenêtre du regard unique sans le reçu d'une inscription au registre des essais.
+
+    ① RÔLE — Nommer ce refus : ce n'est pas une panne du juge, c'est R-505 ③ appliqué au moment où l'on JOUE.
+    ② CONTEXTE D'APPEL — Levée par `_garde_du_regard_unique` ; `main` la range comme tout échec de fiche.
+    ③ ENTRÉE — Le message.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — —
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur J du 12-11-2026, réponse 2 : « Sans reçu, `jouer` lève une erreur et ne rend aucune
+      opération ».
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — —
+    """
+
+
+# Les reçus déjà LUS sur la branche dans CE processus : {(racine, nom) : l'entrée}. `jouer_une_entree` est appelée une
+# fois par opération et par tirage du hasard ; sans ce cache, chaque appel referait un `fetch`. Seule la LECTURE est
+# gardée (présence, nature, pas de résultat) : la fiche, le module et la période se confrontent à chaque appel. Un reçu
+# clos APRÈS sa première lecture reste admis dans ce processus (même processus : limite J1).
+_RECUS_VERIFIES = {}
+
+
+def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_module=None):
+    """Exige le reçu d'une inscription au registre des essais dès que des séances jouées touchent la fenêtre du regard
+    unique ; sinon lève, avant toute opération.
+
+    ① RÔLE — LA garde du regard unique (R-505 ③), posée sur chaque calculateur de gain nommé : `jouer`,
+      `jouer_une_entree` et `MODULE_C5_ETENDU_10.backtest_c5etendu10` (superviseur GITHUB, M1 ; superviseur J,
+      réponse 2 ; relecteur REGARD, R-D4).
+    ② CONTEXTE D'APPEL — `jouer` (une fois, avant le premier signal), `jouer_une_entree` (à chaque entrée),
+      `backtest_c5etendu10` (une fois). Des sept appelants de `jouer`, seul `JUGER_UNE_FICHE` passe un reçu ; les
+      autres REFUSENT dans la fenêtre ; `JUGER_SUR_8_CRITERES` refuse toujours.
+    ③ ENTRÉE — `qui` : l'identifiant de la fiche jouée, ou None quand l'appelant ne la connaît pas · `premiere`,
+      `derniere` : la première et la dernière séance jouée, textes AAAA-MM-JJ · `periode` : (début, fin) que le reçu
+      doit couvrir, ou None · `recu` : (racine, nom d'entrée) rendu par `TENIR_LE_REGISTRE_DES_ESSAIS.preenregistrer`,
+      ou None · `nom_du_module` : le nom du fichier du module, ou None — si donné, la fiche du reçu doit nommer ce
+      module (`backtest_c5etendu10`, qui ne connaît pas sa fiche).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Aucune valeur : rend la main si la garde passe.
+      [rend: rien]
+    ⑥ TRAITEMENT — ① la fenêtre au contrat (`CONTRATS_DES_FICHIERS.fenetre_du_regard_unique`) · ② [premiere,
+      derniere] ne touche pas la fenêtre → rendre la main sans rien lire · ③ pas de reçu → lever · ④ reçu déjà lu
+      dans ce processus → son entrée en mémoire, sans relire · ⑤ sinon le registre lu sur la branche des regards (`lire_le_registre`, après
+      fetch ; il signale aussi un dépôt distant qui n'est pas le dépôt commun), sans défaut ; l'entrée nommée est un
+      PREENREGISTREMENT ; aucun RESULTAT ne la clôt ; sa fiche est `qui` (forme canonique) si `qui` est donné ; sa
+      fiche nomme `nom_du_module` s'il est donné ; sa période couvre `periode` (sans période : refus) — sinon lever.
+    ⑦ UNITÉ — Des séances (dates AAAA-MM-JJ comparées en texte).
+    ⑧ POURQUOI — La garde porte sur le moment où l'on JOUE, pas sur celui où l'on lit (superviseur GITHUB, M6). Un
+      reçu clos par son RÉSULTAT a déjà servi : le rejeu le plus naturel (relecteur REGARD, R-D5). Un reçu d'une copie
+      ou d'un dépôt jetable est refusé par la lecture (R-D3). Première et dernière séance plutôt que chaque barre :
+      hors fenêtre, rien n'est parcouru (C5 reste identique au golden).
+    ⑨ CE QUI CLOCHE — ① FILET CONTRE L'ERREUR D'AGENT, PAS CONTRE UN FAUSSAIRE (limite J1, décidée par Jean-Luc le
+      12-11-2026 à 08h58, « 1 · Empêcher l'erreur (recommandé) », BACKLOG A-708). ② Une série qui saute la fenêtre (avant 2000 puis après 2023) est prise pour la toucher : côté strict.
+      ③ `jouer_une_entree` ne connaît pas sa fiche : le reçu n'y est confronté qu'à la période. ④ Des calculateurs non
+      nommés ici (`MODULE_JUGEMENT.etalon_hasard` appelé seul, des frais propres à `JUGER_SUR_8_CRITERES`) ne sont pas
+      gardés : relevé par énumération (superviseur REGARD, M6). ⑤ Le cas 2 de R-505 est bloqué (J1 GITHUB).
+    ⑩ EFFET — Lit la branche des regards (réseau) seulement si la fenêtre est touchée.
+    ⑪ TERMINAISON — Rend la main ou lève RegardNonInscrit ; le fetch peut ne pas revenir.
+      [sort: non]
+    """
+    import CONTRATS_DES_FICHIERS as _C
+    debut, fin = _C.fenetre_du_regard_unique()
+    if not premiere or str(premiere) > fin or str(derniere) < debut:
+        return
+    cause = "fiche %s : séances jouées de %s à %s, dans la fenêtre du regard unique %s..%s" % (
+        qui or "(non nommée)", premiere, derniere, debut, fin)
+    if recu is None:
+        raise RegardNonInscrit(cause + " sans reçu d'inscription au registre des essais (R-505 ③)")
+    import TENIR_LE_REGISTRE_DES_ESSAIS as _TR
+    racine, nom = recu
+    e = _RECUS_VERIFIES.get(tuple(recu))
+    if e is None:
+        entrees, defauts = _TR.lire_le_registre(racine)
+        if defauts:
+            raise RegardNonInscrit(cause + " : registre des essais illisible ou abîmé : " + defauts[0])
+        e = entrees.get(nom)
+        if not e or e.get("nature") != "PREENREGISTREMENT":
+            raise RegardNonInscrit(cause + " : reçu %r absent de la branche des regards" % (nom,))
+        if any(x.get("nature") == "RESULTAT" and x.get("preenregistrement") == nom for x in entrees.values()):
+            raise RegardNonInscrit(cause + " : le reçu %s est déjà clos par son résultat" % nom)
+    if qui is not None:
+        canon, raison = _C.identite_de_la_fiche(racine, qui)
+        if canon is None or e["fiche_id"] != canon:
+            raise RegardNonInscrit(cause + " : le reçu %s inscrit la fiche %s, pas celle-ci (%s)" % (
+                nom, e["fiche_id"], raison or canon))
+    if nom_du_module is not None:
+        f = _C.lire_les_fiches(racine).get(e["fiche_id"]) or {}
+        if os.path.basename(declaration_du_signal(f)[0]) != nom_du_module:     # LA lecture du signal (T2-D2)
+            raise RegardNonInscrit(cause + " : la fiche %s du reçu ne nomme pas le module %s" % (
+                e["fiche_id"], nom_du_module))
+    p = _TR._bornes(e["hypothese"].get("periode"))
+    if not periode or p is None or not (p[0].isoformat() <= str(periode[0]) and str(periode[1]) <= p[1].isoformat()):
+        raise RegardNonInscrit(cause + " : la période inscrite au reçu %s (%r) ne couvre pas la période jouée %r" % (
+            nom, e["hypothese"].get("periode"), periode))
+    _RECUS_VERIFIES[tuple(recu)] = e
+
+
+def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=None, bareme=None,
+          recu=None):
     """Comptabilite JETONS ILLIMITES : TOUS les signaux joues. La selection d'un
     signal par jour ne concerne QUE la comptabilite UN JETON, ou il faut bien
     choisir puisqu'on ne detient qu'une position (A-79, 01-08-2026).
@@ -2678,7 +2782,9 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       opérations qu'elle aurait faites, chacune avec son gain net en euros, frais
       payés. C'est le cœur du juge des stratégies : tout ce qui suit — résumé, jugement, étalon de
       hasard — part de cette liste.
-    ② CONTEXTE D'APPEL — Quatre appelants, dont un au-dehors.
+    ② CONTEXTE D'APPEL — Sept appels (relevé du superviseur J du 12-11-2026, M1) : les quatre ci-dessous, plus
+      `programmes/JOUER_LES_VERSIONS.py` (deux appels) et `programmes/JUGER_UNE_FICHE.py` (la porte, SEUL appelant
+      qui passe un reçu) ; les autres refusent dans la fenêtre du regard unique.
       · `main`, une fois par fiche recevable.
       · `calibrer`, une fois, sur la fiche de calibrage.
       · `_rejouer`, à l'intérieur de `juger`, une fois par variante de réglages
@@ -2695,7 +2801,9 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       `main` passe toujours les bornes de la fiche. · `lecture` : le second rendu de
       `lire_par_le_lecteur` (passages dans l'indice, trous, composition), ou `None` pour
       jouer la série entière sans composition, comme avant le 26-10-2026 (A-577, étape 1). · `bareme` : le
-      nom d'un barème de frais, None pour le barème réel (A-550, voir `jouer_une_entree`).
+      nom d'un barème de frais, None pour le barème réel (A-550, voir `jouer_une_entree`). · `recu` : (racine, nom)
+      d'un préenregistrement poussé au registre des essais, ou None — EXIGÉ dès qu'une séance jouée tombe dans la
+      fenêtre du regard unique (`_garde_du_regard_unique`, mission REGARD du 12-11-2026).
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0 : l'objectif de
       gain, la perte acceptée et l'horizon doivent être lisibles, faute de quoi la
       fonction lève (un horizon illisible : ValueError depuis le 11-11-2026 ; « aucune »
@@ -2781,10 +2889,11 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       suivante qui a un cours, après le trou. Mesuré le 27-10-2026 : 41 séances sans cours
       au milieu des séries de l'historique des 20 ans, 32 coupures ; aucune dans le maître.
     ⑩ EFFET — Aucun sur le disque : ni lecture ni écriture de fichier, aucun accès
-      réseau. Elle APPELLE le module de signal et le module de positions, donc tout
+      réseau — SAUF la garde du regard unique, qui lit la branche des regards (fetch) quand la fenêtre est touchée. Elle APPELLE le module de signal et le module de positions, donc tout
       ce que ces modules font, elle le fait. Elle ne modifie pas les cours reçus.
     ⑪ TERMINAISON — Rend la main dans le cas normal. PEUT LEVER, non rattrapées ici :
-      ValueError quand la fiche n'est pas jouable (`manques_du_jeu`) ou qu'un seuil
+      RegardNonInscrit quand une séance jouée tombe dans la fenêtre du regard unique sans reçu valable (avant toute
+      opération) ; ValueError quand la fiche n'est pas jouable (`manques_du_jeu`) ou qu'un seuil
       est illisible ou mal signé (`seuil_de_la_fiche`) ; `SignalRefuse` quand la
       sortie du signal est mal formée (contrôle de `SignalNomme`, 31-10-2026) —
       `main` en fait une fiche « REFUSÉE AU JEU » ;
@@ -2867,6 +2976,14 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
         else:
             inconnus.append(m)
 
+    # LA GARDE DU REGARD UNIQUE (R-505 ③ ; mission REGARD du 12-11-2026) : une séance jouée dans la fenêtre exige le
+    # reçu d'une inscription poussée au registre des essais ; sans lui, AUCUNE opération n'est rendue.
+    _debuts = [str(cours[v][0]["date"]) for v in univers if cours[v]]
+    _fins = [str(cours[v][-1]["date"]) for v in univers if cours[v]]
+    _premiere = max([min(_debuts)] + ([str(periode[0])] if periode else [])) if _debuts else ""
+    # une fiche SANS identifiant n'est jamais la fiche d'un reçu : « » ne se ramène à aucune fiche (T2-D4)
+    _garde_du_regard_unique(fiche.get("id") or "", _premiere, max(_fins, default=""), periode, recu)
+
     # LE SIGNAL EST CELUI QUE LA FICHE NOMME, LU PAR `signal_de_la_fiche` SEULE (A-542, 30-10-2026) : plus aucun
     # repli — un module passé à la place, ou une fonction prise ailleurs, est refusé.
     if not isinstance(mod_signal, SignalNomme):
@@ -2898,7 +3015,7 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
                 # L'ACHAT ET LA SORTIE SE JOUENT DANS `jouer_une_entree`, LA SEULE MÉCANIQUE : l'étalon de hasard
                 # l'appelle aussi (R-708 ; superviseur R-759 du 28-10-2026 : deux copies avaient déjà divergé
                 # deux fois le 28-09-2026, sur les frais et sur la séance d'achat).
-                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme)
+                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu)
                 if op is None:
                     continue
                 ops.append({"valeur": v, "date_signal": d_sig, "pe": op["pe"], "px": op["px"],
@@ -2936,7 +3053,7 @@ def achat_admis(v, serie, j, lecture):
     return dans_l_indice(lecture["passages"].get(v, []), serie[j]["date"])
 
 
-def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme=None):
+def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme=None, recu=None):
     """Joue UNE entrée : achat à l'ouverture de la séance `j`, puis sortie ; la seule mécanique d'achat-sortie.
 
     ① RÔLE — Rendre l'opération qu'aurait faite un achat à l'ouverture de la séance `j` de la série d'une valeur :
@@ -2947,7 +3064,8 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
       seuils en FRACTIONS · `h` : l'horizon en séances, ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale, depuis le
       11-11-2026, plan V7 bloc 4 : `vendre` ne vend alors que sur l'objectif, le stop ou la fin des données) ·
       `mod_positions` : le module des positions (`vendre`,
-      `frais_aller_retour`) · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None · `bareme` : le nom d'un barème
+      `frais_aller_retour`) · `recu` : (racine, nom) d'un préenregistrement poussé, EXIGÉ si l'entrée touche la fenêtre
+      du regard unique (relecteur REGARD, R-D4), ou None · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None · `bareme` : le nom d'un barème
       de `donnees/BAREME_FRAIS.csv`, None pour le barème des trades vécus (« REEL ») ; un autre nom rejoue un chiffre
       ancien sous le régime qui l'a produit (A-550).
     ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; le module des positions expose `vendre` et `frais_aller_retour` ;
@@ -2979,11 +3097,15 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
     ⑨ CE QUI CLOCHE — Le capital de 100 000 € est écrit ici, comme il l'était dans `jouer` : MODULE_POSITIONS porte le
       sien. Ne pas le changer garde les opérations identiques ; consigné au BACKLOG.
     ⑩ EFFET — Appelle le module des positions.
-    ⑪ TERMINAISON — Rend la main ; lève RuntimeError si le module des positions n'expose pas `vendre` ou
+    ⑪ TERMINAISON — Rend la main ; lève RegardNonInscrit (garde du regard unique, avant tout calcul), RuntimeError si le module des positions n'expose pas `vendre` ou
       `frais_aller_retour`, ce que lève `vendre` (une séance sans l'une de ses clés de prix), et ce que lève `frais_aller_retour` (une date absente du calendrier, une valeur ou une année absente de la liste des valeurs taxées : un juge qui rejoue
       2000-2023 sous le barème réel s'arrête là, faute des listes de ces années — voulu, pas de taxe supposée).
       [sort: non]
     """
+    # LA GARDE DU REGARD UNIQUE, ici aussi : l'étalon de hasard appelle cette fonction directement (relecteur REGARD,
+    # R-D4). Hors fenêtre, deux comparaisons de dates, rien d'autre.
+    _garde_du_regard_unique(None, str(serie[j]["date"]), str(serie[-1]["date"]),
+                            (str(serie[j]["date"]), str(serie[j]["date"])), recu)
     bareme = bareme_des_verdicts(bareme, mod_positions)   # le barème des verdicts, sauf barème donné (D2)
     if not achat_admis(v, serie, j, lecture):
         return None
@@ -3319,7 +3441,10 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
         _sea = seances
         if _bornes:
             _sea = {d for d in seances if _bornes[0] <= d <= _bornes[1]}
-        c = J.coupure_70_30(ops, _sea, horizon=_h_emb)
+        # LA FRONTIÈRE EST CELLE DE `frontiere_de_la_fiche`, LA SEULE FONCTION QUI L'ÉTABLIT (superviseur R-759 de la
+        # mission TRI, 12-11-2026) : JOUER_LES_VERSIONS et le tri l'appellent aussi, et le tri refuse tout fichier
+        # de résultats dont la frontière diffère. Même formule qu'avant : la frontière de C5 ne bouge pas.
+        c = J.coupure_70_30(ops, _sea, horizon=_h_emb, frontiere=J.frontiere_de_la_fiche(fiche, seances, _bornes))
         a, b = c["res_70"], c["res_30"]
         print("    COUPURE 70/30        frontiere {} . embargo {} seances"
               .format(c["frontiere"], c["embargo_seances"]))
@@ -3498,6 +3623,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
             f2["sl"] = str(p["sl"])
             # « aucune » ne varie pas : le voisinage ne bouge alors que l'objectif et la perte acceptée.
             f2["horizon"] = str(int(round(p["horizon"]))) if "horizon" in p else fiche["horizon"]
+            # REGARD UNIQUE (R-505 ③) : le voisinage ne passe aucun reçu — refus dans la fenêtre.
             o2, _ = jouer(f2, cours, mnemo, mod_pos_sig[0], mod_pos,
                           periode=_bornes, lecture=lecture)
             r2 = resumer(o2)
@@ -3964,6 +4090,8 @@ def calibrer(cours, mnemo, base, mod_positions, golden, f_cours=None, table=None
     # (REEL depuis la décision de Jean-Luc du 29-10-2026 à 19h16, HIST_COURTAGE_SANS_TTF avant) — une réparation (D2)
     # avait rendu la phrase fausse.
     _bareme_cal = bareme_des_verdicts(None, mod_positions)
+    # REGARD UNIQUE (R-505 ③) : le calibrage ne passe aucun reçu — refus dans la fenêtre (J3 en attente de Jean-Luc :
+    # un calibrage compte-t-il comme regard ?).
     ops, _ = jouer(fiche, cours, mnemo, _sig_cal, mod_positions,
                    periode=_bornes0, bareme=_bareme_cal)
     r = resumer(ops)
@@ -4476,6 +4604,7 @@ def main():
                                "et le jugement ne lisent plus la meme chose")
         print("    periode de la fiche : %s -> %s" % _bornes)
         try:
+            # REGARD UNIQUE (R-505 ③) : `main` n'inscrit rien, donc ne passe aucun reçu — refus dans la fenêtre.
             ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture)
         except SignalRefuse as _refus_au_jeu:
             # UN REFUS NOMMÉ, PAS UNE PANNE (point 8 du plan du juge, 31-10-2026) : sortie du signal mal formée. La fiche

@@ -332,12 +332,20 @@ def c07_interieur_du_verdict(copie, racine):
 
 
 def c08_entrees_reelles_de_L4(copie, racine):
-    """C08 — Les deux entrées écrites par le vrai écrivain de L4 sont conformes ; une nature inconnue et un champ
-    oublié rougissent. (rend: 1 ; sort: non)"""
+    """C08 — Les deux entrées écrites par le vrai écrivain de L4 : le préenregistrement, d'avant la case
+    `genre_d_essai` (ajoutée par B2 le 11-11-2026, le calibrage devenu un GENRE et non un préfixe d'identifiant) et de
+    la case `sommet_principal` (mission REGARD, tour 3 : l'ancre de la déclaration), est vu pour ces deux seuls champs
+    ABSENTS ; complété de « ESSAI » et « INCONNU », il est conforme ; une nature inconnue et un champ oublié
+    rougissent. (rend: 1 ; sort: non)"""
     for nom, texte in ENTREES_REELLES_DE_L4.items():
         poser(copie, f"registre_essais/{nom}", texte)
+    e_reelles = charger(copie).confronter_tous(copie)
+    seul_genre = (len(e_reelles) == 1 and "a45b3aef853ba396" in e_reelles[0] and "genre_d_essai" in e_reelles[0]
+                  and "sommet_principal" in e_reelles[0] and "ABSENT" in e_reelles[0])
+    pre = dict(json.loads(ENTREES_REELLES_DE_L4["a45b3aef853ba396.json"]), genre_d_essai="ESSAI",
+               sommet_principal="INCONNU")
+    poser(copie, "registre_essais/a45b3aef853ba396.json", pre)
     e0 = charger(copie).confronter_tous(copie)
-    pre = json.loads(ENTREES_REELLES_DE_L4["a45b3aef853ba396.json"])
     autre = dict(pre, nature="AUTRE")
     sans = {k: v for k, v in pre.items() if k != "octets"}
     poser(copie, "registre_essais/autre.json", autre)
@@ -345,7 +353,7 @@ def c08_entrees_reelles_de_L4(copie, racine):
     e1 = charger(copie).confronter_tous(copie)
     vu_autre = any("autre.json" in x and "nature" in x for x in e1)
     vu_sans = any("sans_octets.json" in x and "ABSENT" in x and "octets" in x for x in e1)
-    return e0 == [] and vu_autre and vu_sans, f"réelles : {e0} ; fautes : {e1}"
+    return seul_genre and e0 == [] and vu_autre and vu_sans, f"réelles : {e_reelles} ; complétées : {e0} ; fautes : {e1}"
 
 
 def c09_tableau_de_bord(copie, racine):
@@ -611,7 +619,15 @@ def c19_colonnes_lues_par_le_juge_couvertes(copie, racine):
     """C19 — Propriété : chaque colonne du registre que le juge lit par son nom (`x["col"]`, `x.get("col")`) est
     changée par au moins un cas de l'étalon des versions — sauf `id`, qui fait la fiche (deux lignes d'une même fiche
     le partagent par définition). Le jour où le juge lit une colonne de plus, cette épreuve rougit jusqu'à ce qu'un
-    cas dise combien de versions fait son changement. (rend: 1 ; sort: non)"""
+    cas dise combien de versions fait son changement.
+    ① RÔLE — ci-dessus. ② CONTEXTE D'APPEL — la liste des épreuves de ce programme. ③ ENTRÉE — `copie` : la copie
+    réduite · `racine` : le dépôt dont on lit le juge. ④ CONDITIONS D'ENTRÉE — les deux FICHIERS_DU_JUGE existent sous
+    `racine`. ⑤ SORTIE — UNE valeur, comme chaque épreuve de ce programme : la paire (vrai/faux, message). ⑥ TRAITEMENT — arbre syntaxique, clés constantes,
+    confrontées aux colonnes changées par l'étalon. ⑦ UNITÉ — des noms de colonnes. ⑧ POURQUOI — voir le RÔLE.
+    ⑨ CE QUI CLOCHE — Il reconnaît une colonne à son ORTHOGRAPHE, jamais à sa provenance : il voit une MESURE qui
+    porte le nom d'une colonne (« kelly », lue sur les mesures par MODULE_JUGEMENT, E1 du 12-11-2026 : couverte par
+    le cas `kelly_seul`, mesuré par E1 du compte des essais) et ne voit pas une lecture `fiche[col]` par variable.
+    ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. (rend: 1 ; sort: non)"""
     m, (cas, fautes) = _etalon(copie)
     lues = set()
     for f in FICHIERS_DU_JUGE:

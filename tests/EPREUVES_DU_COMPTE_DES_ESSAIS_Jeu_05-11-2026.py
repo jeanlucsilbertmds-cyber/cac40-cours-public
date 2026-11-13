@@ -7,8 +7,8 @@
   05-11-2026 à 13h40 (Q-G5, « 1 ») : k compte chaque VERSION QUI CHANGE UN CALCUL ; la ligne 70 du fichier
   `donnees/cac40_strategies.csv` (C5-EI-PARAMS, entrée vide puis « DÉFAUT », mêmes 48 opérations) ne compte pas.
 ② CONTEXTE D'APPEL — À la main, par l'auteur du lot S_kk, son relecteur et Cowork. Aucune tâche du soir.
-③ ENTRÉE — La ligne de commande : la racine d'un clone du dépôt ; option « --sabotages » pour jouer les seize
-  sabotages K1 à K16 ; option « --un-sabotage=Kn » pour n'en jouer qu'un.
+③ ENTRÉE — La ligne de commande : la racine d'un clone du dépôt ; option « --sabotages » pour jouer les dix-sept
+  sabotages K1 à K17 ; option « --un-sabotage=Kn » pour n'en jouer qu'un.
 ④ CONDITIONS D'ENTRÉE — La racine porte `programmes/` (le juge, le contrat), `donnees/cac40_strategies.csv` et
   `temoins/ETALON_DES_VERSIONS.csv` ; `git` est installé (dépôts jetables fabriqués ici).
 ⑤ SORTIE — Un affichage (une ligne par épreuve, puis une par sabotage) et un code de sortie : 0 si tout passe (et
@@ -361,8 +361,10 @@ def git(dossier, *args, date=None):
 
 def e5_k_a_la_date(racine, J, C):
     """E5 — k à la date, sur un dépôt jetable : 2026-01-10 ligne ZZ-1 (module v1) ; 2026-02-10 ligne ZZ-1 identique,
-    module v2 ; 2026-03-10 ligne ZZ-2. Au 15-02 avec 2 témoins : 2 versions, k = 4. « aucun » = 0. Avant le premier
-    commit : INCONNU. Clone superficiel au 01-04 : INCONNU.
+    module v2 ; 2026-03-10 ligne ZZ-2. SANS la branche principale (`BRANCHE_PRINCIPALE` du contrat) : INCONNU, et la
+    raison nomme la branche principale. Puis la branche est posée sur HEAD (`git update-ref`), comme `actions/checkout`
+    la donne : au 15-02 avec 2 témoins : 2 versions, k = 4. « aucun » = 0. Avant le premier commit : INCONNU, et la
+    raison dit qu'aucun commit du registre n'existe à la date. Clone superficiel au 01-04 : INCONNU.
 
     ① RÔLE — ce que dit la première phrase : une propriété éprouvée, jamais un total figé.
     ② CONTEXTE D'APPEL — `main`, une fois ; et chaque rejeu d'un sabotage.
@@ -372,9 +374,15 @@ def e5_k_a_la_date(racine, J, C):
     [rend: 2]
     ⑥ TRAITEMENT — appeler les fonctions du juge, comparer à ce que la décision attend.
     ⑦ UNITÉ — des versions, des cas, des essais.
-    ⑧ POURQUOI — superviseur S_kk, §3.4 ; défauts D3 à D6 de la relecture du tour 2 du lot C.
-    ⑨ CE QUI CLOCHE — voir le ⑨ du programme.
-    ⑩ EFFET — crée et efface un dépôt git jetable et un clone superficiel, dans un dossier temporaire.
+    ⑧ POURQUOI — superviseur S_kk, §3.4 ; défauts D3 à D6 de la relecture du tour 2 du lot C. Le cas SANS branche
+      principale et le contenu de la raison « avant tout commit » : relecture Cowork du 12-11-2026 (E-2, E-3) et
+      superviseur R-759 du 12-11-2026, 13h46 — le cas « avant tout commit » passait pour une MAUVAISE raison (il
+      n'exigeait qu'une raison non vide, et l'absence de la branche lui en donnait une) ; le cas sans branche mord
+      sur un repli vers HEAD (sabotage K17).
+    ⑨ CE QUI CLOCHE — voir le ⑨ du programme. Les deux raisons sont reconnues à des mots de leur texte
+      (« branche principale », « aucun commit du registre ») : le jour où le juge les reformule, E5 rougit à tort.
+    ⑩ EFFET — crée et efface un dépôt git jetable (branche « main », puis une référence `origin/main` posée par
+      `git update-ref`) et un clone superficiel, dans un dossier temporaire.
     ⑪ TERMINAISON — Rend la main, ou lève (rattrapé par `main`, qui fait rougir).
     [sort: non]"""
     lignes = C.lignes_du_registre(os.path.join(racine, C.REGISTRE_DES_STRATEGIES))
@@ -385,7 +393,7 @@ def e5_k_a_la_date(racine, J, C):
         d = os.path.join(tmp, "depot")
         os.makedirs(os.path.join(d, os.path.dirname(C.REGISTRE_DES_STRATEGIES)))
         os.makedirs(os.path.join(d, "programmes"))
-        git(d, "init", "-q")
+        git(d, "init", "-q", "-b", C.BRANCHE_PRINCIPALE.split("/", 1)[1])   # le clone superficiel en hérite
 
         def ecrire(ids, module, date):
             """Écrit le registre et le module, commite.
@@ -416,6 +424,9 @@ def e5_k_a_la_date(racine, J, C):
         ecrire(["ZZ-1"], "# v1\n", "2026-01-10T12:00:00+01:00")
         ecrire(["ZZ-1", "ZZ-1"], "# v2\n", "2026-02-10T12:00:00+01:00")
         ecrire(["ZZ-1", "ZZ-1", "ZZ-2"], "# v2\n", "2026-03-10T12:00:00+01:00")
+        # (b) SANS la branche principale : INCONNU, et la raison le dit — jamais un repli sur HEAD
+        ksb, raison_sb = J.k_a_la_date(d, "2026-02-15T12:00+01:00", 2)
+        git(d, "update-ref", "refs/remotes/" + C.BRANCHE_PRINCIPALE, "HEAD")
         k, raison = J.k_a_la_date(d, "2026-02-15T12:00+01:00", 2)
         k0, _ = J.k_a_la_date(d, "2026-02-15T12:00+01:00", "aucun")
         kav, raison_av = J.k_a_la_date(d, "2025-12-01T12:00+01:00", 0)
@@ -424,11 +435,12 @@ def e5_k_a_la_date(racine, J, C):
         ks, raison_s = J.k_a_la_date(s, "2026-04-01T12:00+01:00", 0)
     ok = (not raison and k["valeur"] == 4 and k["versions_comptees"] == 2 and k["lignes_du_registre"] == 2
           and k["temoins"] == 2 and k["compte"] == C.COMPTES_DE_K[0] and set(k) == set(C.K_DU_VERDICT)
-          and k0["valeur"] == 2 and kav["valeur"] == "INCONNU" and raison_av and ks["valeur"] == "INCONNU"
-          and raison_s)
-    return ok, f"au 15-02, 2 témoins : valeur {k['valeur']}, versions {k['versions_comptees']}, lignes " \
+          and k0["valeur"] == 2 and kav["valeur"] == "INCONNU" and "aucun commit du registre" in raison_av
+          and ks["valeur"] == "INCONNU" and raison_s
+          and ksb["valeur"] == "INCONNU" and "branche principale" in raison_sb)
+    return ok, f"sans branche principale : {ksb['valeur']} ({raison_sb}) ; au 15-02, 2 témoins : valeur {k['valeur']}, versions {k['versions_comptees']}, lignes " \
                f"{k['lignes_du_registre']}, témoins {k['temoins']} ; « aucun » : {k0['valeur']} ; avant tout commit : " \
-               f"{kav['valeur']} ; clone superficiel : {ks['valeur']} ({raison_s})"
+               f"{kav['valeur']} ({raison_av}) ; clone superficiel : {ks['valeur']} ({raison_s})"
 
 
 def e6_une_seule_ecriture(racine, J, C):
@@ -493,7 +505,8 @@ SABOTAGES = {
            "univers en liste"),
     "K8": (JUGE, "        if ident not in precedente or precedente[ident] != lue:\n", "        if True:\n",
            "chaque ligne compte"),
-    "K9": (JUGE, '"--before=" + date_declaration, "HEAD"', '"HEAD"', "date ignorée"),
+    # K9 suit le texte du juge depuis la mission REGARD (12-11-2026) : la branche lue est `branche`, plus "HEAD"
+    "K9": (JUGE, '"--before=" + date_declaration, branche,', 'branche,', "date ignorée"),
     "K10": (JUGE, 'git("show", "%s:%s" % (sha, chemin_module)) if sha else (1, b"")',
             'git("show", "HEAD:%s" % chemin_module)', "empreinte du module du jour"),
     "K11": (JUGE, 'frozenset(donnees_du_texte(fiche["donnees_demandees"])))',
@@ -509,6 +522,11 @@ SABOTAGES = {
     # superviseur R-759 du lot S_kk, avant le tour 2 : la même relecture que S11 de l'épreuve du signal nommé
     "K16": (JUGE, "            forme, emp, fonction,\n", "            forme, emp, fiche[\"fonction_signal\"].strip(),\n",
             "fonction_signal relue dans la lecture de jeu"),
+    # relecture Cowork du 12-11-2026 (E-3) et superviseur R-759 du 12-11-2026 (13h46) : retomber sur HEAD quand la
+    # branche principale manque rouvre la faille du commit antidaté ; E5 doit rougir.
+    "K17": (JUGE, '    if code != 0:\n        return k, "branche principale %s absente du dépôt',
+            '    if code != 0:\n        branche = "HEAD"\n    if False:\n        return k, "branche principale %s absente du dépôt',
+            "repli sur HEAD quand la branche principale manque"),
 }
 
 

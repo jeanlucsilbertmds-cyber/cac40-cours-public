@@ -1204,6 +1204,8 @@ def _juger_une(base, banc, stat, ident):
     except ValueError as e:
         print(f"CODE 2 — {e}"); return 2
     try:
+        # REGARD UNIQUE (R-505 ③, mission REGARD du 12-11-2026) : ce juge ne passe JAMAIS de reçu — il refuse toujours
+        # une séance de la fenêtre (`JUGE_DES_STRATEGIES._garde_du_regard_unique` lève RegardNonInscrit).
         ops, inconnus = banc.jouer(fiche, cours, mnemo, mod_sig, mod_pos)
     except Exception as e:
         print(f"  {ident} : le juge des stratégies n'a pas pu la jouer — {type(e).__name__} : {e}")
