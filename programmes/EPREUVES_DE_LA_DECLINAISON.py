@@ -51,6 +51,9 @@ ICI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ICI)
 P_PREP = os.path.join(ICI, "PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py")
 P_DECL = os.path.join(ICI, "DECLINER_LES_STRATEGIES.py")
+# `voisins` VIT DANS COMMUN.py DEPUIS LE 11-11-2026 (plan V7, bloc 5l ⑥ : une seule grille pour la moulinette et le juge,
+# R-708) ; PREPARER l'importe. Ses deux sabotages se posent donc sur COMMUN, et PREPARER est rechargé sur la copie sabotée.
+P_COMM = os.path.join(ICI, "COMMUN.py")
 P_JUGE = os.path.join(ICI, "JUGE_DES_STRATEGIES.py")
 VOIS = {"tp": {"pas": "1", "de_part_et_d_autre": "2", "minimum": "1", "maximum": "10", "raison": "r"},
         "sl": {"pas": "0.5", "de_part_et_d_autre": "2", "minimum": "0.5", "maximum": "10", "raison": "r"},
@@ -457,8 +460,8 @@ def epreuves(prep, decl, juge, registre):
 
 SABOTAGES = [
     (P_PREP, "le signe n'est plus retiré", "return abs(float(t.replace", "return (float(t.replace"),
-    (P_PREP, "la valeur de la fiche n'est plus gardée", "    vals.add(round(valeur, 4))\n", ""),
-    (P_PREP, "les bornes ne sont plus appliquées", "vals = {v for v in vals if mini <= v <= maxi}", "vals = vals"),
+    (P_COMM, "la valeur de la fiche n'est plus gardée", "    vals.add(round(valeur, 4))\n", ""),
+    (P_COMM, "les bornes ne sont plus appliquées", "vals = {v for v in vals if mini <= v <= maxi}", "vals = vals"),
     (P_PREP, "un code d'univers inconnu passe", "if not codes or inconnus:", "if not codes:"),
     (P_PREP, "l'univers est écrit avec des +", 'ensembles = [",".join(codes)]', 'ensembles = ["+".join(codes)]'),
     (P_PREP, "l'écrasement d'un essai n'est plus refusé", 'open(sortie, "x"', 'open(sortie, "w"'),
@@ -511,11 +514,14 @@ def main(argv):
     ⑤ SORTIE — UNE valeur : 0, 1 ou 2.
       [rend: 1]
     ⑥ TRAITEMENT — ① épreuves sur les vrais programmes · ② chaque sabotage doit en
-      faire tomber une · ③ effacer les dossiers temporaires · ④ bilan.
+      faire tomber une ; un sabotage de COMMUN.py (où vit `voisins` depuis le 11-11-2026)
+      est chargé à la place de COMMUN le temps de recharger PREPARER, puis l'original est
+      remis · ③ effacer les dossiers temporaires · ④ bilan.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Un jeu d'épreuves se sabote contre sa propre correction (R-731).
-    ⑨ CE QUI CLOCHE — rien vu.
-    ⑩ EFFET — Dossiers temporaires, effacés.
+    ⑨ CE QUI CLOCHE — Le module de COMMUN sabotage reste vu par PREPARER rechargé ; le
+      juge et DECLINER gardent le COMMUN d'origine, chargé avant les sabotages.
+    ⑩ EFFET — Dossiers temporaires, effacés ; remplace un instant `sys.modules["COMMUN"]`.
     ⑪ TERMINAISON — Rend la main avec un code ; c'est le bloc final qui sort.
       [sort: non]
     """
@@ -538,7 +544,14 @@ def main(argv):
             ok = False
             continue
         texte = texte.replace(avant, apres)
-        prep = charger(P_PREP, "prep_s", texte if chemin == P_PREP else None)
+        commun_d_origine = sys.modules.get("COMMUN")
+        if chemin == P_COMM:   # PREPARER fait « from COMMUN import voisins » : il doit trouver la copie sabotée
+            sys.modules["COMMUN"] = charger(P_COMM, "COMMUN", texte)
+        try:
+            prep = charger(P_PREP, "prep_s", texte if chemin == P_PREP else None)
+        finally:
+            if commun_d_origine is not None:
+                sys.modules["COMMUN"] = commun_d_origine
         decl = charger(P_DECL, "decl_s", texte if chemin == P_DECL else None)
         try:
             with contextlib.redirect_stdout(io.StringIO()):

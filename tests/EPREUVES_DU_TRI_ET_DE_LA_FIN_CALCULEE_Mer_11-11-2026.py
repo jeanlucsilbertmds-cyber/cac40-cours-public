@@ -154,6 +154,24 @@ SABOTAGES = {
     "S38": (P_JOUER, "        a_jouer = periode if periode is not None else bornes", "        a_jouer = bornes",
             ["J13", "J8"], "la fin calculée est ignorée, toute la fiche est jouée (relecteur de la fusion, défaut 2, "
             "13-11-2026)"),
+    # PHASE 2 D'E1F (superviseur R-759, M-1 et m-1, 14-11-2026) : la durée « aucune » au tri
+    "S39": (P_TRI, "    if COMMUN.lire_horizon_ou_aucune(ligne.get(\"horizon\")) is COMMUN.HORIZON_AUCUNE:\n        return False",
+            "    if False:\n        return False", ["T18"], "le court-circuit « aucune » de `passe_le_critere` retiré"),
+    "S40": (P_TRI, "        if not aucune and vides:", "        if False:", ["T19"],
+            "une case de réglage vide sur une version à durée chiffrée passe"),
+    "S41": (P_TRI, "        if aucune and remplies:", "        if False:", ["T19"],
+            "une version « aucune » aux cases vides en partie passe"),
+    "S42": (P_TRI, "        if aucune and len(remplies) == len(CASES_DE_LA_PARTIE_DE_REGLAGE):", "        if False:", ["T19"],
+            "une version « aucune » à partie de réglage chiffrée n'est plus nommée comme telle"),
+    "S43": (P_TRI, '"gain_net_euros_70",\n                          "operations_a_part_fin_des_donnees", '
+                   '"gain_net_euros_a_part_fin_des_donnees")', '"gain_net_euros_70")', ["T17"],
+            "les doublons ignorent les deux colonnes « à part » (m-1)"),
+    "S44": (P_TRI, "            h = COMMUN.lire_horizon_ou_aucune(ligne[k])\n", "            h = int(ligne[k])\n", ["T18"],
+            "l'empreinte relit l'horizon par int : « aucune » arrête le tri"),
+    "S45": (P_TRI, '        elif k == "sl" and COMMUN.est_le_mot_du_stop_aucun(ligne[k]):', "        elif False:", ["T18"],
+            "l'empreinte lit « sans stop » comme un nombre : le tri s'arrête"),
+    "S46": (P_TRI, '        if not aucune and not l["embargo_seances"].strip().isdigit():', "        if False:", ["T19"],
+            "un embargo non entier sur une version chiffrée passe (N-4)"),
     "S20": (P_JOUER, '("aucune opération" if not ref_jouee["n"] else', '("aucune opération" if False else', ["J8"],
             "« aucune opération » redevient un arrêt"),
 }
@@ -391,7 +409,9 @@ def volume(champs_contrat, n=None, **changer):
         x = dict(l, periode_debut=bornes[0], fin_ecrite_dans_la_fiche=bornes[1], cours_joues="donnees/cours_maitre.csv",
                  empreinte_des_cours=empreinte_maitre, frontiere_70_30=frontiere, embargo_seances="21",
                  operations_70=l["operations"], reussite_pourcents_exacte_70=l["reussite_pourcents_exacte"],
-                 gain_net_euros_70=l["gain_net_euros"])
+                 gain_net_euros_70=l["gain_net_euros"],
+                 # les deux colonnes « à part » (fin des données, 13-11-2026) : le fichier réel est à durée chiffrée
+                 operations_a_part_fin_des_donnees="0", gain_net_euros_a_part_fin_des_donnees="0.00")
         if n:
             x["versions_dans_l_essai"] = str(n)
         x.update(changer)
@@ -556,7 +576,7 @@ def famille_tri():
         r2 = T.passe_le_critere(dict(peu[2], reussite_pourcents_exacte_70=""), [("reussite_pourcents_exacte_70", ">=",
                                                                                  0.0)])
         noter("T13 zéro opération et « gain_70 >= 0 » : jamais retenue, non mesurable (D2) ; case vide : non mesurable",
-              r1 == (False, True) and r2 == (False, True), (r1, r2))
+              r1 == (False, True, T.RAISON_ZERO) and r2 == (False, True, T.RAISON_CASE_VIDE), (r1, r2))
         reg13 = ("LES SEUILS DU TRI DES VARIANTES\n| colonne | comparaison | valeur | source |\n|---|---|---|---|\n"
                  "| gain_net_euros_70 | >= | -1000000000 | épreuve |\n")
         f = ecrire(os.path.join(dossier(), "R_zero.csv"), C, peu[:2] + [zero])
@@ -669,6 +689,61 @@ def famille_tri():
         out = os.path.join(dossier(), "TRI.csv")
         c, s = lancer(P_TRI, ".", out, F["resultats"], f3)
         noter("T17b mêmes réglages, mêmes chiffres : comptés une fois", c == 0 and "3 version(s) en double" in s, s)
+        # m-1 (relecteur neuf E1F phase 2) : mêmes réglages, mêmes chiffres, mais positions « à part » différentes
+        f4 = ecrire(os.path.join(d, "R_E04.csv"), champs_r, [dict(l, essai="E04", id_version=l["id_version"].replace(
+            "-E01-", "-E04-"), operations_a_part_fin_des_donnees="1", gain_net_euros_a_part_fin_des_donnees="-5.00")
+            for l in r])
+        out = os.path.join(dossier(), "TRI.csv")
+        c, s = lancer(P_TRI, ".", out, F["resultats"], f4)
+        noter("T17c mêmes réglages, mêmes chiffres, positions « à part » différentes : ARRÊT (m-1)",
+              c == 1 and "chiffres différents" in s and "R_E04.csv" in s and not os.path.exists(out), s)
+    if voulu("T18"):
+        # M-1 (superviseur R-759 E1F phase 2) : une version « aucune » est NON MESURABLE, avec sa raison, AVANT toute
+        # condition — même une condition sur une colonne qui n'est pas de la partie de réglage
+        T = module(P_TRI, "tri_epreuve_aucune")
+        peu = volume(C, n=4)
+        vide4 = dict(operations_70="", gain_net_euros_70="", reussite_pourcents_exacte_70="", embargo_seances="")
+        auc = dict(peu[1], horizon="aucune", **vide4)
+        r1 = T.passe_le_critere(auc, [("gain_net_euros_70", ">=", -1e9)])
+        r2 = T.passe_le_critere(auc, [("operations", ">=", 0.0)])
+        noter("T18a « aucune » : (False, True, « %s ») avant toute condition, même sur une colonne hors réglage"
+              % T.RAISON_AUCUNE, r1 == r2 == (False, True, T.RAISON_AUCUNE), (r1, r2))
+        # programme entier : une « aucune » + une « sans stop » chiffrée + deux chiffrées, seuil qui laisse tout passer
+        sst = dict(peu[2], sl="sans stop")
+        lignes = [peu[0], auc, sst, peu[3]]
+        attendues = {l["id_version"] for l in lignes if l is not auc and int(l["operations_70"]) > 0}
+        reg18 = ("LES SEUILS DU TRI DES VARIANTES\n| colonne | comparaison | valeur | source |\n|---|---|---|---|\n"
+                 "| gain_net_euros_70 | >= | -1000000000 | épreuve |\n")
+        f = ecrire(os.path.join(dossier(), "R_aucune.csv"), C, lignes)
+        out = os.path.join(dossier(), "TRI.csv")
+        c, s = lancer(P_TRI, fausse_racine(reg18), out, f)
+        _, tri = lire(out) if c == 0 else ([], [])
+        noter("T18b programme entier : « aucune » écartée avec sa raison, « sans stop » et chiffrées triées (%d retenues)"
+              % len(attendues), c == 0 and {l["id_version"] for l in tri} == attendues and "VERSIONS ESSAYÉES : 4" in s
+              and "NON MESURABLE — %s : 1 version(s)" % T.RAISON_AUCUNE in s, s)
+    if voulu("T19"):
+        # M-1, condition 1 du superviseur : trois cas restent un ARRÊT
+        peu = volume(C, n=3)
+        cas19 = [
+            ("T19a case vide (embargo) sur une version à durée chiffrée", dict(peu[1], embargo_seances=""),
+             "case(s) vide(s) embargo_seances"),   # fragment PROPRE au contrôle du vide (S40) : l'arrêt de N-4 dit aussi « durée chiffrée »
+            ("T19b « aucune », cases vides en partie (embargo écrit)",
+             dict(peu[1], horizon="aucune", operations_70="", gain_net_euros_70="", reussite_pourcents_exacte_70="",
+                  embargo_seances="21"), "vides en partie"),
+            ("T19c « aucune » avec une partie de réglage chiffrée",
+             dict(peu[1], horizon="aucune", operations_70="5", gain_net_euros_70="100.00",
+                  reussite_pourcents_exacte_70="60.000000", embargo_seances="21"), "partie de réglage chiffrée"),
+            # N-4 (relecture Cowork du 14-11-2026, superviseur R-759 E1F) : l'embargo d'une chiffrée est un entier ≥ 0
+            ("T19d embargo « abc » sur une version à durée chiffrée", dict(peu[1], embargo_seances="abc"),
+             "embargo_seances illisible"),
+            ("T19e embargo « -3 » sur une version à durée chiffrée", dict(peu[1], embargo_seances="-3"),
+             "embargo_seances illisible"),
+        ]
+        for nom, mauvaise, frag in cas19:
+            f = ecrire(os.path.join(dossier(), "R19.csv"), C, [peu[0], mauvaise, peu[2]])
+            out = os.path.join(dossier(), "TRI.csv")
+            c, s = lancer(P_TRI, ".", out, f)
+            noter(nom + " : ARRÊT", c == 1 and frag in s and not os.path.exists(out), s)
     if voulu("T14"):
         out = os.path.join(dossier(), "TRI.csv")
         open(out, "w").close()

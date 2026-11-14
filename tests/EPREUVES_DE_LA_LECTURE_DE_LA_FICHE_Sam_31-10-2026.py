@@ -118,7 +118,10 @@ SABOTAGES = {
                                 "    return _l(fiche[\"tp\"]), _l(fiche[\"sl\"])\n")],
     # A-548 : le soir relit les pourcentages à sa façon (l'ancienne lecture du juge, qui devine sous 1)
     # (la cible a perdu un niveau d'indentation le 05-11-2026 : n°83, le soir lit les fiches au contrat, sans « with »)
-    "P4_soir_relit_a_sa_facon": [(SOIR, "                sl = juge.seuil_de_la_fiche(x, \"sl\")\n",
+    # (cible recalée le 12-11-2026, mission VENTE tour 2 : le soir lit la fiche par `lecture_du_soir` du juge ; même
+    # intention — le stop relu à sa façon après la lecture du juge)
+    "P4_soir_relit_a_sa_facon": [(SOIR, "                tp, sl, _h = juge.lecture_du_soir(base, x)\n",
+                                  "                tp, sl, _h = juge.lecture_du_soir(base, x)\n"
                                   "                sl = abs(float(str(x[\"sl\"]).replace(\"%\", \"\")))\n"
                                   "                sl = sl / 100.0 if sl >= 1 else sl\n")],
     # point 5 : la case entree n'est plus lue

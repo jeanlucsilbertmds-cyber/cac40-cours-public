@@ -335,6 +335,11 @@ from COMMUN import lire_horizon       # la seule lecture d'un horizon (R-708, d�
 # la lecture qui accepte « aucune » (contrat du lot 0, 09-11-2026) : porte_0, lecture_de_jeu, jouer, juger depuis le
 # 11-11-2026 (plan V7, bloc 4) — une stratégie sans durée maximale se juge
 from COMMUN import lire_horizon_ou_aucune, HORIZON_AUCUNE
+# le stop « sans stop » (contrat du 11-11-2026, mission VENTE ; A-541) : porte_0, lecture_de_jeu, jouer l'acceptent par
+# `seuil_de_la_fiche_ou_aucun` ; `seuil_de_la_fiche` (donc le soir et le juge à 8 critères) le refuse toujours
+from COMMUN import STOP_AUCUN, est_le_mot_du_stop_aucun
+from COMMUN import MOTIF_FIN_DES_DONNEES   # positions encore ouvertes à la fin des données (décision du 12-11-2026, 09h18)
+from COMMUN import lire_csv   # le réglage du soir (`soir_accepte_aucune`, 12-11-2026)
 
 VERSION = "generique-1.6"
 PARIS = ZoneInfo("Europe/Paris")
@@ -1996,6 +2001,36 @@ def seuil_de_la_fiche(fiche, champ):
     return v
 
 
+def seuil_de_la_fiche_ou_aucun(fiche, champ):
+    """Lit `tp` ou `sl` comme `seuil_de_la_fiche`, en acceptant de plus « sans stop » pour `sl` : rend une fraction ou STOP_AUCUN.
+
+    ① RÔLE — LA lecture d'un seuil pour les lecteurs du juge qui ACCEPTENT une version sans stop : la porte 0, la
+      lecture du jeu et `jouer` (la moulinette joue ses versions par `jouer`).
+    ② CONTEXTE D'APPEL — `porte_0`, `lecture_de_jeu`, `jouer` de ce programme ; `controler_fusion` de
+      `programmes/JOUER_LES_VERSIONS.py`. PAS `juger` : il refuse une fiche sans stop par MOTIF_SANS_STOP_NON_JUGEABLE.
+    ③ ENTRÉE — `fiche` : un dictionnaire de champs · `champ` : « tp » ou « sl ».
+    ④ CONDITIONS D'ENTRÉE — Celles de `seuil_de_la_fiche`.
+    ⑤ SORTIE — UNE valeur : `COMMUN.STOP_AUCUN` si `champ` vaut « sl » et que la case porte le mot « sans stop »
+      (`COMMUN.est_le_mot_du_stop_aucun`) ; sinon ce que rend `seuil_de_la_fiche`. Exemples : C5E10-QA-V1, `sl`
+      « -2.5% » → 0,025 ; une version de la moulinette, `sl` « sans stop » → STOP_AUCUN ; `tp` « sans stop » → refus.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① « sl » et le mot : rendre la sentinelle · ② sinon déléguer à `seuil_de_la_fiche`.
+    ⑦ UNITÉ — Une FRACTION du prix d'entrée, ou la sentinelle.
+    ⑧ POURQUOI — DÉCISION DE JEAN-LUC du 19-10-2026 à 20h22 (A-541) : la moulinette essaie le stop « sans stop ».
+      Même forme que `lire_horizon_ou_aucune` pour « aucune » (contrat du lot 0) : la lecture stricte ne change pas,
+      un lecteur qui accepte le cas l'appelle explicitement. Le programme du soir lit le registre par
+      `seuil_de_la_fiche` : il continue de refuser « sans stop » (A-645, garde-fou : aucune fiche VIVANTE ne reçoit
+      une sortie que le soir ne sait pas tenir).
+    ⑨ CE QUI CLOCHE — « sans stop » n'existe que pour le stop : un objectif « sans objectif » n'est pas décidé.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError comme `seuil_de_la_fiche`.
+      [sort: non]
+    """
+    if champ == "sl" and est_le_mot_du_stop_aucun(fiche.get("sl")):
+        return STOP_AUCUN
+    return seuil_de_la_fiche(fiche, champ)
+
+
 def porte_0(fiche):
     """Refuse une fiche incomplete AVANT tout calcul. Ne consomme aucun essai.
 
@@ -2158,10 +2193,11 @@ def porte_0(fiche):
     # `manques_du_jeu`.
     manq += manques_du_jeu(fiche)
     # LES SEUILS SE LISENT PAR LA LECTURE UNIQUE (A-548, 31-10-2026) : illisible ou mal signé, la fiche est refusée ici.
+    # « sans stop » est lisible depuis le 11-11-2026 (A-541, mission VENTE) : `seuil_de_la_fiche_ou_aucun`.
     for c in ("tp", "sl"):
         if c not in manq:
             try:
-                seuil_de_la_fiche(fiche, c)
+                seuil_de_la_fiche_ou_aucun(fiche, c)
             except ValueError as _e_seuil:
                 manq.append(str(_e_seuil))
     # L'HORIZON SE LIT PAR LA MEME FONCTION QUE LE PROGRAMME DU SOIR (defaut 4 de
@@ -2213,6 +2249,91 @@ def mnemoniques_de_l_univers(texte):
     return [x.strip().upper() for x in texte.split(",") if x.strip()]
 
 
+# LE RÉGLAGE QUI DIT SI LE SOIR TIENT UNE FICHE SANS DURÉE (« aucune ») — question à Jean-Luc (superviseur R-759 du
+# 12-11-2026, §4) : le bloc 4 suffit-il pour dire que « le soir sait lire aucune » (A-645 : « aucune fiche VIVANTE ne
+# reçoit AUCUNE avant que le soir sache la lire (A-644) », A-644 À FAIRE) ? Le réglage se LIT dans ce fichier, sous la
+# racine ; marqué À DÉCIDER ; tout ce qui n'est pas exactement « accepter » (fichier absent, ligne absente, autre mot)
+# vaut REFUSER, la valeur la plus stricte.
+FICHIER_DES_REGLAGES_DU_SOIR = os.path.join("donnees", "REGLAGES_DU_SOIR.csv")
+REGLAGE_HORIZON_AUCUNE_AU_SOIR = "horizon_aucune_au_soir"
+MOTIF_SANS_STOP_AU_SOIR = (
+    "sans stop : le soir ne sait pas tenir une position sans stop (garde-fou d'A-645 ; « sans stop » est un réglage "
+    "du laboratoire, A-541)")
+MOTIF_AUCUNE_AU_SOIR = (
+    "horizon « aucune » refusé au soir : réglage « %s » de %s ≠ « accepter » (À DÉCIDER par Jean-Luc : le bloc 4 "
+    "suffit-il pour dire que le soir sait lire « aucune », A-644 ?)" % (REGLAGE_HORIZON_AUCUNE_AU_SOIR,
+                                                                       FICHIER_DES_REGLAGES_DU_SOIR))
+
+
+def soir_accepte_aucune(racine):
+    """Dit si le soir tient une fiche à l'horizon « aucune » : lit le réglage, refuse par défaut.
+
+    ① RÔLE — Lire, à un seul endroit, le réglage À DÉCIDER qui ouvre ou ferme le soir à l'horizon « aucune ».
+    ② CONTEXTE D'APPEL — `lecture_du_soir`, pour une fiche dont l'horizon est « aucune ».
+    ③ ENTRÉE — `racine` : la racine du dépôt (ou d'une copie).
+    ④ CONDITIONS D'ENTRÉE — Aucune : un fichier absent ou illisible est un cas prévu.
+    ⑤ SORTIE — UNE valeur : vrai seulement si `donnees/REGLAGES_DU_SOIR.csv` porte une ligne
+      `horizon_aucune_au_soir` dont la `valeur`, sans blancs de bord et en minuscules, vaut « accepter » ; faux sinon.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire le fichier par `lire_csv` · ② chercher la ligne du réglage · ③ comparer sa valeur.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Demande du Chat du 12-11-2026 (tour 2 de la mission VENTE), d'après le superviseur R-759 du même
+      jour : la décision revient à Jean-Luc ; en attendant, le code la lit dans un fichier (un seuil ou un réglage se
+      lit, il ne s'écrit pas dans le code) et prend la valeur la plus stricte.
+    ⑨ CE QUI CLOCHE — Le fichier n'est pas déclaré au contrat des fichiers (le programme des contrats) :
+      un seul lecteur, celui-ci. Une faute de frappe dans la valeur ferme le soir à « aucune » sans le dire ailleurs
+      que dans le motif de refus.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    lignes = lire_csv(os.path.join(racine, FICHIER_DES_REGLAGES_DU_SOIR))
+    if not isinstance(lignes, list):
+        return False
+    return any((l.get("reglage") or "").strip() == REGLAGE_HORIZON_AUCUNE_AU_SOIR
+               and (l.get("valeur") or "").strip().lower() == "accepter" for l in lignes)
+
+
+def lecture_du_soir(racine, fiche):
+    """Rend l'objectif, le stop et l'horizon d'une fiche TELS QUE LE SOIR LES EXÉCUTE, ou lève un refus nommé.
+
+    ① RÔLE — LA lecture d'une fiche par le circuit du soir : la porte (`fiche_suivie`) et l'exécution
+      (`reglages_du_registre` de `programmes/TENIR_LES_POSITIONS.py`) l'appellent toutes les deux, si bien qu'une fiche
+      suivie est une fiche réglée, et réciproquement, par construction.
+    ② CONTEXTE D'APPEL — `fiche_suivie` (donc le détecteur des signaux et le teneur des positions) ; `reglages_du_registre`.
+    ③ ENTRÉE — `racine` : la racine du dépôt (pour le réglage du soir) · `fiche` : une ligne du registre des stratégies.
+    ④ CONDITIONS D'ENTRÉE — Aucune.
+    ⑤ SORTIE — TROIS valeurs : `tp` et `sl` en FRACTIONS (0,04 et 0,025 pour C5E10-QA-V1), l'horizon (entier de
+      séances, `COMMUN.HORIZON_AUCUNE` si le réglage du soir l'accepte, ou None s'il est illisible — comme avant le
+      12-11-2026 : la porte `porte_0` refuse déjà un horizon illisible, et le teneur garde son garde-fou
+      `horizons_illisibles`).
+      [rend: 3]
+    ⑥ TRAITEMENT — ① stop « sans stop » → refus MOTIF_SANS_STOP_AU_SOIR · ② `seuil_de_la_fiche` (strict) pour tp et sl
+      · ③ horizon par `lire_horizon_ou_aucune` : « aucune » → refus MOTIF_AUCUNE_AU_SOIR sauf si `soir_accepte_aucune`.
+    ⑦ UNITÉ — Fractions ; séances.
+    ⑧ POURQUOI — Défaut D1 du relecteur neuf du 11-11-2026 (23h56) : après l'ajout de « sans stop » au laboratoire,
+      `porte_0` (donc `fiche_suivie`) laissait passer une fiche VIVANTE sans stop, que `reglages_du_registre` écartait
+      en silence — deux positions EN_ATTENTE le soir de la faute, l'arrêt « seuils inconnus » un soir plus tard. Le
+      superviseur R-759 du 12-11-2026 : « UNE fonction, `lecture_du_soir(fiche)` […] appelée par les DEUX lecteurs du
+      soir » ; une garde ajoutée dans le seul teneur serait une rustine (le détecteur ne la verrait pas, R-708).
+      `porte_0` garde le sens « laboratoire » : `JOUER_LES_VERSIONS` doit laisser passer une version sans stop.
+    ⑨ CE QUI CLOCHE — le programme de mesure de la performance du soir (MESURER_LA_PERFORMANCE…, l. 2161) lit encore le stop à sa
+      façon : troisième lecteur du soir, proposé au BACKLOG (note de la mission VENTE). Un horizon illisible est rendu
+      None et non refusé ici (comportement du soir d'avant, gardé ; le calibrage du teneur lit des registres sans
+      colonne horizon) : la propriété « suivie ⇔ réglée » ne vaut donc que pour les fiches qui passent `porte_0`.
+    ⑩ EFFET — Lit le réglage du soir (fichier), pour une fiche « aucune » seulement.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError avec le motif.
+      [sort: non]
+    """
+    if est_le_mot_du_stop_aucun(fiche.get("sl")):
+        raise ValueError(MOTIF_SANS_STOP_AU_SOIR)
+    tp, sl = seuil_de_la_fiche(fiche, "tp"), seuil_de_la_fiche(fiche, "sl")
+    h = lire_horizon_ou_aucune(fiche.get("horizon", ""))
+    if h is HORIZON_AUCUNE and not soir_accepte_aucune(racine):
+        raise ValueError(MOTIF_AUCUNE_AU_SOIR)
+    return tp, sl, h
+
+
 def fiche_suivie(racine, fiche, mnemo):
     """Dit si le soir peut suivre une fiche : le signal et les valeurs qu'elle déclare, ou le motif de son refus.
 
@@ -2227,7 +2348,8 @@ def fiche_suivie(racine, fiche, mnemo):
     ⑤ SORTIE — TROIS valeurs : le signal (`SignalNomme`), la liste des clés de valeurs de l'univers, None — si la
       fiche est suivie ; sinon None, None, et le motif du refus (texte).
       [rend: 3]
-    ⑥ TRAITEMENT — ① `porte_0` : refus avec ses motifs · ② `signal_de_la_fiche` : refus si elle lève ValueError ·
+    ⑥ TRAITEMENT — ① `porte_0` : refus avec ses motifs · ①bis `lecture_du_soir` (depuis le 12-11-2026) : refus avec
+      son motif (« sans stop », « aucune » non accepté au soir) · ② `signal_de_la_fiche` : refus si elle lève ValueError ·
       ③ chaque mnémonique de l'univers doit être au référentiel, sinon la fiche ENTIÈRE est refusée, mnémonique(s)
       nommé(s).
     ⑦ UNITÉ — —
@@ -2245,6 +2367,12 @@ def fiche_suivie(racine, fiche, mnemo):
     porte = porte_0(fiche)
     if not porte[0]:
         return None, None, "porte du juge : " + " ; ".join(map(str, porte[1]))
+    # LA LECTURE DU SOIR, LA MÊME QUE CELLE DE L'EXÉCUTION (`reglages_du_registre`) : défaut D1 de la mission VENTE,
+    # marche du superviseur R-759 du 12-11-2026. `porte_0` est la porte du LABORATOIRE (« sans stop » y passe).
+    try:
+        lecture_du_soir(racine, fiche)
+    except ValueError as e:
+        return None, None, "lecture du soir : " + str(e)
     try:
         sig = signal_de_la_fiche(racine, fiche)
     except ValueError as e:
@@ -2443,7 +2571,8 @@ def lecture_de_jeu(fiche, lire_module):
       lendemain ».
       [rend: 2 ou 12]
     ⑥ TRAITEMENT — ① appeler `porte_0` sur la fiche enveloppée (`_FicheLue`) · ② refusée : rendre les textes lus ·
-      ③ jouable : appeler `seuil_de_la_fiche`, `lire_horizon`, `mnemoniques_de_l_univers`, `cle_d_entree`,
+      ③ jouable : appeler `seuil_de_la_fiche` (tp), `seuil_de_la_fiche_ou_aucun` (sl, « sans stop » compris, depuis
+      le 11-11-2026), `lire_horizon`, `mnemoniques_de_l_univers`, `cle_d_entree`,
       `declaration_du_signal` (la seule lecture des colonnes du signal : la fonction et le texte des réglages),
       `forme_du_module`, `reglages_du_texte`, `donnees_du_texte` — les lecteurs mêmes du jeu — et prendre les bornes
       rendues par `porte_0`. Elle ne lit elle-même aucune colonne du signal (superviseur R-759 du 05-11-2026,
@@ -2472,7 +2601,7 @@ def lecture_de_jeu(fiche, lire_module):
     _module, fonction, texte = declaration_du_signal(fiche)
     forme, emp = forme_du_module(fiche, lire_module)
     return ("JOUABLE",
-            seuil_de_la_fiche(fiche, "tp"), seuil_de_la_fiche(fiche, "sl"),
+            seuil_de_la_fiche(fiche, "tp"), seuil_de_la_fiche_ou_aucun(fiche, "sl"),
             lire_horizon_ou_aucune(fiche["horizon"]),
             frozenset(mnemoniques_de_l_univers(fiche["univers"])),
             ENTREES_JOUABLES[cle_d_entree(fiche["entree"].strip())],
@@ -2807,7 +2936,8 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0 : l'objectif de
       gain, la perte acceptée et l'horizon doivent être lisibles, faute de quoi la
       fonction lève (un horizon illisible : ValueError depuis le 11-11-2026 ; « aucune »
-      est lisible, par `lire_horizon_ou_aucune`). `mod_signal` doit être un `SignalNomme` — un module, ou une
+      est lisible, par `lire_horizon_ou_aucune` ; le stop « sans stop » aussi, par `seuil_de_la_fiche_ou_aucun`,
+      depuis le 11-11-2026, A-541). `mod_signal` doit être un `SignalNomme` — un module, ou une
       fonction prise ailleurs, est refusé par TypeError — et le module de positions
       doit exposer `vendre` et `frais_aller_retour` (depuis le 07-11-2026, lot ①a de J1 ; avant : `tester_seance`).
     ⑤ SORTIE — DEUX valeurs : la liste des opérations, et la liste des valeurs
@@ -2959,7 +3089,8 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
     if _non_jouable:
         raise ValueError("fiche %s non jouable : %s" % (fiche.get("id") or "(sans identifiant)", " ; ".join(_non_jouable)))
     tp = seuil_de_la_fiche(fiche, "tp")
-    sl = seuil_de_la_fiche(fiche, "sl")
+    # LE STOP : une fraction, ou « sans stop » (STOP_AUCUN, A-541, mission VENTE du 11-11-2026) : `vendre` le tient.
+    sl = seuil_de_la_fiche_ou_aucun(fiche, "sl")
     # L'HORIZON : un entier de séances, ou « aucune » (HORIZON_AUCUNE, plan V7 bloc 4, 11-11-2026). Illisible, la
     # fiche est refusée ici, avec son motif, au lieu de tomber plus loin dans la vente.
     h = lire_horizon_ou_aucune(fiche["horizon"])
@@ -3139,6 +3270,13 @@ MOTIF_AUCUNE_NON_TRANCHEE = (
     "NON JUGEABLE — horizon « aucune » : l'embargo de la coupure 70/30 et des fenêtres n'est pas tranché (plafond ; "
     "plus longue détention ou quantile) ; décision de Jean-Luc attendue — la fiche se JOUE (`jouer`), elle ne se JUGE pas")
 
+# LE REFUS NOMMÉ D'UNE FICHE « SANS STOP » PAR `juger` (A-541 ④, 19-10-2026 : « une version sans stop n'a pas de point
+# mort au sens du juge […] le juge doit le dire pour ces versions, ne pas appeler ce calcul […] et ne pas rendre de
+# verdict des fenêtres glissantes, plutôt qu'un chiffre faux »).
+MOTIF_SANS_STOP_NON_JUGEABLE = (
+    "NON JUGEABLE — stop « sans stop » : le point mort suppose qu'une perte s'arrête au stop, il n'est pas défini "
+    "(A-541 ④) ; la fiche se JOUE (`jouer`, la moulinette), elle ne se JUGE pas")
+
 
 def duree_d_embargo_sans_horizon(ops, seances, frontiere):
     """Rend la plus longue détention, en séances, des opérations d'APPRENTISSAGE d'une stratégie sans durée maximale.
@@ -3149,13 +3287,14 @@ def duree_d_embargo_sans_horizon(ops, seances, frontiere):
     ③ ENTRÉE — `ops` : les opérations jouées (`date_signal`, `date_entree`, `date_sortie`, `motif`) · `seances` : les
       séances de bourse, dates AAAA-MM-JJ · `frontiere` : la date de la frontière 70/30, celle que rend
       `MODULE_JUGEMENT.coupure_70_30` (qui la calcule sans dépendre de l'embargo).
-    ④ CONDITIONS D'ENTRÉE — Les opérations d'une fiche « aucune » : chez elles, un motif `HORIZON` ne peut venir que de
-      la FIN DES DONNÉES (`vendre`).
+    ④ CONDITIONS D'ENTRÉE — Les opérations d'une fiche « aucune » : chez elles, la FIN DES DONNÉES porte le motif
+      `FIN_DES_DONNEES` depuis le 13-11-2026 (`vendre`, décision de Jean-Luc du 12-11-2026 à 09h18), `HORIZON` avant ;
+      les deux sont écartés.
     ⑤ SORTIE — UNE valeur : un entier >= 1, le plus grand nombre de séances entre l'achat (exclu) et la vente (incluse)
       parmi les opérations signalées au plus tard à la frontière et vendues sur un seuil ; 1 s'il n'y en a aucune.
       [rend: 1]
     ⑥ TRAITEMENT — ① écarter les opérations signalées après la frontière (les 30 % jamais vus) · ② écarter les ventes
-      `HORIZON` (fin des données) · ③ compter les séances de chacune, garder le maximum, au moins 1.
+      `FIN_DES_DONNEES` ou `HORIZON` (fin des données) · ③ compter les séances de chacune, garder le maximum, au moins 1.
     ⑦ UNITÉ — Des SÉANCES de bourse.
     ⑧ POURQUOI — Mesurer l'embargo sur les opérations des 30 % ferait dépendre la coupure des données de test (une
       fuite) ; une vente forcée par la fin des données n'est pas une durée de la stratégie : le relecteur neuf du
@@ -3171,7 +3310,7 @@ def duree_d_embargo_sans_horizon(ops, seances, frontiere):
     cal = sorted(seances)
     plus_longue = 1
     for o in ops:
-        if o["date_signal"] > frontiere or o["motif"] == "HORIZON":
+        if o["date_signal"] > frontiere or o["motif"] in ("HORIZON", MOTIF_FIN_DES_DONNEES):
             continue
         n = bisect.bisect_right(cal, o["date_sortie"]) - bisect.bisect_right(cal, o["date_entree"])
         plus_longue = max(plus_longue, n)
@@ -3179,7 +3318,7 @@ def duree_d_embargo_sans_horizon(ops, seances, frontiere):
 
 
 def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
-          _bornes=None, mod_pos_sig=None, lecture=None, bareme=None):
+          _bornes=None, mod_pos_sig=None, lecture=None, bareme=None, racine=None):
     """Rend les mesures qui disent si le gain veut dire quelque chose.
 
     AUCUN SEUIL N'EST ECRIT EN DUR : le point mort se calcule depuis les
@@ -3210,6 +3349,10 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       jouent comme la fiche (27-10-2026). L'étalon de hasard, lui, ne le reçoit pas (BACKLOG
       A-577, en attente de Jean-Luc).
       `bareme` : le nom d'un barème de `donnees/BAREME_FRAIS.csv`, ou None pour le barème des verdicts (`MODULE_POSITIONS.BAREME_DES_VERDICTS`) ; il chiffre le point mort et l'étalon de hasard (A-550, 29-10-2026).
+      `racine` : le dossier du dépôt, où le voisinage lit `donnees/combinatoires/VOISINAGE_DU_JUGE.csv` (ses
+      réglages : depuis le 12-11-2026 ceux de R-505 ⑩ ; le 11-11-2026 il lisait aussi la grille de la moulinette,
+      `VOISINAGE.csv`) ; None : le voisinage ne peut pas tourner, le rapport écrit « EN ÉCHEC » et la fonction lève
+      à la fin (R-734).
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0. Le module de
       jugement doit exposer les huit fonctions appelées ici ; le module de
       statistiques peut manquer, ses deux mesures étant alors perdues.
@@ -3223,8 +3366,10 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       dixièmes appris et trois dixièmes jamais vus, avec un embargo entre les deux,
       et afficher le taux de la partie jamais vue avec sa borne basse · ⑤ découper
       la même période en trois fenêtres successives et dire si chacune tient face à
-      son point mort · ⑥ rejouer la stratégie avec des réglages voisins et dire si
-      le gain s'effondre · ⑦ afficher le gain moyen et sa borne basse · ⑧ afficher
+      son point mort · ⑥ rejouer la stratégie avec ses réglages voisins par pas
+      réguliers (`grille_du_voisinage`, réglages lus dans `VOISINAGE_DU_JUGE.csv`,
+      jamais au hasard depuis le 11-11-2026 ; à ±10 % de chaque réglage depuis le
+      12-11-2026) et lever le DRAPEAU « voisinage » de R-505 ⑩ si un voisin ne gagne pas · ⑦ afficher le gain moyen et sa borne basse · ⑧ afficher
       la plus longue série de pertes et le pire creux · ⑨ tirer des opérations au
       hasard, par valeur puis par date, et dire où se situe la stratégie.
     ⑦ UNITÉ — Les taux de réussite, les points morts et les bornes basses sont des
@@ -3275,8 +3420,10 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       'calculer_stabilite_parametrique' » et « CREUX non mesure : 'NoneType' object
       has no attribute 'calculer_time_underwater' ». Aucune alerte en tête, alors
       que `main` en affiche une quand c'est le module de jugement qui manque. Un
-      lecteur pressé lit un rapport complet.
-      ② SEPT BLOCS RATTRAPENT TOUTE ERREUR ET L'ÉCRIVENT « NON MESURÉ ». Un module
+      lecteur pressé lit un rapport complet. DEPUIS LE 11-11-2026, le voisinage n'écrit plus « non mesure » dans ce
+      cas : il écrit « EN ÉCHEC » et la fiche sort EN ÉCHEC, code 1 ; le creux, lui, reste muet.
+      ② SIX BLOCS RATTRAPENT TOUTE ERREUR ET L'ÉCRIVENT « NON MESURÉ » (le septième, le
+      voisinage, écrit « EN ÉCHEC » et fait lever `juger` à la fin depuis le 11-11-2026). Un module
       absent, une fonction renommée, une division par zéro et une faute dans le
       code du juge des stratégies produisent exactement la même ligne. Rien ne distingue « cette
       mesure n'existe pas ici » de « cette mesure s'est trompée ».
@@ -3297,20 +3444,29 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       DE SIGNAL. `main` lui passe un tuple d'un seul élément, et seul cet élément
       est employé, pour rejouer les variantes de réglages. Le nom laisse croire
       qu'il porte les positions ET le signal.
-      ⑦ LES VARIANTES DE RÉGLAGES SONT DES ESSAIS ET NE SONT PAS COMPTÉES COMME
-      TELLES. Le voisinage rejoue la stratégie avec des réglages écartés de 10 %,
-      cinq variations ; le commentaire du code le signale lui-même comme un point à
-      surveiller. Aucun compteur d'essais n'est incrémenté.
+      ⑦ LES VARIANTES DE RÉGLAGES SONT DES ESSAIS ET NE SONT PAS ENCORE INSCRITES.
+      Depuis le 11-11-2026, le voisinage rejoue des voisins par pas réguliers
+      et affiche leur nombre comme « essais NON INSCRITS » : le registre
+      des essais (BACKLOG A-226, lot L4) n'existe pas au dépôt, l'appel est préparé
+      (paramètre `inscrire` de `calculer_voisinage_sur_grille`) mais rien n'est inscrit.
+      ⑧ LE VOISINAGE SUIT R-505 ⑩ DEPUIS LE 12-11-2026 (26 voisins à ±10 %, tous
+      gagnants, sinon DRAPEAU soumis à Jean-Luc) ; seule la règle d'arrondi de la durée
+      reste provisoire, et le rapport le dit. Le drapeau est AFFICHÉ, il ne change pas
+      le code de sortie : `juger` ne rend pas encore de verdict (bloc 5a du plan V7).
     ⑩ EFFET — N'écrit aucun fichier et ne touche pas au réseau. AFFICHE le bloc de
       jugement : 19 lignes mesurées le 20-09-2026 sur la fiche `C5E10-QA-V1`. Elle
       APPELLE le module de jugement, le module de statistiques et, par `_rejouer`,
       le module de signal et le module de positions. Elle ne modifie ni la fiche ni
       les opérations reçues.
-    ⑪ TERMINAISON — Rend toujours la main, sans valeur. Elle ne lève pas : chacun
-      de ses neuf calculs est enveloppé d'une enveloppe de secours, sauf le point mort,
-      dont l'échec arrêterait la fonction. Et un de ses appels peut ne pas revenir :
+    ⑪ TERMINAISON — Rend la main, sans valeur. Elle LÈVE ValueError, avant tout calcul, pour une fiche
+      « sans stop » (MOTIF_SANS_STOP_NON_JUGEABLE, depuis le 11-11-2026, A-541 ④), un horizon illisible ou
+      « aucune » (MOTIF_AUCUNE_NON_TRANCHEE). Elle LÈVE RuntimeError À LA FIN DU RAPPORT quand le voisinage n'a
+      pas pu tourner (depuis le 11-11-2026, R-734 : `main` met alors la fiche EN ÉCHEC et sort en 1). Hors de ces
+      refus, ses calculs sont enveloppés d'une enveloppe de secours, sauf le point mort, dont l'échec arrêterait
+      la fonction. Et un de ses appels peut ne pas revenir :
       l'étalon de hasard rejoue 120 tirages par mode, et le voisinage rejoue la
-      stratégie entière cinq fois, sans qu'aucun temps ne soit borné.
+      stratégie entière une fois par voisin (26 au plus avec les réglages de
+      R-505 ⑩), sans qu'aucun temps ne soit borné.
       [sort: non]
     ⑫ DÉFINITIONS
       l'horizon : le nombre de séances pendant lesquelles une position est
@@ -3366,6 +3522,9 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
 """
     bareme = bareme_des_verdicts(bareme, mod_pos)   # le barème des verdicts, sauf barème donné (D2, 29-10-2026)
     mnemo = mnemo or {}
+    # SANS STOP, PAS DE POINT MORT, DONC PAS DE VERDICT (A-541 ④) : refus nommé, avant la lecture stricte du stop.
+    if seuil_de_la_fiche_ou_aucun(fiche, "sl") is STOP_AUCUN:
+        raise ValueError(MOTIF_SANS_STOP_NON_JUGEABLE)
     tp = seuil_de_la_fiche(fiche, "tp")
     sl = seuil_de_la_fiche(fiche, "sl")
     h = lire_horizon_ou_aucune(fiche["horizon"])
@@ -3517,14 +3676,16 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
 
     # LE VOISINAGE : COLLINE OU AIGUILLE. Exige par la methode (ETUDE 11), et
     # jamais execute — la fonction du module de statistiques n'etait appelee
-    # nulle part. Elle fait varier les reglages de plus ou moins 10 % et regarde
-    # si le resultat s'effondre.
+    # nulle part. Depuis le 11-11-2026, elle rejoue des voisins par pas reguliers
+    # (jamais plus au hasard) ; depuis le 12-11-2026, le critere est celui de
+    # R-505 ⑩ : les 26 voisins a +-10 % doivent tous gagner, sinon DRAPEAU.
     # CE QU'ELLE DISTINGUE : une strategie posee sur une COLLINE tient encore
     # quand on bouge un peu ses reglages — le gain baisse sans disparaitre. Une
     # strategie posee sur une AIGUILLE s'effondre au premier pas de cote : elle
     # ne decrivait pas le marche, elle collait a un jeu de donnees precis.
     # ATTENTION AU COMPTAGE DES ESSAIS (A-226) : ces variantes sont des essais,
     # et elles doivent etre comptees comme tels.
+    _echec_du_voisinage = None
     try:
         def _rejouer(p):
             """Rejoue la stratégie avec des réglages modifiés et rend son résultat.
@@ -3536,11 +3697,12 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
               premier pas de côté : elle ne décrivait pas le marché, elle collait à un jeu
               de données précis.
             ② CONTEXTE D'APPEL — Elle n'est jamais appelée par son nom. Elle est REMISE au
-              module de statistiques, qui l'appelle une fois par variante de réglages :
-              cinq variations à plus ou moins 10 % des réglages d'origine, mesuré le
-              20-09-2026 sur la fiche `C5E10-QA-V1`.
-            ③ ENTRÉE — `p` : un dictionnaire de réglages composé par le module de
-              statistiques, portant `tp`, `sl` et `horizon`.
+              module de statistiques (`calculer_voisinage_sur_grille`), qui l'appelle une
+              fois pour le centre et une fois par voisin (`grille_du_voisinage` : depuis le
+              12-11-2026, chaque réglage à −10 %, 0, +10 %, croisés, R-505 ⑩ ; le 11-11-2026, la
+              grille de la moulinette ; avant : cinq variations tirées au hasard à plus ou moins 10 %).
+            ③ ENTRÉE — `p` : un dictionnaire de réglages fabriqué par `juger` à partir de la
+              grille, portant `tp`, `sl` et, sauf durée « aucune », `horizon`.
             ④ CONDITIONS D'ENTRÉE — Les trois réglages doivent être présents et lisibles en
               nombre. La fonction vit à l'intérieur de `juger` et réemploie la fiche, les
               cours, la table des mnémoniques, les deux modules et les bornes de période de
@@ -3562,16 +3724,15 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
               affiche bien « TP +4.0% . SL -2.5% . horizon 20 seances » après les cinq
               variantes.
             ⑨ CE QUI CLOCHE —
-              ① LES VARIANTES SONT DES ESSAIS ET NE SONT COMPTÉES NULLE PART. Chaque appel
-              rejoue une stratégie complète sur tout l'historique ; le commentaire du code
-              le signale lui-même comme un point à surveiller. Aucun compteur d'essais de
-              la stratégie n'est incrémenté.
+              ① LES VARIANTES SONT DES ESSAIS ET NE SONT PAS ENCORE INSCRITES. Chaque appel
+              rejoue une stratégie complète ; `juger` affiche leur nombre comme « NON
+              INSCRITS », le registre des essais (A-226) n'existant pas au dépôt.
               ② UN HORIZON ARRONDI À ZÉRO PASSERAIT. L'arrondi porte sur le nombre reçu,
               sans borne basse : une variation qui ferait descendre l'horizon au-dessous
               d'une demi-séance donnerait zéro, et `jouer` ne produirait alors aucune
-              opération, ce que la fonction rendrait comme un gain de zéro euro. Cela ne se
-              produit pas aux réglages actuels, l'horizon le plus court du registre étant de
-              20 séances.
+              opération, ce que la fonction rendrait comme un gain de zéro euro. La grille
+              du voisinage (`COMMUN.grille_du_voisinage`, depuis le 12-11-2026 à ±10 %) ne garde
+              aucune durée sous 1 séance, et rend des séances entières.
               ③ Elle réemploie le module de signal à travers un tuple d'un seul élément
               passé à `juger` sous le nom `mod_pos_sig`, dont le nom laisse croire qu'il
               porte les positions.
@@ -3628,19 +3789,68 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
                           periode=_bornes, lecture=lecture)
             r2 = resumer(o2)
             return {"net": r2.get("net", 0.0), "wr": r2.get("wr", 0.0)}
-        st = S.calculer_stabilite_parametrique(
-            _rejouer, ({"tp": tp, "sl": sl} if h is HORIZON_AUCUNE else {"tp": tp, "sl": sl, "horizon": float(h)}),
-            pourcentage=0.10, n_variations=5)
-        print("    VOISINAGE            gain de {:+,.0f} a {:+,.0f} EUR "
-              "(ecart {:.0f} %)"
-              .format(st.get("net_min", 0), st.get("net_max", 0),
-                      100 * st.get("ecart_relatif", 0)).replace(",", " "))
-        print("      verdict            {}"
-              .format("COLLINE — les reglages voisins tiennent"
-                      if st.get("stable")
-                      else "AIGUILLE — un pas de cote fait s'effondrer le gain"))
+        # LE DRAPEAU « VOISINAGE » DE R-505 ⑩, PAR PAS RÉGULIERS, JAMAIS AU HASARD (décision de Jean-Luc du 11-11-2026 à
+        # 19h08 ; BACKLOG A-220). R-505 ⑩ [CHOIX DÉLÉGUÉ DÉL-D13, DÉL-D36] : « les 26 voisins à ±10 % de chaque réglage
+        # doivent tous gagner » ; un drapeau arrête la stratégie et la soumet à Jean-Luc, ce n'est pas un échec du juge.
+        # Les valeurs voisines viennent de `voisins` (COMMUN.py, la même que la moulinette, R-708) ; les réglages, de
+        # VOISINAGE_DU_JUGE.csv.
+        if racine is None:
+            raise RuntimeError("racine du dépôt non transmise : réglages du voisinage introuvables")
+        import COMMUN as GRILLE
+        _rv = GRILLE.lire_reglages_du_voisinage_du_juge(
+            os.path.join(racine, "donnees", "combinatoires", "VOISINAGE_DU_JUGE.csv"))
+        # Les voisins se calculent en POURCENTS ; `_rejouer` reçoit des FRACTIONS, comme la fiche lue.
+        _centre = {"tp": round(tp * 100, 4), "sl": round(sl * 100, 4)}
+        if h is not HORIZON_AUCUNE:
+            _centre["horizon"] = float(h)
+        _g = GRILLE.grille_du_voisinage(_centre, _rv["bougent"], _rv["amplitude_relative"],
+                                        _rv["pas_de_part_et_d_autre"], _rv["croisement"], _rv["arrondi_de_la_duree"])
+        _en_fractions = lambda j: dict(j, tp=round(j["tp"] / 100, 6), sl=round(j["sl"] / 100, 6))
+        st = S.calculer_voisinage_sur_grille(
+            _rejouer, _en_fractions(_centre), [_en_fractions(j) for j in _g["jeux"]],
+            _rv["gain_net_de_chaque_voisin_doit_depasser"], inscrire=None)
+        _bougent = [p for p in _rv["bougent"] if p in _centre]
+        print("    VOISINAGE            {} voisin(s) a +-{:g} % de chaque reglage ({} ; {} pas de part et d'autre ; {} ; R-505 ⑩)"
+              .format(st["n_voisins"], _rv["amplitude_relative"], " ".join(_bougent) or "aucun reglage",
+                      _rv["pas_de_part_et_d_autre"], _rv["croisement"]))
+        for _p in _rv["bougent"]:
+            if _p not in _centre:
+                print("      ne bouge pas       %s : duree « aucune »" % _p)
+        for _c in _g["confondus"]:
+            print("      CONFONDUS          %s" % _c)
+        _seuil = _rv["gain_net_de_chaque_voisin_doit_depasser"]
+        if st["verdict"] is None:
+            print("      verdict            NON MESURE — %s" % st["motif_non_mesure"])
+        else:
+            print("      gain des voisins   de {:+,.0f} a {:+,.0f} EUR · centre {:+,.0f} EUR"
+                  .format(st["net_min_voisins"], st["net_max_voisins"], st["net_base"]).replace(",", " "))
+            print("      ecart relatif      %s (information, ne decide pas)"
+                  % ("%.0f %%, centre compris" % (100 * st["ecart_relatif"]) if st["ecart_relatif"] is not None
+                     else "indefini (gain moyen nul)"))
+            if st["verdict"] == "PASSE":
+                print("      verdict            PASSE — les {} voisins gagnent (chacun au-dessus de {:+,.0f} EUR)"
+                      .format(st["n_voisins"], _seuil).replace(",", " "))
+            else:
+                print("      verdict            DRAPEAU « voisinage » — {} voisin(s) sur {} ne depasse(nt) pas {:+,.0f} EUR ;"
+                      " la strategie est soumise a Jean-Luc : forcage trace ou archive (R-505 ⑩)"
+                      .format(len(st["perdants"]), st["n_voisins"], _seuil).replace(",", " "))
+                for _d in st["perdants"]:
+                    _q = _d["params"]
+                    print("        perdant          TP {:+.2f}% . SL -{:.2f}% . horizon {} : {:+,.0f} EUR"
+                          .format(100 * _q["tp"], 100 * _q["sl"],
+                                  "%d seances" % int(_q["horizon"]) if "horizon" in _q else "aucune",
+                                  _d["net"]).replace(",", " "))
+        if _rv["provisoires"]:
+            print("      reglages PROVISOIRES, A DECIDER PAR JEAN-LUC : %s (VOISINAGE_DU_JUGE.csv, colonne question)"
+                  % ", ".join(_rv["provisoires"]))
+        print("      essais             %d joue(s), %d NON INSCRIT(S) : le registre des essais n'existe pas au depot (A-226)"
+              % (st["n_voisins"], st["essais_non_inscrits"]))
     except Exception as ex:
-        print("    VOISINAGE            non mesure : %s" % ex)
+        # UN VOISINAGE QUI N'A PAS PU TOURNER N'EST PAS « NON MESURÉ » (R-734 ; relecteur du 11-11-2026, D1) : rejeu en
+        # panne, fichier de réglages absent, racine non transmise. Le rapport continue, puis `juger` lève à la fin :
+        # `main` met la fiche EN ÉCHEC et sort en 1. « Aucun voisin » ou « gain moyen nul », eux, restent NON MESURÉ.
+        _echec_du_voisinage = "%s : %s" % (type(ex).__name__, ex)
+        print("    VOISINAGE            EN ÉCHEC — n'a pas pu tourner : %s" % _echec_du_voisinage)
 
     try:
         g = J.borne_basse_gain(ops)
@@ -3709,6 +3919,8 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
     except Exception as ex:
         print("    HASARD               non mesure : %s" % ex)
     print("    ─────────────────────────────────────────────────────")
+    if _echec_du_voisinage:
+        raise RuntimeError("le voisinage n'a pas pu tourner (R-734) : %s" % _echec_du_voisinage)
 
 
 def resumer(ops):
@@ -3730,13 +3942,21 @@ def resumer(ops):
       dictionnaire d'UNE seule case, le compte à zéro. Sinon, un dictionnaire de
       CINQ cases : le compte, le taux de réussite arrondi à une décimale, le taux
       exact non arrondi, le gain total arrondi au centime, et le compte des motifs
-      de sortie. Exemple réel, mesuré le 20-09-2026 sur la fiche `C5E10-QA-V1` :
+      de sortie. LES POSITIONS ENCORE OUVERTES À LA FIN DES DONNÉES (motif
+      `FIN_DES_DONNEES`, versions sans durée maximale) n'entrent dans AUCUNE de ces
+      cases : quand il y en a, une case de plus, `fin_des_donnees`, porte leur
+      nombre (`n`) et leur gain ou perte du moment en euros (`net`, arrondi au
+      centime) ; sans elles, la sortie est exactement celle d'avant le 13-11-2026.
+      Une liste faite seulement de telles positions rend le compte à zéro et cette
+      case. Exemple réel, mesuré le 20-09-2026 sur la fiche `C5E10-QA-V1` :
       62 opérations, 71,0 % de réussite, +120 046,63 €, et les motifs
       `{'HORIZON': 2, 'SL': 15, 'SL_GAP': 3, 'TP': 33, 'TP_GAP': 9}` — avant le
       28-09-2026 ; depuis que la séance d'achat compte (R-608), 62 opérations,
       66,1 % de réussite, +98 930,83 €.
       [rend: 1]
-    ⑥ TRAITEMENT — ① rendre le compte à zéro si la liste est vide · ② compter les
+    ⑥ TRAITEMENT — ⓪ mettre à part les opérations `FIN_DES_DONNEES` (décision de
+      Jean-Luc du 12-11-2026 à 09h18) · ① rendre le compte à zéro si la liste
+      restante est vide · ② compter les
       opérations dont le gain net est strictement positif · ③ compter les motifs de
       sortie · ④ composer le dictionnaire, avec le taux arrondi ET le taux exact
       côte à côte.
@@ -3797,8 +4017,16 @@ def resumer(ops):
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée
         dans les fichiers du projet
     """
+    # LES POSITIONS ENCORE OUVERTES À LA FIN DES DONNÉES SONT MISES À PART (décision de Jean-Luc du jeu 12-11-2026 à
+    # 09h18, « 1 » : « On les met à part : exclues du total, affichées séparément avec leur nombre et leur gain ou perte
+    # du moment ») : hors du compte, de la réussite et du total ; rendues dans une case à elles. Sans elles, la sortie
+    # est identique à celle d'avant (le golden, à durée chiffrée, n'en a aucune).
+    ouvertes = [o for o in ops if o["motif"] == MOTIF_FIN_DES_DONNEES]
+    ops = [o for o in ops if o["motif"] != MOTIF_FIN_DES_DONNEES]
+    a_part = ({"fin_des_donnees": {"n": len(ouvertes), "net": round(sum(o["net"] for o in ouvertes), 2)}}
+              if ouvertes else {})
     if not ops:
-        return {"n": 0}
+        return dict({"n": 0}, **a_part)
     g = sum(1 for o in ops if o["net"] > 0)
     motifs = {}
     for o in ops:
@@ -3814,7 +4042,7 @@ def resumer(ops):
     return {"n": len(ops), "wr": round(100.0 * g / len(ops), 1),
             "wr_exact": 100.0 * g / len(ops),
             "net": round(sum(o["net"] for o in ops), 2),
-            "motifs": dict(sorted(motifs.items()))}
+            "motifs": dict(sorted(motifs.items())), **a_part}
 
 
 # LE SIGNAL DU CALIBRAGE (A-542, 30-10-2026) : le calibrage rejoue la stratégie de référence du golden, C5-ETENDU-10,
@@ -4626,6 +4854,13 @@ def main():
         _filtres = (f.get("filtres") or "").strip()
         if _filtres.lower() not in VIDE:
             _ligne_signal += "\n    filtres non joués : %s" % _filtres
+        # LES POSITIONS ENCORE OUVERTES À LA FIN DES DONNÉES SE DISENT À PART, APRÈS LE RÉSULTAT (décision de Jean-Luc du
+        # 12-11-2026 à 09h18 : « affichées séparément avec leur nombre et leur gain ou perte du moment ») ; `resumer`
+        # les a déjà sorties du total.
+        if "fin_des_donnees" in r:
+            _ligne_signal += ("\n    à part, hors du total : %d position(s) encore ouverte(s) à la fin des données . "
+                              "gain ou perte du moment {:+,.2f} EUR".format(r["fin_des_donnees"]["net"])
+                              % r["fin_des_donnees"]["n"])
         if r["n"] == 0:
             print(_ligne_signal)
             print("    aucune operation produite.\n")
@@ -4646,7 +4881,7 @@ def main():
         if mod_jug:
             try:
                 juger(f, ops, cours, seances, mod_jug, mod_stats, mod_pos, mnemo,
-                      _bornes, (mod_sig,), lecture=lecture)
+                      _bornes, (mod_sig,), lecture=lecture, racine=base)
             except (Exception, SystemExit) as _ex_jugement:
                 en_echec.append(f["id"])
                 print("    EN ÉCHEC (ce n'est pas un refus) : %s : %s\n"

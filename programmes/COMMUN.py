@@ -1807,3 +1807,423 @@ def lire_horizon_ou_aucune(x):
     if str(x).strip().lower() == MOT_DE_L_HORIZON_AUCUNE:
         return HORIZON_AUCUNE
     return lire_horizon(x)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# LE CONTRAT DU STOP « SANS STOP » (Mer 11-11-2026, mission « VENTE » du plan V7, bloc 5l geste ④ ; BACKLOG A-541,
+# compléments du 19-10-2026, et A-645 « LA SORTIE RÉGLABLE »).
+# DÉCISION DE JEAN-LUC du 19-10-2026 à 20h22 : la moulinette essaie le stop sur une grille élargie, « et bien sûr,
+# ajoutez le sans stop ». Ce bloc fixe UNE FOIS comment « sans stop » s'écrit, se lit et voyage, sur le modèle exact
+# du contrat de l'horizon « aucune » (lot 0, ci-dessus) :
+#   ① « sans stop » n'est PAS None ni un très grand stop. A-541 ⑤ (19-10-2026) : un stop à 99 % passe dans le code,
+#     mais le point mort vaut alors 96,4 % et la version serait jugée perdante d'office ; et « 99 » ne dit pas qu'on
+#     voulait « aucun stop ». Dans un fichier, il s'écrit par le mot MOT_DU_STOP_AUCUN ; en mémoire, c'est STOP_AUCUN.
+#   ② les lectures strictes d'un stop NE CHANGENT PAS : `seuil_de_la_fiche` du juge (donc le programme du soir et le
+#     juge à 8 critères) continue de le REFUSER. Un lecteur qui l'accepte passe explicitement par
+#     `est_le_mot_du_stop_aucun`. Raison : A-645, garde-fou — aucune fiche VIVANTE ne reçoit une sortie que le soir
+#     ne sait pas tenir ; « sans stop » ne concerne que la moulinette et le juge (A-541 ③, 19-10-2026).
+#   ③ la valeur sentinelle REFUSE tout calcul : un programme non adapté (le point mort de MODULE_JUGEMENT, par
+#     exemple, `1 - sl`) tombe bruyamment au lieu de calculer faux (A-541 ④ : pas de chiffre faux).
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# Le mot écrit dans une case de stop (colonne `sl` du registre, d'une combinatoire, liste de VOISINAGE.csv), en
+# minuscules. Les mots de Jean-Luc du 19-10-2026 (« ajoutez le sans stop »). Proposition de la mission VENTE, NON
+# TRANCHÉE par Jean-Luc : un autre mot se change ICI seulement.
+MOT_DU_STOP_AUCUN = "sans stop"
+
+MESSAGE_DU_STOP_AUCUN = (
+    "stop « sans stop » : ce n'est pas un pourcentage, il ne se calcule pas (contrat du stop « sans stop », "
+    "11-11-2026). Un calcul qui suppose qu'une perte s'arrête au stop (le point mort) n'a pas de sens pour cette "
+    "version ; un lecteur non adapté doit continuer de la refuser")
+
+
+def _refuser_le_calcul_du_stop(self, *autres):
+    """Refuse tout calcul sur le stop « sans stop » : lève une TypeError qui dit pourquoi.
+
+    ① RÔLE — Faire tomber, avec un message clair, tout programme qui traite le stop « sans stop » comme un nombre.
+    ② CONTEXTE D'APPEL — Jamais appelée par son nom : Python l'appelle quand un programme écrit `float(sl)`,
+      `1 - sl`, `sl < x`… avec sl = STOP_AUCUN (elle est posée sous ces noms dans `_StopAucun`).
+    ③ ENTRÉE — `self` : la valeur STOP_AUCUN ; `autres` : l'autre opérande, ignoré.
+    ④ CONDITIONS D'ENTRÉE — Aucune.
+    ⑤ SORTIE — AUCUNE valeur : elle lève toujours.
+      [rend: rien]
+    ⑥ TRAITEMENT — Lever TypeError(MESSAGE_DU_STOP_AUCUN).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le point mort du jugement calcule `1 - sl` (MODULE_JUGEMENT.point_mort_en_fractions) : sans ce
+      refus, une valeur de remplacement donnerait un point mort faux en silence (A-541 ④ et ⑤, 19-10-2026).
+    ⑨ CE QUI CLOCHE — Ne couvre que les opérations posées dans `_StopAucun` ; `str(sl)`, `sl == 0.025` et `bool(sl)`
+      passent (le dernier vaut True, comme HORIZON_AUCUNE).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Lève toujours, ne rend jamais. Aucun appel.
+      [sort: oui]
+    """
+    raise TypeError(MESSAGE_DU_STOP_AUCUN)
+
+
+class _StopAucun:
+    """La valeur unique qui dit « cette version n'a pas de stop » : elle ne vend que sur l'objectif ou l'échéance.
+
+    ① RÔLE — Porter le cas « sans stop » d'un programme à l'autre sans le confondre avec None ni avec un nombre.
+    ② CONTEXTE D'APPEL — Construite UNE fois, ci-dessous (STOP_AUCUN). Rendue par `seuil_de_la_fiche_ou_aucun` du
+      juge ; reçue par `MODULE_POSITIONS.vendre` et `seuils_de_vente`, qui la reconnaissent par `is`.
+    ③ ENTRÉE — Aucune.
+    ④ CONDITIONS D'ENTRÉE — Aucune.
+    ⑤ SORTIE — UN objet. Vrai en logique, égal seulement à lui-même, écrit « sans stop » par str(), refusant tout
+      calcul.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pose `_refuser_le_calcul_du_stop` sous les noms de calcul de Python.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir l'en-tête du contrat du stop « sans stop », ① et ③ ; même forme que `_HorizonAucune`, pour
+      qu'un lecteur qui connaît l'une connaisse l'autre.
+    ⑨ CE QUI CLOCHE — Une copie par `copy`/`pickle` créerait un second objet, que `is STOP_AUCUN` ne reconnaîtrait
+      pas ; aucun programme ne le fait au 11-11-2026 (grep « copy »/« pickle » sur les lecteurs du stop : aucun).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    __slots__ = ()  # aucun attribut : un objet sans état, comme `_HorizonAucune`
+    __int__ = __index__ = __float__ = _refuser_le_calcul_du_stop
+    __lt__ = __le__ = __gt__ = __ge__ = _refuser_le_calcul_du_stop
+    __add__ = __radd__ = __sub__ = __rsub__ = __mul__ = __rmul__ = _refuser_le_calcul_du_stop
+    __truediv__ = __rtruediv__ = __neg__ = __abs__ = _refuser_le_calcul_du_stop
+    __str__ = __repr__ = lambda self: MOT_DU_STOP_AUCUN  # noqa: E731 — str() et repr() rendent « sans stop »
+
+
+STOP_AUCUN = _StopAucun()
+
+
+def est_le_mot_du_stop_aucun(x):
+    """Dit si une case écrite vaut « sans stop » : LA reconnaissance du mot, pour tout le dépôt.
+
+    ① RÔLE — Reconnaître le mot MOT_DU_STOP_AUCUN dans une case de stop, quelle que soit sa casse ou ses blancs de
+      bord, à un seul endroit (R-708 : deux lectures d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `seuil_de_la_fiche_ou_aucun` du juge des stratégies ; `pourcents_ou_aucun` de PREPARER ;
+      `normaliser` et `valeur_au_registre` de DECLINER ; `controler_fusion` de JOUER_LES_VERSIONS.
+    ③ ENTRÉE — `x` : le contenu d'une case, par exemple « sans stop », « Sans Stop », « -2.5% », None.
+    ④ CONDITIONS D'ENTRÉE — Aucune.
+    ⑤ SORTIE — UNE valeur : vrai si `x`, sans blancs de bord et en minuscules, vaut MOT_DU_STOP_AUCUN ; faux sinon.
+      [rend: 1]
+    ⑥ TRAITEMENT — `str(x).strip().lower() == MOT_DU_STOP_AUCUN`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Même règle que `lire_horizon_ou_aucune` pour « aucune » : un mot exact, jamais deviné.
+    ⑨ CE QUI CLOCHE — « aucun », « sans_stop », « 0 », « ∞ », un vide ne sont PAS « sans stop » : ils rendent faux,
+      et le lecteur strict qui suit les refuse. C'est voulu ; le mot exact n'est pas tranché par Jean-Luc.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main ; aucun appel qui puisse ne pas revenir.
+      [sort: non]
+    """
+    return str(x).strip().lower() == MOT_DU_STOP_AUCUN
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# LE MOTIF D'UNE POSITION ENCORE OUVERTE À LA FIN DES DONNÉES (décision de Jean-Luc du jeu 12-11-2026 à 09h18).
+# ① CE QUE C'EST — Le motif que `MODULE_POSITIONS.vendre` écrit, en fin des données « vendre » (le juge, la moulinette),
+#   pour une position d'une version SANS DURÉE MAXIMALE (horizon HORIZON_AUCUNE) qui n'a touché ni son objectif ni son
+#   stop avant la dernière séance des cours. Ce n'est PAS une vente : c'est la position telle qu'elle vaut à la
+#   dernière clôture connue, son « gain ou perte du moment ».
+# ② LA DÉCISION, avec ses mots — Jean-Luc, jeu 12-11-2026 à 09h18, « 1 », en réponse à : « 1. On les met à part :
+#   exclues du total, affichées séparément avec leur nombre et leur gain ou perte du moment ; 2. On les vend au dernier
+#   cours et on les compte dans le total, comme aujourd'hui. » Contexte donné ce jour-là : 8 opérations sur 100,
+#   −85 154 €, mesurées sur la version C5E10-OBS-V1 « sans stop, aucune » (relecteur neuf de la vente, 11-11-2026).
+#   Conséquence écrite au BACKLOG : motif distinct (non HORIZON), hors du total, affichées à part (option A du
+#   superviseur de la vente, etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/SUPERVISEUR_VENTE_Jeu_12-11-2026.md).
+# ③ POURQUOI UN MOTIF ET NON PLUS « HORIZON » — Une version « aucune » n'a pas d'échéance : le motif HORIZON y
+#   affirmait une sortie qui n'a pas eu lieu, et ces positions, vendues au dernier cours, faisaient changer le total
+#   du même réglage selon le soir où l'on joue (205 793 €, 240 410 € ou 244 498 € mesurés par le relecteur).
+# ④ OÙ IL SE LIT — `JUGE_DES_STRATEGIES.resumer` (hors du compte, de la réussite et du total ; rendu à part) ;
+#   `JUGE_DES_STRATEGIES.duree_d_embargo_sans_horizon` (n'est pas une durée de la stratégie) ; `JOUER_LES_VERSIONS`
+#   (deux colonnes à part dans les résultats). Le mot se change ICI seulement (R-708).
+# ⑤ CE QUI N'EST PAS COUVERT — Une version À DURÉE CHIFFRÉE coupée par la fin des données garde le motif HORIZON :
+#   la décision du 12-11-2026 porte sur les versions sans durée maximale ; l'étendre revient à Jean-Luc.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+MOTIF_FIN_DES_DONNEES = "FIN_DES_DONNEES"
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# LA GRILLE DU VOISINAGE — une seule pour la moulinette et le juge (plan V7, bloc 5l ⑥, 11-11-2026 ; R-708).
+# ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+import math  # noqa: E402  `pas_entier` a été déplacée avec son corps d'origine, qui emploie math.isfinite
+POURCENT_MINIMUM = 0.01   # en dessous, la fraction écrite (6 décimales) perdrait la valeur
+POURCENT_MAXIMUM = 50.0   # un objectif ou un stop au-delà de 50 % n'a pas de sens sur 3 à 20 séances
+
+
+def pas_entier(texte):
+    """Dit si un pas de voisinage est un nombre entier fini et positif.
+
+    ① RÔLE — Refuser un pas de durée qui fabriquerait des durées non entières.
+    ② CONTEXTE D'APPEL — `preparer` de `programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py`, pour
+      l'horizon. DÉPLACÉE de ce programme ici le 11-11-2026, sans changement de code. (`grille_du_voisinage`, plus
+      bas, l'appelait au tour 1 et au tour 2 ; depuis le 12-11-2026 elle ne l'appelle plus : son pas, 10 % de la
+      durée, n'est pas entier, et c'est l'arrondi de l'écart qui rend des séances entières.)
+    ③ ENTRÉE — `texte` : la case `pas` du fichier de voisinage.
+    ④ CONDITIONS D'ENTRÉE — Aucune.
+    ⑤ SORTIE — UNE valeur : vrai ou faux.
+      [rend: 1]
+    ⑥ TRAITEMENT — lire en nombre ; exiger fini, positif et sans partie décimale.
+    ⑦ UNITÉ — Des séances.
+    ⑧ POURQUOI — Un pas de 2,5 séances donnait des voisins non symétriques, et un pas
+      infini faisait planter le programme (relecture du 07-10-2026).
+    ⑨ CE QUI CLOCHE — rien vu.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    try:
+        x = float(texte)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(x) and x > 0 and x == int(x)
+
+
+def voisins(valeur, regle):
+    """Entoure une valeur de ses voisins, selon une ligne du fichier de voisinage.
+
+    ① RÔLE — Dire quelles valeurs essayer autour d'un réglage de la fiche.
+    ② CONTEXTE D'APPEL — `preparer` de `programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py` (la
+      moulinette), une fois par réglage de sortie ; `grille_du_voisinage`, plus bas (le juge). DÉPLACÉE de la moulinette
+      ici le 11-11-2026, sans changement de code, pour que les deux en aient UNE seule (R-708).
+    ③ ENTRÉE — `valeur` : la valeur de la fiche · `regle` : un dictionnaire avec
+      `pas`, `de_part_et_d_autre`, `minimum`, `maximum`, lus au voisinage.
+    ④ CONDITIONS D'ENTRÉE — `pas` nombre fini strictement positif ;
+      `de_part_et_d_autre` entier de 0 à 10 ; `minimum` ≤ `maximum`, tous deux
+      finis. Sinon : ValueError.
+    ⑤ SORTIE — UNE valeur : la liste triée des valeurs à essayer, la valeur de la
+      fiche toujours comprise, aucune autre hors de [minimum, maximum].
+      [rend: 1]
+    ⑥ TRAITEMENT — ① pour k de −n à +n, calculer valeur + k × pas · ② arrondir à
+      quatre décimales · ③ écarter ce qui sort des bornes · ④ ajouter la valeur
+      de la fiche si les bornes l'avaient écartée · ⑤ trier sans doublon.
+    ⑦ UNITÉ — Celle du réglage.
+    ⑧ POURQUOI — Un pas régulier de part et d'autre est la forme la plus simple à
+      lire et à valider ; la règle reste dans un fichier que Jean-Luc peut changer.
+    ⑨ CE QUI CLOCHE — Un pas régulier ne sait pas faire une grille irrégulière
+      comme celle du 02-10-2026 (+2, +3, +4, +6 %).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError sur une règle invalide.
+      [sort: non]
+    """
+    try:
+        pas = float(regle["pas"])
+        n = int(regle["de_part_et_d_autre"])
+        mini, maxi = float(regle["minimum"]), float(regle["maximum"])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("règle de voisinage illisible : %r" % (regle,))
+    finis = all(x == x and abs(x) != float("inf") for x in (pas, mini, maxi))
+    if not finis or pas <= 0 or not 0 <= n <= 10 or mini > maxi:
+        raise ValueError("règle de voisinage invalide : %r" % (regle,))
+    vals = {round(valeur + k * pas, 4) for k in range(-n, n + 1)}
+    vals = {v for v in vals if mini <= v <= maxi}
+    vals.add(round(valeur, 4))
+    return sorted(vals)
+
+
+# LES RÉGLAGES DU VOISINAGE DU JUGE : leur fichier, leurs noms et les formes admises. Les VALEURS ne sont pas ici :
+# elles vivent dans `donnees/combinatoires/VOISINAGE_DU_JUGE.csv`, chacune avec sa source. Depuis le 12-11-2026, cinq
+# d'entre elles viennent du REGISTRE, R-505 ⑩ [CHOIX DÉLÉGUÉ DÉL-D13, DÉL-D36] : « les 26 voisins à ±10 % de chaque
+# réglage doivent tous gagner » — un DRAPEAU qui arrête la stratégie et la soumet à Jean-Luc, pas un arrêt automatique.
+REGLAGES_DU_VOISINAGE_DU_JUGE = ("bougent", "amplitude_relative", "pas_de_part_et_d_autre", "croisement",
+                                 "gain_net_de_chaque_voisin_doit_depasser", "arrondi_de_la_duree")
+CROISEMENTS_ADMIS = ("produit", "un_a_la_fois")
+# La seule règle d'arrondi de la durée écrite à ce jour (agent VOISINAGE, tour 3, 12-11-2026, à confirmer par
+# Jean-Luc) : l'écart au centre s'arrondit à la séance la plus proche, une moitié exacte en s'éloignant du centre.
+ARRONDIS_DE_LA_DUREE_ADMIS = ("ecart_au_plus_proche_moitie_en_s_eloignant_du_centre",)
+STATUT_PROVISOIRE = "PROVISOIRE, À DÉCIDER PAR JEAN-LUC"
+
+
+def lire_reglages_du_voisinage_du_juge(chemin):
+    """Lit le fichier des réglages du voisinage du juge et rend ces réglages, vérifiés.
+
+    ① RÔLE — Donner au juge des stratégies les réglages de son test des voisins (drapeau « voisinage » de R-505 ⑩)
+      sans qu'aucun ne soit écrit dans le code : quels réglages bougent, de combien (en pourcents de leur valeur),
+      combien de pas de part et d'autre, croisés ou un à la fois, le gain qu'un voisin doit dépasser, et la règle
+      d'arrondi de la durée.
+    ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py`, fonction `juger`, une fois par fiche
+      jugée ; `tests/EPREUVES_DU_VOISINAGE_SUR_GRILLE_Mer_11-11-2026.py`.
+    ③ ENTRÉE — `chemin` : le fichier `donnees/combinatoires/VOISINAGE_DU_JUGE.csv`, colonnes
+      reglage, valeur, unite, statut, source, question.
+    ④ CONDITIONS D'ENTRÉE — Le fichier porte une ligne, et une seule, pour chacun des six noms de
+      `REGLAGES_DU_VOISINAGE_DU_JUGE`. `bougent` : des noms parmi tp, sl, horizon, au moins un,
+      sans doublon · `amplitude_relative` : nombre fini strictement entre 0 et 100 · `pas_de_part_et_d_autre` :
+      entier de 1 à 10 · `croisement` : un mot de `CROISEMENTS_ADMIS` · `gain_net_de_chaque_voisin_doit_depasser` :
+      nombre fini · `arrondi_de_la_duree` : un mot de `ARRONDIS_DE_LA_DUREE_ADMIS`. Sinon : ValueError ; fichier
+      illisible : OSError.
+    ⑤ SORTIE — UNE valeur : un dictionnaire de sept clés — les six réglages, convertis (bougent en
+      tuple de noms), et `provisoires`, la liste triée des noms dont le statut est
+      « PROVISOIRE, À DÉCIDER PAR JEAN-LUC ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire par `lire_csv` (une lecture ratée devient OSError) · ② refuser un nom inconnu, absent ou
+      répété · ③ convertir et borner chaque valeur · ④ relever les statuts provisoires.
+    ⑦ UNITÉ — `amplitude_relative` en POURCENTS DE LA VALEUR DE LA FICHE (10 = ±10 %) ; `pas_de_part_et_d_autre` en
+      NOMBRE DE PAS d'une amplitude ; le gain en EUROS.
+    ⑧ POURQUOI — Un seuil ou un réglage se lit dans un fichier, jamais dans le code (cadre du plan V7, point 4). Le
+      REGISTRE, R-505 ⑩, fixe les voisins (« les 26 voisins à ±10 % de chaque réglage ») et le critère (« doivent
+      tous gagner ») ; le fichier les recopie avec cette source, et le juge les lit ici.
+    ⑨ CE QUI CLOCHE — ① Le statut est relevé, il n'empêche rien : un réglage provisoire joue comme
+      un réglage décidé, et c'est au juge de le dire dans son rapport. ② La borne haute de 10 pas
+      reprend celle de `voisins` ; elle n'est pas décidée par Jean-Luc. ③ La borne de l'amplitude (sous 100 %)
+      évite un voisin à zéro ou négatif ; elle n'est pas décidée par Jean-Luc non plus.
+    ⑩ EFFET — Lit un fichier ; n'écrit rien.
+    ⑪ TERMINAISON — Rend la main, ou lève OSError ou ValueError. Aucun appel qui puisse ne pas revenir.
+      [sort: non]
+    """
+    lignes = lire_csv(chemin)
+    if not isinstance(lignes, list):
+        raise OSError("lecture ratée de %s : %s" % (chemin, getattr(lignes, "raison", lignes)))
+    vus = {}
+    for l in lignes:
+        nom = (l.get("reglage") or "").strip()
+        if nom not in REGLAGES_DU_VOISINAGE_DU_JUGE:
+            raise ValueError("réglage du voisinage du juge inconnu : %r" % (nom,))
+        if nom in vus:
+            raise ValueError("réglage du voisinage du juge écrit deux fois : %r" % (nom,))
+        vus[nom] = l
+    manquent = [n for n in REGLAGES_DU_VOISINAGE_DU_JUGE if n not in vus]
+    if manquent:
+        raise ValueError("réglages du voisinage du juge absents : %s" % ", ".join(manquent))
+
+    def _nombre(nom):
+        """Lit la valeur d'un réglage du fichier en nombre fini.
+
+        ① RÔLE — Convertir une case « valeur » du fichier des réglages du voisinage du juge.
+        ② CONTEXTE D'APPEL — `lire_reglages_du_voisinage_du_juge`, trois fois.
+        ③ ENTRÉE — `nom` : le nom du réglage, une clé de `vus`.
+        ④ CONDITIONS D'ENTRÉE — `vus` porte ce nom.
+        ⑤ SORTIE — UNE valeur : le nombre lu.
+          [rend: 1]
+        ⑥ TRAITEMENT — ① retirer les espaces, lire la virgule comme un point · ② refuser ce qui n'est pas un
+          nombre fini.
+        ⑦ UNITÉ — Celle du réglage.
+        ⑧ POURQUOI — « nan » et « inf » se lisent en nombre et fausseraient le verdict sans bruit.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main, ou lève ValueError. Aucun appel qui puisse ne pas revenir.
+          [sort: non]
+        """
+        try:
+            x = float((vus[nom].get("valeur") or "").strip().replace(",", "."))
+        except ValueError:
+            raise ValueError("%s illisible : %r" % (nom, vus[nom].get("valeur")))
+        if x != x or abs(x) == float("inf"):
+            raise ValueError("%s doit être un nombre fini : %r" % (nom, vus[nom].get("valeur")))
+        return x
+
+    bougent = tuple((vus["bougent"].get("valeur") or "").split())
+    if not bougent or len(set(bougent)) != len(bougent) or not set(bougent) <= {"tp", "sl", "horizon"}:
+        raise ValueError("bougent doit nommer tp, sl et/ou horizon, sans doublon : %r" % (vus["bougent"].get("valeur"),))
+    amplitude = _nombre("amplitude_relative")
+    if not 0 < amplitude < 100:
+        raise ValueError("amplitude_relative doit être strictement entre 0 et 100 (pourcents) : %r" % (amplitude,))
+    n = _nombre("pas_de_part_et_d_autre")
+    if n != int(n) or not 1 <= n <= 10:
+        raise ValueError("pas_de_part_et_d_autre doit être un entier de 1 à 10 : %r" % (n,))
+    croisement = (vus["croisement"].get("valeur") or "").strip()
+    if croisement not in CROISEMENTS_ADMIS:
+        raise ValueError("croisement doit valoir %s : %r" % (" ou ".join(CROISEMENTS_ADMIS), croisement))
+    arrondi = (vus["arrondi_de_la_duree"].get("valeur") or "").strip()
+    if arrondi not in ARRONDIS_DE_LA_DUREE_ADMIS:
+        raise ValueError("arrondi_de_la_duree doit valoir %s : %r" % (" ou ".join(ARRONDIS_DE_LA_DUREE_ADMIS), arrondi))
+    return {"bougent": bougent, "amplitude_relative": amplitude, "pas_de_part_et_d_autre": int(n),
+            "croisement": croisement,
+            "gain_net_de_chaque_voisin_doit_depasser": _nombre("gain_net_de_chaque_voisin_doit_depasser"),
+            "arrondi_de_la_duree": arrondi,
+            "provisoires": sorted(k for k, l in vus.items()
+                                  if (l.get("statut") or "").strip() == STATUT_PROVISOIRE)}
+
+
+def grille_du_voisinage(centre, bougent, amplitude_relative, pas_de_part_et_d_autre, croisement, arrondi_de_la_duree):
+    """Rend les jeux de réglages voisins d'une fiche, par pas réguliers d'une amplitude relative, et leurs confusions.
+
+    ① RÔLE — Fabriquer, pour le drapeau « voisinage » du juge (R-505 ⑩), les réglages voisins de ceux de la fiche :
+      chaque réglage de `bougent` pris à −k × amplitude … +k × amplitude de sa propre valeur (k de 1 à
+      `pas_de_part_et_d_autre`), par la MÊME fonction `voisins` que la moulinette (R-708), puis croisés ; et dire
+      quels voisins se confondent après l'arrondi de la durée.
+    ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py`, fonction `juger`, une fois par fiche
+      jugée ; `tests/EPREUVES_DU_VOISINAGE_SUR_GRILLE_Mer_11-11-2026.py`.
+    ③ ENTRÉE — `centre` : les réglages de la fiche, {"tp": 4.0, "sl": 2.5, "horizon": 20.0} —
+      objectif et perte acceptée en POURCENTS positifs, durée en séances entières ; une durée « aucune »
+      s'exprime par l'absence de la clé `horizon` · `bougent` : les noms qui bougent · `amplitude_relative` :
+      pourcents de la valeur (10 = ±10 %) · `pas_de_part_et_d_autre` : entier ≥ 1 · `croisement` : « produit » ou
+      « un_a_la_fois » · `arrondi_de_la_duree` : un mot de `ARRONDIS_DE_LA_DUREE_ADMIS`.
+    ④ CONDITIONS D'ENTRÉE — Chaque valeur qui bouge est strictement positive ; la durée du centre est entière ;
+      `croisement` et `arrondi_de_la_duree` sont admis. Sinon : ValueError (et celles de `voisins`).
+    ⑤ SORTIE — UNE valeur : un dictionnaire de deux clés — `jeux`, la liste des jeux voisins, chacun un dictionnaire
+      aux mêmes clés et unités que `centre`, le centre lui-même exclu, dans un ordre fixe (produit des valeurs
+      triées), sans doublon ; `confondus`, la liste des phrases qui disent, réglage par réglage, quelles valeurs
+      voisines sont tombées sur une même valeur (arrondi, borne) — vide si aucune.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① pour chaque nom de `bougent` présent dans `centre` : pas = valeur × amplitude ÷ 100, et
+      `voisins` avec ce pas, `pas_de_part_et_d_autre`, et des bornes larges (POURCENT_MINIMUM à POURCENT_MAXIMUM pour
+      les pourcents ; 1 séance au moins pour la durée, plafond une séance au-delà du voisin le plus haut, pour qu'aucun arrondi à
+      quatre décimales de `voisins` ne le coupe) · ② la durée : arrondir l'ÉCART au centre à la
+      séance la plus proche, une moitié exacte en s'éloignant du centre · ③ compter les valeurs distinctes : moins
+      de 2 × pas_de_part_et_d_autre + 1 → une phrase dans `confondus` · ④ croiser (produit) ou faire bouger un
+      réglage à la fois · ⑤ retirer le centre.
+    ⑦ UNITÉ — Celle de `centre` : pourcents et séances.
+    ⑧ POURQUOI — Le REGISTRE, R-505 ⑩ : « les 26 voisins à ±10 % de chaque réglage doivent tous gagner » : trois
+      réglages à −10 %, 0, +10 %, croisés, centre exclu = 3³ − 1 = 26. Le juge tirait ses voisins AU HASARD (graine
+      42) ; la méthode décidée est « par pas réguliers » (BACKLOG A-220, 16-08-2026), et Jean-Luc, le 11-11-2026 à
+      19h08 : « Il faut que ce soit fait systématiquement par programme ». Deux implémentations d'une même chose
+      divergent toujours (R-708) : les valeurs viennent de `voisins`, celle de la moulinette. L'ARRONDI DE LA DURÉE :
+      une durée se compte en séances entières ; l'arrondi de Python (`round`) envoie une moitié exacte vers le nombre
+      pair (2,5 → 2, 3,5 → 4), ce qui rendrait les deux voisins d'une même fiche asymétriques ; arrondir l'écart en
+      s'éloignant du centre garde la symétrie et, pour toute durée d'au moins 5 séances, des voisins distincts du
+      centre (5 → 4 et 6 ; 25 → 22 et 28 ; 30 → 27 et 33). Ce choix est de l'agent, à confirmer par Jean-Luc.
+    ⑨ CE QUI CLOCHE — ① Un réglage nommé dans `bougent` mais absent de `centre` (durée « aucune »)
+      ne bouge pas, sans erreur : 8 voisins au lieu de 26 ; l'appelant le dit. ② Sous 5 séances, la durée à ±10 %
+      retombe sur le centre (4 → 3,6 et 4,4 → 4) : les voisins se confondent, `confondus` le dit, et le nombre de
+      jeux baisse ; R-505 ⑩ ne dit pas quoi faire alors. ③ Le nombre de jeux croît vite en produit : 3 réglages à
+      1 pas = 26 jeux ; à 2 pas = 124.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError. Aucun appel qui puisse ne pas revenir.
+      [sort: non]
+    """
+    if croisement not in CROISEMENTS_ADMIS:
+        raise ValueError("croisement inconnu : %r" % (croisement,))
+    if arrondi_de_la_duree not in ARRONDIS_DE_LA_DUREE_ADMIS:
+        raise ValueError("arrondi de la durée inconnu : %r" % (arrondi_de_la_duree,))
+    noms = [p for p in bougent if p in centre]
+    valeurs, confondus = {}, []
+    for p in noms:
+        v = float(centre[p])
+        if not v > 0:
+            raise ValueError("le réglage « %s » doit être strictement positif pour bouger de ±%s %% : %r"
+                             % (p, amplitude_relative, centre[p]))
+        pas = v * amplitude_relative / 100
+        if p == "horizon":
+            if v != int(v):
+                raise ValueError("la durée du centre doit être un nombre entier de séances : %r" % (centre[p],))
+            bruts = voisins(v, {"pas": pas, "de_part_et_d_autre": pas_de_part_et_d_autre,
+                                "minimum": 1, "maximum": v + pas_de_part_et_d_autre * pas + 1})
+            vals = []
+            for x in bruts:
+                ecart = abs(x - v)
+                pas_entiers = math.floor(ecart + 0.5)
+                vals.append(v + pas_entiers if x > v else v - pas_entiers)
+            vals = sorted({x for x in vals if x >= 1})
+        else:
+            bruts = voisins(v, {"pas": pas, "de_part_et_d_autre": pas_de_part_et_d_autre,
+                                "minimum": POURCENT_MINIMUM, "maximum": POURCENT_MAXIMUM})
+            vals = list(bruts)
+        attendu = 2 * pas_de_part_et_d_autre + 1
+        if len(vals) < attendu:
+            confondus.append("%s : %d valeur(s) distincte(s) au lieu de %d (essayees %s -> retenues %s)"
+                             % (p, len(vals), attendu, " ".join("%g" % x for x in bruts),
+                                " ".join("%g" % x for x in vals)))
+        valeurs[p] = vals
+    base = {p: round(v, 4) for p, v in centre.items()}
+    jeux = []
+    if croisement == "produit":
+        combinaisons = [{}]
+        for p in noms:
+            combinaisons = [dict(c, **{p: x}) for c in combinaisons for x in valeurs[p]]
+        for c in combinaisons:
+            jeu = dict(base, **c)
+            if jeu != base and jeu not in jeux:
+                jeux.append(jeu)
+    else:
+        for p in noms:
+            for x in valeurs[p]:
+                jeu = dict(base, **{p: x})
+                if jeu != base and jeu not in jeux:
+                    jeux.append(jeu)
+    return {"jeux": jeux, "confondus": confondus}

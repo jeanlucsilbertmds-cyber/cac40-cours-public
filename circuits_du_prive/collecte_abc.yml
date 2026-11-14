@@ -492,6 +492,20 @@ jobs:
             exit 1
           fi
 
+      - name: Rougir si une position a ete signalee
+        id: rougir_si_une_position_a_ete_signalee
+        # DECISION DE JEAN-LUC du 13-11-2026 a 16h30 : « s'il y a un changement de parametre, une strategie [...] c'est
+        # une autre strategie ». Une fiche modifiee sur place pendant qu'une de ses positions est ouverte est une
+        # ERREUR DE MANIPULATION : le teneur laisse la position telle quelle, tient les autres, attribue les signaux,
+        # sort en 0 et dit positions_signalees=<n>. Ce pas de fin, copie sur « Rougir si des lignes de cours ont ete
+        # mises a part » (precedent A-706), fait ROUGIR le passage. Place apres tout pas sans always().
+        if: always() && steps.tenir_les_positions.outputs.positions_signalees != '' && steps.tenir_les_positions.outputs.positions_signalees != '0'
+        env:
+          SIGNALEES: ${{ steps.tenir_les_positions.outputs.positions_signalees }}
+        run: |
+          echo "::error::$SIGNALEES POSITION(S) SIGNALEE(S) CE SOIR — fiche modifiee sur place pendant une position ouverte, position laissee telle quelle ; lire la sortie du pas « Tenir les positions » (decision de Jean-Luc : remettre la fiche, ou ouvrir une nouvelle strategie)"
+          exit 1
+
       - name: Dire quels pas non bloquants sont tombes
         id: dire_quels_pas_non_bloquants_sont_tomb
         # DEFAUT NOMME PAR JEAN-LUC LE 16-09-2026 : « ces etapes peuvent tomber

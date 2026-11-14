@@ -491,8 +491,10 @@ EPREUVES = (e1_etalon, e2_vrai_registre, e3_trace, e4_forme_du_module, e5_k_a_la
 # LES SABOTAGES (superviseur S_kk, §4.3) : {nom : (fichier, texte exact, remplacement, ce qui doit rougir)}.
 SABOTAGES = {
     "K1": (JUGE, '            copie["entree"] = "DÉFAUT"\n', '            pass\n', "plus de vide → DÉFAUT"),
-    "K2": (JUGE, 'seuil_de_la_fiche(fiche, "tp"), seuil_de_la_fiche(fiche, "sl"),',
-           'fiche["tp"], seuil_de_la_fiche(fiche, "sl"),', "tp comparé en texte"),
+    # K2 recalé le 11-11-2026 (mission VENTE) : `lecture_de_jeu` lit le stop par `seuil_de_la_fiche_ou_aucun` (« sans
+    # stop »), même intention — le tp comparé en texte.
+    "K2": (JUGE, 'seuil_de_la_fiche(fiche, "tp"), seuil_de_la_fiche_ou_aucun(fiche, "sl"),',
+           'fiche["tp"], seuil_de_la_fiche_ou_aucun(fiche, "sl"),', "tp comparé en texte"),
     "K3": (JUGE, 'VIDE = ("", "-", "\\u2014", ', 'VIDE = ("", "-", ', "« — » retiré de VIDE"),
     "K4": (CONTRAT, "    une_version, deux_versions = VERSIONS_D_UN_CAS\n",
            "    return [], []\n    une_version, deux_versions = VERSIONS_D_UN_CAS\n", "étalon non lu"),

@@ -33,7 +33,8 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   `<ID_FICHE>` : l'identifiant d'une ligne de ce registre, par exemple
   `C5E10-OBS-V1` ; `<voisinage>` : le fichier qui dit jusqu'où aller autour de
   chaque réglage (colonnes parametre, pas, de_part_et_d_autre, minimum, maximum,
-  unite, raison) ; `<essai>` : le numéro d'essai, E01 à E99 ;
+  unite, raison, et depuis le 11-11-2026 `liste` : quand elle est remplie, ses
+  valeurs sont essayées telles quelles, « sans stop » et « aucune » compris) ; `<essai>` : le numéro d'essai, E01 à E99 ;
   `<dossier_sortie>` : le dossier où écrire le tableau.
 ④ CONDITIONS D'ENTRÉE — Le registre contient la fiche demandée ; si elle y est écrite plusieurs fois, sa DERNIÈRE
   ligne fait foi (décision n°83, depuis le 05-11-2026 ; avant, une fiche double était refusée).
@@ -70,10 +71,13 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   valeurs à essayer est une DÉCISION : le programme propose, Jean-Luc tranche
   (R-754 : ce qu'un programme peut faire, un programme le fait ; le dialogue sert
   à décider). La règle du voisinage vit dans un fichier, jamais dans le code.
-  La durée est lue par `COMMUN.lire_horizon`, la seule lecture d'un horizon du
-  dépôt : deux implémentations d'une même chose divergent toujours (R-708).
+  La durée est lue par `COMMUN.lire_horizon_ou_aucune` (depuis le 11-11-2026 :
+  « aucune » est lisible), la lecture commune d'un horizon du dépôt : deux
+  implémentations d'une même chose divergent toujours (R-708).
 ⑨ CE QUI CLOCHE — ① La règle de voisinage n'est pas décidée par Jean-Luc : le
-  fichier fourni pour l'essai E01 est une PROPOSITION. ② Les ensembles de
+  fichier fourni pour l'essai E01 est une PROPOSITION ; la liste du stop
+  (11-11-2026) est la grille choisie par le Chat sur délégation de Jean-Luc du
+  19-10-2026 à 20h22 (A-541). ② Les ensembles de
   valeurs se limitent à l'univers de la fiche et à ses valeurs prises une à
   une : les secteurs et les groupes d'A-540 n'existent pas encore en fichier.
   ③ Les réglages du signal (durée du CMF, durée et seuil du CCI) sont listés
@@ -131,8 +135,10 @@ REGLAGES_D_ACHAT = (
 FORME_ID = re.compile(r"^[A-Za-z0-9_.\-]+$")
 FORME_ESSAI = re.compile(r"^E[0-9]{2}$")
 FORME_POURCENT = re.compile(r"^[+\-]?[0-9]+([.,][0-9]+)?$")
-POURCENT_MINIMUM = 0.01   # en dessous, la fraction écrite (6 décimales) perdrait la valeur
-POURCENT_MAXIMUM = 50.0   # un objectif ou un stop au-delà de 50 % n'a pas de sens sur 3 à 20 séances
+# LA GRILLE DU VOISINAGE VIT DANS COMMUN.py DEPUIS LE 11-11-2026 (plan V7, bloc 5l ⑥) : `voisins`, `pas_entier` et
+# les deux bornes des pourcents y ont été DÉPLACÉS tels quels, pour que le juge des stratégies fabrique ses voisins par
+# la même fonction que ce programme (R-708) sans dépendre de lui. Ils restent appelables ici sous leur nom.
+from COMMUN import voisins, pas_entier, POURCENT_MINIMUM, POURCENT_MAXIMUM  # noqa: E402,F401
 
 
 def lire_tableau(chemin):
@@ -190,46 +196,6 @@ def pourcents_de(texte):
     return abs(float(t.replace(",", ".")))
 
 
-def voisins(valeur, regle):
-    """Entoure une valeur de ses voisins, selon une ligne du fichier de voisinage.
-
-    ① RÔLE — Dire quelles valeurs essayer autour d'un réglage de la fiche.
-    ② CONTEXTE D'APPEL — `preparer`, une fois par réglage de sortie.
-    ③ ENTRÉE — `valeur` : la valeur de la fiche · `regle` : un dictionnaire avec
-      `pas`, `de_part_et_d_autre`, `minimum`, `maximum`, lus au voisinage.
-    ④ CONDITIONS D'ENTRÉE — `pas` nombre fini strictement positif ;
-      `de_part_et_d_autre` entier de 0 à 10 ; `minimum` ≤ `maximum`, tous deux
-      finis. Sinon : ValueError.
-    ⑤ SORTIE — UNE valeur : la liste triée des valeurs à essayer, la valeur de la
-      fiche toujours comprise, aucune autre hors de [minimum, maximum].
-      [rend: 1]
-    ⑥ TRAITEMENT — ① pour k de −n à +n, calculer valeur + k × pas · ② arrondir à
-      quatre décimales · ③ écarter ce qui sort des bornes · ④ ajouter la valeur
-      de la fiche si les bornes l'avaient écartée · ⑤ trier sans doublon.
-    ⑦ UNITÉ — Celle du réglage.
-    ⑧ POURQUOI — Un pas régulier de part et d'autre est la forme la plus simple à
-      lire et à valider ; la règle reste dans un fichier que Jean-Luc peut changer.
-    ⑨ CE QUI CLOCHE — Un pas régulier ne sait pas faire une grille irrégulière
-      comme celle du 02-10-2026 (+2, +3, +4, +6 %).
-    ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main, ou lève ValueError sur une règle invalide.
-      [sort: non]
-    """
-    try:
-        pas = float(regle["pas"])
-        n = int(regle["de_part_et_d_autre"])
-        mini, maxi = float(regle["minimum"]), float(regle["maximum"])
-    except (KeyError, TypeError, ValueError):
-        raise ValueError("règle de voisinage illisible : %r" % (regle,))
-    finis = all(x == x and abs(x) != float("inf") for x in (pas, mini, maxi))
-    if not finis or pas <= 0 or not 0 <= n <= 10 or mini > maxi:
-        raise ValueError("règle de voisinage invalide : %r" % (regle,))
-    vals = {round(valeur + k * pas, 4) for k in range(-n, n + 1)}
-    vals = {v for v in vals if mini <= v <= maxi}
-    vals.add(round(valeur, 4))
-    return sorted(vals)
-
-
 def ecrire_nombre(v):
     """Écrit un nombre sans zéros inutiles : 4.0 → « 4 », 2.5 → « 2.5 ».
 
@@ -278,29 +244,88 @@ def nouvelle_ligne(ident, essai, horodatage, parametre, valeur_fiche, valeurs, u
             "jouable": jouable, "raison": raison, "valide_par": "", "prepare_le": horodatage}
 
 
-def pas_entier(texte):
-    """Dit si un pas de voisinage est un nombre entier fini et positif.
+def valeur_de_sortie(parametre, texte):
+    """Lit une valeur de sortie écrite (fiche ou liste) : un nombre, le MOT de « aucune » / « sans stop », ou None.
 
-    ① RÔLE — Refuser un pas de durée qui fabriquerait des durées non entières.
-    ② CONTEXTE D'APPEL — `preparer`, pour l'horizon.
-    ③ ENTRÉE — `texte` : la case `pas` du fichier de voisinage.
+    ① RÔLE — LA lecture d'une valeur de l'objectif, du stop ou de la durée dans ce programme, mots compris : la case de
+      la fiche et chaque élément de la colonne `liste` du voisinage passent par elle.
+    ② CONTEXTE D'APPEL — `preparer`, pour la valeur de la fiche ; `valeurs_de_la_liste`, pour chaque élément.
+    ③ ENTRÉE — `parametre` : « tp », « sl » ou « horizon » · `texte` : la case, par exemple « -2.5% », « 12 »,
+      « sans stop », « 20j », « aucune ».
     ④ CONDITIONS D'ENTRÉE — Aucune.
-    ⑤ SORTIE — UNE valeur : vrai ou faux.
+    ⑤ SORTIE — UNE valeur : pour « sl », `COMMUN.MOT_DU_STOP_AUCUN` si le texte est « sans stop » (lu par
+      `COMMUN.est_le_mot_du_stop_aucun`) ; pour « horizon », `COMMUN.MOT_DE_L_HORIZON_AUCUNE` si le texte est
+      « aucune » (lu par `COMMUN.lire_horizon_ou_aucune`) ; sinon le nombre lu (pourcents par `pourcents_de`, entre
+      POURCENT_MINIMUM et POURCENT_MAXIMUM ; séances entières > 0 par `COMMUN.lire_horizon_ou_aucune`, en nombre à
+      virgule) ; None si illisible ou hors des bornes.
       [rend: 1]
-    ⑥ TRAITEMENT — lire en nombre ; exiger fini, positif et sans partie décimale.
-    ⑦ UNITÉ — Des séances.
-    ⑧ POURQUOI — Un pas de 2,5 séances donnait des voisins non symétriques, et un pas
-      infini faisait planter le programme (relecture du 07-10-2026).
-    ⑨ CE QUI CLOCHE — rien vu.
+    ⑥ TRAITEMENT — ① reconnaître le mot du paramètre · ② sinon lire le nombre par la lecture de son unité · ③ borner.
+    ⑦ UNITÉ — Pourcents pour tp et sl (2.5 vaut 2,5 %) ; séances pour l'horizon.
+    ⑧ POURQUOI — DÉCISION DE JEAN-LUC du 19-10-2026 à 20h22 (A-541) : le stop s'essaie aussi « sans stop » ; la durée
+      « aucune » (plan V7, bloc 4 ; A-645) s'écrit par le mot du contrat du lot 0. Les mots se reconnaissent dans
+      COMMUN, une fois (R-708) ; un mot n'est jamais un très grand nombre (A-541 ⑤).
+    ⑨ CE QUI CLOCHE — « sans stop » n'existe pas pour l'objectif : un tp « sans stop » rend None (refusé).
     ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend toujours la main.
+    ⑪ TERMINAISON — Rend toujours la main ; ses appels aussi.
       [sort: non]
     """
-    try:
-        x = float(texte)
-    except (TypeError, ValueError):
-        return False
-    return math.isfinite(x) and x > 0 and x == int(x)
+    if parametre == "sl" and COMMUN.est_le_mot_du_stop_aucun(texte):
+        return COMMUN.MOT_DU_STOP_AUCUN
+    if parametre == "horizon":
+        h = COMMUN.lire_horizon_ou_aucune(texte)
+        if h is COMMUN.HORIZON_AUCUNE:
+            return COMMUN.MOT_DE_L_HORIZON_AUCUNE
+        return None if h is None else float(h)
+    v = pourcents_de(texte)
+    if v is None or not POURCENT_MINIMUM <= v <= POURCENT_MAXIMUM:
+        return None
+    return v
+
+
+def valeurs_de_la_liste(parametre, liste, valeur_fiche):
+    """Rend les valeurs à essayer écrites telles quelles dans la colonne `liste` du voisinage, valeur de la fiche comprise.
+
+    ① RÔLE — Permettre une grille IRRÉGULIÈRE (A-541, complément du 19-10-2026 à 21h46, « modification 1 ») : la
+      grille du stop 1,5 · 2 · 2,5 · 3 · 3,5 · 4 · 4,5 · 5 · 6 · 7 · 8 · 10 · 12 · 15 % et « sans stop » change de pas,
+      ce que `voisins` (un pas régulier) ne sait pas faire.
+    ② CONTEXTE D'APPEL — `preparer`, pour chaque réglage de sortie dont la ligne du voisinage porte une `liste`.
+    ③ ENTRÉE — `parametre` : « tp », « sl » ou « horizon » · `liste` : le texte de la colonne, valeurs séparées par
+      des points-virgules, par exemple « 1.5;2;2.5;3;3.5;4;4.5;5;6;7;8;10;12;15;sans stop » · `valeur_fiche` : ce que
+      `valeur_de_sortie` a lu dans la fiche (un nombre ou un mot).
+    ④ CONDITIONS D'ENTRÉE — `valeur_fiche` n'est pas None.
+    ⑤ SORTIE — UNE valeur : la liste des valeurs ÉCRITES (textes), sans doublon, nombres croissants d'abord, le mot
+      (« sans stop », « aucune ») en dernier ; la valeur de la fiche toujours comprise.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① couper aux points-virgules, ignorer les vides · ② lire chaque élément par `valeur_de_sortie`,
+      refuser le premier illisible · ③ ajouter la valeur de la fiche si elle manque (comme `voisins` le fait) ·
+      ④ trier : nombres croissants, puis le mot · ⑤ écrire les nombres par `ecrire_nombre`.
+    ⑦ UNITÉ — Celle du réglage (pourcents ou séances).
+    ⑧ POURQUOI — Proposition du Chat du 19-10-2026 à 21h46, feu vert de Jean-Luc (« 1 Ok, mais tu le fais en
+      autoportant ») : « quand elle est remplie, PREPARER prend ces valeurs telles quelles, pour toute stratégie, au
+      lieu de compter des pas autour de la fiche […] la valeur de la fiche est ajoutée si elle manque […] quand la
+      colonne est vide, rien ne change ». L'ordre est fixé par le programme et non par l'écriture, pour que deux
+      écritures d'une même liste donnent les mêmes numéros de version (DECLINER numérote dans l'ordre du tableau).
+    ⑨ CE QUI CLOCHE — Les colonnes `pas`, `de_part_et_d_autre`, `minimum`, `maximum` de la ligne ne servent plus quand
+      `liste` est remplie : rien ne le signale à qui les lirait. Une valeur de la fiche absente de la liste s'ajoute
+      en silence (affichée dans le tableau, que Jean-Luc valide).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError (élément illisible, liste vide).
+      [sort: non]
+    """
+    lues = []
+    for brut in liste.split(";"):
+        if not brut.strip():
+            continue
+        x = valeur_de_sortie(parametre, brut)
+        if x is None:
+            raise ValueError("liste du voisinage de « %s » : élément illisible ou hors des bornes %r" % (parametre, brut.strip()))
+        lues.append(x)
+    if not lues:
+        raise ValueError("liste du voisinage de « %s » vide" % parametre)
+    lues.append(valeur_fiche)
+    nombres = sorted({round(x, 4) for x in lues if not isinstance(x, str)})
+    mots = sorted({x for x in lues if isinstance(x, str)})
+    return [ecrire_nombre(x) for x in nombres] + mots
 
 
 def preparer(fiche, voisinage, essai, horodatage, codes_connus):
@@ -316,8 +341,11 @@ def preparer(fiche, voisinage, essai, horodatage, codes_connus):
     ⑤ SORTIE — DEUX valeurs : la liste des lignes, et la liste des manques. Si les
       manques ne sont pas vides, les lignes ne doivent pas être écrites.
       [rend: 2]
-    ⑥ TRAITEMENT — ① objectif et stop : lire en pourcents, entourer de voisins ·
-      ② durée : lire par `COMMUN.lire_horizon`, entourer de voisins entiers ·
+    ⑥ TRAITEMENT — ⓪ si la ligne du voisinage porte une `liste` : prendre ses valeurs telles quelles
+      (`valeurs_de_la_liste`, mots « sans stop » et « aucune » compris, depuis le 11-11-2026) ; sinon :
+      ① objectif et stop : lire en pourcents, entourer de voisins ·
+      ② durée : lire par `COMMUN.lire_horizon_ou_aucune`, entourer de voisins entiers ; une fiche « sans stop » ou
+      « aucune » sans liste est refusée (aucun voisin ne se compte autour d'un mot) ·
       ③ univers : refuser un code inconnu ou répété ; proposer l'univers entier,
       puis chaque valeur seule s'il y en a plusieurs · ④ réglages du signal : une
       ligne NON jouable chacun · ⑤ moment d'achat et filtres : une ligne NON
@@ -335,18 +363,30 @@ def preparer(fiche, voisinage, essai, horodatage, codes_connus):
     ident = fiche.get("id", "")
     lignes, manques = [], []
     for p, unite in REGLAGES_DE_SORTIE:
-        if p == "horizon":
-            v = COMMUN.lire_horizon(fiche.get(p))
-            v = None if v is None else float(v)
-        else:
-            v = pourcents_de(fiche.get(p))
-            if v is not None and not POURCENT_MINIMUM <= v <= POURCENT_MAXIMUM:
-                v = None
+        # UNE SEULE LECTURE DE LA VALEUR DE LA FICHE, MOTS COMPRIS (« sans stop », « aucune » : A-541, A-645, mission
+        # VENTE du 11-11-2026) : `valeur_de_sortie`. Avant, l'horizon passait par `lire_horizon`, qui refuse « aucune ».
+        v = valeur_de_sortie(p, fiche.get(p))
         if v is None:
             manques.append("la fiche ne porte pas de valeur lisible pour « %s » : %r" % (p, fiche.get(p)))
             continue
         if p not in voisinage:
             manques.append("le fichier de voisinage n'a pas de ligne pour « %s »" % p)
+            continue
+        # LA LISTE ÉCRITE TELLE QUELLE (A-541, modification 1 du 19-10-2026) : quand elle est remplie, elle remplace
+        # le pas régulier ; vide ou absente (fichiers d'avant le 11-11-2026), rien ne change.
+        liste = (voisinage[p].get("liste") or "").strip()
+        if liste:
+            try:
+                ecrites = valeurs_de_la_liste(p, liste, v)
+            except ValueError as e:
+                manques.append(str(e))
+                continue
+            lignes.append(nouvelle_ligne(ident, essai, horodatage, p, v if isinstance(v, str) else ecrire_nombre(v),
+                                         ";".join(ecrites), unite, "OUI", voisinage[p].get("raison", "")))
+            continue
+        if isinstance(v, str):
+            manques.append("la fiche porte « %s » pour « %s » et la ligne du voisinage n'a pas de liste : aucun voisin ne "
+                           "se compte autour d'un mot" % (v, p))
             continue
         if p == "horizon" and not pas_entier(voisinage[p].get("pas")):
             manques.append("le pas de voisinage de l'horizon doit être un nombre entier de séances : %r" % voisinage[p].get("pas"))

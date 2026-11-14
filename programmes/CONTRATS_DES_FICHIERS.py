@@ -2591,6 +2591,10 @@ RESULTATS_DES_VERSIONS = [
     "periode_debut", "periode_fin", "operations", "reussite_pourcents_exacte", "gain_net_euros", "bareme",
     "fin_ecrite_dans_la_fiche", "cours_joues", "empreinte_des_cours", "frontiere_70_30", "embargo_seances",
     "operations_70", "reussite_pourcents_exacte_70", "gain_net_euros_70",
+    # Les positions encore ouvertes à la fin des cours (versions sans durée maximale), MISES À PART, hors du total :
+    # leur nombre et leur gain ou perte du moment (décision de Jean-Luc du 12-11-2026 à 09h18 ; R1 du superviseur
+    # de la vente, tour 3, 13-11-2026). Zéro et « 0.00 » pour une version à durée chiffrée. Jamais lues par le tri.
+    "operations_a_part_fin_des_donnees", "gain_net_euros_a_part_fin_des_donnees",
 ]
 # Les SEULES colonnes qu'un critère du tri peut lire : celles de la partie de réglage. Les colonnes `operations`,
 # `reussite_pourcents_exacte` et `gain_net_euros` portent la période ENTIÈRE, 30 % compris : elles servent à la

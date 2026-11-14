@@ -374,9 +374,10 @@ def reglages_du_registre(base):
     ⑥ TRAITEMENT — ① ouvrir le registre par `chemin_du_registre` et `fiches_du_registre`
       du contrat (n°83, depuis le 05-11-2026 : une fiche par identifiant, sa DERNIÈRE
       ligne ; avant, chaque ligne était lue et la dernière écrasait la première) · ② pour chaque stratégie, relever ses
-      seuils par `seuil_de_la_fiche` du juge des stratégies (la lecture unique,
-      A-548, 31-10-2026) et son horizon ; une ligne aux seuils illisibles ou mal
-      signés est passée, comme avant · ③ l indexer sous ses deux désignations.
+      seuils et son horizon par `lecture_du_soir` du juge des stratégies (depuis le 12-11-2026 ; elle lit les seuils
+      par `seuil_de_la_fiche`, la lecture unique, A-548) ; une ligne que cette lecture refuse (seuils illisibles ou
+      mal signés, « sans stop », horizon illisible, « aucune » non accepté au soir) est passée — la porte
+      `fiche_suivie` la refuse avec le même motif, en le disant · ③ l indexer sous ses deux désignations.
     ⑦ UNITÉ — **Les seuils sont écrits en POURCENTS dans le registre et RENDUS en
       FRACTIONS (« +4.0% » → 0,04) ; l horizon en JOURS DE BOURSE et
       non en jours calendaires.**
@@ -417,9 +418,12 @@ def reglages_du_registre(base):
         # lisaient de trois façons ; « -0.6% » valait 0,6 chez le juge et 0,006 ici.
         juge = _juge_d_a_cote()
         for x in fiches_du_registre(p).values():
+            # LA LECTURE DU SOIR VIT DANS LE JUGE, UNE FOIS (`lecture_du_soir`, 12-11-2026 ; défaut D1 de la mission
+            # VENTE, marche du superviseur R-759) : la MÊME que celle de la porte `fiche_suivie`, si bien qu'une fiche
+            # suivie est une fiche réglée. Elle lit les seuils par `seuil_de_la_fiche` (A-548), refuse « sans stop »,
+            # un horizon illisible, et « aucune » tant que le réglage du soir ne l'accepte pas.
             try:
-                tp = juge.seuil_de_la_fiche(x, "tp")
-                sl = juge.seuil_de_la_fiche(x, "sl")
+                tp, sl, _h = juge.lecture_du_soir(base, x)
             except ValueError:
                 continue
             # les noms d'une strategie se lisent au contrat (R-708), une fois
@@ -440,8 +444,7 @@ def reglages_du_registre(base):
                     # aussi employee par le garde-fou `horizons_illisibles`.
                     # DEPUIS LE 11-11-2026 (plan V7, bloc 4) : `lire_horizon_ou_aucune`, qui rend
                     # aussi HORIZON_AUCUNE pour « aucune » ; `horizon_connu` le garde tel quel.
-                    r[k] = {"tp": tp, "sl": sl,
-                            "horizon": lire_horizon_ou_aucune(x.get("horizon", ""))}
+                    r[k] = {"tp": tp, "sl": sl, "horizon": _h}
         return r
     raise FileNotFoundError(
         "le registre des strategies est introuvable dans %r : sans lui, aucune "
@@ -2668,6 +2671,66 @@ def horizons_illisibles(lignes):
     return [l.get("id", "?") for l in lignes if lire_horizon_ou_aucune(l.get("horizon", "")) is None]
 
 
+def positions_sans_horizon_du_soir(base, positions, juge):
+    """Rend les positions OUVERTES dont la stratégie n'a pas d'horizon lu par le soir, avec la raison.
+
+    ① RÔLE — **Refuser qu'une position déjà ouverte soit tenue à un horizon INVENTÉ.** `completer_echeances`
+      donne une échéance de repli (20 séances par défaut) à toute position dont la stratégie manque aux réglages
+      du soir ; cette fonction trouve ces positions AVANT que le soir ne les tienne.
+    ② CONTEXTE D'APPEL — `tenir_pour_de_vrai`, une fois par soir, juste avant `tenir` ; et l'épreuve de la vente
+      réglable (W18), qui l'éprouve.
+    ③ ENTRÉE — `base` : la racine du dépôt · `positions` : les positions lues la veille (lignes du fichier des
+      positions ouvertes) · `juge` : le module du juge des stratégies, déjà chargé (il porte `lecture_du_soir`).
+    ④ CONDITIONS D'ENTRÉE — Le registre des stratégies existe (`reglages_du_registre` lève FileNotFoundError
+      sinon ; l'appelant le laisse à `tenir`, qui le dit déjà par un incident).
+    ⑤ SORTIE — UNE valeur : une liste de triplets (valeur, stratégie, raison), vide si chaque position ouverte a
+      un horizon lu. La raison est le refus nommé de `lecture_du_soir`, ou « absente du registre ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire les réglages du soir par `reglages_du_registre` (la MÊME lecture que `tenir`) · ② pour
+      chaque position au statut OUVERTE, demander son horizon à `horizon_connu` (la MÊME fonction qui décide du
+      repli dans `completer_echeances`) · ③ si elle n'en a pas, chercher sa fiche au registre (dernière ligne
+      d'un identifiant, n°83) et rendre le refus de `lecture_du_soir`, ou « absente du registre ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Défaut D-A, MOYEN, du relecteur neuf de la vente, tour 2 (12-11-2026, 01h15,
+      `etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/RELECTEUR_VENTE_TOUR2_Jeu_12-11-2026.md`) : la
+      vraie position C5E10-OBS-V1 sur TOTALENERGIES, sa fiche mise à « aucune », était tenue à « repli a 20
+      seances », code 0 — un horizon inventé, alors que ce programme écrit lui-même « Un horizon absent ou mal
+      ecrit n est PAS un 20 par defaut ». La condition est celle du repli lui-même (`horizon_connu` is None) : un
+      contrôle par PROPRIÉTÉ, pas par énumération des mots refusés (« sans stop », « aucune », illisible).
+    ⑨ CE QUI CLOCHE — Un registre ABSENT lève FileNotFoundError : `tenir_pour_de_vrai` en fait une vraie panne
+      (code 1, rien d'écrit) depuis le 13-11-2026. La forme du 13-11-2026 à 15h59 (arrêt total du soir pour toute
+      position signalée) a été jugée « RUSTINE, À REPRENDRE » par le superviseur R-759 du tour 3 ; depuis la
+      décision de Jean-Luc du 13-11-2026 à 16h30 (« s'il y a un changement de paramètre, une stratégie […] c'est
+      une autre stratégie »), l'appelant laisse la position signalée telle quelle et fait rougir le passage. Le
+      contrôle ne voit une fiche modifiée sur place QUE si le soir n'a plus d'horizon pour elle : une durée
+      passée de 20 à 15 séances n'est pas vue (le fichier des positions ne porte pas l'horizon de l'achat ;
+      à consigner au BACKLOG).
+    ⑩ EFFET — Aucun : lit le registre, n'écrit rien.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le registre manque. Aucun de ses appels ne peut ne
+      pas revenir.
+      [sort: non]
+    """
+    reglages = reglages_du_registre(base)
+    sans = []
+    fiches = None
+    for p in positions:
+        if (p.get("statut") or "").strip() != OUVERTE or horizon_connu(p, reglages) is not None:
+            continue
+        sid = (p.get("strategie") or "").strip()
+        if fiches is None:
+            fiches = list(fiches_du_registre(chemin_du_registre(base)).values())
+        fiche = next((x for x in fiches if sid in noms_d_une_strategie(x)), None)
+        raison = "absente du registre"
+        if fiche is not None:
+            try:
+                juge.lecture_du_soir(base, fiche)
+                raison = "réglages du soir sans horizon pour cette stratégie"
+            except ValueError as e:
+                raison = str(e)
+        sans.append(((p.get("valeur") or "").strip(), sid, raison))
+    return sans
+
+
 def _lire_csv(chemin):
     """Lit un fichier CSV et rend ses lignes.
 
@@ -2820,7 +2883,11 @@ def tenir_pour_de_vrai(base):
       registre par `fiches_du_registre` du contrat, UNE fois, la dernière ligne d un identifiant
       faisant foi (n°83, depuis le 05-11-2026 ; les univers et les horizons des vivantes en viennent) ·
       ③bis lire les cours par le lecteur unique, et s arrêter en code 2 si la lecture
-      est refusée ou impossible (29-10-2026) · ④ tenir la séance, au calendrier
+      est refusée ou impossible (29-10-2026) · ③ter s arrêter en code 1, sans rien écrire, si
+      le registre manque ; une position OUVERTE sans horizon lu au soir (`positions_sans_horizon_du_soir` :
+      fiche modifiée sur place pendant la position, erreur de manipulation selon la décision de Jean-Luc du
+      13-11-2026 à 16h30) est SIGNALÉE et laissée telle quelle, les autres sont tenues, et la sortie du pas
+      `positions_signalees=<n>` (fichier `GITHUB_OUTPUT`) fait rougir le pas de fin du circuit · ④ tenir la séance, au calendrier
       officiel, en n achetant que dans le CAC 40 — un achat refusé se dit par une ligne
       « ⛔ » · ⑤ **contrôler toutes les lignes à écrire contre les
       contrats du journal et des positions, et s'arrêter en code 1 sans rien
@@ -3050,8 +3117,54 @@ def tenir_pour_de_vrai(base):
     for l in lignes_v:
         print(f"  horizon lu au registre · {l['id']} : "
               f"{lire_horizon_ou_aucune(l['horizon'])} seances")
+    # UNE POSITION DÉJÀ OUVERTE NE SE TIENT PAS À UN HORIZON INVENTÉ (défaut D-A du relecteur neuf de la vente, tour 2,
+    # 12-11-2026) : si le soir n'a pas d'horizon pour sa stratégie (fiche refusée par `lecture_du_soir` — « aucune »
+    # non ouverte au soir, « sans stop », horizon illisible — ou absente du registre), `completer_echeances` lui
+    # donnerait 20 séances de repli. Même règle que l'horizon illisible juste au-dessus : c'est un arrêt, rien n'est écrit.
+    # UNE POSITION GARDE JUSQU'AU BOUT LES RÈGLES DE LA STRATÉGIE SOUS LAQUELLE ELLE A ÉTÉ ACHETÉE (DÉCISION DE
+    # JEAN-LUC du 13-11-2026 à 16h30 : « s'il y a un changement de paramètre, une stratégie […] c'est une autre
+    # stratégie »). Une fiche modifiée SUR PLACE alors qu'une de ses positions est ouverte est donc une ERREUR DE
+    # MANIPULATION. Elle se voit ici quand le soir ne trouve plus d'horizon pour la position (fiche refusée par
+    # `lecture_du_soir`, ou absente du registre). Forme du superviseur R-759 du tour 3 de la vente (13-11-2026,
+    # « RUSTINE, À REPRENDRE » sur l'arrêt total), sur le précédent A-706 : la position signalée est LAISSÉE TELLE
+    # QUELLE (aucune échéance recalculée, aucune clôture, aucun repli à 20 séances), les autres sont tenues, les
+    # signaux attribués, le code reste 0 et la sortie du pas `positions_signalees=<n>` fait rougir le pas de fin
+    # « Rougir si une position a ete signalee » du circuit. Un registre ABSENT est une vraie panne : code 1.
+    try:
+        _sans_horizon = positions_sans_horizon_du_soir(base, positions, juge)
+    except FileNotFoundError as e:
+        print(f"  ❌ REGISTRE DES STRATEGIES ABSENT — RIEN N EST ECRIT : {e}")
+        print("     Sans registre, aucune position ne peut etre tenue a ses regles.")
+        return 1
+    _cles_a_part = {(v, s_) for v, s_, _r in _sans_horizon}
+    a_part = [p for p in positions if (p.get("statut") or "").strip() == OUVERTE
+              and ((p.get("valeur") or "").strip(), (p.get("strategie") or "").strip()) in _cles_a_part]
+    if _sans_horizon:
+        print(f"  ❌ {len(_sans_horizon)} POSITION(S) SIGNALEE(S) — FICHE MODIFIEE SUR PLACE PENDANT UNE POSITION "
+              f"OUVERTE (erreur de manipulation, decision de Jean-Luc du 13-11-2026 a 16h30) :")
+        for _v, _s, _raison in _sans_horizon:
+            print(f"     {_v} ({_s}) : {_raison}")
+        print("     La position signalee est LAISSEE TELLE QUELLE (ni echeance, ni cloture, ni repli a 20 seances) ;")
+        print("     les autres positions sont tenues et les signaux attribues. Le passage du soir ROUGIT.")
+        print("     Une strategie dont un parametre change est une AUTRE strategie : nouvelle fiche, nouvel identifiant.")
+        positions = [p for p in positions if not any(p is q for q in a_part)]
+        signaux = [sg for sg in signaux if (sg.get("strategie") or "").strip() not in {s_ for _v, s_ in _cles_a_part}]
+    _ligne_du_pas = "positions_signalees=%d" % len(_sans_horizon)
+    _sortie_du_pas = os.environ.get("GITHUB_OUTPUT")
+    if _sortie_du_pas:
+        try:
+            with open(_sortie_du_pas, "a", encoding="utf-8") as fh:
+                fh.write(_ligne_du_pas + "\n")
+        except OSError as e:
+            print(f"  ❌ SORTIE DU PAS IMPOSSIBLE A ECRIRE ({type(e).__name__} : {e}) — RIEN N EST ECRIT : "
+                  f"un signalement ne serait pas vu par le circuit.")
+            return 1
+    else:
+        print("  " + _ligne_du_pas + "  (GITHUB_OUTPUT absent : sortie du pas affichee seulement)")
 
     r = tenir(positions, cours, signaux, prochaine, mod, base=base, lecture=lecture, juge=juge)
+    if a_part:
+        r["positions"] = list(r["positions"]) + a_part   # recopiées TELLES QUELLES, à l'octet de leurs champs
 
     # LES COLONNES VIENNENT DU CONTRAT, JAMAIS DU FICHIER EXISTANT, ET RIEN NE
     # S'ÉCRIT AVANT QUE TOUT SOIT CONTRÔLÉ (défaut 3 de A-491, 27-09-2026). Avant,

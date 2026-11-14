@@ -742,6 +742,61 @@ def _horizon_aucune():
     return COMMUN.HORIZON_AUCUNE
 
 
+def _motif_fin_des_donnees():
+    """Rend le motif COMMUN.MOTIF_FIN_DES_DONNEES, par le même chemin que `_horizon_aucune`.
+
+    ① RÔLE — Donner à `vendre` le motif d'une position encore ouverte à la fin des données d'une version sans durée
+      maximale, sans le recopier (R-708 : deux implémentations d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `vendre`, branche de la fin des données « vendre », quand l'horizon est HORIZON_AUCUNE.
+    ③ ENTRÉE — Aucune.
+    ④ CONDITIONS D'ENTRÉE — `programmes/COMMUN.py` est à côté de ce fichier.
+    ⑤ SORTIE — UNE valeur : le texte `COMMUN.MOTIF_FIN_DES_DONNEES` (« FIN_DES_DONNEES » au 13-11-2026).
+      [rend: 1]
+    ⑥ TRAITEMENT — Appeler `_horizon_aucune`, qui met ce dossier dans le chemin d'import et importe COMMUN par son
+      nom, puis rendre `COMMUN.MOTIF_FIN_DES_DONNEES` du module ainsi chargé.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Décision de Jean-Luc du 12-11-2026 à 09h18 (« 1 ») : les positions encore ouvertes à la fin des
+      données d'une version sans durée maximale sont mises à part, hors du total ; un motif distinct de HORIZON le
+      porte (option A du superviseur de la vente, 12-11-2026).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Peut ajouter un dossier au chemin d'import de Python (par `_horizon_aucune`).
+    ⑪ TERMINAISON — Rend la main ; lève ImportError si COMMUN manque, AttributeError s'il ne porte pas le motif.
+      Aucun de ses appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    _horizon_aucune()
+    import COMMUN
+    return COMMUN.MOTIF_FIN_DES_DONNEES
+
+
+def _stop_aucun():
+    """Rend la valeur STOP_AUCUN de `programmes/COMMUN.py` (« sans stop »), par le même chemin que `_horizon_aucune`.
+
+    ① RÔLE — Donner à `vendre` et `seuils_de_vente` la valeur qui dit « cette version n'a pas de stop », sans la
+      recopier (R-708 : deux implémentations d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `seuils_de_vente` et `vendre`, à chaque appel.
+    ③ ENTRÉE — Aucune.
+    ④ CONDITIONS D'ENTRÉE — `programmes/COMMUN.py` est à côté de ce fichier.
+    ⑤ SORTIE — UNE valeur : l'objet `COMMUN.STOP_AUCUN`.
+      [rend: 1]
+    ⑥ TRAITEMENT — Appeler `_horizon_aucune`, qui met ce dossier dans le chemin d'import et importe COMMUN par son
+      nom, puis rendre `COMMUN.STOP_AUCUN` du module ainsi chargé.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Ce module est chargé sous plusieurs noms ; l'import de COMMUN par son NOM rend le même objet que
+      celui du juge, et `vendre` le reconnaît par `is` (voir `_horizon_aucune`, ⑧). Passer par `_horizon_aucune` garde
+      UN seul chemin d'import de COMMUN dans ce module.
+    ⑨ CE QUI CLOCHE — Même limite que `_horizon_aucune` : un COMMUN chargé par son chemin sous un autre nom aurait un
+      second STOP_AUCUN, que `vendre` ne reconnaîtrait pas ; il tomberait alors sur le refus de tout calcul (TypeError
+      de la sentinelle), jamais sur un calcul faux.
+    ⑩ EFFET — Celui de `_horizon_aucune` : peut ajouter un dossier au chemin d'import.
+    ⑪ TERMINAISON — Rend la main ; lève ImportError si COMMUN manque.
+      [sort: non]
+    """
+    _horizon_aucune()
+    import COMMUN
+    return COMMUN.STOP_AUCUN
+
+
 def seuils_de_vente(prix_entree, tp, sl):
     """Rend l'objectif et le stop, en euros, d'un achat fait à `prix_entree` : LE seul calcul des deux seuils.
 
@@ -750,13 +805,16 @@ def seuils_de_vente(prix_entree, tp, sl):
     ② CONTEXTE D'APPEL — `vendre` (le juge, l'étalon de hasard, la moulinette, qui passent des fractions) ;
       `programmes/TENIR_LES_POSITIONS.py`, `entrer`, qui écrit ces deux prix dans la position le soir de l'achat.
     ③ ENTRÉE — `prix_entree` : le prix d'achat en euros · `tp`, `sl` : l'objectif et la perte acceptée en
-      FRACTIONS positives du prix d'achat (0.04 et 0.025 pour « +4 % » et « −2,5 % »).
+      FRACTIONS positives du prix d'achat (0.04 et 0.025 pour « +4 % » et « −2,5 % ») ; `sl` peut valoir
+      `COMMUN.STOP_AUCUN` (« sans stop », depuis le 11-11-2026, A-541).
     ④ CONDITIONS D'ENTRÉE — Trois nombres ; les seuils sont lus et validés par l'appelant (le juge par
       `seuil_de_la_fiche`, le soir par `reglages_du_registre`, qui l'emprunte au juge).
-    ⑤ SORTIE — DEUX valeurs : l'objectif, puis le stop, en euros, chacun arrondi à cinq décimales.
+    ⑤ SORTIE — DEUX valeurs : l'objectif, puis le stop, en euros, chacun arrondi à cinq décimales ; sans stop, le
+      stop rendu est `COMMUN.STOP_AUCUN` lui-même.
       [rend: 2]
-    ⑥ TRAITEMENT — ① objectif = prix × (1 + tp) · ② stop = prix × (1 − sl) · ③ chacun arrondi à cinq décimales
-      par l'écriture « %.5f », celle que le programme du soir emploie pour écrire la position.
+    ⑥ TRAITEMENT — ⓪ sans stop : rendre l'objectif que pose la ligne commune (appelée avec un stop nul, dont le prix
+      est jeté) et la sentinelle · ① objectif = prix × (1 + tp) · ② stop = prix × (1 − sl) · ③ chacun arrondi à cinq
+      décimales par l'écriture « %.5f », celle que le programme du soir emploie pour écrire la position.
     ⑦ UNITÉ — Euros en entrée et en sortie ; seuils en FRACTIONS.
     ⑧ POURQUOI — DÉCISION DE JEAN-LUC DU 07-11-2026 À 15H49 (n°311, « 1 ») : « arrondi à 5 décimales partout pour
       comparer le prix à l'objectif et au stop, comme le circuit du soir le fait déjà. Le juge et le radar s'alignent
@@ -767,10 +825,17 @@ def seuils_de_vente(prix_entree, tp, sl):
       recalcul restant INDÉPENDANT par décision de Jean-Luc, BACKLOG A-208 ⑤).
     ⑨ CE QUI CLOCHE — « %.5f » arrondit la valeur binaire exacte au plus proche ; une valeur tombant exactement sur
       la moitié du dernier chiffre est arrondie au pair. Le soir faisait de même : les deux restent identiques.
+      Sans stop, le programme du soir (`entrer`) écrirait « %.5f » de la sentinelle et tomberait (TypeError) : il ne
+      reçoit jamais « sans stop », sa lecture du registre (`seuil_de_la_fiche`) le refuse (garde-fou d'A-645).
     ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend toujours la main ; aucun appel.
+    ⑪ TERMINAISON — Rend toujours la main ; s'appelle elle-même une fois, sans stop, avec un stop nombre : l'appel
+      revient.
       [sort: non]
     """
+    # SANS STOP (A-541, décision de Jean-Luc du 19-10-2026 à 20h22, « ajoutez le sans stop ») : l'objectif se pose
+    # par la ligne ci-dessous, la seule (un stop nul ne sert qu'à la traverser) ; le stop reste la sentinelle.
+    if sl is _stop_aucun():
+        return seuils_de_vente(prix_entree, tp, 0.0)[0], sl
     return float("%.5f" % (prix_entree * (1.0 + tp))), float("%.5f" % (prix_entree * (1.0 - sl)))
 
 
@@ -818,8 +883,10 @@ def vendre(serie, j, vente, fin_des_donnees):
       `open`, `high`, `low`, `close` · `j` : le rang de la séance d'achat dans `serie` · `vente` : un dictionnaire
       qui porte `horizon` et, AU CHOIX, soit `tp` et `sl` (les seuils en FRACTIONS du prix d'achat, 0.04 et 0.025
       pour « +4 % » et « −2,5 % » ; les prix sont alors posés par `seuils_de_vente`), soit `objectif` et `stop` (les
-      prix en euros, déjà posés : ceux qu'une position du soir porte depuis son achat). La clé `horizon` porte
-      l'échéance en SÉANCES après l'achat, un entier > 0, ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale) · `fin_des_donnees` :
+      prix en euros, déjà posés : ceux qu'une position du soir porte depuis son achat). `sl` ou `stop` peut valoir
+      `COMMUN.STOP_AUCUN` (« sans stop », depuis le 11-11-2026 : A-541, compléments du 19-10-2026 ; A-645). La clé
+      `horizon` porte l'échéance en SÉANCES après l'achat, un entier > 0, ou `COMMUN.HORIZON_AUCUNE` (aucune durée
+      maximale) · `fin_des_donnees` :
       `"vendre"` (le juge rejoue un passé fini : une série qui s'arrête avant l'échéance vend à la dernière clôture)
       ou `"garder"` (le soir vit un présent qui continue : la position reste ouverte).
     ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; `vente` porte `horizon` et exactement l'une des deux paires.
@@ -827,16 +894,22 @@ def vendre(serie, j, vente, fin_des_donnees):
       série, ou il n'y en a pas) ou si l'achat tombe sur la DERNIÈRE séance sans qu'un seuil y soit touché
       (`"vendre"` : aucune séance après lui) ; sinon un dictionnaire de six clés — `pe` (l'ouverture de `serie[j]`),
       `px` (le prix de vente), `motif` (`SL_GAP`, `TP_GAP`, `SL`, `TP` ou `HORIZON`), `date_sortie`, `objectif` et
-      `stop` (les deux seuils en euros, pour le prix de convention). En `"vendre"`, un achat suivi de moins de
-      `horizon` séances, ou sans horizon, est vendu à la dernière clôture connue, motif `HORIZON`.
+      `stop` (les deux seuils en euros, pour le prix de convention ; `stop` vaut `COMMUN.STOP_AUCUN` sans stop, et
+      aucun motif `SL…` n'est alors possible). En `"vendre"`, un achat suivi de moins de
+      `horizon` séances est vendu à la dernière clôture connue, motif `HORIZON` ; SANS horizon (HORIZON_AUCUNE), il
+      l'est au même prix mais sous le motif `COMMUN.MOTIF_FIN_DES_DONNEES` (« FIN_DES_DONNEES ») : ce n'est pas une
+      vente, c'est la position encore ouverte, que ses lecteurs mettent à part (décision de Jean-Luc du 12-11-2026
+      à 09h18).
       [rend: 1]
     ⑥ TRAITEMENT — ① refuser un `fin_des_donnees` inconnu, une paire de seuils ambiguë ou un horizon qui n'est ni un
       entier > 0 ni HORIZON_AUCUNE · ② prix d'achat = ouverture de `serie[j]` (R-601) ; seuils en euros reçus, ou
-      posés par `seuils_de_vente` (arrondis à cinq décimales, n°311) · ③ tester, par `tester_seance`, les séances
+      posés par `seuils_de_vente` (arrondis à cinq décimales, n°311) ; sans stop, le stop TESTÉ vaut moins l'infini,
+      le stop RENDU la sentinelle · ③ tester, par `tester_seance`, les séances
       `serie[j]` à `serie[j + horizon]` (toutes les suivantes sans horizon), séance d'achat comprise (R-608), et
       vendre à la première qui touche un seuil · ④ sinon, si la `horizon`-ième séance APRÈS l'achat est dans la
       série, vendre à sa clôture, motif `HORIZON` · ⑤ sinon (fin des données) : `"garder"` rend None ; `"vendre"`
-      vend à la dernière clôture connue, motif `HORIZON`, ou rend None s'il n'y a aucune séance après l'achat.
+      vend à la dernière clôture connue, motif `HORIZON` (durée chiffrée) ou `FIN_DES_DONNEES` (durée « aucune »),
+      ou rend None s'il n'y a aucune séance après l'achat.
     ⑦ UNITÉ — Seuils en FRACTIONS du prix d'achat, ou en EUROS ; échéance en SÉANCES de la série (des lignes : voir
       ⑨) ; prix en EUROS ; dates en texte AAAA-MM-JJ ; `j` est un rang compté depuis zéro.
     ⑧ POURQUOI — Deux implémentations d'une même chose divergent toujours (R-708) : la décision « quand vendre » était
@@ -850,12 +923,16 @@ def vendre(serie, j, vente, fin_des_donnees):
       seuils en euros existent parce qu'une position du soir FIXE ses prix le soir de l'achat et les écrit : les
       recalculer chaque soir depuis le registre ferait changer de seuils une position ouverte si la fiche changeait.
       La durée « aucune » : plan V6 et V7, bloc 4 ; contrat du lot 0 (09-11-2026) dans `programmes/COMMUN.py`.
+      « Sans stop » : décision de Jean-Luc du 19-10-2026 à 20h22 (« et bien sûr, ajoutez le sans stop », A-541), pour
+      que la moulinette mesure ce que le stop rapporte ou coûte ; contrat du stop « sans stop » dans `programmes/COMMUN.py`.
     ⑨ CE QUI CLOCHE — Consigné, non corrigé (R-752) : · l'échéance se compte en LIGNES de la série de la valeur, pas
       en séances du calendrier de la Bourse ; R-112 (décision de Jean-Luc du 10-10-2026) veut qu'une séance manquante
       fasse avancer l'horizon, et n°315 (07-11-2026) veut la mise en conformité « dans la refonte » — non faite ici :
       elle change la vente de toute position qui traverse un trou, à décider avec le calendrier passé en entrée ·
       une vente forcée par la FIN DES DONNÉES porte le motif `HORIZON`, comme une vraie échéance (décision 7 de la
-      conception J1, non tranchée), y compris pour une stratégie sans horizon · un horizon passé comme booléen est
+      conception J1, non tranchée), pour une stratégie À DURÉE CHIFFRÉE ; depuis le 13-11-2026, une stratégie SANS
+      durée maximale y porte `FIN_DES_DONNEES` (décision de Jean-Luc du 12-11-2026 à 09h18, qui ne porte que sur
+      elles) · un horizon passé comme booléen est
       refusé, un flottant aussi : seul un entier Python est un nombre de séances.
     ⑩ EFFET — Aucun : ne lit ni n'écrit aucun fichier, ne modifie pas `serie`.
     ⑪ TERMINAISON — Rend la main ; lève ValueError (fin des données inconnue, seuils ambigus, horizon refusé),
@@ -886,6 +963,13 @@ def vendre(serie, j, vente, fin_des_donnees):
         objectif, stop = vente["objectif"], vente["stop"]
     else:
         objectif, stop = seuils_de_vente(pe, vente["tp"], vente["sl"])
+    # SANS STOP (A-541, décision de Jean-Luc du 19-10-2026 à 20h22 ; A-645) : la position ne sort que sur l'objectif,
+    # l'échéance ou la fin des données. `tester_seance` reste LE test d'une séance (R-708) : elle reçoit un stop à
+    # moins l'infini, qu'aucun prix n'atteint (un prix réel est fini ; NaN n'est jamais <= -inf) ; la vente rendue
+    # porte la sentinelle, jamais ce nombre (A-541 ⑤ : « sans stop » s'écrit comme tel, jamais comme un grand stop).
+    stop_rendu = stop
+    if stop is _stop_aucun():
+        stop = float("-inf")
     # LA SEANCE D'ACHAT COMPTE (R-608, decision de Jean-Luc du 27-09-2026 a 19h40 ; defaut 4 de A-491) : les
     # seuils se testent des la seance ou l'on achete a l'ouverture. Exemple reel du tableau de reference : Vinci,
     # achete le 07-06-2024 a 113,60, plus bas du jour 110,75 sous la vente forcee 110,76 -> vendu le jour meme.
@@ -898,17 +982,21 @@ def vendre(serie, j, vente, fin_des_donnees):
         r = tester_seance(b, objectif, stop)
         if r:
             return {"pe": pe, "px": r[0], "motif": r[1], "date_sortie": b["date"],
-                    "objectif": objectif, "stop": stop}
+                    "objectif": objectif, "stop": stop_rendu}
     apres = suite[1:]          # l'echeance se compte APRES la seance d'achat
     if not aucune and len(apres) == h:
         return {"pe": pe, "px": apres[-1]["close"], "motif": "HORIZON", "date_sortie": apres[-1]["date"],
-                "objectif": objectif, "stop": stop}
+                "objectif": objectif, "stop": stop_rendu}
     # LA SERIE S'ARRETE AVANT L'ECHEANCE (ou il n'y en a pas) : le soir GARDE la position, le juge,
     # qui rejoue un passe fini, la VEND a la derniere cloture (RealTest : « when the data ends before the test does »).
     if fin_des_donnees == "garder" or not apres:
         return None
-    return {"pe": pe, "px": apres[-1]["close"], "motif": "HORIZON", "date_sortie": apres[-1]["date"],
-            "objectif": objectif, "stop": stop}
+    # SANS DURÉE MAXIMALE, CE N'EST PAS UNE ÉCHÉANCE (décision de Jean-Luc du 12-11-2026 à 09h18, « 1 » : « On les met
+    # à part : exclues du total, affichées séparément avec leur nombre et leur gain ou perte du moment ») : le motif
+    # le dit, ici et nulle part ailleurs (R-708) ; `resumer` du juge et la moulinette le lisent pour les mettre à part.
+    motif = _motif_fin_des_donnees() if aucune else "HORIZON"
+    return {"pe": pe, "px": apres[-1]["close"], "motif": motif, "date_sortie": apres[-1]["date"],
+            "objectif": objectif, "stop": stop_rendu}
 
 
 # ══════════════════════════════════════════════════════════════

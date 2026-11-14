@@ -42,9 +42,12 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   le témoin du golden et rend le même résultat que ce programme · ⑤ chaque
   version, une fois fusionnée, est lue par le juge avec ses propres réglages ·
   ⑥ les cours de CHAQUE valeur vont assez loin après le début de la période pour
-  laisser, après la FIN CALCULÉE (voir ⑥ du traitement), l'horizon le plus long
-  plus la séance d'achat · ⑦ si un témoin de résultats existe, chaque version le
-  retrouve · ⑧ le fichier nommé par `--cours=` existe.
+  laisser, après la FIN CALCULÉE (voir ⑥ du traitement), l'horizon CHIFFRÉ le plus long
+  plus la séance d'achat (une durée « aucune » n'a pas d'échéance : aucune marge ne la
+  couvre, elle est dite à l'écran ; ses positions encore ouvertes à la fin des cours sont
+  mises à part, hors du total, depuis la décision de Jean-Luc du 12-11-2026 à 09h18, et
+  comptées dans les deux colonnes « à part » des résultats) · ⑦ si un témoin de résultats
+  existe, chaque version le retrouve · ⑧ le fichier nommé par `--cours=` existe.
   Le moindre manquement arrête tout, avant ou pendant le jeu.
 ⑤ SORTIE — UNE valeur : le code de sortie, 0 quand toutes les versions sont
   jouées et écrites, 1 sinon.
@@ -73,7 +76,8 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   est recopiée à côté, colonne `fin_ecrite_dans_la_fiche`, et le fichier de
   cours joué dans `cours_joues`, avec son empreinte. LA FICHE N'EST JAMAIS MODIFIÉE.
 ⑦ UNITÉ — Gains en EUROS pour 100 000 € engagés par opération ; réussite en
-  POURCENTS ; tp et sl en FRACTIONS du prix d'entrée ; horizon en SÉANCES.
+  POURCENTS ; tp et sl en FRACTIONS du prix d'entrée ; horizon en SÉANCES ; depuis
+  le 11-11-2026, sl peut valoir le mot « sans stop » et horizon le mot « aucune ».
 ⑧ POURQUOI — TOUT LE CALCUL RESTE DANS LE JUGE : deux implémentations d'une même
   chose divergent toujours (R-708). Le calibrage passe par le juge lancé seul,
   parce qu'un calibrage maison comparant deux appels du même code resterait vert
@@ -329,7 +333,8 @@ def fin_utilisable(dates_par_valeur, debut, fin_de_la_fiche, horizon_max):
     ③ ENTRÉE — `dates_par_valeur` : pour chaque valeur jouée (son mnémonique), la liste TRIÉE des dates
       de ses séances, AAAA-MM-JJ, telle que le lecteur unique les rend · `debut` et `fin_de_la_fiche` : les
       bornes rendues par la porte 0 · `horizon_max` : l'horizon le plus long de la combinatoire, en séances.
-    ④ CONDITIONS D'ENTRÉE — Au moins une valeur ; `horizon_max` est un entier positif.
+    ④ CONDITIONS D'ENTRÉE — Au moins une valeur ; `horizon_max` est un entier ≥ 0, 0 = toutes les versions sont
+      « aucune » (relecteur neuf E1F phase 2, m-2 : `main` lui passe alors 0 ; le besoin vaut 1 séance).
     ⑤ SORTIE — DEUX valeurs : la fin calculée (AAAA-MM-JJ), ou None si aucune fin ne laisse assez de
       séances ; la valeur qui la limite (celle dont les cours s'arrêtent le plus tôt ; None si c'est la
       fiche qui limite), ou la première valeur fautive si la fin est None.
@@ -460,7 +465,9 @@ def controler_fusion(J, fusion, version):
     ⑤ SORTIE — UNE valeur : la liste des écarts, vide si tout concorde.
       [rend: 1]
     ⑥ TRAITEMENT — ① lire tp et sl par `pourcent` du juge et les comparer à la
-      version · ② lire l'horizon par `lire_horizon` · ③ comparer les univers.
+      version ; « sans stop » se compare comme un mot (`COMMUN.est_le_mot_du_stop_aucun`) ·
+      ② lire l'horizon par `lire_horizon` ; « aucune » se compare comme un mot
+      (`COMMUN.lire_horizon_ou_aucune`) · ③ comparer les univers.
     ⑦ UNITÉ — Fractions ; séances.
     ⑧ POURQUOI — Relecture du 08-10-2026 (défaut A2) : une fusion qui oubliait
       l'horizon écrivait 125 842,31 € pour une version à 5 séances, au lieu de
@@ -471,11 +478,24 @@ def controler_fusion(J, fusion, version):
       une case illisible.
       [sort: non]
     """
+    import COMMUN   # déjà chargé par le juge : le même module, donc les mêmes sentinelles (lecture des mots, R-708)
     ecarts = []
     for k in ("tp", "sl"):
-        if abs(J.pourcent(fusion[k]) - float(version[k])) > 1e-12:
+        # « SANS STOP » (A-541, 19-10-2026 ; mission VENTE du 11-11-2026) : un mot, comparé comme un mot ; il ne passe
+        # jamais par `pourcent`, qui le lirait illisible.
+        mots = [k == "sl" and COMMUN.est_le_mot_du_stop_aucun(x) for x in (fusion[k], version[k])]
+        if any(mots):
+            ecart = not all(mots)
+        else:
+            ecart = abs(J.pourcent(fusion[k]) - float(version[k])) > 1e-12
+        if ecart:
             ecarts.append("%s lu %r, version %r" % (k, fusion[k], version[k]))
-    if J.lire_horizon(fusion["horizon"]) != int(version["horizon"]):
+    # LA DURÉE « AUCUNE » (A-645, mission VENTE) : reconnue par la lecture commune ; un nombre reste lu par le juge.
+    aucunes = [COMMUN.lire_horizon_ou_aucune(x) is COMMUN.HORIZON_AUCUNE for x in (fusion["horizon"], version["horizon"])]
+    if any(aucunes):
+        if not all(aucunes):
+            ecarts.append("horizon lu %r, version %r" % (fusion["horizon"], version["horizon"]))
+    elif J.lire_horizon(fusion["horizon"]) != int(version["horizon"]):
         ecarts.append("horizon lu %r, version %r" % (fusion["horizon"], version["horizon"]))
     if codes(fusion["univers"]) != codes(version["univers"]):
         ecarts.append("univers lu %r, version %r" % (fusion["univers"], version["univers"]))
@@ -773,9 +793,23 @@ def main():
     print("  version identique %s : même résultat" % ident_v[0]["id_version"])
 
     # LA FIN DE LA PÉRIODE JOUÉE SE CALCULE (plan V7, bloc 5g, complément du 11-11-2026 à 20h17) : la plus tardive
-    # qui laisse à chaque valeur l'horizon le plus long plus la séance d'achat, sans dépasser la fiche. La fiche
-    # n'est pas modifiée ; la fin calculée vit dans la colonne `periode_fin` des résultats.
-    h_max = max(int(v["horizon"]) for v in versions)
+    # qui laisse à chaque valeur l'horizon CHIFFRÉ le plus long plus la séance d'achat, sans dépasser la fiche. La
+    # fiche n'est pas modifiée ; la fin calculée vit dans la colonne `periode_fin` des résultats.
+    # LA DURÉE « AUCUNE » (A-645, mission VENTE du 11-11-2026) N'A PAS D'ÉCHÉANCE : aucune fin calculée ne protège
+    # une position ouverte en fin de période. `vendre` la rend à la dernière clôture connue sous le motif
+    # FIN_DES_DONNEES, et `resumer` du juge la met À PART, hors du total (décision de Jean-Luc du 12-11-2026 à
+    # 09h18) ; elle s'écrit dans les colonnes « à part » des résultats. La fin se calcule sur les durées chiffrées ;
+    # le cas « aucune » est DIT ici. Sans aucune durée chiffrée, le besoin est la seule séance d'achat (h_max = 0).
+    # UN HORIZON ILLISIBLE (« 0 », « abc ») N'EST PAS ARRÊTÉ ICI : `controler_fusion` l'arrête version par version,
+    # avec son motif « horizon lu … » (cas de l'épreuve de la moulinette, 20-10-2026) ; il ne compte pas dans la fin.
+    import COMMUN
+    _durees = [COMMUN.lire_horizon_ou_aucune(v["horizon"]) for v in versions]
+    _aucunes = sum(1 for d in _durees if d is COMMUN.HORIZON_AUCUNE)
+    _chiffrees = [d for d in _durees if d is not COMMUN.HORIZON_AUCUNE and d is not None]
+    if _aucunes:
+        print("DURÉE « AUCUNE » : %d version(s) ; une position encore ouverte à la fin des cours est mise À PART, hors du"
+              " total (motif FIN_DES_DONNEES, décision de Jean-Luc du 12-11-2026 à 09h18)" % _aucunes)
+    h_max = max(_chiffrees) if _chiffrees else 0
     dates = {}
     for m in sorted({c for v in versions for c in codes(v["univers"])}):
         cle = mnemo.get(m, J.cle_valeur(m))
@@ -864,7 +898,15 @@ def main():
                 r, b = jouer_une(fusion, None, ops_r, periode_jouee)
                 if b != bornes:
                     raise ValueError("période différente pour %s : %s" % (v["id_version"], b))
-                emb_v, r70 = partie_de_reglage(mod_jug, ops_r, seances_fiche, int(v["horizon"]), frontiere)
+                # UNE DURÉE « AUCUNE » N'A PAS DE PARTIE DE RÉGLAGE CHIFFRÉE (phase 2 d'E1F, 13-11-2026) : l'embargo de
+                # la coupure 70/30 sans durée maximale n'est PAS tranché par Jean-Luc (`juger` refuse par
+                # MOTIF_AUCUNE_NON_TRANCHEE ; `duree_d_embargo_sans_horizon` reste une proposition). Les colonnes
+                # « _70 » et l'embargo restent VIDES — jamais « 0 » — : le tri lit une case vide comme NON MESURABLE
+                # et écarte la version (`passe_le_critere`). Avant ce geste, `int("aucune")` arrêtait toute la moulinette.
+                if COMMUN.lire_horizon_ou_aucune(v["horizon"]) is COMMUN.HORIZON_AUCUNE:
+                    emb_v, r70 = None, None
+                else:
+                    emb_v, r70 = partie_de_reglage(mod_jug, ops_r, seances_fiche, int(v["horizon"]), frontiere)
                 if v is ident_v[0] and (r["n"], r.get("wr_exact"), r.get("net")) != (
                         ref_jouee["n"], ref_jouee.get("wr_exact"), ref_jouee.get("net")):
                     raise ValueError("la version %s, identique à la fiche, ne retrouve pas la fiche sur la période"
@@ -897,9 +939,16 @@ def main():
                             "bareme": b_res, "fin_ecrite_dans_la_fiche": bornes[1],
                             "cours_joues": f_cours_rel, "empreinte_des_cours": empreinte_cours,
                             "frontiere_70_30": frontiere, "embargo_seances": "" if emb_v is None else emb_v,
-                            "operations_70": r70["n"],
-                            "reussite_pourcents_exacte_70": "%.6f" % r70["wr_exact"] if r70["n"] else "",
-                            "gain_net_euros_70": "%.2f" % r70["net"] if r70["n"] else "0.00"})
+                            "operations_70": "" if r70 is None else r70["n"],
+                            "reussite_pourcents_exacte_70": "%.6f" % r70["wr_exact"] if r70 and r70["n"] else "",
+                            "gain_net_euros_70": "" if r70 is None else ("%.2f" % r70["net"] if r70["n"] else "0.00"),
+                            # LES POSITIONS MISES À PART (R1 du superviseur du tour 3, 13-11-2026 ; décision de
+                            # Jean-Luc du 12-11-2026 à 09h18) : hors des trois colonnes du total, écrites ici avec
+                            # leur nombre et leur gain ou perte du moment. Une version dont toutes les positions
+                            # restent ouvertes ne s'écrit plus « 0 opération, 0,00 € » sans trace.
+                            "operations_a_part_fin_des_donnees": r.get("fin_des_donnees", {}).get("n", 0),
+                            "gain_net_euros_a_part_fin_des_donnees": "%.2f" % r.get("fin_des_donnees", {}).get(
+                                "net", 0.0)})
                 if i % 250 == 0:
                     print("  %d / %d" % (i, len(versions)), flush=True)
         if invariant_faux:

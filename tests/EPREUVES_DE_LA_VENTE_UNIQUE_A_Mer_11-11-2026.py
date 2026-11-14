@@ -15,14 +15,16 @@ aucune fiche n'est VIVANTE (message du Chat du 11-11-2026 à 02h35). Ce fichier 
 
 CE QUI EST ÉPROUVÉ :
   V1 « garder » : une série qui s'arrête avant l'échéance rend None ; « vendre » vend à la dernière clôture.
-  V2 « aucune » : `vendre` ne vend que sur un seuil ; sans seuil, « garder » rend None, « vendre » la dernière clôture.
+  V2 « aucune » : `vendre` ne vend que sur un seuil ; sans seuil, « garder » rend None, « vendre » la dernière clôture
+     sous le motif FIN_DES_DONNEES (décision de Jean-Luc du 12-11-2026 à 09h18 ; HORIZON avant le 13-11-2026).
   V3 VRAIE LIGNE (R-732), témoin du golden : ENGIE achetée le 17-06-2024 à 13,25 ; plus haut du 21-06 = 13,78 =
      l'objectif arrondi : vendue le 21-06 à 13,78 (n°311 ; avant, le juge vendait le 24-06).
   V4 refus : horizon 0, True, 20.0, « 20 », None ; fin des données inconnue ; seuils ambigus → ValueError.
   V5 LA MÊME VENTE PARTOUT, sur les vraies séries du témoin (ENGIE, VINCI, AIRBUS), chaque séance d'achat dont
      l'échéance est connue : le juge, le soir (une position fabriquée comme `entrer` la fabrique) et le radar rendent
      le même motif, la même date, le même prix réel (le juge et le soir).
-  V6 le soir et « aucune » : `reglages_du_registre` → `horizon_connu` rend HORIZON_AUCUNE (jamais 20),
+  V6 le soir et « aucune » : sans le réglage du soir (donnees/REGLAGES_DU_SOIR.csv, À DÉCIDER, 12-11-2026), la fiche
+     n'est pas réglée ; avec « accepter » : `reglages_du_registre` → `horizon_connu` rend HORIZON_AUCUNE (jamais 20),
      `completer_echeances` écrit « aucune », `cloturer` garde la position sans seuil touché et la vend à l'objectif.
   V7 `fiche_suivie` (juge) : une fiche à l'achat « CLOSE » est refusée ; la vraie fiche C5E10-OBS-V1 est acceptée.
   V8 VALEURS CONNUES écrites à la main, motif par motif (TP, TP_GAP, SL, SL_GAP, HORIZON, garder, fin des données) :
@@ -30,12 +32,24 @@ CE QUI EST ÉPROUVÉ :
   V14 `juger` refuse tout horizon illisible (N2 du relecteur, tour 2).
   V12 `juger` refuse une fiche « aucune » avec son motif nommé ; V13 l'embargo proposé exclut les 30 % et la fin des données.
   V9 propriété R-708 par l'arbre syntaxique : le soir n'appelle pas `tester_seance`.
-  V11 le juge joue une fiche « aucune » (ENGIE du témoin) : aucune vente à l'échéance avant la fin des données.
+  V11 le juge joue une fiche « aucune » (ENGIE du témoin) : aucune vente à l'échéance ; la fin des données porte
+      FIN_DES_DONNEES, et seulement à la dernière séance.
+  V15 (13-11-2026, décision de Jean-Luc du 12-11-2026 à 09h18) `resumer` met À PART les positions FIN_DES_DONNEES :
+      hors du compte, de la réussite, du total et des motifs ; leur nombre et leur gain ou perte du moment dans une
+      case `fin_des_donnees` ; sans elles, la sortie d'avant, à l'identique (aucune case de plus).
+  V16 (13-11-2026) même chose sur la VRAIE série ENGIE du témoin jouée « aucune » : total = somme des seules ventes.
+  V17 (13-11-2026, défaut D-A du relecteur neuf de la vente, tour 2) PROPRIÉTÉ : sur la VRAIE ligne de position
+      C5E10-OBS-V1 / TOTALENERGIES, `positions_sans_horizon_du_soir` la signale ⇔ `completer_echeances` lui donnerait
+      un horizon de repli ; fiche intacte → rien ; « aucune », « sans stop » → signalée avec le refus nommé ;
+      stratégie absente → « absente du registre » ; position pas encore OUVERTE → non signalée.
   V10 DE BOUT EN BOUT, `TENIR_LES_POSITIONS.py` sur une copie : (a) aucune fiche VIVANTE, une position en attente
       d'entrée (Vinci, signal du 06-06-2024) → code 0, vendue au stop le 07-06 à 110,76 ; (b) la fiche
       C5E10-OBS-V1 refusée (achat « CLOSE ») et un signal VINCI (univers d'elle seule), avec un champ
       « garde_du_soir » dans le fichier des signaux → code 0, refus dit, aucune position ouverte ; (c) JONCTION :
-      le détecteur puis le teneur, univers « TTE,ZZZ » : aucune position pour la fiche refusée (LC-1).
+      le détecteur puis le teneur, univers « TTE,ZZZ » : aucune position pour la fiche refusée (LC-1) ;
+      (d) (13-11-2026, D-A) la VRAIE position C5E10-OBS-V1 / TOTALENERGIES ouverte, sa fiche passée à « aucune » :
+      code 1, « SANS HORIZON LU AU SOIR », le fichier des positions inchangé à l'octet, aucun « repli a 20 » ;
+      (e) témoin de (d), fiche intacte : code 0, pas d'arrêt.
 
 USAGE : python3 -B tests/EPREUVES_DE_LA_VENTE_UNIQUE_A_Mer_11-11-2026.py <racine du dépôt> [--saboter | nom]
 CODE : 0 si Z0 est tout vert et que chaque sabotage fait rougir au moins une épreuve ; 1 sinon ; 2 si une cible de
@@ -74,13 +88,15 @@ SABOTAGES = {
     "S5_seuils_ambigus_acceptes": [(MODP, '    if en_euros and en_fractions:\n        raise', '    if False:\n        raise')],
     "S6_soir_vend_a_la_fin_des_donnees": [(TEN, '{"objectif": tp, "stop": sl, "horizon": h}, "garder")', '{"objectif": tp, "stop": sl, "horizon": h}, "vendre")')],
     "S7_horizon_connu_filtre_aucune": [(TEN, '    if h is HORIZON_AUCUNE:\n        return h\n    return h if', '    return h if')],
-    "S8_reglages_relit_par_lire_horizon": [(TEN, '"horizon": lire_horizon_ou_aucune(x.get("horizon", ""))}', '"horizon": lire_horizon(x.get("horizon", ""))}')],
+    # S8 recalé le 12-11-2026 (mission VENTE tour 2) : le soir lit l'horizon par `lecture_du_soir` du juge.
+    "S8_reglages_relit_par_lire_horizon": [(BAN, '    h = lire_horizon_ou_aucune(fiche.get("horizon", ""))\n    if h is HORIZON_AUCUNE and not soir_accepte_aucune(racine):',
+                                            '    h = lire_horizon(fiche.get("horizon", ""))\n    if h is HORIZON_AUCUNE and not soir_accepte_aucune(racine):')],
     # S9 = M9 du relecteur neuf du 11-11-2026 : le prix de convention d'une échéance devient l'objectif.
     "S9_convention_horizon_a_l_objectif": [(MODP, '    if motif.startswith("TP"):\n        return objectif\n    return prix_sortie',
                                             '    if motif.startswith("TP"):\n        return objectif\n    return objectif')],
     "S10_juger_ne_refuse_plus_aucune": [(BAN, '    if h is HORIZON_AUCUNE:\n        raise ValueError(MOTIF_AUCUNE_NON_TRANCHEE)',
                                           '    if False:\n        raise ValueError(MOTIF_AUCUNE_NON_TRANCHEE)')],
-    "S15_embargo_mesure_sur_les_30_et_la_fin_des_donnees": [(BAN, '        if o["date_signal"] > frontiere or o["motif"] == "HORIZON":\n            continue',
+    "S15_embargo_mesure_sur_les_30_et_la_fin_des_donnees": [(BAN, '        if o["date_signal"] > frontiere or o["motif"] in ("HORIZON", MOTIF_FIN_DES_DONNEES):\n            continue',
                                                              '        if False:\n            continue')],
     "S17_juger_juge_un_horizon_illisible": [(BAN, '    if h is None:\n        raise ValueError("fiche %s non jugeable : horizon illisible %r"',
                                              '    if False:\n        raise ValueError("fiche %s non jugeable : horizon illisible %r"')],
@@ -92,6 +108,45 @@ SABOTAGES = {
     "S19_teneur_sans_la_garde": [(TEN, '            _refus = juge.fiche_suivie(base, ligne, _mnemo_du_juge)[2]', '            _refus = None')],
     "S12_aucune_vivante_arrete_tout": [(TEN, "les positions deja ouvertes sont tenues.\")\n", "les positions deja ouvertes sont tenues.\")\n        return 1\n")],
     "S13_completer_sans_aucune": [(TEN, '        if h is HORIZON_AUCUNE:\n            if ancienne not in', '        if False:\n            if ancienne not in')],
+    # 13-11-2026 — décision de Jean-Luc du 12-11-2026 à 09h18 (positions ouvertes à la fin des données mises à part).
+    "S20_fin_des_donnees_ecrite_horizon": [(MODP, '    motif = _motif_fin_des_donnees() if aucune else "HORIZON"', '    motif = "HORIZON"')],
+    "S21_resumer_compte_la_fin_des_donnees": [(BAN, '    ouvertes = [o for o in ops if o["motif"] == MOTIF_FIN_DES_DONNEES]\n    ops = [o for o in ops if o["motif"] != MOTIF_FIN_DES_DONNEES]',
+                                                '    ouvertes = [o for o in ops if o["motif"] == MOTIF_FIN_DES_DONNEES]')],
+    "S22_resumer_oublie_la_case_a_part": [(BAN, '              if ouvertes else {})', '              if False else {})')],
+    "S23_embargo_compte_la_fin_des_donnees": [(BAN, '        if o["date_signal"] > frontiere or o["motif"] in ("HORIZON", MOTIF_FIN_DES_DONNEES):',
+                                                '        if o["date_signal"] > frontiere or o["motif"] == "HORIZON":')],
+    # 13-11-2026 — défaut D-A du relecteur neuf de la vente, tour 2 (position ouverte tenue à 20 séances de repli).
+    # S24 réécrit le 13-11-2026 (décision de Jean-Luc de 16h30) : la position signalée n'est plus mise à part — le
+    # soir la tient au repli de 20 séances. V10d rougit (sa ligne change).
+    "S24_soir_tient_au_repli": [(TEN, '        positions = [p for p in positions if not any(p is q for q in a_part)]', '        a_part = []')],
+    # S27 : retrait du SIGNALEMENT — la sortie du pas dit toujours 0, le pas de fin ne rougit jamais. V10d rougit.
+    "S27_signalement_retire": [(TEN, '    _ligne_du_pas = "positions_signalees=%d" % len(_sans_horizon)', '    _ligne_du_pas = "positions_signalees=0"')],
+    # S28 : retrait du PAS DE FIN du circuit — V10f rougit.
+    "S28_pas_de_fin_retire": [(".github/workflows/collecte_abc.yml",
+                               "        if: always() && steps.tenir_les_positions.outputs.positions_signalees != '' && "
+                               "steps.tenir_les_positions.outputs.positions_signalees != '0'\n", "        if: false\n")],
+    # S29 / S30 (superviseur R-759 E1F phase 2, M-2) : l'id renommé d'un seul côté — V10f rougit.
+    "S29_id_renomme_cote_tenir": [(".github/workflows/collecte_abc.yml", "        id: tenir_les_positions\n",
+                                   "        id: tenir_positions\n")],
+    "S30_id_renomme_cote_if": [(".github/workflows/collecte_abc.yml",
+                                "        if: always() && steps.tenir_les_positions.outputs.positions_signalees != '' && "
+                                "steps.tenir_les_positions.outputs.positions_signalees != '0'\n",
+                                "        if: always() && steps.tenir_positions.outputs.positions_signalees != '' && "
+                                "steps.tenir_positions.outputs.positions_signalees != '0'\n")],
+    # S31 / S32 / S33 (superviseur R-759 E1F, N-1 + N-2, 14-11-2026) : le pas rouge neutralisé, son job neutralisé,
+    # « Tenir » sauté par un `if` — V10f rougit.
+    "S31_pas_rouge_en_continue_on_error": [(".github/workflows/collecte_abc.yml",
+                                            "        id: rougir_si_une_position_a_ete_signalee\n",
+                                            "        id: rougir_si_une_position_a_ete_signalee\n"
+                                            "        continue-on-error: true\n")],
+    "S32_job_du_pas_rouge_en_continue_on_error": [(".github/workflows/collecte_abc.yml", "  collecte:\n    runs-on:",
+                                                   "  collecte:\n    continue-on-error: true\n    runs-on:")],
+    "S33_tenir_saute_par_un_if": [(".github/workflows/collecte_abc.yml", "        id: tenir_les_positions\n",
+                                   "        id: tenir_les_positions\n        if: false\n")],
+    "S25_controle_sans_objet": [(TEN, "        if (p.get(\"statut\") or \"\").strip() != OUVERTE or horizon_connu(p, reglages) is not None:",
+                                  "        if (p.get(\"statut\") or \"\").strip() != OUVERTE or True:")],
+    "S26_controle_sur_toute_position": [(TEN, "        if (p.get(\"statut\") or \"\").strip() != OUVERTE or horizon_connu(p, reglages) is not None:",
+                                          "        if horizon_connu(p, reglages) is not None:")],
     "S14_juge_relit_par_lire_horizon": [(BAN, '    h = lire_horizon_ou_aucune(fiche["horizon"])\n    if h is None:', '    h = lire_horizon(fiche["horizon"])\n    if h is None:')],
 }
 
@@ -132,8 +187,8 @@ def v2():
     g = P.vendre(s2, 1, dict(F, horizon=A), "garder")
     v = P.vendre(s2, 1, dict(F, horizon=A), "vendre")
     o = ((t["motif"], t["date_sortie"], t["px"]), g, (v["motif"], v["date_sortie"]))
-    note("V2 aucune : vendue a l'objectif a la 31e seance ; sans seuil, garder None, vendre derniere cloture",
-         o == (("TP", "2026-01-32", 104.0), None, ("HORIZON", "2026-01-31")), o)
+    note("V2 aucune : vendue a l'objectif a la 31e seance ; sans seuil, garder None, vendre : FIN_DES_DONNEES a la derniere cloture",
+         o == (("TP", "2026-01-32", 104.0), None, ("FIN_DES_DONNEES", "2026-01-31")), o)
 essai("V2", v2)
 
 def v3():
@@ -195,6 +250,11 @@ def v6():
     w = csv.DictWriter(open(os.path.join(reg, "cac40_strategies.csv"), "w", encoding="utf-8", newline=""), fieldnames=champs)
     w.writeheader(); w.writerows(lignes)
     sys.modules.pop("JUGE_DES_STRATEGIES", None)
+    # LE RÉGLAGE DU SOIR (12-11-2026, mission VENTE tour 2) : sans lui, le soir refuse « aucune » (valeur la plus
+    # stricte, À DÉCIDER par Jean-Luc) ; V6 éprouve la tenue d'une position « aucune » quand il l'accepte.
+    r0 = T.reglages_du_registre(d)
+    open(os.path.join(reg, "REGLAGES_DU_SOIR.csv"), "w", encoding="utf-8").write(
+        "reglage,valeur,etat,qui_decide,raison\nhorizon_aucune_au_soir,accepter,EPREUVE,-,V6\n")
     r = T.reglages_du_registre(d)
     p = dict(strategie="C5E10-OBS-V1", valeur="AIRBUS", date_signal="2026-01-01", date_entree="2026-01-02",
              prix_entree="100.00000", tp="104.00000", sl="97.50000", horizon_fin="EN_ATTENTE", statut="OUVERTE",
@@ -206,9 +266,9 @@ def v6():
     tr1, rest1, _ = T.cloturer([p], {"AIRBUS": s}, P, bareme="HIST_FORFAIT_300")
     s2 = s + [b(30, 100, 104.2, 99.5, 104)]
     tr2, rest2, _ = T.cloturer([p], {"AIRBUS": s2}, P, bareme="HIST_FORFAIT_300")
-    o = (hc is A, hd is A, fin, len(tr1), len(rest1), [(x["motif_sortie"], x["date_sortie"]) for x in tr2])
-    note("V6 le soir et aucune : jamais 20, echeance « aucune », gardee 28 seances, vendue a l'objectif",
-         o == (True, True, "aucune", 0, 1, [("TP", "2026-01-30")]), o)
+    o = ("C5E10-OBS-V1" in r0, hc is A, hd is A, fin, len(tr1), len(rest1), [(x["motif_sortie"], x["date_sortie"]) for x in tr2])
+    note("V6 le soir et aucune : refusee sans le reglage ; acceptee : jamais 20, echeance « aucune », gardee 28 seances, vendue a l'objectif",
+         o == (False, True, True, "aucune", 0, 1, [("TP", "2026-01-30")]), o)
 essai("V6", v6)
 
 def v7():
@@ -270,10 +330,13 @@ def v11():
     ops, _ = B.jouer(fiche, {"ENGIE": s}, mnemo, sig, P, bareme="HIST_FORFAIT_300")
     fins = sorted({o["motif"] for o in ops})
     derniere = s[-1]["date"]
-    longs = [o for o in ops if o["motif"] == "HORIZON" and o["date_sortie"] != derniere]
-    note("V11 le juge joue « aucune » : sorties sur seuil, ou HORIZON seulement a la fin des donnees",
-         len(ops) > 10 and not longs and set(fins) <= {"TP", "SL", "TP_GAP", "SL_GAP", "HORIZON"},
-         "%d op, motifs %s, HORIZON avant la fin %d" % (len(ops), fins, len(longs)))
+    # depuis le 13-11-2026 (décision de Jean-Luc du 12-11-2026 à 09h18) : la fin des données porte FIN_DES_DONNEES,
+    # jamais HORIZON, et seulement à la dernière séance
+    longs = [o for o in ops if o["motif"] == "HORIZON" or (o["motif"] == "FIN_DES_DONNEES" and o["date_sortie"] != derniere)]
+    note("V11 le juge joue « aucune » : sorties sur seuil, ou FIN_DES_DONNEES seulement a la fin des donnees",
+         len(ops) > 10 and not longs and "FIN_DES_DONNEES" in fins
+         and set(fins) <= {"TP", "SL", "TP_GAP", "SL_GAP", "FIN_DES_DONNEES"},
+         "%d op, motifs %s, HORIZON ou fin avant la derniere seance %d" % (len(ops), fins, len(longs)))
 essai("V11", v11)
 def v12():
     s = cours["ENGIE"]
@@ -297,11 +360,79 @@ def v13():
     cal = ["2026-01-%02d" % d for d in range(1, 31)]
     op = lambda sig, ent, sor, m: {"date_signal": sig, "date_entree": ent, "date_sortie": sor, "motif": m}
     ops = [op("2026-01-01", "2026-01-02", "2026-01-05", "TP"),      # 3 seances, apprentissage : compte
-           op("2026-01-02", "2026-01-03", "2026-01-30", "HORIZON"), # fin des donnees : exclue
+           op("2026-01-02", "2026-01-03", "2026-01-30", "HORIZON"), # fin des donnees (avant le 13-11-2026) : exclue
+           op("2026-01-03", "2026-01-04", "2026-01-30", "FIN_DES_DONNEES"), # fin des donnees (depuis) : exclue
            op("2026-01-21", "2026-01-22", "2026-01-29", "SL")]      # apres la frontiere (30 %) : exclue
     d = B.duree_d_embargo_sans_horizon(ops, cal, "2026-01-20")
     note("V13 embargo de « aucune » : ni les 30 %, ni la fin des donnees (3 seances attendues)", d == 3, d)
 essai("V13", v13)
+
+def v15():
+    # `resumer` met à part les positions encore ouvertes à la fin des données (décision de Jean-Luc du 12-11-2026, 09h18)
+    op = lambda m, net: {"motif": m, "net": net}
+    avec = B.resumer([op("TP", 3000.0), op("SL", -2000.0), op("FIN_DES_DONNEES", -10000.0), op("FIN_DES_DONNEES", 25.5)])
+    sans = B.resumer([op("TP", 3000.0), op("SL", -2000.0)])
+    seules = B.resumer([op("FIN_DES_DONNEES", -10000.0)])
+    attendu_sans = {"n": 2, "wr": 50.0, "wr_exact": 50.0, "net": 1000.0, "motifs": {"SL": 1, "TP": 1}}
+    o = (avec, sans, seules)
+    note("V15 resumer : FIN_DES_DONNEES hors du compte, de la reussite, du total et des motifs ; a part avec nombre et gain du moment ; sans elles, sortie d'avant",
+         avec == dict(attendu_sans, fin_des_donnees={"n": 2, "net": -9974.5}) and sans == attendu_sans
+         and seules == {"n": 0, "fin_des_donnees": {"n": 1, "net": -10000.0}}, o)
+essai("V15", v15)
+
+def v16():
+    # VRAIE série : ENGIE du témoin, jouée « aucune » ; le total ne compte que les ventes, la case à part le reste
+    s = cours["ENGIE"]
+    sig = B.SignalNomme(lambda x: [{"i": k} for k in range(0, len(x) - 1, 40)], {}, "epreuve A, V16")
+    fiche = {"id": "A-V16", "tp": "+4%", "sl": "-3%", "horizon": "aucune", "univers": "ENGI", "entree": "DÉFAUT",
+             "donnees_demandees": "cours", "periode": ""}
+    mnemo = B.table_mnemoniques(glob.glob("donnees/REFERENTIEL_VALEURS_*.csv")[0])
+    ops, _ = B.jouer(fiche, {"ENGIE": s}, mnemo, sig, P, bareme="HIST_FORFAIT_300")
+    r = B.resumer(ops)
+    ventes = [o for o in ops if o["motif"] != "FIN_DES_DONNEES"]
+    fin = [o for o in ops if o["motif"] == "FIN_DES_DONNEES"]
+    ok = (len(fin) >= 1 and r["n"] == len(ventes) and r["net"] == round(sum(o["net"] for o in ventes), 2)
+          and r["fin_des_donnees"] == {"n": len(fin), "net": round(sum(o["net"] for o in fin), 2)}
+          and "FIN_DES_DONNEES" not in r["motifs"])
+    note("V16 vraie serie ENGIE « aucune » : total = ventes seules ; fin des donnees a part", ok,
+         (r, len(ventes), len(fin)))
+essai("V16", v16)
+
+def v17():
+    # D-A (relecteur neuf de la vente, tour 2) : une position OUVERTE dont la fiche n'a pas d'horizon au soir est signalée
+    # ⇔ `completer_echeances` lui donnerait le repli. VRAIE LIGNE (R-732) : donnees/claude_positions_ouvertes.csv,
+    # relevée le 13-11-2026 (la même que la mesure du relecteur).
+    import tempfile, shutil
+    vraie = {"strategie": "C5E10-OBS-V1", "valeur": "TOTALENERGIES", "date_signal": "2026-11-09", "date_entree": "2026-11-10",
+             "prix_entree": "78.00000", "tp": "81.12000", "sl": "76.05000", "horizon_fin": "EN_ATTENTE", "statut": "OUVERTE",
+             "comptabilite": "un_jeton", "regles_pre_trade": "", "explication": "", "frais_non_chiffrables": ""}
+    serie = {"TOTALENERGIES": [{"date": "2026-11-10", "open": 78.0, "high": 79.0, "low": 77.0, "close": 78.5, "volume": 1}]}
+    src = list(csv.DictReader(open("donnees/cac40_strategies.csv", encoding="utf-8-sig")))
+    champs = list(src[0].keys())
+    obs = [l for l in src if l["id"] == "C5E10-OBS-V1"][-1]   # la dernière ligne fait foi (n°83)
+    cas = {"intacte": ([], vraie), "aucune": ([dict(obs, horizon="aucune")], vraie),
+           "sans stop": ([dict(obs, sl="sans stop")], vraie), "absente": ([], dict(vraie, strategie="INCONNUE-V17")),
+           "pas encore ouverte": ([dict(obs, horizon="aucune")], dict(vraie, statut="EN_ATTENTE_ENTREE"))}
+    vus, ecarts = {}, []
+    for nom, (ajout, pos) in cas.items():
+        d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "donnees"))
+        try:
+            with open(os.path.join(d, "donnees", "cac40_strategies.csv"), "w", encoding="utf-8", newline="") as fh:
+                w = csv.DictWriter(fh, fieldnames=champs); w.writeheader(); w.writerows(src + ajout)
+            sig = T.positions_sans_horizon_du_soir(d, [dict(pos)], B)
+            _, inc = T.completer_echeances([dict(pos)], serie, T.reglages_du_registre(d), 20)
+            repli = any("repli" in x for x in inc)
+            vus[nom] = [x[2][:40] for x in sig]
+            if bool(sig) != repli:
+                ecarts.append((nom, sig, inc))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+    ok = (not ecarts and vus["intacte"] == [] and vus["pas encore ouverte"] == [] and len(vus["aucune"]) == 1
+          and "aucune" in vus["aucune"][0] and len(vus["sans stop"]) == 1 and "sans stop" in vus["sans stop"][0]
+          and vus["absente"] == ["absente du registre"])
+    note("V17 D-A : position ouverte sans horizon au soir signalee <=> repli de completer_echeances ; vraie ligne TOTALENERGIES",
+         ok, (vus, ecarts))
+essai("V17", v17)
 def v14():
     # N2 du relecteur neuf (tour 2) : un horizon illisible n'obtient pas de verdict de `juger`.
     s = cours["ENGIE"]
@@ -339,6 +470,8 @@ def copie(sab):
     d = tempfile.mkdtemp(prefix="vente_unique_")
     shutil.copytree(os.path.join(DEPOT, "programmes"), os.path.join(d, "programmes"),
                     ignore=shutil.ignore_patterns("__pycache__"))
+    # le circuit du soir est copié aussi (13-11-2026) : V10f lit son pas de fin, S28 le retire
+    shutil.copytree(os.path.join(DEPOT, ".github", "workflows"), os.path.join(d, ".github", "workflows"))
     for rep in ("donnees", "temoins", "gouvernance"):
         os.makedirs(os.path.join(d, rep))
         for f in os.listdir(os.path.join(DEPOT, rep)):
@@ -369,7 +502,12 @@ def bout_en_bout(d):
     D'ENTRÉE — le registre de la copie est un fichier (ECRITS). ⑤ SORTIE — un dictionnaire de deux épreuves.
     [rend: 1] ⑥ TRAITEMENT — (a) registre sans VIVANTE, position Vinci en attente, séance du 07-06-2024 ; (b) registre
     où C5E10-OBS-V1 achète « CLOSE », signal VINCI, champ garde_du_soir. ⑦ UNITÉ — — ⑧ POURQUOI — voir l'en-tête.
-    ⑨ CE QUI CLOCHE — — ⑩ EFFET — réécrit quatre fichiers de la copie. ⑪ TERMINAISON — borné à 900 s par lancement.
+    ⑨ CE QUI CLOCHE — V10f LIT le YAML du circuit, il ne l'EXÉCUTE pas : il énumère des façons de ne pas rougir
+    (pas rouge absent, id mal lu, pas sans always() après lui, continue-on-error sur « Tenir », le pas rouge ou leur
+    job, `if` autre que always() sur « Tenir »). Restent INVISIBLES : `|| true` ou `set +e` dans un `run`, un
+    `shell:` changé, un `exit 1` placé dans une branche qui ne s'exécute pas, un `timeout` ; seul un vrai passage
+    GitHub avec une position signalée prouve que le passage rougit (superviseur R-759 E1F N-1, 14-11-2026 : ces
+    résidus se consignent, ils ne se chassent pas un par un). ⑩ EFFET — réécrit quatre fichiers de la copie. ⑪ TERMINAISON — borné à 900 s par lancement.
     [sort: non]
     """
     sys.path.insert(0, os.path.join(DEPOT, "programmes"))
@@ -420,7 +558,12 @@ def bout_en_bout(d):
     # TOTALENERGIES du 09-11, mesuré par Cowork). Les fiches qui reçoivent un signal ⊆ les fiches suivies.
     f_m = os.path.join(d, "donnees", "cours_maitre.csv")
     lignes_m = open(os.path.join(DEPOT, "donnees", "cours_maitre.csv"), encoding="utf-8").read().splitlines(True)
-    open(f_m, "w", encoding="utf-8").write("".join(l for l in lignes_m if ",2026-11-10," not in l))
+    # RÉPARÉ LE 11-11-2026 (mission VENTE) PAR UNE PROPRIÉTÉ : le maître s'arrête au 09-11-2026, quelle que soit sa
+    # longueur. Avant, seule la séance du 10-11 était retirée ; dès que le circuit du soir a versé celle du 11-11, la
+    # dernière séance n'était plus le 09-11, le détecteur ne voyait plus le signal TOTALENERGIES et V10c rougissait,
+    # sur `main` 15f2c5eb comme sur la branche (mesuré le 11-11-2026 à 22h40). En-tête gardé (première ligne).
+    open(f_m, "w", encoding="utf-8").write("".join(l for k, l in enumerate(lignes_m)
+                                                   if k == 0 or l.split(",")[1] <= "2026-11-09"))
     lignes = [dict(l, univers="TTE,ZZZ") if l["id"] == "C5E10-QA-V1" else l for l in origine]
     ecrire(lignes, {"seance": "2026-11-09", "signaux": []}, [])
     cd, od = run(d, "programmes/DETECTER_LES_SIGNAUX_GITHUB.py", ".")
@@ -440,6 +583,82 @@ def bout_en_bout(d):
         ok, "detecteur %d, teneur %d, refusees %s, recoivent %s, %d position(s) · %s" % (
             cd, c, sorted(refusees), sorted(recoivent), len(pos), (od + o).strip()[-200:])]
     open(f_m, "w", encoding="utf-8").write("".join(lignes_m))
+    # (d), (e) et (f) — DÉFAUT D-A (relecteur neuf de la vente, tour 2, 12-11-2026), forme du superviseur R-759 du
+    # tour 3 et DÉCISION DE JEAN-LUC du 13-11-2026 à 16h30 (« s'il y a un changement de paramètre, une stratégie […]
+    # c'est une autre stratégie ») : la VRAIE position C5E10-OBS-V1 / TOTALENERGIES (relevée le 13-11-2026), sa fiche
+    # passée à « aucune » SUR PLACE (dernière ligne ajoutée, n°83) = erreur de manipulation. Attendu : code 0, la
+    # position SIGNALÉE recopiée telle quelle, une AUTRE position (C5E10-QA-V1, fiche intacte) TENUE (échéance
+    # posée), `positions_signalees=1` dans le fichier GITHUB_OUTPUT, aucun repli à 20 séances.
+    vraie = dict(strategie="C5E10-OBS-V1", valeur="TOTALENERGIES", date_signal="2026-11-09", date_entree="2026-11-10",
+                 prix_entree="78.00000", tp="81.12000", sl="76.05000", horizon_fin="EN_ATTENTE", statut="OUVERTE",
+                 comptabilite="un_jeton", regles_pre_trade="", explication="", frais_non_chiffrables="")
+    autre = dict(vraie, strategie="C5E10-QA-V1")
+    obs = [l for l in origine if l["id"] == "C5E10-OBS-V1"][-1]
+    derniere = max(l.split(",")[1] for l in lignes_m[1:] if l.count(",") >= 2)
+    ecrire(origine + [dict(obs, horizon="aucune")], {"seance": derniere, "signaux": []}, [vraie, autre])
+    f_out = os.path.join(d, "sortie_du_pas.txt")
+    r_ = subprocess.run([sys.executable, "-B", TEN, d], cwd=d, capture_output=True, text=True, timeout=900,
+                        env=dict(os.environ, GITHUB_OUTPUT=f_out))
+    c, o = r_.returncode, r_.stdout + r_.stderr
+    pos = lire("claude_positions_ouvertes.csv")
+    sortie = open(f_out, encoding="utf-8").read() if os.path.exists(f_out) else ""
+    signalee = [p for p in pos if p["strategie"] == "C5E10-OBS-V1"]
+    # TENUE = échéance posée si elle reste ouverte, ou clôturée au journal (les vrais cours peuvent toucher l'objectif
+    # ou le stop depuis le 10-11-2026) : dans les deux cas le soir l'a traitée ; recopiée telle quelle, elle échoue.
+    tenue = [p for p in pos if p["strategie"] == "C5E10-QA-V1" and p["horizon_fin"] not in ("", "EN_ATTENTE")]
+    tenue += [t for t in lire("claude_journal_trades.csv") if t.get("strategie") == "C5E10-QA-V1"]
+    ok = (c == 0 and "POSITION(S) SIGNALEE(S)" in o and "TOTALENERGIES (C5E10-OBS-V1)" in o and "aucune" in o
+          and signalee == [vraie] and len(tenue) == 1
+          and "positions_signalees=1" in sortie.split() and "horizon inconnu pour la strategie" not in o)
+    # (le calibrage affiche « pas de repli a 20 » : c'est l'INCIDENT du repli qui est cherché, mesuré le 13-11-2026)
+    res["V10d D-A : fiche modifiee sur place, position signalee laissee telle quelle, l'autre tenue, code 0, sortie du pas 1"] = [
+        ok, "code %d · signalee %s · tenue %s · sortie %r · %s" % (
+            c, signalee == [vraie], [t.get("horizon_fin") or t.get("motif") for t in tenue], sortie.strip(), o.strip()[-260:])]
+    # (f) LE PAS DE FIN DU CIRCUIT : il existe, il lit la sortie du pas du teneur, il rougit (exit 1), il tourne
+    # même après un pas rouge (always()) et il vient APRÈS tout pas sans always() (sinon un pas rouge le sauterait).
+    import yaml
+    jobs = yaml.safe_load(open(os.path.join(d, ".github", "workflows", "collecte_abc.yml"), encoding="utf-8"))["jobs"]
+    # chaque pas GARDE SON JOB (superviseur R-759 E1F N-1, 14-11-2026) : un continue-on-error posé sur le JOB
+    # neutralise ses pas aussi sûrement que sur le pas ; aplatir les jobs perdait cette information.
+    job_du_pas = [j for j in jobs.values() for x in j.get("steps", [])]
+    pas = [x for j in jobs.values() for x in j.get("steps", [])]
+    # PAR PROPRIÉTÉ, JAMAIS PAR L'ID ÉPELÉ (superviseur R-759 E1F phase 2, M-2) : le pas rouge est celui dont le `if`
+    # cite `positions_signalees` et dont le `run` fait `exit 1` ; l'id qu'il lit est extrait de `steps.<id>` de ce
+    # `if` ; un pas de CET id doit exister, le précéder, lancer TENIR_LES_POSITIONS.py (le seul à écrire
+    # `positions_signalees`, dans GITHUB_OUTPUT : TENIR_LES_POSITIONS.py, ligne `_ligne_du_pas`) et ne pas porter
+    # continue-on-error. Sur GitHub, `steps.<id absent>.outputs.x` vaut '' : le pas rouge ne tournerait jamais.
+    import re
+    rang = [k for k, x in enumerate(pas) if "positions_signalees" in str(x.get("if", ""))
+            and "exit 1" in str(x.get("run", ""))]
+    lus = set(re.findall(r"steps\.([A-Za-z0-9_-]+)\.outputs\.positions_signalees", str(pas[rang[0]].get("if", "")))) \
+        if len(rang) == 1 else set()
+    tenir = [k for k, x in enumerate(pas) if len(lus) == 1 and x.get("id") in lus]
+    sans_always = [k for k, x in enumerate(pas) if "always()" not in str(x.get("if", ""))]
+    # UNE PROPRIÉTÉ (superviseur R-759 E1F, N-1 + N-2, 14-11-2026) : le pas « Tenir » et le pas rouge ne peuvent être
+    # NI NEUTRALISÉS NI SAUTÉS — aucun continue-on-error, ni sur le pas ni sur son job ; sur « Tenir », aucun `if`
+    # sauf `always()` seul (« un if qui ne peut pas être faux » est indécidable : proscrit). Sur GitHub, un pas en
+    # continue-on-error qui fait `exit 1` laisse le passage VERT (relecture Cowork du 14-11-2026 à 02h39, N-1).
+    def _neutralise(k):
+        return bool(pas[k].get("continue-on-error")) or bool(job_du_pas[k].get("continue-on-error"))
+    def _if_de_tenir_permis(k):
+        brut = str(pas[k].get("if", "")).strip()
+        if brut.startswith("${{") and brut.endswith("}}"):
+            brut = brut[3:-2].strip()
+        return brut in ("", "always()")
+    ok = (len(rang) == 1 and "always()" in str(pas[rang[0]].get("if")) and rang[0] > max(sans_always)
+          and len(lus) == 1 and len(tenir) == 1 and tenir[0] < rang[0]
+          and not _neutralise(tenir[0]) and not _neutralise(rang[0]) and _if_de_tenir_permis(tenir[0])
+          and "programmes/TENIR_LES_POSITIONS.py" in str(pas[tenir[0]].get("run", "")))
+    res["V10f le pas de fin rougit sur une position signalee, apres tout pas sans always(), et lit l'id du pas Tenir"] = [
+        ok, "pas rouge %s · id lu %s · pas de cet id %s · dernier pas sans always() %s · neutralises (tenir, rouge) %s"
+        " · if de tenir %r"
+        % (rang, sorted(lus), tenir, max(sans_always) if sans_always else None,
+           (_neutralise(tenir[0]) if len(tenir) == 1 else None, _neutralise(rang[0]) if len(rang) == 1 else None),
+           pas[tenir[0]].get("if") if len(tenir) == 1 else None)]
+    ecrire(origine, {"seance": derniere, "signaux": []}, [vraie])
+    c, o = run(d, TEN, d)
+    ok = c == 0 and "POSITION(S) SIGNALEE(S)" not in o and "positions_signalees=0" in o
+    res["V10e temoin de V10d, fiche intacte : code 0, aucun signalement"] = [ok, "code %d · %s" % (c, o.strip()[-200:])]
     return res
 
 

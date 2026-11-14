@@ -60,7 +60,8 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   le 07-10-2026 ») : c'est lui seul qui valide, et toute autre mention — « à
   valider », « Jean-Luc : NON » — est refusée. Chaque
   valeur est lisible, sans doublon une fois normalisée ; objectif et stop entre 0
-  et 50 % ; durée entière. La fiche existe une seule fois au registre, et la
+  et 50 % ; durée entière ; depuis le 11-11-2026, le stop peut valoir « sans stop »
+  et la durée « aucune » (A-541, A-645), écrits tels quels dans la combinatoire. La fiche existe une seule fois au registre, et la
   colonne `valeur_fiche` dit la même chose qu'elle. Chaque ensemble de valeurs
   ne contient que des codes de l'univers de la fiche, connus du référentiel et
   non marqués hors univers. La valeur de la fiche figure parmi les valeurs à
@@ -157,12 +158,14 @@ def normaliser(parametre, texte):
     ⑤ SORTIE — DEUX valeurs quand la valeur est lisible : la clé de comparaison et
       le texte à écrire ; UNE seule, None, quand elle est illisible.
       [rend: 1 ou 2]
-    ⑥ TRAITEMENT — tp et sl : nombre de 0,01 à 50 en pourcents → fraction écrite
+    ⑥ TRAITEMENT — ⓪ sl « sans stop » → (COMMUN.STOP_AUCUN, « sans stop ») ; horizon « aucune » →
+      (COMMUN.HORIZON_AUCUNE, « aucune ») : depuis le 11-11-2026 (A-541, A-645) ·
+      tp et sl : nombre de 0,01 à 50 en pourcents → fraction écrite
       à six décimales au plus · horizon : entier ≥ 1 · univers : codes en majuscules,
       séparés par des virgules, sans doublon dans l'ensemble ; la clé de comparaison
       est la liste TRIÉE des codes, pour que « ENGI,TTE » et « TTE,ENGI » soient le
       même ensemble.
-    ⑦ UNITÉ — Entrée en pourcents ; sortie en fraction pour tp et sl.
+    ⑦ UNITÉ — Entrée en pourcents ; sortie en fraction pour tp et sl ; les deux mots restent des mots.
     ⑧ POURQUOI — Un doublon masqué par un espace ou un « .0 » fabriquait des
       versions identiques sous deux numéros (relevé à la relecture du 07-10-2026).
     ⑨ CE QUI CLOCHE — rien vu.
@@ -171,6 +174,13 @@ def normaliser(parametre, texte):
       [sort: non]
     """
     t = (texte or "").strip()
+    # LES DEUX MOTS DE LA VENTE RÉGLABLE (mission VENTE du 11-11-2026) : « sans stop » (A-541, décision de Jean-Luc du
+    # 19-10-2026 à 20h22) et « aucune » (durée, plan V7 bloc 4, A-645). Reconnus dans COMMUN (R-708), jamais écrits
+    # comme un grand nombre (A-541 ⑤) ; la clé de comparaison est la sentinelle, celle que rend `valeur_au_registre`.
+    if parametre == "sl" and COMMUN.est_le_mot_du_stop_aucun(t):
+        return COMMUN.STOP_AUCUN, COMMUN.MOT_DU_STOP_AUCUN
+    if parametre == "horizon" and COMMUN.lire_horizon_ou_aucune(t) is COMMUN.HORIZON_AUCUNE:
+        return COMMUN.HORIZON_AUCUNE, COMMUN.MOT_DE_L_HORIZON_AUCUNE
     if parametre in ("tp", "sl"):
         if not FORME_NOMBRE.match(t) or not PREPARER.POURCENT_MINIMUM <= float(t) <= PREPARER.POURCENT_MAXIMUM:
             return None
@@ -321,10 +331,11 @@ def valeur_au_registre(parametre, fiche):
     ③ ENTRÉE — `parametre` : tp, sl, horizon ou univers · `fiche` : la ligne du registre.
     ④ CONDITIONS D'ENTRÉE — Aucune.
     ⑤ SORTIE — UNE valeur : un nombre en pourcents (tp, sl), un entier (horizon), un
-      tuple TRIÉ de codes (univers), ou None si la fiche est illisible.
+      tuple TRIÉ de codes (univers), COMMUN.STOP_AUCUN (sl « sans stop »), COMMUN.HORIZON_AUCUNE
+      (horizon « aucune »), ou None si la fiche est illisible.
       [rend: 1]
-    ⑥ TRAITEMENT — tp et sl par `PREPARER.pourcents_de` ; horizon par
-      `COMMUN.lire_horizon` ; univers en majuscules, découpé aux virgules.
+    ⑥ TRAITEMENT — sl « sans stop » par `COMMUN.est_le_mot_du_stop_aucun` ; tp et sl par
+      `PREPARER.pourcents_de` ; horizon par `COMMUN.lire_horizon_ou_aucune` ; univers en majuscules, découpé aux virgules.
     ⑦ UNITÉ — Pourcents, séances, mnémoniques.
     ⑧ POURQUOI — Un tableau retouché à la main ne doit pas pouvoir prétendre que la
       fiche dit autre chose que ce qu'elle dit (relecture du 07-10-2026 : une
@@ -334,11 +345,14 @@ def valeur_au_registre(parametre, fiche):
     ⑪ TERMINAISON — Rend toujours la main.
       [sort: non]
     """
+    if parametre == "sl" and COMMUN.est_le_mot_du_stop_aucun(fiche.get(parametre)):
+        return COMMUN.STOP_AUCUN   # la clé que `normaliser` rend pour « sans stop » (11-11-2026)
     if parametre in ("tp", "sl"):
         v = PREPARER.pourcents_de(fiche.get(parametre))
         return None if v is None else round(v, 6)
     if parametre == "horizon":
-        return COMMUN.lire_horizon(fiche.get(parametre))
+        # « aucune » compris (11-11-2026, A-645) : HORIZON_AUCUNE, la clé que `normaliser` rend pour ce mot
+        return COMMUN.lire_horizon_ou_aucune(fiche.get(parametre))
     if parametre == "univers":
         return tuple(sorted(c.strip().upper() for c in (fiche.get("univers") or "").split(",") if c.strip()))
     return None

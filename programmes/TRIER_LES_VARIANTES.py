@@ -32,7 +32,9 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG, fonction ③ ;
   stratégie et qu'un essai, des identifiants uniques, et autant de lignes que sa colonne `versions_dans_l_essai` ·
   ③ tous les fichiers portent la même stratégie, des essais différents, et UNE seule valeur pour chacune des
   `COLONNES_COMMUNES_A_UN_TRI` du contrat (période, fin, barème, cours et leur empreinte, frontière 70/30) ·
-  ④ tout nombre est fini ; une version à zéro opération porte un gain « 0.00 » et une réussite vide ·
+  ④ tout nombre est fini ; une version à zéro opération porte un gain « 0.00 » et une réussite vide ; une version à
+  durée « aucune » porte VIDES, toutes ensemble, les quatre `CASES_DE_LA_PARTIE_DE_REGLAGE`, et une version à durée
+  chiffrée n'en laisse vide aucune (hors la réussite à zéro opération) ·
   ⑤ le critère du tri existe, au REGISTRE ou, à défaut, dans le fichier provisoire, marqué « À DÉCIDER PAR
   JEAN-LUC », et ne lit que les `COLONNES_DU_TRI` du contrat. Le moindre manquement arrête tout, sans rien écrire.
 ⑤ SORTIE — UNE valeur : le code de sortie, 0 quand le fichier trié est écrit (même vide de versions retenues :
@@ -61,7 +63,8 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG, fonction ③ ;
   à Jean-Luc, echanges/A_RELIRE_TRI.md). ② Une version dont la case lue par le critère est vide (zéro opération
   pour la réussite) est ÉCARTÉE et comptée à part comme « non mesurable » : le tri ne laisse pas passer ce qu'il ne
   peut pas mesurer ; ce choix est soumis à Jean-Luc ; une version sans opération dans la partie de réglage est
-  toujours écartée (D2). ③ Le critère ne lit que les colonnes de la partie de réglage :
+  toujours écartée (D2) ; une version à durée « aucune » aussi, sa raison écrite au bilan, tant que l'embargo sans
+  durée maximale n'est pas tranché (phase 2 d'E1F, M-1) — ses quatre cases de réglage doivent être vides ENSEMBLE. ③ Le critère ne lit que les colonnes de la partie de réglage :
   un critère qui demanderait un calcul (gain moyen par opération, point mort) n'est pas possible sans une colonne
   de plus. ④ Le fichier trié garde l'ordre des fichiers lus : classer est le travail du bloc 5m ④.
 ⑩ EFFET — Écrit le fichier trié, via un fichier provisoire `.en_cours` effacé en cas d'échec s'il a été créé par ce
@@ -99,6 +102,12 @@ FORME_D_UNE_DECISION = r"^DÉCIDÉ PAR JEAN-LUC LE \d{2}-\d{2}-\d{4} À \d{2}h\d
 COMPARAISONS = {">": lambda a, b: a > b, ">=": lambda a, b: a >= b,
                 "<": lambda a, b: a < b, "<=": lambda a, b: a <= b}
 AJOUTS = ["variantes_essayees", "essais_comptes", "critere_du_tri", "statut_du_critere"]
+# Les quatre cases de la partie de réglage que JOUER laisse vides, toutes ensemble, pour une durée « aucune ».
+CASES_DE_LA_PARTIE_DE_REGLAGE = ("operations_70", "gain_net_euros_70", "reussite_pourcents_exacte_70", "embargo_seances")
+# Les raisons d'une version non mesurable, écrites au bilan (relecteur neuf E1F phase 2, m-3).
+RAISON_AUCUNE = "durée « aucune » : embargo non tranché"
+RAISON_ZERO = "zéro opération dans la partie de réglage"
+RAISON_CASE_VIDE = "case lue par le critère vide"
 
 
 def nombre(texte):
@@ -267,7 +276,11 @@ def lire_les_resultats(chemin, contrat):
       réglage, est refusé) · ② exiger au moins une ligne, une seule stratégie, un seul essai, des identifiants
       uniques, et `versions_dans_l_essai` égal au nombre de lignes · ③ pour la période entière ET pour la partie de
       réglage : un nombre entier positif ou nul d'opérations, un gain fini, et, à zéro opération, un gain nul et une
-      réussite vide ; ailleurs une réussite finie.
+      réussite vide ; ailleurs une réussite finie · ④ durée « aucune » (lue par `COMMUN.lire_horizon_ou_aucune`) :
+      les quatre cases de la partie de réglage vides ENSEMBLE, sinon ARRÊT (toutes remplies, ou en partie) ; durée
+      chiffrée : `operations_70`, `gain_net_euros_70` et `embargo_seances` jamais vides, sinon ARRÊT, et
+      `embargo_seances` un entier ≥ 0 (lu par isdigit, comme les opérations), sinon ARRÊT ; la partie de
+      réglage d'une version « aucune » n'est pas lue plus avant (superviseur R-759 E1F phase 2, M-1).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Le nombre de versions essayées est la moitié du travail du tri (A-541) : un fichier tronqué
       le fausserait sans bruit. JOUER annonce le nombre de versions de l'essai sur chaque ligne ; il est relu ici.
@@ -295,8 +308,31 @@ def lire_les_resultats(chemin, contrat):
     annonces = {l["versions_dans_l_essai"] for l in lignes}
     if annonces != {str(len(lignes))}:
         raise ValueError("%s : annonce %s versions et en porte %d" % (nom, sorted(annonces), len(lignes)))
+    import COMMUN   # chargé depuis la racine, comme le contrat (`lire_le_critere` a placé `programmes/` en tête)
     for l in lignes:
-        for suffixe in ("", "_70"):
+        # LA PARTIE DE RÉGLAGE D'UNE DURÉE « AUCUNE » EST VIDE, ET TOUTE VIDE (superviseur R-759 E1F phase 2, M-1) :
+        # JOUER laisse vides les quatre cases tant que Jean-Luc n'a pas tranché l'embargo sans durée maximale. La
+        # durée se lit par le lecteur de JOUER (`lire_horizon_ou_aucune`), jamais par une comparaison de texte.
+        aucune = COMMUN.lire_horizon_ou_aucune(l["horizon"]) is COMMUN.HORIZON_AUCUNE
+        remplies = [c for c in CASES_DE_LA_PARTIE_DE_REGLAGE if (l[c] or "").strip()]
+        if aucune and len(remplies) == len(CASES_DE_LA_PARTIE_DE_REGLAGE):
+            raise ValueError("%s : %s, durée « aucune » avec une partie de réglage chiffrée (%s) : l'embargo sans durée "
+                             "maximale n'est pas tranché, aucun programme ne doit l'avoir écrite"
+                             % (nom, l["id_version"], ", ".join(remplies)))
+        if aucune and remplies:
+            raise ValueError("%s : %s, durée « aucune » dont les cases de la partie de réglage sont vides en partie "
+                             "seulement (remplies : %s) : vides toutes ensemble, ou c'est un défaut d'écriture"
+                             % (nom, l["id_version"], ", ".join(remplies)))
+        vides = [c for c in ("operations_70", "gain_net_euros_70", "embargo_seances") if not (l[c] or "").strip()]
+        if not aucune and vides:
+            raise ValueError("%s : %s, case(s) vide(s) %s sur une version à durée chiffrée : seule une durée « aucune » "
+                             "laisse la partie de réglage vide" % (nom, l["id_version"], ", ".join(vides)))
+        # L'EMBARGO D'UNE VERSION CHIFFRÉE EST UN NOMBRE DE SÉANCES, ENTIER ≥ 0 (relecture Cowork du 14-11-2026, N-4 ;
+        # superviseur R-759 E1F) : lu comme les opérations (isdigit), sinon le fichier trié recopierait « abc ».
+        if not aucune and not l["embargo_seances"].strip().isdigit():
+            raise ValueError("%s : %s, embargo_seances illisible « %s » sur une version à durée chiffrée : un nombre "
+                             "entier de séances, positif ou nul, est attendu" % (nom, l["id_version"], l["embargo_seances"]))
+        for suffixe in (("",) if aucune else ("", "_70")):
             ops = l["operations" + suffixe].strip()
             if not ops.isdigit():
                 raise ValueError("%s : %s, nombre d'opérations%s illisible « %s »" % (nom, l["id_version"], suffixe, ops))
@@ -321,10 +357,14 @@ def passe_le_critere(ligne, conditions):
     ② CONTEXTE D'APPEL — `main`, une fois par version ; les épreuves du tri.
     ③ ENTRÉE — `ligne` : une version · `conditions` : la liste rendue par `lire_le_critere`.
     ④ CONDITIONS D'ENTRÉE — La ligne a passé `lire_les_resultats`.
-    ⑤ SORTIE — DEUX valeurs : vrai si TOUTES les conditions sont passées ; vrai si une case lue était vide (la
-      version est alors « non mesurable » et ne passe pas).
-      [rend: 2]
-    ⑥ TRAITEMENT — ① zéro opération dans la partie de réglage → non mesurable, ne passe JAMAIS, quel que soit le
+    ⑤ SORTIE — TROIS valeurs : vrai si TOUTES les conditions sont passées ; vrai si la version est « non
+      mesurable » (elle ne passe pas) ; la RAISON, en texte (RAISON_AUCUNE, RAISON_ZERO ou RAISON_CASE_VIDE), vide
+      quand la version est mesurable.
+      [rend: 3]
+    ⑥ TRAITEMENT — ⓪ durée « aucune » (lue par `COMMUN.lire_horizon_ou_aucune`) → non mesurable, RAISON_AUCUNE,
+      AVANT toute condition : sa partie de réglage n'existe pas tant que l'embargo n'est pas tranché (superviseur
+      R-759 E1F phase 2, M-1 : ne pas compter sur une case vide, une condition sur une autre colonne passerait) ·
+      ① zéro opération dans la partie de réglage → non mesurable, ne passe JAMAIS, quel que soit le
       critère (relecteur neuf du 11-11-2026, D2 : « gain_net_euros >= 0 » retenait une version sans opération) ·
       ② pour chaque condition : lire la case ; vide → non mesurable, ne passe pas ; sinon comparer.
     ⑦ UNITÉ — Celle de chaque colonne.
@@ -335,9 +375,12 @@ def passe_le_critere(ligne, conditions):
     ⑪ TERMINAISON — Rend toujours la main.
       [sort: non]
     """
+    import COMMUN
+    if COMMUN.lire_horizon_ou_aucune(ligne.get("horizon")) is COMMUN.HORIZON_AUCUNE:
+        return False, True, RAISON_AUCUNE
     ops70 = (ligne.get("operations_70") or "").strip()
     if ops70.isdigit() and int(ops70) == 0:      # le NOMBRE, pas le texte : « 00 » est zéro (relecteur, tour 2, N4)
-        return False, True
+        return False, True, RAISON_ZERO
     passe, non_mesurable = True, False
     for col, comp, val in conditions:
         x = nombre(ligne.get(col))
@@ -345,7 +388,7 @@ def passe_le_critere(ligne, conditions):
             passe, non_mesurable = False, True
         elif not COMPARAISONS[comp](x, val):
             passe = False
-    return passe, non_mesurable
+    return passe, non_mesurable, (RAISON_CASE_VIDE if non_mesurable else "")
 
 
 def texte_du_critere(conditions):
@@ -380,7 +423,10 @@ def empreinte_des_reglages(ligne, jouer):
     ⑤ SORTIE — UNE valeur : seize caractères hexadécimaux.
       [rend: 1]
     ⑥ TRAITEMENT — Pour chaque réglage de `jouer.REGLAGES` : l'univers découpé et trié par `jouer.codes`, l'horizon
-      en entier, les autres en nombre ; joindre, hacher (SHA-256), garder seize caractères.
+      par `COMMUN.lire_horizon_ou_aucune` (un entier, ou le mot « aucune »), un stop « sans stop » par
+      `COMMUN.est_le_mot_du_stop_aucun` (le mot), les autres en nombre ; joindre, hacher (SHA-256), garder seize
+      caractères. (Phase 2 d'E1F : `int("aucune")` et `nombre("sans stop")` arrêtaient le tri sur les versions que
+      JOUER écrit depuis le 11-11-2026 — trouvé en rejouant W13 jusqu'au tri.)
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Le nombre de versions essayées relève la barre du jugement : compter deux fois la même version la
       relève à tort (sonde D2 du relecteur : une combinatoire recopiée sous E09 faisait passer le compte de 4 à 8).
@@ -392,12 +438,18 @@ def empreinte_des_reglages(ligne, jouer):
     ⑪ TERMINAISON — Rend la main ; lève ValueError sur un réglage illisible.
       [sort: non]
     """
+    import COMMUN
     morceaux = []
     for k in jouer.REGLAGES:
         if k == "univers":
             morceaux.append(",".join(jouer.codes(ligne[k])))
         elif k == "horizon":
-            morceaux.append(str(int(ligne[k])))
+            h = COMMUN.lire_horizon_ou_aucune(ligne[k])
+            if h is None:
+                raise ValueError("%s : réglage horizon illisible « %s »" % (ligne.get("id_version"), ligne[k]))
+            morceaux.append(str(h))
+        elif k == "sl" and COMMUN.est_le_mot_du_stop_aucun(ligne[k]):
+            morceaux.append(COMMUN.MOT_DU_STOP_AUCUN)
         else:
             x = nombre(ligne[k])
             if x is None:
@@ -406,8 +458,12 @@ def empreinte_des_reglages(ligne, jouer):
     return hashlib.sha256("|".join(morceaux).encode("utf-8")).hexdigest()[:16]
 
 
+# Les chiffres que deux versions de mêmes réglages doivent porter à l'identique pour n'être comptées qu'une fois. Les
+# deux colonnes « à part » (positions encore ouvertes à la fin des cours) en sont depuis la phase 2 d'E1F (relecteur
+# neuf, m-1) : deux jeux qui ne mettent pas à part les mêmes positions ne sont pas le même jeu.
 CHIFFRES_D_UNE_VERSION = ("operations", "reussite_pourcents_exacte", "gain_net_euros", "operations_70",
-                          "reussite_pourcents_exacte_70", "gain_net_euros_70")
+                          "reussite_pourcents_exacte_70", "gain_net_euros_70",
+                          "operations_a_part_fin_des_donnees", "gain_net_euros_a_part_fin_des_donnees")
 
 
 def frontiere_attendue(racine, ligne):
@@ -566,13 +622,15 @@ def main():
     if doublons:
         print("  %d version(s) en double (mêmes réglages sous un autre essai ou identifiant) : comptée(s) une fois"
               % doublons)
-    gardees, non_mesurables, zero = [], 0, 0
+    gardees, non_mesurables, raisons = [], 0, {}
     for l in uniques:
-        passe, nm = passe_le_critere(l, conditions)
+        passe, nm, raison = passe_le_critere(l, conditions)
         non_mesurables += nm
-        zero += int(l["operations_70"]) == 0
+        if raison:
+            raisons[raison] = raisons.get(raison, 0) + 1
         if passe:
             gardees.append(l)
+    zero = raisons.get(RAISON_ZERO, 0)
     champs = list(contrat.RESULTATS_DES_VERSIONS) + AJOUTS
     provisoire = f_out + ".en_cours"
     cree = False
@@ -594,6 +652,8 @@ def main():
           " · versions sans opération dans la partie de réglage : %d"
           % (essayees, strategies.pop(), "+".join(essais), len(gardees), essayees - len(gardees), non_mesurables,
              zero))
+    for raison, n in sorted(raisons.items()):
+        print("  NON MESURABLE — %s : %d version(s)" % (raison, n))
     print("ÉCRIT : %s" % f_out)
     return 0
 

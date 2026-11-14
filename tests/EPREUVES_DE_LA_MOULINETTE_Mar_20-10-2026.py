@@ -283,10 +283,12 @@ def cas_preparer(racine):
     for nom, champ, valeur, fragment in (
             ("pas illisible", "pas", "abc", "règle de voisinage illisible"),
             ("pas négatif", "pas", "-1", "règle de voisinage invalide")):
-        lignes = [dict(l, **({champ: valeur} if l["parametre"] == "sl" else {})) for l in vois]
+        # RECALÉ LE 11-11-2026 (mission VENTE) sur la ligne de l'OBJECTIF, même intention : la ligne du stop porte
+        # désormais une `liste` (A-541, grille du 19-10-2026), qui remplace son pas ; un pas abîmé n'y est plus lu.
+        lignes = [dict(l, **({champ: valeur} if l["parametre"] == "tp" else {})) for l in vois]
         f = ecrire(os.path.join(dossier(), "VOISINAGE.csv"), col, lignes)
         c, s = lancer(racine, P_PREP, os.path.join(racine, REGISTRE), SID, f, "E99", dossier())
-        attendre("PREPARER, voisinage du stop au %s : code 1" % nom, c, s, 1, "REFUS : " + fragment)
+        attendre("PREPARER, voisinage de l'objectif au %s : code 1" % nom, c, s, 1, "REFUS : " + fragment)
     lignes = [dict(l, **({"pas": "cinq"} if l["parametre"] == "horizon" else {})) for l in vois]
     f = ecrire(os.path.join(dossier(), "VOISINAGE.csv"), col, lignes)
     c, s = lancer(racine, P_PREP, os.path.join(racine, REGISTRE), SID, f, "E99", dossier())

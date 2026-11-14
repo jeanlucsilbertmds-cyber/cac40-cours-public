@@ -408,6 +408,15 @@ jobs:
             exit 1
           fi
 
+      - name: Rougir si une position a ete signalee
+        id: rougir_si_une_position_a_ete_signalee
+        if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (always() && steps.tenir_les_positions.outputs.positions_signalees != '' && steps.tenir_les_positions.outputs.positions_signalees != '0') }}
+        env:
+          SIGNALEES: ${{ steps.tenir_les_positions.outputs.positions_signalees }}
+        run: |
+          echo "::error::$SIGNALEES POSITION(S) SIGNALEE(S) CE SOIR — fiche modifiee sur place pendant une position ouverte, position laissee telle quelle ; lire la sortie du pas « Tenir les positions » (decision de Jean-Luc : remettre la fiche, ou ouvrir une nouvelle strategie)"
+          exit 1
+
       - name: Dire quels pas non bloquants sont tombes
         id: dire_quels_pas_non_bloquants_sont_tomb
         if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (always()) }}

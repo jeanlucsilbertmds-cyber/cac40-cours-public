@@ -1052,7 +1052,8 @@ def _juger_une(base, banc, stat, ident):
       manque · ⑥ lire le référentiel des valeurs pour associer chaque
       mnémonique au nom employé dans les cours · ⑦ lire le signal que la fiche nomme
       par `signal_de_la_fiche` du juge, et rendre 2 avec son motif s'il est refusé
-      (A-542, 30-10-2026) · ⑧ faire jouer la stratégie avec CE signal et récupérer
+      (A-542, 30-10-2026) · ⑧ refuser une fiche « sans stop » par MOTIF_SANS_STOP_NON_JUGEABLE avant de la jouer
+      (12-11-2026) ; faire jouer la stratégie avec CE signal et récupérer
       ses opérations, en rendant 0 si le juge des stratégies échoue · ⑨ afficher le nombre
       d'opérations et les mnémoniques inconnus · ⑩ demander les mesures · ⑪ les
       afficher une par ligne, un tiret pour celles qui manquent · ⑫ afficher le nom
@@ -1204,6 +1205,11 @@ def _juger_une(base, banc, stat, ident):
     except ValueError as e:
         print(f"CODE 2 — {e}"); return 2
     try:
+        # SANS STOP, PAS DE MESURE, ET LE REFUS SE NOMME AVANT DE JOUER (défaut D3 de la mission VENTE, 12-11-2026) :
+        # `banc.jouer` accepte « sans stop » (laboratoire), la lecture stricte `_seuils` ne venait qu'après 67 opérations
+        # jouées pour rien, par une trace d'erreur. Même motif que `juger` (MOTIF_SANS_STOP_NON_JUGEABLE, A-541 ④).
+        if banc.seuil_de_la_fiche_ou_aucun(fiche, "sl") is banc.STOP_AUCUN:
+            raise ValueError(banc.MOTIF_SANS_STOP_NON_JUGEABLE)
         # REGARD UNIQUE (R-505 ③, mission REGARD du 12-11-2026) : ce juge ne passe JAMAIS de reçu — il refuse toujours
         # une séance de la fenêtre (`JUGE_DES_STRATEGIES._garde_du_regard_unique` lève RegardNonInscrit).
         ops, inconnus = banc.jouer(fiche, cours, mnemo, mod_sig, mod_pos)

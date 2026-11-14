@@ -46,9 +46,12 @@ table des seuils qui tranchent.
   `JUGER_SUR_8_CRITERES.py`, fonction `mesures_disponibles`.
   ⑤ `calculer_kelly_fractionnel` — la part du capital à engager. Appelée par
   `JUGER_SUR_8_CRITERES.py`, fonction `mesures_disponibles`.
-  ⑥ `calculer_stabilite_parametrique` — le réglage tient-il à ±10 %. Appelée par
-  `JUGE_DES_STRATEGIES.py`, fonction `juger`, et par `JUGER_SUR_8_CRITERES.py`, fonction
-  `mesures_disponibles`.
+  ⑥ `calculer_stabilite_parametrique` — le réglage tient-il à ±10 %, tiré au hasard. Le juge ne
+  l'appelle plus depuis le 11-11-2026 ; reste `JUGER_SUR_8_CRITERES.py`, fonction
+  `mesures_disponibles` (appel qui n'a jamais lieu, voir sa fiche).
+  ⑥bis `calculer_voisinage_sur_grille` — le drapeau « voisinage » de R-505 ⑩ sur des voisins DONNÉS, à
+  ±10 % de chaque réglage par pas réguliers (`COMMUN.grille_du_voisinage`) : tous doivent gagner. Appelée par
+  `JUGE_DES_STRATEGIES.py`, fonction `juger`, depuis le 11-11-2026 (critère de R-505 ⑩ depuis le 12-11-2026).
   ⑦ `calculer_walk_forward` — la stratégie tient-elle sur des tranches de temps
   successives. APPELÉE PAR PERSONNE.
   ⑧ `calculer_sharpe_ratio` — le gain moyen rapporté à sa dispersion. Appelée
@@ -1307,16 +1310,20 @@ def calculer_stabilite_parametrique(fonction_backtest, params_base: dict,
       ±10 % au hasard, demande à son appelant de rejouer la stratégie avec chacun, et
       compare les gains obtenus. Elle donne ainsi au sixième critère de la grille son
       seul chiffre.
-    ② CONTEXTE D'APPEL — Deux appelants. ① `programmes/JUGE_DES_STRATEGIES.py`, fonction `juger`,
-      qui en tire la ligne « VOISINAGE » de son rapport et les mots COLLINE ou
-      AIGUILLE, et qui lui passe l'objectif de gain, la perte acceptée et l'horizon,
+    ② CONTEXTE D'APPEL — DEPUIS LE 11-11-2026, LE JUGE NE L'APPELLE PLUS : `programmes/JUGE_DES_STRATEGIES.py`,
+      fonction `juger`, appelle `calculer_voisinage_sur_grille`, plus bas, sur des voisins par pas
+      réguliers (décision de Jean-Luc du 11-11-2026 à 19h08, plan V7 bloc 5l ⑥ :
+      plus jamais de voisins tirés au hasard). Elle est GARDÉE, pas supprimée (rien ne se supprime
+      sans accord de Jean-Luc). Avant cette date, deux appelants. ① `programmes/JUGE_DES_STRATEGIES.py`, fonction `juger`,
+      qui en tirait la ligne « VOISINAGE » de son rapport et les mots COLLINE ou
+      AIGUILLE, et qui lui passait l'objectif de gain, la perte acceptée et l'horizon,
       avec cinq variations. ② `programmes/JUGER_SUR_8_CRITERES.py`, fonction `mesures_disponibles`, qui
       lui passe l'objectif de gain et la perte acceptée seulement, avec quatre
       variations, et n'en retient que la case `stable`. CE SECOND APPEL N'A JAMAIS
       LIEU : ce programme n'appelle cette fonction que si une façon de rejouer lui a
       été fournie, et mesuré le 19-09-2026, ses deux seules lignes d'appel à la
       fonction qui la transmet — lignes 474 et 1208 — passent une valeur VIDE à cette
-      place. Le seul appel réel est donc celui de `JUGE_DES_STRATEGIES.py`.
+      place. Le seul appel réel était donc celui de `JUGE_DES_STRATEGIES.py`, retiré le 11-11-2026.
     ③ ENTRÉE — `fonction_backtest` : une façon de rejouer la stratégie, fournie par
       l'appelant ; elle reçoit un jeu de réglages et rend un tableau portant le gain
       sous le nom `net_a` ou `net`. `params_base` : les réglages d'origine, par
@@ -1493,6 +1500,115 @@ def calculer_stabilite_parametrique(fonction_backtest, params_base: dict,
         'ecart_relatif': round(ecart_relatif, 3),
         'stable': ecart_relatif < 0.5 and net_min > 0,
         'n_variations': len(nets) - 1,
+    }
+
+
+def calculer_voisinage_sur_grille(fonction_backtest, params_base, jeux_voisins, gain_net_de_chaque_voisin_doit_depasser,
+                                  inscrire=None):
+    """Rejoue la stratégie sur des réglages voisins DONNÉS, et dit si le drapeau « voisinage » de R-505 ⑩ se lève.
+
+    ① RÔLE — Pour le juge : rejouer les voisins qu'on lui DONNE (la fonction n'en choisit AUCUN), compter chaque
+      rejeu comme un essai, et appliquer le critère de R-505 ⑩ : tous les voisins doivent gagner. PASSE si chacun
+      dépasse le gain reçu ; sinon DRAPEAU, avec la liste des voisins perdants. Le drapeau ne décide rien : il arrête
+      la stratégie et la soumet à Jean-Luc (forçage tracé ou archive, R-505 ⑩).
+    ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py`, fonction `juger`, une fois par fiche
+      jugée ; `tests/EPREUVES_DU_VOISINAGE_SUR_GRILLE_Mer_11-11-2026.py`.
+    ③ ENTRÉE — `fonction_backtest` : rejoue la stratégie avec un jeu de réglages et rend un
+      dictionnaire portant `net` · `params_base` : les réglages de la fiche · `jeux_voisins` : la
+      liste des jeux voisins, centre exclu (rendue par `grille_du_voisinage` de `programmes/COMMUN.py`, convertie
+      dans les unités de `fonction_backtest`) · `gain_net_de_chaque_voisin_doit_depasser` : le gain, frais payés,
+      que CHAQUE voisin doit dépasser strictement, lu dans `donnees/combinatoires/VOISINAGE_DU_JUGE.csv` (0 :
+      « doivent tous gagner », R-505 ⑩) · `inscrire` : une fonction appelée AVANT chaque rejeu d'un voisin avec son
+      jeu de réglages, pour l'inscrire au registre des essais (BACKLOG A-226), ou None tant que ce registre
+      n'existe pas.
+    ④ CONDITIONS D'ENTRÉE — `fonction_backtest` appelable ; chaque rendu porte `net`, nombre fini ;
+      `jeux_voisins` est une liste. Sinon : l'erreur de l'appel ou KeyError / ValueError.
+    ⑤ SORTIE — UNE valeur : un dictionnaire de douze clés — `verdict` (« PASSE », « DRAPEAU », ou None quand aucun
+      voisin n'est donné), `motif_non_mesure` (la raison de ce None, vide sinon), `perdants` (les {"params", "net"}
+      des voisins qui ne dépassent pas le gain reçu, dans l'ordre reçu), `net_base` (le centre), `net_min_voisins`,
+      `net_max_voisins` (None sans voisin), `net_moyen` (centre et voisins), en euros arrondis à l'unité,
+      `ecart_relatif` (INFORMATION seulement, ne décide rien : étendue ÷ |moyenne|, centre compris, arrondi au
+      millième ; None sans voisin ou quand la moyenne est nulle), `n_voisins` (rejeux de voisins aboutis),
+      `essais_inscrits`, `essais_non_inscrits`, et `voisins` : la liste des {"params", "net"} de chaque voisin.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① rejouer le centre · ② pour chaque voisin, l'inscrire si `inscrire` est donné,
+      puis le rejouer ; une erreur n'est PAS rattrapée · ③ perdants = les voisins dont le gain n'est pas
+      strictement au-dessus du gain reçu ; le centre n'y entre pas (R-505 ⑩ parle des voisins) · ④ sans voisin :
+      verdict None et son motif ; sinon PASSE s'il n'y a aucun perdant, DRAPEAU sinon · ⑤ l'écart relatif, pour
+      information.
+    ⑦ UNITÉ — Gains en EUROS ; écart relatif sans unité ; essais en NOMBRE DE REJEUX.
+    ⑧ POURQUOI — Le critère est celui du REGISTRE, R-505 ⑩ [CHOIX DÉLÉGUÉ DÉL-D13, DÉL-D36] : « les 26 voisins à
+      ±10 % de chaque réglage doivent tous gagner » ; « leurs seuils n'ont pas de fondement publié, d'où un drapeau
+      et non un arrêt automatique ». Le seuil d'écart relatif de 0,5 des tours 1 et 2 venait de l'ancien code et
+      d'une proposition du Chat du 16-08-2026 (BACKLOG A-220, point ouvert 2), jamais décidée : il ne juge plus
+      (vérifié au REGISTRE par le Chat le 12-11-2026 à 09h12, BACKLOG A-708). Décision de Jean-Luc du 11-11-2026 à
+      19h08 : le voisinage « doit être fait systématiquement par programme », jamais au hasard. Chaque voisin joué
+      est un essai et doit être compté (A-226) : sans registre, le nombre d'essais non inscrits est rendu pour être
+      dit.
+    ⑨ CE QUI CLOCHE — ① Tant que le registre des essais n'existe pas au dépôt (programme
+      TENIR_LE_REGISTRE_DES_ESSAIS du lot L4, clos sur copie, non fusionné), `inscrire` vaut None et
+      aucun essai n'est inscrit. ② `inscrire` est appelé avant le rejeu : un rejeu qui lève après
+      une inscription laisse un essai inscrit sans résultat — c'est voulu (« même une expérience
+      sans résultat est enregistrée », A-226). ③ « Gagner » est lu « gain net, frais et taxe payés tels que le rejeu
+      les compte, strictement au-dessus de 0 € » : un voisin à 0 € exactement est perdant ; R-505 ⑩ ne précise pas
+      l'égalité.
+    ⑩ EFFET — Ne lit ni n'écrit aucun fichier. Fait rejouer la stratégie autant de fois que de
+      voisins plus une, et appelle `inscrire` une fois par voisin : leurs effets échappent à cette
+      fonction.
+    ⑪ TERMINAISON — Rend la main, ou lève l'erreur d'un rejeu ou de `inscrire`, que l'appelant
+      rattrape. Un rejeu peut ne pas revenir : son temps n'est pas borné ici.
+      [sort: non]
+    """
+    def _net(res):
+        """Rend le gain d'un rejeu, en refusant ce qui n'est pas un nombre fini.
+
+        ① RÔLE — Lire le gain sous son seul nom, `net`.
+        ② CONTEXTE D'APPEL — `calculer_voisinage_sur_grille`, une fois par rejeu.
+        ③ ENTRÉE — `res` : le dictionnaire rendu par la façon de rejouer.
+        ④ CONDITIONS D'ENTRÉE — `res` porte `net` ; sinon KeyError.
+        ⑤ SORTIE — UNE valeur : le gain, nombre fini.
+          [rend: 1]
+        ⑥ TRAITEMENT — ① convertir en nombre · ② refuser NaN et l'infini.
+        ⑦ UNITÉ — Euros.
+        ⑧ POURQUOI — L'ancienne fonction cherchait deux noms (`net_a`, mort, puis `net`) et rendait 0 à défaut.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main, ou lève KeyError, TypeError ou ValueError.
+          [sort: non]
+        """
+        x = float(res["net"])
+        if x != x or abs(x) == float("inf"):
+            raise ValueError("gain non fini rendu par le rejeu : %r" % (res["net"],))
+        return x
+
+    net_base = _net(fonction_backtest(dict(params_base)))
+    details, inscrits = [], 0
+    for jeu in list(jeux_voisins):
+        if inscrire is not None:
+            inscrire(dict(jeu))
+            inscrits += 1
+        net = _net(fonction_backtest(dict(jeu)))
+        details.append({"params": dict(jeu), "net": net})
+    perdants = [d for d in details if not d["net"] > gain_net_de_chaque_voisin_doit_depasser]
+    nets = [net_base] + [d["net"] for d in details]
+    net_moyen = sum(nets) / len(nets)
+    verdict, motif, ecart_relatif = None, "", None
+    if not details:
+        motif = "aucun voisin donne"
+    else:
+        verdict = "PASSE" if not perdants else "DRAPEAU"
+    if details and net_moyen != 0:
+        # Un gain moyen nul rend l'écart relatif indéfini : l'écrire 0 le ferait paraître parfait (relecteur du
+        # 11-11-2026, D3). Depuis le 12-11-2026 l'écart ne décide plus rien ; il reste affiché.
+        ecart_relatif = round((max(nets) - min(nets)) / abs(net_moyen), 3)
+    return {
+        "verdict": verdict, "motif_non_mesure": motif, "perdants": perdants,
+        "net_base": round(net_base, 0),
+        "net_min_voisins": round(min(d["net"] for d in details), 0) if details else None,
+        "net_max_voisins": round(max(d["net"] for d in details), 0) if details else None,
+        "net_moyen": round(net_moyen, 0), "ecart_relatif": ecart_relatif,
+        "n_voisins": len(details), "essais_inscrits": inscrits, "essais_non_inscrits": len(details) - inscrits,
+        "voisins": details,
     }
 
 
