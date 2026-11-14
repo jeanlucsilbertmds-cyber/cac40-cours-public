@@ -133,7 +133,9 @@ SABOTAGES = {
                                              '            return "INCONNU"')],
 }
 
-HYP = {"tp_pct": 4.0, "sl_pct": 2.5, "horizon": 20, "univers": ["AC"], "signal": ["f", "0123"],
+# L'HYPOTHÈSE PORTE L'EMPREINTE DES RÉGLAGES, plus la période et le barème (CARNET partie 1, 14-11-2026) : une
+# empreinte fabriquée « 0…04 » tient lieu du jeu de réglages ; « 0…05 », « 0…06 »… sont d'autres jeux.
+HYP = {"empreinte_des_reglages": "0000000000000004",
        "periode": "2030-01-01..2030-12-31", "bareme": "Fortuneo"}
 EXAMEN = "2000-01-03..2023-12-29"
 
@@ -314,10 +316,10 @@ def cas(copie, racine):
            T.lignee_de_la_fiche(d, "C5")[0] == ["C5", "V9"], repr(T.lignee_de_la_fiche(d, "C5")))
         h = T.empreinte_de_l_hypothese(dict(HYP, periode="2030-01-01..2030-02-28"))
         T.preenregistrer(d, "BALAYAGE", dict(HYP, periode="2030-01-01..2030-02-28"))
-        T.preenregistrer(d, "B-V3", dict(HYP, periode="2030-01-01..2030-02-28", tp_pct=5.0), mere=h)
+        T.preenregistrer(d, "B-V3", dict(HYP, periode="2030-01-01..2030-02-28", empreinte_des_reglages="0000000000000005"), mere=h)
         ok("G3 lien du registre (case « mere ») : B-V3 et BALAYAGE sont d'une même lignée",
            T.lignee_de_la_fiche(d, "B-V3")[0] == ["B-V3", "BALAYAGE"], repr(T.lignee_de_la_fiche(d, "B-V3")))
-        T.preenregistrer(d, "ORPHELINE", dict(HYP, tp_pct=6.0), mere="ffffffffffffffff")
+        T.preenregistrer(d, "ORPHELINE", dict(HYP, empreinte_des_reglages="0000000000000006"), mere="ffffffffffffffff")
         fam, _l, r = T.lignee_de_la_fiche(d, "SANS")
         ok("G4 une « mere » introuvable rend toute lignée inconnue", fam is None and "introuvable" in r, repr((fam, r)))
         d2 = os.path.join(d, "deux")
@@ -388,13 +390,13 @@ def cas(copie, racine):
         poser_racine(d, C, declarations=decl_famille)
         T.preenregistrer(d, "FILLE1", HYP)
         T.preenregistrer(d, "FILLE1", HYP)                       # le même essai refait
-        T.preenregistrer(d, "FILLE2", dict(HYP, tp_pct=5.0))
-        T.preenregistrer(d, "MERE", dict(HYP, tp_pct=6.0))
-        T.preenregistrer(d, "SANS", dict(HYP, tp_pct=7.0))
+        T.preenregistrer(d, "FILLE2", dict(HYP, empreinte_des_reglages="0000000000000005"))
+        T.preenregistrer(d, "MERE", dict(HYP, empreinte_des_reglages="0000000000000006"))
+        T.preenregistrer(d, "SANS", dict(HYP, empreinte_des_reglages="0000000000000007"))
         ok("E1 essais de la fiche FILLE1 : 1 ; de sa lignée : 3 ; du registre : 4",
            T.nombre_d_essais(d, fiche_id="FILLE1") == (1, "") and T.nombre_d_essais(d, lignee_de="FILLE1") == (3, "")
            and T.nombre_d_essais(d) == (4, ""), repr(T.nombre_d_essais(d, lignee_de="FILLE1")))
-        T.preenregistrer(d, "ORPHELINE", dict(HYP, tp_pct=8.0), mere="ffffffffffffffff")
+        T.preenregistrer(d, "ORPHELINE", dict(HYP, empreinte_des_reglages="0000000000000008"), mere="ffffffffffffffff")
         n, r = T.nombre_d_essais(d, lignee_de="FILLE1")
         ok("E2 lignée inconnue : nombre d'essais de la lignée INCONNU", n == "INCONNU", r)
     essai("E", e)

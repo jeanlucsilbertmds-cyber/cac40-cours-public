@@ -85,7 +85,6 @@ SABOTAGES = {
     "S29_regard_sans_chevauchement": [(ESSAIS, "if p[0] <= examen[1] and examen[0] <= p[1]:", "if False:")],
     "S25_resultat_orphelin_admis": [(ESSAIS, 'if saines.get(p, {}).get("nature") != "PREENREGISTREMENT":',
                                      'if saines.get(p, {}).get("nature") == "jamais":')],
-    "S26_aucune_ecrit_null": [(ESSAIS, "        return COMMUN.MOT_DE_L_HORIZON_AUCUNE", "        return None")],
     "S27_registre_abime_compte": [(ESSAIS, "    if defauts:\n        return \"INCONNU\", \"registre des essais abîmé",
                                    "    if False:\n        return \"INCONNU\", \"registre des essais abîmé")],
     "S31_declaration_reecrit_le_fichier": [(DECL, 'nouveau = avant + (b"" if avant.endswith(b"\\n") else b"\\n") + ',
@@ -1013,7 +1012,7 @@ def cas(copie, racine):
         d = tempfile.mkdtemp(prefix="b_g15_")
         poser_le_registre(d)
         poser_la_portee(d, C, "fiche")
-        hyp = {"tp_pct": 4.0, "sl_pct": 2.5, "horizon": 20, "univers": ["AC"], "signal": ["f", "0123"],
+        hyp = {"empreinte_des_reglages": "0000000000000004",   # CARNET partie 1 : les réglages par leur empreinte
                "periode": "2030-01-01..2030-12-31", "bareme": "Fortuneo"}
         try:
             T.preenregistrer(d, "AUTRE", dict(hyp, periode="1999-01-04..2000-01-03"))
@@ -1096,7 +1095,7 @@ def cas(copie, racine):
 
 
     # ── LE REGISTRE DES ESSAIS ──
-    hyp = {"tp_pct": 4.0, "sl_pct": 2.5, "horizon": 20, "univers": ["AC", "AI"], "signal": ["f", "0123"],
+    hyp = {"empreinte_des_reglages": "0000000000000004",   # CARNET partie 1 : les réglages par leur empreinte
            "periode": ["2030-01-01", "2030-12-31"], "bareme": "Fortuneo"}
 
     def r1():
@@ -1109,17 +1108,33 @@ def cas(copie, racine):
             p = T.preenregistrer(d, "SYN", hyp)
             T.preenregistrer(d, "SYN", dict(hyp))
             ok("R1 la même hypothèse deux fois : 1 essai", T.nombre_d_essais(d) == (1, ""), repr(T.nombre_d_essais(d)))
-            T.preenregistrer(d, "SYN", dict(hyp, horizon=COMMUN.HORIZON_AUCUNE))
-            ok("R1b « aucune » et « 20 » : 2 essais", T.nombre_d_essais(d) == (2, ""))
+            # « 20 » ET « AUCUNE » (CARNET partie 1, 14-11-2026) : la durée entre dans l'hypothèse par l'empreinte des
+            # réglages du JUGE, calculée ici sur la vraie ligne 70 de C5-EI-PARAMS (R-732), durée 30 puis « aucune ».
+            # le juge et le registre de la RACINE : la copie de cette épreuve ne porte pas le juge
+            JS = charger(os.path.join(racine, "programmes/JUGE_DES_STRATEGIES.py"), "JUGE_DES_STRATEGIES")
+            l70 = [l for l in C.lignes_du_registre(os.path.join(racine, C.REGISTRE_DES_STRATEGIES))
+                   if l["id"] == "C5-EI-PARAMS"][-1]
+            lm = JS.lire_module_du_jour(racine)
+            e30 = JS.empreinte_des_reglages(l70, lm)[0]
+            e_aucune = JS.empreinte_des_reglages(dict(l70, horizon=COMMUN.MOT_DE_L_HORIZON_AUCUNE), lm)[0]
+            T.preenregistrer(d, "SYN", dict(hyp, empreinte_des_reglages=e30))
+            T.preenregistrer(d, "SYN", dict(hyp, empreinte_des_reglages=e_aucune))
+            ok("R1b « aucune » et « 30 » (vraie ligne, empreintes du juge %s / %s) : 2 essais de plus" % (e30, e_aucune),
+               e30 != e_aucune and T.nombre_d_essais(d) == (3, ""), repr(T.nombre_d_essais(d)))
             lus, _df = T.lire_le_registre(d)
             ecrits = [lus[n] for n in sorted(lus)]
-            ok("R1c « aucune » s'écrit par le mot en JSON",
-               any(e.get("hypothese", {}).get("horizon") == COMMUN.MOT_DE_L_HORIZON_AUCUNE for e in ecrits))
-            T.preenregistrer(d, "AUTRE", dict(hyp, tp_pct=5.0))
-            ok("R1d compte par fiche : SYN 2, AUTRE 1",
-               T.nombre_d_essais(d, fiche_id="SYN") == (2, "") and T.nombre_d_essais(d, fiche_id="AUTRE") == (1, ""))
+            try:
+                T.preenregistrer(d, "SYN", dict(hyp, horizon=20))
+                refus = ""
+            except ValueError as ex:
+                refus = str(ex)
+            ok("R1c une case de réglage recopiée à côté de l'empreinte : refusée (une seule définition, R-708)",
+               "en trop" in refus, refus)
+            T.preenregistrer(d, "AUTRE", dict(hyp, empreinte_des_reglages="0000000000000005"))
+            ok("R1d compte par fiche : SYN 3, AUTRE 1",
+               T.nombre_d_essais(d, fiche_id="SYN") == (3, "") and T.nombre_d_essais(d, fiche_id="AUTRE") == (1, ""))
             T.inscrire_le_resultat(d, p, {"n": 3})
-            ok("R2 un résultat ne compte pas comme un essai", T.nombre_d_essais(d) == (3, ""))
+            ok("R2 un résultat ne compte pas comme un essai", T.nombre_d_essais(d) == (4, ""))
             try:
                 T.inscrire_le_resultat(d, "0000000000000000", {"n": 1})
                 ok("R2b résultat sans préenregistrement refusé", False)
@@ -1211,10 +1226,10 @@ def cas(copie, racine):
             T.preenregistrer(d, "SYN", hyp); au_disque(d, T)
             g("add", "-A"); g("commit", "-qm", "a", date="2030-01-10T12:00:00+01:00")
             c1 = subprocess.run(["git", "-C", d, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-            T.preenregistrer(d, "SYN", dict(hyp, tp_pct=6.0)); au_disque(d, T)
+            T.preenregistrer(d, "SYN", dict(hyp, empreinte_des_reglages="0000000000000006")); au_disque(d, T)
             # commit AJOUTÉ APRÈS, mais daté AVANT (un rebase ou un amend change les dates) : l'ordre fait foi
             g("add", "-A"); g("commit", "-qm", "b", date="2029-06-01T12:00:00+01:00")
-            T.preenregistrer(d, "SYN", dict(hyp, tp_pct=7.0))   # poussé sur la branche des regards, jamais commité ici
+            T.preenregistrer(d, "SYN", dict(hyp, empreinte_des_reglages="0000000000000007"))   # poussé sur la branche des regards, jamais commité ici
             ok("R5 compte au premier commit : 1 essai (le second, antidaté, vient après dans l'histoire)",
                T.nombre_d_essais(d, c1, branche="main") == (1, ""), repr(T.nombre_d_essais(d, c1, branche="main")))
             ok("R5b compte au sommet : 2 (l'essai non commité n'y est pas)",
@@ -1254,7 +1269,7 @@ def cas(copie, racine):
             import hashlib
             p = T.preenregistrer(d, "SYN", hyp)
             e = json.loads(json.dumps(T.lire_le_registre(d)[0][p]))
-            e["hypothese"]["tp_pct"] = 9.0          # l'hypothèse change, l'empreinte écrite non ; le nom est RECALCULÉ
+            e["hypothese"]["empreinte_des_reglages"] = "0000000000000009"   # l'hypothèse change, l'empreinte écrite non ; le nom est RECALCULÉ
             octets = (json.dumps(e, sort_keys=True, indent=1, ensure_ascii=False) + "\n").encode("utf-8")
             T._pousser_l_entree(d, hashlib.sha256(octets).hexdigest()[:16], octets)
             n, raison = T.nombre_d_essais(d)
@@ -1266,7 +1281,7 @@ def cas(copie, racine):
         cl = tempfile.mkdtemp(prefix="b_r8_")
         try:
             T.preenregistrer(d, "SYN", hyp); au_disque(d, T); g("add", "-A"); g("commit", "-qm", "a")
-            T.preenregistrer(d, "SYN", dict(hyp, tp_pct=5.0)); au_disque(d, T); g("add", "-A"); g("commit", "-qm", "b")
+            T.preenregistrer(d, "SYN", dict(hyp, empreinte_des_reglages="0000000000000005")); au_disque(d, T); g("add", "-A"); g("commit", "-qm", "b")
             subprocess.run(["git", "clone", "-q", "--depth", "1", "file://" + d, cl + "/c"], capture_output=True, check=True)
             n, raison = T.nombre_d_essais(cl + "/c", "HEAD", branche="HEAD")
             ok("R8 clone superficiel : INCONNU", n == "INCONNU" and "superficiel" in raison, raison)
@@ -1285,7 +1300,7 @@ def cas(copie, racine):
             vus, r = T.regards_sur_les_annees(d, examen, "SYN")
             ok("R9 regards de SYN sur 2000-2023 : la seule entrée 2010-2012 (2024-2026 n'en est pas)", vus == [b],
                repr((vus, r)))
-            c = T.preenregistrer(d, "C5-essai3", dict(hyp, periode="2001-01-02..2005-12-30", tp_pct=5.0))
+            c = T.preenregistrer(d, "C5-essai3", dict(hyp, periode="2001-01-02..2005-12-30", empreinte_des_reglages="0000000000000005"))
             vus, r = T.regards_sur_les_annees(d, examen, "SYN")
             ok("R9b portée « fiche » (RÉGLAGE lu, lot B2 ; la lignée s'éprouve dans l'épreuve de B2) : l'essai d'une "
                "AUTRE fiche sans lien (« C5-essai3 ») n'est pas un regard de SYN", vus == [b], repr((vus, r)))

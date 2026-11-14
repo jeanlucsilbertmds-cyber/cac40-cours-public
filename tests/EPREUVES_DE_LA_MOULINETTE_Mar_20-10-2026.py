@@ -656,6 +656,11 @@ def faux_juge(base, **reglages):
     J.resumer = lambda ops: {"n": n, "wr": 100.0, "net": 10.0, "wr_exact": 100.0}
     J.pourcent = lambda t: float(t)
     J.lire_horizon = lambda t: int(t)
+    # (14-11-2026, CARNET partie 1) JOUER écrit l'empreinte des réglages de chaque version, par le juge : le faux juge
+    # en rend une fixe — c'est la logique de JOUER qu'on éprouve ici, l'empreinte l'est par
+    # tests/EPREUVES_UN_IDENTIFIANT_UNE_EMPREINTE_Sam_14-11-2026.py et par T1e de l'épreuve du tri
+    J.lire_module_du_jour = lambda b: (lambda chemin, rang=None: None)
+    J.empreinte_des_reglages = lambda ligne, lire_module: ("0" * 16, True)
     return J
 
 

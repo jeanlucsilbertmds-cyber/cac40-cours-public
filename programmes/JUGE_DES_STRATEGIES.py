@@ -338,6 +338,7 @@ from COMMUN import lire_horizon_ou_aucune, HORIZON_AUCUNE
 # le stop « sans stop » (contrat du 11-11-2026, mission VENTE ; A-541) : porte_0, lecture_de_jeu, jouer l'acceptent par
 # `seuil_de_la_fiche_ou_aucun` ; `seuil_de_la_fiche` (donc le soir et le juge à 8 critères) le refuse toujours
 from COMMUN import STOP_AUCUN, est_le_mot_du_stop_aucun
+from COMMUN import MOT_DU_STOP_AUCUN, MOT_DE_L_HORIZON_AUCUNE   # leur mot, dans l'empreinte des réglages
 from COMMUN import MOTIF_FIN_DES_DONNEES   # positions encore ouvertes à la fin des données (décision du 12-11-2026, 09h18)
 from COMMUN import lire_csv   # le réglage du soir (`soir_accepte_aucune`, 12-11-2026)
 
@@ -2611,6 +2612,193 @@ def lecture_de_jeu(fiche, lire_module):
             frozenset(donnees_du_texte(fiche["donnees_demandees"])))
 
 
+def empreinte_des_reglages(ligne, lire_module):
+    """Rend l'EMPREINTE DES RÉGLAGES d'une ligne du registre des stratégies — seize caractères qui changent si, et
+    seulement si, ce que le juge lirait pour calculer change — et si la ligne est jouable. LA SEULE DÉFINITION.
+
+    ① RÔLE — Appliquer la décision de Jean-Luc du 14-11-2026 à 11h48 (« Oui, ok. Je suis d'accord », BACKLOG A-768),
+      point ② : « un programme calcule une EMPREINTE DES RÉGLAGES ; contrôle : même id ⇒ même empreinte, sinon rouge ».
+      Elle suit la décision du 13-11-2026 à 16h30 (A-754) : « s'il y a un changement de paramètre, une stratégie […]
+      c'est une autre stratégie ». L'empreinte est la forme courte de `lecture_de_jeu` — la seule définition de
+      « ce qui change un calcul » (R-708 : deux définitions d'une même chose divergent toujours) —, jamais une liste
+      de colonnes. C'est la SEULE empreinte des réglages du dépôt (superviseur R-759 du 14-11-2026, CARNET partie 1,
+      §4) : une version de la moulinette est une fiche fusionnée (`JOUER_LES_VERSIONS.empreinte_de_la_version`, qui
+      appelle celle-ci), et l'hypothèse d'un essai la CONTIENT (`TENIR_LE_REGISTRE_DES_ESSAIS.CASES_DE_L_HYPOTHESE`).
+    ② CONTEXTE D'APPEL — `versions_du_registre`, une fois par ligne (donc `k_a_la_date`) ; `JOUER_LES_VERSIONS`
+      (une fois par version jouée, écrite dans le fichier de résultats) ; `JUGER_UNE_FICHE` (l'hypothèse du regard) ;
+      l'épreuve « un identifiant, une empreinte » (tests/EPREUVES_UN_IDENTIFIANT_UNE_EMPREINTE_Sam_14-11-2026.py).
+    ③ ENTRÉE — `ligne` : une ligne du registre (un dictionnaire), ou une fiche fusionnée · `lire_module` : une fonction
+      (chemin) qui rend l'empreinte du module de signal nommé, ou None ; c'est l'appelant qui choisit l'octet (celui
+      du jour, par la fonction qui suit celle-ci dans ce module, ou celui d'une date, par `k_a_la_date`).
+    ④ CONDITIONS D'ENTRÉE — Celles de `lecture_de_jeu`. La ligne n'est pas modifiée (le travail se fait sur une copie).
+    ⑤ SORTIE — DEUX valeurs : l'empreinte, seize caractères hexadécimaux (les seize premiers du sha256), et un booléen,
+      vrai si la ligne est JOUABLE (elle a passé `porte_0`), faux si elle est REFUSÉE. Exemple réel : les lignes 65
+      (entrée vide) et 70 (« DÉFAUT ») de C5-EI-PARAMS rendent la même empreinte, jouables toutes deux ; la ligne 70
+      recopiée avec un tp de +9 % en rend une autre ; recopiée « sans stop », une autre encore, sans lever.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① LA RÈGLE DE D1, ICI SEULEMENT (n°177 ; n°53 du 31-10-2026 à 22h26, « sa case entree vide reçoit
+      DÉFAUT, par une LIGNE AJOUTÉE ») : sur une COPIE de la ligne, une `entree` vide au sens de `VIDE` est lue
+      « DÉFAUT » · ② lire la copie par `lecture_de_jeu` · ③ l'écrire en UN texte canonique (`canonique`, ci-dessous) :
+      un ensemble devient la liste triée de ses éléments écrits ; un tuple, une liste ; les deux valeurs uniques
+      « sans stop » et « aucune » de COMMUN, leur MOT (`MOT_DU_STOP_AUCUN`, `MOT_DE_L_HORIZON_AUCUNE`) ; un nombre,
+      un décimal en forme unique (4 et 4.0 s'écrivent pareil, −0.0 comme 0.0) ; un booléen et un nombre non fini
+      (NaN, infini) sont REFUSÉS ; le tout en JSON · ④ sha256 de ce texte en UTF-8, seize premiers caractères ·
+      ⑤ jouable : le premier élément de la lecture vaut « JOUABLE ».
+    ⑦ UNITÉ — Une empreinte : 16 caractères hexadécimaux, sans unité de mesure. Deux empreintes ne se comparent que
+      par l'égalité : leur ordre ne veut rien dire.
+    ⑧ POURQUOI — Comparer des `lecture_de_jeu` ne marche que dans un même programme : un ensemble (`frozenset`) ne
+      s'écrit pas deux fois dans le même ordre d'un lancement à l'autre (hachage des textes tiré au hasard par
+      Python), et une lecture ne s'écrit pas dans un fichier. L'empreinte, elle, se range, se date et se compare
+      d'un jour à l'autre (carnet de résultats datés, point ③ de la décision du 14-11-2026). Les nombres en forme
+      unique et les mots des valeurs uniques : relecteur neuf du 14-11-2026, D1 (« sans stop » et « aucune » faisaient
+      lever `json.dumps`) et D5 (4 et 4.0, -0.0 et 0.0 séparés, NaN rendue égale à elle-même — `!=` les traitait
+      autrement). Placer ici la règle de D1 qui vivait dans `versions_du_registre` : sinon la ligne 65 de C5-EI-PARAMS
+      différerait de sa ligne 70, alors que Jean-Luc a dit le 05-11-2026 à 13h40 « ce n'est pas un essai ».
+    ⑨ CE QUI CLOCHE — ① L'empreinte contient celle du module que rend `lire_module` : son CODE, sans ses textes
+      (`empreinte_d_un_module`, depuis le tour 3 du 14-11-2026) ; un commentaire ne la change plus, un code corrigé
+      la change pour chaque fiche qui le nomme quand on lit au jour, non quand on lit à la date de la ligne ; le code
+      que le module charge par chemin n'y est pas (N7, BACKLOG).
+      Lequel des deux fait « une autre stratégie » est la question ⑤ du superviseur R-759 du 14-11-2026 (k et
+      réglages), à Jean-Luc. ② Une ligne REFUSÉE par `porte_0` a pour empreinte celle des textes que `porte_0` a lus :
+      compléter une fiche incomplète change son empreinte (question ⑥ du même superviseur, cas d'IND-001-RETEST du
+      11-11-2026). ③ Seize caractères : une collision fortuite est possible en principe, d'une chance sur 2**64 par
+      paire. ④ Une NaN dans une lecture lève ValueError : aucune n'est possible aujourd'hui (`porte_0` refuse un seuil
+      non fini), c'est un garde. ⑤ La case `filtres` n'entre pas dans l'empreinte : `lecture_de_jeu` ne la lit pas
+      (épreuve du compte des essais, K6) — un filtre changé n'est donc pas « une autre stratégie » ici.
+    ⑩ EFFET — Celui de `lire_module`.
+    ⑪ TERMINAISON — Rend la main ; lève si `lecture_de_jeu` lève, ou ValueError sur un booléen ou un nombre non fini.
+      [sort: non]
+    """
+    copie = dict(ligne)
+    if (copie.get("entree") or "").strip().lower() in VIDE:
+        copie["entree"] = "DÉFAUT"
+    lue = lecture_de_jeu(copie, lire_module)
+
+    def canonique(valeur):
+        """Écrit une valeur de la lecture sous UNE forme, qui ne dépend ni du lancement ni du type du nombre.
+        ① RÔLE — rendre la lecture écrivable à l'identique d'un lancement à l'autre et d'un programme à l'autre.
+        ② CONTEXTE D'APPEL — `empreinte_des_reglages`, récursivement.
+        ③ ENTRÉE — `valeur` : un élément de la lecture (ensemble, tuple, liste, texte, nombre, None, valeur unique de
+          COMMUN).
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur, écrivable en JSON : ensemble → ["ensemble", liste triée] ; tuple ou liste → liste ;
+          STOP_AUCUN, HORIZON_AUCUNE → ["mot", leur mot] ; nombre → ["nombre", repr du décimal, −0.0 ramené à 0.0] ;
+          texte et None tels quels.
+        [rend: 1]
+        ⑥ TRAITEMENT — selon le type, dans cet ordre : valeur unique (par identité, `is`) · booléen → refus (avant le
+          nombre : un booléen EST un entier en Python) · nombre → décimal, refus s'il n'est pas fini · ensemble (trié
+          par l'écriture JSON de ses éléments) · tuple ou liste · le reste tel quel.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — voir le ⑧ de la fonction qui l'appelle (D1, D5 du relecteur neuf du 14-11-2026).
+        ⑨ CE QUI CLOCHE — Un type inconnu passe tel quel, et `json.dumps` lève : c'est voulu, rien n'est deviné.
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main ; lève ValueError sur un booléen ou un nombre non fini.
+        [sort: non]"""
+        if valeur is STOP_AUCUN:
+            return ["mot", MOT_DU_STOP_AUCUN]
+        if valeur is HORIZON_AUCUNE:
+            return ["mot", MOT_DE_L_HORIZON_AUCUNE]
+        if isinstance(valeur, bool):
+            raise ValueError("empreinte des réglages : un booléen dans la lecture (%r) n'a pas d'écriture unique"
+                             % (valeur,))
+        if isinstance(valeur, numbers.Real):
+            x = float(valeur)
+            if not math.isfinite(x):
+                raise ValueError("empreinte des réglages : nombre non fini dans la lecture (%r)" % (valeur,))
+            return ["nombre", repr(x + 0.0)]
+        if isinstance(valeur, (set, frozenset)):
+            return ["ensemble", sorted((canonique(v) for v in valeur),
+                                       key=lambda x: json.dumps(x, ensure_ascii=False, sort_keys=True))]
+        if isinstance(valeur, (tuple, list)):
+            return [canonique(v) for v in valeur]
+        return valeur
+
+    texte = json.dumps(canonique(lue), ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(texte.encode("utf-8")).hexdigest()[:16], lue[0] == "JOUABLE"
+
+
+def empreinte_d_un_module(source, chemin):
+    """Rend l'empreinte du CODE d'un module de signal : son arbre syntaxique privé de ses textes explicatifs.
+
+    ① RÔLE — Donner aux deux lectures de module (`lire_module_du_jour`, au jour ; `k_a_la_date`, à la date de la
+      ligne) UNE mesure, qui ne change que si le code change (superviseur R-759 du 14-11-2026, CARNET tour 3, §1.2).
+    ② CONTEXTE D'APPEL — `lire_module_du_jour.lire` ; `k_a_la_date.lire_module`.
+    ③ ENTRÉE — `source` : le texte du module (str) ou ses octets (UTF-8) · `chemin` : son chemin, pour le message.
+    ④ CONDITIONS D'ENTRÉE — Le module s'analyse ; sinon ValueError.
+    ⑤ SORTIE — UNE valeur : seize caractères hexadécimaux (`LIRE_LE_CODE.empreinte_du_code`, qui passe la main à
+      `emp.empreinte` à la racine du dépôt).
+      [rend: 1]
+    ⑥ TRAITEMENT — décoder des octets en UTF-8 · `LIRE_LE_CODE.empreinte_du_code` · une erreur d'analyse ou de
+      décodage devient ValueError, qui nomme le module.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relecteur du tour 2 (14-11-2026), N1 : sur l'octet brut, un COMMENTAIRE ajouté au module changeait
+      l'empreinte, et le tri mêlait alors deux jeux sous deux empreintes. `empreinte_du_code` existe déjà (contrôle
+      de R-752) : la réutiliser, jamais la recopier (R-708). Un module illisible LÈVE au lieu de rendre None : None
+      veut dire « introuvable » (`forme_du_module`), ce serait confondre deux cas.
+    ⑨ CE QUI CLOCHE — ① Le code que le module CHARGE par chemin n'est pas couvert (MODULE_SIGNAL_RSI_REBOND exécute
+      MODULE_SIGNAL_RSI2_CONNORS.py) : le changer change le calcul sans changer l'empreinte (sens non prudent ; au
+      BACKLOG, N7). ② `ast.dump` dépend de la version de Python : une montée de version change toutes les empreintes
+      (sens prudent). ③ Un message d'erreur ou une constante changés dans le module changent l'empreinte (c'est du
+      code ; sens prudent).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError.
+      [sort: non]
+    """
+    import LIRE_LE_CODE      # ici et non en tête : le juge reste importable dans une copie sans `emp.py`
+    try:
+        texte = source.decode("utf-8") if isinstance(source, bytes) else source
+        return LIRE_LE_CODE.empreinte_du_code(texte)
+    except (SyntaxError, ValueError, UnicodeDecodeError) as e:
+        raise ValueError("module de signal %s non analysable : %s — son empreinte n'existe pas" % (chemin, e))
+
+
+def lire_module_du_jour(racine):
+    """Rend la fonction qui donne l'empreinte d'un module de signal tel qu'il est AUJOURD'HUI sous `racine`.
+
+    ① RÔLE — Fournir l'octet du module à `empreinte_des_reglages` quand l'appelant juge AU JOUR (et non à une date,
+      cas de `k_a_la_date`), d'une seule façon pour tous.
+    ② CONTEXTE D'APPEL — `JOUER_LES_VERSIONS` (empreinte des versions), `JUGER_UNE_FICHE` (hypothèse du regard),
+      les épreuves.
+    ③ ENTRÉE — `racine` : la racine du dépôt.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : une fonction (chemin, rang=None) → 16 caractères hexadécimaux (`empreinte_d_un_module`
+      du fichier `racine/chemin` : son CODE, sans ses textes explicatifs), ou None si le fichier n'existe pas ; elle
+      lève ValueError si le module ne s'analyse pas. `rang` est accepté et ignoré, pour servir aussi
+      `versions_du_registre`.
+      [rend: 1]
+    ⑥ TRAITEMENT — lire le fichier, `empreinte_d_un_module`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — `k_a_la_date` prend la même mesure (`empreinte_d_un_module`) à la date de la ligne : les deux
+      lectures ne diffèrent que par la date du code (superviseur R-759, tour 3, §1.2).
+    ⑨ CE QUI CLOCHE — Un texte explicatif ou un commentaire changés ne changent plus l'empreinte ; le code que le
+      module charge par chemin, si on le change, ne la change pas non plus (⑨ ① d'`empreinte_d_un_module`, N7).
+    ⑩ EFFET — Lit des fichiers.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    def lire(chemin, rang=None):
+        """L'empreinte du module du jour.
+        ① RÔLE — lire un module.
+        ② CONTEXTE D'APPEL — `empreinte_des_reglages`, par `lecture_de_jeu`.
+        ③ ENTRÉE — `chemin` : relatif à la racine · `rang` : ignoré.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : 16 hexadécimaux ou None ; lève ValueError sur un module non analysable.
+          [rend: 1]
+        ⑥ TRAITEMENT — `empreinte_d_un_module` du texte.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — voir la fonction englobante.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — lit un fichier.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]"""
+        p = os.path.join(racine, chemin)
+        if not os.path.isfile(p):
+            return None
+        with open(p, "rb") as f:
+            return empreinte_d_un_module(f.read(), chemin)
+    return lire
+
+
 def versions_du_registre(lignes, lire_module):
     """Compte les VERSIONS du registre des stratégies : une ligne compte si sa lecture de jeu diffère de celle de la
     ligne précédente de la même fiche.
@@ -2626,10 +2814,11 @@ def versions_du_registre(lignes, lire_module):
     ⑤ SORTIE — DEUX valeurs : un dictionnaire {fiche : nombre de versions} et le total. Exemple réel : sur le registre
       du 05-11-2026, C5-EI-PARAMS (lignes 65 et 70 du fichier) → 1.
       [rend: 2]
-    ⑥ TRAITEMENT — pour chaque ligne, dans l'ordre : ① LA RÈGLE DE D1, ICI SEULEMENT (n°177 ; n°53 du 31-10-2026 à
-      22h26, « sa case entree vide reçoit DÉFAUT, par une LIGNE AJOUTÉE ») : une `entree` vide au sens de `VIDE` est
-      lue « DÉFAUT », sur une COPIE de la ligne · ② lire la ligne par `lecture_de_jeu` · ③ la compter si sa fiche n'a
-      pas de ligne précédente, ou si la lecture diffère de celle de la précédente.
+    ⑥ TRAITEMENT — pour chaque ligne, dans l'ordre : ① prendre son EMPREINTE DES RÉGLAGES (`empreinte_des_reglages`,
+      qui porte depuis le 14-11-2026 la règle de D1 et la lecture par `lecture_de_jeu` qui vivaient ici) · ② la
+      compter si sa fiche n'a pas de ligne précédente, ou si l'empreinte diffère de celle de la précédente. Comparer
+      les empreintes revient à comparer les lectures : l'empreinte est le sha256 d'un texte qui rend la lecture
+      entière (voir `empreinte_des_reglages`, ⑥).
     ⑦ UNITÉ — Des versions.
     ⑧ POURQUOI — Mots de Jean-Luc, 13h40 : « ce n'est pas un essai » (la ligne 70 de C5-EI-PARAMS, mêmes 48
       opérations). La première ligne d'une fiche compte : elle n'a pas de précédente (lecture du lot C, confirmée).
@@ -2641,14 +2830,11 @@ def versions_du_registre(lignes, lire_module):
     """
     precedente, par_fiche = {}, {}
     for rang, ligne in enumerate(lignes):
-        copie = dict(ligne)
-        if (copie.get("entree") or "").strip().lower() in VIDE:
-            copie["entree"] = "DÉFAUT"
-        lue = lecture_de_jeu(copie, lambda chemin, _r=rang: lire_module(chemin, _r))
-        ident = copie["id"]
-        if ident not in precedente or precedente[ident] != lue:
+        empreinte, _jouable = empreinte_des_reglages(ligne, lambda chemin, _r=rang: lire_module(chemin, _r))
+        ident = ligne["id"]
+        if ident not in precedente or precedente[ident] != empreinte:
             par_fiche[ident] = par_fiche.get(ident, 0) + 1
-        precedente[ident] = lue
+        precedente[ident] = empreinte
     return par_fiche, sum(par_fiche.values())
 
 
@@ -2749,9 +2935,10 @@ def k_a_la_date(racine, date_declaration, temoins):
         ③ ENTRÉE — `chemin_module` : le chemin du module · `rang` : le rang de la ligne (0 = ligne 2 du fichier).
         ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — UNE valeur : 16 caractères hexadécimaux, ou None si le
-        module n'existe pas à ce commit.
+        module n'existe pas à ce commit ; lève ValueError s'il ne s'analyse pas.
         [rend: 1]
-        ⑥ TRAITEMENT — commit de la ligne par le blame, `git show`, sha256.
+        ⑥ TRAITEMENT — commit de la ligne par le blame, `git show`, `empreinte_d_un_module` (la mesure de
+        `lire_module_du_jour`, superviseur R-759 du 14-11-2026, tour 3).
         ⑦ UNITÉ — —
         ⑧ POURQUOI — limite 2 du point 8 du superviseur du lot C.
         ⑨ CE QUI CLOCHE — ⑨ ① de `k_a_la_date`.
@@ -2761,7 +2948,7 @@ def k_a_la_date(racine, date_declaration, temoins):
         sha = auteur_de_la_ligne.get(rang + 2)
         if (sha, chemin_module) not in empreintes:
             c, o = git("show", "%s:%s" % (sha, chemin_module)) if sha else (1, b"")
-            empreintes[(sha, chemin_module)] = hashlib.sha256(o).hexdigest()[:16] if c == 0 else None
+            empreintes[(sha, chemin_module)] = empreinte_d_un_module(o, chemin_module) if c == 0 else None
         return empreintes[(sha, chemin_module)]
 
     par_fiche, total = versions_du_registre(lignes, lire_module)

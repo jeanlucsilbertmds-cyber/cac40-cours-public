@@ -421,9 +421,12 @@ def e5_k_a_la_date(racine, J, C):
             git(d, "add", "-A")
             git(d, "commit", "-q", "-m", "pas " + date, date=date)
 
-        ecrire(["ZZ-1"], "# v1\n", "2026-01-10T12:00:00+01:00")
-        ecrire(["ZZ-1", "ZZ-1"], "# v2\n", "2026-02-10T12:00:00+01:00")
-        ecrire(["ZZ-1", "ZZ-1", "ZZ-2"], "# v2\n", "2026-03-10T12:00:00+01:00")
+        # v1 et v2 diffèrent par du CODE (14-11-2026, CARNET tour 3) : l'empreinte d'un module est celle de son code
+        # privé de ses textes (`empreinte_d_un_module`) — deux modules qui ne différaient que par un commentaire
+        # (« # v1 » / « # v2 ») ont désormais la même empreinte, et la date du module ne se verrait plus ici.
+        ecrire(["ZZ-1"], "VERSION = 1\n", "2026-01-10T12:00:00+01:00")
+        ecrire(["ZZ-1", "ZZ-1"], "VERSION = 2\n", "2026-02-10T12:00:00+01:00")
+        ecrire(["ZZ-1", "ZZ-1", "ZZ-2"], "VERSION = 2\n", "2026-03-10T12:00:00+01:00")
         # (b) SANS la branche principale : INCONNU, et la raison le dit — jamais un repli sur HEAD
         ksb, raison_sb = J.k_a_la_date(d, "2026-02-15T12:00+01:00", 2)
         git(d, "update-ref", "refs/remotes/" + C.BRANCHE_PRINCIPALE, "HEAD")
@@ -490,7 +493,9 @@ EPREUVES = (e1_etalon, e2_vrai_registre, e3_trace, e4_forme_du_module, e5_k_a_la
 
 # LES SABOTAGES (superviseur S_kk, §4.3) : {nom : (fichier, texte exact, remplacement, ce qui doit rougir)}.
 SABOTAGES = {
-    "K1": (JUGE, '            copie["entree"] = "DÉFAUT"\n', '            pass\n', "plus de vide → DÉFAUT"),
+    # K1 et K8 recalés le 14-11-2026 (lot CARNET, partie 1) : la règle de D1 vit désormais dans `empreinte_des_reglages`
+    # (une indentation de moins), et `versions_du_registre` compare des empreintes — même intention.
+    "K1": (JUGE, '        copie["entree"] = "DÉFAUT"\n', '        pass\n', "plus de vide → DÉFAUT"),
     # K2 recalé le 11-11-2026 (mission VENTE) : `lecture_de_jeu` lit le stop par `seuil_de_la_fiche_ou_aucun` (« sans
     # stop »), même intention — le tp comparé en texte.
     "K2": (JUGE, 'seuil_de_la_fiche(fiche, "tp"), seuil_de_la_fiche_ou_aucun(fiche, "sl"),',
@@ -505,7 +510,7 @@ SABOTAGES = {
            "jouer lit filtres"),
     "K7": (JUGE, 'frozenset(mnemoniques_de_l_univers(fiche["univers"]))', 'tuple(mnemoniques_de_l_univers(fiche["univers"]))',
            "univers en liste"),
-    "K8": (JUGE, "        if ident not in precedente or precedente[ident] != lue:\n", "        if True:\n",
+    "K8": (JUGE, "        if ident not in precedente or precedente[ident] != empreinte:\n", "        if True:\n",
            "chaque ligne compte"),
     # K9 suit le texte du juge depuis la mission REGARD (12-11-2026) : la branche lue est `branche`, plus "HEAD"
     "K9": (JUGE, '"--before=" + date_declaration, branche,', 'branche,', "date ignorée"),
@@ -557,7 +562,9 @@ def jouer_les_sabotages(racine, noms):
                         ignore=shutil.ignore_patterns("__pycache__"))
         sys.path.insert(0, os.path.join(racine, "programmes"))
         import CONTRATS_DES_FICHIERS as C   # le nom du registre se lit au contrat (G1 de EPREUVES_DU_REGISTRE_DES_STRATEGIES)
-        for f in (C.REGISTRE_DES_STRATEGIES, "temoins/ETALON_DES_VERSIONS.csv"):
+        # « emp.py » (14-11-2026, CARNET tour 3) : l'empreinte d'un module de signal passe par LIRE_LE_CODE, qui lit
+        # `emp.py` à la racine — sans lui, toute copie faisait rougir E5 et chaque sabotage « mordait » à tort
+        for f in (C.REGISTRE_DES_STRATEGIES, "temoins/ETALON_DES_VERSIONS.csv", "emp.py"):
             os.makedirs(os.path.join(copie, os.path.dirname(f)), exist_ok=True)
             shutil.copy2(os.path.join(racine, f), os.path.join(copie, f))
         for nom in noms:

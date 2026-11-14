@@ -74,6 +74,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -88,8 +89,14 @@ import CONTRATS_DES_FICHIERS as C  # noqa: E402
 PARIS = ZoneInfo("Europe/Paris")
 DOSSIER = next(ch for ch, (contrat, _e, _l) in C.FICHIERS_A_VENIR.items() if contrat == "NATURES_DES_ENTREES_D_ESSAI")
 # LES CASES QUE L'HYPOTHÈSE PORTE, telles que le contrat les énumère dans le commentaire de `hypothese`
-# (ENTREE_PREENREGISTREMENT) : sans l'une d'elles, deux calculs différents auraient la même empreinte.
-CASES_DE_L_HYPOTHESE = ("tp_pct", "sl_pct", "horizon", "univers", "signal", "periode", "bareme")
+# (ENTREE_PREENREGISTREMENT) : sans l'une d'elles, deux calculs différents auraient la même empreinte. DEPUIS LE
+# 14-11-2026 (CARNET partie 1 ; superviseur R-759, §4.3) l'hypothèse CONTIENT l'empreinte des réglages
+# (`JUGE_DES_STRATEGIES.empreinte_des_reglages`, la seule définition) au lieu de redéfinir les réglages case par case
+# (tp_pct, sl_pct, horizon, univers, signal, écrits en textes bruts : « +4,0 % » et « 4% » y faisaient deux essais) ;
+# elle y ajoute ce qui fait d'un calcul un REGARD : la période regardée et le barème. Rien n'était encore inscrit sur la
+# branche des regards : le hachage pouvait changer sans migration ; dès la première inscription il est gelé
+# (`lire_le_registre` recalcule et refuse un écart).
+CASES_DE_L_HYPOTHESE = ("empreinte_des_reglages", "periode", "bareme")
 # LES RÉGLAGES DU REGISTRE DES ESSAIS — ce qui se change sans réécrire le code. Un seul programme les lit (celui-ci).
 REGLAGES = "donnees/REGLAGES_DU_REGISTRE_DES_ESSAIS.csv"
 EN_TETE_DES_REGLAGES = ["cle", "valeur", "statut", "source"]
@@ -117,44 +124,26 @@ CLES_DU_BILAN = ("fiche_id", "portee_du_regard", "calibrage_compte_comme_regard"
                  "avant_le_registre", "raisons")
 
 
-def _horizon_en_json(objet):
-    """Écrit l'horizon « aucune » par son mot dans le JSON (contrat du lot 0 ①), et refuse tout autre objet.
-    ① RÔLE — Le crochet `default` de `json.dumps`.
-    ② CONTEXTE D'APPEL — `empreinte_de_l_hypothese`, `_ecrire`.
-    ③ ENTRÉE — `objet` : un objet que JSON ne sait pas écrire.
-    ④ CONDITIONS D'ENTRÉE — —.
-    ⑤ SORTIE — UNE valeur : le mot « aucune » pour COMMUN.HORIZON_AUCUNE.
-      [rend: 1]
-    ⑥ TRAITEMENT — reconnaître HORIZON_AUCUNE par identité, sinon lever.
-    ⑦ UNITÉ — —.
-    ⑧ POURQUOI — « dans un fichier JSON, il s'écrit par la chaîne de ce même mot, jamais par null : null y veut déjà
-    dire absent » (contrat du lot 0 ①).
-    ⑨ CE QUI CLOCHE — —.
-    ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main ou lève TypeError.
-      [sort: non]"""
-    import COMMUN
-    if objet is COMMUN.HORIZON_AUCUNE:
-        return COMMUN.MOT_DE_L_HORIZON_AUCUNE
-    raise TypeError("registre des essais : objet non écrivable en JSON : %r" % (objet,))
-
-
 def empreinte_de_l_hypothese(hypothese):
     """Rend l'empreinte de l'hypothèse d'un essai, en écriture canonique : CE QUI COMPTE dans le nombre d'essais.
 
     ① RÔLE — Dire si deux essais sont le même : même empreinte = même calcul refait, qui ne compte qu'une fois.
     ② CONTEXTE D'APPEL — `preenregistrer` ; `lire_le_registre`, qui la recalcule pour chaque entrée.
-    ③ ENTRÉE — `hypothese` : un dictionnaire portant au moins CASES_DE_L_HYPOTHESE.
-    ④ CONDITIONS D'ENTRÉE — Les valeurs s'écrivent en JSON (l'horizon « aucune » comme objet de COMMUN ou comme mot).
+    ③ ENTRÉE — `hypothese` : un dictionnaire portant EXACTEMENT les CASES_DE_L_HYPOTHESE : l'empreinte des réglages
+      (16 hexadécimaux, `JUGE_DES_STRATEGIES.empreinte_des_reglages`), la période regardée, le barème.
+    ④ CONDITIONS D'ENTRÉE — Les valeurs s'écrivent en JSON.
     ⑤ SORTIE — UNE valeur : 16 caractères hexadécimaux.
       [rend: 1]
-    ⑥ TRAITEMENT — ① refuser une case manquante · ② écrire en JSON trié, sans espaces, caractères non ASCII gardés ·
-      ③ SHA-256, 16 premiers caractères.
+    ⑥ TRAITEMENT — ① refuser une case manquante, une case EN TROP (une case de réglage écrite à côté de l'empreinte
+      serait une seconde définition des réglages, R-708) et une empreinte des réglages qui n'a pas seize caractères
+      hexadécimaux · ② écrire en JSON trié, sans espaces, caractères non ASCII gardés · ③ SHA-256, 16 premiers
+      caractères.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — L'ordre des clés et les espaces ne changent pas un calcul : l'écriture canonique les efface. « 20 » et
-      « aucune » sont deux essais différents (contrat du lot 0 ①) : le mot est écrit, jamais None.
-    ⑨ CE QUI CLOCHE — 4.0 et 4 s'écrivent différemment en JSON : deux hypothèses égales en nombre mais pas en type
-      compteraient deux fois. Le contrat demande des pourcents à 6 décimales : c'est à l'appelant de les arrondir.
+    ⑧ POURQUOI — L'ordre des clés et les espaces ne changent pas un calcul : l'écriture canonique les efface. Les
+      réglages entrent par leur EMPREINTE (superviseur R-759 du 14-11-2026, CARNET partie 1, §4.3 et §5) : « 20 » et
+      « aucune », « +4,0 % » et « 4 % » y sont tranchés une fois, par le juge, pour tous.
+    ⑨ CE QUI CLOCHE — La période et le barème sont comparés comme textes : « 2000-01-03..2023-12-29 » et la même
+      période écrite autrement compteraient deux fois (lecture stricte : un essai de trop, jamais de moins).
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main ; lève ValueError (case manquante) ou TypeError (valeur non écrivable).
       [sort: non]
@@ -162,8 +151,12 @@ def empreinte_de_l_hypothese(hypothese):
     manque = [c for c in CASES_DE_L_HYPOTHESE if c not in hypothese]
     if manque:
         raise ValueError("hypothèse incomplète, case(s) manquante(s) : %s" % ", ".join(manque))
-    texte = json.dumps(hypothese, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-                       default=_horizon_en_json)
+    en_trop = sorted(c for c in hypothese if c not in CASES_DE_L_HYPOTHESE)
+    if en_trop:
+        raise ValueError("hypothèse : case(s) en trop %s — les réglages entrent par leur seule empreinte" % en_trop)
+    if not re.fullmatch(r"[0-9a-f]{16}", str(hypothese["empreinte_des_reglages"])):
+        raise ValueError("hypothèse : empreinte des réglages illisible %r" % (hypothese["empreinte_des_reglages"],))
+    texte = json.dumps(hypothese, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(texte.encode("utf-8")).hexdigest()[:16]
 
 
@@ -218,7 +211,9 @@ def _ecrire(racine, entree, contrat):
     ecarts = C.ecarts_d_une_entree("entrée à écrire", entree, contrat)
     if ecarts:
         raise ValueError("registre des essais : " + " ; ".join(ecarts))
-    octets = (json.dumps(entree, sort_keys=True, indent=1, ensure_ascii=False, default=_horizon_en_json)
+    # AUCUN CROCHET D'ÉCRITURE (14-11-2026, CARNET partie 1) : la durée « aucune » n'entre plus dans une entrée que par
+    # l'empreinte des réglages du juge ; un objet non écrivable en JSON lève TypeError, rien n'est deviné.
+    octets = (json.dumps(entree, sort_keys=True, indent=1, ensure_ascii=False)
               + "\n").encode("utf-8")
     nom = hashlib.sha256(octets).hexdigest()[:16]
     _pousser_l_entree(racine, nom, octets)

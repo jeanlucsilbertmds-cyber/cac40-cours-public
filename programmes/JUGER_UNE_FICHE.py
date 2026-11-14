@@ -515,9 +515,9 @@ def juger_une_fiche(racine, fiche_id, cas):
     if bornes is None:
         return rendre(**entrees)
     # ⑥ LE REGARD : préenregistré AVANT le jeu, puis les regards antérieurs de cette fiche, lui excepté
-    module, fonction, reglages = JS.declaration_du_signal(fiche)
-    hypothese = {"tp_pct": fiche["tp"], "sl_pct": fiche["sl"], "horizon": fiche["horizon"],
-                 "univers": fiche["univers"], "signal": " · ".join((module, fonction, reglages)),
+    # L'HYPOTHÈSE CONTIENT L'EMPREINTE DES RÉGLAGES (CARNET partie 1, 14-11-2026 ; superviseur R-759, §4.3) : la seule
+    # définition des réglages, celle du juge, plus la période regardée et le barème — jamais les cases recopiées.
+    hypothese = {"empreinte_des_reglages": JS.empreinte_des_reglages(fiche, JS.lire_module_du_jour(racine))[0],
                  "periode": decl["annees_d_examen"], "bareme": decl["bareme"]}
     nom = TR.preenregistrer(racine, fiche_id, hypothese, declaration=decl)
     lu["regard"] = nom

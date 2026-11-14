@@ -166,10 +166,27 @@ SABOTAGES = {
     "S43": (P_TRI, '"gain_net_euros_70",\n                          "operations_a_part_fin_des_donnees", '
                    '"gain_net_euros_a_part_fin_des_donnees")', '"gain_net_euros_70")', ["T17"],
             "les doublons ignorent les deux colonnes « à part » (m-1)"),
-    "S44": (P_TRI, "            h = COMMUN.lire_horizon_ou_aucune(ligne[k])\n", "            h = int(ligne[k])\n", ["T18"],
-            "l'empreinte relit l'horizon par int : « aucune » arrête le tri"),
-    "S45": (P_TRI, '        elif k == "sl" and COMMUN.est_le_mot_du_stop_aucun(ligne[k]):', "        elif False:", ["T18"],
-            "l'empreinte lit « sans stop » comme un nombre : le tri s'arrête"),
+    # S44 et S45 RECALÉS le 14-11-2026 (CARNET partie 1) : l'empreinte du tri n'existe plus ; « aucune » et « sans stop »
+    # s'écrivent par leur mot dans la SEULE empreinte, celle du juge — même intention : sans ce mot, le tri s'arrête.
+    "S44": (P_JUGE, '        if valeur is HORIZON_AUCUNE:\n            return ["mot", MOT_DE_L_HORIZON_AUCUNE]\n', "",
+            ["T18"], "l'empreinte ne sait plus écrire « aucune » : le tri s'arrête"),
+    "S45": (P_JUGE, '        if valeur is STOP_AUCUN:\n            return ["mot", MOT_DU_STOP_AUCUN]\n', "",
+            ["T18"], "l'empreinte ne sait plus écrire « sans stop » : le tri s'arrête"),
+    # S47 recalé (relecture Cowork du 14-11-2026, D-4) : le contrôle de forme porte sur les deux empreintes
+    "S47": (P_TRI, '            if not re.fullmatch(r"[0-9a-f]{16}", l[col] or ""):',
+            "            if False:", ["T31", "T1"], "une empreinte illisible passe le tri"),
+    "S52": (P_TRI, '        for col in ("empreinte_des_reglages", "empreinte_de_la_fiche"):',
+            '        for col in ("empreinte_des_reglages",):', ["T1"],
+            "l'empreinte de la fiche n'est plus contrôlée dans sa forme : deux cases vides mêlent deux jeux (D-4)"),
+    "S48": (P_JOUER, '"empreinte_des_reglages": empreinte_de_la_version(J, fiche, v, lire_module),',
+            '"empreinte_des_reglages": J.empreinte_des_reglages(dict(v), lire_module)[0],', ["T1"],
+            "JOUER hache la version seule, pas la fiche fusionnée"),
+    "S50": (P_JOUER, "    empreinte_fiche = J.empreinte_des_reglages(fiche, lire_module)[0]\n",
+            '    empreinte_fiche = "0" * 16\n', ["T1"], "JOUER écrit une empreinte de la fiche qui n'est pas la sienne"),
+    "S51": (P_JUGE, "            return empreinte_d_un_module(f.read(), chemin)\n", '            return "0" * 16\n',
+            ["T1"], "le module n'est plus lu : un code changé ne change plus l'empreinte (t4 passe)"),
+    "S49": (P_TRI, '                e = l["empreinte_des_reglages"]', '                e = l["id_version"]', ["T2"],
+            "le tri compte par identifiant, pas par empreinte des réglages"),
     "S46": (P_TRI, '        if not aucune and not l["embargo_seances"].strip().isdigit():', "        if False:", ["T19"],
             "un embargo non entier sur une version chiffrée passe (N-4)"),
     "S20": (P_JOUER, '("aucune opération" if not ref_jouee["n"] else', '("aucune opération" if False else', ["J8"],
@@ -241,12 +258,61 @@ def module(programme, nom):
     return m
 
 
+EMPREINTES = {}        # (programme du juge, programme de JOUER, stratégie, tp, sl, horizon, univers) -> empreinte
+
+
+def empreinte_comme_jouer(ligne, de_la_fiche=False):
+    """Rend l'empreinte des réglages qu'un fichier de résultats FABRIQUÉ doit porter : celle que JOUER écrirait.
+    ① RÔLE — Les fichiers fabriqués des cas portent la colonne `empreinte_des_reglages` (CARNET partie 1, 14-11-2026),
+      calculée par le MÊME chemin que JOUER : `JOUER_LES_VERSIONS.empreinte_de_la_version` sur la dernière ligne de la
+      fiche au registre de la racine, avec le juge et le module du jour. ② CONTEXTE D'APPEL — `ecrire`, ligne par
+      ligne, quand le fichier a cette colonne ; T1e. ③ ENTRÉE — `ligne` : une version (stratégie, tp, sl, horizon,
+      univers) · `de_la_fiche` : vrai pour l'empreinte de la FICHE de base (colonne `empreinte_de_la_fiche`, tour 3).
+      ④ CONDITIONS D'ENTRÉE — La stratégie est au registre de la racine. ⑤ SORTIE — UNE valeur : seize
+      hexadécimaux, ou « » si le calcul lève (un juge saboté, par exemple : le tri refusera la ligne). [rend: 1]
+    ⑥ TRAITEMENT — le juge et JOUER JOUÉS (`CHEMINS` : leur copie sabotée s'il y a lieu), mis en cache par
+      réglages. ⑦ UNITÉ — — ⑧ POURQUOI — Une seule définition (R-708) : l'épreuve ne recalcule pas à sa façon.
+    ⑨ CE QUI CLOCHE — Une ligne fabriquée reçoit TOUJOURS l'empreinte recalculée : ce que JOUER écrit vraiment n'est
+      éprouvé que par T1e, sur ses vrais fichiers. ⑩ EFFET — Charge le juge et JOUER une fois chacun.
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    cle = (CHEMINS.get(P_JUGE), CHEMINS.get(P_JOUER), ligne.get("strategie"), de_la_fiche) + (
+        () if de_la_fiche else (ligne.get("tp"), ligne.get("sl"), ligne.get("horizon"), ligne.get("univers")))
+    if cle not in EMPREINTES:
+        try:
+            if "juge" not in FIXTURE:
+                sys.path.insert(0, os.path.join(RACINE, "programmes"))
+                import CONTRATS_DES_FICHIERS as contrat
+                FIXTURE["juge"] = module(P_JUGE, "juge_de_l_empreinte")
+                FIXTURE["jouer"] = module(P_JOUER, "jouer_de_l_empreinte")
+                FIXTURE["fiches"] = contrat.fiches_du_registre(os.path.join(RACINE, contrat.REGISTRE_DES_STRATEGIES))
+                FIXTURE["lire_module"] = FIXTURE["juge"].lire_module_du_jour(RACINE)
+            fiche = FIXTURE["fiches"][ligne["strategie"]]
+            EMPREINTES[cle] = (FIXTURE["juge"].empreinte_des_reglages(fiche, FIXTURE["lire_module"])[0] if de_la_fiche
+                               else FIXTURE["jouer"].empreinte_de_la_version(FIXTURE["juge"], fiche, ligne,
+                                                                            FIXTURE["lire_module"]))
+        except Exception:     # le tri refusera la ligne (« empreinte_des_reglages illisible »), et le cas rougira
+            EMPREINTES[cle] = ""
+    return EMPREINTES[cle]
+
+
 def ecrire(chemin, champs, lignes):
     """Écrit un CSV.
     ① RÔLE — Fabriquer les fichiers des cas. ② CONTEXTE D'APPEL — Les cas. ③ ENTRÉE — `chemin`, `champs`, `lignes`.
-    ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : le chemin. [rend: 1] ⑥ TRAITEMENT — DictWriter.
-    ⑦ UNITÉ — — ⑧ POURQUOI — — ⑨ CE QUI CLOCHE — — ⑩ EFFET — Écrit un fichier. ⑪ TERMINAISON — Rend la main. [sort: non]
+    ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : le chemin. [rend: 1] ⑥ TRAITEMENT — DictWriter ; un fichier
+    de résultats (colonne `empreinte_des_reglages`) reçoit, ligne par ligne, l'empreinte que JOUER écrirait
+    (`empreinte_comme_jouer`), SAUF une ligne marquée `_garder_l_empreinte` (T31 : une empreinte gâtée exprès).
+    ⑦ UNITÉ — — ⑧ POURQUOI — Les fichiers fabriqués suivent le contrat du 14-11-2026. ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Écrit un fichier. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
+    if "empreinte_des_reglages" in champs:
+        # (tour 3, 14-11-2026) et l'empreinte de la fiche de base, que JOUER écrit aussi : celle de la fiche au registre
+        lignes = [{k: v for k, v in l.items() if k != "_garder_l_empreinte"} if l.get("_garder_l_empreinte")
+                  else dict(l, empreinte_des_reglages=empreinte_comme_jouer(l),
+                            # une empreinte de la fiche DÉJÀ posée (vrais résultats de JOUER, T2c qui la change exprès)
+                            # est gardée ; une case vide (fichier ancien complété par `volume`) reçoit celle de la fiche
+                            empreinte_de_la_fiche=l.get("empreinte_de_la_fiche") or empreinte_comme_jouer(
+                                l, de_la_fiche=True)) for l in lignes]
     with open(chemin, "w", encoding="utf-8", newline="") as h:
         w = csv.DictWriter(h, fieldnames=champs)
         w.writeheader()
@@ -415,7 +481,7 @@ def volume(champs_contrat, n=None, **changer):
         if n:
             x["versions_dans_l_essai"] = str(n)
         x.update(changer)
-        lignes.append({c: x[c] for c in champs_contrat})
+        lignes.append({c: x.get(c, "") for c in champs_contrat})   # l'empreinte des réglages : posée par `ecrire`
     return lignes
 
 
@@ -450,6 +516,67 @@ def famille_tri():
               "provisoire annoncé", c == 0 and len(reel) == 3 and {l["id_version"] for l in tri} == att and att
               and all(l["variantes_essayees"] == "3" and l["statut_du_critere"] == STATUT_DU_DEPOT for l in tri)
               and "gain_net_euros_70 > 0.0" in s and "CE SEUIL EST PROVISOIRE" not in s, s)
+    if voulu("T1"):
+        # T1e (CARNET partie 1, 14-11-2026) : la colonne ÉCRITE PAR LE VRAI JOUER — égale, ligne par ligne, à l'empreinte
+        # de la fiche fusionnée recalculée ICI par le même chemin ; et la version 0914, aux réglages de la fiche, porte
+        # l'empreinte de la fiche C5E10-OBS-V1 elle-même (fiche et version de moulinette : même empreinte).
+        empreinte_comme_jouer({})        # charge le juge et JOUER joués
+        Jg = FIXTURE.get("juge")
+        fiche = (FIXTURE.get("fiches") or {}).get("C5E10-OBS-V1")
+        e_fiche = Jg.empreinte_des_reglages(fiche, FIXTURE["lire_module"])[0] if Jg and fiche else None
+        ecrites = {l["id_version"]: l["empreinte_des_reglages"] for l in reel}
+        recalc = {l["id_version"]: empreinte_comme_jouer(l) for l in reel}
+        v0914 = [i for i in ecrites if i.endswith("-0914")]
+        de_la_fiche = {l["empreinte_de_la_fiche"] for l in reel}
+        noter("T1e le vrai JOUER écrit l'empreinte de la fiche fusionnée (3 versions) ; 0914 = la fiche %s ; la colonne "
+              "empreinte_de_la_fiche = la fiche, sur chaque ligne" % e_fiche,
+              len(ecrites) == 3 and ecrites == recalc and len(set(ecrites.values())) == 3 and len(v0914) == 1
+              and ecrites[v0914[0]] == e_fiche and de_la_fiche == {e_fiche}, (ecrites, recalc, e_fiche, de_la_fiche))
+        # LE CAS t4 ET LE CAS t3 DU RELECTEUR DU TOUR 2 (14-11-2026, N1), sur les VRAIS résultats de JOUER : un second
+        # fichier aux mêmes tp/sl/horizon/univers, dont les empreintes sont celles d'un module de signal CHANGÉ —
+        # t4 : une ligne de CODE ajoutée → ARRÊT (conditions de jeu différentes) ; t3 : un COMMENTAIRE seul → même
+        # empreinte, compté une fois (3 versions, pas 6).
+        source = open(os.path.join(RACINE, fiche["module_signal"]), encoding="utf-8").read()
+        champs_r = lire(F["resultats"])[0]
+        for nom, ajout, attendu in (("T32", "\nX_EPREUVE_CODE = 1\n", "arret"),
+                                    ("T33", "\n# un commentaire de l'épreuve\n", "compte")):
+            lm = lambda ch, rang=None, ajout=ajout: Jg.empreinte_d_un_module(
+                source + ajout if ch == fiche["module_signal"] else open(os.path.join(RACINE, ch), encoding="utf-8").read(), ch)
+            e_b = Jg.empreinte_des_reglages(fiche, lm)[0]
+            b = [dict(l, essai="E02", id_version=l["id_version"].replace("-E01-", "-E02-"), _garder_l_empreinte=True,
+                      empreinte_des_reglages=FIXTURE["jouer"].empreinte_de_la_version(Jg, fiche, l, lm),
+                      empreinte_de_la_fiche=e_b,
+                      gain_net_euros_70=l["gain_net_euros_70"] if attendu == "compte" else "-999.00") for l in reel]
+            f_b = ecrire(os.path.join(dossier(), "R_%s.csv" % nom), champs_r, b)
+            out = os.path.join(dossier(), "TRI.csv")
+            c, s = lancer(P_TRI, ".", out, F["resultats"], f_b)
+            if attendu == "arret":
+                noter("T32 cas t4 : module au CODE changé (empreinte de la fiche %s ≠ %s), mêmes tp/sl/horizon/univers, "
+                      "chiffres différents : ARRÊT (conditions de jeu différentes)" % (e_b, e_fiche),
+                      e_b != e_fiche and c == 1 and "empreinte_de_la_fiche" in s and not os.path.exists(out), s)
+            else:
+                noter("T33 cas t3 : module au COMMENTAIRE changé : même empreinte, compté une fois (3 versions)",
+                      e_b == e_fiche and c == 0 and "3 version(s) en double" in s and "VERSIONS ESSAYÉES : 3" in s, s)
+            if attendu == "arret":
+                # T34 — LE CAS DE COWORK (relecture du 14-11-2026, D-4) : les mêmes deux fichiers, la colonne
+                # `empreinte_de_la_fiche` VIDE des deux côtés → ARRÊT sur sa forme (avant : 6 versions mêlées, code 0)
+                a_vide = [dict(l, _garder_l_empreinte=True, empreinte_de_la_fiche="") for l in reel]
+                b_vide = [dict(x, empreinte_de_la_fiche="") for x in b]
+                f_a = ecrire(os.path.join(dossier(), "R_T34_A.csv"), champs_r, a_vide)
+                f_b2 = ecrire(os.path.join(dossier(), "R_T34_B.csv"), champs_r, b_vide)
+                out = os.path.join(dossier(), "TRI.csv")
+                c, s = lancer(P_TRI, ".", out, f_a, f_b2)
+                noter("T34 cas de Cowork : empreinte de la fiche VIDE dans les deux fichiers, module au code changé : ARRÊT",
+                      c == 1 and "empreinte_de_la_fiche illisible" in s and not os.path.exists(out), s)
+    if voulu("T31"):
+        peu = volume(C, n=3)
+        for gate in ("", "zz", "0123"):
+            f = ecrire(os.path.join(dossier(), "R31.csv"), C,
+                       [peu[0], dict(peu[1], empreinte_des_reglages=gate, _garder_l_empreinte=True), peu[2]])
+            out = os.path.join(dossier(), "TRI.csv")
+            c, s = lancer(P_TRI, ".", out, f)
+            noter("T31 empreinte des réglages « %s » : ARRÊT (seize hexadécimaux attendus)" % gate,
+                  c == 1 and "empreinte_des_reglages illisible" in s and not os.path.exists(out), s)
     if voulu("T30"):
         # D1 : une séance des 30 % altérée change la période ENTIÈRE (dents) mais ni la partie de réglage ni le tri.
         dents = [(a["operations"], a["gain_net_euros"]) for a in reel] != [(b["operations"], b["gain_net_euros"])
@@ -486,7 +613,10 @@ def famille_tri():
                                      for l in tri), s)
         # D4 : CHAQUE colonne commune du contrat, changée seule dans l'essai E03, fait refuser (propriété du contrat)
         for col in contrat.COLONNES_COMMUNES_A_UN_TRI:
-            f4 = ecrire(os.path.join(d, "R_%s.csv" % col), C, volume(C, n=5, essai="E04", **{col: "AUTRE"}))
+            # une empreinte de la fiche AUTRE mais BIEN FORMÉE (seize hexadécimaux) : « AUTRE » serait arrêté par le
+            # contrôle de forme (D-4 de Cowork, 14-11-2026) avant d'atteindre celui des conditions communes, éprouvé ici
+            autre = "f" * 16 if col == "empreinte_de_la_fiche" else "AUTRE"
+            f4 = ecrire(os.path.join(d, "R_%s.csv" % col), C, volume(C, n=5, essai="E04", **{col: autre}))
             out = os.path.join(dossier(), "TRI.csv")
             c, s = lancer(P_TRI, ".", out, ecrire(os.path.join(d, "R5.csv"), C, volume(C, n=5)), f4)
             noter("T2c « %s » différent entre deux essais : refus, rien d'écrit" % col,

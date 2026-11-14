@@ -237,6 +237,10 @@ except Exception:
                            "un fichier au hasard alphabetique")
 from datetime import datetime
 from zoneinfo import ZoneInfo
+# L ORDRE D AFFICHAGE DU REGISTRE (ce qui est « recent ») vit au contrat, une fois (R-708) : decision de Jean-Luc du
+# 14-11-2026 a 11h35, le cockpit lit la DATE d entree dans l etat, jamais la place d une ligne.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import CONTRATS_DES_FICHIERS as _contrat_ordre
 
 PARIS = ZoneInfo('Europe/Paris')
 JOURS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
@@ -1495,7 +1499,7 @@ def ic95_borne_basse(gagnantes, n):
     return max(0.0, 100.0 * (p - demi))
 
 def carte_strategie(strategies, etat):
-    """Rend la derniere ligne de vie d une strategie pour un etat donne.
+    """Rend la fiche entree le plus RECEMMENT dans un etat donne, par sa date d entree, et ce qui doit etre signale.
 
     ① ROLE — Dire quelle strategie une section de la page doit decrire. Les
       sections QA et Production ne connaissent pas d avance le nom de la strategie
@@ -1510,29 +1514,38 @@ def carte_strategie(strategies, etat):
       `strategies` de l objet des sources. `etat` : le debut de l etat de vie
       cherche ; les deux seules valeurs passees sont `QA` et `PRODUCTION`.
     ④ CONDITIONS D ENTREE — Les lignes doivent porter une colonne `etat_vie` ou,
-      a defaut, une colonne `statut`. La liste doit etre rangee dans l ordre ou
-      elle a ete ecrite : la fonction prend la DERNIERE ligne qui correspond. Une
-      liste vide est acceptee.
-    ⑤ SORTIE — UNE valeur, de DEUX FORMES : la derniere ligne qui correspond, sous
-      forme de dictionnaire · ou la valeur `None` quand aucune ne correspond.
-      Mesure le 20-09-2026 sur les 68 lignes de donnees/cac40_strategies.csv :
-      l etat `QA` rend la ligne `C5E10-OBS-V1`, avec objectif `+4.0%`, seuil de
-      perte `-2.5%` et horizon `20` ; l etat `PRODUCTION` rend `None`, et la
-      section Production de la page affiche alors « Aucune strategie en service ».
-      [rend: 1]
+      a defaut, une colonne `statut`. L ORDRE DE LA LISTE N EST PAS LU : depuis le
+      14-11-2026, la plus recente est celle dont la case `date_entree_etat` porte
+      le jour le plus recent. Une liste vide est acceptee.
+    ⑤ SORTIE — DEUX valeurs : ① la fiche retenue, un dictionnaire, ou `None` quand
+      aucune fiche datee ne correspond OU quand plusieurs sont entrees le meme jour
+      le plus recent (aucune n est choisie) · ② les SIGNALEMENTS, une liste de
+      textes, vide quand il n y a rien a dire : un ex aequo en tete, et chaque
+      fiche de cet etat dont la date ne se lit pas, avec sa raison.
+      Mesure le 14-11-2026 sur donnees/cac40_strategies.csv : l etat `QA` rend
+      `C5E10-OBS-V1` (entree le 2026-08-11, contre 2026-07-27 pour C5E10-QA-V1) et
+      aucun signalement ; l etat `PRODUCTION` rend `None` et aucun signalement.
+      [rend: 2]
     ⑥ TRAITEMENT — ① pour chaque ligne, lire l etat de vie, ou le statut si l etat
       de vie manque, et prendre le texte vide si les deux manquent · ② retirer les
       espaces de bord et passer en majuscules · ③ garder les lignes dont l etat
-      commence par le texte demande · ④ rendre la derniere, ou `None` si aucune.
+      commence par le texte demande · ④ les ranger par
+      `ranger_par_date_d_entree` du contrat · ⑤ signaler chaque sans date · ⑥ si
+      le groupe le plus recent porte plusieurs fiches, les signaler et ne rien
+      retenir · ⑦ sinon rendre son unique fiche, ou `None` s il n y a aucun groupe.
     ⑦ UNITE — Une LIGNE DE VIE, c est-a-dire l etat civil d une strategie a une
       date.
-    ⑧ POURQUOI — La derniere ligne est retenue parce que ce fichier ne se corrige
-      jamais : on y ajoute une ligne a chaque changement d etat, et l ancienne
-      reste pour garder la trace. Mesure le 20-09-2026 : deux lignes portent l
-      etat QA, `C5E10-QA-V1` puis `C5E10-OBS-V1`, et c est la seconde qui fait
-      foi. Deux colonnes sont acceptees, `etat_vie` puis `statut`, parce que le
-      fichier a change de colonne en cours de route et porte encore des lignes
-      anciennes.
+    ⑧ POURQUOI — La DATE et non la place : decision de Jean-Luc du 14-11-2026 a
+      11h35, « le cockpit est completement debile, il ne lit pas la date, mais il
+      lit le positionnement, c est ca? […] C est donc ca qu il faut corriger,
+      non? ». Mesure par le relecteur de la branche v7-E4 (D2) : une ligne de
+      jugement ajoutee a C5E10-QA-V1 la placait en dernier, et la carte QA passait
+      de C5E10-OBS-V1 a C5E10-QA-V1 sans qu aucun reglage ait change. La VALEUR de
+      chaque fiche reste sa derniere ligne (n°83, lue par `fiches_du_registre`) ;
+      seul l ORDRE vient de la date. Un sans date ou un ex aequo est SIGNALE et
+      jamais choisi : le choisir par sa place reviendrait au defaut corrige. Deux
+      colonnes sont acceptees, `etat_vie` puis `statut`, parce que le fichier a
+      change de colonne en cours de route et porte encore des lignes anciennes.
     ⑨ CE QUI CLOCHE —
       ① Le rapprochement se fait sur un DEBUT de texte, ce qui epelle au lieu de
       porter sur une propriete. Un etat de vie `QA-SUSPENDUE` serait retenu comme
@@ -1540,14 +1553,17 @@ def carte_strategie(strategies, etat):
       aucun avertissement. Le critere qui tranche tient en une question : si je
       renomme un etat, mon controle change-t-il d avis ? Ici oui. Releve le 20-09-2026 par lecture de la
       condition qui compare l etat de vie par son debut.
-      ② La derniere ligne de la LISTE est retenue, pas la ligne la plus recente
-      par sa date. Le fichier porte pourtant une colonne `date_entree_etat`, qui n
-      est jamais regardee. Tant que le fichier est ecrit en ajoutant a la fin, les
-      deux coincident ; le jour ou une ligne serait inseree ailleurs, la page
-      decrirait la mauvaise strategie sans rien dire.
-      ③ Elle ne verifie pas qu une seule strategie porte l etat cherche. Mesure le
-      20-09-2026 : deux lignes portent l etat QA, et la page n affiche que la
-      derniere, sans mentionner l existence de l autre.
+      ② Repare le 14-11-2026 : la derniere ligne de la LISTE etait retenue, pas
+      la plus recente par sa date.
+      ③ Elle ne signale pas qu une AUTRE strategie, plus ancienne et bien datee,
+      porte le meme etat. Mesure le 14-11-2026 : deux fiches portent l etat QA,
+      et la page n affiche que C5E10-OBS-V1, sans mentionner C5E10-QA-V1.
+      ④ Une fiche dont l etat a change mais dont la date n a pas ete mise a jour
+      garde son ancienne date (`date_d_entree_dans_l_etat`, ⑨ ③).
+      ⑤ AUCUN programme n ecrit la case `date_entree_etat` (relecteur du tour 1,
+      D3, 14-11-2026) : une fiche passee en QA ou en PRODUCTION par une ligne sans
+      date n a plus de carte — avant ce lot elle etait affichee ; elle est
+      maintenant nommee en or, sous « Aucune strategie… ». Question a Jean-Luc.
     ⑩ EFFET — LIT une liste deja en memoire. N ouvre aucun fichier, n ecrit rien,
       ne touche pas au reseau, n affiche rien.
     ⑪ TERMINAISON — Rend toujours la main. Elle ne leve pas. Aucun de ses appels
@@ -1565,17 +1581,51 @@ def carte_strategie(strategies, etat):
         ni l objectif ni le seuil de perte n ont ete touches.
       une ligne de vie : une ligne de donnees/cac40_strategies.csv, qui donne
         l etat civil d une strategie a une date.
+      la date d entree : la case `date_entree_etat` (colonne 21), le jour ou la
+        strategie est entree dans son etat de vie.
     
       la trace : la liste des sources avec leur etat — LU, ABSENT ou ILLISIBLE — et un detail chiffre, affichee en pied de page.
       le rapprochement : le fait de reconnaître que deux écritures différentes désignent le même fichier ou la même entreprise
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
     lignes = [s for s in strategies if (s.get('etat_vie') or s.get('statut') or '').strip().upper().startswith(etat)]
-    return lignes[-1] if lignes else None
+    groupes, sans_date = _contrat_ordre.ranger_par_date_d_entree(lignes)
+    signalements = [f"{s.get('id') or s.get('nom') or '?'} est en {etat} sans date d entree lisible ({raison}) : "
+                    f"non classee" for s, raison in sans_date]
+    if groupes and len(groupes[0][1]) > 1:
+        noms = ', '.join(s.get('id') or s.get('nom') or '?' for s in groupes[0][1])
+        signalements.insert(0, f"{len(groupes[0][1])} fiches entrees en {etat} le meme jour ({groupes[0][0]}) : "
+                               f"{noms} — aucune n est choisie")
+        return None, signalements
+    return (groupes[0][1][0] if groupes else None), signalements
 
 # --------------------------------------------------------------------------
 # RENDU — briques HTML/SVG, aucune dependance reseau
 # --------------------------------------------------------------------------
+def nom_de_fiche(fiche):
+    """Rend la facon UNIQUE dont la page nomme une fiche du registre : son identifiant, puis son nom.
+
+    ① ROLE — Qu une meme strategie s ecrive de la meme facon partout dans une section (relecteur du tour 1 de la
+      branche v7-cockpit, D4 : le tableau des archives montrait le nom, la liste des archivees sans date l id).
+    ② CONTEXTE D APPEL — `bloc_surveillance`, pour le tableau des archives et pour la liste des sans date.
+    ③ ENTREE — `fiche` : un dictionnaire, une fiche du registre des strategies.
+    ④ CONDITIONS D ENTREE — `fiche` a une methode `get`.
+    ⑤ SORTIE — UNE valeur : un texte NON echappe, « <id> · <nom> », ou l un des deux seul s il manque l autre, ou
+      « ? ». Exemple reel : « C1-002 · CMF + DeMarker<0.30 (actuel) ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire `id` et `nom` · ② joindre ceux qui ne sont pas vides par « · », ou rendre « ? ».
+    ⑦ UNITE — —
+    ⑧ POURQUOI — L id est la cle (deux noms courts peuvent se repeter) ; le nom dit a Jean-Luc ce qu est la
+      strategie. Les deux, a un seul endroit, pour que les deux listes ne divergent plus (R-708).
+    ⑨ CE QUI CLOCHE — Les cartes QA et Production nomment encore la fiche par son seul id (`bloc_strategie`).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; ne leve pas.
+      [sort: non]
+    """
+    parts = [t for t in ((fiche.get('id') or '').strip(), (fiche.get('nom') or '').strip()) if t]
+    return ' · '.join(parts) or '?'
+
+
 def esc(s):
     """Neutralise les trois caracteres qui feraient lire un texte de donnee comme du
     code de page.
@@ -2261,9 +2311,13 @@ def bloc_strategie(S, etat, titre_vide):
       mais n a aucune mesure. Sinon la section complete : entete, tableau des deux
       comptabilites, verdict du garde-fou, courbe d evolution s il y a au moins
       deux releves, graphiques du dernier titre traite, et mention de la source.
+      Dans les trois formes, les SIGNALEMENTS de `carte_strategie` (fiche de cet
+      etat sans date d entree lisible, ex aequo en tete) sont affiches en tete,
+      en or ; mesure le 14-11-2026 : aucun en QA ni en Production.
       [rend: 1]
-    ⑥ TRAITEMENT — ① chercher la derniere ligne de vie portant l etat demande, et
-      rendre le message de repli s il n y en a pas · ② lire le nom de la strategie
+    ⑥ TRAITEMENT — ① demander a `carte_strategie` la fiche entree le plus
+      recemment dans l etat demande et ses signalements, composer les
+      signalements, et rendre le message de repli s il n y a pas de fiche · ② lire le nom de la strategie
       · ③ chercher sa derniere mesure dans chacune des deux comptabilites, et
       rendre un message s il n y en a aucune · ④ lire le seuil de validation et le
       compteur, et calculer la part realisee pour la largeur de la barre ·
@@ -2360,9 +2414,11 @@ def bloc_strategie(S, etat, titre_vide):
       le seuil de perte : le prix auquel la position se ferme en perte.
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
-    carte = carte_strategie(S.strategies, etat)
+    carte, signalements = carte_strategie(S.strategies, etat)
+    alerte = ''.join(f'<div style="font-size:11px;color:{C["gld"]};margin-bottom:6px;line-height:1.5">'
+                     f'⚠ {esc(t)}</div>' for t in signalements)
     if not carte:
-        return (f'<div style="font-size:15px;color:{C["mut"]}">{titre_vide}</div>'
+        return (alerte + f'<div style="font-size:15px;color:{C["mut"]}">{titre_vide}</div>'
                 f'<div style="font-size:11px;color:{C["mut"]};margin-top:6px;line-height:1.6">'
                 f'Structure identique a l autre section : graphique du titre avec entree, objectif et '
                 f'seuil de perte, compteur, comparaison a la reference.</div>')
@@ -2370,7 +2426,7 @@ def bloc_strategie(S, etat, titre_vide):
     mj = derniere_mesure(S.mesures, ident, 'un jeton')
     mi = derniere_mesure(S.mesures, ident, 'jetons il')
     if not mj and not mi:
-        return (f'<div style="font-size:12px;color:{C["txt"]}">Strategie <b>{esc(ident)}</b></div>'
+        return (alerte + f'<div style="font-size:12px;color:{C["txt"]}">Strategie <b>{esc(ident)}</b></div>'
                 f'<div style="font-size:11px;color:{C["gld"]};margin-top:8px;line-height:1.6">'
                 f'Aucun indicateur disponible : le service MESURER LA PERFORMANCE n a pas encore ecrit '
                 f'de mesure pour cette strategie. Rien n est calcule ici — voir historique_mesures.csv.</div>')
@@ -2446,7 +2502,7 @@ def bloc_strategie(S, etat, titre_vide):
 
     src = (f'<div style="font-size:9px;color:{C["dim"]};margin-top:8px">Indicateurs lus dans '
            f'historique_mesures.csv (mesure du {esc(val(m0, "date_mesure"))}) — aucun calcul effectue ici.</div>')
-    return entete + tableau + verdict + evo + graph + src
+    return alerte + entete + tableau + verdict + evo + graph + src
 
 
 def bloc_laboratoire(S):
@@ -2652,8 +2708,12 @@ def bloc_surveillance(S):
       archivee.
     ⑤ SORTIE — UNE valeur : un texte, le fragment de page — le tableau des
       voyants ou son message de repli, puis la phrase qui explique ce qui se passe
-      au franchissement d une limite, puis le compte des strategies archivees et
-      le tableau des six dernieres.
+      au franchissement d une limite, puis le compte des strategies archivees, le
+      tableau des plus RECENTES par leur date d entree dans l etat (au moins six,
+      davantage quand des ex aequo tombent sur la sixieme place : aucune n est
+      ecartee au hasard), et la liste NOMINATIVE des archivees sans date d entree
+      lisible, signalees et non classees. Mesure le 14-11-2026 : 30 archivees,
+      aucune datee — le tableau est vide et les 30 sont nommees.
       [rend: 1]
     ⑥ TRAITEMENT — ① parcourir l historique et relever tous les couples strategie
       et comptabilite rencontres · ② pour chaque couple, chercher sa mesure la
@@ -2661,8 +2721,12 @@ def bloc_surveillance(S):
       de reussite, les pertes consecutives sur cinq, et la pire chute sur moins
       vingt pourcents, chacun suivi de son voyant · ④ composer le tableau, ou un
       message si aucune ligne · ⑤ relever dans l etat civil les strategies dont le
-      statut ou l etat de vie contient ARCHIV · ⑥ composer le tableau des six
-      dernieres, avec leur nom et le debut de leur note · ⑦ assembler.
+      statut ou l etat de vie contient ARCHIV · ⑥ les ranger par
+      `ranger_par_date_d_entree` du contrat, prendre les groupes du plus recent
+      au plus ancien jusqu a six fiches au moins, et composer leur tableau avec
+      leur `nom_de_fiche` (id puis nom), leur date d entree et le debut de leur
+      note · ⑦ nommer les sans date par leur `nom_de_fiche` et leur raison ·
+      ⑧ assembler.
     ⑦ UNITE — Les pertes consecutives se comptent en OPERATIONS, avec une limite
       de 5. La pire chute est en POURCENTS, avec une limite de moins 20. Le taux
       de reussite et le point mort sont en POURCENTS. Les notes d archive sont
@@ -2673,6 +2737,13 @@ def bloc_surveillance(S):
       tableau des le premier soir ou elle est mesuree, sans qu on ait a toucher a
       ce programme. Mesure le 20-09-2026 sur les vraies donnees du depot : six
       lignes apparaissent, trois strategies dans deux comptabilites chacune.
+      Les archivees se rangent par leur DATE d entree, jamais par leur place dans
+      le fichier : decision de Jean-Luc du 14-11-2026 a 11h35 (« il ne lit pas la
+      date, mais il lit le positionnement […] C est donc ca qu il faut
+      corriger »). Mesure par le relecteur de la branche v7-E4 (D2) : une ligne
+      ajoutee a C1-002, archivee en mars 2026, la faisait entrer dans « les 6
+      dernieres ». Une archivee sans date est NOMMEE a part, parce que la classer
+      — en tete, en queue ou par sa place — serait la classer au hasard.
       La phrase sur le franchissement d une limite est affichee en toutes lettres
       parce que le systeme ne se modifie jamais lui-meme : il arrete de prendre
       position, il continue de mesurer, et la suite appartient a Jean-Luc.
@@ -2688,21 +2759,22 @@ def bloc_surveillance(S):
       finit par `ARCH` et dont l etat de vie commence par `IVEE` le serait aussi,
       par simple collage des deux textes. Releve le 20-09-2026 sur les deux lignes qui
       relevent les strategies archivees.
-      ③ Le tableau des archives est titre « Cloture, Motif », mais la premiere
-      colonne affiche le NOM de la strategie et la seconde le debut de sa note.
-      Aucune des deux ne porte une date de cloture ni un motif. Mesure le
-      20-09-2026 sur les vraies donnees du depot : la premiere ligne affiche
-      « CCI sort <-100 » sous le titre « Cloture ».
+      ③ Repare le 14-11-2026 : le tableau etait titre « Cloture, Motif » et ne
+      portait ni date ni motif ; il est titre « Strategie, Archivee le, Note ».
+      La note reste le debut de la case `note`, pas un motif.
       ④ Les notes sont coupees a 90 caracteres sans que rien ne le dise. Mesure le
       20-09-2026 : quatre des six lignes affichees se terminent par « au moment où
       le prix de clôture est co », phrase tranchee en plein mot.
       ⑤ Le premier parcours de l historique range les mesures par date pour rien :
       il ne sert qu a relever des couples, et le rangement n a aucun effet sur un
       ensemble.
-      ⑥ Le compte annonce est celui de TOUTES les strategies archivees, mais le
-      tableau n en montre que six, et rien ne relie les deux nombres autrement que
-      par la phrase « les 6 dernieres ». Mesure le 20-09-2026 : « 30 strategie(s)
-      archivee(s) au registre — les 6 dernieres ».
+      ⑥ Le compte annonce est celui de TOUTES les strategies archivees ; la phrase
+      dit combien sont datees et combien ne le sont pas. Au 14-11-2026, aucune ne
+      l est : la section ne peut montrer aucune « plus recente » tant que la case
+      `date_entree_etat` des archivees n est pas remplie (question a Jean-Luc,
+      echanges/A_RELIRE.md).
+      ⑦ La date d entree d une archivee est celle de sa fiche (sa derniere ligne,
+      n°83) ; rien ne verifie qu elle a ete mise a jour au moment de l archivage.
     ⑩ EFFET — LIT des donnees deja en memoire. N ouvre aucun fichier, n ecrit
       rien, ne touche pas au reseau, n affiche rien.
     ⑪ TERMINAISON — Rend la main dans le cas normal. PEUT LEVER si une ligne de
@@ -2755,14 +2827,33 @@ def bloc_surveillance(S):
 
     archivees = [s for s in S.strategies
                  if 'ARCHIV' in (s.get('statut', '') + s.get('etat_vie', '')).upper()]
-    arch = tab(['Cloture', 'Motif'],
-               [[esc(s.get('nom', '?')), esc((s.get('note', '') or '')[:90])] for s in archivees[-6:]])
+    groupes, sans_date = _contrat_ordre.ranger_par_date_d_entree(archivees)
+    montrees = []
+    for jour, fiches in groupes:                 # des groupes ENTIERS : un ex aequo n est jamais coupe (⑤)
+        if len(montrees) >= 6:
+            break
+        montrees += [(jour, f) for f in fiches]
+    n_datees = sum(len(f) for _, f in groupes)
+    arch = (tab(['Strategie', 'Archivee le', 'Note'],
+                [[esc(nom_de_fiche(f)), esc(jour), esc((f.get('note', '') or '')[:90])] for jour, f in montrees])
+            if montrees else '')
+    if n_datees:
+        entete_arch = (f'{len(archivees)} strategie(s) archivee(s) au registre — {n_datees} datee(s), '
+                       f'les {len(montrees)} plus recentes par leur date d entree :')
+    else:
+        entete_arch = (f'{len(archivees)} strategie(s) archivee(s) au registre — aucune ne porte de date d entree '
+                       f'lisible : les plus recentes ne peuvent pas etre montrees.')
+    signal_arch = ''
+    if sans_date:
+        signal_arch = (f'<div style="font-size:10px;color:{C["gld"]};margin-top:6px;line-height:1.5">⚠ '
+                       f'{len(sans_date)} archivee(s) sans date d entree lisible, non classee(s) : '
+                       + esc(', '.join(f"{nom_de_fiche(f)} ({raison})" for f, raison in sans_date))
+                       + '</div>')
     return (table
             + f'<div style="font-size:11px;color:{C["mut"]};margin:6px 0;line-height:1.6">Au franchissement '
               f'd une limite, la strategie cesse automatiquement de prendre position tout en restant mesuree. '
               f'La suite releve de votre decision : rearmement, retour au laboratoire, ou retrait definitif.</div>'
-            + f'<div style="font-size:10px;color:{C["dim"]};margin-top:8px">{len(archivees)} strategie(s) '
-              f'archivee(s) au registre — les 6 dernieres :</div>' + arch)
+            + f'<div style="font-size:10px;color:{C["dim"]};margin-top:8px">{entete_arch}</div>' + arch + signal_arch)
 
 
 def construire(S, horo):

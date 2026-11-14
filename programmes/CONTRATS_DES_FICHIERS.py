@@ -694,9 +694,10 @@ STRATEGIE = [
 #    09-11-2026 ; il vit LÀ, une fois — R-708 : deux exemplaires d'une même valeur divergent toujours) = aucune durée
 #    maximale, la position ne sort que sur objectif ou stop · tout le reste (vide, « 0 », « Intraday » de la fiche
 #    C2-001…) est ILLISIBLE et refusé. En mémoire, « aucune » est `COMMUN.HORIZON_AUCUNE`, jamais None ; `lire_horizon`
-#    le refuse (None), `lire_horizon_ou_aucune` le rend. Dans un fichier JSON — l'`hypothese` d'une entrée du registre des
-#    essais, les `reglages` d'une déclaration datée — il s'écrit par la chaîne de ce même mot, jamais par null : null y
-#    veut déjà dire « absent ». Deux essais qui ne diffèrent que par « 20 » / « aucune » sont deux essais différents.
+#    le refuse (None), `lire_horizon_ou_aucune` le rend. Dans un fichier JSON — les `reglages` d'une déclaration datée —
+#    il s'écrit par la chaîne de ce même mot, jamais par null : null y veut déjà dire « absent ». L'`hypothese` d'une
+#    entrée du registre des essais ne le porte plus depuis le 14-11-2026 : elle porte l'empreinte des réglages du juge,
+#    où « aucune » s'écrit par ce même mot (`JUGE_DES_STRATEGIES.empreinte_des_reglages`, CARNET partie 1). Deux essais qui ne diffèrent que par « 20 » / « aucune » sont deux essais différents.
 #
 # ② CE QUE LE CIRCUIT DU SOIR LIT DANS LA FICHE (agent C, détecteur seul) — les colonnes ci-dessous, chacune par LE
 #    lecteur qui existe déjà, en l'IMPORTANT sans le modifier : C n'écrit pas dans le juge. Les lecteurs sont nommés
@@ -1163,8 +1164,10 @@ ENTREE_PREENREGISTREMENT = ENTREE_ESSAI_COMMUNS + [
                            # règle un outil sur la fiche) ; ajouté par B2 le 11-11-2026
     "famille",             # famille déclarée (--famille= du juge), NON_DECLARE sinon
     "mere",                # empreinte_hypothese du contexte qui englobe le calcul (lignée, C-9) ; vide sinon
-    "hypothese",           # ce que `jouer` calcule vraiment : tp_pct, sl_pct (POURCENTS, 6 décimales), horizon (séances),
-                           # univers, signal ([fonction, empreinte du module sans ses textes]), periode, bareme
+    "hypothese",           # ce que `jouer` calcule vraiment, EXACTEMENT trois cases depuis le 14-11-2026 (CARNET partie 1,
+                           # superviseur R-759 §4.3) : empreinte_des_reglages (16 hexadécimaux, celle du juge,
+                           # `JUGE_DES_STRATEGIES.empreinte_des_reglages`), periode, bareme — les réglages n'y sont
+                           # plus recopiés case par case (TENIR_LE_REGISTRE_DES_ESSAIS.CASES_DE_L_HYPOTHESE)
     "empreinte_hypothese", # empreinte de `hypothese` en écriture canonique : CE QUI COMPTE DANS N
     "octets",              # {libellé: [chemin relatif, empreinte des octets ou ABSENT]} — sert à refaire l'essai
     "periode_conception", "part_regardee", "regle_univers", "date_regle_univers",   # grille C-2, C-6 ; NON_DECLARE
@@ -1647,6 +1650,12 @@ def fiches_des_lignes(lignes):
       ajoutée à C5E10-QA-V1 (objectif +6 %) laissait la carte QA montrer C5E10-OBS-V1, et C1-001 archivée par une
       ligne ajoutée n'entrait pas dans les « 6 dernières archivées ». La place de la fiche est celle de sa ligne qui
       fait foi ; cet ordre vit ICI, jamais chez un lecteur (R-708).
+      DEPUIS LE 14-11-2026, LE COCKPIT NE LIT PLUS CETTE PLACE COMME UNE DATE (décision de Jean-Luc du 14-11-2026 à
+      11h35, « le cockpit est complètement débile, il ne lit pas la date, mais il lit le positionnement, c'est ça?
+      […] C'est donc ça qu'il faut corriger, non? ») : une ligne de jugement ajoutée à une fiche la plaçait « en
+      dernier » et changeait la carte QA sans qu'aucun réglage ait changé. Ce qui est RÉCENT se lit désormais dans
+      la case `date_entree_etat`, par `ranger_par_date_d_entree` ; la place rendue ici reste l'ordre des fiches,
+      et la VALEUR de chaque fiche reste sa dernière ligne (n°83), inchangée.
     ⑨ CE QUI CLOCHE — ① La clé est la case `id` telle qu'écrite : deux graphies d'un même identifiant (une espace en
       trop) feraient deux fiches (mesuré le 05-11-2026 : aucun identifiant du registre ne porte d'espace autour,
       aucun n'est vide). ② Une ligne sans case `id` est rangée sous le texte vide. ③ Le repli du radar
@@ -1664,6 +1673,119 @@ def fiches_des_lignes(lignes):
         fiches.pop(cle, None)        # la place de la fiche est celle de sa DERNIÈRE ligne (⑧)
         fiches[cle] = ligne
     return fiches
+
+
+
+_JOURS_DE_LA_SEMAINE = ("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim")   # l'ordre de date.weekday()
+
+
+def date_d_entree_dans_l_etat(ligne):
+    """Lit la case `date_entree_etat` d'une ligne du registre des stratégies : la date, ou la raison de son refus.
+
+    ① RÔLE — Dire, à UN SEUL endroit (R-708 : deux implémentations d'une même chose divergent toujours), le jour où
+      une stratégie est entrée dans son état de vie, pour que ce qui est « récent » se lise dans une DATE et non
+      dans la place d'une ligne (décision de Jean-Luc du 14-11-2026 à 11h35, « il ne lit pas la date, mais il lit
+      le positionnement […] C'est donc ça qu'il faut corriger »).
+    ② CONTEXTE D'APPEL — `ranger_par_date_d_entree`, une fois par fiche ; et les épreuves
+      tests/EPREUVES_DE_L_ORDRE_PAR_LA_DATE_Sam_14-11-2026.py.
+    ③ ENTRÉE — `ligne` : un dictionnaire {colonne : texte}, une ligne du registre ; seule la case
+      `date_entree_etat` est lue (colonne 21 du fichier). Exemple réel : la fiche C5E10-OBS-V1 porte « 2026-08-11 ».
+    ④ CONDITIONS D'ENTRÉE — `ligne` a une méthode `get`. Une case absente vaut une case vide.
+    ⑤ SORTIE — DEUX valeurs : la date en AAAA-MM-JJ, ou None · la raison du refus, ou None quand la date est lue.
+      Raisons : « VIDE » · « MAL FORMÉE « … » » · « IMPOSSIBLE « … » » (un 30 février) · « JOUR DE LA SEMAINE FAUX
+      « … » ». Mesuré le 14-11-2026 sur les 70 lignes de donnees/cac40_strategies.csv : 61 VIDES, 3 en AAAA-MM-JJ,
+      6 en Jjj_JJ-MM-AAAA_HHhMM (Dim_12-07-2026_18h22 rend 2026-07-12), aucune mal formée.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① lire la case, le texte vide si elle manque · ② vide ou faite d'espaces → « VIDE » · ③ essayer
+      la forme AAAA-MM-JJ, puis la forme d'horodatage du projet Jjj_JJ-MM-AAAA_HHhMM, le texte ENTIER devant
+      correspondre · ④ aucune des deux → « MAL FORMÉE » · ⑤ construire la date ; si elle n'existe pas →
+      « IMPOSSIBLE » · ⑥ forme horodatée : l'heure doit tenir dans une journée, sinon « MAL FORMÉE », et le jour de
+      la semaine écrit doit être celui de la date, sinon « JOUR DE LA SEMAINE FAUX » · ⑦ rendre la date.
+    ⑦ UNITÉ — Un JOUR du calendrier, AAAA-MM-JJ ; l'heure de la forme horodatée est vérifiée puis IGNORÉE.
+    ⑧ POURQUOI — Les deux formes sont celles que le registre porte réellement (mesure en ⑤). Le texte entier doit
+      correspondre et le jour de la semaine doit concorder parce qu'une date mal tapée qui serait lue quand même
+      se classerait en silence : elle doit être SIGNALÉE, jamais classée au hasard (consigne du lot, 14-11-2026).
+      Seul le jour compte : la forme AAAA-MM-JJ ne porte pas d'heure, et comparer une heure à une absence d'heure
+      inventerait un ordre.
+    ⑨ CE QUI CLOCHE — ① Deux fiches entrées le même jour sont EX AEQUO, même si leurs heures diffèrent ; c'est à
+      l'appelant de le dire (voir `ranger_par_date_d_entree`). ② Une espace autour d'une date valide la fait
+      refuser (« MAL FORMÉE ») : choix de rigueur, aucun cas au 14-11-2026. ③ La case dit l'entrée dans l'état ;
+      rien ne vérifie qu'elle a été mise à jour quand l'état a changé (une ligne ajoutée qui recopie l'ancienne
+      date garde l'ancienne date — c'est ce qu'on veut pour une ligne de jugement, pas pour un changement d'état).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; ne lève pas.
+      [sort: non]
+    """
+    import re as _re
+    import datetime as _dt
+    brut = ligne.get("date_entree_etat") or ""
+    if not brut.strip():
+        return None, "VIDE"
+    jour_ecrit = None
+    m = _re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", brut)
+    if m:
+        a, mo, j = (int(x) for x in m.groups())
+    else:
+        m = _re.fullmatch(r"(Lun|Mar|Mer|Jeu|Ven|Sam|Dim)_(\d{2})-(\d{2})-(\d{4})_(\d{2})h(\d{2})", brut)
+        if not m:
+            return None, f"MAL FORMÉE « {brut} »"
+        jour_ecrit = m.group(1)
+        j, mo, a, hh, mm = (int(m.group(k)) for k in (2, 3, 4, 5, 6))
+        if hh > 23 or mm > 59:
+            return None, f"MAL FORMÉE « {brut} »"
+    try:
+        d = _dt.date(a, mo, j)
+    except ValueError:
+        return None, f"IMPOSSIBLE « {brut} »"
+    if jour_ecrit is not None and _JOURS_DE_LA_SEMAINE[d.weekday()] != jour_ecrit:
+        return None, f"JOUR DE LA SEMAINE FAUX « {brut} »"
+    return d.isoformat(), None
+
+
+def ranger_par_date_d_entree(fiches):
+    """Range des fiches de la plus RÉCENTE à la plus ancienne par leur date d'entrée dans l'état, et met à part celles
+    dont la date ne se lit pas.
+
+    ① RÔLE — L'ordre d'AFFICHAGE du registre (quelle fiche occupe une carte, quelles sont « les dernières
+      archivées »), écrit une fois (R-708). Il ne touche pas à la VALEUR des fiches : pour l'état d'une fiche, sa
+      dernière ligne fait foi (n°83, `fiches_des_lignes`), et cela ne change pas.
+    ② CONTEXTE D'APPEL — `carte_strategie` et `bloc_surveillance` de
+      programmes/GENERATEUR_COCKPIT_Sam_15-08-2026_21h50.py ; les épreuves
+      tests/EPREUVES_DE_L_ORDRE_PAR_LA_DATE_Sam_14-11-2026.py.
+    ③ ENTRÉE — `fiches` : une suite de dictionnaires, par exemple les fiches en QA rendues par `fiches_du_registre`.
+    ④ CONDITIONS D'ENTRÉE — Chaque élément a une méthode `get`. Une suite vide est acceptée.
+    ⑤ SORTIE — DEUX valeurs : ① les GROUPES, une liste de couples (date AAAA-MM-JJ, liste des fiches entrées ce
+      jour-là), du jour le plus récent au plus ancien ; un groupe de plus d'une fiche est un EX AEQUO · ② les SANS
+      DATE, une liste de couples (fiche, raison rendue par `date_d_entree_dans_l_etat`), dans l'ordre reçu. Mesuré
+      le 14-11-2026 sur les fiches en QA du registre : un seul groupe en tête, (2026-08-11, [C5E10-OBS-V1]), puis
+      (2026-07-27, [C5E10-QA-V1]), aucun sans date ; sur les 30 fiches archivées : aucun groupe, 30 sans date.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① pour chaque fiche, lire sa date par `date_d_entree_dans_l_etat` · ② sans date → la mettre à
+      part avec sa raison · ③ sinon la ranger sous sa date · ④ trier les dates de la plus récente à la plus ancienne.
+    ⑦ UNITÉ — Des fiches ; des jours du calendrier.
+    ⑧ POURQUOI — Le cockpit lisait la PLACE d'une fiche comme une date : mesuré par le relecteur de la branche
+      v7-E4 (note echanges/A_RELIRE_E4.md, D2), une ligne de jugement ajoutée à C5E10-QA-V1 faisait passer la
+      carte QA de C5E10-OBS-V1 à C5E10-QA-V1 sans qu'aucun réglage ait changé, et C1-002, archivée en mars 2026,
+      entrait dans les « 6 dernières archivées ». Les SANS DATE sont rendus à part, jamais rangés : les classer
+      par leur place, ou en tête, ou en queue, serait les classer au hasard ; l'appelant doit les SIGNALER.
+      Les EX AEQUO sont rendus ensemble pour la même raison : aucun ordre interne n'est inventé.
+    ⑨ CE QUI CLOCHE — ① À l'intérieur d'un groupe et parmi les sans date, les fiches gardent l'ordre reçu, qui est
+      celui du fichier : cet ordre n'a pas de sens et ne doit servir qu'à les ÉNUMÉRER, jamais à en choisir une.
+      ② Au 14-11-2026, aucune fiche archivée n'a de date (mesure en ⑤) : « les dernières archivées » ne peuvent
+      être montrées qu'une fois les dates remplies — question à Jean-Luc dans echanges/A_RELIRE.md.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; ne lève pas.
+      [sort: non]
+    """
+    par_jour = {}
+    sans_date = []
+    for fiche in fiches:
+        jour, raison = date_d_entree_dans_l_etat(fiche)
+        if jour is None:
+            sans_date.append((fiche, raison))
+        else:
+            par_jour.setdefault(jour, []).append(fiche)
+    return [(jour, par_jour[jour]) for jour in sorted(par_jour, reverse=True)], sans_date
 
 
 def lire_les_fiches(racine):
@@ -2595,6 +2717,16 @@ RESULTATS_DES_VERSIONS = [
     # leur nombre et leur gain ou perte du moment (décision de Jean-Luc du 12-11-2026 à 09h18 ; R1 du superviseur
     # de la vente, tour 3, 13-11-2026). Zéro et « 0.00 » pour une version à durée chiffrée. Jamais lues par le tri.
     "operations_a_part_fin_des_donnees", "gain_net_euros_a_part_fin_des_donnees",
+    # L'EMPREINTE DES RÉGLAGES de la version (14-11-2026, CARNET partie 1 ; superviseur R-759, §4.2) : celle de la fiche
+    # fusionnée qu'on joue, écrite par JOUER au moment du jeu (`JOUER_LES_VERSIONS.empreinte_de_la_version`, qui appelle
+    # `JUGE_DES_STRATEGIES.empreinte_des_reglages`, la seule définition). Le tri compte une version une fois PAR CETTE
+    # COLONNE ; une fiche du registre aux mêmes réglages porte la même. Un fichier écrit avant ce jour ne l'a pas : le
+    # tri le refuse (champ absent).
+    "empreinte_des_reglages",
+    # L'EMPREINTE DE LA FICHE DE BASE (14-11-2026, CARNET tour 3 ; superviseur R-759, §1.3) : `empreinte_des_reglages`
+    # de la fiche jouée, la même sur toutes les lignes d'un fichier. Elle est une COLONNE COMMUNE du tri (ci-dessous) :
+    # deux fichiers joués avec un code de module, un signal ou une période différents arrêtent le tri.
+    "empreinte_de_la_fiche",
 ]
 # Les SEULES colonnes qu'un critère du tri peut lire : celles de la partie de réglage. Les colonnes `operations`,
 # `reussite_pourcents_exacte` et `gain_net_euros` portent la période ENTIÈRE, 30 % compris : elles servent à la
@@ -2603,7 +2735,7 @@ COLONNES_DU_TRI = ("operations_70", "reussite_pourcents_exacte_70", "gain_net_eu
 # Les colonnes qui doivent porter UNE seule valeur sur tous les fichiers que le tri réunit : sinon les versions n'ont
 # pas été jouées dans les mêmes conditions (relecteur neuf, D4).
 COLONNES_COMMUNES_A_UN_TRI = ("periode_debut", "periode_fin", "fin_ecrite_dans_la_fiche", "bareme", "cours_joues",
-                              "empreinte_des_cours", "frontiere_70_30")
+                              "empreinte_des_cours", "frontiere_70_30", "empreinte_de_la_fiche")
 
 def confronter_tous(base):
     """Confronte CHAQUE fichier de liaison à son contrat. Rend la liste des écarts.

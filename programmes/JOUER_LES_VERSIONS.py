@@ -453,6 +453,32 @@ def fusionner(fiche, version):
     return f
 
 
+def empreinte_de_la_version(J, fiche, version, lire_module):
+    """Rend l'empreinte des réglages d'une version de la moulinette : celle de la fiche fusionnée qu'on joue.
+
+    ① RÔLE — Donner à une version la MÊME empreinte que la fiche du registre qui porterait ses réglages (superviseur
+      R-759 du 14-11-2026, CARNET partie 1, §4.2 : « une version de moulinette EST une fiche fusionnée »).
+    ② CONTEXTE D'APPEL — `main`, une fois par version, pour la colonne `empreinte_des_reglages` du fichier de
+      résultats ; les épreuves (fiche et version aux mêmes réglages).
+    ③ ENTRÉE — `J` : le module du juge · `fiche` : la dernière ligne de la fiche au registre · `version` : une ligne de
+      la combinatoire · `lire_module` : la fonction de `J.lire_module_du_jour`.
+    ④ CONDITIONS D'ENTRÉE — Celles de `fusionner`.
+    ⑤ SORTIE — UNE valeur : seize caractères hexadécimaux. Exemple réel : C5E10-OBS-V1-E01-0914 (tp 0,04, sl 0,025,
+      20 séances, les 10 valeurs de la fiche) rend l'empreinte de la fiche C5E10-OBS-V1 elle-même.
+      [rend: 1]
+    ⑥ TRAITEMENT — `fusionner`, puis `J.empreinte_des_reglages`, premier élément.
+    ⑦ UNITÉ — Une empreinte, comparable par égalité seulement.
+    ⑧ POURQUOI — Une seule définition de l'empreinte (R-708) : l'ancienne empreinte du tri ne hachait que quatre
+      réglages et ne voyait pas le signal (relecteur neuf du 14-11-2026, D2). Écrite AU MOMENT DU JEU, elle ne relit
+      pas la fiche du jour au moment du tri (⑨ de l'ancienne fonction du tri).
+    ⑨ CE QUI CLOCHE — Le module est lu au jour du jeu (voir ⑨ ① d'`empreinte_des_reglages`).
+    ⑩ EFFET — Celui de `lire_module`.
+    ⑪ TERMINAISON — Rend la main ; lève ce que lève le juge.
+      [sort: non]
+    """
+    return J.empreinte_des_reglages(fusionner(fiche, version), lire_module)[0]
+
+
 def controler_fusion(J, fusion, version):
     """Vérifie que le juge lira bien les réglages de la version.
 
@@ -882,6 +908,13 @@ def main():
     if b_tem is not None:
         print("TÉMOIN FAIT SOUS LE BARÈME %s%s" % (b_tem, " : chaque version est aussi rejouée sous ce barème"
                                                    if rejouer else ""))
+    # L'EMPREINTE DES RÉGLAGES DE CHAQUE VERSION, ÉCRITE AU JEU (superviseur R-759 du 14-11-2026, CARNET, §4.2) : le
+    # module de signal est lu au jour du jeu, une fois pour toutes les versions.
+    lire_module = J.lire_module_du_jour(base)
+    # L'EMPREINTE DE LA FICHE DE BASE (superviseur R-759 du 14-11-2026, tour 3, §1.3) : la même fonction, sur la fiche
+    # telle qu'elle est jouée ; écrite sur chaque ligne, elle est une condition commune du tri — deux fichiers joués
+    # avec un code de module, un signal ou une période différents ne se mêlent plus en un classement.
+    empreinte_fiche = J.empreinte_des_reglages(fiche, lire_module)[0]
     provisoire = f_out + ".en_cours"
     cree = False  # on n'efface que ce qu'on a créé (relecture du 08-10-2026, N5)
     try:
@@ -932,6 +965,8 @@ def main():
                 w.writerow({"id_version": v["id_version"], "strategie": sid, "essai": essai,
                             "versions_dans_l_essai": len(versions), "tp": v["tp"], "sl": v["sl"],
                             "horizon": v["horizon"], "univers": v["univers"],
+                            "empreinte_des_reglages": empreinte_de_la_version(J, fiche, v, lire_module),
+                            "empreinte_de_la_fiche": empreinte_fiche,
                             "periode_debut": periode_jouee[0], "periode_fin": periode_jouee[1],
                             "operations": r["n"],
                             "reussite_pourcents_exacte": "%.6f" % r["wr_exact"] if r["n"] else "",

@@ -404,6 +404,9 @@ def copie(sab):
                     ignore=shutil.ignore_patterns("__pycache__"))
     for x in LIES:
         shutil.copytree(os.path.join(DEPOT, x), os.path.join(d, x), copy_function=os.link)
+    # « emp.py » (14-11-2026, CARNET tour 3) : JOUER écrit l'empreinte des réglages, dont celle du CODE du module de
+    # signal, par LIRE_LE_CODE, qui lit `emp.py` à la racine — sans lui, JOUER s'arrête dans la copie
+    shutil.copy2(os.path.join(DEPOT, "emp.py"), os.path.join(d, "emp.py"))
     for f, avant, apres in SABOTAGES[sab]:
         p = os.path.join(d, f)
         t = open(p, encoding="utf-8").read()

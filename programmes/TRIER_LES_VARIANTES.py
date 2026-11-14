@@ -31,7 +31,8 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG, fonction ③ ;
   `RESULTATS_DES_VERSIONS`, dont la partie de réglage (colonnes « _70 ») · ② il n'est pas vide, ne porte qu'une
   stratégie et qu'un essai, des identifiants uniques, et autant de lignes que sa colonne `versions_dans_l_essai` ·
   ③ tous les fichiers portent la même stratégie, des essais différents, et UNE seule valeur pour chacune des
-  `COLONNES_COMMUNES_A_UN_TRI` du contrat (période, fin, barème, cours et leur empreinte, frontière 70/30) ·
+  `COLONNES_COMMUNES_A_UN_TRI` du contrat (période, fin, barème, cours et leur empreinte, frontière 70/30, et depuis
+  le 14-11-2026 l'empreinte de la fiche de base, écrite par JOUER) ·
   ④ tout nombre est fini ; une version à zéro opération porte un gain « 0.00 » et une réussite vide ; une version à
   durée « aucune » porte VIDES, toutes ensemble, les quatre `CASES_DE_LA_PARTIE_DE_REGLAGE`, et une version à durée
   chiffrée n'en laisse vide aucune (hors la réussite à zéro opération) ·
@@ -44,8 +45,9 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG, fonction ③ ;
 ⑥ TRAITEMENT — ① lire la ligne de commande · ② lire le critère (`lire_le_critere`) · ③ lire et contrôler chaque
   fichier de résultats (`lire_les_resultats`) · ④ exiger des conditions de jeu communes · ④bis recalculer la
   frontière 70/30 depuis le registre des stratégies et les cours joués (`frontiere_attendue`, par la même fonction
-  que le juge et JOUER) et refuser tout écart · ⑤ compter les versions essayées par leur EMPREINTE de réglages
-  (`empreinte_des_reglages`) : une même version recopiée sous un autre essai ne compte qu'une fois et n'est écrite
+  que le juge et JOUER) et refuser tout écart · ⑤ compter les versions essayées par leur EMPREINTE de réglages,
+  la colonne `empreinte_des_reglages` que JOUER écrit au jeu (`JUGE_DES_STRATEGIES.empreinte_des_reglages` de la fiche
+  fusionnée, la seule définition ; superviseur R-759 du 14-11-2026, CARNET partie 1, §4.2) : une même version recopiée sous un autre essai ne compte qu'une fois et n'est écrite
   qu'une fois si ses chiffres sont les mêmes ; des chiffres différents pour les mêmes réglages arrêtent tout · ⑥ écarter toute version sans opération dans la partie de
   réglage, quel que soit le critère, et garder chaque autre version qui passe TOUTES les conditions
   (`passe_le_critere`) · ⑦ écrire le fichier trié, par un fichier provisoire renommé à la fin · ⑧ afficher le bilan.
@@ -279,12 +281,15 @@ def lire_les_resultats(chemin, contrat):
       réussite vide ; ailleurs une réussite finie · ④ durée « aucune » (lue par `COMMUN.lire_horizon_ou_aucune`) :
       les quatre cases de la partie de réglage vides ENSEMBLE, sinon ARRÊT (toutes remplies, ou en partie) ; durée
       chiffrée : `operations_70`, `gain_net_euros_70` et `embargo_seances` jamais vides, sinon ARRÊT, et
-      `embargo_seances` un entier ≥ 0 (lu par isdigit, comme les opérations), sinon ARRÊT ; la partie de
+      `embargo_seances` un entier ≥ 0 (lu par isdigit, comme les opérations), sinon ARRÊT ; toute version :
+      `empreinte_des_reglages` et `empreinte_de_la_fiche` en seize hexadécimaux, sinon ARRÊT (14-11-2026) ; la partie de
       réglage d'une version « aucune » n'est pas lue plus avant (superviseur R-759 E1F phase 2, M-1).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Le nombre de versions essayées est la moitié du travail du tri (A-541) : un fichier tronqué
       le fausserait sans bruit. JOUER annonce le nombre de versions de l'essai sur chaque ligne ; il est relu ici.
-    ⑨ CE QUI CLOCHE — Le contenu des réglages (tp, sl, horizon, univers) n'est pas contrôlé : JOUER le fait.
+    ⑨ CE QUI CLOCHE — Le contenu des réglages (tp, sl, horizon, univers) n'est pas contrôlé : JOUER le fait. La
+      colonnes `empreinte_des_reglages` et `empreinte_de_la_fiche` ne sont contrôlées que dans leur FORME (seize hexadécimaux), jamais recalculée : le
+      tri ne relit pas la fiche (elle peut avoir changé depuis le jeu) ; une empreinte fausse écrite par JOUER passerait.
     ⑩ EFFET — Lit le fichier.
     ⑪ TERMINAISON — Rend la main ; lève ValueError sur le premier défaut.
       [sort: non]
@@ -329,6 +334,14 @@ def lire_les_resultats(chemin, contrat):
                              "laisse la partie de réglage vide" % (nom, l["id_version"], ", ".join(vides)))
         # L'EMBARGO D'UNE VERSION CHIFFRÉE EST UN NOMBRE DE SÉANCES, ENTIER ≥ 0 (relecture Cowork du 14-11-2026, N-4 ;
         # superviseur R-759 E1F) : lu comme les opérations (isdigit), sinon le fichier trié recopierait « abc ».
+        # LES DEUX EMPREINTES ÉCRITES PAR JOUER (CARNET partie 1, 14-11-2026) : seize caractères hexadécimaux, sinon
+        # ARRÊT — `empreinte_des_reglages` est la clé du compte des versions ; `empreinte_de_la_fiche` est une colonne
+        # commune, et une case VIDE partout y ferait une seule valeur qui passe (relecture Cowork du 14-11-2026, D-4 :
+        # deux fichiers à case vide, module au code changé, le tri mêlait 6 versions, code 0).
+        for col in ("empreinte_des_reglages", "empreinte_de_la_fiche"):
+            if not re.fullmatch(r"[0-9a-f]{16}", l[col] or ""):
+                raise ValueError("%s : %s, %s illisible « %s » : seize caractères hexadécimaux, écrits par JOUER au jeu, "
+                                 "sont attendus" % (nom, l["id_version"], col, l[col]))
         if not aucune and not l["embargo_seances"].strip().isdigit():
             raise ValueError("%s : %s, embargo_seances illisible « %s » sur une version à durée chiffrée : un nombre "
                              "entier de séances, positif ou nul, est attendu" % (nom, l["id_version"], l["embargo_seances"]))
@@ -409,53 +422,6 @@ def texte_du_critere(conditions):
       [sort: non]
     """
     return " ET ".join("%s %s %s" % (c, o, repr(v)) for c, o, v in conditions)
-
-
-def empreinte_des_reglages(ligne, jouer):
-    """Rend l'empreinte des réglages d'une version : deux versions de même empreinte sont la même version.
-
-    ① RÔLE — Reconnaître une version recopiée sous un autre essai ou un autre identifiant, par ce qu'elle EST et
-      jamais par son nom (relecteur neuf du 11-11-2026, D4).
-    ② CONTEXTE D'APPEL — `main`, une fois par version lue ; les épreuves, par import.
-    ③ ENTRÉE — `ligne` : une version du fichier de résultats · `jouer` : le module `JOUER_LES_VERSIONS` de la
-      racine, pour sa liste `REGLAGES` et son découpage d'univers `codes`.
-    ④ CONDITIONS D'ENTRÉE — La ligne a passé `lire_les_resultats`.
-    ⑤ SORTIE — UNE valeur : seize caractères hexadécimaux.
-      [rend: 1]
-    ⑥ TRAITEMENT — Pour chaque réglage de `jouer.REGLAGES` : l'univers découpé et trié par `jouer.codes`, l'horizon
-      par `COMMUN.lire_horizon_ou_aucune` (un entier, ou le mot « aucune »), un stop « sans stop » par
-      `COMMUN.est_le_mot_du_stop_aucun` (le mot), les autres en nombre ; joindre, hacher (SHA-256), garder seize
-      caractères. (Phase 2 d'E1F : `int("aucune")` et `nombre("sans stop")` arrêtaient le tri sur les versions que
-      JOUER écrit depuis le 11-11-2026 — trouvé en rejouant W13 jusqu'au tri.)
-    ⑦ UNITÉ — —
-    ⑧ POURQUOI — Le nombre de versions essayées relève la barre du jugement : compter deux fois la même version la
-      relève à tort (sonde D2 du relecteur : une combinatoire recopiée sous E09 faisait passer le compte de 4 à 8).
-      La liste des réglages et le découpage des univers sont ceux de JOUER, importés (R-708).
-    ⑨ CE QUI CLOCHE — Le signal de la fiche n'est pas dans les résultats : deux essais joués avec deux signaux
-      différents sous le même identifiant de stratégie seraient vus comme les mêmes versions (n°83 : la dernière ligne
-      d'une fiche fait foi, elle peut changer entre deux essais).
-    ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main ; lève ValueError sur un réglage illisible.
-      [sort: non]
-    """
-    import COMMUN
-    morceaux = []
-    for k in jouer.REGLAGES:
-        if k == "univers":
-            morceaux.append(",".join(jouer.codes(ligne[k])))
-        elif k == "horizon":
-            h = COMMUN.lire_horizon_ou_aucune(ligne[k])
-            if h is None:
-                raise ValueError("%s : réglage horizon illisible « %s »" % (ligne.get("id_version"), ligne[k]))
-            morceaux.append(str(h))
-        elif k == "sl" and COMMUN.est_le_mot_du_stop_aucun(ligne[k]):
-            morceaux.append(COMMUN.MOT_DU_STOP_AUCUN)
-        else:
-            x = nombre(ligne[k])
-            if x is None:
-                raise ValueError("%s : réglage %s illisible « %s »" % (ligne.get("id_version"), k, ligne[k]))
-            morceaux.append(repr(x))
-    return hashlib.sha256("|".join(morceaux).encode("utf-8")).hexdigest()[:16]
 
 
 # Les chiffres que deux versions de mêmes réglages doivent porter à l'identique pour n'être comptées qu'une fois. Les
@@ -562,7 +528,6 @@ def main():
         print("ARRÊT (critère illisible) : %s" % e)
         return 2
     import CONTRATS_DES_FICHIERS as contrat   # chargé depuis la racine par `lire_le_critere`
-    import JOUER_LES_VERSIONS as jouer        # idem : sa liste de réglages et son découpage d'univers
     try:
         par_fichier = [lire_les_resultats(f, contrat) for f in fichiers]
     except (ValueError, OSError) as e:
@@ -596,7 +561,9 @@ def main():
         vues, doublons, uniques = {}, 0, []
         for f, lignes in zip(fichiers, par_fichier):
             for l in lignes:
-                e = empreinte_des_reglages(l, jouer)
+                # LA COLONNE ÉCRITE PAR JOUER (CARNET partie 1, 14-11-2026) : le tri ne recalcule plus d'empreinte ;
+                # la sienne ne voyait que quatre réglages et pas le signal (relecteur neuf du 14-11-2026, D2).
+                e = l["empreinte_des_reglages"]
                 if e in vues:
                     # MÊMES RÉGLAGES : mêmes chiffres -> comptée une fois ; chiffres différents -> ARRÊT, en nommant
                     # les deux fichiers (relecteur, tour 2, N3 ; lecture la plus stricte, à confirmer par Jean-Luc)

@@ -227,7 +227,7 @@ def cas(d, nom):
                                       and r["premier_controle_bloquant"] == "regard_unique")
     suivi = "refs/remotes/origin/" + C.BRANCHE_DES_REGARDS
     examen = "2024-01-02..2025-12-31"      # les années d'examen des déclarations fabriquées (épreuve J, DEBUT..FIN)
-    hyp = {"tp_pct": "+4.0%", "sl_pct": "-2.5%", "horizon": "20", "univers": "AIR,TTE,DG", "signal": "épreuve",
+    hyp = {"empreinte_des_reglages": "0000000000000004",   # CARNET partie 1 : les réglages par leur empreinte
            "periode": examen, "bareme": "épreuve"}
 
     def cloner(nom_du_clone):
@@ -396,7 +396,8 @@ def cas(d, nom):
         clos = T.preenregistrer(d, "BONNE-B", dict(hyp, periode="%s..%s" % periode))
         T.inscrire_le_resultat(d, clos, resultat={"essai": "clos"})
         recu_clos = essai(periode=periode, recu=(d, clos))
-        neuf = T.preenregistrer(d, "BONNE-B", dict(hyp, periode="%s..%s" % periode, signal="neuf"))
+        neuf = T.preenregistrer(d, "BONNE-B", dict(hyp, periode="%s..%s" % periode,
+                                                  empreinte_des_reglages="0000000000000005"))   # un autre signal = d'autres réglages
         T._pousser_l_entree(d, "0123456789abcdef", b'{"abime": 1}\n')       # un défaut au registre
         abime = essai(periode=periode, recu=(d, neuf))
         ok("GARDE2 sans reçu : jouer_une_entree et backtest_c5etendu10 REFUS ; reçu clos par son résultat : REFUS ; "

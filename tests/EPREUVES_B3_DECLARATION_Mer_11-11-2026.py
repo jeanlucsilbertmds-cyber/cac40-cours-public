@@ -362,7 +362,7 @@ def cas(copie, racine):
 
         def l12():
             # REGARDÉE PUIS DÉCLARÉE : le premier regard (registre des essais) est commité avant la déclaration
-            hyp = {"tp_pct": 4.0, "sl_pct": 2.5, "horizon": 20, "univers": ["AC"], "signal": ["f", "0123"],
+            hyp = {"empreinte_des_reglages": "0000000000000004",   # CARNET partie 1 : les réglages par leur empreinte
                    "periode": "2001-01-02..2005-12-30", "bareme": "Fortuneo"}
             T.preenregistrer(d, "C5E10-QA-V1", hyp)      # le regard inscrit le sommet de main qu'il voit (ancre)
             commit("regard avant la declaration")
