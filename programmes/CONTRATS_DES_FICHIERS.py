@@ -580,6 +580,13 @@ COURS_MAITRE = [
     "low", "close", "volume", "source",
 ]
 
+# L'OPTION DE A-748 (E2c, 12 et 13-11-2026) : donnees/sources_societes_sorties/COURS_DE_REMPLACEMENT_DES_TROUS.csv,
+# écrit par etudes/VINGT_ANS_PAR_YAHOO_Dim_08-11-2026/programmes/ecrire_les_remplacements_des_trous.py, lu par
+# ASSEMBLER_LES_VINGT_ANS (`lire_les_cours_recoupes`) et par son épreuve. Les colonnes du maître, puis `retenue` (« oui »
+# ou « non »), `decision` (la décision qui retient la ligne, vide pour « non ») et `preuve`. Exemple : ALO, 2006-07-17,
+# … , « oui », « A-748 · décision de Jean-Luc du 12-11-2026 à 23h47 », « rapport SOURCE_DES_28_COURS_ALO_LI … ».
+COURS_DE_REMPLACEMENT_DES_TROUS = COURS_MAITRE + ["retenue", "decision", "preuve"]
+
 # LES SOURCES ADMISES dans la huitième colonne du maître — TENIR_L_HISTORIQUE refuse
 # toute autre valeur. Cassure de Cowork du 24-09-2026 : une ligne versée avec la source
 # « n_importe_quoi » entrait au maître sans un mot. Une source nouvelle s'ajoute ICI,
@@ -632,6 +639,9 @@ CONTRATS_DE_COURS = (COURS_MAITRE, COURS_NOUVEAUX)
 FICHIERS_DE_COURS_INCREMENTS = ("donnees/claude_cours_nouveaux.csv",)
 
 FICHIERS_DE_COURS_FIGES = {
+    "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv": {
+        "fin": "2026-11-11",
+        "sha256": "34795576d85ee80b743f059e21828480f7523ecf3a71a200c6f3e62043178a11"},
     "donnees/cac40_ohlcv.csv": {
         "fin": "2026-07-10",
         "sha256": "10e71dc94aed4ef2b4119a1a1c20545faea80ea8c53a2f1ef260ce96bee45f11"},
@@ -804,6 +814,40 @@ BARRES_BNAINS_FAUSSES = [
     "valeur", "premiere_seance", "derniere_seance", "source", "citation", "mesure", "fichiers_cites",
 ]
 
+# LES BARRES DE PARIS RECTIFIÉES SUR DÉCISION — ÉCRIT À LA MAIN, une ligne par (valeur, séance) (04-11-2026, choix D6 à D9
+# faits par le Chat sous la délégation de Jean-Luc du 01-11-2026 à 16h39, n°129). Chaque ligne dit une RÈGLE, jamais un
+# cours : le cours se CALCULE depuis la source brute (R-728). Lu par programmes/CONTROLER_L_HISTORIQUE_LONG.py
+# (`rectifier_paris`, dans `lire_paris`) : la réparation ET le rejeu de K23 voient donc le même Paris (R-708). `regle` est
+# une clé de REGLES_DE_RECTIFICATION ; `depuis` dit d'où part la règle (une date AAAA-MM-JJ, un code de l'archive, ou
+# vide). Les trois dernières colonnes sont COLONNES_DES_SOURCES_A_LA_MAIN (K23). Exemple : AIRBUS, 2001-06-19, « barre du
+# fichier d'un autre jour », 2001-06-20 — chez bnains, les fichiers des 19 et 20-06-2001 sont échangés (30 valeurs sur
+# 30 confrontables à Yahoo, trous_40 § 4.3).
+BARRES_DE_PARIS_RECTIFIEES = ["valeur", "date", "regle", "depuis", "source", "citation", "fichiers_cites"]
+# Les règles admises, et ce que `depuis` doit porter pour chacune. « barre du fichier d'un autre jour » : la barre de
+# l'extrait bnains de la même valeur au jour `depuis` (lue AVANT toute rectification : deux jours échangés se rectifient
+# l'un par l'autre sans s'écraser). « plus bas et plus haut ramenés à l'ouverture et à la clôture » : la barre du jour, plus
+# bas = min(plus bas, ouverture, clôture), plus haut = max(plus haut, ouverture, clôture) ; `depuis` vide ; refusée si
+# elle ne change rien. « ligne d'un autre code dans l'archive du jour » : la ligne de code `depuis` du fichier du jour de
+# l'archive bnains (donnees/sources_bnains/archives_bnains/<année>.ZIP), là où l'extrait ne l'a pas prise — exemple :
+# BOUYGUES, 2011-11-04, FR0011121888 (« BOUYGUES OPR »).
+# Chaque règle porte un NOM (13-11-2026, superviseur R-759 après le gel, c13) : les programmes et les épreuves désignent une
+# règle par son nom, jamais par sa position dans REGLES_DE_RECTIFICATION — une adresse par position attacherait une
+# sûreté à la mauvaise règle, sans un mot, si l'ordre du tuple changeait.
+REGLE_AUTRE_JOUR = "barre du fichier d'un autre jour"
+REGLE_RAMENEE = "plus bas et plus haut ramenés à l'ouverture et à la clôture"
+REGLE_AUTRE_CODE = "ligne d'un autre code dans l'archive du jour"
+REGLES_DE_RECTIFICATION = (REGLE_AUTRE_JOUR, REGLE_RAMENEE, REGLE_AUTRE_CODE)
+# LA SÛRETÉ DE CHAQUE RÈGLE (05-11-2026, superviseur R-759 de VINGT, D3) : les colonnes de cours (contrat COURS_MAITRE,
+# celui de historique_long_repare.csv) qu'une barre rectifiée par cette règle NE GARANTIT PAS. Une conséquence de la règle, écrite UNE
+# fois, ici, et lue par `bornes_non_sures` de programmes/CONTROLER_L_HISTORIQUE_LONG.py : jamais un mot dans une citation.
+# « ramenés » : la barre de bnains était incohérente ; ramener le plus bas et le plus haut à l'ouverture et à la clôture la
+# rend cohérente, mais le vrai plus bas est AU PLUS celui écrit, et le vrai plus haut AU MOINS celui écrit (choix D6 :
+# « plus bas ou plus haut NON SÛR » ; Yahoo dément la règle sur une partie des barres, trous_40). Exemple réel : SAFRAN
+# 2015-12-31. Les deux autres règles reprennent une barre telle que l'archive l'écrit : aucune borne n'est en doute.
+BORNES_NON_SURES_PAR_REGLE = {REGLE_AUTRE_JOUR: (),
+                              REGLE_RAMENEE: ("high", "low"),
+                              REGLE_AUTRE_CODE: ()}
+
 # les clôtures de la même action à la Bourse de Francfort (Yahoo, symbole « .F »), du 03-01-2000 au
 # 28-02-2017 — écrit par etudes/outils/CONFRONTER_A_FRANCFORT.py ; CONTROLER_L_HISTORIQUE_LONG et
 # REPARER_L_HISTORIQUE_LONG les lisent comme TROISIÈME source, pour trancher entre Yahoo et bnains
@@ -885,11 +929,18 @@ JOURNAL_DES_REPARATIONS = ["valeur", "date", "geste", "close_avant", "close_apre
 # du 18-10-2026). Exemple : « comblé » → « paris ».
 GESTES_DU_JOURNAL = {"défait": "ligne", "ajusté": "ligne", "aligné": "ligne", "gardé": "ligne",
                      "reconstruit": "paris", "recalé": "paris", "corrigé": "paris", "remplacé": "paris", "comblé": "paris",
-                     "retiré": "", "écarté": "", "non comblé": ""}
+                     "retiré": "", "écarté": "", "non comblé": "",
+                     # depuis le 31-10-2026 : une séance posée depuis la barre d'ABC Bourse du jour (décision de Jean-Luc
+                     # de 20h11, annexe n°37ter : Unibail du 01-03-2017 au 13-04-2023)
+                     "versé": "abc"}
 # Les deux valeurs de la colonne `source` de l'historique long réparé : la ligne vient de Yahoo (le fichier d'origine),
 # ou d'une barre de Paris (bnains). Toute autre valeur est refusée par K23 (relecture du 18-10-2026 : « Yahoo », vide,
 # « bnain » passaient). Exemple : AIR LIQUIDE, 2000-01-04, comblé depuis Paris → « bnains ».
 SOURCE_YAHOO, SOURCE_PARIS = "yahoo", "bnains"
+# Depuis le 31-10-2026, une troisième : la ligne vient d'une barre de Paris téléchargée chez ABC Bourse (décision de
+# Jean-Luc du 31-10-2026 à 20h11, annexe n°37ter : « tu donnes bien l'origine, j'espère »). Exemple :
+# UNIBAIL-RODAMCO-WESTFIELD, 2017-03-01 → « abc ».
+SOURCE_ABC = "abc"
 # La provenance des fichiers (A-578, décision de Jean-Luc du 13-10-2026, « Les deux, dans l'ordre ») — écrit À LA MAIN
 # ou par le programme qui produit le fichier : une ligne par fichier produit, dans un état donné (son empreinte).
 # `fichier` : le chemin depuis la racine du dépôt · `sha256` : l'empreinte du fichier dans cet état · `produit_par` : le
@@ -916,6 +967,29 @@ PROVENANCE_DES_FICHIERS = ["fichier", "sha256", "produit_par", "lu", "adresse", 
 # main », passait K23. Exemple : donnees/sources_bnains/BARRES_BNAINS_FAUSSES.csv, chaque ligne avec sa source et sa
 # citation. « Au dépôt » veut dire, dans K23, « dans le dossier contrôlé » : le verdict qui fait foi est celui d'une
 # copie fraîche du dépôt (décision de Jean-Luc du 19-10-2026 à 19h56 ; voir le ④ de `maillons_manquants`).
+# LES DIVISIONS PROUVÉES PAR UN DOCUMENT OFFICIEL — ÉCRIT À LA MAIN, une ligne par division (31-10-2026, lot de
+# comblement d'A-633). Lu par programmes/RECONSTRUIRE_L_HISTORIQUE_LONG.py (`lire_divisions_officielles`), qui en fait
+# des opérations de la liste unique, de preuve « document officiel ». Une division de cette table est PORTÉE par le
+# comblement d'un début de série ; la même division vue seulement chez bnains l'ARRÊTE (règle de fond du superviseur
+# R-759 du 31-10-2026, 19h30). `actions_avant` et `actions_apres` : une action d'avant devient `actions_apres ÷
+# actions_avant` actions ; le facteur de la courbe d'avant la date vaut `actions_avant ÷ actions_apres`. `date` : la
+# première séance de Paris au nouveau cours. Les trois dernières colonnes sont COLONNES_DES_SOURCES_A_LA_MAIN (K23).
+# Exemple : STMICROELECTRONICS, 2000-05-09, 1, 3 (« three-for-one stock split », 6-K de 2000 ; décision de Jean-Luc du
+# 31-10-2026 à 19h23).
+DIVISIONS_OFFICIELLES = ["valeur", "date", "actions_avant", "actions_apres", "source", "citation", "fichiers_cites"]
+# LES BARRES DE YAHOO DÉGRADÉES — ÉCRIT À LA MAIN, une ligne par barre (31-10-2026, décision de Jean-Luc de 21h04,
+# annexe n°47). Lu par programmes/REPARER_L_HISTORIQUE_LONG.py (`lire_les_degradees`) : chaque barre est écartée (geste
+# « écarté », la barre entière dans la raison) puis comblée depuis Paris par `combler`. `constat` : la mesure qui la
+# condamne (volume recopié, barre plate, clôture fausse). Les trois dernières colonnes sont
+# COLONNES_DES_SOURCES_A_LA_MAIN (K23). Exemple : ACCOR, 2008-12-01, « D volume recopié ; volume +55.1% ; … ».
+BARRES_YAHOO_DEGRADEES = ["valeur", "date", "constat", "source", "citation", "fichiers_cites"]
+# LES CAUSES DES SÉANCES SANS COURS — ÉCRIT À LA MAIN (31-10-2026, décision de Jean-Luc de 21h08, annexe n°48). Lu par
+# programmes/CONTROLER_LES_CAUSES_DES_TROUS.py : toute séance du calendrier sans cours d'une valeur de l'historique long
+# est couverte par une ligne et une seule (valeur, debut, fin inclus), dont la cause est dans CAUSES_DES_TROUS, avec une
+# preuve (document ou mesure) ; « source perdue » exige les sources cherchées et leur réponse. Exemple : ENGIE,
+# 2000-01-03, 2005-07-07, « pas encore cotée », avis Euronext d'admission de Gaz de France du 07-07-2005.
+CAUSES_DES_SEANCES_SANS_COURS = ["valeur", "debut", "fin", "cause", "preuve", "sources_cherchees"]
+CAUSES_DES_TROUS = ("pas encore cotée", "plus cotée", "hors indice", "suspension", "source perdue")
 TELECHARGEMENT, ECRIT_A_LA_MAIN = "téléchargement", "écrit à la main"
 COLONNES_DES_SOURCES_A_LA_MAIN = ("source", "citation", "fichiers_cites")
 
@@ -1336,7 +1410,12 @@ CONTRATS_PAR_FICHIER = {
     "historique_long_repare.csv": COURS_MAITRE,
     "DROITS_BNAINS.csv": DROITS_BNAINS,
     "DETACHEMENTS_OFFICIELS.csv": DETACHEMENTS_OFFICIELS,
+    "DIVISIONS_OFFICIELLES.csv": DIVISIONS_OFFICIELLES,
+    "BARRES_YAHOO_DEGRADEES.csv": BARRES_YAHOO_DEGRADEES,
+    "CAUSES_DES_SEANCES_SANS_COURS.csv": CAUSES_DES_SEANCES_SANS_COURS,
     "BARRES_BNAINS_FAUSSES.csv": BARRES_BNAINS_FAUSSES,
+    "COURS_DE_REMPLACEMENT_DES_TROUS.csv": COURS_DE_REMPLACEMENT_DES_TROUS,
+    "BARRES_DE_PARIS_RECTIFIEES.csv": BARRES_DE_PARIS_RECTIFIEES,
     "COURS_DE_FRANCFORT.csv": COURS_DE_FRANCFORT,
     "INDICE_CAC40.csv": INDICE_CAC40,
     "NATURE_DES_TROUS.csv": NATURE_DES_TROUS,

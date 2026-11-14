@@ -8,7 +8,8 @@ défauts trouvés par Cowork le 04-10-2026. Il ne répare rien et n'écrit rien.
 Simulation uniquement.
 
 ① RÔLE — Passer un historique long au crible des contrôles K1 à K22 (`controler`) et K23 (la remontée jusqu'à
-  la source, A-578 : `lignes_non_rejouees`, `maillons_manquants`), dire pour chacun ce
+  la source, A-578 : `lignes_non_rejouees`, `maillons_manquants`) et K24 (depuis le 05-11-2026 : les séances
+  « non comblé » du journal sont exactement celles de K7, `non_combles_hors_de_k7`), dire pour chacun ce
   qu'il a trouvé, et refuser dès qu'un contrôle bloquant trouve quelque chose. Il porte aussi les
   DÉFINITIONS dont la réparation se sert — ce qu'est une séance manquante, un écart entre les deux
   sources, un jour douteux (les deux sources se contredisent pour cinq valeurs au moins), une séance
@@ -41,7 +42,8 @@ Simulation uniquement.
   en rejouant le journal des réparations depuis sa ligne de Yahoo ou de Paris (`lignes_non_rejouees`), et la provenance du fichier Yahoo d'origine et de l'extrait de Paris déclarée jusqu'à un
   premier maillon — un téléchargement, ou un fichier écrit à la main qui cite ses sources (donnees/PROVENANCE_DES_FICHIERS.csv),
   et celle du fichier réparé lui-même, qui doit y être écrit par
-  le programme déclaré ; pour un autre fichier, sa seule provenance · ④ afficher chaque
+  le programme déclaré ; pour un autre fichier, sa seule provenance ; puis K24 pour un fichier réparé qui porte la
+  colonne source (`non_combles_hors_de_k7`) · ④ afficher chaque
   contrôle : nombre trouvé, exemples, REFUS ou non · ⑤ sortir.
 ⑦ UNITÉ — Des NOMBRES DE LIGNES (une ligne = une valeur un jour de séance), des RAPPORTS de prix
   sans unité, des DATES de séance.
@@ -77,14 +79,28 @@ from CONTRATS_DES_FICHIERS import (BARRES_BNAINS_FAUSSES, COURS_BNAINS, COURS_DE
                                    DETACHEMENTS_OFFICIELS, DROITS_BNAINS, INDICE_CAC40, AJUSTEMENTS_DE_YAHOO,
                                    JOURNAL_DES_REPARATIONS, PROVENANCE_DES_FICHIERS, FICHIERS_REPARES,
                                    TELECHARGEMENT, ECRIT_A_LA_MAIN, COLONNES_DES_SOURCES_A_LA_MAIN,
-                                   GESTES_DU_JOURNAL, SOURCE_YAHOO, SOURCE_PARIS)
+                                   GESTES_DU_JOURNAL, SOURCE_YAHOO, SOURCE_PARIS, SOURCE_ABC,
+                                   DIVISIONS_OFFICIELLES, BARRES_DE_PARIS_RECTIFIEES, REGLES_DE_RECTIFICATION,
+                                   BORNES_NON_SURES_PAR_REGLE, REGLE_AUTRE_JOUR, REGLE_RAMENEE,
+                                   REGLE_AUTRE_CODE)
 import CALENDRIER_DE_LA_BOURSE as CAL   # les séances officielles d'Euronext, lues une seule façon (R-110, R-708)
 
 BNAINS = os.path.join("donnees", "sources_bnains", "bnains_cac40.csv")
 DROITS = os.path.join("donnees", "sources_bnains", "DROITS_BNAINS.csv")
 OFFICIELS = os.path.join("donnees", "sources_bnains", "DETACHEMENTS_OFFICIELS.csv")
 FAUSSES = os.path.join("donnees", "sources_bnains", "BARRES_BNAINS_FAUSSES.csv")
+RECTIFIEES = os.path.join("donnees", "sources_bnains", "BARRES_DE_PARIS_RECTIFIEES.csv")   # décisions D6 à D9 (04-11-2026)
+ARCHIVES = os.path.join("donnees", "sources_bnains", "archives_bnains")   # les archives brutes de bnains, une par année
 FRANCFORT = os.path.join("donnees", "sources_francfort", "COURS_DE_FRANCFORT.csv")
+# Les cours de Paris téléchargés chez ABC Bourse le 31-10-2026 (décision de Jean-Luc du 31-10-2026 à 20h11, annexe
+# n°37ter : Unibail-Rodamco-Westfield, du 01-03-2017 au 13-04-2023), gardés TELS QUE TÉLÉCHARGÉS, un fichier par envoi
+# de deux ans au plus. Chaque fichier du dossier dont le nom finit par .csv est lu (`lire_abc`) ; l'ISIN de chaque ligne
+# dit la valeur, par ISIN_ABC, déclaré une fois ici.
+ABC = os.path.join("donnees", "sources_abc", "bruts_abc_31-10-2026")
+# Les divisions prouvées par un document officiel (écrit à la main, contrat DIVISIONS_OFFICIELLES ; 31-10-2026) : lues
+# par K15, qui y trouve une marche permise, et par la liste unique des opérations (RECONSTRUIRE_L_HISTORIQUE_LONG).
+DIVISIONS_DOCUMENTEES = os.path.join("donnees", "sources_officielles", "DIVISIONS_OFFICIELLES.csv")
+ISIN_ABC = {"FR0013326246": "UNIBAIL-RODAMCO-WESTFIELD"}
 AVIS = 10               # Francfort est ramené à Paris sur 10 séances voisines au moins, à moins de PORTEE jours
 ACCORD_FRANCFORT = 0.005   # Francfort confirme une barre bnains à 0,5 % près, ou à deux fois son bruit s'il est plus grand
 INDICE = os.path.join("donnees", "sources_indice", "INDICE_CAC40.csv")
@@ -380,18 +396,159 @@ def oter_les_barres_fausses(chemin, bnains):
     return retirees
 
 
+def journees_d_un_autre_jour(racine):
+    """Rend les journées de l'extrait bnains qui portent les cours d'un AUTRE jour, détectées par l'indice CAC 40.
+
+    ① RÔLE — Une seule règle pour « barre du fichier d'un autre jour » (choix D8/D9 du 01-11-2026, ligne E5 des décisions
+      du 10-10-2026), appliquée à la JOURNÉE et non plus valeur par valeur.
+    ② CONTEXTE D'APPEL — `lire_paris` ; ASSEMBLER_LES_VINGT_ANS (barres N3 des sociétés sorties, lues hors de l'extrait) ;
+      les épreuves.
+    ③ ENTRÉE — `racine` : la racine du dépôt (le fichier `INDICE`, contrat INDICE_CAC40).
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe (OSError sinon) et porte l'en-tête du contrat (ValueError sinon).
+    ⑤ SORTIE — UNE valeur : {jour où bnains a rangé la journée : jour dont elle porte les cours}.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque ligne où les deux colonnes ont une valeur et s'écartent de plus d'`ACCORD_INDICE` : si
+      l'indice de bnains ce jour-là vaut celui de Yahoo de la ligne d'avant ou d'après à `ACCORD_INDICE` près, la
+      journée de bnains porte ce jour voisin.
+    ⑦ UNITÉ — Des dates AAAA-MM-JJ ; l'écart en rapport sans unité.
+    ⑧ POURQUOI — Relecteur et superviseur E2c tour 1 (12-11-2026, B-1) : chez bnains, les fichiers des 19 et 20-06-2001
+      sont échangés pour TOUTES les valeurs (l'indice de bnains aussi : 5170,49 et 5199,41) ; la décision D8/D9, appliquée
+      à 4 valeurs seulement par BARRES_DE_PARIS_RECTIFIEES.csv, laissait les autres échangées, et `barre_sure` en tirait
+      des barres en double. Calibré le 13-11-2026 sur les 4 358 séances où l'indice a ses deux colonnes : seuls les 19 et
+      20-06-2001 sont rendus ; le 17-07-2000 et les jours douteux de 2006-2007 ne le sont pas.
+    ⑨ CE QUI CLOCHE — Une journée échangée un jour où Yahoo n'a pas l'indice (6 lignes) ne se voit pas. · Le voisin est la
+      ligne voisine du fichier de l'indice, pas le calendrier officiel. · L'archive bnains s'arrête au 28-02-2017 : aucun
+      cas nouveau ne peut apparaître. · Un échange entre deux séances dont l'indice a bougé de moins d'ACCORD_INDICE ne
+      se distingue pas (les deux fichiers portent le même indice à 0,05 % près). · Gardée par les épreuves H69 à H71
+      de l'historique long (13-11-2026) : une table vide ici rendrait P17 de l'épreuve des 20 ans vraie sans rien juger.
+      · L'AMBIGUÏTÉ N'EST PAS TRANCHÉE, ELLE EST RENDUE BRUYANTE (E2c tour 5, 13-11-2026) : quand les deux voisins d'une
+      séance en désaccord s'accordent avec sa journée, le voisin d'après l'emporte par l'ordre de la boucle, sans le
+      dire. Un mauvais choix donne une table NON réciproque, que `redater_les_journees` refuse avant tout déplacement ;
+      l'épreuve H75 (indice fabriqué de trois lignes) exige que la chaîne soit bruyante ou juste. Le mutant où le voisin
+      d'avant l'emporte (`sortie.setdefault`, R8 du relecteur E2c tour 4) y est refusé : équivalent EN SÛRETÉ, pas en
+      contenu. · ACCORD_INDICE N'EST GARDÉE QU'À L'EXTÉRIEUR DE SA MARGE : sur le vrai indice, A ÷ 2, A et A × 2
+      rendent la même table (mesuré par le balayage tests/outils/BALAYER_LES_MUTANTS_DES_JOURNEES.py, preuve rejouée
+      `_marge_d_accord_indice`) ; A × 10, sur les deux comparaisons, la change (le 2013-12-19 y entre), et le sabotage
+      T185 (premier contrôle retiré, 20 × A sur le voisin) aussi. Vers le bas, la table ne change pas même à A = 0 :
+      les deux journées échangées portent l'indice de Yahoo à l'identique. Mesuré plus finement (O-b de Cowork, E2c
+      tour 5, rejoué au tour 6, 13-11-2026) : la table est la même de A × 0 à A × 6 ; à A × 8 elle devient NON
+      RÉCIPROQUE (le 2013-12-19 → 2013-12-20 sans retour), et c'est le refus de `redater_les_journees` qui rend ce cas
+      bruyant — H73 l'exige sur cette table réelle, recopiée. C'est la marge du calibrage du ⑧, pas un
+      défaut ; un mutant de la constante à l'intérieur de cette marge est équivalent SUR LES DONNÉES, pas en contenu.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    chemin = os.path.join(racine, INDICE)
+    with open(chemin, encoding="utf-8", newline="") as f:
+        lecteur = csv.DictReader(f)
+        if lecteur.fieldnames != INDICE_CAC40:
+            raise ValueError(f"{chemin} : en-tête {lecteur.fieldnames} au lieu de {INDICE_CAC40}")
+        lignes = [(r["date"], r["bnains"], r["yahoo"]) for r in lecteur]
+    sortie = {}
+    for i, (d, b, y) in enumerate(lignes):
+        if not b or not y or abs(float(b) / float(y) - 1) <= ACCORD_INDICE:
+            continue
+        for j in (i - 1, i + 1):
+            if 0 <= j < len(lignes) and lignes[j][2] and abs(float(b) / float(lignes[j][2]) - 1) <= ACCORD_INDICE:
+                sortie[d] = lignes[j][0]
+    return sortie
+
+
+def redater_les_journees(barres, journees):
+    """Remet au bon jour, pour TOUTES les valeurs, les barres d'une journée rangée sous un autre jour ; rend ce qui a bougé.
+
+    ① RÔLE — Appliquer la règle par journée de `journees_d_un_autre_jour` à un extrait de Paris.
+    ② CONTEXTE D'APPEL — `lire_paris`, avant le retrait des barres fausses ; ASSEMBLER_LES_VINGT_ANS pour les barres N3.
+    ③ ENTRÉE — `barres` : valeur → {date : barre}, modifié EN PLACE · `journees` : rendu par `journees_d_un_autre_jour`.
+      LE CONTRAT SUR `barres` (superviseur R-759 E2c tour 5, 13-11-2026) : c'est le dictionnaire EXTÉRIEUR qui est
+      modifié en place, et c'est lui que l'appelant relit (`lire_paris` ignore la valeur rendue). Ce qui compte d'une
+      valeur, c'est le CONTENU de son dictionnaire intérieur ; ni l'ORDRE de ses dates ni l'IDENTITÉ de cet objet
+      intérieur ne font partie du contrat (voir ⑨, la mesure).
+    ④ CONDITIONS D'ENTRÉE — `journees` est un ÉCHANGE RÉCIPROQUE : pour chaque jour j de la table, `journees[journees[j]]`
+      vaut j (ValueError sinon, avant tout déplacement : `barres` n'est pas touché). · Deux valeurs ne partagent pas
+      le même dictionnaire intérieur (`{"A": s, "B": s}` est interdit) : la remise au bon jour de A modifie `s`, celle
+      de B le relit déjà déplacé et le déplace en retour — B reste au mauvais jour et `bouge` le déclare quand même
+      déplacé (relecteur E2c tour 6, r-3, mesuré). Rien ne le vérifie ici : les deux appelants d'aujourd'hui créent un
+      dictionnaire neuf par valeur (`lire_cours` par `series.setdefault(valeur, {})`, ASSEMBLER par
+      `defaultdict(dict)`), mesuré le 13-11-2026 (39 valeurs, 39 dictionnaires distincts dans `lire_paris`).
+    ⑤ SORTIE — UNE valeur : la liste triée des (valeur, jour de rangement, jour vrai) déplacés. Lève ValueError si la
+      table n'est pas un échange réciproque. LE CONTRAT, en trois points (superviseur R-759 E2c tour 5) : ① le
+      dictionnaire extérieur `barres` est modifié en place ; ② le CONTENU de chaque valeur, après l'appel, est l'IMAGE
+      de son contenu d'avant par la permutation — la barre rangée au jour d se retrouve au jour `journees.get(d, d)`,
+      aucune perdue, aucune doublée ; ③ la liste rendue est triée. Hors contrat : l'ordre des dates dans un
+      dictionnaire intérieur, et l'identité de ce dictionnaire (touché ou non).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① refuser une table qui n'est pas un échange réciproque · ② pour chaque valeur, à partir d'une copie
+      prise AVANT tout déplacement : la barre rangée au jour j va au jour `journees[j]` ; un jour vrai sans barre rangée
+      perd sa barre (aucune ne lui revient).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir `journees_d_un_autre_jour`. La copie évite qu'un échange de deux jours s'applique deux fois. Le
+      refus (relecteur E2c tour 2, m-b ; superviseur R-759 E2c tour 3, (1) couche A 3, 13-11-2026) : avec une table
+      non réciproque, mesuré, `{'d1': 'd2'}` laissait la barre de d1 à d1 ET la recopiait à d2 — deux séances à la même
+      barre, le doublon même de B-1.
+    ⑨ CE QUI CLOCHE — Le refus ne juge que la forme de la table, pas sa justesse : une table réciproque mais fausse est
+      appliquée (sa justesse est celle de `journees_d_un_autre_jour`, gardée par les épreuves de l'historique long).
+      · Le refus d'une table non réciproque ET la conservation — chaque barre au jour `journees.get(d, d)`, aucune
+      perdue, aucune doublée, `bouge` exact — sont gardés par H73, PROPRIÉTÉ SUR LE DOMAINE DE QUATRE JOURS (épreuves de
+      l'historique long : `domaine_des_journees`, 625 tables réciproques ou non × 33 appels, jugés par l'oracle
+      `attendu_de_redater` — E2c tour 6, 13-11-2026, superviseur R-759, après n-1 de Cowork : le refus n'était jugé que
+      sur {'d1': 'd2'}, et la réécriture `vrai not in journees` laissait 74/74 vertes). NON COUVERT : une table de CINQ
+      JOURS OU PLUS — côté REFUS, un refus jugé sur les quatre premières entrées seulement passerait H73 ; côté
+      CONSERVATION, sur une table réciproque de trois paires (six jours), une remise au bon jour limitée aux quatre
+      premières entrées perdrait des barres sans que H73 rougisse (mesures du relecteur E2c tour 6, 13-11-2026, r-1 et
+      r-2 : couche A verte, deux barres perdues). L'argument de l'involution vaut pour toute taille, l'énumération non ;
+      la seule table réelle de cette taille jouée est celle du vrai indice à ACCORD_INDICE × 8 (trois entrées, elle
+      lève), et aucune table réelle de trois paires n'existe dans les données mesurées. Avant le tour 4, une barre
+      seule de son jour (SOLB, 19-06-2001) pouvait rester à la date de son fichier ou se perdre sans qu'aucune épreuve rougisse (relecteur E2c tour 3, D-4).
+      · L'ORDRE ET L'IDENTITÉ HORS CONTRAT, MESURÉ (E2c tour 5, 13-11-2026, 04h32) : un regel jetable à
+      --coupure=2026-11-11 où cette fonction renverse l'ordre de CHAQUE dictionnaire intérieur, touché ou non, et où
+      `rectifier_paris` les rend triés par date décroissante, fige le même témoin (sha256 34795576…) — sortie
+      etudes/VINGT_ANS_A_PART_Mer_11-11-2026/sorties/SORTIE_E2c_TOUR5_mesure_de_l_ordre_regel_renverse.txt. Aucun
+      appelant d'aujourd'hui ne lit l'ordre. Le retri `barres[v] = dict(sorted(s.items()))` et le saut
+      `if not any(…): continue` ne sont donc que de l'HYGIÈNE (des dates dans l'ordre pour qui les affiche) et de
+      l'ÉCONOMIE (ne pas recopier une valeur que la table ne touche pas) : leurs mutants sont ÉQUIVALENTS EN CONTENU, et
+      le balayage tests/outils/BALAYER_LES_MUTANTS_DES_JOURNEES.py le mesure. Un appelant futur qui lirait l'ordre
+      sans trier sortirait du contrat.
+    ⑩ EFFET — Modifie `barres`.
+    ⑪ TERMINAISON — Rend la main ou lève.
+      [sort: non]
+    """
+    pas_reciproques = sorted(j for j, vrai in journees.items() if journees.get(vrai) != j)
+    if pas_reciproques:
+        raise ValueError(f"table des journées non réciproque (une barre serait recopiée sur deux jours) : "
+                         f"{[(j, journees[j]) for j in pas_reciproques]}")
+    bouge = []
+    for v, s in barres.items():
+        avant = dict(s)
+        if not any(j in avant or vrai in avant for j, vrai in journees.items()):
+            continue
+        for j, vrai in journees.items():
+            s.pop(vrai, None)
+        for j, vrai in journees.items():
+            if j in avant:
+                s[vrai] = avant[j]
+                bouge.append((v, j, vrai))
+        barres[v] = dict(sorted(s.items()))
+    return sorted(bouge)
+
+
 def lire_paris(racine):
     """Lit l'extrait de Paris (bnains) et en ôte les barres prouvées fausses : le seul Paris de la réparation et du contrôle.
 
     ① RÔLE — Donner à la réparation, au contrôle et à ses épreuves les mêmes barres de Paris.
     ② CONTEXTE D'APPEL — `main` de ce programme ; `reparer` de programmes/REPARER_L_HISTORIQUE_LONG.py ; l'épreuve H56.
     ③ ENTRÉE — `racine` : la racine du dépôt.
-    ④ CONDITIONS D'ENTRÉE — L'extrait bnains et donnees/sources_bnains/BARRES_BNAINS_FAUSSES.csv existent (OSError
-      sinon).
+    ④ CONDITIONS D'ENTRÉE — L'extrait bnains, donnees/sources_bnains/BARRES_BNAINS_FAUSSES.csv et (depuis le
+      13-11-2026) l'indice `INDICE` existent (OSError sinon).
     ⑤ SORTIE — TROIS valeurs : les barres de Paris sans les barres prouvées fausses (`lire_cours`, valeur → {date :
-      barre}) ; les défauts de lecture ; la liste des barres ôtées (`oter_les_barres_fausses`).
+      barre}) ; les défauts de lecture ; la liste des barres ôtées (`oter_les_barres_fausses`). L'ordre des dates dans le
+      dictionnaire d'une valeur n'est PAS garanti : un appelant qui le parcourt trie lui-même les dates (contrat du ⑤ de
+      `redater_les_journees`, O-1 du relecteur E2c tour 5).
       [rend: 3]
-    ⑥ TRAITEMENT — `lire_cours` de l'extrait, puis `oter_les_barres_fausses`.
+    ⑥ TRAITEMENT — `lire_cours` de l'extrait, puis (depuis le 13-11-2026) `redater_les_journees` des journées de
+      `journees_d_un_autre_jour`, puis `oter_les_barres_fausses`, puis (depuis le 04-11-2026, choix D6 à D9 ; D8/D9
+      archivés le 13-11-2026) `rectifier_paris`.
     ⑦ UNITÉ — Des euros et des nombres de titres, cours bruts de Paris.
     ⑧ POURQUOI — Relecture n° 2 et superviseur n° 3 du 18-10-2026 (R-759) : le rejeu de K23 partait des barres de Paris
       lues AVANT le retrait des fausses, la réparation de celles d'APRÈS ; une ligne bâtie sur une barre déclarée fausse
@@ -402,13 +559,397 @@ def lire_paris(racine):
       d'autres contrôles que K23 (une dizaine d'appels à `oter_les_barres_fausses`) ; tous équivalents aujourd'hui (→
       BACKLOG, A-597). · `main` n'est éprouvé sur aucune fenêtre fausse : l'extrait 2005 des épreuves n'en a pas ; c'est
       H56 qui garde cette fonction, et un `main` qui relirait bnains directement pour K23 passerait toutes les épreuves
-      (relecteur n° 3 du 18-10-2026, sabotage X5 ; → A-597).
-    ⑩ EFFET — Lit les deux fichiers.
+      (relecteur n° 3 du 18-10-2026, sabotage X5 ; → A-597). · La remise au bon jour des journées est gardée par l'épreuve
+      H72 (l'appel retiré la rougit), la détection par H69 à H71, le refus d'une table non réciproque et la
+      conservation des barres par H73, propriété sur le domaine de quatre jours (oracle `attendu_de_redater` des
+      épreuves de l'historique long, E2c tour 6, 13-11-2026) ; un fichier réparé relancé avec cet appel retiré réaligne K18, K23 et H56 sur lui.
+    ⑩ EFFET — Lit l'extrait, la table des barres fausses, l'indice et la table des rectifications.
     ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
       [sort: non]
     """
     bnains, defauts, _ = lire_cours(os.path.join(racine, BNAINS), COURS_BNAINS)
-    return bnains, defauts, oter_les_barres_fausses(os.path.join(racine, FAUSSES), bnains)
+    # E2c tour 2 (13-11-2026) : les journées que bnains a rangées sous un autre jour sont remises au bon jour, pour toutes
+    # les valeurs, AVANT tout autre geste (les fenêtres fausses et les rectifications sont datées du vrai jour)
+    redater_les_journees(bnains, journees_d_un_autre_jour(racine))
+    fausses = oter_les_barres_fausses(os.path.join(racine, FAUSSES), bnains)
+    # les barres rectifiées sur décision (D6 et D7, 04-11-2026 ; D8/D9 archivés le 13-11-2026, remplacés par la remise
+    # au bon jour ci-dessus) : APRÈS le retrait des fausses, pour que la réparation et le
+    # rejeu de K23 partent du même Paris (R-708)
+    rectifier_paris(racine, bnains)
+    return bnains, defauts, fausses
+
+
+def barre_de_l_archive(racine, date, code):
+    """Rend la barre d'un code dans le fichier du jour de l'archive brute de bnains, ou None si le code n'y est pas.
+
+    ① RÔLE — Lire, pour UNE séance, une ligne de l'archive brute que l'extrait bnains n'a pas prise (une ligne
+      temporaire de cotation, sous un autre code que celui de la valeur).
+    ② CONTEXTE D'APPEL — `rectifier_paris`, pour la règle « ligne d'un autre code dans l'archive du jour » ; les épreuves.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `date` : « AAAA-MM-JJ » · `code` : le code de la ligne (ISIN), tel que
+      l'archive l'écrit en première colonne.
+    ④ CONDITIONS D'ENTRÉE — L'archive de l'année, `ARCHIVES`/<année>.ZIP, existe (OSError sinon) ; ses fichiers du jour
+      sont des .txt nommés AAAAMMJJ, rangés dans des archives mensuelles imbriquées, en latin-1, colonnes séparées par
+      des tabulations : code, libellé, ouverture, plus haut, plus bas, clôture, volume.
+    ⑤ SORTIE — UNE valeur : (ouverture, plus haut, plus bas, clôture, volume) en nombres, ou None si le fichier du jour
+      ou la ligne du code manque. Lève ValueError si le code apparaît plus d'une fois, ou si le jour a plusieurs fichiers.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① parcourir l'archive annuelle et ses archives mensuelles · ② garder le ou les fichiers du jour · ③
+      y chercher les lignes dont la première colonne vaut `code` · ④ lire les cinq nombres.
+    ⑦ UNITÉ — Euros et nombres de titres, cours bruts de Paris.
+    ⑧ POURQUOI — Choix D7 du 01-11-2026 (délégation de Jean-Luc, n°129) : pendant le dénouement de l'OPRA de 2011,
+      Bouygues a coté les 04, 07, 08 et 10-11-2011 sur la ligne « BOUYGUES OPR » (FR0011121888), que l'extrait ne lit
+      pas (trous_40, § 2.3, lignes 6 à 9). Exemple réel : 2011-11-04 → 27,325 · 27,995 · 26,805 · 27,500 · 1 948 404.
+    ⑨ CE QUI CLOCHE — L'archive entière est relue à chaque appel : quatre appels aujourd'hui, une seconde en tout.
+    ⑩ EFFET — Lit l'archive.
+    ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    import io
+    import zipfile
+    jour = date.replace("-", "")
+    contenus = []
+
+    def parcourir(z):
+        """Recueille, dans une archive bnains et dans les archives qu'elle contient, le texte de la séance du jour.
+
+        ① RÔLE — Trouver le fichier « AAAAMMJJ….txt » de la date, où qu'il soit rangé dans l'archive annuelle.
+        ② CONTEXTE D'APPEL — La fonction qui l'enferme, une fois sur l'archive de l'année ; elle-même, pour chaque
+          archive « .zip » contenue.
+        ③ ENTRÉE — `z` : une archive zip ouverte.
+        ④ CONDITIONS D'ENTRÉE — Une archive contenue se lit (zipfile.BadZipFile sinon, qui remonte à l'appelant).
+        ⑤ SORTIE — Aucune valeur : ajoute à la liste `contenus` de la fonction qui l'enferme.
+          [rend: rien]
+        ⑥ TRAITEMENT — Chaque nom de l'archive : « .zip » → descendre ; « .txt » dont le nom commence par le jour
+          (AAAAMMJJ, `jour`) → en ajouter les octets.
+        ⑦ UNITÉ — Des octets (texte latin-1, lu plus loin).
+        ⑧ POURQUOI — Les archives annuelles de bnains rangent parfois les séances dans des archives mensuelles.
+        ⑨ CE QUI CLOCHE — Plusieurs fichiers du même jour sont tous recueillis : l'appelant le refuse (ValueError).
+          (Fiche écrite le 12-11-2026, E2a tour 3, à l'installation du lot d'octobre : la fonction n'en avait pas.)
+        ⑩ EFFET — Modifie `contenus`.
+        ⑪ TERMINAISON — Rend la main ; la descente s'arrête quand une archive ne contient plus d'archive. Une
+          archive qui se contiendrait elle-même ne reviendrait pas (RecursionError) : cas non rencontré.
+          [sort: non]
+        """
+        for n in z.namelist():
+            if n.lower().endswith(".zip"):
+                parcourir(zipfile.ZipFile(io.BytesIO(z.read(n))))
+            elif n.lower().endswith(".txt") and os.path.basename(n)[:8] == jour:
+                contenus.append(z.read(n))
+
+    with zipfile.ZipFile(os.path.join(racine, ARCHIVES, f"{date[:4]}.ZIP")) as z:
+        parcourir(z)
+    if len(contenus) > 1:
+        raise ValueError(f"archive bnains {date[:4]} : {len(contenus)} fichiers pour le {date}")
+    if not contenus:
+        return None
+    lignes = [l.split("\t") for l in contenus[0].decode("latin-1").splitlines()]
+    trouvees = [p for p in lignes if p and p[0].strip() == code]
+    if len(trouvees) > 1:
+        raise ValueError(f"archive bnains du {date} : {len(trouvees)} lignes de code {code}")
+    if not trouvees:
+        return None
+    return tuple(float(x.strip().replace(",", ".")) for x in trouvees[0][2:7])
+
+
+def couvre(bnains, valeur, date):
+    """Dit si l'extrait de Paris porte au moins une barre de la valeur dans l'année de la date.
+
+    ① RÔLE — Distinguer un extrait partiel (qui ne couvre pas l'année d'une rectification) d'une date fausse.
+    ② CONTEXTE D'APPEL — `rectifier_paris` ; `archives_des_rectifications`.
+    ③ ENTRÉE — `bnains` : valeur → {date : barre} · `valeur` · `date` : « AAAA-MM-JJ ».
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : vrai ou faux.
+      [rend: 1]
+    ⑥ TRAITEMENT — Chercher une date de la valeur qui commence par l'année.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Les épreuves bâtissent des racines avec un extrait de 2005 seulement ; la table des rectifications y
+      porte des lignes de 2001, 2011 et 2015, sans objet là.
+    ⑨ CE QUI CLOCHE — Une valeur absente de l'extrait toute une année passerait aussi : aucune des 19 lignes n'est dans
+      ce cas sur le vrai extrait (mesuré le 04-11-2026 : la réparation les applique toutes).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return any(x[:4] == date[:4] for x in bnains.get(valeur, {}))
+
+
+def archives_des_rectifications(racine, bnains):
+    """Rend les archives brutes de bnains que les rectifications lisent, chemins depuis la racine.
+
+    ① RÔLE — Dire au registre de provenance quels fichiers d'archive la lecture de Paris a ouverts, par la table et
+      jamais par une liste épelée.
+    ② CONTEXTE D'APPEL — `reparer` de programmes/REPARER_L_HISTORIQUE_LONG.py, pour la colonne `lu` ; les épreuves.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `bnains` : l'extrait tel que `lire_paris` le rend.
+    ④ CONDITIONS D'ENTRÉE — `RECTIFIEES` existe (OSError sinon).
+    ⑤ SORTIE — UNE valeur : la liste triée des chemins `ARCHIVES`/<année>.ZIP des lignes de la règle « ligne d'un autre
+      code dans l'archive du jour » que l'extrait couvre (`couvre`), donc lues.
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire la table ; garder l'année de chaque ligne de la troisième règle.
+    ⑦ UNITÉ — Des chemins.
+    ⑧ POURQUOI — Un fichier lu et absent de la colonne `lu` casse la chaîne de provenance (K23).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Lit la table.
+    ⑪ TERMINAISON — Rend la main ou lève.
+      [sort: non]
+    """
+    with open(os.path.join(racine, RECTIFIEES), encoding="utf-8", newline="") as f:
+        return sorted({os.path.join(ARCHIVES, f"{r['date'][:4]}.ZIP") for r in csv.DictReader(f)
+                       if r["regle"] == REGLE_AUTRE_CODE and couvre(bnains, r["valeur"], r["date"])})
+
+
+def rectifier_paris(racine, bnains):
+    """Applique à l'extrait de Paris les rectifications décidées, et rend la liste de ce qui a été rectifié.
+
+    ① RÔLE — Une seule façon de remplacer, sur décision écrite, la barre de Paris d'une valeur un jour donné : pour la
+      réparation, pour le contrôle et pour le rejeu de K23 (R-708).
+    ② CONTEXTE D'APPEL — `lire_paris`, une fois, juste après le retrait des barres fausses ; les épreuves.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `bnains` : l'extrait sans ses barres fausses, valeur → {date : barre},
+      modifié EN PLACE.
+    ④ CONDITIONS D'ENTRÉE — `RECTIFIEES` existe et suit son contrat BARRES_DE_PARIS_RECTIFIEES (OSError ou ValueError
+      sinon).
+    ⑤ SORTIE — UNE valeur : la liste triée des (valeur, date, règle) appliquées. Lève ValueError sur : un en-tête hors
+      contrat · une règle inconnue · un `depuis` qui ne va pas avec sa règle · une ligne en double · une barre de départ
+      absente · une règle « plus bas et plus haut » qui ne change rien.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire et vérifier toutes les lignes · ② passer une ligne dont l'extrait n'a AUCUNE barre de la
+      valeur dans l'année (`couvre` : un extrait partiel, comme les témoins des épreuves) · ③ calculer chaque barre
+      depuis l'extrait tel qu'il est AVANT toute rectification (ou depuis l'archive) · ④ poser toutes les barres
+      calculées. Dans une année couverte, une barre de départ absente lève : une date fausse ne passe pas en silence.
+    ⑦ UNITÉ — Euros et nombres de titres, cours bruts de Paris.
+    ⑧ POURQUOI — Choix D6 à D9 faits par le Chat le 01-11-2026 à 16h51 sous la délégation de Jean-Luc de 16h39 (n°129),
+      d'après le rapport des 48 séances « source perdue » (trous_40, corrigé et relu le 04-11-2026) : D6, les barres
+      incohérentes (plus bas ou plus haut ramené à l'ouverture ou à la clôture) ; D7, la ligne « BOUYGUES OPR » ; D8 et
+      D9, l'inversion des fichiers bnains des 19 et 20-06-2001. Une règle écrite plutôt qu'un cours : ce qui se calcule ne
+      s'écrit jamais à la main (R-728).
+    ⑨ CE QUI CLOCHE — Les programmes qui assemblent encore Paris à leur façon (RECONSTRUIRE_L_HISTORIQUE_LONG,
+      MESURER_LES_AJUSTEMENTS_DE_YAHOO, une épreuve ; ⑨ de `lire_paris`, A-597) ne voient pas ces rectifications.
+    ⑩ EFFET — Lit la table (et l'archive pour la troisième règle). Modifie `bnains`.
+    ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    chemin = os.path.join(racine, RECTIFIEES)
+    with open(chemin, encoding="utf-8", newline="") as f:
+        lecteur = csv.DictReader(f)
+        if lecteur.fieldnames != BARRES_DE_PARIS_RECTIFIEES:
+            raise ValueError(f"{chemin} : en-tête {lecteur.fieldnames} au lieu de {BARRES_DE_PARIS_RECTIFIEES}")
+        lignes = list(lecteur)
+    # chaque règle lue par SON NOM, jamais par sa place dans le tuple (m-4 de la relecture de Cowork du 13-11-2026 à
+    # 13h55 : un tuple réordonné levait « Invalid isoformat string » sans nommer ni le fichier ni la règle)
+    autre_jour, bas_haut, archive = REGLE_AUTRE_JOUR, REGLE_RAMENEE, REGLE_AUTRE_CODE
+    nouvelles, vues = {}, set()
+    for r in lignes:
+        v, d, regle, depuis = r["valeur"], datetime.date.fromisoformat(r["date"]).isoformat(), r["regle"], r["depuis"]
+        if (v, d) in vues:
+            raise ValueError(f"{chemin} : {v} {d} écrit deux fois")
+        vues.add((v, d))
+        if not couvre(bnains, v, d):
+            continue        # un extrait partiel (les témoins des épreuves) : l'année n'y est pas, la règle est sans objet
+        if regle == autre_jour:
+            jour = datetime.date.fromisoformat(depuis).isoformat()
+            b = bnains.get(v, {}).get(jour)
+            if b is None or jour == d:
+                raise ValueError(f"{chemin} : {v} {d} : pas de barre bnains le {depuis} (ou le même jour)")
+        elif regle == bas_haut:
+            b = bnains.get(v, {}).get(d)
+            if depuis or b is None:
+                raise ValueError(f"{chemin} : {v} {d} : « {regle} » sans barre du jour, ou avec un départ")
+            o, h, l, c, vol = b
+            b = (o, max(h, o, c), min(l, o, c), c, vol)
+            if b == bnains[v][d]:
+                raise ValueError(f"{chemin} : {v} {d} : « {regle} » ne change rien")
+        elif regle == archive:
+            if not depuis:
+                raise ValueError(f"{chemin} : {v} {d} : « {regle} » sans code")
+            b = barre_de_l_archive(racine, d, depuis)
+            if b is None:
+                raise ValueError(f"{chemin} : {v} {d} : pas de ligne {depuis} dans l'archive du jour")
+        else:
+            raise ValueError(f"{chemin} : {v} {d} : règle inconnue {regle!r}")
+        nouvelles[(v, d)] = (b, regle)
+    for (v, d), (b, _) in nouvelles.items():
+        bnains.setdefault(v, {})[d] = b
+    for v in {v for v, _ in nouvelles}:      # une séance ajoutée (troisième règle) reprend sa place dans l'ordre des dates
+        bnains[v] = dict(sorted(bnains[v].items()))
+    return sorted((v, d, regle) for (v, d), (_, regle) in nouvelles.items())
+
+
+def bornes_non_sures(regle):
+    """Rend les colonnes de cours qu'une barre rectifiée par cette règle ne garantit pas.
+
+    ① RÔLE — Le seul endroit qui dit, d'après le TYPE de règle de rectification, quelles bornes d'une barre de Paris
+      rectifiée sont incertaines (R-708) : l'incertitude découle de la règle, elle ne s'écrit pas à côté.
+    ② CONTEXTE D'APPEL — Les épreuves (H65) ; tout lecteur futur qui doit savoir qu'une barre est incertaine (le juge des
+      stratégies, BACKLOG proposé le 05-11-2026 : il ne la lit pas encore).
+    ③ ENTRÉE — `regle` : la colonne `regle` d'une ligne de donnees/sources_bnains/BARRES_DE_PARIS_RECTIFIEES.csv.
+    ④ CONDITIONS D'ENTRÉE — `regle` est une clé de BORNES_NON_SURES_PAR_REGLE (CONTRATS_DES_FICHIERS), sinon ValueError.
+    ⑤ SORTIE — UNE valeur : le tuple des noms de colonnes incertaines (contrat COURS_MAITRE), vide si la barre est sûre.
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire la table du contrat.
+    ⑦ UNITÉ — Des noms de colonnes.
+    ⑧ POURQUOI — Superviseur R-759 du 05-11-2026 (VINGT, D3) : la mention « NON SÛR » vivait dans la seule citation de 7
+      lignes de la table, que rien ne gardait (sabotage S3 du relecteur : « NON SÛR » → « sûr », rien ne rougit) ; or ces
+      7 lignes sont EXACTEMENT celles de la règle « ramenés » : l'incertitude est une propriété de la règle. Exemple
+      réel : SAFRAN 2015-12-31 → ("high", "low").
+    ⑨ CE QUI CLOCHE — Aucun programme du circuit ne lit encore cette incertitude : le juge de C5 traite ces 7 barres
+      comme sûres, d'où un biais optimiste contraire à la convention pessimiste R-602 (un stop touché en vrai peut ne
+      pas l'être en simulation) → BACKLOG, décision de Jean-Luc (borne pessimiste ou séances laissées vides).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main ou lève.
+      [sort: non]
+    """
+    if regle not in BORNES_NON_SURES_PAR_REGLE:
+        raise ValueError(f"règle de rectification inconnue {regle!r} : sa sûreté n'est pas déclarée au contrat")
+    return BORNES_NON_SURES_PAR_REGLE[regle]
+
+
+def non_combles_hors_de_k7(journal, series, k7):
+    """K24 : rend les séances dont le journal dit « non comblé » à tort, ou que K7 liste sans trace au journal.
+
+    ① RÔLE — Garder, par une comparaison d'ENSEMBLES, que le journal des réparations et le fichier disent la même chose
+      des séances laissées vides : l'ensemble des (valeur, séance) qui portent « non comblé » au journal est ÉGAL à
+      l'ensemble que liste K7, et aucune séance présente dans le fichier ne porte « non comblé ».
+    ② CONTEXTE D'APPEL — `main`, pour K24, quand le fichier contrôlé est réparé et porte la colonne `source` ; les épreuves
+      (H64).
+    ③ ENTRÉE — `journal` : `lire_journal` · `series` : le fichier contrôlé · `k7` : les cas de K7 rendus par `controler`,
+      des textes « <valeur> <AAAA-MM-JJ> » suivis ou non de « (motif) ».
+    ④ CONDITIONS D'ENTRÉE — Chaque cas de K7 commence par sa valeur et sa date ; sinon ValueError (le contrôle ne peut
+      pas tourner : `main` sort en code 2).
+    ⑤ SORTIE — UNE valeur : la liste triée des cas, un texte par séance fautive ; vide si les deux ensembles sont égaux
+      et qu'aucune séance présente n'est « non comblé ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① l'ensemble J des (valeur, date) qui ont au moins un geste « non comblé » au journal · ② l'ensemble
+      S des (valeur, date) de K7, lus dans leurs textes · ③ pour chaque séance de J présente dans le fichier : un cas ·
+      pour chaque autre séance de J hors de S : un cas · pour chaque séance de S hors de J : un cas.
+    ⑦ UNITÉ — Des séances (valeur, date).
+    ⑧ POURQUOI — Superviseur R-759 du 05-11-2026 (VINGT, D1) : la passe `combler_les_seances_decidees` posait 6 séances
+      sans ôter leur « non comblé » (AXA 2006-09-27 portait « retiré », « non comblé » puis « comblé » ; 47 « non
+      comblé » au journal pour 41 cas en K7), et aucun de K1 à K23 ne le voyait : le rejeu de K23 tient un geste neutre
+      pour sans effet (son ⑨). Une égalité d'ENSEMBLES, pas de comptes : deux erreurs qui se compensent passeraient un
+      compte égal. À la base (49de727e), 58 = 58 et 0 séance présente (relecture de VINGT, R4).
+    ⑨ CE QUI CLOCHE — La séance de K7 est relue dans le texte du cas (format écrit par `controler`, quelques lignes plus
+      haut) : un changement de ce format lève ValueError au lieu de passer, et H64 le verrait. · Un « retiré » sur une
+      séance présente n'est pas jugé ici : le rejeu de K23 le refuse déjà (la ligne doit exister ensuite).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main ou lève.
+      [sort: non]
+    """
+    notees = {k for k, gestes in journal.items() if any(g["geste"] == "non comblé" for g in gestes)}
+    listees = set()
+    for c in k7:
+        m = re.match(r"(.+?) (\d{4}-\d{2}-\d{2})(?: \(|$)", c)
+        if not m:
+            raise ValueError(f"K24 : cas de K7 illisible {c!r} (attendu « <valeur> <AAAA-MM-JJ> [(motif)] »)")
+        listees.add((m.group(1), m.group(2)))
+    cas = []
+    for v, d in sorted(notees | listees):
+        if (v, d) in notees and d in series.get(v, {}):
+            cas.append(f"{v} {d} : « non comblé » au journal, la séance est dans le fichier")
+        elif (v, d) in notees and (v, d) not in listees:
+            cas.append(f"{v} {d} : « non comblé » au journal, K7 ne la liste pas")
+        elif (v, d) not in notees:
+            cas.append(f"{v} {d} : K7 la liste, le journal ne la dit pas « non comblé »")
+    return cas
+
+
+def lire_abc(racine):
+    """Lit les cours de Paris téléchargés chez ABC Bourse, tels que téléchargés ; rend les barres et les fichiers lus.
+
+    ① RÔLE — La troisième source de Paris de l'historique long, pour la réparation (geste « versé ») et pour le rejeu de
+      K23, lue d'une seule façon (R-708).
+    ② CONTEXTE D'APPEL — `main` de ce programme (K23) ; `reparer` de programmes/REPARER_L_HISTORIQUE_LONG.py ; les
+      épreuves.
+    ③ ENTRÉE — `racine` : la racine du dépôt.
+    ④ CONDITIONS D'ENTRÉE — Le dossier `ABC` existe (OSError sinon). Chaque ligne utile s'écrit
+      `ISIN;jj/mm/aa;ouverture;plus haut;plus bas;clôture;volume`, décimales à la virgule (le format d'ABC, relevé le
+      31-10-2026 : « FR0013326246;01/03/17;215,70;218,35;215,65;217,35;282554 »).
+    ⑤ SORTIE — DEUX valeurs : ① valeur → {date AAAA-MM-JJ : (open, high, low, close, volume)} en nombres · ② la liste
+      triée des fichiers lus, chemins depuis la racine. Lève ValueError pour une ligne illisible, un ISIN absent
+      d'`ISIN_ABC`, un nombre non fini, ou une même séance écrite deux fois avec des chiffres différents.
+      [rend: 2]
+    ⑥ TRAITEMENT — Pour chaque fichier .csv du dossier, dans l'ordre des noms : chaque ligne non vide ; sept champs ;
+      la date jj/mm/aa devient 20aa-mm-jj ; les cinq nombres ; une séance vue deux fois doit porter les mêmes chiffres.
+    ⑦ UNITÉ — Des EUROS et des NOMBRES DE TITRES, cours de Paris tels qu'ABC les publie (ajustés des divisions
+      seulement, selon la FAQ d'ABC relevée le 31-10-2026 ; pas des dividendes).
+    ⑧ POURQUOI — Décision de Jean-Luc du 31-10-2026 à 20h11 (« 1 ») : les 1 567 séances d'Unibail du 01-03-2017 au
+      13-04-2023 viennent d'ABC, avec la source « abc » par ligne, et les fichiers bruts gardés tels quels au registre
+      de provenance (« tu donnes bien l'origine, j'espère »). Lire le brut, et non une série refaite à côté, garde un
+      seul maillon entre le fichier réparé et le téléchargement.
+    ⑨ CE QUI CLOCHE — Le siècle est supposé (20aa) : un fichier d'avant 2000 serait mal daté. · Les fichiers sont ceux
+      qu'un programme a obtenus le 31-10-2026 alors que les conditions d'ABC interdisent la récupération automatique
+      (annexe n°43) : Jean-Luc peut les refaire à la main et comparer les empreintes du registre.
+    ⑩ EFFET — Lit les fichiers.
+    ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    dossier = os.path.join(racine, ABC)
+    barres, lus = {}, []
+    for nom in sorted(os.listdir(dossier)):
+        if not nom.endswith(".csv"):
+            continue
+        chemin = os.path.join(ABC, nom)
+        lus.append(chemin.replace(os.sep, "/"))
+        with open(os.path.join(racine, chemin), encoding="utf-8") as f:
+            for n, ligne in enumerate(f, start=1):
+                if not ligne.strip():
+                    continue
+                champs = ligne.strip().split(";")
+                try:
+                    isin, jour, *nombres = champs
+                    jj, mm, aa = jour.split("/")
+                    date = datetime.date(2000 + int(aa), int(mm), int(jj)).isoformat()
+                    barre = tuple(float(x.replace(",", ".")) for x in nombres)
+                    if len(barre) != 5 or not all(math.isfinite(x) for x in barre):
+                        raise ValueError("cinq nombres finis attendus")
+                except ValueError as e:
+                    raise ValueError(f"{chemin}, ligne {n} : illisible ({e}) : {ligne.strip()!r}")
+                if isin not in ISIN_ABC:
+                    raise ValueError(f"{chemin}, ligne {n} : ISIN {isin} absent d'ISIN_ABC")
+                deja = barres.setdefault(ISIN_ABC[isin], {}).get(date)
+                if deja is not None and deja != barre:
+                    raise ValueError(f"{chemin}, ligne {n} : {ISIN_ABC[isin]} {date} déjà lu avec d'autres chiffres")
+                barres[ISIN_ABC[isin]][date] = barre
+    return barres, lus
+
+
+def lire_divisions_officielles(chemin):
+    """Rend les lignes de la table des divisions prouvées par un document officiel.
+
+    ① RÔLE — Lire DIVISIONS_OFFICIELLES.csv, en vérifiant ce que K15 et la liste unique des opérations en tirent.
+    ② CONTEXTE D'APPEL — `main` de ce programme (K15) ; programmes/REPARER_L_HISTORIQUE_LONG.py, `reparer` ;
+      programmes/RECONSTRUIRE_L_HISTORIQUE_LONG.py, `main` et `operations` (par son appelant) ; les épreuves.
+    ③ ENTRÉE — `chemin` : le fichier.
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe (l'appelant décide d'un fichier absent ; OSError sinon).
+    ⑤ SORTIE — UNE valeur : la liste des lignes (dictionnaires aux colonnes du contrat DIVISIONS_OFFICIELLES).
+      Lève ValueError si l'en-tête n'est pas le contrat, si une date ne s'écrit pas AAAA-MM-JJ, si un nombre d'actions
+      n'est pas un nombre positif, si la citation est vide, ou si deux lignes portent la même valeur et la même date.
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire ; vérifier chaque ligne.
+    ⑦ UNITÉ — Des nombres d'actions.
+    ⑧ POURQUOI — Une ligne de cette table fait PORTER une opération à des séances comblées, et K15 y lit une marche
+      permise : une ligne illisible acceptée sans bruit fausserait toute la zone et ferait taire K15. Créée le
+      31-10-2026 pour la division de STMICROELECTRONICS du 09-05-2000 (décision de Jean-Luc à 19h23) ; une seule
+      lecture pour le contrôle, la réparation et la reconstruction (R-708).
+    ⑨ CE QUI CLOCHE — Le texte de la citation n'est pas confronté au document gardé
+      (programmes/CONFRONTER_LES_CHIFFRES_AUX_DOCUMENTS.py ne lit pas cette table → BACKLOG).
+    ⑩ EFFET — Lit le fichier.
+    ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    with open(chemin, encoding="utf-8", newline="") as f:
+        lecteur = csv.DictReader(f)
+        if lecteur.fieldnames != DIVISIONS_OFFICIELLES:
+            raise ValueError(f"{chemin} : en-tête {lecteur.fieldnames} au lieu de {DIVISIONS_OFFICIELLES}")
+        lignes, vues = list(lecteur), set()
+    for n, r in enumerate(lignes, start=2):
+        try:
+            ok = datetime.date.fromisoformat(r["date"]).isoformat() == r["date"]
+            a, b = float(r["actions_avant"]), float(r["actions_apres"])
+        except ValueError:
+            ok, a, b = False, 0, 0
+        if not ok or not (a > 0 and b > 0) or not r["citation"].strip() or (r["valeur"], r["date"]) in vues:
+            raise ValueError(f"{chemin}, ligne {n} : date, nombres d'actions, citation ou doublon refusés ({r})")
+        vues.add((r["valeur"], r["date"]))
+    return lignes
 
 
 def lire_francfort(chemin):
@@ -1182,7 +1723,7 @@ def autour_du_detachement(dates, jour):
 
 def controler(series, defauts, bnains, evenements, venues_de_bnains=frozenset(), detachements=None, sans_date=(),
               fausses=frozenset(), francfort=None, indice=None, origine=None, a_defaire=(), citations=None,
-              alignes=None, seances=None):
+              alignes=None, seances=None, officielles=None):
     """Passe les contrôles K1 à K21 ; rend leur compte rendu.
 
     ① RÔLE — Tout ce que le programme juge.
@@ -1198,7 +1739,8 @@ def controler(series, defauts, bnains, evenements, venues_de_bnains=frozenset(),
       (K21b ne juge que les jours acceptés sans opération ou en double ; K21c rien) · `alignes` :
       `lire_alignes`, ou None (K20 attend alors chaque ligne sans geste « aligné ») · `seances` : le rendu de
       `CALENDRIER_DE_LA_BOURSE.lire_les_seances`, pour `calendrier` (K6 et K7 : depuis le 27-10-2026, les séances
-      manquantes se comptent sur le calendrier officiel) ; sans lui, `calendrier` lève une erreur.
+      manquantes se comptent sur le calendrier officiel) ; sans lui, `calendrier` lève une erreur · `officielles` :
+      les lignes de DIVISIONS_OFFICIELLES (`lire_divisions_officielles`), ou None (aucune), pour K15 (31-10-2026).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : une liste de quadruplets (numéro, intitulé, bloquant, liste des cas),
       un par contrôle, dans l'ordre K1 à K21.
@@ -1353,6 +1895,11 @@ def controler(series, defauts, bnains, evenements, venues_de_bnains=frozenset(),
         else:
             k17b.append(f"{cas} — {verdict}")
     k15, k15b = [], []
+    # une division prouvée par un document change le rapport aux cours bruts de son rapport : marche permise
+    # actions_apres ÷ actions_avant − 1 (STMICROELECTRONICS, 09-05-2000 : +200 %, décision de Jean-Luc du 31-10-2026)
+    documentees = {}
+    for r in officielles or []:
+        documentees.setdefault(r["valeur"], {})[r["date"]] = float(r["actions_apres"]) / float(r["actions_avant"])
     for v, s in sorted(series.items()):
         b, detache = bnains.get(v, {}), (detachements or {}).get(v, {})
         dates = seances_comparables(s, b, douteux)
@@ -1364,6 +1911,10 @@ def controler(series, defauts, bnains, evenements, venues_de_bnains=frozenset(),
             permise = 1.0
             for j in entre:                    # le droit vaut d sur une action ex-droit à a : marche d / a
                 permise *= 1 + marche_permise(b, detache[j])
+            divisees = [j for j in documentees.get(v, {}) if p < j <= q]
+            for j in divisees:
+                permise *= documentees[v][j]
+            entre = entre + divisees
             permise -= 1
             if abs(rq / rp - 1 - permise) <= ECART:
                 continue
@@ -2201,7 +2752,7 @@ def lire_les_sources(chemin):
         return {(r["valeur"], r["date"]): r.get("source") or "" for r in csv.DictReader(f)}
 
 
-def lignes_non_rejouees(series, sources, origine, paris, journal):
+def lignes_non_rejouees(series, sources, origine, paris, journal, abc=None):
     """Rend les lignes du fichier réparé que le journal des réparations ne refait pas, à l'égalité exacte, depuis leur source.
 
     ① RÔLE — K23, le rejeu : chaque ligne du fichier réparé doit se refaire, colonne par colonne et au chiffre près, en
@@ -2210,7 +2761,8 @@ def lignes_non_rejouees(series, sources, origine, paris, journal):
     ② CONTEXTE D'APPEL — `main`, pour K23, quand le fichier contrôlé porte la colonne `source` ; les épreuves.
     ③ ENTRÉE — `series` : le fichier contrôlé · `sources` : `lire_les_sources` du même fichier · `origine` : le
       fichier Yahoo avant réparation · `paris` : les cours de Paris (bnains) SANS les barres prouvées fausses
-      (`lire_paris`, le même Paris que la réparation) · `journal` : `lire_journal`.
+      (`lire_paris`, le même Paris que la réparation) · `journal` : `lire_journal` · `abc` : les cours d'ABC
+      (`lire_abc`, premier élément), ou None (aucun), depuis le 31-10-2026.
     ④ CONDITIONS D'ENTRÉE — Le journal a les colonnes de JOURNAL_DES_REPARATIONS et des nombres finis (`lire_journal`
       l'a vérifié) ; `origine` est lu sans défaut (`main` arrête sinon).
     ⑤ SORTIE — UNE valeur : la liste triée des cas, un texte par ligne qui ne se refait pas ; vide si tout se refait.
@@ -2221,10 +2773,12 @@ def lignes_non_rejouees(series, sources, origine, paris, journal):
       départ n'est pas vide (un facteur non appliqué va dans la raison) ·
       ③ `close_avant` est vide si et seulement si la ligne n'existe pas à ce moment · ④ `close_avant` égale la clôture
       de l'état · ⑤ un geste sans clôture après retire la ligne · ⑥ sinon il part de l'état (« ligne », `appliquer`) ou
-      de la barre de Paris du jour (« paris », `arrondir`, la barre doit exister), et sa clôture égale `close_apres`.
+      de la barre de Paris du jour (« paris », `arrondir`, la barre doit exister) ou de la barre d'ABC du jour (« abc »,
+      `arrondir`), et sa clôture égale `close_apres`.
       À la fin : la ligne du fichier existe si et seulement si l'état existe, égale l'état sur les cinq colonnes, et sa
       colonne `source` vaut SOURCE_PARIS si un geste parti de Paris a écrit la ligne depuis son dernier retrait (depuis
-      l'origine s'il n'y en a pas), SOURCE_YAHOO sinon. Toutes les comparaisons sont des égalités exactes.
+      l'origine s'il n'y en a pas), SOURCE_ABC si c'est un geste parti d'ABC, SOURCE_YAHOO sinon. Toutes les
+      comparaisons sont des égalités exactes.
     ⑦ UNITÉ — Des euros et des nombres de titres ; facteurs sans unité.
     ⑧ POURQUOI — Demande de Jean-Luc du 13-10-2026 à 09h34 (« Tu ne vas pas oublier de le faire pour notre historique
       des 20 ans ») et sa décision du même jour (« Les deux, dans l'ordre ») : chaque cours de l'historique long doit
@@ -2278,14 +2832,16 @@ def lignes_non_rejouees(series, sources, origine, paris, journal):
             if g["depart"] == "":
                 etat, venue = None, None
                 continue
-            base = paris.get(v, {}).get(d) if g["depart"] == "paris" else etat
+            base = ({"paris": paris, "abc": abc or {}}[g["depart"]].get(v, {}).get(d) if g["depart"] in ("paris", "abc")
+                    else etat)
             if base is None:
-                motif = (f"« {g['geste']} » part de " + ("Paris, qui n'a pas de barre ce jour" if g["depart"] == "paris"
-                                                          else "la ligne, qui n'existe pas à ce moment"))
+                motif = (f"« {g['geste']} » part de " + {"paris": "Paris, qui n'a pas de barre ce jour",
+                                                          "abc": "ABC, qui n'a pas de barre ce jour"}.get(
+                    g["depart"], "la ligne, qui n'existe pas à ce moment"))
                 break
             fp, fv = float(g["facteur"]), float(g["facteur_volume"])
-            if g["depart"] == "paris":
-                etat, venue = arrondir(base, fp, fv), SOURCE_PARIS
+            if g["depart"] in ("paris", "abc"):
+                etat, venue = arrondir(base, fp, fv), (SOURCE_PARIS if g["depart"] == "paris" else SOURCE_ABC)
             else:
                 etat = appliquer(base, fp, fv)
             if etat[3] != float(g["close_apres"]):
@@ -2304,8 +2860,8 @@ def lignes_non_rejouees(series, sources, origine, paris, journal):
                 if faux:
                     motif = f"{', '.join(faux)} : le fichier a {barre}, le rejeu donne {etat}"
                 elif sources.get((v, d)) != venue:
-                    motif = (f"colonne source « {sources.get((v, d))} », le rejeu part de "
-                             f"{'Paris' if venue == SOURCE_PARIS else 'Yahoo'} (« {venue} »)")
+                    nom = {SOURCE_PARIS: "Paris", SOURCE_ABC: "ABC"}.get(venue, "Yahoo")
+                    motif = f"colonne source « {sources.get((v, d))} », le rejeu part de {nom} (« {venue} »)"
         if motif:
             cas.append(f"{v} {d} : {motif}")
     return sorted(cas)
@@ -2688,6 +3244,7 @@ def main(argv):
         indice = lire_indice(os.path.join(racine, INDICE))
         origine, defauts_o, _ = lire_cours(os.path.join(racine, ORIGINE))
         citations = lire_citations(os.path.join(racine, OFFICIELS))
+        officielles = lire_divisions_officielles(os.path.join(racine, DIVISIONS_DOCUMENTEES))
         alignes = lire_alignes(os.path.join(racine, JOURNAL))
         with open(fichier, encoding="utf-8", newline="") as f:
             a_la_source = "source" in (next(csv.reader(f), []))
@@ -2698,12 +3255,14 @@ def main(argv):
                f"ne se remontent pas"] if declare and not a_la_source else []
         k23 += maillons_manquants(racine, [relatif] if not repare     # le fichier lui-même, et ses deux sources
                                   else [relatif, ORIGINE.replace(os.sep, "/"), BNAINS.replace(os.sep, "/")])
+        journal = None          # K24 : le journal, lu seulement pour un fichier réparé qui porte la colonne source
         if repare and a_la_source:
             if defauts_o:      # superviseur du 18-10-2026 : le rejeu part de ce fichier ; abîmé, il ne prouve rien (R-734)
                 raise ValueError(f"{ORIGINE} : {len(defauts_o)} défaut(s) de lecture, dont {defauts_o[0]} — K23 ne peut "
                                  f"pas rejouer le journal sur une origine abîmée")
             journal = lire_journal(os.path.join(racine, JOURNAL))
-            k23 += lignes_non_rejouees(series, lire_les_sources(fichier), origine, bnains, journal)
+            k23 += lignes_non_rejouees(series, lire_les_sources(fichier), origine, bnains, journal,
+                                       lire_abc(racine)[0])
     except (OSError, ValueError) as e:
         print(f"ARRÊT — le contrôle n'a pas pu tourner : {type(e).__name__} : {e}")
         return 2
@@ -2716,11 +3275,21 @@ def main(argv):
     print(f"contrôlé : {os.path.relpath(fichier, racine)} — {sum(len(s) for s in series.values())} lignes, "
           f"{len(series)} valeurs · seconde source : {BNAINS}, moins {len(fausses)} barres prouvées fausses ({FAUSSES})")
     refus = []
-    for num, titre, bloquant, cas in controler(series, defauts, bnains, evenements, venues_de_bnains, detachements,
-                                               sans_date, fausses, francfort, indice, origine, a_defaire,
-                                               citations, alignes, seances=CAL.lire_les_seances(racine)) + [
+    resultats = controler(series, defauts, bnains, evenements, venues_de_bnains, detachements,
+                          sans_date, fausses, francfort, indice, origine, a_defaire,
+                          citations, alignes, seances=CAL.lire_les_seances(racine),
+                          officielles=officielles)
+    try:        # K24 (05-11-2026, superviseur R-759 de VINGT, D1) : le journal et K7 disent les mêmes séances vides
+        k24 = [] if journal is None else non_combles_hors_de_k7(journal, series,
+                                                                 [c for n, _, _, x in resultats if n == "K7" for c in x])
+    except ValueError as e:
+        print(f"ARRÊT — le contrôle n'a pas pu tourner : {type(e).__name__} : {e}")
+        return 2
+    for num, titre, bloquant, cas in resultats + [
             ("K23", "lignes que le journal des réparations ne refait pas depuis leur source, et maillons de provenance "
-                    "manquants (A-578)", True, k23)]:
+                    "manquants (A-578)", True, k23),
+            ("K24", "séances « non comblé » au journal qui ne sont pas exactement celles de K7, ou présentes dans le "
+                    "fichier", True, k24)]:
         etat = ("REFUS" if cas else "ok") if bloquant else "signalé"
         print(f"{num:>4} {etat:<7} {len(cas):>6} — {titre}")
         for c in cas[:8]:

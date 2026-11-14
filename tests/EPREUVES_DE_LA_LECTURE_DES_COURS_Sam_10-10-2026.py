@@ -16,10 +16,12 @@
   dans le dépôt : l'épreuve les prend dans leurs témoins figés (FIGES, plus bas), sur une copie des données.
 ⑤ SORTIE — UNE valeur : le code de sortie — 0 si Z0 est vert et, avec --saboter, si chaque sabotage fait rougir au
   moins une épreuve ; 1 sinon ; 2 si un sabotage ne s'applique plus, ou si une épreuve est tombée sur une panne de
-  l'environnement (PANNES : disque plein…), qui ne juge rien.
+  l'environnement (PANNES : disque plein…) ou sur une prémisse de données fausse, qui ne jugent rien. Depuis le
+  13-11-2026 (N-b du relecteur, superviseur R-759 de 18h55), une épreuve NON JUGÉE n'efface plus les autres : toutes
+  les épreuves du jeu sont affichées, et un sabotage qui a une épreuve NON JUGÉE ne compte JAMAIS comme mordant.
   [rend: 1]
 ⑥ TRAITEMENT — Pour Z0 puis pour chaque sabotage : copier les quatre programmes dans un dossier jetable, y appliquer
-  le sabotage, importer la lecture des cours copiée, jouer les épreuves L1 à L31.
+  le sabotage, importer la lecture des cours copiée, jouer les épreuves L1 à L32 et L38.
 ⑦ UNITÉ — Des séances et des dates.
 ⑧ POURQUOI — Décision de Jean-Luc du 10-10-2026, « Oui, vas-y » : construire le calendrier et le module. R-731 : tout
   code passe des épreuves sabotées ; un cas au moins vient d'une vraie ligne (R-732).
@@ -89,6 +91,9 @@
      s'arrêtent au 10-07-2026, toutes avec leur barre (relecture indépendante du 12-10-2026 : elles sortaient vides du
      22-09 au 09-10-2026).
   L28 (ajoutée le 12-10-2026, cassure B de Cowork e183c98 ; décision de Jean-Luc A8 et « Oui, clore et passer à B ») :
+     depuis le fichier des 20 ans (attentes remesurées le 13-11-2026), AIR, STMPA, URW et HO n'ont que des trous
+     ordinaires (1, 2, 7, 0) : la règle « avant la première barre » n'y produit plus rien et a sa dent en L38. Le
+     reste du paragraphe dit ce qu'éprouvait L28 sur l'historique réparé du 12-10-2026 :
      dans l'historique réparé, une valeur dans l'indice avant sa première barre a ses trous — Airbus 292 (du 10-07-2000,
      entrée sous EADS, au 31-08-2001), STMicroelectronics 423 (du 03-01-2000 au 31-08-2001), Unibail-Rodamco-Westfield
      4 054 (du 18-06-2007 au 13-04-2023 ; 4 049 avant le 27-10-2026 : ses cinq demi-séances, qui n'étaient pas comptées
@@ -110,6 +115,9 @@
      d'une société inconnue des identités, aussi ; deux passages fermés d'Edenred (code inconnu des identités) qui se
      croisent, ou dont l'un entre le jour où l'autre sort, aussi ; une date illisible est dite avec son passage ; la
      vraie table, lignes dans l'ordre inverse, rend les mêmes passages (relecture indépendante du même soir).
+  L38 (ajoutée le 14-11-2026, copiée du commit f43eb888 de la branche du lecteur unique, décision de Jean-Luc du
+     14-11-2026 à 00h26) : le maître figé privé des trois premières séances d'Air Liquide (02 au 04-01-2024), dans
+     l'indice depuis 2000 : ces trois séances sont ses trous (la dent de S69, l'indice ignoré).
   L32 (ajoutée le 27-10-2026) : `lignes_mises_a_part` vaut 0 sur le maître et l'historique réparé, 1 pour une ligne
      d'un nom inconnu, d'une date illisible ou d'un samedi ajoutée au maître, 0 pour un doublon exact ;
   L31 (ajoutée le 13-10-2026, cassure H de Cowork 15e647c) : un code ISIN mal écrit est refusé, avec sa raison — le
@@ -294,6 +302,9 @@ SABOTAGES = {
     "S89_code_mal_ecrit_admis": [(LC, "            if r[champ] and not isin_valide(r[champ]):", "            if False:")],
     "S90_identites_sans_controle_des_codes": [(LC, "((IDENTITES, ident, \"isin\"), (PASSAGES, passages, \"isin_bnains\"))", "((PASSAGES, passages, \"isin_bnains\"),)")],
     "S91_cle_isin_ignoree": [(LC, "    return (10 - somme % 10) % 10 == int(code[-1])", "    return True")],
+    # N-b du relecteur du 13-11-2026 (18h45), superviseur R-759 (18h55) : la parité de Luhn inversée dans le code
+    # éprouvé doit MORDRE (L31 rouge) et jamais sortir NON JUGÉ : une prémisse de données ne lit pas le code éprouvé
+    "SX_luhn_parite_inversee": [(LC, "        n = int(c) * (2 if i % 2 == 0 else 1)", "        n = int(c) * (2 if i % 2 == 1 else 1)")],
     "S92_forme_isin_sans_casse": [(LC, "FORME_ISIN = re.compile(r\"[A-Z]{2}[A-Z0-9]{9}[0-9]\")", "FORME_ISIN = re.compile(r\"[A-Z]{2}[A-Z0-9]{9}[0-9]\", re.I)")],
     "S80_code_vide_relie_les_passages_sans_code":[(LC, "        if r[\"isin\"]:\n            codes[", "        if True:\n            codes[")],
     "S79_code_vide_compte_comme_partage": [(LC, "        if r[\"isin\"] and societe_du_code.setdefault(", "        if societe_du_code.setdefault(")],
@@ -306,7 +317,11 @@ SABOTAGES = {
     "S25_date_des_cours_libre": [(LC, "            d = CAL._date_stricte(r[\"date\"])\n        except ValueError:\n            illisibles", "            d = CAL.date.fromisoformat(r[\"date\"])\n        except ValueError:\n            illisibles")],
 }
 MARCHE = ["2010-12-24", "2010-12-31", "2012-12-24", "2012-12-31", "2015-12-31"]
-BOUYGUES = ["2011-11-03", "2011-11-04", "2011-11-07", "2011-11-08", "2011-11-09", "2011-11-10"]
+# Attentes remesurées par programme, décision de Jean-Luc du 13-11-2026 à 22h51, réponse « 1 » (remplacer les chiffres
+# attendus par ceux du nouveau fichier, mesurés par programme) : etudes/VINGT_ANS_A_PART_Mer_11-11-2026/outils_E2c_Q1/
+# MESURER_LES_ATTENTES_L2_L28.py sur donnees/sources_yahoo/historique_long_repare.csv, SHA-256
+# f3985712f24131876baaba9be0a02a423faffbae72471a46cccc73eb12bf796f (avant : six trous du 03 au 10-11-2011, AXA 20).
+BOUYGUES = ["2011-11-03", "2011-11-09"]
 DECEMBRE_2010 = ["2010-12-20", "2010-12-21", "2010-12-22", "2010-12-23", "2010-12-24", "2010-12-27", "2010-12-28",
                  "2010-12-29", "2010-12-30", "2010-12-31"]
 ENTETE_COURS = "valeur,date,open,high,low,close,volume,source"
@@ -374,6 +389,135 @@ def racine(tmp, nom, cours=None, indice=None, natures=None, referentiel=None, eu
             with open(cible, "w", encoding="utf-8") as f:
                 f.write("\n".join(remplace) + "\n")
     return r
+
+
+class PremisseFausse(Exception):
+    """Une prémisse de données d'une épreuve est fausse : l'épreuve n'est PAS JUGÉE (code 2), ni verte ni rouge.
+
+    ① RÔLE — Distinguer « le code a tort » de « les données sur lesquelles l'épreuve repose ont changé ».
+    ② CONTEXTE D'APPEL — Levée par `premisse` ; attrapée par `essai`.
+    ③ ENTRÉE — Le texte de la prémisse fausse.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — —
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 13-11-2026 (§ 4) : le commit 9231af45 a ajouté aux identités le code de
+      Peugeot S.A. (société 48) et celui d'Edenred (société 70), que L28 et L30 supposaient absents ; S74 et S87 sont
+      devenus SANS EFFET en silence. Une prémisse vérifiée avant de juger le dit au lieu de se taire.
+    ⑨ CE QUI CLOCHE — Seules les prémisses écrites par `premisse` sont vérifiées ; les comptes figés (292, 423, 4 054…)
+      ne le sont pas : ils sont l'objet de l'épreuve. Une prémisse ne doit lire QUE des données, jamais le code
+      éprouvé `M` : sinon un défaut du code passe pour une donnée changée (N-b du relecteur du 13-11-2026, L28 et L30
+      appelaient `M.isin_valide`). Rien ne l'interdit dans le code : le sabotage SX le vérifie pour `isin_valide`
+      seulement.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — —
+    """
+
+
+def premisse(vrai, texte):
+    """Lève `PremisseFausse(texte)` si `vrai` est faux ; ne rend rien sinon.
+
+    ① RÔLE — Vérifier une prémisse de données AVANT de juger.
+    ② CONTEXTE D'APPEL — Les épreuves L28 et L30.
+    ③ ENTRÉE — `vrai` : le résultat de la vérification · `texte` : la prémisse, en clair.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Ne rend rien.
+      [rend: rien]
+    ⑥ TRAITEMENT — Lever si faux.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir `PremisseFausse`.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main ou lève.
+      [sort: non]
+    """
+    if not vrai:
+        raise PremisseFausse(texte)
+
+
+def cle_isin(corps):
+    """Rend le chiffre-clé ISO 6166 d'un corps de onze caractères (deux lettres, neuf lettres ou chiffres).
+
+    ① RÔLE — Fabriquer des codes ISIN bien formés pour les épreuves, sans prendre le code d'une vraie société.
+    ② CONTEXTE D'APPEL — `code_absent` et `isin_bien_forme`.
+    ③ ENTRÉE — `corps` : onze caractères capitaux ou chiffres.
+    ④ CONDITIONS D'ENTRÉE — Le corps est bien formé (non vérifié ici).
+    ⑤ SORTIE — UNE valeur : un caractère, le chiffre-clé.
+      [rend: 1]
+    ⑥ TRAITEMENT — Chaque lettre devient son rang plus neuf (A = 10), puis l'algorithme de Luhn.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Écrit à part de `isin_valide` du programme éprouvé : un sabotage de ce dernier ne doit changer ni
+      les codes fabriqués par `code_absent`, ni le jugement des prémisses de L28 et L30, qui vérifient la forme du
+      code fabriqué par `isin_bien_forme` (donc par cette fonction), jamais par `M.isin_valide` (N-b et N-d du
+      relecteur du 13-11-2026 : ce ⑧ promettait une confrontation que `code_absent` ne faisait pas). Aucune
+      confrontation entre les deux n'est faite ici : c'est L31 qui éprouve `isin_valide`, et le sabotage SX qui
+      vérifie qu'un défaut de `isin_valide` la fait rougir sans rendre les prémisses fausses.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    chiffres = "".join(str(int(c, 36)) for c in corps)
+    total = 0
+    for i, c in enumerate(reversed(chiffres)):
+        n = int(c) * (2 if i % 2 == 0 else 1)
+        total += n - 9 if n > 9 else n
+    return str((10 - total % 10) % 10)
+
+
+def isin_bien_forme(code):
+    """Rend vrai si `code` a la forme d'un ISIN (deux lettres, neuf lettres ou chiffres, un chiffre) et sa clé juste.
+
+    ① RÔLE — Vérifier, dans une prémisse de données, un code fabriqué SANS appeler le code éprouvé.
+    ② CONTEXTE D'APPEL — Les prémisses des épreuves L28 et L30.
+    ③ ENTRÉE — `code` : un texte.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : vrai ou faux.
+      [rend: 1]
+    ⑥ TRAITEMENT — Douze caractères ; les deux premiers lettres capitales A à Z ; les neuf suivants lettres capitales
+      A à Z ou chiffres ; le dernier chiffre, égal à `cle_isin` des onze premiers.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — N-b du relecteur du 13-11-2026 (18h45), verdict du superviseur R-759 (18h55) : les prémisses de L28
+      et L30 appelaient `M.isin_valide` ; sous un défaut de ce code (parité de Luhn inversée, mutant SX), 27 épreuves
+      rougissaient et la sortie n'affichait qu'une ligne « NON JUGÉ — une prémisse de données est fausse ».
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    lettre = lambda c: "A" <= c <= "Z"
+    return (len(code) == 12 and all(lettre(c) for c in code[:2])
+            and all(lettre(c) or "0" <= c <= "9" for c in code[2:11]) and "0" <= code[11] <= "9"
+            and cle_isin(code[:11]) == code[11])
+
+
+def code_absent(*tables):
+    """Rend un code ISIN bien formé, absent PAR CONSTRUCTION de toutes les lignes données.
+
+    ① RÔLE — Donner aux épreuves un code « inconnu » qui le reste quand les tables grandissent.
+    ② CONTEXTE D'APPEL — L28 (mnémonique en double) et L30 (passages d'un code inconnu des identités).
+    ③ ENTRÉE — `tables` : des listes de lignes de texte (les tables du dépôt telles qu'elles sont lues).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le premier code « FR99… » de clé juste qui n'apparaît dans aucune ligne.
+      [rend: 1]
+    ⑥ TRAITEMENT — Essayer FR999000000, FR999000001… ; garder le premier dont le code complet n'est sous-chaîne d'aucune
+      ligne. Le préfixe 999 n'est pas attribué aux sociétés françaises cotées (constat sur les deux tables du
+      13-11-2026, pas une règle de l'ISO).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — 9231af45 : les vrais codes « supposés absents » (Peugeot S.A., Edenred) sont entrés aux identités, et
+      S74 et S87 sont devenus muets (superviseur R-759 du 13-11-2026).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main : au plus mille essais, puis lève.
+      [sort: non]
+    """
+    texte = "\n".join(x for t in tables for x in t)
+    for i in range(1000):
+        corps = f"FR999{i:06d}"
+        code = corps + cle_isin(corps)
+        if code not in texte:
+            return code
+    raise PremisseFausse("aucun code FR999… absent des tables en mille essais")
 
 
 def leve(f, *a):
@@ -448,7 +592,7 @@ def muet(f, *a):
 
 
 def epreuves(dossier, tmp):
-    """Joue L1 à L31 avec les programmes du dossier `dossier`, et rend la liste (nom, verdict).
+    """Joue L1 à L32 et L38 avec les programmes du dossier `dossier`, et rend la liste (nom, verdict).
 
     ① RÔLE — Les épreuves décrites en tête.
     ② CONTEXTE D'APPEL — `main`, une fois par sabotage.
@@ -479,7 +623,8 @@ def epreuves(dossier, tmp):
         ③ ENTRÉE — `nom` : le nom de l'épreuve · `f` : une fonction sans argument qui rend vrai si l'épreuve est verte.
         ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — Ne rend rien : ajoute (nom, verdict) à `res` ; le verdict vaut None quand l'erreur vient de
-          l'environnement (PANNES, ou mémoire épuisée) : l'épreuve n'est pas jugée.
+          l'environnement (PANNES, ou mémoire épuisée) ou d'une prémisse de données fausse (`PremisseFausse`, depuis
+          le 13-11-2026) : l'épreuve n'est pas jugée.
           [rend: rien]
         ⑥ TRAITEMENT — appeler `f`, attraper ; une erreur de l'environnement donne None, toute autre erreur False.
         ⑦ UNITÉ — —
@@ -491,6 +636,9 @@ def epreuves(dossier, tmp):
         """
         try:
             v = bool(f())
+        except PremisseFausse as e:
+            v = None
+            nom += f" — PRÉMISSE FAUSSE : {e}"[:300]
         except Exception as e:
             v = None if isinstance(e, MemoryError) or getattr(e, "errno", None) in PANNES else False
             nom += f" — {type(e).__name__} : {e}"[:200]
@@ -537,9 +685,9 @@ def epreuves(dossier, tmp):
           "de R-110 ①",
           lambda: M.trous_de_tout_le_marche(lire_reel(H)) == []
           and [d.isoformat() for d in M.trous_de_tout_le_marche(sans_les_demi_seances())] == MARCHE)
-    essai("L2 hors trous du marché : Bouygues six trous du 03 au 10-11-2011 ; AXA vingt",
+    essai("L2 hors trous du marché : Bouygues deux trous, 03 et 09-11-2011 ; AXA seize",
           lambda: [d.isoformat() for d, _ in M.trous(lire_reel(H), "EN") if d.isoformat() not in MARCHE] == BOUYGUES
-          and len([d for d, _ in M.trous(lire_reel(H), "CS") if d.isoformat() not in MARCHE]) == 20)
+          and len([d for d, _ in M.trous(lire_reel(H), "CS") if d.isoformat() not in MARCHE]) == 16)
     essai("L3 maître : AI 709 barres, 644 + 65 écritures ; 13 valeurs à plusieurs écritures ; aucun nom inconnu",
           lambda: len(lire_reel(CM)["barres"]["AI"]) == 709
           and dict(lire_reel(CM)["ecritures"]["AI"]) == {"AIR LIQUIDE": 644, "AIR_LIQUIDE": 65}
@@ -1194,13 +1342,13 @@ def epreuves(dossier, tmp):
         return False
 
     def l28():
-        """Une valeur dans l'indice avant sa première barre a ses trous ; Peugeot ne prête pas ses années à Stellantis.
+        """Sur les 20 ans, AIR, STMPA, URW et HO n'ont que des trous ordinaires ; Peugeot ne prête pas ses années à Stellantis.
 
         ① RÔLE — L28.
         ② CONTEXTE D'APPEL — `essai`.
         ③ ENTRÉE — —
-        ④ CONDITIONS D'ENTRÉE — L'historique réparé, le maître et les deux tables de la règle I-3 tels qu'au
-          12-10-2026.
+        ④ CONDITIONS D'ENTRÉE — L'historique réparé des 20 ans dont l'empreinte SHA-256 est f3985712…bf796f (celle
+          écrite plus bas, au-dessus des attentes), le maître figé (FIGES) et les deux tables de la règle I-3 du dépôt.
         ⑤ SORTIE — UNE valeur : vrai si verte.
           [rend: 1]
         ⑥ TRAITEMENT — lire l'historique réparé jusqu'au 02-10-2026 ; compter les trous d'AIR, STMPA, URW, STLAP et HO hors
@@ -1212,13 +1360,18 @@ def epreuves(dossier, tmp):
           barre de chaque valeur.
         ⑦ UNITÉ — Des séances.
         ⑧ POURQUOI — Cassure B de Cowork (11-10-2026, e183c98), décision de Jean-Luc A8 du 10-10-2026 et du 12-10-2026
-          (« Oui, clore et passer à B »). Réponses venues d'ailleurs que du module : Airbus est dans l'indice sous EADS
-          depuis le 10-07-2000 (avis 2000-2926), STMicroelectronics depuis le 03-01-2000 (composition de bnains),
-          Unibail depuis le 18-06-2007 ; leurs premières barres (03-09-2001, 03-09-2001, 14-04-2023) et les séances
-          d'avant (292, 423, 4 054) ont été comptées par Cowork le 11-10-2026, hors du module ; pour Unibail, 4 054
-          moins les 5 trous de tout le marché tombés dans la période = 4 049. Thales : première barre le 04-01-2000,
-          dans l'indice le 03-01-2000 — un trou.
-        ⑨ CE QUI CLOCHE — Les comptes portent sur les fichiers du 12-10-2026.
+          (« Oui, clore et passer à B ») : une valeur dans l'indice avant sa première barre doit avoir ses trous. Sur
+          l'historique réparé du 12-10-2026, Airbus en avait 292, STMicroelectronics 423, Unibail 4 054, Thales 1
+          (comptés par Cowork le 11-10-2026, hors du module). Sur le fichier des 20 ans, ces séances ont leurs barres :
+          mesuré le 14-11-2026 par `M.lire`, la première barre d'AIR (10-07-2000), de STMPA (03-01-2000), d'URW
+          (18-06-2007) et de HO (03-01-2000) tombe le jour même de son entrée dans l'indice. Les attentes ont été
+          remesurées par programme (décision de Jean-Luc du 13-11-2026 à 22h51, plus bas) : il ne reste que des trous
+          ORDINAIRES, au milieu de la série. La propriété « avant la première barre » a donc sa dent en L38, sur le
+          maître figé (relecture de Cowork du 13-11-2026 à 23h37, Q1-a : S69 n'avait plus d'effet).
+        ⑨ CE QUI CLOCHE — L28 n'éprouve PLUS la règle A8 (« avant la première barre ») : sur ce fichier, cette règle
+          ne produit aucun trou, et retirer le bloc `dans_l_indice` de `_attendues` laisse L28 verte — c'est L38 qui
+          rougit. Les comptes (AIR 1, STMPA 2, URW 7, HO 0) valent pour l'empreinte f3985712…bf796f seulement : si
+          l'historique des 20 ans change, ils sont à remesurer.
         ⑩ EFFET — Écrit des racines jetables.
         ⑪ TERMINAISON — Rend la main.
           [sort: non]
@@ -1232,20 +1385,44 @@ def epreuves(dossier, tmp):
         with open(os.path.join(DEPOT, "donnees", "sources_indice", "IDENTITES_DES_SOCIETES.csv"), encoding="utf-8") as f:
             ident = f.read().splitlines()
         deux_actuels = ident + [x for x in ident if x.startswith("2,")]
-        meme_mnemo = ident + ["99,Fausse,,,Fausse,AI,FR0000121501,épreuve : le code de Peugeot S.A. qui a des passages"
-                              ",épreuve"]
+        # 13-11-2026 (superviseur R-759, § 4) : la ligne d'épreuve prenait le code de Peugeot S.A. (FR0000121501),
+        # entré depuis aux identités (société 48, commit 9231af45) : la lecture levait « le code appartient à deux
+        # sociétés » AVANT la garde du mnémonique, et S74 ne mordait plus. Le code et le numéro sont désormais
+        # FABRIQUÉS, absents par construction, et la raison du refus est exigée.
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "PASSAGES_DANS_LE_CAC40.csv"), encoding="utf-8") as f:
+            pas_l28 = f.read().splitlines()
+        _lignes28 = list(csv.reader(ident[1:]))
+        premisse(any(x[5] == "AI" and not x[3] for x in _lignes28),
+                 "L28 : « AI » n'est plus le mnémonique d'une société sans date de fin dans IDENTITES_DES_SOCIETES")
+        code_fabrique = code_absent(ident, pas_l28)
+        numero_neuf = str(max(int(x[0]) for x in _lignes28) + 100)
+        premisse(isin_bien_forme(code_fabrique) and code_fabrique not in "\n".join(ident + pas_l28)
+                 and numero_neuf not in {x[0] for x in _lignes28},
+                 f"L28 : le code fabriqué {code_fabrique} ou le numéro {numero_neuf} n'est pas neuf et bien formé")
+        meme_mnemo = ident + [f"{numero_neuf},Fausse,,,Fausse,AI,{code_fabrique},épreuve : code fabriqué,épreuve"]
         refus = [leve(M.lire, racine(tmp, "l28_" + n, identites=t), CM, FIN[CM]) for n, t in
                  (("a", deux_actuels), ("b", meme_mnemo))]
+        pourquoi_mnemo = raison(M.lire, racine(tmp, "l28_b2", identites=meme_mnemo), CM, FIN[CM])
         sans = racine(tmp, "l28_c")
         os.remove(os.path.join(sans, "donnees", "sources_indice", "PASSAGES_DANS_LE_CAC40.csv"))
         refus.append(leve(M.lire, sans, CM, FIN[CM]))
         renomme = [x.replace(",STMPA,", ",STM,") if x.startswith("34,") and ",STMPA," in x else x for x in ident]
         sans_air_liquide = [x for x in ident if not x.startswith("2,")]
-        sortie = ident + ["41,Vivendi,,,Vivendi,VIV,FR0000127771,épreuve,épreuve", "42,Gemalto,,,Gemalto,GTO,,épreuve,épreuve",
-                          "43,Alcatel,,,Alcatel,ALU,,épreuve,épreuve"]
+        # 12-11-2026 (E2a tour 3) : les sociétés sorties ont désormais leurs numéros (41 à 78) dans la vraie table ;
+        # Vivendi FR0000127771 y est numérotée. Les lignes d'épreuve prennent donc le numéro DÉJÀ porté par ce code
+        # (un code n'appartient qu'à une société) et des numéros neufs au-delà du plus grand pour les deux autres —
+        # l'intention reste : une ligne sans fin dont le mnémonique est inconnu du référentiel est admise.
+        _lignes = list(csv.reader(ident[1:]))
+        _num = {x[6]: x[0] for x in _lignes if x[6]}
+        _neuf = max(int(x[0]) for x in _lignes) + 1
+        sortie = ident + [_num.get("FR0000127771", str(_neuf + 2)) + ",Vivendi,,,Vivendi,VIV,FR0000127771,épreuve,épreuve",
+                          str(_neuf) + ",Gemalto,,,Gemalto,GTO,,épreuve,épreuve",
+                          str(_neuf + 1) + ",Alcatel,,,Alcatel,ALU,,épreuve,épreuve"]
         with open(os.path.join(DEPOT, "donnees", "sources_indice", "PASSAGES_DANS_LE_CAC40.csv"), encoding="utf-8") as f:
             pas_vide = f.read().splitlines() + [",Passage sans code,2001-01-02,2001-06-29,épreuve,épreuve"]
         admis = M.lire(racine(tmp, "l28_g", identites=sortie, passages=pas_vide), CM, FIN[CM])
+        premisse(any(x[0] == "2" and x[6] == "FR0000120073" for x in _lignes),
+                 "L28 : le code FR0000120073 n'est plus celui de la société 2 (Air Liquide) dans IDENTITES_DES_SOCIETES")
         partage = ident + ["33,Stellantis,2021-01-18,2021-01-18,Faux,FAUX,FR0000120073,épreuve,épreuve"]
         refus += [leve(M.lire, racine(tmp, "l28_" + n, identites=t), CM, FIN[CM]) for n, t in
                   (("d", renomme), ("e", partage), ("h", sans_air_liquide))]
@@ -1257,18 +1434,62 @@ def epreuves(dossier, tmp):
         soir = M.lire(DEPOT, "donnees/claude_cours_nouveaux.csv", FIN[CM])
         avant_la_premiere = [(m, d) for m in soir["hors_univers"] for d, _ in M.trous(soir, m)
                              if soir["barres"].get(m) and d < min(soir["barres"][m])]
-        return (len(air) == 292 and air[0] == D("2000-07-10") and air[-1] == D("2001-08-31")
-                and len(stm) == 423 and stm[0] == D("2000-01-03") and stm[-1] == D("2001-08-31")
-                and len(urw) == 4054 and urw[0] == D("2007-06-18") and urw[-1] == D("2023-04-13")
-                and hors("STLAP") == [] and hors("HO") == [D("2000-01-03")] and M.trous(h, "MT") == []
+        # Attentes remesurées par programme, décision de Jean-Luc du 13-11-2026 à 22h51, réponse « 1 » (remplacer les chiffres
+        # attendus par ceux du nouveau fichier, mesurés par programme) : etudes/VINGT_ANS_A_PART_Mer_11-11-2026/outils_E2c_Q1/
+        # MESURER_LES_ATTENTES_L2_L28.py sur donnees/sources_yahoo/historique_long_repare.csv, SHA-256
+        # f3985712f24131876baaba9be0a02a423faffbae72471a46cccc73eb12bf796f
+        # (avant : AIR 292, STMPA 423, URW 4 054, HO 1).
+        return (len(air) == 1 and air[0] == D("2000-10-13") and air[-1] == D("2000-10-13")
+                and len(stm) == 2 and stm[0] == D("2000-07-17") and stm[-1] == D("2000-10-13")
+                and len(urw) == 7 and urw[0] == D("2007-07-26") and urw[-1] == D("2016-10-07")
+                and hors("STLAP") == [] and hors("HO") == [] and M.trous(h, "MT") == []
                 and maitre_avant == [] and refus[0] == "ValueError" and refus[1] == "ValueError"
+                and pourquoi_mnemo is not None and "le mnémonique AI désigne deux sociétés" in pourquoi_mnemo
                 and refus[2] in ("FileNotFoundError", "OSError", "ValueError") and refus[3] == "ValueError"
                 and refus[4] == "ValueError" and refus[5] == "ValueError" and admis["dans_l_indice"].get("VIV")
                 and admis["dans_l_indice"].get("GTO") == [] and admis["dans_l_indice"].get("ALU") == []
                 and M.trous(b, "AI") == [] and avant_la_premiere == [] and meme_increment()
                 and len(borne) == len(pas) and borne != pas)
-    essai("L28 avant sa première barre, une valeur dans l'indice a ses trous (AIR 292, STMPA 423, URW 4 054, HO 1) ; "
-          "Stellantis n'hérite pas de Peugeot ; tables fausses refusées", l28)
+    essai("L28 sur les 20 ans, trous ordinaires hors marché seulement (AIR 1, STMPA 2, URW 7, HO 0 ; la règle « avant "
+          "la première barre » est en L38) ; Stellantis n'hérite pas de Peugeot ; tables fausses refusées", l28)
+
+    def l38():
+        """Sur le maître figé, une valeur dans l'indice avant sa première barre a ses trous.
+
+        ① RÔLE — L38 : la propriété « avant la première barre » (règle A8) sur des données FIGÉES.
+        ② CONTEXTE D'APPEL — `essai`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — Le maître figé (FIGES) commence le 02-01-2024 et porte Air Liquide (AI) à chacune de
+          ses 709 séances ; la table des passages met Air Liquide dans l'indice depuis le 03-01-2000, sans fin.
+        ⑤ SORTIE — UNE valeur : vrai si verte.
+          [rend: 1]
+        ⑥ TRAITEMENT — le maître figé privé des trois premières lignes d'Air Liquide (02, 03 et 04-01-2024, écrites
+          « AIR LIQUIDE » ou « AIR_LIQUIDE ») : sa première barre est le 05-01-2024, le fichier commence toujours le
+          02-01-2024, et ses trous sont exactement ces trois séances.
+        ⑦ UNITÉ — Des séances.
+        ⑧ POURQUOI — PROVENANCE : épreuve copiée telle quelle de la branche du lecteur unique (commit f43eb888, même
+          fichier, superviseur R-759 du 13-11-2026, tour 7), où elle porte le même numéro. DÉCISION de Jean-Luc du
+          14-11-2026 à 00h26, réponse « 1 » à : « Copier uniquement cette épreuve dans les 20 ans, puis installer.
+          C'est rapide. Le jour où le travail sur la courbe reprendra, il faudra le recaler une fois sur cette
+          nouvelle version. » (contre l'option 2 : copier tout le fichier d'épreuves de la courbe ; le superviseur
+          jugeait ce portage « rustine », Jean-Luc a tranché). Raison : sur le fichier des 20 ans, L28 ne compte plus
+          que des trous ordinaires et S69 (l'indice ignoré) n'avait plus aucune dent (relecture de Cowork du
+          13-11-2026 à 23h37, Q1-a). Sans l'indice, une valeur n'est attendue qu'à partir de sa première barre, et
+          les trois trous d'Air Liquide disparaissent sans un mot : S69 doit faire tomber L38.
+        ⑨ CE QUI CLOCHE — Le numéro L38 saute L33 à L37 : il est gardé pour que la branche du lecteur unique se recale
+          sans renommer. Une seule valeur (Air Liquide) et une seule entrée dans l'indice (sans fin) sont éprouvées.
+        ⑩ EFFET — Écrit une racine jetable.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        retires = ("2024-01-02", "2024-01-03", "2024-01-04")
+        cours = [x for x in maitre if not (x.split(",")[0] in ("AIR LIQUIDE", "AIR_LIQUIDE")
+                                           and x.split(",")[1] in retires)]
+        c = M.lire(racine(tmp, "l38", cours=cours), CM, FIN[CM])
+        return (len(cours) == len(maitre) - 3 and min(c["barres"]["AI"]) == D("2024-01-05")
+                and c["debut"] == D("2024-01-02") and [d for d, _ in M.trous(c, "AI")] == [D(x) for x in retires])
+    essai("L38 maître figé : Air Liquide sans ses trois premières séances, dans l'indice depuis 2000, a ces trois trous",
+          l38)
     def l29():
         """Une valeur de l'univers sortie de l'indice reste attendue jusqu'à la fin du fichier.
 
@@ -1313,16 +1534,17 @@ def epreuves(dossier, tmp):
         ① RÔLE — L30.
         ② CONTEXTE D'APPEL — `essai`.
         ③ ENTRÉE — —
-        ④ CONDITIONS D'ENTRÉE — La table des passages telle qu'au 12-10-2026 (EADS : 2000-07-10, sans fin ; Air Liquide :
-          2000-01-03, sans fin ; Edenred, code FR0010908533 absent des identités : 2010-07-02 → 2010-07-02 et 2023-06-19
-          → 2025-12-19).
+        ④ CONDITIONS D'ENTRÉE — La table des passages (EADS : 2000-07-10, sans fin ; Air Liquide : 2000-01-03, sans
+          fin). Le code inconnu des identités est FABRIQUÉ par `code_absent` (depuis le 13-11-2026 : celui d'Edenred,
+          FR0010908533, y est entré par 9231af45), avec un passage fermé du 2023-06-19 au 2025-12-19 ; seul, ce passage
+          ne lève rien qui le nomme.
         ⑤ SORTIE — UNE valeur : vrai si verte.
           [rend: 1]
         ⑥ TRAITEMENT — des tables refusées, chacune avec sa raison : ① la sortie d'EADS mise au 1999-07-09, avant son
           entrée (cas de Cowork) ; ② un second passage d'Air Liquide, du 2010-01-04 au 2011-01-03, pris dans son
           passage ouvert depuis 2000 ; ③ un passage d'une société inconnue des identités, à l'envers ; ④ un passage
-          d'Edenred (code inconnu des identités) du 2024-01-02 au 2024-06-28, pris dans son passage fermé du 2023-06-19
-          au 2025-12-19 ; ⑤ un passage d'Edenred qui entre le 2025-12-19, le jour même de sa sortie ; ⑥ une date
+          du code fabriqué (inconnu des identités) du 2024-01-02 au 2024-06-28, pris dans son passage fermé du
+          2023-06-19 au 2025-12-19 ; ⑤ un passage du code fabriqué qui entre le 2025-12-19, le jour même de sa sortie ; ⑥ une date
           illisible (2000-7-10), dite avec son passage. Et une table admise : la vraie, lignes dans l'ordre inverse,
           rend les mêmes passages que la vraie.
         ⑦ UNITÉ — —
@@ -1341,8 +1563,23 @@ def epreuves(dossier, tmp):
         envers = [x.replace("NL0000235190,EADS,2000-07-10,,", "NL0000235190,EADS,2000-07-10,1999-07-09,") for x in pas]
         chevauche = pas + ["FR0000120073,AIR LIQUIDE,2010-01-04,2011-01-03,épreuve,épreuve"]
         inconnu = pas + ["FR0000000002,Société inconnue,2005-01-03,2004-01-02,épreuve,épreuve"]   # code bien formé (L31)
-        fermes = pas + ["FR0010908533,Edenred,2024-01-02,2024-06-28,épreuve,épreuve"]
-        meme_jour = pas + ["FR0010908533,Edenred,2025-12-19,2026-01-30,épreuve,épreuve"]
+        # 13-11-2026 (superviseur R-759, § 4) : ④ et ⑤ prenaient le code d'Edenred (FR0010908533), « absent des
+        # identités » ; il y est entré (société 70, commit 9231af45), et S87 (la garde des codes inconnus) ne mordait
+        # plus. Le code est désormais FABRIQUÉ, absent par construction des deux tables, avec son passage fermé.
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "IDENTITES_DES_SOCIETES.csv"), encoding="utf-8") as f:
+            ident30 = f.read().splitlines()
+        inc = code_absent(ident30, pas)
+        # les prémisses des deux codes VRAIS que ces lignes supposent (13-11-2026, même famille que S74 et S87)
+        premisse("FR0000000002" not in "\n".join(ident30 + pas),
+                 "L30 : le code FR0000000002, supposé inconnu, est entré dans les identités ou les passages")
+        premisse(any(x.startswith("FR0000120073,AIR LIQUIDE,2000-01-03,,") for x in pas),
+                 "L30 : Air Liquide (FR0000120073) n'a plus de passage ouvert depuis le 2000-01-03")
+        premisse(isin_bien_forme(inc) and inc not in "\n".join(ident30 + pas),
+                 f"L30 : le code fabriqué {inc} n'est pas neuf et bien formé")
+        ferme_inc = f"{inc},Société fabriquée,2023-06-19,2025-12-19,épreuve,épreuve"
+        fermes = pas + [ferme_inc, f"{inc},Société fabriquée,2024-01-02,2024-06-28,épreuve,épreuve"]
+        meme_jour = pas + [ferme_inc, f"{inc},Société fabriquée,2025-12-19,2026-01-30,épreuve,épreuve"]
+        seul = raison(M.lire, racine(tmp, "l30i", passages=pas + [ferme_inc]), CM, FIN[CM])
         illisible = [x.replace("NL0000235190,EADS,2000-07-10,,", "NL0000235190,EADS,2000-7-10,,") for x in pas]
         r = [raison(M.lire, racine(tmp, "l30" + n, passages=t), CM, FIN[CM])
              for n, t in (("a", envers), ("b", chevauche), ("c", inconnu), ("d", fermes), ("e", meme_jour),
@@ -1354,10 +1591,11 @@ def epreuves(dossier, tmp):
                 and r[0] is not None and "sort de l'indice le 1999-07-09 avant d'y entrer le 2000-07-10" in r[0]
                 and r[1] is not None and "deux passages du code FR0000120073 se chevauchent" in r[1]
                 and r[2] is not None and "Société inconnue" in r[2] and "avant d'y entrer" in r[2]
-                and r[3] is not None and "deux passages du code FR0010908533 se chevauchent (2023-06-19" in r[3]
+                and (seul is None or f"code {inc}" not in seul)
+                and r[3] is not None and f"deux passages du code {inc} se chevauchent (2023-06-19" in r[3]
                 and r[4] is not None and "(2023-06-19 → 2025-12-19 et 2025-12-19" in r[4]
                 and r[5] is not None and "date illisible pour EADS" in r[5] and "2000-7-10" in r[5])
-    essai("L30 table des passages à l'envers (EADS, cas de Cowork), qui se chevauche (Air Liquide, Edenred) ou à la "
+    essai("L30 table des passages à l'envers (EADS, cas de Cowork), qui se chevauche (Air Liquide, un code fabriqué) ou à la "
           "date illisible : refusée, avec sa raison ; l'ordre des lignes ne change rien", l30)
     def l31():
         """Un code ISIN mal écrit, dans l'une ou l'autre table, est refusé avec sa raison.
@@ -1443,25 +1681,40 @@ def main():
     ② CONTEXTE D'APPEL — La ligne de commande.
     ③ ENTRÉE — `sys.argv`.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : le code de sortie (0, 1 ou 2).
+    ⑤ SORTIE — UNE valeur : le code de sortie (0, 1 ou 2 ; 2 aussi quand un code court de `--seulement=` ne désigne
+      pas exactement un sabotage).
       [rend: 1]
-    ⑥ TRAITEMENT — pour chaque sabotage : copier les programmes, appliquer, jouer, afficher.
+    ⑥ TRAITEMENT — vérifier que chaque code court demandé désigne exactement un sabotage ; pour chaque sabotage :
+      copier les programmes, appliquer, jouer, afficher. Un sabotage « mord » si une épreuve rougit qui n'était pas
+      rouge en Z0 (Z0 est joué en premier).
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas une preuve.
-    ⑨ CE QUI CLOCHE — —
+    ⑧ POURQUOI — Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas une preuve. m-a et m-b du
+      relecteur du 13-11-2026 : un filtre qui ne choisit rien rendait « conforme » sans rien jouer, et tant que Z0
+      avait un rouge, tout sabotage « mordait » d'office.
+    ⑨ CE QUI CLOCHE — Une épreuve rouge en Z0 ne peut plus servir de morsure : un sabotage qui ne casse que ce que Z0
+      a déjà cassé est déclaré SANS EFFET, à raison, mais ce qu'il aurait éprouvé reste alors sans preuve.
     ⑩ EFFET — Écrit et efface un dossier jetable ; affiche.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     saboter = "--saboter" in sys.argv
     seulement = [a.split("=", 1)[1].split(",") for a in sys.argv if a.startswith("--seulement=")]
+    # m-a du relecteur du 13-11-2026 : chaque code court demandé désigne EXACTEMENT un sabotage (égalité, et non plus
+    # préfixe : `S7` ne choisit pas `S74_…`, et `SY` ne choisit rien), sinon code 2 et rien n'est joué
+    mal_designes = [x for x in (seulement[0] if seulement else [])
+                    if sum(1 for n in SABOTAGES if n.split("_", 1)[0] == x) != 1]
+    if mal_designes:
+        print(f"SABOTAGE(S) DEMANDÉ(S) QUI NE DÉSIGNE(NT) PAS EXACTEMENT UN SABOTAGE : {mal_designes} — aucun n'est joué")
+        print("VERDICT : NON CONFORME (code 2)")
+        return 2
     code = 0
+    rouges_de_z0 = set()
     tmp = tempfile.mkdtemp(prefix="epreuves_lecture_")
     try:
         for nom, subs in SABOTAGES.items():
             if nom != "Z0" and not saboter:
                 continue
-            if seulement and nom != "Z0" and not any(nom.startswith(x + "_") for x in seulement[0]):
+            if seulement and nom != "Z0" and nom.split("_", 1)[0] not in seulement[0]:
                 continue
             dossier = os.path.join(tmp, "prog_" + nom)
             os.makedirs(dossier)
@@ -1482,19 +1735,35 @@ def main():
             res = epreuves(dossier, os.path.join(tmp, "t_" + nom))
             shutil.rmtree(dossier, ignore_errors=True)
             shutil.rmtree(os.path.join(tmp, "t_" + nom), ignore_errors=True)
+            # N-b (13-11-2026) : une épreuve NON JUGÉE n'efface plus les autres ; toutes s'affichent
             pannes = [n for n, v in res if v is None]
-            if pannes:
-                print(f"== {nom} : NON JUGÉ — l'environnement a manqué (disque, mémoire) : " + pannes[0])
-                code = 2
-                continue
-            rouges = [n for n, v in res if not v]
-            print(f"== {nom} : {len(res) - len(rouges)} vertes, {len(rouges)} rouges")
+            rouges = [n for n, v in res if v is False]
+            # l'épreuve se reconnaît à son code (« L2 ») : sous sabotage, son nom porte en plus le motif de sa chute
+            if nom == "Z0":
+                rouges_de_z0 = {n.split(" ", 1)[0] for n in rouges}
+            neuves = [n for n in rouges if n.split(" ", 1)[0] not in rouges_de_z0]
+            print(f"== {nom} : {len(res) - len(rouges) - len(pannes)} vertes, {len(rouges)} rouges"
+                  + (f", {len(pannes)} non jugées" if pannes else ""))
+            for n in pannes:
+                print("     NON JUGÉE (" + ("une prémisse de données est fausse" if "PRÉMISSE FAUSSE" in n
+                                          else "l'environnement a manqué (disque, mémoire)") + ") " + n)
             for n in rouges:
                 print("     ROUGE " + n)
-            if nom == "Z0" and rouges:
-                code = max(code, 1)
-            if nom != "Z0" and not rouges:
-                print(f"     SABOTAGE {nom} SANS EFFET : aucune épreuve ne rougit")
+            if pannes:
+                # une prémisse fausse rend les rouges du jeu douteuses : jamais compté comme « mord »
+                print(f"     {nom} NON JUGÉ : {len(pannes)} épreuve(s) non jugée(s)"
+                      + ("" if nom == "Z0" else " ; ne compte pas comme mordant"))
+                code = 2
+            elif nom == "Z0":
+                if rouges:
+                    code = max(code, 1)
+            # m-b du relecteur du 13-11-2026 : « mord » = les rouges du jeu MOINS les rouges de Z0, non vide
+            elif neuves:
+                print(f"     SABOTAGE {nom} mord : {len(neuves)} rouge(s) absente(s) de Z0 "
+                      f"({' '.join(n.split(' ', 1)[0] for n in neuves)})")
+            else:
+                print(f"     SABOTAGE {nom} SANS EFFET : aucune épreuve verte en Z0 ne rougit"
+                      + (f" ({len(rouges)} rouge(s) déjà en Z0)" if rouges else ""))
                 code = max(code, 1)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

@@ -256,22 +256,69 @@ qui part de la ligne ou de Paris sans écrire sa clôture après ou ses facteurs
 contrôle, le cas fabriqué fait planter la lecture du nombre ; `main` sortirait alors en code 2) ; T114 et T139 réécrits
 après le superviseur n° 3 ; U9, U19, U20, U22, U25, U34 suivis sur la nouvelle écriture de la réparation (même sens).
 
-USAGE : python3 tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py <racine du dépôt> [--saboter | --saboter=S1,S2…]
+Le 05-11-2026 (superviseur R-759 de VINGT, commit 55fe30ec relu) : T140 réécrit sur le texte nouveau de `lire_paris`
+(même sens) ; un PRÉ-CONTRÔLE de toutes les cibles avant Z0 (`cibles_mortes`, option --cibles seule) ; H64 (K24 : les
+séances « non comblé » du journal = l'ensemble de K7, et aucune présente ; cas réel AXA 2006-09-27, et cas fabriqués),
+H65 (la sûreté des barres rectifiées par le TYPE de règle, sur la vraie table : exactement les 7 « ramenés », SAFRAN
+2015-12-31), H66 à H68 (la passe décidée : purge du « non comblé », « retiré » gardé ; voisines à facteurs différents
+→ arrêt ; date hors du calendrier dans une année présente → arrêt) ; sabotages T175 à T182 (T181 et T182 sont V2 et
+V3 du relecteur, qui ne mordaient pas) ; T109 suivi (même sens) : la liste des contrôles de `main` porte K24 après K23,
+et le pré-contrôle l'a trouvé mort à son premier passage.
+
+Le 13-11-2026 (superviseur R-759 E2c tour 3, (1) couche A ; relecteur E2c tour 2, D-1 et m-b) : H69 à H73 — la
+détection des journées que bnains a rangées sous un autre jour (`journees_d_un_autre_jour`, lue sur l'indice CAC 40) :
+cas connu des 19 et 20-06-2001 (H69), cas qui doit échouer du 17-07-2000 (H70), échange injecté et petit mouvement sur
+une copie de l'indice (H71) ; `lire_paris` remet au bon jour, pour toutes les valeurs, deux séances échangées de
+l'extrait 2005 (H72) ; `redater_les_journees` refuse une table non réciproque (H73). Sabotages T183 à T187.
+
+Le 13-11-2026, E2c tour 4 (superviseur R-759, (1) 1 et (4) ; relecteur E2c tour 3, D-4) : H73 devient une PROPRIÉTÉ de
+conservation de `redater_les_journees` (les quatre présences des deux jours d'une table réciproque, plus un jour non
+touché ; image exacte par la permutation, nombre de barres conservé, `bouge` exact ; une valeur non touchée laissée
+telle quelle ; le cas réel SOLB du 19-06-2001, recopié, sort au 20) ; sabotages T188 (E1′) et T189 (E2), qui laissaient
+72/72 vertes. H74 : les bords de la détection, sur des indices fabriqués (en-tête faux, échange en tête, pas de retour au
+bout, désaccord en fin, voisin sans Yahoo) — des survivants du balayage par mutation
+(tests/outils/BALAYER_LES_MUTANTS_DES_JOURNEES.py). H69 à H74 vivent dans `epreuves_des_journees`, que le balayage
+joue seule.
+
+Le 13-11-2026, E2c tour 5 (superviseur R-759 ; relecteur E2c tour 4, D-6) : la valeur non touchée de H73 n'est plus
+exigée « telle quelle » (même objet, même ordre) mais de même CONTENU, avec `bouge` vide — le contrat écrit au ③ et
+au ⑤ de `redater_les_journees` ne compte ni l'ordre ni l'identité des dictionnaires intérieurs (mesuré : un regel où
+ils sortent renversés fige le même témoin). L'ancienne vérification rougissait une réécriture correcte. H75 : une
+détection AMBIGUË (les deux voisins d'une séance en désaccord s'accordent avec sa journée) rend la chaîne
+`redater_les_journees(…, journees_d_un_autre_jour(…))` bruyante ou juste, jamais silencieuse et fausse (R8 du relecteur).
+
+Le 13-11-2026, E2c tour 6 (superviseur R-759, verdict DE FOND sur n-1 de Cowork) : H73 devient la PROPRIÉTÉ « la sortie
+de `redater_les_journees` est celle de l'oracle `attendu_de_redater` sur tout le domaine `domaine_des_journees` ; si
+l'oracle dit « lève », la fonction lève et les barres restent intactes ». Le domaine et l'oracle vivent UNE fois, ici ;
+le balayage les lit (R-708). Plus aucun `image` local. Le refus d'une table non réciproque n'était jugé que sur
+{'d1': 'd2'} : une réécriture naturelle du test laissait 74/74 vertes. Cas réels ajoutés : la table du vrai indice à
+ACCORD_INDICE × 8 (non réciproque : elle doit lever).
+
+Le 13-11-2026, E2c gel (décision de Jean-Luc A-752 ⑤, 08h57 : « il faut bien sûr les retirer ») : les onze appels
+écrits à la main de H73 (la table {'d1': 'd2'}, les quatre présences sous deux noms, l'intouchée, toutes ensemble) sont
+retirés — des points du domaine aux noms près ; H73 juge désormais 625 × 33 appels du domaine et les deux cas réels.
+Leur trace (entrée, issue attendue, commits, rejeu contre l'oracle) :
+archives/H73_CAS_ECRITS_A_LA_MAIN_RETIRES_CAR_COUVERTS_PAR_L_ORACLE_ET_LE_DOMAINE_Ven_13-11-2026.md.
+
+USAGE : python3 tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py <racine du dépôt> [--saboter | --saboter=S1,S2… | --cibles]
 CODE : 0 si tout est vert et, avec --saboter, si chaque sabotage fait rougir au moins une épreuve ; 1 sinon ; 2 si
-un sabotage ne s'applique plus (son texte cible a disparu du programme).
+un sabotage ne s'applique plus (son texte cible a disparu du programme) — vu par le pré-contrôle, AVANT Z0. Avec
+--cibles seul : le pré-contrôle seulement, 0 si toutes les cibles s'appliquent, 2 sinon.
 """
-import contextlib, csv, hashlib, importlib.util, io, json, os, shutil, statistics, subprocess, sys, tempfile
+import contextlib, csv, hashlib, importlib.util, io, itertools, json, os, shutil, statistics, subprocess, sys, tempfile
 
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
 RACINE = os.path.abspath(_args[0] if _args else ".")
 PROGRAMMES = os.path.join(RACINE, "programmes")
 CONTROLE = os.path.join(PROGRAMMES, "CONTROLER_L_HISTORIQUE_LONG.py")
+CONTRATS = os.path.join(PROGRAMMES, "CONTRATS_DES_FICHIERS.py")   # cible du sabotage T179 (05-11-2026)
 REPARATION = os.path.join(PROGRAMMES, "REPARER_L_HISTORIQUE_LONG.py")
 TEMOINS = os.path.join(RACINE, "tests", "temoins_historique_long")
 EVENEMENTS = os.path.join(RACINE, "donnees", "sources_yahoo", "evenements.json")
 DROITS = os.path.join(RACINE, "donnees", "sources_bnains", "DROITS_BNAINS.csv")
 OFFICIELS = os.path.join(RACINE, "donnees", "sources_bnains", "DETACHEMENTS_OFFICIELS.csv")
 FAUSSES = os.path.join(RACINE, "donnees", "sources_bnains", "BARRES_BNAINS_FAUSSES.csv")
+RECTIFIEES = os.path.join(RACINE, "donnees", "sources_bnains", "BARRES_DE_PARIS_RECTIFIEES.csv")   # 04-11-2026, D6 à D9
 FRANCFORT = os.path.join(RACINE, "donnees", "sources_francfort", "COURS_DE_FRANCFORT.csv")
 INDICE = os.path.join(RACINE, "donnees", "sources_indice", "INDICE_CAC40.csv")
 RAPPORTS = os.path.join(RACINE, "donnees", "sources_rapports_annuels", "COURS_MENSUELS_DES_RAPPORTS_ANNUELS.csv")
@@ -279,6 +326,8 @@ REPARE = os.path.join(RACINE, "donnees", "sources_yahoo", "historique_long_repar
 VERDICTS = os.path.join(RACINE, "donnees", "sources_yahoo", "AJUSTEMENTS_DE_YAHOO.csv")
 EURONEXT = os.path.join(RACINE, "donnees", "CALENDRIER_EURONEXT.csv")
 PROVENANCE = os.path.join(RACINE, "donnees", "PROVENANCE_DES_FICHIERS.csv")
+DIVISIONS = os.path.join(RACINE, "donnees", "sources_bnains", "DIVISIONS_BNAINS.csv")   # la réparation la lit (31-10-2026)
+DIVISIONS_DOCUMENTEES = os.path.join(RACINE, "donnees", "sources_officielles", "DIVISIONS_OFFICIELLES.csv")   # idem
 DEMI_SEANCES = ("2010-12-24", "2010-12-31", "2012-12-24", "2012-12-31", "2015-12-31")
 _sp = importlib.util.spec_from_file_location("CALENDRIER_DE_LA_BOURSE", os.path.join(PROGRAMMES, "CALENDRIER_DE_LA_BOURSE.py"))
 CAL = importlib.util.module_from_spec(_sp)
@@ -503,15 +552,16 @@ SABOTAGES = {
     "T107": (CONTROLE, '            if not ADRESSE_ENTIERE.fullmatch(r["adresse"].strip()):', '            if False:'),
     "T108": (CONTROLE, "        if not (programme.endswith(\".py\") and os.path.isfile(os.path.join(racine, programme))):",
              "        if not os.path.isfile(os.path.join(racine, programme)):"),
-    "T109": (CONTROLE, '"manquants (A-578)", True, k23)]:', '"manquants (A-578)", False, k23)]:'),
+    # T109 suivi le 05-11-2026 (même sens : K23 rendu non bloquant) : la liste des contrôles de `main` porte K24 après K23
+    "T109": (CONTROLE, '"manquants (A-578)", True, k23),', '"manquants (A-578)", False, k23),'),
     "T110": (CONTROLE, "        if lecteur.fieldnames != PROVENANCE_DES_FICHIERS:", "        if False:"),
     "T111": (CONTROLE, "        if not lus:\n", "        if False:\n"),
     "T112": (CONTROLE, '            if barre is not None and etat is None:', '            if barre is not None and etat is None and not gestes:'),
     "T113": (CONTROLE, "        if lecteur.fieldnames != JOURNAL_DES_REPARATIONS:", "        if False:"),
-    "T114": (CONTROLE, '            k23 += lignes_non_rejouees(series, lire_les_sources(fichier), origine, bnains, journal)', '            pass'),
+    "T114": (CONTROLE, '            k23 += lignes_non_rejouees(series, lire_les_sources(fichier), origine, bnains, journal,\n                                       lire_abc(racine)[0])', '            pass'),
     "T115": (CONTROLE, "                                  else [relatif, ORIGINE.replace(os.sep, \"/\"), BNAINS.replace(os.sep, \"/\")])",
              "                                  else [])"),
-    "T116": (CONTROLE, '            base = paris.get(v, {}).get(d) if g["depart"] == "paris" else etat', '            base = (etat or paris.get(v, {}).get(d)) if g["depart"] == "paris" else etat'),
+    "T116": (CONTROLE, '            base = ({"paris": paris, "abc": abc or {}}[g["depart"]].get(v, {}).get(d) if', '            base = (etat or {"paris": paris, "abc": abc or {}}[g["depart"]].get(v, {}).get(d) if'),   # recalé le 31-10-2026 (départ « abc »)
     "T117": (CONTROLE, "        if f in chemin:\n", "        if False:\n"),
     "T118": (CONTROLE, "        if not arrive:\n            cas.add", "        if False:\n            cas.add"),
     "T119": (CONTROLE, '            if g["depart"] != GESTES_DU_JOURNAL.get(g["geste"]):', '            if False:'),
@@ -527,8 +577,8 @@ SABOTAGES = {
     "T128": (CONTROLE, "                                  else [relatif, ORIGINE.replace(os.sep, \"/\"), BNAINS.replace(os.sep, \"/\")])",
              "                                  else [ORIGINE.replace(os.sep, \"/\"), BNAINS.replace(os.sep, \"/\")])"),
     "T129": (CONTROLE, '                elif sources.get((v, d)) != venue:', '                elif False:'),
-    "T130": (CONTROLE, '                etat, venue = arrondir(base, fp, fv), SOURCE_PARIS', '                etat, venue = arrondir(base, fp, 1 / fp), SOURCE_PARIS'),
-    "T131": (CONTROLE, '                etat, venue = arrondir(base, fp, fv), SOURCE_PARIS', '                etat, venue = appliquer(base, fp, fv), SOURCE_PARIS'),
+    "T130": (CONTROLE, '                etat, venue = arrondir(base, fp, fv), (SOURCE_PARIS if g["depart"] == "paris" else SOURCE_ABC)', '                etat, venue = arrondir(base, fp, 1 / fp), (SOURCE_PARIS if g["depart"] == "paris" else SOURCE_ABC)'),
+    "T131": (CONTROLE, '                etat, venue = arrondir(base, fp, fv), (SOURCE_PARIS if g["depart"] == "paris" else SOURCE_ABC)', '                etat, venue = appliquer(base, fp, fv), (SOURCE_PARIS if g["depart"] == "paris" else SOURCE_ABC)'),
     "T132": (CONTROLE, '            if defauts_o:      # superviseur', '            if False:      # superviseur'),
     "T133": (CONTROLE, '                etat, venue = None, None\n                continue', '                continue'),
     "T134": (CONTROLE, '            elif barre is None and etat is not None:', '            elif barre is None and etat is not None and not gestes:'),
@@ -537,7 +587,9 @@ SABOTAGES = {
     "T137": (CONTROLE, '            if g["geste"] not in GESTES_DU_JOURNAL:', '            if False:'),
     "T138": (CONTROLE, '                if r[c] != "" and not math.isfinite(float(r[c])):', '                if False:'),
     "T139": (CONTROLE, '            if g["depart"] == "" and ecrits:', '            if False:'),
-    "T140": (CONTROLE, '    return bnains, defauts, oter_les_barres_fausses(os.path.join(racine, FAUSSES), bnains)', '    return bnains, defauts, oter_les_barres_fausses(os.path.join(racine, FAUSSES), {v: dict(x) for v, x in bnains.items()})'),
+    # T140 réécrit le 05-11-2026 (relecture de VINGT, D2) : `lire_paris` écrit `fausses = …` puis `rectifier_paris` ;
+    # même sens qu'avant — le Paris rendu reste celui d'AVANT le retrait des barres fausses
+    "T140": (CONTROLE, '    fausses = oter_les_barres_fausses(os.path.join(racine, FAUSSES), bnains)', '    fausses = oter_les_barres_fausses(os.path.join(racine, FAUSSES), {v: dict(x) for v, x in bnains.items()})'),
     "T141": (CONTROLE, '            if g["depart"] != "" and len(ecrits) < 3:', '            if False:'),
     "T142": (CONTROLE, '            if r["lu"].strip():\n                cas.add(f"{f} : écrit à la main', '            if False:\n                cas.add(f"{f} : écrit à la main'),
     "T143": (CONTROLE, '            if r["adresse"].strip():', '            if False:'),
@@ -578,6 +630,48 @@ SABOTAGES = {
             "            if abs((1 + s) / (1 + m) - 1) <= ALIGNEMENT:"),
     "U31": (REPARATION, "            if f is None:\n                continue\n            ecart = series[v][d][3]",
             "            if False:\n                continue\n            ecart = series[v][d][3]"),
+    # lot de comblement du 31-10-2026 : les barres de Yahoo dégradées ne sont plus écartées — H32 (le fichier refait à l'octet)
+    "L1": (REPARATION, '        if d in series.get(valeur, {}) and sources.get((valeur, d)) == "yahoo":\n            noter(journal, valeur, d, "écarté"',
+           '        if False:\n            noter(journal, valeur, d, "écarté"'),
+    # la séance décidée de Michelin n'est plus comblée — H32
+    "L2": (REPARATION, "        y[d], fp, fv = barre(b[d], f, k, K.divisions(evenements, valeur, d))\n        sources[(valeur, d)] = \"bnains\"\n        noter(journal, valeur, d, \"comblé\", \"\", y[d][3], fp,\n              f\"séance manquante chez Yahoo, décidée",
+           "        continue\n        sources[(valeur, d)] = \"bnains\"\n        noter(journal, valeur, d, \"comblé\", \"\", y[d][3], fp,\n              f\"séance manquante chez Yahoo, décidée"),
+    # 05-11-2026, superviseur R-759 de VINGT. D1 : K24 (une séance présente « non comblé » ; toute la garde ; son appel
+    # dans `main`) — H64 ; la purge du « non comblé » dans la passe décidée — H66, et H32 (journal refait à l'octet, K24)
+    "T175": (CONTROLE, '        if (v, d) in notees and d in series.get(v, {}):', '        if False:'),
+    "T176": (CONTROLE, '    for v, d in sorted(notees | listees):', '    for v, d in []:'),
+    "T177": (CONTROLE, '        k24 = [] if journal is None else non_combles_hors_de_k7(', '        k24 = [] if True else non_combles_hors_de_k7('),
+    "T178": (REPARATION, '            journal[:] = [l for l in journal if not (l[0] == valeur and l[1] == d and l[2] == "non comblé")]', '            pass'),
+    # D3 : la règle « ramenés » déclarée sûre au contrat ; une règle inconnue acceptée — H65
+    "T179": (CONTRATS, '                              REGLE_RAMENEE: ("high", "low"),', '                              REGLE_RAMENEE: (),'),
+    "T180": (CONTROLE, '    if regle not in BORNES_NON_SURES_PAR_REGLE:', '    if False:'),
+    # M1 : V2 et V3 du relecteur, qui NE MORDAIENT PAS le 04-11-2026 — H67 (voisines à facteurs différents), H68 (date
+    # hors du calendrier dans une année présente)
+    "T181": (REPARATION, '            if len(facteurs) != 1:', '            if False:'),
+    "T182": (REPARATION, '        if d not in cal or not min(y) < d < max(y):', '        if False:'),
+    # 13-11-2026, superviseur R-759 E2c tour 3, (1) couche A : la détection des journées rangées sous un autre jour
+    # (`journees_d_un_autre_jour`), leur remise au bon jour dans `lire_paris`, le refus d'une table non réciproque —
+    # H69 (cas connu), H70 (cas qui doit échouer), H71 (échange injecté, petit mouvement), H72 (`lire_paris`), H73 (refus)
+    "T183": (CONTROLE, '                sortie[d] = lignes[j][0]', '                pass'),
+    "T184": (CONTROLE, '        if not b or not y or abs(float(b) / float(y) - 1) <= ACCORD_INDICE:\n            continue',
+             '        if not b or not y:\n            continue'),
+    # T185 : un juge À TOLÉRANCE à la place de l'accord exact de l'indice (aucun jour d'accord écarté, 1 % admis avec le
+    # voisin) — la faiblesse que le superviseur refuse ; il rend le 17-07-2000 (6 619,25 contre 6 570,36 la veille, 0,74 %)
+    "T185": (CONTROLE, '        if not b or not y or abs(float(b) / float(y) - 1) <= ACCORD_INDICE:\n            continue\n'
+                       '        for j in (i - 1, i + 1):\n'
+                       '            if 0 <= j < len(lignes) and lignes[j][2] and abs(float(b) / float(lignes[j][2]) - 1) <= ACCORD_INDICE:',
+             '        if not b or not y:\n            continue\n'
+             '        for j in (i - 1, i + 1):\n'
+             '            if 0 <= j < len(lignes) and lignes[j][2] and abs(float(b) / float(lignes[j][2]) - 1) <= 20 * ACCORD_INDICE:'),
+    "T186": (CONTROLE, '    redater_les_journees(bnains, journees_d_un_autre_jour(racine))\n', '    pass\n'),
+    "T187": (CONTROLE, '    if pas_reciproques:\n        raise ValueError(', '    if False:\n        raise ValueError('),
+    # 13-11-2026, E2c tour 4 (superviseur R-759, (1) 1 ; relecteur E2c tour 3, D-4) : une barre seule de son jour —
+    # E1′, elle reste à la date de son fichier (`or` → `and` dans le `any`) ; E2, elle est perdue (reposée seulement
+    # si son jour vrai avait aussi une barre). Chacun doit rougir H73, et H73 seule
+    "T188": (CONTROLE, '        if not any(j in avant or vrai in avant for j, vrai in journees.items()):',
+             '        if not any(j in avant and vrai in avant for j, vrai in journees.items()):'),
+    "T189": (CONTROLE, '            if j in avant:\n                s[vrai] = avant[j]',
+             '            if j in avant and vrai in avant:\n                s[vrai] = avant[j]'),
 }
 
 
@@ -588,12 +682,13 @@ def charger(sabotage=None):
     else:
         dossier = tempfile.mkdtemp()
         for f in ("CONTRATS_DES_FICHIERS.py", "CALENDRIER_DE_LA_BOURSE.py", "CONTROLER_L_HISTORIQUE_LONG.py",
-                  "REPARER_L_HISTORIQUE_LONG.py"):
-            shutil.copy(os.path.join(PROGRAMMES, f), dossier)
+                  "RECONSTRUIRE_L_HISTORIQUE_LONG.py", "REPARER_L_HISTORIQUE_LONG.py"):   # la réparation importe la
+            shutil.copy(os.path.join(PROGRAMMES, f), dossier)                           # reconstruction (31-10-2026)
         chemin, cible, remplace = sabotage
         copie = os.path.join(dossier, os.path.basename(chemin))
         open(copie, "w", encoding="utf-8").write(open(chemin, encoding="utf-8").read().replace(cible, remplace))
-    for nom in ("CONTRATS_DES_FICHIERS", "CALENDRIER_DE_LA_BOURSE", "CONTROLER_L_HISTORIQUE_LONG", "REPARER_L_HISTORIQUE_LONG"):
+    for nom in ("CONTRATS_DES_FICHIERS", "CALENDRIER_DE_LA_BOURSE", "CONTROLER_L_HISTORIQUE_LONG",
+                "RECONSTRUIRE_L_HISTORIQUE_LONG", "REPARER_L_HISTORIQUE_LONG"):
         sys.modules.pop(nom, None)
     sys.path.insert(0, dossier)
     try:
@@ -626,6 +721,15 @@ def racine_d_essai(abimer_yahoo=None, abimer_bnains=None):
     shutil.copy(DROITS, os.path.join(r, "donnees", "sources_bnains", "DROITS_BNAINS.csv"))
     shutil.copy(OFFICIELS, os.path.join(r, "donnees", "sources_bnains", "DETACHEMENTS_OFFICIELS.csv"))
     shutil.copy(FAUSSES, os.path.join(r, "donnees", "sources_bnains", "BARRES_BNAINS_FAUSSES.csv"))
+    shutil.copy(RECTIFIEES, os.path.join(r, "donnees", "sources_bnains", "BARRES_DE_PARIS_RECTIFIEES.csv"))   # lue par
+    # `lire_paris` depuis le 04-11-2026 (choix D6 à D9) ; sur l'extrait des témoins, ses lignes sont sans objet (`couvre`)
+    shutil.copy(DIVISIONS, os.path.join(r, "donnees", "sources_bnains", "DIVISIONS_BNAINS.csv"))   # lue depuis le 31-10-2026
+    os.makedirs(os.path.join(r, "donnees", "sources_officielles"))   # la table des divisions documentées (31-10-2026)
+    shutil.copy(DIVISIONS_DOCUMENTEES, os.path.join(r, "donnees", "sources_officielles", "DIVISIONS_OFFICIELLES.csv"))
+    # les bruts d'ABC et la table des barres de Yahoo dégradées, lus par la réparation depuis le 31-10-2026
+    shutil.copytree(os.path.join(RACINE, "donnees", "sources_abc"), os.path.join(r, "donnees", "sources_abc"))
+    shutil.copy(os.path.join(RACINE, "donnees", "sources_yahoo", "BARRES_YAHOO_DEGRADEES.csv"),
+                os.path.join(r, "donnees", "sources_yahoo", "BARRES_YAHOO_DEGRADEES.csv"))
     os.makedirs(os.path.join(r, "donnees", "sources_francfort"))
     shutil.copy(FRANCFORT, os.path.join(r, "donnees", "sources_francfort", "COURS_DE_FRANCFORT.csv"))
     os.makedirs(os.path.join(r, "donnees", "sources_indice"))
@@ -1301,10 +1405,13 @@ def epreuves(K, R):
     # H32 : la réparation entière, sur une copie des vrais fichiers, refait le fichier réparé du dépôt à l'octet
     try:
         r = tempfile.mkdtemp()
-        for chemin in (R.ENTREE, K.BNAINS, K.EVENEMENTS, K.DROITS, K.OFFICIELS, K.FAUSSES, K.FRANCFORT, K.INDICE,
-                       K.VERDICTS_YAHOO, K.CAL.FICHIER, K.PROVENANCE):   # + calendrier et registre : 27-10-2026
+        # les fichiers que la réparation DÉCLARE lire, et le registre — par la propriété (R.LU), plus une liste épelée
+        # ici (lot de comblement du 31-10-2026 : la table des divisions documentées manquait, H32 tombait en code 2)
+        for chemin in (*R.LU, K.PROVENANCE):
             os.makedirs(os.path.dirname(os.path.join(r, chemin)), exist_ok=True)
             shutil.copy(os.path.join(RACINE, chemin), os.path.join(r, chemin))
+        for dossier in R.DOSSIERS_LUS:      # les bruts d'ABC, lus en entier (31-10-2026)
+            shutil.copytree(os.path.join(RACINE, dossier), os.path.join(r, dossier))
         R.RECONSTRUCTIONS, R.RETRAITS = reconstructions_vraies, retraits_vrais
         code_r, out_r = lancer(R.reparer, r)
         code_k, out_k = lancer(K.main, [r])
@@ -1313,8 +1420,51 @@ def epreuves(K, R):
             and "programmes/REPARER_L_HISTORIQUE_LONG.py, qui n'est pas un programme du dépôt" in out_k and "ajustés : 14" in out_r and "défaits : 3," in out_r \
             and empreinte(os.path.join(r, R.SORTIE)) == empreinte(REPARE) \
             and empreinte(os.path.join(r, R.JOURNAL)) == empreinte(os.path.join(RACINE, R.JOURNAL))
-    except Exception:
+        # H64, cas réel (05-11-2026, superviseur R-759 de VINGT, D1) : sur la copie que la réparation vient d'écrire,
+        # K24 se tait ; puis le « non comblé » d'AXA 2006-09-27 remis À SA PLACE d'avant la réparation du 05-11-2026,
+        # avant le « comblé » (le rejeu de K23 l'accepte là, la séance n'existe pas encore) : K24 refuse, et le nomme
+        k24 = lambda out: [l.split()[1:3] for l in out.splitlines() if l.split()[:1] == ["K24"]]
+        jr = os.path.join(r, R.JOURNAL)
+        lignes_j = open(jr, encoding="utf-8", newline="").read().split("\n")
+        i = [k for k, l in enumerate(lignes_j) if l.startswith("AXA,2006-09-27,comblé,")]
+        lignes_j[i[0]:i[0]] = ['AXA,2006-09-27,non comblé,,,,"séance manquante chez Yahoo ; remis par H64",,']
+        open(jr, "w", encoding="utf-8", newline="").write("\n".join(lignes_j))
+        code_i, out_i = lancer(K.main, [r])
+        reel_h64 = len(i) == 1 and k24(out_k) == [["ok", "0"]] and k24(out_i) == [["REFUS", "1"]] and code_i == 1 \
+            and "AXA 2006-09-27 : « non comblé » au journal, la séance est dans le fichier" in out_i
+        if not reel_h64:
+            print(f"      H64 (réel) : {len(i)} ligne « comblé », K24 sans ajout {k24(out_k)}, avec {k24(out_i)}")
+    except Exception as ex:
+        print(f"      H32/H64 : {type(ex).__name__} : {ex}")
         res["H32"] = False
+        reel_h64 = False
+    # H64, cas fabriqués : les deux propriétés de K24, chaque sens de l'inégalité, un nom de valeur à espaces, un cas de
+    # K7 illisible (ValueError, donc code 2 dans `main`)
+    try:
+        b_ = (10.0, 11.0, 9.0, 10.5, 1000.0)
+        jx = {("X", "2005-03-02"): [{"geste": "non comblé"}],
+              ("X", "2005-03-03"): [{"geste": "retiré"}, {"geste": "non comblé"}, {"geste": "comblé"}],
+              ("Y", "2005-03-04"): [{"geste": "non comblé"}],
+              ("CREDIT AGRICOLE SA", "2007-01-04"): [{"geste": "retiré"}, {"geste": "non comblé"}]}
+        sx = {"X": {"2005-03-03": b_}}
+        faux = K.non_combles_hors_de_k7(jx, sx, ["X 2005-03-02 (bnains : jour douteux)", "Z 2005-03-07",
+                                                 "CREDIT AGRICOLE SA 2007-01-04 (le facteur change à côté : ajustement du jour ?)"])
+        juste = K.non_combles_hors_de_k7({k: v for k, v in jx.items() if k[0] != "Y" and k[1] != "2005-03-03"}, sx,
+                                         ["X 2005-03-02", "CREDIT AGRICOLE SA 2007-01-04 (bnains : barre fausse, écartée)"])
+        try:
+            K.non_combles_hors_de_k7(jx, sx, ["2005-03-02 X"])
+            illisible = False
+        except ValueError:
+            illisible = True
+        attendu = ["X 2005-03-03 : « non comblé » au journal, la séance est dans le fichier",
+                   "Y 2005-03-04 : « non comblé » au journal, K7 ne la liste pas",
+                   "Z 2005-03-07 : K7 la liste, le journal ne la dit pas « non comblé »"]
+        res["H64"] = reel_h64 and faux == attendu and juste == [] and illisible
+        if not res["H64"]:
+            print(f"      H64 : réel {reel_h64} · fabriqué {faux} · juste {juste} · illisible refusé {illisible}")
+    except Exception as ex:
+        print(f"      H64 : {type(ex).__name__} : {ex}")
+        res["H64"] = False
     # H33 : combler la veille d'un détachement officiel, au facteur d'avant (Crédit Agricole, 03-01-2007)
     try:
         ev = json.load(open(EVENEMENTS, encoding="utf-8"))
@@ -1907,7 +2057,8 @@ def epreuves(K, R):
         brut_, _, _ = K.lire_cours(os.path.join(RACINE, K.BNAINS), K.COURS_BNAINS)     # avec les barres fausses
         o_, _, _ = K.lire_cours(os.path.join(RACINE, K.ORIGINE))
         j_ = K.lire_journal(os.path.join(RACINE, K.JOURNAL))
-        rejeu = lambda s=s_, src=src_, j=j_: K.lignes_non_rejouees(s, src, o_, p_, j)
+        abc_ = K.lire_abc(RACINE)[0]                  # les cours d'ABC, que le rejeu lit pour un geste « versé » (31-10-2026)
+        rejeu = lambda s=s_, src=src_, j=j_: K.lignes_non_rejouees(s, src, o_, p_, j, abc_)
         tout = rejeu()
 
         def cellule(valeur, date, i, f):
@@ -2377,10 +2528,484 @@ def epreuves(K, R):
     except Exception as ex:
         print(f"      H62 : {type(ex).__name__} : {ex}")
         res["H62"] = False
+    # H65 (05-11-2026, superviseur R-759 de VINGT, D3) : sur la VRAIE table des rectifications, les barres dont une borne
+    # n'est pas sûre sont EXACTEMENT les 7 lignes de la règle « ramenés », ce sont les 7 séances que la réparation pose au
+    # choix D6, et leurs bornes incertaines sont le plus haut et le plus bas (cas réel : SAFRAN 2015-12-31). Chaque
+    # règle du contrat a sa sûreté déclarée ; une règle inconnue est refusée.
+    try:
+        tab = list(csv.DictReader(open(RECTIFIEES, encoding="utf-8", newline="")))
+        incertaines = {(l["valeur"], l["date"]): K.bornes_non_sures(l["regle"]) for l in tab
+                       if K.bornes_non_sures(l["regle"])}
+        ramenes = {(l["valeur"], l["date"]) for l in tab if l["regle"] == K.REGLE_RAMENEE}
+        d6 = {(v, d) for v, d, raison in R.SEANCES_DECIDEES_SANS_ABC if raison.startswith(R.D6)}
+        try:
+            K.bornes_non_sures("règle inventée")
+            inconnue = False
+        except ValueError:
+            inconnue = True
+        print(f"      H65 : {len(incertaines)} barres à bornes non sûres, {len(ramenes)} « ramenés », {len(d6)} séances D6")
+        res["H65"] = len(incertaines) == 7 and set(incertaines) == ramenes == d6 \
+            and set(incertaines.values()) == {("high", "low")} and incertaines.get(("SAFRAN", "2015-12-31")) == ("high", "low") \
+            and set(K.BORNES_NON_SURES_PAR_REGLE) == set(K.REGLES_DE_RECTIFICATION) and inconnue
+    except Exception as ex:
+        print(f"      H65 : {type(ex).__name__} : {ex}")
+        res["H65"] = False
+    # H66 à H68 (05-11-2026, superviseur R-759 de VINGT, D1 et M1) : `combler_les_seances_decidees` sur une série
+    # fabriquée — X a deux lignes de Paris le 01 et le 03-03-2005 (facteurs 0,5 et 1), la séance du 02 manque, le
+    # journal y porte « retiré » puis « non comblé ». H66 : la séance est posée, le « non comblé » est ôté, le « retiré »
+    # gardé. H67 : voisines à facteurs différents → ARRÊT, rien d'écrit. H68 : une date décidée hors du calendrier dans
+    # une année présente (le samedi 05-03-2005) → ARRÊT « hors du calendrier ou de la série ».
+    decisions_vraies = R.SEANCES_DECIDEES_SANS_ABC
+    try:
+        def monter(f3):
+            d1, d2, d3 = "2005-03-01", "2005-03-02", "2005-03-03"
+            bar = (10.0, 11.0, 9.0, 10.5, 1000.0)
+            series = {"X": {d1: bar, d3: bar}}
+            sources = {("X", d1): "bnains", ("X", d3): "bnains"}
+            bnains = {"X": {d1: bar, d2: (20.0, 22.0, 18.0, 21.0, 2000.0), d3: bar}}
+            journal = []
+            R.noter(journal, "X", d1, "comblé", "", 10.5, 0.5, "essai", 1.0)
+            R.noter(journal, "X", d3, "comblé", "", 10.5, f3, "essai", 1.0)
+            R.noter(journal, "X", d2, "retiré", 21.0, "", "", "essai", "")
+            R.noter(journal, "X", d2, "non comblé", "", "", "", "essai", "")
+            return series, sources, bnains, journal
+        gestes = lambda j, d: [l[2] for l in j if l[0] == "X" and l[1] == d]
+        R.SEANCES_DECIDEES_SANS_ABC = (("X", "2005-03-02", "décision d'essai"),)
+        s, so, b, j = monter(0.5)
+        n, deja, arr = R.combler_les_seances_decidees(s, so, b, j, seances=SEANCES)
+        res["H66"] = n == 1 and deja == [] and arr == [] and gestes(j, "2005-03-02") == ["retiré", "comblé"] \
+            and s["X"]["2005-03-02"] == K.arrondir(b["X"]["2005-03-02"], 0.5, 1.0) and so[("X", "2005-03-02")] == "bnains"
+        s, so, b, j = monter(1.0)
+        n, deja, arr = R.combler_les_seances_decidees(s, so, b, j, seances=SEANCES)
+        res["H67"] = n == 0 and len(arr) == 1 and "voisines à des facteurs différents" in arr[0] \
+            and "2005-03-02" not in s["X"] and gestes(j, "2005-03-02") == ["retiré", "non comblé"]
+        R.SEANCES_DECIDEES_SANS_ABC = (("X", "2005-03-05", "décision d'essai, un samedi"),)
+        s, so, b, j = monter(0.5)
+        n, deja, arr = R.combler_les_seances_decidees(s, so, b, j, seances=SEANCES)
+        res["H68"] = n == 0 and len(arr) == 1 and "hors du calendrier ou de la série" in arr[0] and "2005-03-05" not in s["X"]
+        if not (res["H66"] and res["H67"] and res["H68"]):
+            print(f"      H66-H68 : {res['H66']} {res['H67']} {res['H68']} · dernier : {n} {deja} {arr}")
+    except Exception as ex:
+        print(f"      H66-H68 : {type(ex).__name__} : {ex}")
+        res["H66"] = res["H67"] = res["H68"] = False
+    finally:
+        R.SEANCES_DECIDEES_SANS_ABC = decisions_vraies
+    res.update(epreuves_des_journees(K))
     return res
 
 
+# LE DOMAINE ET L'ORACLE DE `redater_les_journees` — UN SEUL EXEMPLAIRE (E2c tour 6, superviseur R-759 du 13-11-2026,
+# verdict DE FOND sur n-1 de Cowork) : H73 les emploie, et le balayage tests/outils/BALAYER_LES_MUTANTS_DES_JOURNEES.py
+# les LIT ici. Deux énumérations ou deux oracles d'une même chose divergent toujours (R-708).
+JOURS_DU_DOMAINE = ("a", "b", "c", "d")     # quatre jours : toute table réciproque à une ou deux paires
+JOUR_HORS_TABLE = "z"                       # un jour qu'aucune table ne touche
+
+
+def domaine_des_journees():
+    """Rend le domaine énuméré de `redater_les_journees` : chaque table partielle et chaque ensemble de jours présents.
+
+    ① RÔLE — L'énumération UNIQUE du domaine des journées (R-708 : deux implémentations d'une même énumération
+      divergent) : H73, et dans le balayage la preuve `_tables_reciproques_egales` et la comparaison différentielle
+      (`cas_de_redater`), la lisent.
+    ② CONTEXTE D'APPEL — `epreuves_des_journees` (H73) ; le balayage par mutation des journées.
+    ③ ENTRÉE — — (JOURS_DU_DOMAINE, JOUR_HORS_TABLE).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : la liste des tables {jour : jour} — toutes les tables partielles sur les quatre jours
+      (5^4 = 625, réciproques ou non) ; la liste des ensembles de jours présents parmi les quatre jours et le jour hors
+      table (2^5 = 32, l'ensemble vide compris).
+      [rend: 2]
+    ⑥ TRAITEMENT — `itertools.product`.
+    ⑦ UNITÉ — Des jours (des noms, pas des dates : la fonction n'en lit que l'appartenance à la table).
+    ⑧ POURQUOI — Superviseur R-759 E2c tour 5 (13-11-2026), (2) 1 et 4 : le domaine de la comparaison est celui que
+      parcourait déjà la preuve d'équivalence, étendu à quatre jours pour couvrir la table à DEUX paires. Superviseur
+      R-759 E2c tour 6 (13-11-2026), (2) 1 : déplacé du balayage vers ce fichier, pour que H73 et le balayage jugent
+      sur le MÊME domaine (n-1 de Cowork : H73 ne jugeait le refus que sur la table {'d1': 'd2'}).
+    ⑨ CE QUI CLOCHE — Une table de cinq jours ou plus (trois paires ou plus) n'est pas dans le domaine.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    tables = [{j: v for j, v in zip(JOURS_DU_DOMAINE, images) if v is not None}
+              for images in itertools.product((None,) + JOURS_DU_DOMAINE, repeat=len(JOURS_DU_DOMAINE))]
+    tous = JOURS_DU_DOMAINE + (JOUR_HORS_TABLE,)
+    presences = [frozenset(d for k, d in enumerate(tous) if n >> k & 1) for n in range(2 ** len(tous))]
+    return tables, presences
+
+
+def attendu_de_redater(barres, journees):
+    """L'ORACLE de `redater_les_journees` : rend ce que la fonction doit faire de (barres, journees), sans l'appeler.
+
+    ① RÔLE — Dire, pour toute entrée, l'issue que le contrat de `redater_les_journees` (③, ④, ⑤ de sa fiche, dans
+      programmes/CONTROLER_L_HISTORIQUE_LONG.py) exige : lever, ou rendre telle liste et laisser telles barres.
+    ② CONTEXTE D'APPEL — `epreuves_des_journees` (H73) ; le balayage par mutation des journées (référence de la
+      comparaison différentielle, en plus de l'original).
+    ③ ENTRÉE — `barres` : valeur → {jour : barre} (n'est PAS modifié) · `journees` : {jour de rangement : jour vrai}.
+    ④ CONDITIONS D'ENTRÉE — Les barres sont immuables (textes, n-uplets) : une copie sur deux niveaux suffit.
+    ⑤ SORTIE — UNE valeur, un n-uplet de trois : (« lève », « ValueError », barres d'avant, copiées) quand la table doit
+      être refusée ; sinon (« rend », la liste triée des (valeur, jour de rangement, jour vrai) déplacés, les barres
+      après l'appel).
+      [rend: 1]
+    ⑥ TRAITEMENT — Soit f(d) = journees.get(d, d). ① Si f∘f n'est pas l'identité sur un jour de la table : « lève »,
+      barres intactes. ② Sinon chaque barre rangée au jour d va au jour f(d) — l'image par f, qui est alors une
+      bijection : aucune barre perdue, aucune doublée — et sont « déplacées » les barres dont le jour est un jour de la
+      table (un jour fixe d → d compris, comme le fait la fonction).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 E2c tour 6 (13-11-2026), verdict DE FOND sur n-1 de Cowork : le refus d'une table
+      non réciproque n'était gardé qu'en un point ({'d1': 'd2'}) ; une réécriture naturelle du test (`vrai not in
+      journees`) laissait les 74 épreuves vertes et recopiait une barre sur deux jours. L'oracle est écrit par la
+      PROPRIÉTÉ (« f est une involution ») et non par le prédicat de K (`journees.get(vrai) != j`). Les deux refusent
+      les mêmes tables : pour j de la table et v = journees[j], si v est un jour de la table, les deux comparent
+      journees[v] à j ; sinon K refuse (journees.get(v) vaut None, qui n'est pas j) et l'oracle aussi (f(v) = v, qui
+      n'est pas j puisque j est un jour de la table et v non). C'est une RE-FORMULATION du contrat, pas une copie du
+      code éprouvé. Mesuré par le superviseur sur 625 tables × 33 appels : 0 écart sur l'original, 11550 et 18810
+      sur les deux réécritures de Cowork.
+    ⑨ CE QUI CLOCHE — L'oracle ne dit que la FORME de la sortie : une table réciproque mais fausse est appliquée (sa
+      justesse est celle de `journees_d_un_autre_jour`). Il ne compare que le type de l'exception, pas son message.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    f = lambda d: journees.get(d, d)   # noqa: E731
+    if any(f(f(d)) != d for d in journees):
+        return ("lève", "ValueError", {v: dict(s) for v, s in barres.items()})
+    apres = {v: {f(d): x for d, x in s.items()} for v, s in barres.items()}
+    return ("rend", sorted((v, d, f(d)) for v, s in barres.items() for d in s if d in journees), apres)
+
+
+def issue_de_redater(K, barres, journees):
+    """Joue `K.redater_les_journees` sur une COPIE de (barres, journees) ; rend son issue, au format de l'oracle.
+
+    ① RÔLE — Mettre la sortie réelle de la fonction sous la forme que rend `attendu_de_redater`, pour les comparer par
+      `==`.
+    ② CONTEXTE D'APPEL — `epreuves_des_journees` (H73).
+    ③ ENTRÉE — `K` : le contrôle chargé (tel quel ou saboté) · `barres`, `journees` : comme `attendu_de_redater` (non
+      modifiés : la fonction reçoit des copies).
+    ④ CONDITIONS D'ENTRÉE — Comme `attendu_de_redater`.
+    ⑤ SORTIE — UNE valeur, un n-uplet de trois : (« rend », la liste rendue, les barres après l'appel) ou (« lève »,
+      le nom du type de l'exception, les barres après l'appel) — c'est le dictionnaire EXTÉRIEUR passé qui est relu,
+      comme le fait `lire_paris`.
+      [rend: 1]
+    ⑥ TRAITEMENT — Un appel dans un `try`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une issue qui lève porte les barres APRÈS l'appel : l'oracle exige alors qu'elles soient intactes.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Celui de la fonction, sur des copies.
+    ⑪ TERMINAISON — Rend la main ; un appel de la fonction pourrait ne pas revenir si elle était sabotée en boucle
+      ouverte (aucun sabotage ni mutant n'en crée).
+      [sort: non]
+    """
+    b = {v: dict(s) for v, s in barres.items()}
+    try:
+        return ("rend", K.redater_les_journees(b, dict(journees)), b)
+    except Exception as x:   # noqa: BLE001 — l'oracle dit quel type est attendu ; un autre type est une issue fausse
+        return ("lève", type(x).__name__, b)
+
+
+def epreuves_des_journees(K):
+    """Les épreuves H69 à H75 de la couche A : la règle « barre du fichier d'un autre jour », éprouvée sur les FONCTIONS.
+
+    ① RÔLE — Garder `K.journees_d_un_autre_jour` (la détection), `K.lire_paris` (l'appel) et `K.redater_les_journees`
+      (la remise au bon jour : refus d'une table non réciproque, conservation des barres).
+    ② CONTEXTE D'APPEL — `epreuves`, pour les programmes tels quels et pour chaque sabotage ; le balayage par mutation
+      tests/outils/BALAYER_LES_MUTANTS_DES_JOURNEES.py (E2c tour 4), qui la joue seule contre chaque mutant de K.
+    ③ ENTRÉE — `K` : le module du contrôle chargé par `charger` (tel quel ou saboté).
+    ④ CONDITIONS D'ENTRÉE — L'indice INDICE et les témoins de l'extrait 2005 existent ; une absence rend l'épreuve rouge
+      (l'exception est rattrapée et imprimée), jamais verte.
+    ⑤ SORTIE — UNE valeur : {« H69 » … « H75 » : booléen}.
+      [rend: 1]
+    ⑥ TRAITEMENT — Les sept épreuves, dans l'ordre ; chacune dans son propre `try`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 E2c tour 4 (13-11-2026), (4) : le balayage par mutation joue les mutants de K « sur
+      les épreuves de la couche A, qui tournent en minutes » ; extraites d'`epreuves` sans changer leur texte (H69 à
+      H72) pour être jouées seules, sans les recopier (R-708).
+    ⑨ CE QUI CLOCHE — H72 lit le vrai indice : une table rendue qui contiendrait déjà les deux jours choisis fausserait
+      le cas (la paire est choisie par une propriété d'accord des deux colonnes, qui l'exclut).
+    ⑩ EFFET — Des dossiers jetables sous le dossier temporaire (effacé par `__main__`).
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    res = {}
+    # H69 à H73 (13-11-2026, superviseur R-759 E2c tour 3, (1) couche A ; relecteur E2c tour 2, D-1 et m-b) : la règle
+    # « barre du fichier d'un autre jour » appliquée à la JOURNÉE, éprouvée sur la FONCTION et non sur le fichier réparé
+    # commité (un fichier réparé relancé avec le code saboté réaligne K18, K23 et H56 sur lui : seule une épreuve de la
+    # fonction reste rouge). H69 cas connu : sur le vrai indice, la table rendue est EXACTEMENT l'échange des 19 et
+    # 20-06-2001 (chez bnains, les fichiers de ces deux jours sont échangés pour toutes les valeurs, indice compris :
+    # 5170,49 et 5199,41). H70 cas qui doit échouer : le 17-07-2000, jour douteux (cinq valeurs en écart) où l'indice de
+    # bnains vaut celui de Yahoo, n'est pas rendu — une journée se juge sur l'indice, jamais sur un vote des barres.
+    # H71 sur une COPIE de l'indice : un échange injecté entre deux séances voisines est trouvé, et rien d'autre ; une
+    # séance dont l'indice n'a bougé que d'un demi-ACCORD_INDICE, sans désaccord entre les deux colonnes, n'est pas
+    # rendue. H72 `lire_paris` sur l'extrait 2005 dont deux séances voisines sont échangées pour TOUTES les valeurs (et
+    # l'indice de bnains avec elles) : il rend exactement les barres de l'extrait non échangé (le sabotage X1 du
+    # relecteur, l'appel retiré, le rougit). H73 `redater_les_journees` : sa sortie est celle de l'oracle
+    # `attendu_de_redater` sur tout le domaine `domaine_des_journees` (E2c tour 6 ; avant : le seul refus de {'d1': 'd2'}).
+    try:
+        table = K.journees_d_un_autre_jour(RACINE)
+        print(f"      H69/H70 : table sur le vrai indice {table}")
+        res["H69"] = table == {"2001-06-19": "2001-06-20", "2001-06-20": "2001-06-19"}
+        res["H70"] = "2000-07-17" not in table and "2000-07-17" not in table.values()
+    except Exception as ex:
+        print(f"      H69/H70 : {type(ex).__name__} : {ex}")
+        res["H69"] = res["H70"] = False
+    try:
+        lignes_i = list(csv.reader(open(INDICE, encoding="utf-8", newline="")))
+        tete_i, corps = lignes_i[0], lignes_i[1:]
+        ib, iy = tete_i.index("bnains"), tete_i.index("yahoo")
+        def indice_essai(changer):
+            r = tempfile.mkdtemp()
+            os.makedirs(os.path.join(r, "donnees", "sources_indice"))
+            c = [list(x) for x in corps]
+            changer(c)
+            with open(os.path.join(r, "donnees", "sources_indice", "INDICE_CAC40.csv"), "w", encoding="utf-8", newline="") as f:
+                csv.writer(f, lineterminator="\n").writerows([tete_i] + c)
+            return K.journees_d_un_autre_jour(r)
+        # deux séances voisines de 2005, choisies par une PROPRIÉTÉ : la première paire dont les deux colonnes s'accordent
+        # chaque jour et dont l'indice a bougé de plus de dix fois ACCORD_INDICE
+        k5 = next(i for i in range(len(corps) - 1) if corps[i][0] >= "2005-01-01" and all(
+            corps[x][ib] and corps[x][iy] and corps[x][ib] == corps[x][iy] for x in (i, i + 1))
+            and abs(float(corps[i][iy]) / float(corps[i + 1][iy]) - 1) > 10 * K.ACCORD_INDICE)
+        def echanger(c):
+            c[k5][ib], c[k5 + 1][ib] = c[k5 + 1][ib], c[k5][ib]
+        def petit(c):   # la séance d'après ne bouge que d'un demi-ACCORD_INDICE, les deux colonnes d'accord
+            v = repr(round(float(c[k5][iy]) * (1 + K.ACCORD_INDICE / 2), 2))
+            c[k5 + 1][ib] = c[k5 + 1][iy] = v
+        d1, d2 = corps[k5][0], corps[k5 + 1][0]
+        avec, sans = indice_essai(echanger), indice_essai(petit)
+        print(f"      H71 : échange injecté {d1}↔{d2} → {avec} · petit mouvement → {sans}")
+        res["H71"] = avec == dict(table, **{d1: d2, d2: d1}) and sans == table
+    except Exception as ex:
+        print(f"      H71 : {type(ex).__name__} : {ex}")
+        res["H71"] = False
+    try:
+        r0 = racine_d_essai()
+        p0, _, _ = K.lire_paris(r0)
+        brut = list(csv.reader(open(os.path.join(TEMOINS, "bnains_2005.csv"), encoding="utf-8", newline="")))
+        idx = list(csv.reader(open(os.path.join(r0, "donnees", "sources_indice", "INDICE_CAC40.csv"), encoding="utf-8", newline="")))
+        ib, iy = idx[0].index("bnains"), idx[0].index("yahoo")
+        dates_b = sorted({l[1] for l in brut[1:]})
+        # deux séances voisines de l'extrait, choisies par une PROPRIÉTÉ : la première paire présente à l'indice avec
+        # ses deux colonnes d'accord, dont l'indice a bougé de plus de dix fois ACCORD_INDICE
+        par_date = {l[0]: l for l in idx[1:]}
+        j1, j2 = next((a, b) for a, b in zip(dates_b, dates_b[1:]) if a in par_date and b in par_date
+                      and all(par_date[x][ib] and par_date[x][ib] == par_date[x][iy] for x in (a, b))
+                      and abs(float(par_date[a][iy]) / float(par_date[b][iy]) - 1) > 10 * K.ACCORD_INDICE)
+        def echange_b(lignes):
+            return lignes[:1] + [(l[:1] + [{j1: j2, j2: j1}[l[1]]] + l[2:] if l[1] in (j1, j2) else l) for l in lignes[1:]]
+        r1 = racine_d_essai(abimer_bnains=echange_b)
+        idx2 = [list(x) for x in idx]
+        for l in idx2[1:]:
+            if l[0] in (j1, j2):
+                l[ib] = par_date[{j1: j2, j2: j1}[l[0]]][iy]
+        with open(os.path.join(r1, "donnees", "sources_indice", "INDICE_CAC40.csv"), "w", encoding="utf-8", newline="") as f:
+            csv.writer(f, lineterminator="\n").writerows(idx2)
+        p1, _, _ = K.lire_paris(r1)
+        touchees = sum(1 for v in p0 if j1 in p0[v] and j2 in p0[v] and p0[v][j1] != p0[v][j2])
+        print(f"      H72 : extrait échangé {j1}↔{j2} : valeurs dont la barre diffère d'un jour à l'autre {touchees} · "
+              f"lire_paris rend l'extrait non échangé : {p1 == p0}")
+        res["H72"] = touchees >= 5 and p1 == p0
+    except Exception as ex:
+        print(f"      H72 : {type(ex).__name__} : {ex}")
+        res["H72"] = False
+    # H73 (E2c tour 6, superviseur R-759 du 13-11-2026, verdict DE FOND sur n-1 de Cowork) : une PROPRIÉTÉ sur tout le
+    # domaine, jugée par UN SEUL oracle. Pour chaque table de `domaine_des_journees` (625 tables partielles sur quatre
+    # jours, réciproques ou non) : chaque ensemble de jours présents SEUL (32, sous une valeur), puis tous ensemble dans un
+    # même appel (une valeur par présence) — l'issue de `redater_les_journees` (rend ou lève ; barres relues après
+    # l'appel ; `bouge`) doit être EXACTEMENT celle de `attendu_de_redater`. Quand l'oracle dit « lève », la fonction
+    # lève ValueError et les barres sont intactes. Avant (tours 3 à 5) : le refus n'était jugé que sur la seule table
+    # {'d1': 'd2'}, et la conservation par un `image` local — deux oracles, et une garde en un point : la réécriture
+    # `journees.get(vrai) != j` → `vrai not in journees` laissait les 74 épreuves vertes et recopiait une barre sur deux
+    # jours (n-1 de Cowork, 13-11-2026).
+    # Les cas écrits à la main des tours 3 à 5 (la table {'d1': 'd2'} du relecteur E2c tour 2, m-b ; les quatre
+    # présences de la table {d1 : d2, d2 : d1}, chacune sous deux noms ; la valeur intouchée ; toutes ensemble) sont
+    # RETIRÉS le 13-11-2026 (décision de Jean-Luc A-752 ⑤ : « il faut bien sûr les retirer ») : ce sont des points du
+    # domaine aux noms près, jugés par le même oracle, ils ne gardaient rien de plus. Leur entrée, leur issue attendue,
+    # les commits où ils vivaient et le rejeu qui prouve que le domaine les couvre sont rangés dans
+    # archives/H73_CAS_ECRITS_A_LA_MAIN_RETIRES_CAR_COUVERTS_PAR_L_ORACLE_ET_LE_DOMAINE_Ven_13-11-2026.md (ne pas les
+    # refaire). Restent deux cas RÉELS (R-732), jugés par le même oracle :
+    # ① les barres brutes N3 de SOLB (BE0003470755, statut GARDEE) des 18, 19 et 21-06-2001, RECOPIÉES telles quelles,
+    # sur la vraie table ; ② la table que rend le VRAI indice à ACCORD_INDICE × 8 (19→20 et 20→19-06-2001, et
+    # 2013-12-19→2013-12-20 sans retour : NON réciproque — mesurée par Cowork, O-b, et rejouée au tour 6), sur SOLB et
+    # sur les lignes ACCOR des 19 et 20-06-2001 et des 19 et 20-12-2013 de l'extrait bnains, recopiées. L'ORACLE est
+    # ancré sur ces deux cas réels par leur issue écrite à la main (la barre de SOLB rangée au 19 sort au 20 et nulle
+    # part ailleurs ; la table à × 8 lève). PORTÉE DE L'ANCRE (c-1 du RELU de Cowork, d6ae7be1) : un oracle faux SEUL
+    # rougit déjà H73 par son écart à K ; l'ancre ne sert que si K et l'oracle se trompent ENSEMBLE, et seulement sur
+    # ces deux cas. Elle ne voit PAS la même réécriture du test de réciprocité dans K et dans l'oracle (`vrai not in
+    # journees`, N4 de Cowork : couche A verte, 0 écart) : la table à × 8 n'est non réciproque que par un jour ABSENT de
+    # la table (2013-12-20), que les deux formules refusent ; une table non réciproque dont tous les jours sont dans la
+    # table ({a : b, b : a, c : a}) n'est ancrée par aucun cas. Sabotages T187 (refus retiré), T188 (E1′) et T189 (E2).
+    try:
+        tables73, presences73 = domaine_des_journees()
+        fautes73, cas73 = [], [0]
+
+        def juger73(nom, barres73, table):
+            cas73[0] += 1
+            attendu, obtenu = attendu_de_redater(barres73, table), issue_de_redater(K, barres73, table)
+            if obtenu != attendu:
+                fautes73.append(f"{nom} : obtenu {obtenu} · attendu {attendu}")
+            return attendu
+        for table in tables73:
+            for k, avant in enumerate(presences73):
+                juger73(f"table {table} présence {sorted(avant)}", {f"V{k}": {d: f"V{k}@{d}" for d in sorted(avant)}},
+                        table)
+            juger73(f"table {table} toutes ensemble",
+                    {f"V{k}": {d: f"V{k}@{d}" for d in sorted(avant)} for k, avant in enumerate(presences73)}, table)
+        solb = {"SOLB": {"2001-06-18": ("59.45", "59.45", "59.45", "59.45", "17"),
+                         "2001-06-19": ("58.00", "58.00", "58.00", "58.00", "10"),
+                         "2001-06-21": ("58.00", "58.00", "57.00", "57.00", "506")}}
+        vraie = {"2001-06-19": "2001-06-20", "2001-06-20": "2001-06-19"}
+        a_solb = juger73("SOLB", solb, vraie)
+        ancre_solb = a_solb == ("rend", [("SOLB", "2001-06-19", "2001-06-20")],
+                                {"SOLB": {"2001-06-18": ("59.45", "59.45", "59.45", "59.45", "17"),
+                                          "2001-06-20": ("58.00", "58.00", "58.00", "58.00", "10"),
+                                          "2001-06-21": ("58.00", "58.00", "57.00", "57.00", "506")}})
+        x8 = dict(solb, ACCOR={"2001-06-19": ("45.75", "46.25", "45.22", "45.70", "484030"),
+                               "2001-06-20": ("45.20", "46.42", "45.20", "45.75", "310024"),
+                               "2013-12-19": ("32.775", "33.010", "32.655", "33.010", "629784"),
+                               "2013-12-20": ("33.050", "33.325", "32.910", "33.235", "678377")})
+        a_x8 = juger73("vrai indice à ACCORD_INDICE × 8", x8, dict(vraie, **{"2013-12-19": "2013-12-20"}))
+        ancre_x8 = a_x8 == ("lève", "ValueError", x8)
+        if not (ancre_solb and ancre_x8):
+            fautes73.append(f"ORACLE FAUX sur un cas réel : SOLB {ancre_solb} · × 8 {ancre_x8}")
+        print(f"      H73 : {cas73[0]} appels jugés par l'oracle `attendu_de_redater` · écarts {len(fautes73)}")
+        res["H73"] = not fautes73
+        if fautes73:
+            print(f"      H73 : premiers écarts {fautes73[:3]}")
+    except Exception as ex:
+        print(f"      H73 : {type(ex).__name__} : {ex}")
+        res["H73"] = False
+    # H74 (E2c tour 4, balayage par mutation du superviseur R-759, (4)) : les BORDS de la détection, sur des indices
+    # fabriqués de quelques lignes (le vrai indice n'a de désaccord ni en tête, ni en fin, ni à côté d'une ligne sans
+    # Yahoo : ces branches n'y sont jamais prises). Chaque cas porte la table attendue : ① un en-tête faux est refusé
+    # (ValueError) · ② un échange des DEUX PREMIÈRES séances est trouvé (le voisin d'avant de la deuxième est la ligne 0)
+    # · ③ la première séance n'a pas de voisin d'avant : elle n'est jamais comparée à la DERNIÈRE ligne (pas de retour
+    # au bout) · ④ la dernière séance n'a pas de voisin d'après : un désaccord en fin de fichier ne lève pas · ⑤ un voisin
+    # sans Yahoo n'est pas un voisin : il ne lève pas. Les survivants du balayage visés : le contrôle d'en-tête forcé, les
+    # bornes `0 <= j < len(lignes)` (retirées, ou `<` ↔ `<=`) et la clause `lignes[j][2]` retirée.
+    try:
+        def indice_fabrique(tete, lignes74):
+            r = tempfile.mkdtemp()
+            os.makedirs(os.path.join(r, "donnees", "sources_indice"))
+            with open(os.path.join(r, "donnees", "sources_indice", "INDICE_CAC40.csv"), "w", encoding="utf-8", newline="") as f:
+                csv.writer(f, lineterminator="\n").writerows([tete] + lignes74)
+            return K.journees_d_un_autre_jour(r)
+        tete = ["date", "bnains", "yahoo"]
+        # ① E2c tour 6 (passe ② : une garde jugée en un seul point, l'exemple du superviseur R-759) : l'en-tête est
+        # acceptée SI ET SEULEMENT SI elle est celle du contrat — jugé sur TOUTES les en-têtes à un pas du contrat (chaque
+        # colonne retirée, chaque colonne renommée, une colonne ajoutée, chaque paire voisine échangée, l'en-tête vide),
+        # et non plus sur la seule « yahoo » renommée ; l'acceptation du contrat est jugée par les cas ② à ⑤
+        a_un_pas = ([tete[:k] + tete[k + 1:] for k in range(len(tete))]
+                    + [tete[:k] + [tete[k] + "_autre"] + tete[k + 1:] for k in range(len(tete))]
+                    + [tete + ["autre"], []]
+                    + [tete[:k] + [tete[k + 1], tete[k]] + tete[k + 2:] for k in range(len(tete) - 1)])
+        acceptees = []
+        for t74 in a_un_pas:
+            try:
+                indice_fabrique(t74, [["2030-01-02", "100", "100"]])
+                acceptees.append(t74)
+            except ValueError:
+                pass
+        en_tete = not acceptees
+        cas74 = (
+            ("échange en tête", [["2030-01-02", "200", "100"], ["2030-01-03", "100", "200"], ["2030-01-04", "300", "300"]],
+             {"2030-01-02": "2030-01-03", "2030-01-03": "2030-01-02"}),
+            ("pas de retour au bout", [["2030-01-02", "200", "100"], ["2030-01-03", "300", "300"], ["2030-01-04", "", "200"]],
+             {}),
+            ("désaccord en fin", [["2030-01-02", "300", "300"], ["2030-01-03", "200", "100"]], {}),
+            ("voisin sans Yahoo", [["2030-01-02", "300", "300"], ["2030-01-03", "500", "900"], ["2030-01-04", "777", ""],
+                                   ["2030-01-05", "400", "400"]], {}),
+        )
+        fautes74 = [] if en_tete else [f"en-têtes fausses acceptées : {acceptees}"]
+        for nom, lignes74, attendu in cas74:
+            try:
+                rendu = indice_fabrique(tete, lignes74)
+            except Exception as x:   # noqa: BLE001 — un cas qui lève est un cas faux
+                rendu = f"{type(x).__name__}"
+            if rendu != attendu:
+                fautes74.append(f"{nom} : {rendu} au lieu de {attendu}")
+        res["H74"] = not fautes74
+        if fautes74:
+            print(f"      H74 : {fautes74}")
+    except Exception as ex:
+        print(f"      H74 : {type(ex).__name__} : {ex}")
+        res["H74"] = False
+    # H75 (E2c tour 5, superviseur R-759 du 13-11-2026, (3) ; R8 du relecteur E2c tour 4) : l'AMBIGUÏTÉ de la détection.
+    # Quand les DEUX voisins d'une séance en désaccord s'accordent avec la journée de bnains, `journees_d_un_autre_jour`
+    # ne tranche pas le sens en connaissance de cause (le voisin d'après l'emporte, par l'ordre de la boucle). Ce qui
+    # compte est la CHAÎNE `redater_les_journees(…, journees_d_un_autre_jour(…))` : elle doit être soit BRUYANTE (une
+    # ValueError, table non réciproque, barres intactes), soit JUSTE (le vrai échange) — jamais silencieuse et fausse.
+    # Indice fabriqué de trois lignes : le 2030-01-02 d'accord (100) ; les fichiers des 03 et 04 échangés (bnains 100 et
+    # 105, Yahoo 105 et 100) ; l'indice du 02 vaut celui du 04 : les deux voisins du 03 s'accordent avec sa journée.
+    # Le vrai échange est 03 ↔ 04. Mesuré le 13-11-2026 sur le mutant R8 (`sortie.setdefault`, le voisin d'avant
+    # l'emporte) : la table {03 : 02, 04 : 03} est refusée — bruyante, donc sûre.
+    try:
+        r75 = tempfile.mkdtemp()
+        os.makedirs(os.path.join(r75, "donnees", "sources_indice"))
+        with open(os.path.join(r75, "donnees", "sources_indice", "INDICE_CAC40.csv"), "w", encoding="utf-8", newline="") as f:
+            csv.writer(f, lineterminator="\n").writerows([["date", "bnains", "yahoo"], ["2030-01-02", "100", "100"],
+                                                          ["2030-01-03", "100", "105"], ["2030-01-04", "105", "100"]])
+        avant75 = {"X": {"2030-01-02": "barre_du_02", "2030-01-03": "barre_rangee_au_03", "2030-01-04": "barre_rangee_au_04"}}
+        b75 = {v: dict(s) for v, s in avant75.items()}
+        try:
+            bouge75 = K.redater_les_journees(b75, K.journees_d_un_autre_jour(r75))
+            juste = b75 == {"X": {"2030-01-02": "barre_du_02", "2030-01-03": "barre_rangee_au_04",
+                                  "2030-01-04": "barre_rangee_au_03"}} \
+                and bouge75 == [("X", "2030-01-03", "2030-01-04"), ("X", "2030-01-04", "2030-01-03")]
+            issue75 = f"rendu {b75} {bouge75}"
+        except ValueError as x:
+            juste = b75 == avant75          # bruyante : la table est refusée AVANT tout déplacement
+            issue75 = f"refusée (ValueError) · barres intactes {juste} : {x}"
+        res["H75"] = juste
+        if not juste:
+            print(f"      H75 : chaîne ambiguë silencieuse et fausse : {issue75}")
+    except Exception as ex:
+        print(f"      H75 : {type(ex).__name__} : {ex}")
+        res["H75"] = False
+    return res
+
+
+def cibles_mortes():
+    """Rend les sabotages dont le texte cible ne se trouve pas exactement une fois dans son programme.
+
+    ① RÔLE — Le pré-contrôle des cibles : savoir en quelques secondes, AVANT de jouer quoi que ce soit, si un sabotage
+      ne s'applique plus.
+    ② CONTEXTE D'APPEL — `main`, avec « --cibles » (seul) ou avant toute série « --saboter » ; le joueur de séries
+      (tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py) le lance par « --cibles » avant ses lots.
+    ③ ENTRÉE — — (le dictionnaire SABOTAGES et les programmes du dépôt).
+    ④ CONDITIONS D'ENTRÉE — Chaque programme cible existe (OSError sinon).
+    ⑤ SORTIE — UNE valeur : la liste des (nom, nombre de fois où la cible est trouvée), dans l'ordre de SABOTAGES ;
+      vide si toutes s'appliquent.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque sabotage, compter sa cible dans son programme.
+    ⑦ UNITÉ — Des nombres d'occurrences.
+    ⑧ POURQUOI — Superviseur R-759 du 05-11-2026 (VINGT, D2) : T140 ne s'appliquait plus (`lire_paris` réécrite), et
+      `main` ne le voyait qu'à son tour, après Z0 et les sabotages d'avant ; une série de 215 sabotages dure environ
+      9 heures (8 h 42 pour 213, relevé du 27-10-2026), une cible morte s'y voyait au bout de plusieurs heures.
+    ⑨ CE QUI CLOCHE — Une cible trouvée une fois peut ne plus porter le sens voulu (le remplacement est textuel) : ce
+      pré-contrôle ne juge que l'application, la morsure reste à la série.
+    ⑩ EFFET — Lit les programmes cibles.
+    ⑪ TERMINAISON — Rend la main ou lève.
+      [sort: non]
+    """
+    textes, mortes = {}, []
+    for k, (chemin, cible, _) in SABOTAGES.items():
+        if chemin not in textes:
+            textes[chemin] = open(chemin, encoding="utf-8").read()
+        if textes[chemin].count(cible) != 1:
+            mortes.append((k, textes[chemin].count(cible)))
+    return mortes
+
+
 def main():
+    # le pré-contrôle des cibles (05-11-2026, superviseur R-759 de VINGT, D2) : TOUTES, avant Z0 et avant tout sabotage
+    if "--cibles" in sys.argv or "--saboter" in sys.argv or any(a.startswith("--saboter=") for a in sys.argv):
+        mortes = cibles_mortes()
+        for k, n in mortes:
+            print(f"{k} NE S'APPLIQUE PLUS : texte cible trouvé {n} fois")
+        if mortes:
+            print(f"ARRÊT — pré-contrôle des cibles : {len(mortes)} sabotage(s) sur {len(SABOTAGES)} ne s'appliquent plus")
+            return 2
+        print(f"CIBLES {len(SABOTAGES)} sabotages, toutes applicables")
+        if "--cibles" in sys.argv:
+            return 0
     K, R = charger()
     res = epreuves(K, R)
     rouges = [k for k, v in res.items() if not v]

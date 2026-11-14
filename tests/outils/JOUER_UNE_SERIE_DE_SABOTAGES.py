@@ -24,6 +24,9 @@
   près) est rangé dans archives/ avant l'écriture.
   [rend: 1]
 ⑥ TRAITEMENT — ① lire les noms des sabotages dans l'épreuve (arbre syntaxique, clé du dictionnaire SABOTAGES) ·
+  ①bis si l'épreuve porte l'option « --cibles » (le pré-contrôle de toutes ses cibles, depuis le 05-11-2026), la lancer
+  ainsi, une fois, avant tout lot : un code autre que 0 arrête la série (ARRET, code 2), en nommant les sabotages
+  morts ; sans l'option, le dire (ETAPE) et continuer (`precontroler_les_cibles`) ·
   ② prendre l'empreinte de chaque fichier du dépôt (sans .git ni le relevé), ou relire celle du départ et refuser si
   un fichier présent au départ a changé ou disparu ·
   ③ découper en lots ; jouer chaque lot non fait, `--parts` à la fois, l'épreuve écoutée par un module de démarrage
@@ -68,7 +71,10 @@
   Les deux témoins de la raison (05-11-2026) : une recherche de trace ne voit pas une erreur AVALÉE par l'épreuve ou
   par un de ses enfants (relecture du 05-11-2026, M1 : `lancer` de l'épreuve Yahoo jette la sortie d'erreur ; 55
   « except Exception: » muets dans l'épreuve HL) ; la liste des épreuves tombées, elle, change.
-⑨ CE QUI CLOCHE — Le module d'écoute passe par PYTHONPATH : l'épreuve est lancée sans « -I », et un programme qu'elle
+⑨ CE QUI CLOCHE — Le pré-contrôle des cibles n'existe que pour une épreuve qui porte « --cibles » (l'historique long,
+  le 05-11-2026) : pour les autres, une cible morte ne se voit encore qu'au lot qui la joue → BACKLOG proposé le
+  05-11-2026. Il ne tourne que dans `main` : une part jouée par tests/outils/jouer_une_part.py (relais des séries)
+  ne le refait pas. · Le module d'écoute passe par PYTHONPATH : l'épreuve est lancée sans « -I », et un programme qu'elle
   lance avec « -I », « -E » ou « -S », ou avec un environnement remplacé (`env=` sans PYTHONPATH), n'est pas écouté
   — ni ses lectures ni son code exécuté ne sont notés —, et du code exécuté par `exec` d'une chaîne lue dans un fichier
   ne porte pas le nom de ce fichier (relecteur du 05-11-2026, défaut 2 : les cinq mécanismes, détaillés au ⑨ ③ de
@@ -710,6 +716,45 @@ def jouer_un_lot(racine, epreuve, travail, k, lot):
     return k, code
 
 
+def precontroler_les_cibles(racine, epreuve):
+    """Lance l'épreuve en pré-contrôle de ses cibles, si elle le porte ; rend (code, texte à afficher).
+
+    ① RÔLE — Arrêter en quelques secondes une série dont un sabotage ne s'applique plus, au lieu de le découvrir au lot
+      qui le joue, des heures plus tard.
+    ② CONTEXTE D'APPEL — `main`, une fois, après la lecture des noms et avant tout lot.
+    ③ ENTRÉE — `racine` : le dépôt · `epreuve` : le chemin de l'épreuve, relatif à la racine.
+    ④ CONDITIONS D'ENTRÉE — L'épreuve se lit (OSError sinon, que `main` a déjà écartée en lisant les noms).
+    ⑤ SORTIE — DEUX valeurs : ① le code : 0 toutes les cibles s'appliquent ou l'épreuve ne porte pas l'option, 2 sinon
+      (cible morte, délai dépassé, autre code) · ② le texte : la ligne ETAPE ou ARRET à afficher.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① chercher « --cibles » dans le texte de l'épreuve ; absent : rendre 0 et le dire · ② lancer
+      « <épreuve> <racine> --cibles » sans la configuration git de la machine, borné à 600 secondes · ③ code 0 : rendre
+      0 ; sinon rendre 2 avec les lignes « NE S'APPLIQUE PLUS » de sa sortie.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 05-11-2026 (VINGT, D2, mesure 5) : le joueur ne pré-contrôlait pas ses cibles ;
+      T140, mort, ne se serait vu qu'après des heures de série (8 h 42 pour 213 sabotages le 27-10-2026).
+    ⑨ CE QUI CLOCHE — La présence de l'option se reconnaît au texte « --cibles » dans l'épreuve : une épreuve qui
+      l'écrirait sans la porter serait lancée en entier (bornée à 600 secondes, puis ARRET).
+    ⑩ EFFET — Lance l'épreuve (qui ne lit que ses programmes cibles en mode « --cibles »).
+    ⑪ TERMINAISON — Rend la main ; le lancement est borné à 600 secondes. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    if "--cibles" not in open(os.path.join(racine, epreuve), encoding="utf-8").read():
+        return 0, (f"ETAPE {heure()} pré-contrôle des cibles : l'épreuve ne porte pas « --cibles » — une cible morte ne "
+                   f"se verra qu'au lot qui la joue")
+    env = dict(os.environ, PYTHONUNBUFFERED="1", **CERTIF.SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE)   # comme un lot
+    try:
+        p = subprocess.run([sys.executable, "-u", os.path.join(racine, epreuve), racine, "--cibles"], cwd=racine, env=env,
+                           capture_output=True, text=True, timeout=600)
+    except subprocess.TimeoutExpired:
+        return 2, "ARRET pré-contrôle des cibles : l'épreuve n'a pas rendu la main en 600 secondes"
+    if p.returncode != 0:
+        mortes = [l for l in p.stdout.splitlines() if "NE S'APPLIQUE PLUS" in l]
+        return 2, (f"ARRET pré-contrôle des cibles : code {p.returncode}, {len(mortes)} sabotage(s) ne s'appliquent plus : "
+                   + " ; ".join(mortes[:8]) + ("" if mortes else (p.stdout + p.stderr)[-300:]))
+    return 0, f"ETAPE {heure()} pré-contrôle des cibles : toutes s'appliquent"
+
+
 def main():
     """Le programme entier (voir la fiche en tête).
 
@@ -736,6 +781,10 @@ def main():
         return 2
     if not noms:
         print(f"ARRET aucun dictionnaire SABOTAGES lisible dans {epreuve}")
+        return 2
+    code_cibles, texte_cibles = precontroler_les_cibles(racine, epreuve)   # 05-11-2026 (VINGT, D2) : avant tout lot
+    print(texte_cibles, flush=True)
+    if code_cibles != 0:
         return 2
     # LA PORTÉE DU RELEVÉ, lue à la table de lancement par le certificateur (R-708) ; une racine sans table (un dépôt
     # d'essai) garde la portée d'origine, « lectures ».

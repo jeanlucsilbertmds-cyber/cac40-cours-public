@@ -9,7 +9,7 @@
   [--saboter]
 ③ ENTRÉE — La racine du dépôt (le joueur est pris dans son tests/outils/, ses modules dans son programmes/).
 ④ CONDITIONS D'ENTRÉE — —
-⑤ SORTIE — Le code de sortie : 0 si J1 à J13 donnent la réponse attendue et, avec --saboter, si chaque sabotage en
+⑤ SORTIE — Le code de sortie : 0 si J1 à J14 donnent la réponse attendue et, avec --saboter, si chaque sabotage en
   fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus.
   [rend: 1]
 ⑥ TRAITEMENT — Un dépôt d'essai dont l'unique épreuve écrit « A1 mord » seulement si elle tourne sans la configuration
@@ -39,7 +39,9 @@
   rejoué · J13 entre les deux, la série rejouée sous un AUTRE nom de relevé sans décision → code 1 (le relevé « à
   examiner » n'est pas un relevé retenu) · J11 plancher relevé à 10**9 Mo → code 1, « sous le plancher », et la ligne
   « joué par » · J12 une épreuve qui écrit 200 Mo, les garde 3 s et les efface, plancher posé 100 Mo sous la place
-  mesurée juste avant → code 1 : seule une mesure PENDANT le lot passe sous le plancher. Avec --saboter : chaque garde du joueur retirée, une à la
+  mesurée juste avant → code 1 : seule une mesure PENDANT le lot passe sous le plancher. J14 (lot d'octobre, 05-11-2026, superviseur R-759 de VINGT, D2)
+  une épreuve qui porte « --cibles » et dont une cible est morte : le joueur s'arrête au pré-contrôle,
+  « ARRET pré-contrôle des cibles », code 2, sans jouer aucun lot. Avec --saboter : chaque garde du joueur retirée, une à la
   fois, dans une copie ; un sabotage peut viser aussi programmes/SERIES_DE_SABOTAGES.py (le ramenage au dépôt d'un
   code exécuté dans une copie). S10 retire la préparation du flux « execution » : c'est le défaut mesuré le
   05-11-2026 sur tests/outils/jouer_une_part.py (écoute sourde, 0 ligne lue, code 0) ; J1 doit rougir.
@@ -51,7 +53,8 @@
   la poserait pas resterait vert sous elle (même piège que S26 de l'épreuve de la certification, 02-10-2026).
 ⑨ CE QUI CLOCHE — J12 suppose que rien d'autre n'écrit 100 Mo sur le même disque pendant son lot (vrai sur une
   machine de GitHub ; sur la machine du Chat, une série en cours peut le fausser dans le sens « mord » d'un sabotage
-  S13 qui ne devrait pas mordre). Seules la garde de l'environnement, la portée et la mesure du code exécuté sont éprouvées ici ; le
+  S13 qui ne devrait pas mordre). Seules la garde de l'environnement, la portée, la mesure du code exécuté, la disparition d'un
+  fichier et le pré-contrôle des cibles sont éprouvées ici ; le
   reste du joueur l'est par ses séries réelles. La mesure « exec » n'est prouvée que sous le Python qui lance cette
   épreuve (3.13 sur la machine du Chat le 05-11-2026) : chaque nuit où J6 tourne, elle l'est sous celui de la nuit.
 ⑩ EFFET — Écrit dans des dossiers jetables, effacés à la fin.
@@ -148,6 +151,12 @@ TABLE_A_PORTEE = ('{"epreuves": {}, "series_hors_de_la_nuit": {"tests/EPR.py": {
                   '"essais_refaits_chaque_nuit": 0, "portee_du_releve": "%s"}}}\n')
 # Un remplacement est (cible, texte) dans le joueur, ou (fichier relatif, cible, texte) dans un autre fichier du dépôt.
 SERIE_PY = "programmes/SERIES_DE_SABOTAGES.py"
+# J14 (lot d'octobre, 05-11-2026, superviseur R-759 de VINGT, D2) : une épreuve qui porte « --cibles » et dont une cible est morte — le
+# joueur doit s'arrêter AVANT tout lot (ARRET, code 2, aucun lot_01.code écrit). Jouée en lot, elle « mordrait ».
+EPREUVE_A_CIBLE_MORTE = ('import sys\nSABOTAGES = {"A1": 1}\n'
+                         'if "--cibles" in sys.argv:\n'
+                         '    print("A1 NE S\'APPLIQUE PLUS : texte cible trouvé 0 fois")\n    sys.exit(2)\n'
+                         'print("Z0 programme tel quel : tous les cas conformes")\nprint("A1 mord : [\'H1\']")\n')
 SABOTAGES = {
     "S1_configuration_git_gardee": [("    env.update(CERTIF.SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE)", "    pass")],
     "S2_fichier_disparu_plante": [("if not os.path.isfile(os.path.join(racine, c))\n              or SERIE.empreinte",
@@ -172,17 +181,19 @@ SABOTAGES = {
                                       "        if texte_retenu:\n")],
     "S10_flux_execution_non_prepare": [("    for dossier in dossiers_d_ecoute(travail).values():\n",
                                         "    for dossier in list(dossiers_d_ecoute(travail).values())[:2]:\n")],
+    # lot d'octobre (05-11-2026, VINGT, D2) : le pré-contrôle des cibles retiré (J14 doit rougir)
+    "S15_cibles_non_precontrolees": [("    if code_cibles != 0:\n        return 2\n", "    pass\n")],
 }
 
 
 def tour(joueur):
-    """Joue J1 à J9 avec le joueur à `joueur` ; rend la liste des cas faux.
+    """Joue J1 à J14 avec le joueur à `joueur` ; rend la liste des cas faux.
 
     ① RÔLE — Un tour d'épreuves. ② CONTEXTE D'APPEL — `main`, une fois tel quel puis une fois par sabotage.
     ③ ENTRÉE — `joueur` : le chemin du joueur à éprouver. ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des noms des cas faux. [rend: 1] ⑥ TRAITEMENT — Voir la fiche en tête, ⑥.
     ⑦ UNITÉ — — ⑧ POURQUOI — Voir la fiche en tête. ⑨ CE QUI CLOCHE — — ⑩ EFFET — Un dépôt d'essai jetable.
-    ⑪ TERMINAISON — Rend la main ; dix lancements bornés à 120 secondes. [sort: non]
+    ⑪ TERMINAISON — Rend la main ; chaque lancement borné à 120 secondes (J14 en ajoute un). [sort: non]
     """
     faux = []
     d = tempfile.mkdtemp(prefix="joueur_")
@@ -354,6 +365,16 @@ def tour(joueur):
                                  timeout=120)
             if j12.returncode != 1 or "sous le plancher" not in open(os.path.join(r12, rel), encoding="utf-8").read():
                 faux.append(f"J12 (creux pendant le lot, code {j12.returncode})")
+        # J14 (lot d'octobre) : une cible morte arrête la série au pré-contrôle, avant tout lot
+        r14 = os.path.join(d, "depot_J14")
+        os.makedirs(os.path.join(r14, "tests"))
+        open(os.path.join(r14, "tests", "EPR.py"), "w", encoding="utf-8").write(EPREUVE_A_CIBLE_MORTE)
+        j14 = subprocess.run([sys.executable, joueur, r14, "tests/EPR.py", rel, "--parts=1", "--lot=1",
+                             "--travail=" + os.path.join(d, "travail_J14")], capture_output=True, text=True, env=env,
+                            timeout=120)
+        if j14.returncode != 2 or "ARRET pré-contrôle des cibles" not in j14.stdout or "A1 NE S'APPLIQUE PLUS" not in j14.stdout \
+                or os.path.exists(os.path.join(d, "travail_J14", "lot_01.code")):
+            faux.append(f"J14 (code {j14.returncode})")
     finally:
         shutil.rmtree(d, ignore_errors=True)
     return faux
@@ -370,7 +391,7 @@ def main():
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Voir la fiche en tête. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     faux = tour(JOUEUR)
-    print("Z0 joueur tel quel : " + ("J1 à J13 conformes" if not faux else "FAUX " + ", ".join(faux)))
+    print("Z0 joueur tel quel : " + ("J1 à J14 conformes" if not faux else "FAUX " + ", ".join(faux)))
     code = 1 if faux else 0
     if "--saboter" in sys.argv:
         for nom, remplacements in SABOTAGES.items():

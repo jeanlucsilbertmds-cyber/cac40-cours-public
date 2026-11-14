@@ -381,14 +381,17 @@ def cas(copie, racine):
         # relevé de Cowork ; « non comblé » au journal des réparations). Le trou d'Accor du 24-12-2010, pris d'abord,
         # a été comblé le 27-10-2026 avec les cinq demi-séances (A-555 (b)) : si une décision comble aussi ces six
         # séances, ce cas tombe, et un autre trou réel est à prendre.
+        # 12-11-2026 (E2a, installation du lot d'octobre) : le comblement par bnains du lot (« 17 séances comblées sans
+        # ABC », commit ec686c76) a rempli les 04, 07, 08 et 10-11-2011 ; le 03 et le 09 restent sans cours. Le trou
+        # du 03 est toujours réel : le second morceau commence désormais le 04 (lu dans le fichier le 12-11-2026).
         c, l = B.lire_par_le_lecteur(racine, HISTORIQUE, mnemo)
         m = B.couper_aux_trous(c["BOUYGUES"], l["trous"]["BOUYGUES"])
         got = (m[0][-1]["date"], m[1][0]["date"])
         # Les trous sont ceux de LA valeur : le 03-11-2011 manque à Bouygues, pas à Accor (sabotage S14).
         propre = ("2011-11-03" in l["trous"]["BOUYGUES"], "2011-11-03" in l["trous"]["ACCOR"])
-        return got == ("2011-11-02", "2011-11-11") and propre == (True, False), \
+        return got == ("2011-11-02", "2011-11-04") and propre == (True, False), \
             "Bouygues, historique des 20 ans : premier morceau fini le %s, second commencé le %s (attendu : 2011-11-02, " \
-            "2011-11-11) ; le 03-11-2011 manque à Bouygues, à Accor : %s (attendu : oui, non)" % (got + (propre,))
+            "2011-11-04) ; le 03-11-2011 manque à Bouygues, à Accor : %s (attendu : oui, non)" % (got + (propre,))
 
     def r4():
         vieux = B.charger_cours(f_maitre)

@@ -23,7 +23,8 @@ RECONSTRUIRE_L_HISTORIQUE_LONG.py — Sam 10-10-2026 (Paris) — PROPOSÉ, non v
   (donnees/sources_yahoo/evenements.json), les verdicts sur Yahoo (AJUSTEMENTS_DE_YAHOO.csv), les opérations
   déclarées (DETACHEMENTS_OFFICIELS.csv et DROITS_BNAINS.csv), la table des divisions relevée chez bnains
   (donnees/sources_bnains/DIVISIONS_BNAINS.csv, écrite par etudes/outils/RELEVER_LES_DIVISIONS_BNAINS.py ; sans
-  elle, le programme tourne et le dit). Les cours et les opérations sont lus par les fonctions de
+  elle, le programme tourne et le dit), et, depuis le 31-10-2026, la table des divisions prouvées par un document
+  (donnees/sources_officielles/DIVISIONS_OFFICIELLES.csv ; sans elle, de même). Les cours et les opérations sont lus par les fonctions de
   programmes/CONTROLER_L_HISTORIQUE_LONG.py, jamais relu autrement (R-708 : deux implémentations d'une même chose
   divergent toujours).
 ⑤ SORTIE — UNE valeur : le code de sortie — 0 quand le programme a tourné (le verdict est dans ce qu'il écrit, il
@@ -63,6 +64,8 @@ import CONTROLER_L_HISTORIQUE_LONG as K
 from CONTRATS_DES_FICHIERS import COURS_BNAINS
 
 MAITRE = os.path.join("donnees", "cours_maitre.csv")
+SOURCE_GOOGLE = "google"           # la source écrite sur les lignes du maître venues de Google (corrigées des divisions par
+                                   # Google, R-108) ; lue aussi par ASSEMBLER_LES_VINGT_ANS (R-708 : écrite une fois)
 FIN_BNAINS = "2017-02-28"          # dernière séance archivée par bnains (LISEZ-MOI des cours)
 TOLERANCE = 0.002                  # une ligne se retrouve quand l'écart est de moins de 0,2 %
 DIVISIONS = os.path.join("donnees", "sources_bnains", "DIVISIONS_BNAINS.csv")   # relevé par RELEVER_LES_DIVISIONS_BNAINS
@@ -75,26 +78,43 @@ ARRONDI_BNAINS = 0.005             # le diviseur de bnains n'a souvent que deux 
 NOMBRES = {"deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10,
            "vingt": 20, "cinquante": 50}
 CHAMP_DE_BNAINS = ("division", "actions gratuites", "complément")   # les natures que la table de bnains liste
+OFFICIELLES = K.DIVISIONS_DOCUMENTEES   # écrit à la main ; nommé une fois, dans le contrôle qui le relit (K15, R-708)
+# LA PREUVE DU RAPPORT D'UNE OPÉRATION (31-10-2026, règle de fond du superviseur R-759 du 31-10-2026, 19h30) : quatre
+# réponses, et une cinquième pour une source qu'aucune ligne de `preuve` ne connaît. Lues par `combler_les_debuts`
+# (REPARER_L_HISTORIQUE_LONG) : une opération de rapport DOCUMENT est portée, une opération APPLIQUEE_PAR_YAHOO est déjà
+# dans `K.divisions`, toute autre arrête le comblement.
+APPLIQUEE_PAR_YAHOO = "appliquée par les données de Yahoo (K.divisions)"
+DOCUMENT = "rapport pris d'un document officiel"
+BNAINS_SEULE = "rapport pris de bnains seul"
+RAPPORT_INCONNU = "rapport inconnu"
+SOURCE_NON_DECLAREE = "source non déclarée dans `preuve`"
 PAR_OPERATION = os.path.join("donnees", "sources_yahoo", "RECONSTRUCTION_PAR_OPERATION.csv")
 ECARTS = os.path.join("donnees", "sources_yahoo", "RECONSTRUCTION_ECARTS.csv")
 
 
-def operations(evenements, a_defaire, detachements, bnains, divisions=None):
+def operations(evenements, a_defaire, detachements, bnains, divisions=None, verdicts=None, officielles=None):
     """Rend, pour chaque valeur, ses opérations sur le capital avec leur facteur et leur source.
 
     ① RÔLE — Une seule liste des opérations qui changent le rapport entre la courbe et le cours brut.
-    ② CONTEXTE D'APPEL — `main` ; les épreuves.
+    ② CONTEXTE D'APPEL — `main` ; les épreuves ; depuis le 31-10-2026, REPARER_L_HISTORIQUE_LONG, `reparer`, pour la
+      garde des opérations connues de `combler_les_debuts` (une seule liste des opérations, R-708 : deux
+      implémentations d'une même chose divergent toujours).
     ③ ENTRÉE — `evenements` : le contenu de evenements.json · `a_defaire` : `K.lire_a_defaire` · `detachements` :
       `K.lire_detachements` · `bnains` : l'extrait, barres fausses ôtées (pour la valeur d'un droit vu chez bnains) ·
-      `divisions` : les lignes de DIVISIONS_BNAINS.csv (`lire_divisions`), ou None.
+      `divisions` : les lignes de DIVISIONS_BNAINS.csv (`lire_divisions`), ou None · `verdicts` : le chemin
+      d'AJUSTEMENTS_DE_YAHOO.csv, ou None pour `K.VERDICTS_YAHOO`, relatif au dossier courant, lu à l'APPEL (une
+      épreuve qui remplace `K.VERDICTS_YAHOO` est donc suivie) · `officielles` : les lignes de DIVISIONS_OFFICIELLES.csv
+      (`lire_divisions_officielles`), ou None (depuis le 31-10-2026).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — DEUX valeurs : ① valeur → liste triée de (date, facteur, nature, source), où le facteur est ce par
       quoi la courbe multiplie les cours d'avant la date, ou None quand il n'est pas documenté ; ② (valeur, date) →
       ce que la table des divisions de bnains dit de cette opération.
       [rend: 2]
     ⑥ TRAITEMENT — ① les divisions déclarées par Yahoo, sauf celles qu'il faut défaire (`K.sans_les_divisions_fausses`),
-      facteur = dénominateur ÷ numérateur · ② les opérations déclarées par un document ou vues chez bnains,
-      facteur = 1 ÷ (1 + `K.marche_permise`), nommées « actions gratuites » quand le prix de souscription est nul · ③ les verdicts « ajustée par Yahoo » sans facteur documenté
+      facteur = dénominateur ÷ numérateur, source `K.EVENEMENTS` · ② les opérations déclarées par un document ou vues
+      chez bnains, facteur = 1 ÷ (1 + `K.marche_permise`), nommées « actions gratuites » quand le prix de souscription
+      est nul, source `K.DROITS` pour un droit « bnains », `K.OFFICIELS` sinon · ②bis les divisions de
+      DIVISIONS_OFFICIELLES, facteur = actions_avant ÷ actions_apres, source `OFFICIELLES` · ③ les verdicts « ajustée par Yahoo » sans facteur documenté
       (une distribution que Yahoo a corrigée sans la déclarer) : facteur None, à mesurer — `confronter` passe
       entre ② et ③.
     ⑦ UNITÉ — Des RAPPORTS.
@@ -103,8 +123,13 @@ def operations(evenements, a_defaire, detachements, bnains, divisions=None):
     ⑨ CE QUI CLOCHE — Le verdict d'un ajustement caché se reconnaît à sa colonne ce_que_yahoo_declare, qui commence
       par « aucune déclaration » : un autre texte le ferait manquer. Jusqu'au 10-10-2026 il se reconnaissait au
       verdict (« ajustée par Yahoo »), et la division de Carrefour du 11-04-2000, dont le verdict dit « légitime »,
-      manquait.
-    ⑩ EFFET — —
+      manquait. · Sans `verdicts`, le chemin est RELATIF : `main` fait un chdir à la racine, un autre appelant non
+      (superviseur R-759 du 31-10-2026, piège T1 : `reparer`, sans chdir, tombait en FileNotFoundError) ; il passe
+      donc le chemin entier. · Jusqu'au 31-10-2026, chaque droit portait la source DETACHEMENTS_OFFICIELS, même un
+      droit « bnains » dont la valeur vient du cours du droit chez bnains ; il porte désormais DROITS_BNAINS
+      (`preuve`). La table RECONSTRUCTION_PAR_OPERATION.csv du dépôt, écrite avant, garde l'ancienne colonne `source`
+      jusqu'à sa prochaine fabrication.
+    ⑩ EFFET — Lit le fichier des verdicts.
     ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
       [sort: non]
     """
@@ -112,17 +137,25 @@ def operations(evenements, a_defaire, detachements, bnains, divisions=None):
     ev = K.sans_les_divisions_fausses(evenements, a_defaire)
     for v, e in ev.items():
         for d, num, den in e.get("divisions", []):
+            # la source est LE NOM que le contrôle déclare, lu à l'appel (superviseur R-759 du 31-10-2026, défaut 5) :
+            # renommer le fichier et K.EVENEMENTS ensemble ne change pas la preuve (`preuve`)
             ops.setdefault(v, []).append((d, den / num, f"division déclarée par Yahoo, {num:g} pour {den:g}",
-                                          "donnees/sources_yahoo/evenements.json"))
+                                          K.EVENEMENTS))
     for v, jours in (detachements or {}).items():
         for d, droit in jours.items():
             m = K.marche_permise(bnains.get(v, {}), droit)
             genre = "actions gratuites" if droit[0] == "document" and droit[2] == 0 else droit[0]
+            # un droit « bnains » tient sa valeur du cours du droit chez bnains : sa source est DROITS_BNAINS ; un droit
+            # « document » ou « distribution » tient la sienne des chiffres du document (31-10-2026, `preuve`)
             ops.setdefault(v, []).append((d, 1 / (1 + m), f"{genre} (marche permise {100 * m:+.4f} %)",
-                                          "donnees/sources_bnains/DETACHEMENTS_OFFICIELS.csv"))
+                                          K.DROITS if droit[0] == "bnains" else K.OFFICIELS))
+    for r in officielles or []:
+        ops.setdefault(r["valeur"], []).append((r["date"], float(r["actions_avant"]) / float(r["actions_apres"]),
+                                                f"division déclarée par un document officiel, {r['actions_avant']} "
+                                                f"pour {r['actions_apres']}", OFFICIELLES))
     avis = confronter(ops, divisions or [])
     deja = {(v, d) for v, liste in ops.items() for d, *_ in liste}
-    for r in csv.DictReader(open(K.VERDICTS_YAHOO, encoding="utf-8")):
+    for r in csv.DictReader(open(K.VERDICTS_YAHOO if verdicts is None else verdicts, encoding="utf-8")):
         if (r["ce_que_yahoo_declare"].startswith("aucune déclaration") and not r["facteur_a_defaire"]
                 and (r["valeur"], r["date"]) not in deja):
             ops.setdefault(r["valeur"], []).append((r["date"], None, "ajustement caché de Yahoo, facteur non documenté",
@@ -131,6 +164,47 @@ def operations(evenements, a_defaire, detachements, bnains, divisions=None):
         for x, *_ in liste:
             avis.setdefault((v, x), "absente de la table de bnains")
     return {v: sorted(liste, key=lambda o: (o[0], o[2])) for v, liste in ops.items()}, avis
+
+
+def preuve(o):
+    """Dit d'où vient le rapport d'une opération de la liste unique, et qui l'applique.
+
+    ① RÔLE — La règle de fond du superviseur R-759 du 31-10-2026 (19h30), écrite une fois, là où la liste lit chaque
+      fichier : une opération est PORTÉE si son rapport vient d'un document officiel ; elle ARRÊTE le comblement si son
+      rapport est inconnu ou si bnains est sa seule source.
+    ② CONTEXTE D'APPEL — REPARER_L_HISTORIQUE_LONG, `operations_a_porter`, pour chaque opération de l'intervalle d'un
+      début de série ; les épreuves.
+    ③ ENTRÉE — `o` : une opération de `operations`, (date, facteur, nature, source).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : RAPPORT_INCONNU si le facteur est None ; sinon, selon la source, APPLIQUEE_PAR_YAHOO
+      (`K.EVENEMENTS`, les divisions que `K.divisions` applique déjà à chaque barre de Paris), DOCUMENT (`K.OFFICIELS`,
+      `OFFICIELLES`), BNAINS_SEULE (`K.DROITS`, `DIVISIONS`), et SOURCE_NON_DECLAREE pour toute autre source
+      (`K.VERDICTS_YAHOO` compris : un ajustement caché a toujours un facteur None).
+      [rend: 1]
+    ⑥ TRAITEMENT — ⑤ ; les noms des sources sont lus À L'APPEL, jamais figés au chargement.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 31-10-2026, défauts 3 et 5 : la garde des opérations connues arrêtait toute
+      opération, sauf les divisions de Yahoo reconnues à un chemin écrit en dur ; la décision de Jean-Luc du 31-10-2026
+      à 19h23 (STMICROELECTRONICS dès le 03-01-2000) demande au contraire de PORTER la division par 3 du 09-05-2000,
+      prouvée par le 6-K de 2000. Lus à l'appel : une épreuve qui renomme evenements.json et `K.EVENEMENTS` ensemble ne
+      change pas la réponse (critère du renommage).
+    ⑨ CE QUI CLOCHE — La preuve est celle de la SOURCE de la ligne, pas celle du document : une ligne fausse écrite dans
+      DIVISIONS_OFFICIELLES ou DETACHEMENTS_OFFICIELS est crue (la confrontation aux documents gardés relève de
+      programmes/CONFRONTER_LES_CHIFFRES_AUX_DOCUMENTS.py, qui ne lit pas encore DIVISIONS_OFFICIELLES → BACKLOG). · Un
+      complément ajouté par `confronter` (source `DIVISIONS`) est BNAINS_SEULE : il arrête, même quand l'opération qu'il
+      complète est documentée.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    if o[1] is None:
+        return RAPPORT_INCONNU
+    return {K.EVENEMENTS: APPLIQUEE_PAR_YAHOO, K.OFFICIELS: DOCUMENT, OFFICIELLES: DOCUMENT,
+            K.DROITS: BNAINS_SEULE, DIVISIONS: BNAINS_SEULE}.get(o[3], SOURCE_NON_DECLAREE)
+
+
+# La lecture de DIVISIONS_OFFICIELLES vit dans le contrôle, qui la relit pour K15 : une seule lecture (R-708).
+lire_divisions_officielles = K.lire_divisions_officielles
 
 
 def diviseur_exact(r):
@@ -300,7 +374,7 @@ def bruts(bnains, maitre, sources_maitre):
                 continue
             if src in ("euronext", "abc"):
                 sortie.setdefault(v, {})[d] = (x[3], f"maître, {src}")
-            elif src == "google":
+            elif src == SOURCE_GOOGLE:
                 google.setdefault(v, {})[d] = x[3]
     return sortie, google
 
@@ -497,6 +571,72 @@ def expliquer(v, d, fichier, brut, ops):
     return "\n".join(t)
 
 
+def lire_les_entrees():
+    """Lit ce que la reconstruction lit ; rend un dictionnaire.
+
+    ① RÔLE — La lecture des entrées de la reconstruction, une fois, pour `main` et pour tout programme qui a besoin des
+      facteurs des opérations (programmes/ASSEMBLER_LES_VINGT_ANS.py).
+    ② CONTEXTE D'APPEL — `main` ; ASSEMBLER_LES_VINGT_ANS.operations.
+    ③ ENTRÉE — Le dossier courant est la racine du dépôt (chemins relatifs de K et de ce module).
+    ④ CONDITIONS D'ENTRÉE — Celles du ④ du programme.
+    ⑤ SORTIE — UNE valeur : {« fichier », « defauts_fichier », « bnains » (barres fausses ôtées), « defauts_bnains »,
+      « maitre », « sources_maitre », « a_defaire », « evenements », « detachements »}.
+      [rend: 1]
+    ⑥ TRAITEMENT — Les lectures que `main` faisait elle-même jusqu'au 12-11-2026, dans le même ordre.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 de E2b, tour 1 (12-11-2026) : l'enchaînement de `main` existait en trois exemplaires
+      (ce `main`, etudes/VINGT_ANS_A_PART_Mer_11-11-2026/INVENTORIER_LES_VINGT_ANS.py, ASSEMBLER) ; deux implémentations
+      d'une même chose divergent toujours (R-708).
+    ⑨ CE QUI CLOCHE — INVENTORIER_LES_VINGT_ANS garde sa propre copie (elle n'appelle pas les divisions officielles) :
+      non rebranché ici (→ BACKLOG).
+    ⑩ EFFET — Lit des fichiers.
+    ⑪ TERMINAISON — Rend la main ou lève OSError / ValueError. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    fichier, defauts, _ = K.lire_cours(K.FICHIER)
+    bnains, defauts_b, _ = K.lire_cours(K.BNAINS, COURS_BNAINS)
+    K.oter_les_barres_fausses(K.FAUSSES, bnains)
+    maitre, _, _ = K.lire_cours(MAITRE, K.CHAMPS)
+    with open(MAITRE, encoding="utf-8") as f:
+        sources_maitre = {(r["valeur"], r["date"]): r["source"] for r in csv.DictReader(f)}
+    a_defaire = K.lire_a_defaire(K.VERDICTS_YAHOO)
+    with open(K.EVENEMENTS, encoding="utf-8") as f:
+        evenements = json.load(f)
+    detachements, _ = K.lire_detachements(K.DROITS, K.OFFICIELS)
+    return {"fichier": fichier, "defauts_fichier": defauts, "bnains": bnains, "defauts_bnains": defauts_b,
+            "maitre": maitre, "sources_maitre": sources_maitre, "a_defaire": a_defaire, "evenements": evenements,
+            "detachements": detachements}
+
+
+def operations_completes(e):
+    """Rend les opérations sur titre de chaque valeur, facteurs déduits compris, et ce qui sert à les obtenir.
+
+    ① RÔLE — La seule fabrique de la liste des opérations et de leurs facteurs (R-708).
+    ② CONTEXTE D'APPEL — `main` ; ASSEMBLER_LES_VINGT_ANS.operations.
+    ③ ENTRÉE — `e` : rendu par `lire_les_entrees`.
+    ④ CONDITIONS D'ENTRÉE — Le dossier courant est la racine.
+    ⑤ SORTIE — UNE valeur : {« brut », « google » (`bruts`), « divisions » (table de bnains, vide si absente),
+      « officielles » (vide si absente), « ops » (`operations` puis `deduire`), « avis »}.
+      [rend: 1]
+    ⑥ TRAITEMENT — `bruts`, `lire_divisions`, `lire_divisions_officielles`, `operations`, `deduire`, dans l'ordre de
+      `main` jusqu'au 12-11-2026.
+    ⑦ UNITÉ — Des rapports sans unité pour les facteurs.
+    ⑧ POURQUOI — Voir `lire_les_entrees`.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Lit deux tables de divisions.
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    brut, google = bruts(e["bnains"], e["maitre"], e["sources_maitre"])
+    divisions = lire_divisions(DIVISIONS)
+    # la même liste que la réparation (R-708) : les divisions prouvées par un document entrent aussi (31-10-2026)
+    officielles = lire_divisions_officielles(OFFICIELLES) if os.path.exists(OFFICIELLES) else []
+    ops, avis = operations(e["evenements"], e["a_defaire"], e["detachements"], e["bnains"], divisions,
+                           officielles=officielles)
+    return {"brut": brut, "google": google, "divisions": divisions, "officielles": officielles,
+            "ops": deduire(e["fichier"], brut, ops), "avis": avis}
+
+
 def main(argv):
     """Lit, reconstruit, écrit, résume ; rend le code de sortie.
 
@@ -519,27 +659,19 @@ def main(argv):
         return 2
     os.chdir(argv[0])
     try:
-        fichier, _, _ = K.lire_cours(K.FICHIER)
-        bnains, defauts_b, _ = K.lire_cours(K.BNAINS, COURS_BNAINS)
-        K.oter_les_barres_fausses(K.FAUSSES, bnains)
-        maitre, _, _ = K.lire_cours(MAITRE, K.CHAMPS)
-        sources_maitre = {(r["valeur"], r["date"]): r["source"]
-                          for r in csv.DictReader(open(MAITRE, encoding="utf-8"))}
-        a_defaire = K.lire_a_defaire(K.VERDICTS_YAHOO)
-        evenements = json.load(open(K.EVENEMENTS, encoding="utf-8"))
-        detachements, _ = K.lire_detachements(K.DROITS, K.OFFICIELS)
-    except (OSError, ValueError) as e:
-        print(f"ARRÊT — la reconstruction n'a pas pu tourner : {type(e).__name__} : {e}")
+        e = lire_les_entrees()
+    except (OSError, ValueError) as x:
+        print(f"ARRÊT — la reconstruction n'a pas pu tourner : {type(x).__name__} : {x}")
         return 2
-    if not fichier or not bnains or defauts_b:
+    if not e["fichier"] or not e["bnains"] or e["defauts_bnains"]:
         print("ARRÊT — le fichier réparé ou l'extrait bnains est vide ou illisible")
         return 2
-    brut, google = bruts(bnains, maitre, sources_maitre)
-    divisions = lire_divisions(DIVISIONS)
-    if not divisions:
+    o = operations_completes(e)
+    if not o["divisions"]:
         print(f"ATTENTION — {DIVISIONS} absent ou vide : pas de confrontation à la table des divisions de bnains")
-    ops, avis = operations(evenements, a_defaire, detachements, bnains, divisions)
-    ops = deduire(fichier, brut, ops)
+    if not o["officielles"]:
+        print(f"ATTENTION — {OFFICIELLES} absent ou vide : aucune division prouvée par un document officiel")
+    fichier, brut, google, ops, avis = e["fichier"], o["brut"], o["google"], o["ops"], o["avis"]
     if "--ligne" in argv:
         i = argv.index("--ligne")
         print(expliquer(argv[i + 1], argv[i + 2], fichier, brut, ops))

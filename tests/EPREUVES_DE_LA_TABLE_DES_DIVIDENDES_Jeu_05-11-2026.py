@@ -657,7 +657,7 @@ def cas_e8(racine, m, m2, entete, lignes, tmp):
       lancer `maillons_manquants` du contrôle K23.
     ⑦ UNITÉ — —.
     ⑧ POURQUOI — Une liste `lu` tenue à côté du code peut mentir : seule la mesure le dit.
-    ⑨ CE QUI CLOCHE — Un fichier ouvert autrement que par `open` (os.open, mmap) échapperait à l'espion.
+    ⑨ CE QUI CLOCHE — Un fichier ouvert autrement que par `open` ou `io.open` (os.open, mmap) échapperait à l'espion.
     ⑩ EFFET — —.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
@@ -701,11 +701,14 @@ def cas_e8(racine, m, m2, entete, lignes, tmp):
             if p.startswith(base + os.sep):
                 ouverts.add(os.path.relpath(p, base).replace(os.sep, "/"))
         return vrai_open(f, *a, **k)
-    builtins.open = espion
+    # `io.open` aussi : `zipfile` ouvre ses archives par lui, pas par `builtins.open` (fusion E2c du 13-11-2026 :
+    # l'archive bnains d'une rectification échappait à l'espion)
+    vrai_io_open = io.open
+    builtins.open = io.open = espion
     try:
         m.fabriquer(racine, releve)
     finally:
-        builtins.open = vrai_open
+        builtins.open, io.open = vrai_open, vrai_io_open
     declares = m.fichiers_lus(racine, releve)
     ouverts.discard(m.YP.CARNET.replace(os.sep, "/"))  # le carnet contrôle les sources, il n'en est pas une (⑥ de fichiers_lus)
     if sorted(ouverts) != declares:

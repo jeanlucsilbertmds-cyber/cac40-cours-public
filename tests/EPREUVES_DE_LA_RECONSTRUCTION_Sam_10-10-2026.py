@@ -86,8 +86,14 @@ PAGES = os.path.join(RACINE, "temoins", "PAGES_BNAINS_DES_ACTIONS")
 # Mesuré le 27-10-2026 sur une copie du dépôt : 180 lignes et 178 reconstruites de plus, 2 au facteur appliqué de plus ;
 # la table des écarts gagne deux lignes (Air Liquide les 24 et 31-12-2010), celle des opérations ne change que dans ses
 # colonnes de lignes avant et après l'opération ; les deux tables refaites par le programme.
-RESUME = ("lignes : 245174 · confirmée par Google : 25955 · ligne isolée : 781 · reconstruite : 145054 · "
-          "reconstruite au facteur appliqué : 5763 · sans cours brut : 67621")
+# MIS À JOUR LE 13-11-2026. Le comblement E2c du fichier des 20 ans a changé le fichier réparé ; R6 rougissait depuis.
+# Décision de Jean-Luc du 13-11-2026 à 22h55 (« c'est complètement débile de faire un contrôle sur un fichier […] dont
+# l'état a bougé […] C'est toujours le même principe ») : résumé et deux tables refaits par
+# etudes/VINGT_ANS_A_PART_Mer_11-11-2026/outils_E2c_Q2/REFAIRE_LE_RESUME_DE_R6.py (R.main sur une copie du dépôt),
+# fichier réparé SHA-256 f3985712f24131876baaba9be0a02a423faffbae72471a46cccc73eb12bf796f. Avant : lignes 245174,
+# isolée 781, reconstruite 145054, au facteur appliqué 5763, sans cours brut 67621.
+RESUME = ("lignes : 249946 · confirmée par Google : 25955 · ligne isolée : 784 · reconstruite : 148251 · "
+          "reconstruite au facteur appliqué : 5764 · sans cours brut : 69192")
 
 SABOTAGES = {
     "S1": (RECONSTRUCTION, "MEME_FACTEUR = 1e-3 ", "MEME_FACTEUR = 1.0 "),

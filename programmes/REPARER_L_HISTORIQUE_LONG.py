@@ -21,7 +21,8 @@ Simulation uniquement.
 ② CONTEXTE D'APPEL — À la main, après programmes/LIRE_LES_ARCHIVES_BNAINS.py :
   python3 programmes/REPARER_L_HISTORIQUE_LONG.py <racine>. Puis
   programmes/CONTROLER_L_HISTORIQUE_LONG.py juge le résultat. Aucun circuit ne le lance. Ses
-  épreuves : tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py.
+  épreuves : tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py, et, pour `combler_les_debuts`,
+  tests/EPREUVES_DES_DEBUTS_DE_SERIE_Sam_31-10-2026.py.
 ③ ENTRÉE — Un argument : la racine du dépôt.
 ④ CONDITIONS D'ENTRÉE — Sous la racine : donnees/sources_yahoo/yahoo_ohlcv_propre.csv (le fichier
   déposé par Cowork le 04-10-2026), donnees/sources_yahoo/evenements.json (les divisions vues par
@@ -30,12 +31,17 @@ Simulation uniquement.
   les chiffres des droits) et BARRES_BNAINS_FAUSSES.csv (les barres bnains prouvées fausses) ;
   donnees/sources_francfort/COURS_DE_FRANCFORT.csv (la troisième source) ;
   donnees/sources_indice/INDICE_CAC40.csv (l'indice CAC 40 à deux sources, qui départage une séance) ;
-  donnees/sources_yahoo/AJUSTEMENTS_DE_YAHOO.csv (les ajustements de Yahoo jugés, dont ceux à défaire).
+  donnees/sources_yahoo/AJUSTEMENTS_DE_YAHOO.csv (les ajustements de Yahoo jugés, dont ceux à défaire) ;
+  depuis le 31-10-2026, donnees/sources_bnains/DIVISIONS_BNAINS.csv (les divisions que bnains déclare), pour
+  la garde des opérations connues de `combler_les_debuts` : absent, la réparation s'arrête (code 2) ; et
+  donnees/sources_officielles/DIVISIONS_OFFICIELLES.csv (les divisions prouvées par un document, écrites à la main),
+  pour la même garde : absent ou illisible, code 2.
 ⑤ SORTIE — UNE valeur : le code de sortie. 0 = les deux fichiers écrits · 1 = un geste n'a pas pu
   se faire sur une base sûre (période de référence trop instable, témoin qui ne ressemble pas) :
   RIEN n'est écrit, la raison est affichée · 2 = rien n'a pu être fait (fichier absent ou
   illisible, ou toute erreur imprévue).
-⑥ TRAITEMENT — ① lire les neuf fichiers, et ôter de l'extrait bnains les barres prouvées fausses
+⑥ TRAITEMENT — ① lire les neuf fichiers et la table des divisions de bnains, et ôter de l'extrait
+  bnains les barres prouvées fausses
   (`K.oter_les_barres_fausses`) ; ôter des divisions de Yahoo celles qu'il déclare à tort
   (`K.sans_les_divisions_fausses`) · ①bis `defaire` les ajustements de Yahoo jugés faux et dont la
   correction est décidée (`K.lire_a_defaire`) · ② calculer le calendrier et les jours douteux avec les
@@ -47,8 +53,9 @@ Simulation uniquement.
   Saint-Gobain 2009, BNP Paribas 2009) · ④quater `corriger` : les séances où l'indice donne tort à
   Yahoo, remplacer chaque ligne de Yahoo qui s'écarte de Paris · ④quinquies `trancher` : remplacer les
   clôtures de Yahoo que bnains et Francfort démentent ensemble · ⑤ `combler` les séances manquantes,
-  les séances où l'indice a donné tort à Yahoo n'étant plus douteuses pour bnains · ⑥ écrire le
-  fichier réparé et le journal, puis le résumé.
+  les séances où l'indice a donné tort à Yahoo n'étant plus douteuses pour bnains · ⑤bis
+  `combler_les_debuts` : les débuts de série de `DEBUTS_A_COMBLER` (décision de Jean-Luc du 29-10-2026,
+  A-577 ④ ; depuis le 31-10-2026) · ⑥ écrire le fichier réparé et le journal, puis le résumé.
 ⑦ UNITÉ — Des COURS en EUROS ajustés comme Yahoo les ajuste, des VOLUMES en NOMBRE DE TITRES
   ajustés de même, des DATES de séance.
 ⑧ POURQUOI — Les défauts et leurs remèdes ont été trouvés par Cowork le 04-10-2026 (relevé dans
@@ -82,8 +89,10 @@ Simulation uniquement.
   « bnains » de la colonne source sont écrits ici en clair, quand le contrat les déclare
   (SOURCE_YAHOO, SOURCE_PARIS) : une divergence ferait refuser chaque ligne par K23, bruyamment.
 ⑩ EFFET — Écrit donnees/sources_yahoo/historique_long_repare.csv et
-  donnees/sources_yahoo/journal_des_reparations.csv, en les remplaçant. Ne touche à aucun autre
-  fichier — ni au fichier Yahoo déposé, ni au fichier maître des cours.
+  donnees/sources_yahoo/journal_des_reparations.csv, en les remplaçant, puis réécrit le registre de
+  provenance donnees/PROVENANCE_DES_FICHIERS.csv (`K.PROVENANCE`) : les deux lignes de ces fichiers y
+  reçoivent leur empreinte, le jour et la colonne `lu` (`inscrire_au_registre`). Ne touche à aucun
+  autre fichier — ni au fichier Yahoo déposé, ni au fichier maître des cours.
 ⑪ TERMINAISON — Toujours : chaque geste parcourt un nombre fini de lignes. Aucun de mes appels ne
   peut boucler.
 """
@@ -91,16 +100,33 @@ import bisect, csv, json, os, statistics, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import CONTROLER_L_HISTORIQUE_LONG as K          # les définitions partagées avec le contrôle (R-708)
+import RECONSTRUIRE_L_HISTORIQUE_LONG as RC      # la liste UNIQUE des opérations sur le capital, `RC.operations`
+                                                 # (R-708), pour la garde P2 de `combler_les_debuts`
 from CONTRATS_DES_FICHIERS import COURS_MAITRE, COURS_BNAINS, JOURNAL_DES_REPARATIONS, GESTES_DU_JOURNAL
 
 ENTREE = K.ORIGINE        # le fichier Yahoo avant réparation, nommé une fois (R-708), dans le contrôle qui le relit (K18)
 SORTIE = os.path.join("donnees", "sources_yahoo", "historique_long_repare.csv")
 JOURNAL = K.JOURNAL      # nommé une fois, dans le contrôle qui le relit (K20, R-708)
+# LES BARRES DE YAHOO DÉGRADÉES, écartées puis remplacées par `combler` (décision de Jean-Luc du 31-10-2026 à 21h04,
+# annexe n°47) : la table est écrite à la main, une ligne par barre, avec la mesure qui la condamne (contrat
+# BARRES_YAHOO_DEGRADEES).
+DEGRADEES = os.path.join("donnees", "sources_yahoo", "BARRES_YAHOO_DEGRADEES.csv")
 # CE QUE LA RÉPARATION LIT, pour la colonne `lu` de ses deux lignes au registre de provenance : les chemins sont ceux
 # que le contrôle et le calendrier nomment déjà (R-708), jamais réécrits ici. Le calendrier d'Euronext et l'indice y
 # entrent depuis le 27-10-2026 : `combler` et `reconstruire` lisent le calendrier officiel (A-555 (b)).
 LU = (K.ORIGINE, K.BNAINS, K.FAUSSES, K.DROITS, K.OFFICIELS, K.FRANCFORT, K.INDICE, K.EVENEMENTS, K.VERDICTS_YAHOO,
-      K.CAL.FICHIER, K.CAL.INDICE)
+      K.CAL.FICHIER, K.CAL.INDICE, RC.OFFICIELLES, DEGRADEES, RC.DIVISIONS,
+      K.RECTIFIEES)   # les barres de Paris rectifiées sur décision (D6 et D7, 04-11-2026 ; D8/D9 archivés le 13-11-2026,
+                      # remplacés par la règle par journée `K.journees_d_un_autre_jour`), lues par `K.lire_paris`
+# Et les fichiers bruts d'ABC (`K.lire_abc`), que `inscrire_au_registre` ajoute un par un à la colonne `lu` : leur liste
+# se lit dans le dossier, elle ne s'épelle pas ici. Les DOSSIERS dont la réparation lit chaque fichier :
+DOSSIERS_LUS = (K.ABC, K.ARCHIVES)   # les archives brutes de bnains depuis le 04-11-2026 : la rectification « ligne d'un
+                                    # autre code dans l'archive du jour » en lit (`K.archives_des_rectifications`)
+# La table des divisions de bnains (RC.DIVISIONS), qui sert à la garde P2 de `combler_les_debuts`, est dans LU depuis la
+# décision de Jean-Luc du 31-10-2026 à 22h30 (« 1 ») : elle est inscrite au registre de provenance avec sa chaîne (le
+# programme etudes/outils/RELEVER_LES_DIVISIONS_BNAINS.py et les pages de bnains qu'il garde), et l'exception
+# LU_HORS_REGISTRE, qui la lisait hors du registre, a disparu. Une ligne retirée de la table change son empreinte : K23
+# rougit (épreuve A14 de tests/EPREUVES_DU_COMBLEMENT_DES_20_ANS_Sam_31-10-2026.py).
 CHAMPS_JOURNAL = JOURNAL_DES_REPARATIONS   # l'en-tête du journal, déclaré une fois au contrat (R-708, superviseur du 18-10-2026)
 # Les fenêtres à reconstruire depuis bnains (A-539, action ②) : valeur, début, fin, puis la PÉRIODE
 # DE RÉFÉRENCE où Yahoo et bnains s'accordent et sur laquelle le facteur est mesuré.
@@ -133,6 +159,90 @@ BARRES_YAHOO_ECARTEES = (
      "l'OUVERTURE de Paris ce jour-là, quand la clôture de Paris vaut 171,80 € (+1,4 %) ; Francfort muet ; "
      "veille de l'attribution d'actions gratuites du 16-01-2007, où l'écart faisait refuser K15"),
 )
+# Les DÉBUTS DE SÉRIE COMBLÉS DEPUIS PARIS SUR DÉCISION DE JEAN-LUC : valeur, première séance à combler, raison. Chaque
+# séance du calendrier officiel de cette date à la veille de la première ligne de Yahoo est comblée depuis la barre de
+# Paris (bnains), comme une séance manquante (`combler_les_debuts`). Rien n'est comblé avant une première ligne sans
+# une décision écrite ici avec ses mots, sa date et la mesure qui l'a motivée.
+DECISION_DES_DEBUTS = ("décision de Jean-Luc du 29-10-2026 à 11h58, A-577 ④ (« 2, après ca tout est terminé au "
+                       "millimètre ? » à « 2. Les combler depuis les archives de Paris, avec le même travail de "
+                       "réparation »), point 1 de A-633")
+DEBUTS_A_COMBLER = (
+    ("AIRBUS", "2000-07-10", DECISION_DES_DEBUTS + " ; 292 séances dans l'indice sans cours, du 10-07-2000 au "
+     "31-08-2001"),
+    ("THALES", "2000-01-03", DECISION_DES_DEBUTS + " ; 1 séance dans l'indice sans cours, le 03-01-2000"),
+    ("STMICROELECTRONICS", "2000-01-03", DECISION_DES_DEBUTS + " ; et décision de Jean-Luc du 31-10-2026 à 19h23 "
+     "(« 1 », annexe n°39) : les 88 séances du 03-01 au 08-05-2000 aussi, la division par 3 du 09-05-2000 PORTÉE par "
+     "la liste unique (DIVISIONS_OFFICIELLES.csv, 6-K de 2000 : « Shares were traded with the new stock price as of "
+     "the opening of trading on May 9, 2000 ») ; les vrais cours restent dans l'extrait bnains (R-108 ①)"),
+)
+# LES SÉRIES COMBLÉES EN CHAÎNE (`combler_par_raccords`) : valeur ; les maillons, du plus proche de Yahoo au plus
+# ancien, chacun (source, première séance du maillon, (premier jour, dernier jour) de son raccord) — le raccord est la
+# fenêtre où ce maillon et le précédent (Yahoo pour le premier) ont tous deux chaque séance, le facteur y est mesuré ;
+# les événements à SIGNALER sans ajustement (date, texte) ; la raison. Rien n'est comblé ainsi sans une décision écrite
+# ici avec ses mots et sa date.
+DECISION_D_UNIBAIL = ("décisions de Jean-Luc du 31-10-2026 : à 20h11 (« 1 », annexe n°37ter) « les 1 567 séances "
+                      "d'Unibail-Rodamco-Westfield du 01-03-2017 au 13-04-2023 sont COMPLÉTÉES avec les cours de Paris "
+                      "téléchargés chez ABC Bourse », source « abc » ; à 21h04 (« Le 1, bien sûr », annexe n°47) « tout "
+                      "ce dont le cours de Paris est DÉJÀ dans nos fichiers est complété », Unibail 2007-2017 depuis "
+                      "bnains par la chaîne bnains → ABC → Yahoo, après la relecture de l'inventaire (31-10-2026, 21h18)")
+SERIES_EN_CHAINE = (
+    ("UNIBAIL-RODAMCO-WESTFIELD",
+     (("abc", "2017-03-01", ("2023-04-18", "2023-06-30")),
+      ("bnains", "2007-06-18", ("2017-01-02", "2017-02-28"))),
+     (("2010-10-07", "distribution de 20 € par action prélevée sur la prime d'apport, détachée le 07-10-2010 "
+                     "(communiqué d'Unibail-Rodamco du 08-09-2010, DILA FCCNS030041) : distribution en espèces, "
+                     "AUCUN ajustement (R-108 ②) — la clôture de Paris passe de 163,50 € à 145,85 € (−10,8 %) quand le "
+                     "CAC 40 fait +0,15 % ; à confirmer par Jean-Luc : une prime d'apport se traite-t-elle comme un "
+                     "dividende ?"),),
+     DECISION_D_UNIBAIL),
+)
+MIN_RACCORD = 2 * K.VOISINS   # séances au moins dans un raccord : le minimum que `K.facteur_local` exige déjà pour
+                              # poser UNE séance (5 voisines de chaque côté) ; choisi par le Chat le 31-10-2026 → Jean-Luc
+# LES SÉANCES DÉCIDÉES UNE PAR UNE (`combler_les_seances`) : valeur, séance, raison. Le facteur se mesure sur les
+# `MIN_REFERENCE` séances communes les plus proches, la moitié de chaque côté.
+SEANCES_A_COMBLER = (
+    ("MICHELIN", "2000-07-24",
+     "décision de Jean-Luc du 31-10-2026 à 21h04 (« Le 1, bien sûr », annexe n°47) ; comblement refusé à tort par "
+     "`combler` (« le facteur change à côté ») : la barre de Yahoo du jour est incohérente (ouverture 8,841 sous le "
+     "plus bas 8,8435) et quelques clôtures voisines de Yahoo s'écartent de Paris de 0,2 à 2,1 % (17 au 21-07, 28-07, "
+     "01-08-2000), alors que le rapport vaut 0,24156 avant et après (inventaire du 31-10-2026 et sa relecture, sorties "
+     "S6 et T3, etudes/JOURNEE_31-10-2026/inventaire_trous/)"),
+)
+# LES SÉANCES DÉCIDÉES SANS ABC (`combler_les_seances_decidees`, 04-11-2026) : valeur, séance, raison. Choix D6 à D9 faits
+# par le Chat le 01-11-2026 à 16h51 sous la délégation de Jean-Luc de 16h39 (n°129), d'après le rapport des 48 séances
+# « source perdue » (trous_40, corrigé et relu le 04-11-2026). La barre de Paris de chaque séance est celle de `K.lire_paris`,
+# rectifiée s'il le faut (donnees/sources_bnains/BARRES_DE_PARIS_RECTIFIEES.csv). Une séance déjà posée par un autre
+# geste (la barre rectifiée l'a rendue utilisable) est laissée telle quelle et dite.
+D6 = ("choix D6 du 01-11-2026 à 16h51 (délégation de Jean-Luc, n°129) : « prendre la barre de bnains en ramenant le plus "
+      "bas/haut à l'ouverture ou à la clôture » ; clôture appuyée, plus bas ou plus haut NON SÛR (Yahoo dément la règle "
+      "sur une partie des barres, trous_40, bloc résumé)")
+D7 = ("choix D7 du 01-11-2026 à 16h51 (délégation de Jean-Luc, n°129) : « prendre la barre de bnains telle quelle »")
+D7_OPR = (D7 + " ; ligne « BOUYGUES OPR » (FR0011121888) tenue pour la même action, DÉDUIT de la continuité du cours et du "
+          "calendrier de l'offre, sans avis d'Euronext")
+D8 = ("choix D8 du 01-11-2026 à 16h51 (délégation de Jean-Luc, n°129) : « prendre la barre de l'AUTRE jour chez bnains » "
+      "(fichiers bnains des 19 et 20-06-2001 échangés, trous_40 § 4.3)")
+D9 = ("choix D9 du 01-11-2026 à 16h51 (délégation de Jean-Luc, n°129) : « corriger les 4 lignes » qui portaient la barre de "
+      "l'autre jour (fichiers bnains des 19 et 20-06-2001 échangés, trous_40 § 4.3)")
+SEANCES_DECIDEES_SANS_ABC = (
+    ("AIRBUS", "2001-06-19", D8),
+    ("AIRBUS", "2001-06-20", D9),
+    ("AXA", "2005-10-05", D6),
+    ("AXA", "2006-09-27", D7 + " (jour douteux de bnains en 2006-2007)"),
+    ("AXA", "2007-02-20", D7 + " (jour douteux de bnains en 2006-2007)"),
+    ("AXA", "2007-03-29", D7 + " (jour douteux de bnains en 2006-2007)"),
+    ("BOUYGUES", "2011-11-04", D7_OPR),
+    ("BOUYGUES", "2011-11-07", D7_OPR),
+    ("BOUYGUES", "2011-11-08", D7_OPR),
+    ("BOUYGUES", "2011-11-10", D7_OPR),
+    ("SAFRAN", "2015-12-31", D6 + " ; clôture officielle 63,370 € (Safran, Guide de l'actionnaire 2016)"),
+    ("STMICROELECTRONICS", "2001-06-19", D8),
+    ("STMICROELECTRONICS", "2001-06-20", D8),
+    ("UNIBAIL-RODAMCO-WESTFIELD", "2011-08-02", D6),
+    ("UNIBAIL-RODAMCO-WESTFIELD", "2012-06-11", D6),
+    ("UNIBAIL-RODAMCO-WESTFIELD", "2013-08-01", D6),
+    ("UNIBAIL-RODAMCO-WESTFIELD", "2016-06-22", D6),
+    ("UNIBAIL-RODAMCO-WESTFIELD", "2016-12-21", D6),
+)
 ALIGNEMENT = K.MARCHE_EXACTE   # un droit ajusté par Yahoo est ramené à la règle officielle quand les deux facteurs
                                # diffèrent de plus de ce seuil, celui que K22 tient (Crédit Agricole 2007 : 0,12 %)
 MIN_REFERENCE = 100   # au moins 100 séances communes dans une période de référence ou avec un témoin
@@ -144,7 +254,7 @@ def barre(b, f, k, s):
     """Rend une barre bnains ramenée à la convention de Yahoo.
 
     ① RÔLE — Un seul calcul pour la reconstruction et le comblement.
-    ② CONTEXTE D'APPEL — `reconstruire`, `combler`.
+    ② CONTEXTE D'APPEL — `reconstruire`, `combler`, `combler_les_debuts`.
     ③ ENTRÉE — `b` : (open, high, low, close, volume) bruts · `f` : facteur de prix · `k` : facteur
       de volume · `s` : divisions postérieures (`K.divisions`).
     ④ CONDITIONS D'ENTRÉE — `s` > 0.
@@ -152,6 +262,7 @@ def barre(b, f, k, s):
       décimales, volume × s × k arrondi à l'unité ; le facteur de prix appliqué, f / s ; le facteur de volume
       appliqué, s × k.
       [rend: 3]
+      [refus: non — rend une barre et ses deux facteurs]
     ⑥ TRAITEMENT — ⑤.
     ⑦ UNITÉ — EUROS et NOMBRE DE TITRES, convention de Yahoo ; facteurs sans unité.
     ⑧ POURQUOI — Le journal écrit les facteurs que la barre a APPLIQUÉS, rendus ici, jamais recalculés à côté (R-708,
@@ -180,6 +291,7 @@ def noter(journal, valeur, date, geste, avant, apres, facteur, raison, facteur_v
       réparation au lieu d'écrire une ligne que K23 refuserait.
     ⑤ SORTIE — Aucune valeur.
       [rend: rien]
+      [refus: non — ne rend rien]
     ⑥ TRAITEMENT — Ranger les valeurs par nom de colonne ; DÉDUIRE `depart` de GESTES_DU_JOURNAL ; ajouter la ligne
       dans l'ordre de JOURNAL_DES_REPARATIONS.
     ⑦ UNITÉ — —
@@ -210,6 +322,7 @@ def defaire(series, a_defaire, journal):
     ④ CONDITIONS D'ENTRÉE — Chaque facteur est positif (`K.lire_a_defaire` le garantit).
     ⑤ SORTIE — UNE valeur : le nombre de lignes touchées.
       [rend: 1]
+      [refus: non — rend un nombre, aucune liste]
     ⑥ TRAITEMENT — Pour chaque (valeur, date, facteur) : chaque ligne d'avant la date voit ses quatre prix
       multipliés par le facteur et son volume multiplié par 1 / facteur (`K.appliquer`), et le journal le dit
       (« défait »).
@@ -257,6 +370,7 @@ def reconstruire(series, sources, bnains, evenements, douteux, journal, detachem
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des raisons d'arrêt, vide si tout s'est fait.
       [rend: 1]
+      [refus: dernier]
     ⑥ TRAITEMENT — Pour chaque fenêtre : ① mesurer les facteurs sur la période de référence (dates
       communes, hors jours douteux) ; s'arrêter s'il y a moins de `MIN_REFERENCE` dates ou moins de
       `K.PART_PROPRE` d'accord · ② pour chaque date d de la fenêtre, le facteur est celui de la
@@ -343,6 +457,7 @@ def retirer(series, sources, bnains, evenements, journal):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des raisons d'arrêt, vide si tout s'est fait.
       [rend: 1]
+      [refus: dernier]
     ⑥ TRAITEMENT — ① prendre les lignes d'avant la première séance gardée ; s'il n'y en a aucune,
       rien à retirer, rien à prouver (relecture indépendante du 04-10-2026 : un fichier déjà
       nettoyé était refusé) · ② les confronter au
@@ -398,6 +513,7 @@ def recaler(series, sources, bnains, evenements, detachements, douteux, journal)
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le nombre de séances recalées.
       [rend: 1]
+      [refus: non — rend un nombre, aucune liste]
     ⑥ TRAITEMENT — Pour chaque jour de détachement d d'une valeur, sur ses séances comparables
       (`K.seances_comparables`) : ① prendre la séance d'ancrage a et la fenêtre, les `K.AUTOUR`
       séances qui précèdent d (`K.autour_du_detachement`) · ② calculer les rapports clôture /
@@ -463,6 +579,7 @@ def ajuster(series, bnains, evenements, detachements, douteux, journal):
     ⑤ SORTIE — DEUX valeurs : ① le nombre de droits ajustés · ② la liste des droits qu'aucune barre
       bnains ne permet de mesurer, chacun nommé (valeur et jour).
       [rend: 2]
+      [refus: non — droits sans barre bnains pour les mesurer : `reparer` les affiche, ils n'arrêtent pas l'écriture]
     ⑥ TRAITEMENT — Pour chaque détachement d d'une valeur, dans l'ordre des dates, sur ses séances
       comparables (`K.seances_comparables`) : ① mesurer la marche du rapport fichier ÷ bnains,
       divisions comprises, entre la médiane des `K.VOISINS` séances d'avant d et celle des
@@ -526,6 +643,7 @@ def aligner(series, bnains, evenements, detachements, douteux, journal):
     ⑤ SORTIE — DEUX valeurs : ① le nombre de droits alignés · ② la liste de tous les écarts mesurés, chacun
       (valeur, jour, marche du fichier, marche officielle), pour être montrés.
       [rend: 2]
+      [refus: non — la liste rendue en dernier porte tous les écarts mesurés, rendus pour être montrés]
     ⑥ TRAITEMENT — Pour chaque détachement d, mesuré comme dans `ajuster` (rapport fichier ÷ bnains, divisions
       comprises, médiane des `K.VOISINS` séances comparables d'avant d contre celle des `K.VOISINS` à partir de d) :
       la marche du fichier s ; la marche officielle m (`K.marche_permise`) ; si Yahoo a ajusté (|s| dépasse le
@@ -582,6 +700,7 @@ def corriger(series, sources, bnains, evenements, jours, douteux, detachements, 
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le nombre de lignes remplacées.
       [rend: 1]
+      [refus: non — rend un nombre, aucune liste]
     ⑥ TRAITEMENT — Pour chaque séance de `jours` et chaque valeur dont la ligne vient de Yahoo et dont la barre
       bnains est utilisable (`K.barre_utilisable`, sans la règle du jour douteux) : ① le facteur du jour
       (`K.facteur_du_jour`), mesuré sur des voisines prises hors des jours douteux ET hors de `jours` ·
@@ -641,6 +760,7 @@ def trancher(series, sources, bnains, francfort, evenements, douteux, detachemen
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le nombre de lignes remplacées.
       [rend: 1]
+      [refus: non — rend un nombre, aucune liste]
     ⑥ TRAITEMENT — Jusqu'à ce qu'un passage ne trouve plus rien : ① les cas « fausse » de
       `K.barres_dementies` · ② pour chacun dont la barre bnains est sûre (`K.barre_sure`), la barre
       bnains ramenée aux facteurs de prix et de volume que `K.barres_dementies` a mesurés sans la
@@ -697,6 +817,7 @@ def combler(series, sources, bnains, evenements, douteux, journal, detachements=
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le nombre de séances comblées.
       [rend: 1]
+      [refus: non — rend un nombre, aucune liste]
     ⑥ TRAITEMENT — Pour chaque séance manquante (`K.trous`, sur le calendrier OFFICIEL entre la première et
       la dernière date des séries, `K.calendrier`) :
       ① si la barre bnains n'est pas sûre (`K.barre_sure` : utilisable, ou d'un jour douteux mais
@@ -723,12 +844,7 @@ def combler(series, sources, bnains, evenements, douteux, journal, detachements=
             # 31-12-2015, barre bnains incohérente (clôture 63,37 sous le plus bas 63,39), ne se voyait que par K7.
             # La raison suit l'ordre de `K.barre_sure` : pas de barre ; barre inutilisable même hors des jours douteux ;
             # barre d'un jour douteux que Francfort ne confirme pas.
-            if d not in (bnains.get(valeur) or {}):
-                raison = "séance manquante chez Yahoo ; pas de barre chez bnains ce jour-là"
-            elif not K.barre_utilisable(bnains, valeur, d, frozenset()):
-                raison = "séance manquante chez Yahoo ; barre bnains inutilisable (incohérente, plate ou sans échange)"
-            else:
-                raison = "séance manquante chez Yahoo ; jour douteux, et Francfort ne confirme pas la barre bnains"
+            raison = "séance manquante chez Yahoo ; " + raison_du_manque(bnains, valeur, d)
             noter(journal, valeur, d, "non comblé", "", "", "", raison, "")
             continue
         f, k, accord, n = K.facteur_local(series, bnains, evenements, valeur, d, douteux, venues,
@@ -748,6 +864,619 @@ def combler(series, sources, bnains, evenements, douteux, journal, detachements=
     return comblees
 
 
+def raison_du_manque(bnains, valeur, d):
+    """Dit pourquoi la barre de Paris d'une séance ne peut pas la combler.
+
+    ① RÔLE — Une seule écriture de la raison d'une séance laissée manquante, pour `combler` et `combler_les_debuts`.
+    ② CONTEXTE D'APPEL — `combler` et `combler_les_debuts`, quand `K.barre_sure` refuse la barre.
+    ③ ENTRÉE — `bnains` : l'extrait, barres fausses ôtées · `valeur`, `d` : la séance.
+    ④ CONDITIONS D'ENTRÉE — `K.barre_sure` a refusé la barre de cette séance.
+    ⑤ SORTIE — UNE valeur : le texte de la raison, sans son début (« séance manquante chez Yahoo ; » ou autre).
+      [rend: 1]
+      [refus: non — rend le texte d'une raison, que ses appelants écrivent]
+    ⑥ TRAITEMENT — Dans l'ordre de `K.barre_sure` : pas de barre ; barre inutilisable même hors des jours douteux ;
+      sinon, barre d'un jour douteux que Francfort ne confirme pas.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Les deux gestes laissent des séances pour les mêmes raisons ; écrites à deux endroits, elles
+      divergeraient (R-708). Texte repris tel quel de `combler`, où il vivait jusqu'au 31-10-2026.
+    ⑨ CE QUI CLOCHE — Appelée sur une barre que `K.barre_sure` accepte, elle rendrait « jour douteux » à tort.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    if d not in (bnains.get(valeur) or {}):
+        return "pas de barre chez bnains ce jour-là"
+    if not K.barre_utilisable(bnains, valeur, d, frozenset()):
+        return "barre bnains inutilisable (incohérente, plate ou sans échange)"
+    return "jour douteux, et Francfort ne confirme pas la barre bnains"
+
+
+def combler_les_debuts(series, sources, bnains, evenements, douteux, journal, operations, francfort=None, seances=None):
+    """Comble depuis Paris le début de chaque série de `DEBUTS_A_COMBLER` ; rend (séances comblées, arrêts).
+
+    ① RÔLE — Point 1 de A-633 (décision de Jean-Luc du 29-10-2026 à 11h58, A-577 ④) : les séances d'avant la première
+      ligne de Yahoo, que bnains porte, deviennent des séances comblées, au journal sous le geste « comblé ».
+    ② CONTEXTE D'APPEL — `reparer`, une fois, juste après `combler` : les séances que ce geste laisse sont alors au
+      milieu de la série, et le contrôle les range en K7 ; `combler` ne les voit pas (`K.trous` ne regarde qu'entre la
+      première et la dernière ligne). L'épreuve tests/EPREUVES_DES_DEBUTS_DE_SERIE_Sam_31-10-2026.py l'appelle aussi,
+      sur des copies des vraies données.
+    ③ ENTRÉE — `series`, `sources` : modifiés EN PLACE · `bnains` : l'extrait, barres fausses ôtées · `evenements` :
+      les divisions gardées · `douteux` : les jours douteux, ceux que `combler` reçoit · `journal` : liste où ajouter ·
+      `operations` : la liste UNIQUE des opérations sur le capital que le dépôt connaît, valeur → liste de (date,
+      facteur, nature, source), le premier élément rendu par `RC.operations` (RECONSTRUIRE_L_HISTORIQUE_LONG) ;
+      OBLIGATOIRE, sans valeur par défaut : une liste oubliée rendrait la garde P2 inerte sans un mot (superviseur
+      R-759 du 31-10-2026, piège T2) · `francfort` : `K.lire_francfort`, ou None · `seances` : le calendrier
+      officiel, lu par `reparer`.
+    ④ CONDITIONS D'ENTRÉE — `operations` est calculée sur les mêmes `evenements`, `bnains` et détachements que le reste
+      de la réparation.
+    ⑤ SORTIE — DEUX valeurs : ① le nombre de séances comblées · ② la liste des raisons d'arrêt, une par valeur qui n'a
+      pas pu être comblée sûrement ; une valeur arrêtée n'a RIEN écrit, ni au fichier ni au journal.
+      [rend: 2]
+      [refus: dernier]
+    ⑥ TRAITEMENT — Pour chaque (valeur, première séance, raison) : ① les séances du calendrier officiel de la première
+      séance à la veille de la première ligne de la série ; aucune → rien à faire · ② la RÉFÉRENCE : les
+      `MIN_REFERENCE` premières séances de la série que bnains a aussi, hors jours douteux et hors lignes venues de
+      bnains selon `sources` À CE MOMENT (une ligne posée par une entrée précédente de la liste compte comme venue de
+      Paris) ; le facteur de prix et de volume et l'accord par `K.rapports` ; arrêt s'il y en a moins de
+      `MIN_REFERENCE` ou moins de `K.PART_PROPRE` d'accord · ③ P1, LA COUTURE : arrêt si la référence ne commence pas
+      à la couture, la première ligne de la série venue de Yahoo (`ref[0] != couture` : pas de barre sûre chez bnains
+      ce jour-là, ou jour douteux) ; puis le rapport de Yahoo à Paris à la couture (`K.rapports` sur cette seule séance) doit
+      valoir le facteur à `K.ECART` près, dans les deux sens, la tolérance de K15 ; sinon arrêt · ④ P2, LES OPÉRATIONS
+      CONNUES (`operations_a_porter`, par la preuve de `RC.preuve`) : pour chaque opération datée APRÈS la première
+      séance à combler et AU PLUS TARD la dernière séance de la référence, une division de Yahoo est laissée à
+      `K.divisions`, une opération de rapport pris d'un document officiel et datée au plus tard la couture est PORTÉE,
+      toute autre arrête · ⑤ chaque séance dont la barre est sûre (`K.barre_sure`) devient la barre de Paris au facteur
+      de la référence multiplié par celui des opérations portées datées après elle (`porte`), divisions de Yahoo
+      comprises (`barre`) ; les autres reçoivent « non comblé » avec leur raison (`raison_du_manque`) · ⑥ arrêt si deux
+      clôtures qui se suivent, dans les séances comblées et jusqu'à la première ligne de Yahoo, varient de plus de
+      `K.SAUT` · ⑦ sinon, écrire les lignes (source bnains) et le journal, et afficher une ligne « ④bis ».
+    ⑦ UNITÉ — Des LIGNES ; facteurs sans unité ; prix en EUROS et volumes en NOMBRE DE TITRES, convention de Yahoo.
+    ⑧ POURQUOI — Le facteur LOCAL de `combler` (5 voisins de chaque côté, à moins de `K.PORTEE` jours) ne s'applique
+      pas avant le début d'une série : il n'y a aucun voisin avant, et AIRBUS manque 292 séances, sur quatorze mois.
+      Le facteur est donc mesuré comme celui d'une fenêtre de `reconstruire` : sur une période de référence où les deux
+      sources s'accordent, puis reporté avec les divisions (`K.divisions`). Mesuré le 31-10-2026 sur la référence de
+      100 séances depuis la première ligne : AIRBUS et STMICROELECTRONICS (03-09-2001 → 29-01-2002) et THALES
+      (04-01-2000 → 05-06-2000), facteur de prix 1,0 et de volume 1,0, accord 99 à 100 % — le facteur des séances
+      d'AIRBUS déjà comblées. Une barre comblée est juste si deux faits tiennent (superviseur R-759 du 31-10-2026) :
+      le facteur est celui de la JONCTION, et aucune opération ne tombe entre la séance et la jonction hors des
+      divisions que `K.divisions` applique. P1 garde le premier : Yahoo ajuste TOUTES les séances d'avant une
+      opération, donc aussi la première de la référence ; si une opération tombe dans la référence et que la médiane
+      prend le régime d'après, la première séance de la référence s'écarte du facteur, que l'opération soit déclarée
+      ou non (défaut A de la
+      relecture du 31-10-2026 : un détachement fabriqué le 05-09-2001, Yahoo × 0,9 avant, passait l'ancienne garde
+      des détachements avec 290 séances au facteur 1,0 et une couture à −9,2 % quand Paris fait +0,9 %). Si
+      l'opération tombe tard dans la référence, la médiane prend le régime d'avant : le facteur est juste, et P1 se
+      tait à bon droit. P2 garde le second : dans une zone toute venue de Paris, le rapport au cours brut est constant
+      par construction, et ni K10 ni K15 ne voient une opération oubliée (défaut B : une division ÷ 1,1 laissait une
+      marche de −12,7 % que rien n'arrêtait). La liste est celle de la reconstruction, une seule (R-708) : divisions
+      de Yahoo, DETACHEMENTS_OFFICIELS et DROITS_BNAINS, DIVISIONS_BNAINS, DIVISIONS_OFFICIELLES, ajustements cachés
+      d'AJUSTEMENTS_DE_YAHOO. Une opération datée j touche les séances d'avant j. Depuis le 31-10-2026, une opération
+      prouvée par un document est PORTÉE au lieu d'arrêter (règle de fond du superviseur R-759 du 31-10-2026, 19h30 ;
+      décision de Jean-Luc de 19h23 : STMICROELECTRONICS dès le 03-01-2000, division par 3 du 09-05-2000 prouvée par
+      le 6-K de 2000), et la couture est exigée (défaut 1 du même superviseur). Mesuré le 31-10-2026 sur les vraies données : le rapport à la
+      première séance de la référence et le facteur valent 1,0 pour les trois valeurs, et aucune opération connue ne
+      tombe dans leurs intervalles ; pour les trois, cette première séance est la couture, la première ligne de Yahoo
+      (relecture du tour 2, 31-10-2026 : AIRBUS et STMICROELECTRONICS 03-09-2001, THALES 04-01-2000). La garde
+      des sauts reste le dernier filet : STMICROELECTRONICS demandée dès le 03-01-2000 ferait une fausse chute de
+      −68 % le 09-05-2000 si bnains ne déclarait pas sa division.
+    ⑨ CE QUI CLOCHE — NON ATTRAPABLE : une opération qu'AUCUNE source du dépôt ne déclare (ni Yahoo, ni un document,
+      ni bnains), tombée dans la zone à combler, et de moins de `K.SAUT` (25 %), passe sans un mot : la zone comblée et
+      Paris bougent ensemble par construction, Francfort donne lui aussi des cours bruts, et ni P1, ni P2, ni la garde
+      des sauts, ni K10, ni K15 ne la voient (cas fabriqué du 31-10-2026 : STMICROELECTRONICS ÷ 1,1 le 09-05-2000,
+      déclarée par personne, −12,7 %, 419 séances comblées). Piste THÉORIQUE, non éprouvée : l'indice (K19). · La
+      limite de `K.SAUT` (25 %) vaut pour CHAQUE marche, pas pour l'erreur : plusieurs opérations non déclarées,
+      chacune sous 25 %, passent toutes, et l'erreur cumulée des séances comblées n'est pas bornée (cas fabriqués de la
+      relecture du tour 2, 31-10-2026, déclarés par personne, aucun arrêt, 290 séances comblées : AIRBUS ÷ 1,2 les
+      02-10-2000 et 15-01-2001, erreur jusqu'à +44,0 % ; AIRBUS ÷ 1,2 les 02-10-2000, 15-01-2001 et 02-04-2001, erreur
+      jusqu'à +72,8 %, plus grand saut −17,5 %). · Jusqu'au 31-10-2026 (lot de comblement), P1 se mesurait à la
+      première séance de la référence et non à la couture : un ajustement de Yahoo non déclaré qui ne touchait que les
+      lignes d'avant la référence passait (cas C2 de la relecture du tour 2 : 290 séances fausses de +25,0 %) ; la
+      couture est désormais exigée (`ref[0] != couture` arrête). Une valeur dont la première ligne de Yahoo n'a pas de
+      barre sûre chez bnains ne peut donc plus être comblée par ce geste. · Une opération prouvée par un document est
+      crue : le texte de DIVISIONS_OFFICIELLES ou de DETACHEMENTS_OFFICIELS n'est pas confronté ici au document (⑨ de
+      `RC.preuve`). · P1 et l'accord ne jugent que le prix de clôture ; le facteur de volume n'est pas jugé
+      (`K.rapports`). · Une série sans séance commune avec bnains (UNIBAIL-RODAMCO-WESTFIELD : bnains finit le 28-02-2017, Yahoo
+      commence le 14-04-2023) ne se mesure pas : elle arrête, et elle n'est donc pas dans `DEBUTS_A_COMBLER`
+      (→ Jean-Luc).
+    ⑩ EFFET — Modifie `series`, `sources`, `journal`. Affiche une ligne « ④bis » par valeur comblée ou sans rien à
+      combler.
+    ⑪ TERMINAISON — Rend la main : chaque valeur parcourt un nombre fini de séances. Aucun de mes appels ne peut ne
+      pas revenir.
+      [sort: non]
+    """
+    comblees, refus = 0, []
+    cal = sorted(K.calendrier(series, seances))
+    for valeur, du, raison in DEBUTS_A_COMBLER:
+        y, b = series.get(valeur, {}), bnains.get(valeur, {})
+        if not y:
+            refus.append(f"{valeur} : aucune ligne dans le fichier, rien où mesurer le facteur")
+            continue
+        premier = min(y)
+        a_combler = [d for d in cal if du <= d < premier]
+        if not a_combler:
+            print(f"  ④bis {valeur} : aucune séance avant le {premier} à partir du {du}, rien à combler")
+            continue
+        ref = [d for d in sorted(y) if d in b and d not in douteux
+               and sources.get((valeur, d)) != "bnains"][:MIN_REFERENCE]
+        f, k, accord = K.rapports(y, b, evenements, valeur, ref)
+        if accord < K.PART_PROPRE or len(ref) < MIN_REFERENCE:
+            refus.append(f"{valeur} : début de série, référence trop courte ou instable ({len(ref)} séances communes "
+                         f"avec bnains, accord {accord:.0%})")
+            continue
+        # la couture : la première ligne VENUE DE YAHOO, qui peut suivre des lignes déjà posées depuis Paris par une
+        # entrée précédente de la liste (épreuve D15)
+        couture = min((d for d in y if sources.get((valeur, d)) != "bnains"), default=None)
+        if ref[0] != couture:
+            refus.append(f"{valeur} : début de série, la référence commence le {ref[0]} et non à la couture, la première "
+                         f"ligne de Yahoo du {couture} (pas de barre sûre chez bnains ce jour-là, ou jour douteux) : le "
+                         f"rapport à la couture ne se mesure pas")
+            continue
+        r0 = K.rapports(y, b, evenements, valeur, ref[:1])[0]
+        if abs(r0 / f - 1) > K.ECART:
+            refus.append(f"{valeur} : début de série, à la couture le {ref[0]} le rapport de Yahoo à Paris vaut {r0!r} "
+                         f"et le facteur de la référence {f!r} : un ajustement de Yahoo tombe dans la référence")
+            continue
+        portees, bloquantes = operations_a_porter(operations, valeur, du, couture, ref[-1])
+        if bloquantes:
+            refus.append(f"{valeur} : début de série, opération connue entre la séance et la fin de la référence "
+                         f"({du} → {ref[-1]}) qui ne peut pas être portée : {' ; '.join(bloquantes)}")
+            continue
+        nouvelles, lignes = {}, []
+        for d in a_combler:
+            sure = K.barre_sure(bnains, francfort or {}, valeur, d, douteux)
+            if not sure:
+                lignes.append((d, "non comblé", "", "", f"début de série absent chez Yahoo ; "
+                               + raison_du_manque(bnains, valeur, d), ""))
+                continue
+            a = porte(portees, d)
+            nouvelles[d], fp, fv = barre(b[d], f * a, k / a, K.divisions(evenements, valeur, d))
+            lignes.append((d, "comblé", nouvelles[d][3], fp,
+                           f"début de série absent chez Yahoo, comblé depuis Paris : {raison} ; facteur mesuré sur les "
+                           f"{len(ref)} premières séances communes, du {ref[0]} au {ref[-1]} (accord {accord:.1%})"
+                           + "".join(f" ; {o[2]} du {o[0]} portée ({o[3]}), × {o[1]!r}" for o in portees if d < o[0]),
+                           fv))
+        suite = [(d, nouvelles[d][3]) for d in sorted(nouvelles)] + [(premier, y[premier][3])]
+        sauts = [f"{p}→{q} {100 * (cq / cp - 1):+.1f} %" for (p, cp), (q, cq) in zip(suite, suite[1:])
+                 if abs(cq / cp - 1) > K.SAUT]
+        if sauts:
+            refus.append(f"{valeur} : début de série, saut de plus de {K.SAUT:.0%} dans les séances à combler ou à la "
+                         f"première ligne de Yahoo, qu'aucune division déclarée n'explique : {', '.join(sauts)}")
+            continue
+        for d, geste, apres, fp, texte_, fv in lignes:
+            noter(journal, valeur, d, geste, "", apres, fp, texte_, fv)
+        for d, x in nouvelles.items():
+            y[d] = x
+            sources[(valeur, d)] = "bnains"
+        comblees += len(nouvelles)
+        print(f"  ④bis {valeur} : {len(nouvelles)} séances comblées"
+              + (f" du {min(nouvelles)} au {max(nouvelles)}" if nouvelles else "")
+              + f", {len(a_combler) - len(nouvelles)} laissées ; facteur de prix {f!r}, de volume {k!r}, mesurés sur "
+              f"{len(ref)} séances, accord {accord:.1%}")
+    return comblees, refus
+
+
+def operations_a_porter(operations, valeur, du, premier, fin):
+    """Partage les opérations connues d'un intervalle en opérations à porter et en opérations qui arrêtent.
+
+    ① RÔLE — P2 de `combler_les_debuts`, par la PREUVE du rapport (`RC.preuve`) : la règle de fond du superviseur
+      R-759 du 31-10-2026, 19h30.
+    ② CONTEXTE D'APPEL — `combler_les_debuts`, une fois par valeur, après P1.
+    ③ ENTRÉE — `operations` : la liste unique (`RC.operations`, premier élément) · `valeur` · `du` : la première séance
+      à combler · `premier` : la première ligne de Yahoo (la couture) · `fin` : la dernière séance de la référence.
+    ④ CONDITIONS D'ENTRÉE — `du` < `premier` ≤ `fin`.
+    ⑤ SORTIE — DEUX valeurs : ① la liste des opérations à PORTER, celles de preuve `RC.DOCUMENT`, de facteur connu,
+      datées après `du` et au plus tard `premier` · ② la liste des textes des opérations qui ARRÊTENT : toute autre
+      opération datée après `du` et au plus tard `fin`, sauf celles de preuve `RC.APPLIQUEE_PAR_YAHOO`, que
+      `K.divisions` applique déjà ; une opération de preuve DOCUMENT datée après `premier` arrête aussi.
+      [rend: 2]
+      [refus: non — ses `bloquantes` entrent dans les refus de son appelant `combler_les_debuts` (sabotage G3)]
+    ⑥ TRAITEMENT — Pour chaque opération de la valeur dans (du, fin] : sa preuve ; Yahoo → rien ; document de facteur
+      connu au plus tard la couture → à porter ; sinon → arrêt, avec la preuve dans le texte.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une opération datée j change le rapport des séances d'avant j. Prouvée par un document, son rapport est
+      sûr (R-728 : un rapport vient d'un document ou d'une mesure, jamais de tête) : la courbe de calcul en est corrigée
+      (R-108 ②). Vue chez bnains seul, ou de rapport inconnu, elle ne se porte pas : bnains s'est déjà trompé de date
+      (Schneider Electric 2011, Air Liquide 2014). Après la couture, dans la référence, une opération que Yahoo n'applique
+      pas rend le facteur de la référence incertain : elle arrête. Décision de Jean-Luc du 31-10-2026 à 19h23 :
+      STMICROELECTRONICS dès le 03-01-2000, la division par 3 du 09-05-2000 portée (6-K de 2000).
+    ⑨ CE QUI CLOCHE — Une opération qu'aucune source ne déclare n'est pas dans la liste : elle passe (⑨ de
+      `combler_les_debuts`).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    portees, bloquantes = [], []
+    for o in operations.get(valeur, []):
+        if not du < o[0] <= fin:
+            continue
+        p = RC.preuve(o)
+        if p == RC.APPLIQUEE_PAR_YAHOO:
+            continue
+        if p == RC.DOCUMENT and o[1] is not None and o[0] <= premier:
+            portees.append(o)
+            continue
+        bloquantes.append(f"{o[0]} {o[2]} ({o[3]}) — {p}" + (", dans la référence" if p == RC.DOCUMENT else ""))
+    return portees, bloquantes
+
+
+def porte(portees, d):
+    """Rend le produit des facteurs des opérations portées qui touchent la séance `d`.
+
+    ① RÔLE — Le facteur des opérations portées, pour une séance comblée.
+    ② CONTEXTE D'APPEL — `combler_les_debuts`, une fois par séance comblée.
+    ③ ENTRÉE — `portees` : la première sortie de `operations_a_porter` · `d` : la séance, AAAA-MM-JJ.
+    ④ CONDITIONS D'ENTRÉE — Chaque facteur est un nombre positif.
+    ⑤ SORTIE — UNE valeur : le produit des facteurs des opérations datées APRÈS `d` (1.0 s'il n'y en a aucune).
+      [rend: 1]
+      [refus: non — rend un facteur]
+    ⑥ TRAITEMENT — ⑤.
+    ⑦ UNITÉ — Sans unité.
+    ⑧ POURQUOI — Une opération datée j touche les séances d'avant j, pas le jour j : le 09-05-2000,
+      STMICROELECTRONICS cote déjà au nouveau cours (6-K : « traded with the new stock price as of the opening of
+      trading on May 9, 2000 »).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    a = 1.0
+    for o in portees:
+        if d < o[0]:
+            a *= o[1]
+    return a
+
+
+def lire_les_degradees(chemin):
+    """Lit la table des barres de Yahoo dégradées à écarter.
+
+    ① RÔLE — Donner à `reparer` la liste des barres de Yahoo que la décision de Jean-Luc du 31-10-2026 à 21h04
+      (annexe n°47) fait remplacer par la barre de Paris.
+    ② CONTEXTE D'APPEL — `reparer`, une fois ; les épreuves.
+    ③ ENTRÉE — `chemin` : donnees/sources_yahoo/BARRES_YAHOO_DEGRADEES.csv.
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe (OSError sinon).
+    ⑤ SORTIE — UNE valeur : la liste des (valeur, date, constat), dans l'ordre du fichier. Lève ValueError si l'en-tête
+      n'est pas le contrat BARRES_YAHOO_DEGRADEES, si une date ne s'écrit pas AAAA-MM-JJ, si le constat est vide ou si
+      une barre est écrite deux fois.
+      [rend: 1]
+      [refus: non — rend les lignes lues ; une ligne fautive lève]
+    ⑥ TRAITEMENT — Lire, vérifier chaque ligne.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — 81 barres de Yahoo gardées alors que bnains a la barre complète de Paris : volume recopié d'une séance
+      à l'autre, surtout de novembre 2008 à février 2009, et 4 clôtures fausses (inventaire du 31-10-2026, § 3 ;
+      relecture, sortie T3 : EssilorLuxottica 02-03-2004 est une fausse alerte, elle n'y est pas).
+    ⑨ CE QUI CLOCHE — La mesure qui condamne chaque barre vient d'un programme d'étude du 31-10-2026
+      (etudes/JOURNEE_31-10-2026/inventaire_trous/barres_suspectes.py, versé au dépôt) : elle est recopiée dans `citation`, non recalculée ici.
+    ⑩ EFFET — Lit le fichier.
+    ⑪ TERMINAISON — Rend la main ou lève. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    from CONTRATS_DES_FICHIERS import BARRES_YAHOO_DEGRADEES
+    import datetime
+    sortie, vues = [], set()
+    with open(chemin, encoding="utf-8", newline="") as f:
+        lecteur = csv.DictReader(f)
+        if lecteur.fieldnames != BARRES_YAHOO_DEGRADEES:
+            raise ValueError(f"{chemin} : en-tête {lecteur.fieldnames} au lieu de {BARRES_YAHOO_DEGRADEES}")
+        for n, r in enumerate(lecteur, start=2):
+            try:
+                ok = datetime.date.fromisoformat(r["date"]).isoformat() == r["date"]
+            except ValueError:
+                ok = False
+            if not ok or not r["constat"].strip() or (r["valeur"], r["date"]) in vues:
+                raise ValueError(f"{chemin}, ligne {n} : date, constat ou doublon refusés ({r['valeur']} {r['date']})")
+            vues.add((r["valeur"], r["date"]))
+            sortie.append((r["valeur"], r["date"], r["constat"]))
+    return sortie
+
+
+def combler_par_raccords(series, sources, bnains, abc, evenements, douteux, journal, operations, francfort=None,
+                         seances=None):
+    """Comble en chaîne, depuis les sources de Paris, le début de chaque série de `SERIES_EN_CHAINE` ; rend (séances
+    comblées par source, arrêts).
+
+    ① RÔLE — Unibail-Rodamco-Westfield (décisions de Jean-Luc du 31-10-2026 à 20h11 et 21h04) : Yahoo ne commence
+      URW.PA que le 14-04-2023 ; ABC Bourse a les cours de Paris du 01-03-2017 au 13-04-2023, bnains ceux d'avant. Le
+      maillon d'ABC se raccorde à Yahoo, celui de bnains à ABC.
+    ② CONTEXTE D'APPEL — `reparer`, une fois, juste avant `combler_les_debuts` ; les épreuves
+      (tests/EPREUVES_DU_COMBLEMENT_DES_20_ANS_Sam_31-10-2026.py).
+    ③ ENTRÉE — `series`, `sources` : modifiés EN PLACE · `bnains` : l'extrait, barres fausses ôtées · `abc` : les cours
+      d'ABC (`K.lire_abc`, premier élément) · `evenements` · `douteux` : les jours douteux · `journal` : liste où
+      ajouter · `operations` : la liste unique (`RC.operations`, premier élément) · `francfort` · `seances` : le
+      calendrier officiel.
+    ④ CONDITIONS D'ENTRÉE — La première ligne de chaque série vient de Yahoo.
+    ⑤ SORTIE — DEUX valeurs : ① un dictionnaire source → nombre de séances comblées · ② la liste des raisons d'arrêt,
+      une par valeur ; une valeur arrêtée n'a RIEN écrit, ni au fichier ni au journal.
+      [rend: 2]
+      [refus: dernier]
+    ⑥ TRAITEMENT — Pour chaque valeur : ⓪ absente du fichier, ou première ligne à la première séance du calendrier du
+      fichier : passée, et dite · ① la couture, sa première ligne, doit venir de Yahoo · ② pour chaque maillon, du
+      plus récent au plus ancien : sa zone, les séances du calendrier de sa première séance à la veille de la zone
+      précédente (de la couture pour le premier) ; son raccord, la fenêtre déclarée, où CHAQUE séance du calendrier doit
+      avoir une barre dans la source du maillon et dans la précédente (Yahoo, puis la source brute du maillon
+      précédent), au moins `MIN_RACCORD` séances, et aucune séance commune aux deux entre la fenêtre et la couture du
+      maillon (la fenêtre est la plus proche possible) ; le facteur de prix et de volume par `K.rapports`, sans
+      divisions, et l'accord à `K.PART_PROPRE` ; le facteur d'un maillon est son facteur mesuré multiplié par celui du
+      maillon précédent · ③ arrêt si une opération connue de la liste unique, quelle que soit sa preuve, tombe entre la
+      première séance du plus ancien maillon et la fin du premier raccord · ④ chaque séance de la zone : une barre
+      d'ABC utilisable (`K.barre_utilisable`) devient le geste « versé » (source abc), une barre de bnains sûre
+      (`K.barre_sure`) le geste « comblé » (source bnains), au facteur du maillon (`barre`, sans divisions) ; une séance
+      sans barre sûre prend la barre utilisable de la source du maillon précédent (s'il n'est pas Yahoo), au facteur de
+      ce maillon-là ; sinon « non comblé » avec sa raison ; un événement signalé ajoute son texte à la raison de sa séance · ⑤ arrêt si deux
+      clôtures qui se suivent, des séances comblées jusqu'à la couture, varient de plus de `K.SAUT` · ⑥ sinon écrire.
+    ⑦ UNITÉ — Des LIGNES ; facteurs sans unité ; prix en EUROS et volumes en NOMBRE DE TITRES, convention de Yahoo.
+    ⑧ POURQUOI — `combler_les_debuts` mesure son facteur sur des séances communes à Yahoo et à bnains : Unibail n'en a
+      aucune (bnains finit le 28-02-2017, Yahoo commence le 14-04-2023). La chaîne passe par ABC, qui a les deux
+      bouts : 42 séances communes avec bnains en janvier-février 2017 et 53 avec Yahoo d'avril à juin 2023, au centime
+      (etudes/JOURNEE_31-10-2026/unibail_source/RAPPORT.md, 31-10-2026). La fenêtre de raccord est déclarée parce qu'ABC n'a pas les 14 et
+      17-04-2023 (lignes 72-73 du fichier brut de 2023) : le raccord à Yahoo commence le 18-04-2023. Les opérations
+      ARRÊTENT au lieu d'être portées : ABC ajuste lui-même ses cours des divisions (FAQ d'ABC), et porter une division
+      la compterait deux fois ; aucune opération n'est connue pour Unibail de 2007 à 2023 (etudes/JOURNEE_31-10-2026/unibail_source/RAPPORT.md,
+      § 5 ; relecture de l'inventaire, § 5).
+    ⑨ CE QUI CLOCHE — Les lignes de Yahoo entre la couture et le raccord (Unibail : 14 et 17-04-2023) ne sont confrontées
+      à rien : un ajustement de Yahoo qui ne toucherait qu'elles passerait ; le journal les nomme. · Les volumes d'ABC
+      de juin 2018 à avril 2023 couvrent-ils le carnet unique Paris-Amsterdam ou Paris seul ? Non vérifié (rapport
+      etudes/JOURNEE_31-10-2026/unibail_source/RAPPORT.md, § 5.3). · Une opération qu'aucune source ne déclare passe (résidu de `combler_les_debuts`).
+      · Une série avec une division de Yahoo dans la chaîne arrête : le cas n'est pas traité.
+    ⑩ EFFET — Modifie `series`, `sources`, `journal`. Affiche une ligne par valeur.
+    ⑪ TERMINAISON — Rend la main : chaque maillon parcourt un nombre fini de séances. Aucun de mes appels ne peut ne pas
+      revenir.
+      [sort: non]
+    """
+    comblees, refus = {}, []
+    cal = sorted(K.calendrier(series, seances))
+    for valeur, maillons, signales, raison in SERIES_EN_CHAINE:
+        y = series.get(valeur, {})
+        if not y or min(y) <= cal[0]:
+            # la valeur n'est pas dans le fichier, ou le fichier ne commence pas avant elle : rien à combler ici (une
+            # racine d'essai d'une seule année, épreuves de l'historique long) — dit, jamais tu
+            print(f"  ④ter {valeur} : {'absente du fichier' if not y else 'aucune séance avant sa première ligne'}, "
+                  f"rien à combler en chaîne")
+            continue
+        if sources.get((valeur, min(y))) != "yahoo":
+            refus.append(f"{valeur} : chaîne, la première ligne de la série ne vient pas de Yahoo")
+            continue
+        couture, precedente, facteur, volume = min(y), y, 1.0, 1.0
+        # le maillon précédent quand il n'est pas Yahoo : sa source, ses barres brutes et ses facteurs, pour qu'une séance
+        # du maillon suivant sans barre sûre prenne la barre de Paris de cette source, si elle l'a (relecture du lot,
+        # D1 : quatre barres de bnains incohérentes de janvier-février 2017 ont leur barre d'ABC au dépôt)
+        repli = None
+        nouvelles, lignes, arret, fins = {}, [], None, []
+        signal = dict(signales)
+        for source, du, (r_du, r_au) in maillons:
+            brut = (abc if source == "abc" else bnains).get(valeur, {})
+            fenetre = [d for d in cal if r_du <= d <= r_au]
+            communes = [d for d in fenetre if d in brut and d in precedente]
+            entre = [d for d in cal if (r_au < d < couture) or (couture <= d < r_du)]
+            tous_deux = [d for d in entre if d in brut and d in precedente]
+            f, k, accord = K.rapports(precedente, brut, {}, valeur, communes)
+            if len(communes) != len(fenetre) or len(fenetre) < MIN_RACCORD or tous_deux or accord < K.PART_PROPRE:
+                arret = (f"{valeur} : chaîne, raccord de {source} du {r_du} au {r_au} refusé ({len(communes)} séances "
+                         f"communes sur {len(fenetre)} du calendrier, au moins {MIN_RACCORD} ; séances communes plus "
+                         f"proches de la couture {tous_deux} ; accord {accord:.0%})")
+                break
+            facteur, volume = facteur * f, volume * k
+            sans = [d for d in entre if d in precedente and d not in brut]
+            fins.append(r_au)
+            zone = [d for d in cal if du <= d < couture]
+            for d in zone:
+                if source == "abc":
+                    sure = K.barre_utilisable({valeur: brut}, valeur, d, frozenset())
+                    pourquoi = "pas de barre chez ABC ce jour-là" if d not in brut else "barre d'ABC inutilisable"
+                else:
+                    sure = K.barre_sure(bnains, francfort or {}, valeur, d, douteux)
+                    pourquoi = raison_du_manque(bnains, valeur, d) if not sure else ""
+                ajout = f" ; À SIGNALER : {signal[d]}" if d in signal else ""
+                if not sure and repli and K.barre_utilisable({valeur: repli[1]}, valeur, d, frozenset()):
+                    s_r, b_r, f_r, v_r = repli
+                    nouvelles[d], fp, fv = barre(b_r[d], f_r, v_r, 1.0)
+                    lignes.append((d, "versé" if s_r == "abc" else "comblé", nouvelles[d][3], fp,
+                                   f"chaîne, maillon {source} : {pourquoi} ; barre de Paris du maillon {s_r}, utilisable ce "
+                                   f"jour, prise à sa place au facteur de ce maillon {f_r!r} : {raison}{ajout}", fv))
+                    continue
+                if not sure:
+                    lignes.append((d, "non comblé", "", "", f"chaîne, maillon {source} : {pourquoi}{ajout}", ""))
+                    continue
+                nouvelles[d], fp, fv = barre(brut[d], facteur, volume, 1.0)
+                lignes.append((d, "versé" if source == "abc" else "comblé", nouvelles[d][3], fp,
+                               f"chaîne, maillon {source} depuis Paris : {raison} ; facteur {facteur!r} mesuré par "
+                               f"raccords successifs, le dernier sur {len(communes)} séances du {r_du} au {r_au} "
+                               f"(accord {accord:.1%})"
+                               + (f" ; lignes de Yahoo entre la couture et le raccord, non confrontées : {sans}"
+                                  if sans else "") + ajout, fv))
+            precedente, couture, repli = brut, du, (source, brut, facteur, volume)
+        if arret is None:
+            dans = [f"{o[0]} {o[2]} ({o[3]})" for o in operations.get(valeur, [])
+                    if couture < o[0] <= max(fins)]
+            if dans:
+                arret = f"{valeur} : chaîne, opération connue dans la chaîne, non traitée ici : {' ; '.join(dans)}"
+        if arret is None:
+            premier = min(y)
+            suite = [(d, nouvelles[d][3]) for d in sorted(nouvelles)] + [(premier, y[premier][3])]
+            sauts = [f"{p}→{q} {100 * (cq / cp - 1):+.1f} %" for (p, cp), (q, cq) in zip(suite, suite[1:])
+                     if abs(cq / cp - 1) > K.SAUT]
+            if sauts:
+                arret = f"{valeur} : chaîne, saut de plus de {K.SAUT:.0%} : {', '.join(sauts)}"
+        if arret:
+            refus.append(arret)
+            continue
+        for d, geste, apres, fp, texte_, fv in sorted(lignes):
+            noter(journal, valeur, d, geste, "", apres, fp, texte_, fv)
+        for d, x in nouvelles.items():
+            y[d] = x
+        for d, geste, *_ in lignes:
+            if geste != "non comblé":
+                sources[(valeur, d)] = "abc" if geste == "versé" else "bnains"
+                comblees[sources[(valeur, d)]] = comblees.get(sources[(valeur, d)], 0) + 1
+        print(f"  ④ter {valeur} : chaîne comblée, {dict(sorted(comblees.items()))}, "
+              f"{sum(1 for l in lignes if l[1] == 'non comblé')} laissées")
+    return comblees, refus
+
+
+def combler_les_seances(series, sources, bnains, evenements, douteux, journal, operations, francfort=None,
+                        seances=None):
+    """Comble chaque séance de `SEANCES_A_COMBLER` depuis Paris, au facteur des séances communes les plus proches ;
+    rend (séances comblées, arrêts).
+
+    ① RÔLE — Une séance au milieu d'une série que `combler` refuse parce que Yahoo est bruité autour d'elle : Michelin,
+      24-07-2000 (décision de Jean-Luc du 31-10-2026 à 21h04, annexe n°47).
+    ② CONTEXTE D'APPEL — `reparer`, une fois, juste avant `combler` ; les épreuves.
+    ③ ENTRÉE — `series`, `sources` : modifiés EN PLACE · `bnains` · `evenements` · `douteux` · `journal` ·
+      `operations` : la liste unique · `francfort` · `seances` : le calendrier officiel.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : ① le nombre de séances comblées · ② la liste des raisons d'arrêt ; une séance arrêtée
+      n'écrit rien.
+      [rend: 2]
+      [refus: dernier]
+    ⑥ TRAITEMENT — Pour chaque (valeur, séance) : ⓪ une séance hors du calendrier du fichier, ou hors de la série de la
+      valeur, est passée, et dite · ① arrêt si la série a déjà une ligne ce jour, ou si la barre de Paris
+      n'est pas sûre (`K.barre_sure`) · ② la référence : les `MIN_REFERENCE` ÷ 2 séances communes les plus proches de
+      chaque côté (lignes venues de Yahoo, barre bnains, hors jours douteux) ; arrêt s'il en manque, ou si l'accord
+      (`K.rapports`) est sous `K.PART_PROPRE` · ③ la ligne de Yahoo juste avant et juste après doit valoir le facteur
+      à `K.ECART` près · ④ arrêt si une opération connue, autre qu'une division de Yahoo, tombe dans la référence · ⑤
+      sinon la barre de Paris au facteur, divisions de Yahoo comprises (`barre`), geste « comblé ».
+    ⑦ UNITÉ — Des LIGNES.
+    ⑧ POURQUOI — `K.facteur_local` prend 5 voisines de chaque côté : autour du 24-07-2000, 4 des 10 portent une clôture
+      de Yahoo fausse de 0,2 à 2,1 %, et l'accord tombe sous 90 %. Sur 50 + 50 séances, ce bruit pèse peu, et le facteur
+      mesuré est celui que la relecture a trouvé avant et après (0,24156 ; volume 4,13976). Le volume suit le facteur
+      des séances voisines, pas l'inverse du facteur des prix (relecture, sortie T3).
+    ⑨ CE QUI CLOCHE — Une référence de 100 séances moyenne plus loin qu'une de 10 : une opération proche que la liste
+      ignore serait noyée (④ ne voit que les opérations connues).
+    ⑩ EFFET — Modifie `series`, `sources`, `journal`.
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    comblees, refus, moitie = 0, [], MIN_REFERENCE // 2
+    cal = K.calendrier(series, seances)
+    for valeur, d, raison in SEANCES_A_COMBLER:
+        y, b = series.get(valeur, {}), bnains.get(valeur, {})
+        if d not in cal or not y or not min(y) < d < max(y):
+            print(f"  ④ter {valeur} {d} : séance hors de la série du fichier, rien à combler")
+            continue
+        if d in y or not K.barre_sure(bnains, francfort or {}, valeur, d, douteux):
+            refus.append(f"{valeur} {d} : séance décidée, déjà une ligne ou barre de Paris pas sûre")
+            continue
+        communes = [x for x in sorted(y) if x in b and x not in douteux and sources.get((valeur, x)) == "yahoo"]
+        avant, apres = [x for x in communes if x < d][-moitie:], [x for x in communes if x > d][:moitie]
+        ref = avant + apres
+        f, k, accord = K.rapports(y, b, evenements, valeur, ref)
+        if len(avant) < moitie or len(apres) < moitie or accord < K.PART_PROPRE:
+            refus.append(f"{valeur} {d} : séance décidée, référence trop courte ou instable ({len(avant)} + "
+                         f"{len(apres)} séances, accord {accord:.0%})")
+            continue
+        bords = [(x, K.rapports(y, b, evenements, valeur, [x])[0]) for x in (avant[-1], apres[0])]
+        faux = [f"{x} : {r!r}" for x, r in bords if abs(r / f - 1) > K.ECART]
+        dans = [f"{o[0]} {o[2]} ({o[3]})" for o in operations.get(valeur, [])
+                if ref[0] < o[0] <= ref[-1] and RC.preuve(o) != RC.APPLIQUEE_PAR_YAHOO]
+        if faux or dans:
+            refus.append(f"{valeur} {d} : séance décidée, voisine de Yahoo hors du facteur {f!r} ({faux}) ou opération "
+                         f"connue dans la référence ({dans})")
+            continue
+        y[d], fp, fv = barre(b[d], f, k, K.divisions(evenements, valeur, d))
+        sources[(valeur, d)] = "bnains"
+        noter(journal, valeur, d, "comblé", "", y[d][3], fp,
+              f"séance manquante chez Yahoo, décidée : {raison} ; facteur mesuré sur {len(ref)} séances communes, du "
+              f"{ref[0]} au {ref[-1]} (accord {accord:.1%})", fv)
+        comblees += 1
+    return comblees, refus
+
+
+def combler_les_seances_decidees(series, sources, bnains, journal, seances=None):
+    """Pose chaque séance de `SEANCES_DECIDEES_SANS_ABC` que les autres gestes n'ont pas posée, au facteur de la fenêtre de
+    Paris qui l'entoure ; rend (séances posées, séances déjà là, arrêts).
+
+    ① RÔLE — Combler, sur décision écrite, une séance que la réparation laisse vide parce que la barre de Paris est un
+      jour douteux (AXA 2006-2007, juin 2001) ou parce qu'aucun geste ne l'a prise, sans inventer de facteur.
+    ② CONTEXTE D'APPEL — `reparer`, une fois, après tous les autres comblements ; les épreuves.
+    ③ ENTRÉE — `series`, `sources`, `journal` : modifiés EN PLACE · `bnains` : Paris tel que `K.lire_paris` le rend
+      (barres rectifiées comprises) · `seances` : le calendrier officiel.
+    ④ CONDITIONS D'ENTRÉE — Le journal porte déjà les gestes des lignes voisines.
+    ⑤ SORTIE — TROIS valeurs : ① le nombre de séances posées · ② la liste des séances déjà posées par un autre geste,
+      avec ce geste · ③ la liste des raisons d'arrêt (une séance arrêtée n'écrit rien).
+      [rend: 3]
+      [refus: dernier]
+    ⑥ TRAITEMENT — Pour chaque (valeur, séance) : ⓪ passée, et dite, si le fichier n'a aucune ligne de la valeur dans
+      l'année (un fichier partiel, comme les témoins des épreuves) · ① arrêt si la séance n'est pas au calendrier du
+      fichier ou hors de la série · ② déjà une ligne : la dire (geste qui l'a posée), ne rien changer · ③ arrêt si la barre de Paris manque, est
+      incohérente (plus bas au-dessus de l'ouverture ou de la clôture, plus haut en dessous) ou sans volume · ④ les
+      lignes voisines, la dernière avant et la première après parmi les lignes posées AVANT cette passe, doivent venir
+      de Paris, avoir pour DERNIER geste au journal
+      un geste parti de Paris, et porter EXACTEMENT les mêmes facteurs de prix et de volume ; sinon arrêt · ⑤ ôter du
+      journal le « non comblé » qu'une passe antérieure a écrit pour cette séance (un « retiré » reste) · ⑥ poser la
+      barre de Paris à ces facteurs (`K.arrondir`, le calcul que K23 rejoue), source « bnains », geste « comblé ».
+    ⑦ UNITÉ — Des LIGNES ; facteurs sans unité.
+    ⑧ POURQUOI — Dans une fenêtre de Paris (AXA reconstruite de 2000 à 2009, débuts d'Airbus et de STMicro, chaîne
+      d'Unibail), chaque ligne porte le facteur de la fenêtre : la séance oubliée prend celui de ses deux voisines, quand
+      elles l'ont égal. Exemple réel : AXA 2006-09-27, voisines du 26 et du 28-09-2006 au facteur 0,9770763159621766.
+      Mesurer un facteur neuf autour d'un jour douteux mélangerait des barres que la décision ne couvre pas.
+    ⑨ CE QUI CLOCHE — Une séance entre deux lignes de Yahoo (Bouygues 2011, Safran 2015) n'est pas dans une fenêtre :
+      elle doit être posée par `combler` (facteur local), sinon arrêt — la décision n'en dit pas plus. · Cette passe est
+      la PREMIÈRE à revenir sur le verdict d'une passe antérieure : avant le 05-11-2026, elle laissait au journal le
+      « non comblé » des 6 séances qu'elle pose (AIRBUS et STMICROELECTRONICS 19-06-2001, STMICROELECTRONICS 20-06-2001,
+      AXA 2006-09-27, 2007-02-20, 2007-03-29 ; relecture de VINGT, D1). Le geste ⑤ l'ôte ; la garde de fond est K24 de
+      CONTROLER (les séances « non comblé » du journal = l'ensemble de K7). · ⓪ PASSE une décision dont l'année manque
+      au fichier, en le disant à l'écran, sans arrêt : sur le vrai fichier, une valeur absente toute une année ferait
+      passer une date fausse en silence (aucune des 18 décisions n'est dans ce cas : 6 posées, 12 déjà posées, 0 « année absente », mesuré le 05-11-2026) → BACKLOG.
+      · Le journal ne cite pas, pour une séance posée sur une barre rectifiée, la règle de rectification qui l'a faite
+      (voir `bornes_non_sures` de CONTROLER) → BACKLOG.
+    ⑩ EFFET — Modifie `series`, `sources`, `journal` (en place, y compris en ôtant des lignes « non comblé »).
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    posees, deja, arrets = 0, [], []
+    cal = K.calendrier(series, seances)
+    derniers = {}
+    for l in journal:                       # le dernier geste de chaque ligne, dans l'ordre où il a été posé
+        derniers[(l[0], l[1])] = l
+    # les voisines se cherchent parmi les lignes posées AVANT cette passe : une séance décidée ne sert jamais de voisine à
+    # une autre (STMicro 19 et 20-06-2001 : les deux voisines sont le 18 et le 21)
+    avant_la_passe = {v: sorted(s) for v, s in series.items()}
+    for valeur, d, raison in SEANCES_DECIDEES_SANS_ABC:
+        y = series.get(valeur, {})
+        if not any(x[:4] == d[:4] for x in y):
+            # un fichier partiel (les témoins des épreuves, 2005 seulement) : l'année n'y est pas, la décision est sans
+            # objet ; dans une année présente, une date hors du calendrier ou de la série ARRÊTE (date fausse)
+            print(f"  ④quater {valeur} {d} : année absente du fichier, séance décidée sans objet")
+            continue
+        if d not in cal or not min(y) < d < max(y):
+            arrets.append(f"{valeur} {d} : séance décidée hors du calendrier ou de la série")
+            continue
+        if d in y:
+            g = derniers.get((valeur, d))
+            deja.append(f"{valeur} {d} ({g[2] if g else 'yahoo'})")
+            continue
+        b = bnains.get(valeur, {}).get(d)
+        if b is None or not (b[1] >= max(b[0], b[3]) and b[2] <= min(b[0], b[3]) and b[4] > 0):
+            arrets.append(f"{valeur} {d} : séance décidée, barre de Paris absente ou incohérente : {b!r}")
+            continue
+        dates = avant_la_passe[valeur]
+        i = bisect.bisect_left(dates, d)
+        voisines = (dates[i - 1], dates[i])
+        facteurs = set()
+        for x in voisines:
+            g = derniers.get((valeur, x))
+            if sources.get((valeur, x)) != "bnains" or g is None or g[8] != "paris":
+                arrets.append(f"{valeur} {d} : séance décidée, voisine {x} hors d'une fenêtre de Paris "
+                              f"(source {sources.get((valeur, x))}, dernier geste {g[2] if g else '—'})")
+                break
+            facteurs.add((g[5], g[7]))
+        else:
+            if len(facteurs) != 1:
+                arrets.append(f"{valeur} {d} : séance décidée, voisines à des facteurs différents {sorted(facteurs)}")
+                continue
+            fp, fv = (float(x) for x in facteurs.pop())
+            # le « non comblé » qu'une passe antérieure a écrit pour cette séance devient faux : cette passe est la
+            # première à revenir sur le verdict d'une autre (superviseur R-759 du 05-11-2026, VINGT D1). Il est ôté ; un
+            # « retiré » est GARDÉ, il trace le retrait réel d'une ligne Yahoo (AXA 2006-09-27, ligne 28,3353)
+            journal[:] = [l for l in journal if not (l[0] == valeur and l[1] == d and l[2] == "non comblé")]
+            y[d] = K.arrondir(b, fp, fv)
+            sources[(valeur, d)] = "bnains"
+            noter(journal, valeur, d, "comblé", "", y[d][3], fp,
+                  f"séance décidée sans ABC : {raison} ; facteur de la fenêtre de Paris, celui des lignes voisines du "
+                  f"{voisines[0]} et du {voisines[1]}", fv)
+            posees += 1
+    return posees, deja, arrets
+
+
 def texte(x):
     """Écrit un nombre sans rien perdre ni rien ajouter : « 33.8058 » reste 33.8058, un volume reste entier.
 
@@ -757,6 +1486,7 @@ def texte(x):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : son écriture la plus courte qui redonne exactement le même nombre.
       [rend: 1]
+      [refus: non — rend un texte]
     ⑥ TRAITEMENT — Un entier s'écrit sans décimale ; sinon l'écriture courte de Python.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Une ligne Yahoo relue puis réécrite garde la même valeur ; « 33.80 » devient
@@ -782,7 +1512,12 @@ def reparer(racine):
       reconstruire exclues : leurs écarts sont des erreurs de Yahoo, pas de bnains.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Écrire tout ou rien : un fichier réparé à moitié aurait l'air réparé.
-    ⑨ CE QUI CLOCHE — —
+    ⑨ CE QUI CLOCHE — Les deux gardes d'arrêt (`arrets`, `refus_des_comblements`) ne sont éprouvées que par une
+      propriété (D9i, tests/EPREUVES_DES_DEBUTS_DE_SERIE) : chaque fonction du module atteinte depuis `reparer`
+      porte dans son ⑤ la marque `[refus: dernier]` (sa dernière liste rendue est un refus qui doit arrêter) ou
+      `[refus: non — raison]` ; l'ensemble marqué doit être ÉGAL à l'ensemble atteint, et chaque fonction `dernier`
+      voit un refus injecté arrêter la réparation. Une marque `non` posée à tort sur un geste qui refuse
+      échapperait ; les appels par attribut (`K.x`, `RC.x`) ne sont pas classés (BACKLOG proposé, N-a du 13-11-2026).
     ⑩ EFFET — ⑩ du programme.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
@@ -796,6 +1531,19 @@ def reparer(racine):
         detachements, _ = K.lire_detachements(os.path.join(racine, K.DROITS), os.path.join(racine, K.OFFICIELS))
         francfort = K.lire_francfort(os.path.join(racine, K.FRANCFORT))
         indice = K.lire_indice(os.path.join(racine, K.INDICE))
+        chemin_divisions = os.path.join(racine, RC.DIVISIONS)
+        # absente, `RC.lire_divisions` rendrait une liste vide, et la garde P2 de `combler_les_debuts` perdrait une
+        # source sans un mot (R-734 : un contrôle qui n'a pas pu tourner ne rend jamais 0)
+        if not os.path.isfile(chemin_divisions):
+            raise OSError(f"{RC.DIVISIONS} absent : la garde des opérations connues des débuts de série ne peut pas "
+                          f"tourner")
+        divisions_bnains = RC.lire_divisions(chemin_divisions)
+        # la table des divisions prouvées par un document : absente, P2 arrêterait sur bnains seul sans dire pourquoi ;
+        # elle doit donc être là (R-734), et `RC.lire_divisions_officielles` refuse une ligne illisible
+        officielles = RC.lire_divisions_officielles(os.path.join(racine, RC.OFFICIELLES))
+        abc, lus_abc = K.lire_abc(racine)
+        lus_abc = list(lus_abc) + K.archives_des_rectifications(racine, bnains)   # les archives que lit la rectification
+        degradees = lire_les_degradees(os.path.join(racine, DEGRADEES))
     except (OSError, ValueError) as e:
         print(f"ARRÊT — {type(e).__name__} : {e}")
         return 2
@@ -844,12 +1592,42 @@ def reparer(racine):
                   "")
             del series[valeur][d]
             del sources[(valeur, d)]
+    for valeur, d, constat in degradees:
+        # rien ne s'écrase sans trace (R-109) : la barre écartée est écrite entière dans la raison, et elle reste dans le
+        # fichier de Yahoo déposé, d'où K23 la rejoue
+        if d in series.get(valeur, {}) and sources.get((valeur, d)) == "yahoo":
+            noter(journal, valeur, d, "écarté", series[valeur][d][3], "", "",
+                  f"barre de Yahoo dégradée, remplacée par la barre de Paris (décision de Jean-Luc du 31-10-2026 à "
+                  f"21h04, annexe n°47 ; {DEGRADEES}) : {constat} ; barre écartée (ouverture, plus haut, plus bas, "
+                  f"clôture, volume) = {series[valeur][d]!r}", "")
+            del series[valeur][d]
+            del sources[(valeur, d)]
     print(f"  ③sexies barres de Yahoo écartées sur décision de Jean-Luc, laissées au comblement : "
           f"{sum(1 for l in journal if l[2] == 'écarté')}")
+    # la liste UNIQUE des opérations du dépôt (R-708), chemin des verdicts ENTIER : `operations` le lit sinon en relatif,
+    # et `reparer` ne fait pas de chdir (superviseur R-759 du 31-10-2026, piège T1)
+    operations = RC.operations(evenements, a_defaire, detachements, bnains, divisions_bnains,
+                               os.path.join(racine, K.VERDICTS_YAHOO), officielles)[0]
+    seances_decidees, refus_des_seances = combler_les_seances(series, sources, bnains, evenements, douteux, journal,
+                                                              operations, francfort, seances=seances)
     comblees = combler(series, sources, bnains, evenements, douteux, journal, detachements, francfort,
                        seances=seances)
-    trous = [f"{v} {d}" for v, d, _ in BARRES_YAHOO_ECARTEES if (v, d) in {(j[0], j[1]) for j in journal if j[2] == "écarté"}
-             and d not in series.get(v, {})]
+    en_chaine, refus_de_la_chaine = combler_par_raccords(series, sources, bnains, abc, evenements, douteux, journal,
+                                                         operations, francfort, seances=seances)
+    debuts, refus_des_debuts = combler_les_debuts(series, sources, bnains, evenements, douteux, journal, operations,
+                                                  francfort, seances=seances)
+    decidees, deja_posees, refus_des_decidees = combler_les_seances_decidees(series, sources, bnains, journal,
+                                                                            seances=seances)
+    # la somme des refus des QUATRE comblements, sous un nom à elle : l'ancien nom `refus_des_debuts` écrasait l'un de
+    # ses termes et ne disait qu'un des quatre (superviseur R-759 du 13-11-2026, n-1 de la relecture de Cowork de 13h55)
+    refus_des_comblements = refus_des_seances + refus_de_la_chaine + refus_des_debuts + refus_des_decidees
+    if refus_des_comblements:   # comme les arrêts de `reconstruire` : un comblement qui refuse, rien n'est écrit
+        for a in refus_des_comblements:
+            print(f"ARRÊT — {a}")
+        print("rien n'est écrit")
+        return 1
+    trous = [f"{v} {d}" for v, d, _ in BARRES_YAHOO_ECARTEES + tuple(degradees)
+             if (v, d) in {(j[0], j[1]) for j in journal if j[2] == "écarté"} and d not in series.get(v, {})]
     if trous:      # relecture du 09-10-2026 : une barre écartée que bnains ne comble pas laissait un trou muet
         print(f"ARRÊT — barre(s) écartée(s) sur décision que le comblement n'a pas remplacée(s) : {' '.join(trous)}")
         print("rien n'est écrit")
@@ -864,26 +1642,33 @@ def reparer(racine):
             w.writerow(entete)
             w.writerows(lignes)
         os.replace(cible + ".partiel", cible)
-    inscrire_au_registre(racine, (SORTIE, JOURNAL))
+    inscrire_au_registre(racine, (SORTIE, JOURNAL), lus_abc)
     gestes = {}
     for l in journal:
         gestes[l[2]] = gestes.get(l[2], 0) + 1
     print(f"  ④ séances comblées : {comblees}")
+    print(f"  ④bis séances de début de série comblées (DEBUTS_A_COMBLER) : {debuts}")
+    print(f"  ④ter séances comblées en chaîne (SERIES_EN_CHAINE), par source : {dict(sorted(en_chaine.items()))} · "
+          f"séances décidées (SEANCES_A_COMBLER) : {seances_decidees}")
+    print(f"  ④quater séances décidées sans ABC (SEANCES_DECIDEES_SANS_ABC) posées ici : {decidees} · déjà posées par un "
+          f"autre geste : {len(deja_posees)} {deja_posees}")
     print(f"journal : {dict(sorted(gestes.items()))} · écrit : {SORTIE} ({sum(len(s) for s in series.values())} lignes) · {JOURNAL}")
     return 0
 
 
-def inscrire_au_registre(racine, chemins):
+def inscrire_au_registre(racine, chemins, lus_en_plus=()):
     """Met à jour, au registre de provenance, les lignes des fichiers que la réparation vient d'écrire.
 
     ① RÔLE — Que la trace de chaque fichier écrit suive le fichier : son empreinte, le jour où il a été refait, et ce
       qu'il a lu.
     ② CONTEXTE D'APPEL — `reparer`, une fois, juste après l'écriture du fichier réparé et du journal.
-    ③ ENTRÉE — `racine` : la racine du dépôt · `chemins` : les fichiers écrits, depuis la racine.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `chemins` : les fichiers écrits, depuis la racine · `lus_en_plus` : les
+      fichiers lus que `LU` n'épelle pas (les bruts d'ABC, `K.lire_abc`), depuis le 31-10-2026.
     ④ CONDITIONS D'ENTRÉE — Le registre `K.PROVENANCE` existe ; chaque chemin y a EXACTEMENT UNE ligne, produite par
       ce programme : la ligne se met à jour, elle ne se crée pas (la créer, c'est une décision et sa preuve).
     ⑤ SORTIE — AUCUNE valeur rendue.
       [rend: rien]
+      [refus: non — ne rend rien]
     ⑥ TRAITEMENT — ① lire le registre tel quel · ② pour chaque chemin : sa ligne unique, l'empreinte SHA-256 du fichier
       écrit, la date du jour (Paris), la colonne `lu` refaite depuis `LU` · ③ réécrire le registre entier, par un fichier
       partiel remplacé d'un coup, avec ses fins de ligne d'origine.
@@ -921,7 +1706,7 @@ def inscrire_au_registre(racine, chemins):
         l = les_siennes[0]
         l[i_s] = hashlib.sha256(open(os.path.join(racine, c), "rb").read()).hexdigest()
         l[i_le] = jour
-        l[i_l] = ";".join(sorted(x.replace(os.sep, "/") for x in LU))
+        l[i_l] = ";".join(sorted(x.replace(os.sep, "/") for x in tuple(LU) + tuple(lus_en_plus)))
     sortie = io.StringIO()
     csv.writer(sortie, lineterminator=fin).writerows(lignes)
     with open(chemin + ".partiel", "w", encoding="utf-8", newline="") as f:

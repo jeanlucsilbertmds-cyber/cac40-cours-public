@@ -35,7 +35,7 @@ CE QUE CE FICHIER ÉPROUVE (Z0, tout doit être vert) :
   E7 le juge des stratégies paie la taxe : un achat de Bouygues à 100,00 € le 30-04-2026 revendu à l'objectif de
      +4 % le lendemain rend 4 000 − 150 − 400 − 156 = +3 294,00 € ; sous le courtage seul, +3 694,00 €.
   E8 (superviseur R-759, C3) le teneur de positions, quand les frais ne se chiffrent pas (liste des valeurs taxées
-     absente pour 2023), LAISSE la position ouverte et écrit la raison dans sa case `frais_non_chiffrables` ; et quand
+     absente pour 2027 — 2023 jusqu'au 04-11-2026, avant le versement de la liste 2012-2023), LAISSE la position ouverte et écrit la raison dans sa case `frais_non_chiffrables` ; et quand
      le calcul des frais lève une AUTRE erreur (`KeyError`), il LÈVE au lieu de l'avaler.
   E9 (C3, C4, C12) le radar, maillon 10bis, À UNE DATE FIXÉE (29-10-2026, par l'horloge d'épreuve du dépôt,
      `tests/HORLOGE_D_EPREUVE.py`), rougit sur quatre fautes posées dans une copie : un montant du journal décalé de
@@ -458,9 +458,9 @@ def epreuves(sab):
             "    return dict(strategie='S', valeur=v, date_signal=d, date_entree=d, prix_entree='100.0', tp='104.0',\n"
             "                sl='97.5', horizon_fin='2099-01-01', statut='OUVERTE', comptabilite='un_jeton',\n"
             "                regles_pre_trade='', explication='', frais_non_chiffrables='')\n"
-            "c = {'AIRBUS': [dict(date='2023-06-01', open=100.0, high=105.0, low=99.0, close=104.5)]}\n"
-            "tr, rest, inc = T.cloturer([pos('AIRBUS', '2023-06-01')], c, p)\n"
-            "print('BLOQUEE', len(tr), len(rest), rest[0]['statut'], '2023' in rest[0]['frais_non_chiffrables'],\n"
+            "c = {'AIRBUS': [dict(date='2027-06-01', open=100.0, high=105.0, low=99.0, close=104.5)]}\n"
+            "tr, rest, inc = T.cloturer([pos('AIRBUS', '2027-06-01')], c, p)\n"
+            "print('BLOQUEE', len(tr), len(rest), rest[0]['statut'], '2027' in rest[0]['frais_non_chiffrables'],\n"
             "      any('VENTE BLOQUEE' in x for x in inc))\n"
             "class Faux:\n"
             "    tester_seance = staticmethod(p.tester_seance); CAPITAL = p.CAPITAL; BAREME_PAR_DEFAUT = 'REEL'\n"
@@ -472,7 +472,7 @@ def epreuves(sab):
             "    def frais_aller_retour(*a, **k):\n"
             "        raise KeyError('faute de programmation')\n"
             "try:\n"
-            "    T.cloturer([pos('AIRBUS', '2023-06-01')], c, Faux)\n"
+            "    T.cloturer([pos('AIRBUS', '2027-06-01')], c, Faux)\n"
             "    print('AUTRE ERREUR AVALEE')\n"
             "except KeyError:\n"
             "    print('AUTRE ERREUR LEVEE')\n")
@@ -864,7 +864,7 @@ def epreuves(sab):
     # journal (R-732 ; seuls le gain et, pour un cas, la date d'achat changent), sous HIST_COURTAGE_SANS_TTF puis REEL :
     #   10 gains (borne basse de Wilson > point mort → vert) · 10 pertes (→ rouge) · 3 gains (pas de borne basse →
     #   « echantillon insuffisant », point mort écrit) · aucune opération (case vide, verdict SANS étiquette) ·
-    #   10 gains achetés le 01-06-2023 (aucune liste des valeurs taxées pour 2023 : sous REEL, « point mort non
+    #   10 gains achetés le 01-06-2027 (aucune liste des valeurs taxées pour 2027 : sous REEL, « point mort non
     #   chiffrable », case vide, sans étiquette ; sous le courtage seul la taxe n'est pas lue, la ligne est verte).
     # L'épreuve EXIGE d'avoir atteint les cinq branches que le code de `ligne` porte (vert, rouge, attente avec point
     # mort, attente sans point mort, non chiffrable) : si un seuil bouge et qu'une branche n'est plus atteinte, elle
@@ -882,7 +882,7 @@ def epreuves(sab):
                         "if (r.get('etat_vie') or '').strip().upper() in ('QA', 'PRODUCTION'))\n"
                         "f = lambda n, pnl, **k: [dict(vraie, pnl_net_eur=pnl, **k) for _ in range(n)]\n"
                         "cas = {'vert': f(10, '3000'), 'rouge': f(10, '-2600'), 'insuffisant': f(3, '3000'), 'aucune': [],\n"
-                        "       'sans_liste': f(10, '3000', date_entree='2023-06-01')}\n"
+                        "       'sans_liste': f(10, '3000', date_entree='2027-06-01')}\n"
                         "vus, faux = set(), []\n"
                         "for bar in ('HIST_COURTAGE_SANS_TTF', 'REEL'):\n"
                         "    m._positions().BAREME_DES_VERDICTS = bar\n"

@@ -397,14 +397,19 @@ def fichiers_lus(racine, releve):
     ⑦ UNITÉ — Des chemins.
     ⑧ POURQUOI — Règle du carnet (n°54) : un fichier produit par programme nomme ce qu'il a lu.
     ⑨ CE QUI CLOCHE — La liste est tenue à côté du code qui lit : un lecteur ajouté sans elle ne serait pas dit ;
-      l'épreuve compare la liste aux fichiers que le programme ouvre réellement.
-    ⑩ EFFET — —
+      l'épreuve compare la liste aux fichiers que le programme ouvre réellement. · Les fichiers de la rectification de
+      Paris sont demandés au contrôle, ce qui relit Paris une fois de plus (quelques secondes).
+    ⑩ EFFET — Lit l'extrait de Paris (`HL.lire_paris`).
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     lus = {YP.REFERENTIEL, DECIDEES, CAL.INDICE, CAL.FICHIER,
            os.path.join("donnees", "sources_bnains", "bnains_cac40.csv"),
            os.path.join("donnees", "sources_bnains", "BARRES_BNAINS_FAUSSES.csv")}
+    # `HL.lire_paris` applique aussi les rectifications décidées : il lit leur table et, pour la règle « ligne d'un
+    # autre code », l'archive de l'année. Les deux sont demandés au contrôle lui-même (R-708), jamais recopiés ici
+    # (fusion E2c du 13-11-2026 : E8 voyait la table des rectifications ouverte et non déclarée).
+    lus |= {HL.RECTIFIEES} | set(HL.archives_des_rectifications(racine, HL.lire_paris(racine)[0]))
     with open(os.path.join(racine, YP.REFERENTIEL), encoding="utf-8-sig", newline="") as f:
         lus |= {os.path.join(YP.BRUTS, r["mnemonique"] + ".PA.json") for r in csv.DictReader(f)}
     if RELEVES[releve][0]:

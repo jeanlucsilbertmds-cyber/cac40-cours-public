@@ -344,6 +344,10 @@ def valeur_taxee(valeur, date):
       rejoue 2000-2023 avec le barème réel s'arrête donc (la taxe existe depuis 2012, et
       les listes d'avant 2024 ne sont pas relevées). C'est voulu : supposer zéro ferait
       un chiffre faux et plausible.
+      04-11-2026 : la liste 2012-2023 est versée (décisions de Jean-Luc n°92 et n°93 du
+      01-11-2026) et le barème date la taxe (0,2 % dès le 01-08-2012, 0,3 % dès le
+      01-01-2017) : avant le 01-08-2012, aucune ligne de taxe ne s'applique, la liste
+      n'est pas lue ; la première année taxée sans liste est 2027.
     ⑩ EFFET — Lit un fichier au premier appel ; n'écrit rien.
     ⑪ TERMINAISON — Rend la main ; lève `ValueError` sur une date illisible ou absente
       du calendrier, `FraisNonChiffrables` (un cas de `LookupError`) si l'année n'a pas de
@@ -1080,8 +1084,10 @@ def _calibrage():
              ValueError, "calendrier")
         leve("date « D030 »", lambda: cout_d_un_ordre("AIRBUS", "D030", "achat", 1000.0, "HIST_FORFAIT_300"),
              ValueError, "illisible")
-        leve("année 2023 sans liste", lambda: cout_d_un_ordre("AIRBUS", "2023-06-01", "achat", 1000.0),
-             FraisNonChiffrables, "2023")
+        # 2027 et non plus 2023 depuis le 04-11-2026 : la liste 2012-2023 est versée (décision de Jean-Luc n°92) ;
+        # 2027 est la première année taxée sans liste.
+        leve("année 2027 sans liste", lambda: cout_d_un_ordre("AIRBUS", "2027-06-01", "achat", 1000.0),
+             FraisNonChiffrables, "2027")
         leve("valeur absente de la liste", lambda: cout_d_un_ordre("XXX", "2026-06-01", "achat", 1000.0),
              FraisNonChiffrables, "XXX")
         print(f"  ℹ sous le barème réel : BUREAU_VERITAS réel "
