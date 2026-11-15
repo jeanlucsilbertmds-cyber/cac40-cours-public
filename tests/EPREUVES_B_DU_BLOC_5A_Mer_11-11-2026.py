@@ -436,6 +436,7 @@ def cas(copie, racine):
     # G0 — VRAIE LIGNE (R-732) : la table de R-505 du REGISTRE du jour se lit, et sa ligne du plancher vaut 30.
     def g0():
         t = J.table_de_la_loi(open(os.path.join(racine, "gouvernance/REGISTRE_REGLES.md"), encoding="utf-8").read())
+        # la ligne « plancher_observations » reste au REGISTRE (30) mais la grille ne la lit plus depuis A-782 (14-11-2026)
         ok("G0 table réelle de R-505 : plancher_observations = 30, seuil_de_preuve = 0,05 ÷ k (k = 69 → 0,000725)",
            J.seuil_de_la_loi(t, "plancher_observations") == (30.0, "")
            and abs(J.seuil_de_la_loi(t, "seuil_de_preuve", 69)[0] - 0.05 / 69) < 1e-15,
@@ -510,9 +511,13 @@ def cas(copie, racine):
 
     def g5():
         # C7 : 40 opérations, 30 % de gagnantes à +5 000 €, 70 % de perdantes à −500 € ; point mort 50 %.
-        rares, _s = ops_synthetiques(([5000] * 3 + [-500] * 7) * 4)
+        # pas = 5 jours : 200 jours, au moins 5 blocs de 28 jours pour le p du gain (A-782, `BLOCS_MINIMUM`)
+        rares, s5 = ops_synthetiques(([5000] * 3 + [-500] * 7) * 4, pas=5)
         hz = [hasard(sum(o["net"] for o in rares), 2000)]
-        base5 = dict(ops=rares, point_mort_pct=50.0, hasard=hz)
+        m5 = len(s5) // 2      # les époques suivent la période de ces opérations (deux moitiés)
+        base5 = dict(ops=rares, point_mort_pct=50.0, hasard=hz,
+                     epoques_declarees="%s..%s ; %s..%s" % (s5[0], s5[m5 - 1], s5[m5], s5[-1]),
+                     annees_d_examen="%s..%s" % (s5[0], s5[-1]), seances_d_examen=s5)
         r = g_base(**base5)
         ok("G5 C7 en condition : taux sous le point mort → pas de validation, C7 nommé",
            r["verdict"] != VALIDEE and r["premier_controle_bloquant"] == "taux_face_au_point_mort",
@@ -532,10 +537,15 @@ def cas(copie, racine):
         ok("G6 seuil « 0,05 ÷ k » avec k = 10 : seuil de preuve 0,005",
            abs(r["seuil_de_preuve"] - 0.005) < 1e-15, "%r" % r["seuil_de_preuve"])
         r = g_base(k="INCONNU")
-        ok("G6b k INCONNU : gain INCONNU, pas de validation", r["motif"] == "MESURE MANQUANTE gain_bat_zero", r["motif"])
-        peu, _s = ops_synthetiques([900] * 15 + [-300] * 5)
+        # depuis A-782 le minimum d'observations (④) se calcule au seuil de preuve : sans k, ④ ET ⑤ sont INCONNUS
+        ok("G6b k INCONNU : observations et gain INCONNUS, pas de validation",
+           r["motif"] == "MESURE MANQUANTE observations_independantes"
+           and r["controles"]["gain_bat_zero"]["etat"] == "INCONNU", r["motif"])
+        # 6 opérations, 2 perdantes (q = 1/3, A-782) : minimum = ln(0,05) ÷ ln(2/3) = 7,39 → 8
+        peu, _s = ops_synthetiques([900, 900, -300] * 2)
         r = g_base(ops=peu, hasard=[hasard(sum(o["net"] for o in peu), 2000)])
-        ok("G6c 20 observations sous le plancher de 30 : TROP PETIT", r["motif"] == "TROP PETIT", r["motif"])
+        ok("G6c 6 observations sous le minimum calculé de 8 (A-782) : TROP PETIT",
+           r["motif"] == "TROP PETIT" and r["controles"]["observations_independantes"]["seuil"] == 8, r["motif"])
     essai("G6", g6)
 
     def g7():
@@ -667,7 +677,7 @@ def cas(copie, racine):
         # puis CHAQUE CHAMP de chaque mesure retiré un par un, puis mal typé (superviseur, N-A)
         ext = lambda cle, v: {**tout_passe, cle: v} if v is not None else {c: w for c, w in tout_passe.items() if c != cle}
         ops_nan = [dict(o) for o in bonnes]; ops_nan[3]["net"] = NAN
-        peu, _s = ops_synthetiques([900] * 15 + [-300] * 5)
+        peu, _s = ops_synthetiques([900, 900, -300] * 2)   # minimum calculé 8 > 6 (A-782)
         h_nan = hasard(net_bon, 2000); h_nan["gains_des_tirages"] = [NAN] * 1990 + [net_bon + 5] * 10
         t_c7 = lambda v: J.table_de_la_loi(TABLE_SYNTHETIQUE.format(c7=v, emb="30"))
         t_val = lambda cle, v: J.table_de_la_loi("\n".join(
@@ -693,7 +703,7 @@ def cas(copie, racine):
             "regard hors contrat 'False'": dict(regards_anterieurs="False"),
             "regard booléen": dict(regards_anterieurs=False),
             "regard NaN": dict(regards_anterieurs=[NAN]),
-            "observations BLOQUE (20)": dict(ops=peu, hasard=[hasard(sum(o["net"] for o in peu), 2000)]),
+            "observations BLOQUE (6 sous le minimum calculé de 8)": dict(ops=peu, hasard=[hasard(sum(o["net"] for o in peu), 2000)]),
             "ops INCONNU": dict(ops=None),
             "ops hors contrat": dict(ops="x"),
             "ops NaN": dict(ops=ops_nan),
@@ -776,7 +786,7 @@ def cas(copie, racine):
             "seuil du hasard 0,00135 (n°352, retiré) écrit à la table, k = 69 (décision n°42 : 0,05 ÷ 69 = 0,000725)":
                 dict(table=t_val("seuil_du_hasard", "0,00135"), k=69, hasard=[hasard(net_bon, 20000)]),
             "N-D kelly_minimum 0,01 (sous 0,05)": dict(table=t_val("kelly_minimum", "0,01")),
-            "N-D plancher 29": dict(table=t_val("plancher_observations", "29")),
+            # « N-D plancher 29 » RETIRÉ le 14-11-2026 : la ligne plancher_observations n'est plus lue (A-782)
             "N-D surapprentissage_maximum 0,5 (cas 2)": dict(table=t_val("surapprentissage_maximum", "0,5"),
                                                             **cas2("surapprentissage", None)),
             "seuil du hasard illisible (0,05 / k)": dict(table=t_val("seuil_du_hasard", "0,05 / k")),
@@ -855,7 +865,11 @@ def cas(copie, racine):
         from decimal import Decimal
         nombre = lambda x: format(Decimal(x), "f").replace(".", ",")      # exact : la case relue redonne le même flottant
         etat = lambda r, cle: r["controles"][cle]["etat"]
-        p_gain = reference["controles"]["gain_bat_zero"]["valeur"]
+        # ⑤ (A-782) : le p du bootstrap-t dépend du seuil reçu (sa précision), « p = seuil » n'est donc pas atteignable ;
+        # la frontière se vérifie par la PROPRIÉTÉ « PASSE ⟺ p rendu < seuil » sur trois séries de p connus d'avance
+        moyen = ops_synthetiques([900] * 20 + [-800] * 20, pas=5)[0]     # p de l'ordre de 0,03 à 0,05 ÷ 1
+        _rnd_m = __import__("random").Random(11); _g = [o["net"] for o in moyen]; _rnd_m.shuffle(_g)
+        moyen = [dict(o, net=g) for o, g in zip(moyen, _g)]
         h10 = hasard(net_bon, 20000, au_dessus=10)      # p = 11 / 20001, loin de la borne 1 / tirages (DÉL-D38)
         p_hz = g_base(hasard=[h10])["controles"]["bat_le_hasard"]["valeur"]
         c7 = reference["controles"]["taux_face_au_point_mort"]["valeur"]
@@ -885,9 +899,12 @@ def cas(copie, racine):
         frontieres = {
             # clé : [(libellé, arguments de g_base, état attendu)]
             "gain_bat_zero": [
-                ("seuil juste au-dessus de p", dict(table=tv("seuil_de_preuve", nombre(p_gain * 1.0001))), "PASSE"),
-                ("seuil = p", dict(table=tv("seuil_de_preuve", nombre(p_gain))), "BLOQUE"),
-                ("seuil juste sous p", dict(table=tv("seuil_de_preuve", nombre(p_gain * 0.9999))), "BLOQUE"),
+                ("série franche, seuil 0,05", dict(), "PASSE"),
+                ("série tiède, seuil 0,05 : p rendu au-dessus", dict(ops=moyen), "PROPRIETE"),
+                ("série tiède, seuil 0,01", dict(ops=moyen, table=tv("seuil_de_preuve", "0,01")), "PROPRIETE"),
+                ("série tiède, seuil 0,2 ÷ k refusé (moins strict) → INCONNU",
+                 dict(ops=moyen, table=tv("seuil_de_preuve", "0,2")), "INCONNU"),
+                ("série au gain moyen nul, seuil 0,05", dict(ops=ops_synthetiques([900, -900] * 20, pas=5)[0]), "BLOQUE"),
             ],
             "bat_le_hasard": [
                 ("seuil juste au-dessus de p", dict(table=tv("seuil_du_hasard", nombre(p_hz * 1.0001)), hasard=[h10]), "PASSE"),
@@ -963,9 +980,12 @@ def cas(copie, racine):
                 ("une époque d'une seule opération", dict(ops=ep_seule, **ep_args), "INCONNU"),
             ],
         }
+        # ④ (A-782) : minimum = arrondi supérieur de ln(seuil) ÷ ln(1 − q) ; 6 opérations, 3 perdantes, q = 1/2 → minimum = log2(1/seuil)
+        six = ops_synthetiques([900, -300] * 3)[0]
         frontieres["observations_independantes"] = [
-            ("plancher = n_obs", dict(table=tv("plancher_observations", "%d" % n_obs)), "PASSE"),
-            ("plancher = n_obs + 1", dict(table=tv("plancher_observations", "%d" % (n_obs + 1))), "BLOQUE"),
+            ("seuil 0,016 : minimum 6 = n_obs", dict(ops=six, table=tv("seuil_de_preuve", "0,016")), "PASSE"),
+            ("seuil 0,015 : minimum 7 = n_obs + 1", dict(ops=six, table=tv("seuil_de_preuve", "0,015")), "BLOQUE"),
+            ("seuil 0,05 : minimum 5 < n_obs", dict(ops=six), "PASSE"),
         ]
         # PROPRIÉTÉ, PAS ÉNUMÉRATION (D3) : CHAQUE contrôle du contrat a ses frontières, sans exception nommée
         manque = sorted(set(C.CONTROLES_DU_VERDICT) - set(frontieres))
@@ -996,6 +1016,9 @@ def cas(copie, racine):
         for cle, cas_ in frontieres.items():
             for lib, kw, attendu in cas_:
                 r = g_base(**kw)
+                if attendu == "PROPRIETE":     # ⑤ : l'état suit le p RENDU, comparé strictement au seuil
+                    x = r["controles"][cle]
+                    attendu = "PASSE" if x["valeur"] < x["seuil"] else "BLOQUE"
                 if etat(r, cle) != attendu:
                     faux.append("%s %s : %s au lieu de %s" % (cle, lib, etat(r, cle), attendu))
         ok("G14 frontières (juste sous / sur / juste au-dessus) de %d comparaisons" % sum(len(v) for v in frontieres.values()),

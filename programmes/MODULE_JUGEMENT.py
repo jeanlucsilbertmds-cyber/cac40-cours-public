@@ -56,7 +56,9 @@ CE QU'IL AJOUTE, ET QUI MANQUAIT
   `lire_les_epoques`, `loi_de_student_inferieure`, `probabilite_epoque_perdante`,
   `minimum_d_epoques_gagnantes`, `controle_des_epoques`, `afficher_le_groupe_temoin` ; leur seul
   appelant aujourd'hui est `tests/EPREUVES_DES_EPOQUES_Jeu_05-11-2026.py`, le juge de la loi (lot JG)
-  les branchera). Lancé en ligne de commande : il SORT DU
+  les branchera). Le 14-11-2026 (A-782, A-786), deux s'ajoutent pour R-505 ④ et ⑤ :
+  `probabilite_que_le_gain_soit_du_hasard` et `minimum_d_observations`, appelées par
+  `grille_de_validation`. Lancé en ligne de commande : il SORT DU
   PROGRAMME avec 0 si tous les contrôles de calibrage passent, 1 si l'un
   échoue, après avoir affiché une ligne par contrôle.
 ⑥ TRAITEMENT — ① poser le capital simulé, les frais de repli et la graine de
@@ -808,9 +810,10 @@ def observations_independantes(ops):
       (décision de Jean-Luc du 05-11-2026 à 18h08, « 1 », n°195).
     ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py`, fonction `juger`,
       une fois par stratégie jugée, pour l'AFFICHER ; puis le juge de la loi
-      (lot JG), qui comparera `n_observations` au plancher
-      `plancher_observations` qu'il LIT dans la table de R-505 (jamais écrit
-      ici) ; puis le tirage par groupes de n°107, qui lira
+      (lot JG), qui comparera `n_observations` au plancher — depuis le
+      14-11-2026 (A-782), le minimum calculé pour la stratégie par
+      `minimum_d_observations`, et non plus `plancher_observations` lu dans la
+      table de R-505 (jamais écrit ici) ; puis le tirage par groupes de n°107, qui lira
       `taille_des_groupes`. JG et n°107 lisent ces deux cases-là, JAMAIS
       `observations_mesurees`, qui est affichée et ne décide pas. JG et n°107 sont À VENIR : relevé le 05-11-2026 par
       recherche du nom dans `programmes/` et `tests/`, les seuls appelants
@@ -1005,9 +1008,10 @@ def observations_independantes(ops):
       le hasard : les mêmes gains, redistribués au hasard sur les mêmes
         positions ; seule la place des gains change, pas les dates
       le plancher : le nombre minimal d'observations indépendantes sous lequel
-        R-505 ④ rend NON TRANCHÉE (TROP PETIT) ; il vit dans la table de R-505
-        (`gouvernance/REGISTRE_REGLES.md`, clé `plancher_observations`) et
-        n'entre pas dans cette fonction
+        R-505 ④ rend NON TRANCHÉE (TROP PETIT) ; depuis le 14-11-2026 (A-782)
+        il est calculé pour chaque stratégie par `minimum_d_observations` (la
+        clé `plancher_observations` de la table n'est plus lue) et n'entre pas
+        dans cette fonction
       le juge des stratégies : `programmes/JUGE_DES_STRATEGIES.py`, le programme qui rejoue une stratégie sur l'historique des cours et rend la liste de ses opérations
       le BACKLOG : `BACKLOG_DECISIONS.md`, le tableau daté des décisions et des
         actions du projet, où chaque ligne porte un identifiant en `A-`
@@ -1936,6 +1940,350 @@ def probabilite_epoque_perdante(gains_eur, n_retenu):
     ddl = n_retenu - 1
     rendu.update(t=t, ddl=ddl, p_perdante=loi_de_student_inferieure(t, ddl))
     return rendu
+
+
+# ─────────────────────────────────────────────────────────────────────
+# LE HASARD DES GAINS — bootstrap-t par blocs (A-782, A-786) et minimum d'observations par stratégie (A-782)
+# ─────────────────────────────────────────────────────────────────────
+# Constantes de CALCUL de `probabilite_que_le_gain_soit_du_hasard` (pas des règles de la loi : elles fixent la
+# précision et la reproductibilité du calcul, la loi fixe le seuil). Chacune est justifiée au ⑧ de la fonction.
+GRAINE_DU_HASARD_DES_GAINS = 20261114      # graine fixe déclarée : même entrée → même p, à l'octet
+DEPASSEMENTS_POUR_CONCLURE = 40            # h de Besag et Clifford (1991) ; tirages ≥ 40 ÷ seuil (⑧ ④)
+TIRAGES_MINIMUM = 1999                     # jamais moins, même pour un seuil large
+TIRAGES_MAXIMUM = 4_000_000                # au-delà (seuil < 0,00001), le calcul refuse : INCONNU, jamais un faux p
+LONGUEUR_MINIMALE_DES_BLOCS_JOURS = 28     # 4 semaines de calendrier ≈ 20 séances, l'horizon de C5
+BLOCS_MINIMUM = 5                          # en dessous, la période est trop courte pour des blocs (⑨ ③)
+
+
+def probabilite_que_le_gain_soit_du_hasard(ops, seuil, longueur_des_blocs_jours=None,
+                                           graine=GRAINE_DU_HASARD_DES_GAINS):
+    """Rend la probabilité qu'une stratégie sans aucun talent fasse aussi bien que celle-ci, par bootstrap-t par blocs.
+
+    ① RÔLE — Répondre à la question de R-505 ⑤ : « le gain moyen par opération bat-il zéro, ou peut-il venir du
+      hasard ? ». Elle rend p, la probabilité qu'une stratégie SANS AUCUN TALENT, qui aurait exactement la même FORME de
+      gains que celle-ci (mêmes objectifs, mêmes stops, mêmes pertes rares et lourdes) et le même rythme d'opérations,
+      affiche par pure chance un gain moyen au moins aussi bon. Un p petit dit « le hasard fait rarement aussi bien » ;
+      la comparaison au seuil est faite par l'appelant. Le nom a été choisi par Jean-Luc (A-786, ⑧ ⑦).
+    ② CONTEXTE D'APPEL — `grille_de_validation`, contrôle ⑤ (« le gain bat zéro »), une fois par stratégie jugée, à la
+      place de la loi de Student ; `programmes/CALIBRER_LE_HASARD_DES_GAINS.py` (l'épreuve de calibrage, des milliers
+      de fois) ; l'épreuve `tests/EPREUVES_DU_HASARD_DES_GAINS_Sam_14-11-2026.py`. Elle servira aussi au tri des
+      versions sur les 70 % (A-781, « p70 < 1/N ») : aucun programme ne le fait encore (relevé le 14-11-2026).
+    ③ ENTRÉE — `ops` : les opérations de la stratégie, chacune un dictionnaire dont trois cases sont lues : `net` (le
+      gain net en euros, frais et taxe payés), `date_entree` et `date_sortie` (textes « AAAA-MM-JJ ») · `seuil` : le
+      seuil LE PLUS STRICT auquel le p rendu sera comparé (pour ⑤ : le seuil de preuve 0,05 ÷ k), dans ]0, 1[ ; il fixe
+      le nombre de tirages, jamais le résultat de la comparaison · `longueur_des_blocs_jours` : la longueur d'un bloc
+      en jours de calendrier, entier ≥ 1, ou `None` pour la règle par défaut (⑥ ③) · `graine` : la graine des tirages,
+      un entier ; par défaut `GRAINE_DU_HASARD_DES_GAINS`.
+    ④ CONDITIONS D'ENTRÉE — Au moins 2 opérations ; chaque `net` un nombre fini (pas un booléen) ; chaque date lisible,
+      la sortie pas avant l'entrée ; `seuil` un nombre dans ]0, 1[ ; `longueur_des_blocs_jours` `None` ou un entier
+      ≥ 1 ; `graine` un entier ; 40 ÷ seuil ne dépasse pas `TIRAGES_MAXIMUM` (4 000 000, soit un seuil d'au moins
+      0,00001, c'est-à-dire k ≤ 5 000 au seuil 0,05 ÷ k). Sinon `ValueError`, avec un message qui nomme le défaut.
+      La période couverte par les dates d'entrée doit contenir au moins `BLOCS_MINIMUM` (5) blocs, et l'incertitude
+      par blocs ne doit pas être nulle (gains tous égaux, ou chaque bloc qui compense exactement ses gains et ses
+      pertes) : sinon `ValueError` aussi (le calcul n'a pas de sens ; l'appelant en fait un contrôle INCONNU, jamais
+      un PASSE).
+    ⑤ SORTIE — UNE valeur : le nombre p, entre 0 et 1 (exclus 0). Rien d'autre : ni t, ni nombre de tirages.
+      [rend: 1]
+    ⑥ TRAITEMENT —
+      ① Lire chaque opération : gain, jour d'entrée, durée de détention en jours (sortie − entrée + 1).
+      ② Recentrer : retrancher à chaque gain le gain moyen m. Les gains recentrés ont une moyenne nulle : c'est la
+         stratégie « sans talent », avec exactement la même forme de gains (le monde où l'hypothèse « le gain moyen
+         vaut zéro » est vraie, tout le reste étant gardé).
+      ③ Longueur des blocs L (jours) : celle reçue, sinon la plus grande de `LONGUEUR_MINIMALE_DES_BLOCS_JOURS` (28) et
+         de la plus longue détention. La période D va du premier au dernier jour d'entrée ; si D ÷ L < `BLOCS_MINIMUM`,
+         `ValueError`.
+      ④ Ranger chaque gain recentré dans son jour d'entrée (la période est un cercle de D jours, Politis et Romano
+         1992) et préparer, pour chacun des D débuts possibles, la somme des L jours qui le suivent : nombre
+         d'opérations c, somme des écarts S ; et les produits S², S × c, c² dont le ⑤ a besoin.
+      ⑤ Le t observé, STUDENTISÉ PAR BLOCS : couper la période en blocs consécutifs de L jours ; erreur du gain moyen
+         e = √(Σ S_bloc²) ÷ n ; t = m ÷ e. C'est l'écart-type « par paquets » : des opérations du même bloc qui ont
+         gagné ou perdu ensemble comptent pour ce qu'elles valent, un seul paquet.
+      ⑥ Tirer, avec la graine, b = arrondi supérieur de D ÷ L débuts de blocs au hasard (avec remise) ; mettre bout à
+         bout les b blocs : c'est une période « rejouée » où les opérations voisines restent ensemble. Y calculer, de
+         la même façon qu'au ⑤, t* = m* ÷ e*, m* étant le gain moyen recentré du tirage et e* son erreur par blocs
+         (√(Σ (S_bloc − c_bloc × m*)²) ÷ n*). Un tirage de moins de 2 opérations, ou d'erreur nulle avec m* ≥ 0,
+         compte comme « aussi bien » (prudence : il ne peut pas aider la stratégie).
+      ⑦ Compter les tirages où t* ≥ t (« le hasard fait aussi bien »). S'arrêter dès que ce compte atteint
+         h = `DEPASSEMENTS_POUR_CONCLURE` (40) au tirage l < M : p = h ÷ l (Besag et Clifford 1991). Sinon, après
+         M = le plus grand de `TIRAGES_MINIMUM` (1 999) et de l'arrondi supérieur de 40 ÷ seuil :
+         p = (compte + 1) ÷ (M + 1).
+    ⑦ UNITÉ — Gains en EUROS (le résultat ne dépend pas de l'unité : multiplier tous les gains par un même nombre ne
+      change pas p) ; longueurs de blocs et durées en JOURS DE CALENDRIER, pas en séances ; p est une probabilité,
+      sans unité.
+    ⑧ POURQUOI —
+      ① LE PRINCIPE, EN UN EXEMPLE. Une stratégie a fait 100 opérations et gagne 1 113 € en moyenne (C5-ETENDU-10,
+         tableau du 01-08-2026). Question : une stratégie sans talent, avec ses propres gains, ferait-elle aussi bien
+         par chance ? On retranche 1 113 € à chacun des 100 gains : la stratégie a désormais un gain moyen nul — aucun
+         talent — mais exactement ses gains : ses +3 700 €, ses −2 800 €, ses sorties à l'échéance. On rejoue cette
+         stratégie sans talent des milliers de fois, en tirant au hasard des morceaux de sa propre histoire, et on
+         compte à quelle fréquence le hasard affiche un résultat aussi bon que les 1 113 € réels. Mesuré le 14-11-2026
+         sur ces 100 opérations, au seuil 0,05 ÷ 69 : p = 0,0128 (40 tirages « aussi bien » sur 3 127) — « avec ses
+         propres gains mais sans talent, le hasard ferait aussi bien environ 128 fois sur 10 000 ». La loi de Student
+         du juge donnait 0,0067 (B.1 du rapport cité au ③). C'est le rééchantillonnage d'Efron (« bootstrap », Annals of Statistics 7, 1979, 1-26).
+      ② POURQUOI LE « t » (bootstrap-t) ET NON LE GAIN MOYEN BRUT. On compare non pas le gain moyen, mais le gain moyen
+         divisé par son incertitude (le « t »), dans la réalité et dans chaque tirage. Ce rapport varie beaucoup moins
+         d'une forme de gains à l'autre que le gain lui-même : c'est ce qui rend le calcul juste au second ordre, son
+         erreur décroissant comme 1 ÷ n au lieu de 1 ÷ √n, et ce qui le rend adapté aux gains dissymétriques. Source :
+         Hall, « Theoretical Comparison of Bootstrap Confidence Intervals », The Annals of Statistics 16 (1988),
+         927-953 ; Hall et Wilson, « Two Guidelines for Bootstrap Hypothesis Testing », Biometrics 47 (1991), 757-762
+         (rééchantillonner dans le monde où l'hypothèse est vraie, d'où le recentrage du ⑥ ②).
+      ③ POURQUOI PAS LA LOI DE STUDENT. Student suppose des gains « en cloche ». Les nôtres ne le sont pas : un objectif
+         petit et un stop large (+1 % / −3 %) donnent beaucoup de petits gains et quelques grosses pertes. Mesuré le
+         14-11-2026 (collège « terminer », `etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/
+         TERMINER_BRUIT_PLANCHER_EPOQUES_Sam_14-11-2026.md`, B.2) sur les vraies formes de gains 2024-2026 : au seuil
+         de la loi (0,05 ÷ 69), Student déclare « pas du hasard » 80 fois plus souvent que promis à 10 observations
+         (+1 % / −3 %), 15 fois à 30, et encore 1,3 à 2,1 fois à 500 observations, C5 compris. Le « 30 » qui devait
+         rendre Student sûr ne le fait pas : Hesterberg, « It's Time To Retire the "n >= 30" Rule », JSM Proceedings
+         2008 (« a relic of the pre-computer era »).
+      ④ POURQUOI PAR BLOCS DE JOURS VOISINS. Cinq achats faits la même semaine de krach ne sont pas cinq hasards
+         indépendants : c'est UN seul hasard, le krach, vu cinq fois. Rééchantillonner les opérations une par une les
+         séparerait et ferait croire à cinq preuves. On rééchantillonne donc des MORCEAUX DE CALENDRIER entiers (Künsch,
+         « The Jackknife and the Bootstrap for General Stationary Observations », The Annals of Statistics 17 (1989),
+         1217-1241), sur un cercle pour ne pas défavoriser les bords (Politis et Romano, « A circular block-resampling
+         procedure for stationary data », in LePage et Billard (dir.), Exploring the Limits of Bootstrap, Wiley, 1992,
+         263-270), de longueur fixe plutôt qu'aléatoire (le « stationnaire » de Politis et Romano, Journal of the
+         American Statistical Association 89 (1994), 1303-1313, est moins précis à longueur égale : Lahiri, « Theoretical
+         comparisons of block bootstrap methods », The Annals of Statistics 27 (1999), 386-404). Et l'incertitude du ⑥ ⑤
+         se calcule elle aussi par blocs, dans la réalité comme dans chaque tirage (Götze et Künsch, « Second-order
+         correctness of the blockwise bootstrap for stationary observations », The Annals of Statistics 24 (1996),
+         1914-1933) : sans cela, mesuré le 14-11-2026 sur 800 stratégies sans talent par cas (+1 % / −3 %, 100
+         opérations, paquets de 10 achats liés — le scénario « régime » de la contre-expertise du 14-11 ; mesure
+         exploratoire de l'auteur, script hors dépôt), le risque promis de 5 % devient 6,5 % ; avec, 4,3 % ; la loi de
+         Student avec le nombre d'observations du juge donne 10,9 %. L'épreuve de calibrage du dépôt
+         (`programmes/CALIBRER_LE_HASARD_DES_GAINS.py`, 4 000 stratégies sans talent par case, 14-11-2026, code 0)
+         mesure pour ce même scénario 2,8 % à 5,6 % au seuil 0,05 et 8 faux sur 12 000 au seuil 0,05 ÷ 69 (8,7
+         attendus au risque promis) ; sur les trois formes et les trois scénarios exigés, 0,0182 à 0,0602 au seuil
+         0,05 et 5 à 9 faux sur 12 000 au seuil 0,05 ÷ 69.
+         LONGUEUR DES BLOCS : au moins 28 jours de calendrier (4 semaines, environ 20 séances, l'horizon de C5), et au
+         moins la plus longue détention de la stratégie, pour que deux positions ouvertes en même temps tombent le plus
+         souvent dans le même bloc. Choix déclaré, éprouvé par l'épreuve de calibrage, pas optimisé.
+      ⑤ POURQUOI LE NOMBRE D'OBSERVATIONS DU JUGE N'ENTRE PAS DANS p. Le juge mesure n_observations (R-505 ④, n°106,
+         n°197) et Student l'utilisait pour l'écart-type. Ici, la dépendance entre opérations est portée par les BLOCS,
+         dans la réalité et dans chaque tirage ; un même n figé multiplierait t et chaque t* par le même nombre et ne
+         changerait pas p. n_observations reste celui du juge et sert au contrôle ④ (minimum d'observations) et à la
+         borne de Wilson ; il n'est ni changé ni recalculé ici.
+      ⑥ POURQUOI CE NOMBRE DE TIRAGES, CETTE GRAINE, CET ARRÊT. Le plus petit p possible après M tirages est 1 ÷ (M + 1) :
+         il faut M + 1 > 1 ÷ seuil pour pouvoir seulement passer le seuil. Au seuil, on veut en moyenne 40 tirages
+         « aussi bien » : l'incertitude due aux tirages est alors d'environ 1 ÷ √40 ≈ 16 % de p ; d'où M = 40 ÷ seuil
+         (55 200 tirages au seuil 0,05 ÷ 69). La dispersion réellement obtenue d'une graine à l'autre est MESURÉE par
+         `programmes/CALIBRER_LE_HASARD_DES_GAINS.py` (partie « précision des tirages »). L'arrêt dès 40 tirages
+         « aussi bien » (Besag et Clifford, « Sequential Monte Carlo p-values », Biometrika 78 (1991), 301-304) rend
+         une probabilité tout aussi valable et évite des dizaines de milliers de tirages quand le hasard fait souvent
+         aussi bien — le cas de presque toutes les versions qu'on trie (A-781). La graine fixe rend le calcul
+         rejouable à l'identique, comme la loi l'exige d'un verdict.
+      ⑦ LES DÉCISIONS. A-782, Jean-Luc, samedi 14-11-2026 à 16h56 : « OK pour ce nouveau calcul » — la probabilité que
+         le gain soit dû au hasard se calcule par rééchantillonnage des gains de la stratégie (bootstrap-t) et non plus
+         par la loi de Student ; il exige une fonction nommée selon la nomenclature, les onze éléments R-752 et
+         l'explication du principe. A-786, Jean-Luc, samedi 14-11-2026 à 17h08 : « Je choisis le 1 » — le nom
+         `probabilite_que_le_gain_soit_du_hasard` (écarté : `p_du_gain_par_reechantillonnage`) ; il demande une méthode
+         validée par la littérature, fiable, expliquée de façon autoportante, « pour que dans 6 mois on n'ait pas à se
+         reposer des questions sur la méthodologie, qu'on puisse la challenger, voire l'améliorer » (ses mots, rapportés
+         par le Chat dans le mandat du 14-11-2026). A-782 rend l'épreuve de calibrage obligatoire avant le regard
+         (« Non éprouvé : le bootstrap-t au seuil le plus strict et avec opérations liées »).
+    ⑨ CE QUI CLOCHE — CE QUI RESTE INCERTAIN, à challenger :
+      ① UNE DÉPENDANCE QUI DURE PLUS LONGTEMPS QU'UN BLOC N'EST PAS VUE. Un « régime » de marché qui relie des paquets
+         d'opérations distants de plusieurs mois fait encore passer des stratégies sans talent bien plus souvent que
+         promis : mesuré le 14-11-2026 par l'épreuve de calibrage (paquets de 10 achats liés à 0,36, régime qui
+         persiste à 0,8 d'un paquet au suivant, 900 jours), 7 % à 24 % au lieu de 5 % au seuil 0,05, et 212 à 259 faux
+         sur 12 000 au lieu de 8,7 au seuil 0,05 ÷ 69 (25 à 70 fois le promis à 100 et 250 opérations) ; Student avec
+         le nombre d'observations du juge, mesure exploratoire à 100 opérations : 32,6 % au seuil 0,05 (le bootstrap-t
+         par blocs : 20,6 %). Aucune méthode qui ne regarde qu'une période ne peut voir un régime aussi long qu'elle ; c'est le rôle
+         de R-505 ⑦ (tenir dans chaque époque fixée d'avance). Le calibrage l'affiche, sans l'exiger.
+      ② LA LONGUEUR DES BLOCS EST UN CHOIX (28 jours au moins). Une règle tirée des données (Politis et White,
+         Econometric Reviews 23 (2004), 53-70) n'a pas été essayée.
+      ③ À PETIT NOMBRE DE BLOCS, LE CALCUL EST PRUDENT, DONC PEU PUISSANT : mesuré, 30 opérations en paquets de 10
+         donnent 0,1 % à 0,3 % de faux au lieu de 5 % — il rejette trop rarement, y compris de vraies bonnes
+         stratégies. Sous 5 blocs (`BLOCS_MINIMUM`), il refuse de calculer. Mesuré le 14-11-2026 (800 stratégies sans
+         talent par cas, 60 opérations, seuil 0,05) : 4 blocs → 5,5 % (+1 % / −3 %) et 4,6 % (C5) ; 6 blocs → 5,4 %,
+         4,9 %, et 4,6 % en paquets de 10 liés ; 8 blocs → 4,3 %, 4,6 %, 6,8 % en paquets ; 10 blocs → 5,6 %, 5,4 %,
+         5,2 % (incertitude de chaque taux ± 0,8 point). Le 5 est donc prudent par rapport au mesuré, pas optimisé ;
+         sous 5, les tirages n'ont presque plus rien à mélanger. LE PRIX, MESURÉ (14-11-2026) : une même série très
+         gagnante (30 × +900 €, 10 × −300 €, Student t ≈ 7) rend p = 0,013 étalée sur 7 blocs, 0,000018 sur 14 blocs,
+         0,00016 sur 31 blocs, au seuil 0,05 ÷ 69 : à moins d'une dizaine de blocs, même une excellente stratégie ne
+         peut pas passer le seuil de la loi.
+      ④ La période est mesurée du premier au DERNIER JOUR D'ENTRÉE, en jours de calendrier : les week-ends et jours
+         fériés sont des jours vides ; les tirages ne sont donc pas les mêmes pour deux versions dont les dates
+         extrêmes diffèrent (la méthode des 30 % veut les mêmes tirages pour toutes les versions, ARBITRAGE du 14-11,
+         C4 : non fait ici, à faire dans le tri de Romano-Wolf).
+      ⑤ Le p rendu dépend du seuil reçu dès qu'il est petit (sa précision est réglée pour ce seuil) : le comparer à un
+         seuil PLUS STRICT que celui reçu n'a pas de sens.
+      ⑥ La RÉFUTATION de R-505 et les époques (⑦) calculent encore leur p par Student (`probabilite_epoque_perdante`) :
+         hors du mandat A-782 / A-786, signalé.
+    ⑩ EFFET — Aucun : ni fichier, ni réseau, ni affichage ; les données reçues ne sont pas modifiées.
+    ⑪ TERMINAISON — Rend la main, ou lève `ValueError`. La boucle des tirages est bornée par M ; toutes les autres par
+      le nombre d'opérations ou de jours. Aucun de ses appels ne peut ne pas revenir : elle n'appelle que la
+      bibliothèque standard (dates, `math`, tirage au hasard, `operator.itemgetter`).
+      [sort: non]
+    ⑫ DÉFINITIONS
+      une opération : un achat simulé suivi de sa revente, avec son gain net en euros ; aucun ordre réel n'est jamais passé
+      sans talent : dont le vrai gain moyen par opération est nul ; on la fabrique en retranchant à chaque gain le gain moyen
+      un bloc : L jours de calendrier consécutifs, avec toutes les opérations entrées ces jours-là
+      un tirage : une période rejouée faite de blocs tirés au hasard, avec remise
+      le t : le gain moyen divisé par son incertitude (erreur), calculée par blocs
+      le seuil : la probabilité sous laquelle p dit « pas du hasard » ; pour R-505 ⑤, 0,05 ÷ k
+      k : le nombre de stratégies jugées (R-505), 69 au 01-11-2026
+    """
+    import datetime
+    import math
+    import random
+    from operator import itemgetter
+    if isinstance(seuil, bool) or not isinstance(seuil, (int, float)) or not (0.0 < seuil < 1.0):
+        raise ValueError("seuil = %r : il faut un nombre dans ]0, 1[" % (seuil,))
+    if longueur_des_blocs_jours is not None and (isinstance(longueur_des_blocs_jours, bool)
+                                                 or not isinstance(longueur_des_blocs_jours, int)
+                                                 or longueur_des_blocs_jours < 1):
+        raise ValueError("longueur des blocs = %r : il faut un entier >= 1 ou None" % (longueur_des_blocs_jours,))
+    if isinstance(graine, bool) or not isinstance(graine, int):
+        raise ValueError("graine = %r : il faut un entier (une graine fixe, déclarée)" % (graine,))
+    ops = list(ops)
+    if len(ops) < 2:
+        raise ValueError("%d opération(s) : il en faut au moins 2" % len(ops))
+    gains, jours, tenues = [], [], []
+    for i, o in enumerate(ops):
+        g = o.get("net") if isinstance(o, dict) else None
+        if isinstance(g, bool) or not isinstance(g, (int, float)) or not math.isfinite(g):
+            raise ValueError("opération n°%d : gain net %r, pas un nombre fini" % (i, g))
+        try:
+            e = datetime.date.fromisoformat(o["date_entree"])
+            s = datetime.date.fromisoformat(o["date_sortie"])
+        except (KeyError, TypeError, ValueError):
+            raise ValueError("opération n°%d : date d'entrée ou de sortie absente ou illisible (attendu AAAA-MM-JJ)" % i)
+        if s < e:
+            raise ValueError("opération n°%d : sortie %s avant l'entrée %s" % (i, s, e))
+        gains.append(float(g))
+        jours.append(e.toordinal())
+        tenues.append((s - e).days + 1)
+    n = len(gains)
+    m = math.fsum(gains) / n
+    longueur = longueur_des_blocs_jours or max(LONGUEUR_MINIMALE_DES_BLOCS_JOURS, max(tenues))
+    j0 = min(jours)
+    D = max(jours) - j0 + 1
+    if D < BLOCS_MINIMUM * longueur:
+        raise ValueError("période de %d jours pour des blocs de %d jours : moins de %d blocs, le calcul n'a pas de sens"
+                         % (D, longueur, BLOCS_MINIMUM))
+    compte, somme = [0] * D, [0.0] * D
+    for g, j in zip(gains, jours):
+        compte[j - j0] += 1
+        somme[j - j0] += g - m
+    # l'erreur observée, par blocs consécutifs (⑥ ⑤)
+    e2 = math.fsum(math.fsum(somme[a:a + longueur]) ** 2 for a in range(0, D, longueur))
+    if e2 <= 0.0:
+        raise ValueError("incertitude par blocs nulle (les %d gains sont tous égaux, ou chaque bloc compense exactement "
+                         "ses gains et ses pertes) : p n'a pas de sens" % n)
+    t_observe = m / (math.sqrt(e2) / n)
+
+    def fenetres(valeurs):
+        """Rend, pour chaque jour de début, la somme des `longueur` jours qui le suivent, sur le cercle des D jours.
+        ① RÔLE — Préparer les sommes de chaque bloc possible, pour qu'un tirage se calcule par simple addition.
+        ② CONTEXTE D'APPEL — `probabilite_que_le_gain_soit_du_hasard`, deux fois (comptes, sommes des écarts).
+        ③ ENTRÉE — `valeurs` : une liste de D nombres, un par jour de la période.
+        ④ CONDITIONS D'ENTRÉE — `len(valeurs)` vaut D ; `longueur` ≤ D (garanti par le contrôle des 5 blocs).
+        ⑤ SORTIE — UNE valeur : la liste des D sommes.
+          [rend: 1]
+        ⑥ TRAITEMENT — doubler la liste (le cercle), cumuler, différence de deux cumuls distants de `longueur`.
+        ⑦ UNITÉ — Celle des valeurs reçues (opérations ou euros).
+        ⑧ POURQUOI — Blocs circulaires (Politis et Romano 1992) : chaque jour peut ouvrir un bloc, aucun bord n'est
+          défavorisé ; les sommes précalculées rendent chaque tirage rapide (6 s par million mesurées le 14-11-2026).
+        ⑨ CE QUI CLOCHE — Sommes en flottants : écarts d'arrondi de l'ordre de 1e-12 en relatif, sans effet mesuré.
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main ; deux boucles bornées par 2 D. Aucun appel ne peut ne pas revenir.
+          [sort: non]
+        """
+        double = valeurs + valeurs
+        cumul = [0.0] * (2 * D + 1)
+        for i, v in enumerate(double):
+            cumul[i + 1] = cumul[i] + v
+        return [cumul[a + longueur] - cumul[a] for a in range(D)]
+    c_f, s_f = fenetres(compte), fenetres(somme)
+    ss_f = [x * x for x in s_f]
+    sc_f = [x * y for x, y in zip(s_f, c_f)]
+    cc_f = [y * y for y in c_f]
+    b = -(-D // longueur)
+    tirages = max(TIRAGES_MINIMUM, math.ceil(DEPASSEMENTS_POUR_CONCLURE / seuil))
+    if tirages > TIRAGES_MAXIMUM:
+        raise ValueError("seuil %r : il faudrait %d tirages, plus que le maximum de %d (environ 6 s par million, mesuré le 14-11-2026 sur 100 opérations)"
+                         % (seuil, tirages, TIRAGES_MAXIMUM))
+    hasard = random.Random(graine)
+    au_hasard = hasard.random
+    aussi_bien = 0
+    for l in range(1, tirages + 1):
+        prendre = itemgetter(*[int(au_hasard() * D) for _ in range(b)])   # b >= BLOCS_MINIMUM : des tuples
+        n_t = sum(prendre(c_f))
+        s_t = sum(prendre(s_f))
+        if n_t < 2:
+            aussi_bien += 1
+        else:
+            m_t = s_t / n_t
+            v_t = sum(prendre(ss_f)) - 2.0 * m_t * sum(prendre(sc_f)) + m_t * m_t * sum(prendre(cc_f))
+            if v_t <= 1e-12 * (s_t * s_t + 1e-300):
+                aussi_bien += m_t >= 0.0
+            elif m_t / (math.sqrt(v_t) / n_t) >= t_observe:
+                aussi_bien += 1
+        if aussi_bien >= DEPASSEMENTS_POUR_CONCLURE and l < tirages:
+            return DEPASSEMENTS_POUR_CONCLURE / l
+    return (aussi_bien + 1) / (tirages + 1)
+
+
+def minimum_d_observations(gains_eur, seuil):
+    """Calcule, pour une stratégie, le nombre minimal d'observations sous lequel son p ne peut pas être cru (A-782).
+
+    ① RÔLE — Rendre le plancher du contrôle ④ de R-505, propre à la stratégie, à la place du « 30 » fixe : sous ce
+      nombre d'observations indépendantes, la stratégie est NON TRANCHÉE (TROP PETIT). La comparaison est faite par
+      l'appelant.
+    ② CONTEXTE D'APPEL — `grille_de_validation`, contrôle ④, une fois par stratégie jugée ; l'épreuve
+      `tests/EPREUVES_DU_HASARD_DES_GAINS_Sam_14-11-2026.py`.
+    ③ ENTRÉE — `gains_eur` : les gains nets des opérations de la stratégie, en euros · `seuil` : le seuil de preuve
+      auquel le p du ⑤ sera comparé (0,05 ÷ k), dans ]0, 1[.
+    ④ CONDITIONS D'ENTRÉE — Au moins 2 gains, chacun un nombre fini (pas un booléen) ; `seuil` dans ]0, 1[ ; au moins
+      une opération perdante (sans elle, le minimum est infini). Sinon `ValueError`, avec un message qui nomme le
+      défaut (la grille en fait un contrôle INCONNU, qui ne valide jamais).
+    ⑤ SORTIE — UNE valeur : un entier ≥ 1, le minimum d'observations.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① q = part des opérations PERDANTES, c'est-à-dire de gain net strictement négatif (A-782, ⑧) ·
+      ② minimum = arrondi supérieur de ln(seuil) ÷ ln(1 − q) ; toutes perdantes (q = 1) : 1.
+    ⑦ UNITÉ — Gains en EUROS (sans effet : seul leur signe compte) ; seuil et q sans unité ;
+      le minimum est un NOMBRE D'OBSERVATIONS, comparé à `n_observations` du juge (R-505 ④, n°106, n°197).
+    ⑧ POURQUOI — Un rééchantillonnage ne sait rien de ce qu'il n'a jamais vu. Si une stratégie sans talent fait une
+      perte une fois sur 1 ÷ q, la probabilité de n'en voir AUCUNE en n observations est
+      (1 − q)ⁿ ; tant qu'elle n'est pas sous le seuil, le seul fait de n'avoir vu que des gains suffirait à passer le
+      seuil par chance. D'où n ≥ ln(seuil) ÷ ln(1 − q) : c'est un calcul exact, propre à chaque stratégie, pas une
+      règle du pouce. Exemples calculés par programme le 14-11-2026 au seuil 0,05 ÷ 69, q = part des opérations
+      perdantes : C5 réelle (les 100 opérations du 01-08-2026, +4 % / −2,5 %, q = 0,39) → 14,63 → 15 ; +1 % / −3 %
+      (28 530 entrées 2024-2026, q = 0,2509) → 25,02 → 26 ; +1,2 % / −1 % (28 557 entrées, q = 0,555) → 8,93 → 9.
+      ERRATUM : A-782 et le collège « terminer » (B.4) écrivaient « +1 % / −3 % → 25 » ; ln(0,05 ÷ 69) ÷ ln(0,75)
+      = 25,13, l'arrondi supérieur est 26 (relecteur neuf du 14-11-2026, D1). DÉCISION : A-782, Jean-Luc, samedi
+      14-11-2026 à 16h56, « OK pour ce nouveau calcul » : « le minimum d'opérations est calculé pour chaque
+      stratégie : n ≥ ln(seuil) ÷ ln(1 − q), q = part d'opérations perdantes » — appliqué tel qu'approuvé. Le tour 1
+      comptait q SOUS LA MOYENNE (note de B.4 du collège) : c'est moins strict pour une stratégie gagnante, dont les
+      gains entre 0 et la moyenne comptaient comme des pertes (exemple du relecteur : 25 % à −3, 20 % à +0,2, 55 % à
+      +2 → 13 sous la moyenne, 26 en perdantes) ; retiré au tour 2 (relecteur neuf, D2). Le « 30 » qu'il remplace était un choix délégué
+      (DÉL-D35) dont Jean-Luc doutait dès le 01-11-2026 à 12h31 : « faut-il toujours prendre 30 pour toutes les
+      stratégies, ou ça se recalcule à chaque fois ? ». Hesterberg (2008, « It's Time To Retire the "n >= 30" Rule »).
+    ⑨ CE QUI CLOCHE — ① La borne suppose des observations indépendantes ; avec des opérations liées, ce sont des BLOCS
+      qui sont tirés, et le nombre de blocs peut être plus petit que n_observations : non éprouvé. ② C'est une borne
+      NÉCESSAIRE, pas suffisante : la puissance (trouver une vraie bonne stratégie) n'y entre pas. ③ Un quotient qui
+      tombe sur un entier à l'arrondi des flottants près peut donner un de plus : sans effet sur la prudence.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève `ValueError`. Une boucle sur les gains. Aucun de ses appels ne peut ne pas
+      revenir : `math` seulement.
+      [sort: non]
+    """
+    import math
+    gains = list(gains_eur)
+    for i, g in enumerate(gains):
+        if isinstance(g, bool) or not isinstance(g, (int, float)) or not math.isfinite(g):
+            raise ValueError("gain n°%d = %r : pas un nombre fini" % (i, g))
+    if len(gains) < 2:
+        raise ValueError("%d gain(s) : il en faut au moins 2" % len(gains))
+    if isinstance(seuil, bool) or not isinstance(seuil, (int, float)) or not (0.0 < seuil < 1.0):
+        raise ValueError("seuil = %r : il faut un nombre dans ]0, 1[" % (seuil,))
+    q = sum(1 for g in gains if g < 0.0) / len(gains)      # part des opérations PERDANTES (A-782)
+    if q == 0.0:
+        raise ValueError("aucune des %d opérations n'est perdante : le minimum est infini, la stratégie ne peut pas "
+                         "être tranchée" % len(gains))
+    if q == 1.0:      # toutes perdantes : une perte est vue à coup sûr, ln(0) n'existe pas
+        return 1
+    return max(1, math.ceil(math.log(seuil) / math.log(1.0 - q)))
 
 
 def minimum_d_epoques_gagnantes(parts_des_seances, seuil_de_preuve, seuil_epoque):
@@ -2959,7 +3307,9 @@ def glissement(ops):
 DOMAINES_DES_CLES_DE_LA_TABLE = {
     "seuil_de_preuve": "proba",          # ⑤ : « 0,05 ÷ k » au 11-11 (n°42)
     "seuil_du_hasard": "proba",          # ⑥ : « 0,05 ÷ k » (décision de Jean-Luc du 31-10-2026 à 19h46, n°42)
-    "plancher_observations": "positif",  # ④ : « 30 » (n°81, DÉL-D35)
+    # « plancher_observations » (④, « 30 », n°81, DÉL-D35) N'EST PLUS LU depuis le 14-11-2026 : le minimum est calculé
+    # pour chaque stratégie (A-782, `minimum_d_observations`) ; la ligne reste au REGISTRE tant que Jean-Luc n'a pas
+    # inscrit le texte proposé dans echanges/A_RELIRE.md.
     "kelly_minimum": "positif",          # ⑨ : « 0,05 » (n°88)
     "epoque_perdante": "proba",          # ⑦ : « 0,05 » (n°58) — lu par l'appelant pour `controle_des_epoques`
     "taux_face_au_point_mort": "rôle",   # ancien C7 (Q-G3 ; n°352 : condition) — À ÉCRIRE PAR A
@@ -2986,7 +3336,6 @@ DOMAINES_DES_CLES_DE_LA_TABLE = {
 REFERENCES_DE_STRICTESSE = {
     "seuil_de_preuve": ("<=", "0,05 ÷ k", "n°42"),
     "seuil_du_hasard": ("<=", "0,05 ÷ k", "n°42"),
-    "plancher_observations": (">=", "30", "n°81"),
     "kelly_minimum": (">=", "0,05", "n°88"),
     "epoque_perdante": (">=", "0,05", "n°58"),
     "surapprentissage_maximum": ("<=", "0,30", "n°109"),
@@ -3549,7 +3898,6 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
     kk = g["k"]
     s_preuve, r_preuve = seuil_de_la_loi(table, "seuil_de_preuve", kk)
     s_hasard, r_hasard = seuil_de_la_loi(table, "seuil_du_hasard", kk)
-    plancher, r_plancher = seuil_de_la_loi(table, "plancher_observations")
     rejet = lambda *noms: " ; ".join(rejets[n] for n in noms if n in rejets)
     c = {}
 
@@ -3589,6 +3937,14 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
         n_obs = e["n_observations"] if _nombre_fini(e["n_observations"]) else None
         detail = {"n_operations": e["n_operations"], "observations_independantes": n_obs,
                   "taille_des_groupes": e["taille_des_groupes"], "methode": e["methode"]}
+        # LE MINIMUM EST CALCULÉ POUR LA STRATÉGIE (A-782, 14-11-2026 16h56) : n ≥ ln(seuil) ÷ ln(1 − q), au seuil de
+        # preuve ; il remplace le « 30 » fixe de la table (DÉL-D35), qui n'est plus lu. La MESURE n_obs ne change pas.
+        plancher, r_plancher = None, r_preuve or rejet("k") or "seuil de preuve inconnu"
+        if n_obs is not None and s_preuve is not None:
+            try:
+                plancher, r_plancher = minimum_d_observations([o["net"] for o in ops], s_preuve), ""
+            except ValueError as ex:
+                r_plancher = str(ex)
         if n_obs is None:
             c["observations_independantes"] = _controle("INCONNU", raison=e["motif"] or "mesure impossible")
         elif plancher is None:
@@ -3598,20 +3954,23 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
                                                         seuil=plancher, detail=detail,
                                                         raison="" if n_obs >= plancher else "TROP PETIT")
     gains = [o["net"] for o in ops]
-    # ⑤ LE GAIN BAT ZÉRO, DÉPENDANCE COMPRISE : p = probabilité d'un gain moyen aussi haut si le vrai gain était nul
+    # ⑤ LE GAIN BAT ZÉRO, DÉPENDANCE COMPRISE : p = probabilité qu'une stratégie sans talent, avec les mêmes gains,
+    # fasse aussi bien — bootstrap-t par blocs (A-782, A-786), à la place de la loi de Student. Le seuil fixe la
+    # précision du calcul : sans seuil, pas de p.
     p_gain = None
-    if not ops or n_obs is None:
-        c["gain_bat_zero"] = _controle("INCONNU", raison="observations indépendantes inconnues")
+    if not ops:
+        c["gain_bat_zero"] = _controle("INCONNU", raison=rejet("ops") or "aucune opération")
+    elif s_preuve is None:
+        c["gain_bat_zero"] = _controle("INCONNU", raison=r_preuve or rejet("k"))
     else:
-        rg = probabilite_epoque_perdante([-x for x in gains], n_obs)
-        p_gain = rg["p_perdante"] if _nombre_fini(rg["p_perdante"]) else None
-        if p_gain is None:
-            c["gain_bat_zero"] = _controle("INCONNU", raison=rg["motif"] or "probabilité non finie")
-        elif s_preuve is None:
-            c["gain_bat_zero"] = _controle("INCONNU", valeur=p_gain, raison=r_preuve or rejet("k"))
+        try:
+            p_gain = probabilite_que_le_gain_soit_du_hasard(ops, s_preuve)
+        except ValueError as ex:
+            c["gain_bat_zero"] = _controle("INCONNU", raison="p du gain non calculable : %s" % ex)
         else:
             c["gain_bat_zero"] = _controle("PASSE" if p_gain < s_preuve else "BLOQUE", valeur=p_gain, seuil=s_preuve,
-                                           detail={"t": rg["t"], "ddl": rg["ddl"]})
+                                           detail={"methode": "bootstrap-t par blocs (A-782, A-786)",
+                                                   "graine": GRAINE_DU_HASARD_DES_GAINS})
     # ⑥ LE HASARD : la plus grande part de tirages qui font aussi bien, sur tous les modes reçus
     if not hasard or not ops:
         c["bat_le_hasard"] = _controle("INCONNU", raison=rejet("hasard", "ops") or "étalon de hasard non reçu")

@@ -3750,8 +3750,8 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
     # LES OBSERVATIONS INDÉPENDANTES SE MESURENT, ELLES NE SE COMPTENT PLUS PAR UN SEUIL DE SÉANCES (décision de
     # Jean-Luc du 01-11-2026 à 13h19, « 1 », n°106 : « A-304 S'APPLIQUE » ; R-505 ④ ; lot S_ep du 05-11-2026). L'ancien
     # appel regroupait les signaux distants de 5 séances ou moins en « épisodes » ; ce seuil fixe est retiré. Ce pas
-    # AFFICHE la mesure ; la comparer au plancher (`plancher_observations`, lu dans la table de R-505) revient au juge
-    # de la loi (lot JG), jamais à un nombre écrit ici. Une mesure impossible s'affiche INCONNUE, jamais comme un nombre.
+    # AFFICHE la mesure ; la comparer au plancher (depuis le 14-11-2026, A-782 : le minimum calculé pour la stratégie,
+    # `MODULE_JUGEMENT.minimum_d_observations`) revient au juge de la loi (lot JG), jamais à un nombre écrit ici. Une mesure impossible s'affiche INCONNUE, jamais comme un nombre.
     # LA MESURE EST CELLE DU CHEVAUCHEMENT RÉEL DES POSITIONS (lot S_ep, tour 2, 05-11-2026, avis du superviseur R-759
     # « ARRÊTER ET SIMPLIFIER ») : les paires d'opérations ouvertes en même temps, sans nombre de séances, sans règle à
     # choisir, sans test qui décide. Au tour 1, ce pas appelait la mesure avec la règle « prudente » écrite ici en dur et
