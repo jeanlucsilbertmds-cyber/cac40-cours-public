@@ -739,7 +739,8 @@ def variations_hors_seuil(lignes, ops, seuil, table, norm):
       arrondi à 4 décimales] ; ② la liste triée des opérations non vues, chacune [clé, date, facteur, rapport observé
       de la paire qui l'encadre].
       [rend: 2]
-    ⑥ TRAITEMENT — Clé : le mnémonique pour une valeur d'aujourd'hui (les deux écritures d'un même nom se suivent),
+    ⑥ TRAITEMENT — Depuis le 15-11-2026, la boucle vit dans `confronter_aux_operations` (R-708), qui rend aussi les
+      grandes opérations VUES ; ce qui suit la décrit. Clé : le mnémonique pour une valeur d'aujourd'hui (les deux écritures d'un même nom se suivent),
       le texte sinon. Pour chaque paire de lignes consécutives d'une même clé : le facteur attendu est le produit des
       facteurs des opérations dont la date tombe après la date d'avant et au plus tard à la date ; le saut est
       expliqué quand |rapport ÷ attendu − 1| ≤ seuil. Une opération dont |facteur − 1| > seuil est « non vue » quand
@@ -765,6 +766,46 @@ def variations_hors_seuil(lignes, ops, seuil, table, norm):
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
+    sauts, _, non_vues = confronter_aux_operations(lignes, ops, seuil, table, norm)
+    return sauts, non_vues
+
+
+def confronter_aux_operations(lignes, ops, seuil, table, norm):
+    """Confronte des lignes de cours aux opérations connues : sauts non expliqués, grandes opérations vues et non vues.
+
+    ① RÔLE — La boucle unique de la propriété de continuité, pour deux usages : `variations_hors_seuil` (le manifeste
+      du témoin, l'épreuve P8) et la nature MESURÉE d'un fichier de cours (programmes/COURBE_DES_CALCULS.py,
+      `operations_jugees` : au cours brut, une grande opération se voit au jour dit ; corrigé, elle ne se voit pas).
+    ② CONTEXTE D'APPEL — `variations_hors_seuil` ; COURBE_DES_CALCULS.operations_jugees ; l'épreuve de la courbe.
+    ③ ENTRÉE — Les mêmes que la fonction de continuité : `lignes` (listes de huit textes : valeur, date AAAA-MM-JJ, open,
+      high, low, close, volume, source) · `ops` ({nom de l'historique long : liste des (date, facteur, …)}) · `seuil`
+      (la variation admise d'une séance, R-104, lue par l'appelant) · `table`, `norm` (le lecteur unique).
+    ④ CONDITIONS D'ENTRÉE — Clôtures lisibles et positives.
+    ⑤ SORTIE — TROIS valeurs : ① les sauts non expliqués, triés, chacun [clé, date d'avant, date, rapport arrondi à 4
+      décimales] ; ② les GRANDES opérations VUES, triées, chacune [clé, date, facteur arrondi à 6 décimales] ; ③ les
+      grandes opérations NON VUES, triées, chacune [clé, date, facteur arrondi à 6 décimales, rapport observé de la
+      paire qui l'encadre]. Une GRANDE opération : |facteur − 1| > seuil, de date strictement après la première ligne
+      de sa clé et au plus tard à la dernière (les deux listes ② et ③ portent sur les mêmes, et se partagent toutes).
+      Mesuré le 15-11-2026 : témoin des 20 ans, 33 vues et 0 non vue ; historique long réparé, 0 vue et 33 non vues ;
+      maître et référence Google, 0 et 0.
+      [rend: 3]
+    ⑥ TRAITEMENT — Clé : le mnémonique pour une valeur d'aujourd'hui, le texte sinon. Pour chaque paire de lignes
+      consécutives d'une même clé : le facteur attendu est le produit des facteurs des opérations dont la date tombe
+      après la date d'avant et au plus tard à la date ; la paire est expliquée quand |rapport ÷ attendu − 1| ≤ seuil,
+      et ses opérations sont « vues ». Une grande opération est vue quand la paire qui l'encadre l'explique, non vue
+      sinon.
+    ⑦ UNITÉ — Des rapports sans unité.
+    ⑧ POURQUOI — Écrit jusqu'au 15-11-2026 dans `variations_hors_seuil` seule ; le superviseur R-759 de LU2 (15-11-2026,
+      D3, amendement 1) a demandé que le décompte des opérations VUES sorte de cette boucle et non d'une seconde (R-708 :
+      deux implémentations d'une même chose divergent toujours) — sa règle de dates et son seuil vivent ici. Seules les
+      GRANDES opérations comptent pour « vue » : sur un fichier corrigé, un droit de 0,91 tombe dans une paire de rapport
+      voisin de 1, que |1 ÷ 0,91 − 1| ≤ 0,25 « explique » ; compté vu, il ferait lire « brut » un fichier corrigé.
+    ⑨ CE QUI CLOCHE — Voir le ⑨ de `variations_hors_seuil`. · Un krach de plus que le seuil le jour même d'une grande
+      opération, sur un fichier corrigé, la ferait lire « vue » (rare, non mesuré).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
     cle_de = lambda v: table.get(norm(v), v)
     series = defaultdict(list)
     for l in lignes:
@@ -772,7 +813,7 @@ def variations_hors_seuil(lignes, ops, seuil, table, norm):
     par_cle = defaultdict(list)
     for v, liste in ops.items():
         par_cle[cle_de(v)].extend((x, f) for x, f, *_ in liste if f is not None)
-    sauts, non_vues = [], []
+    sauts, grandes_vues, non_vues = [], [], []
     for k, s in series.items():
         s.sort()
         o = sorted(par_cle.get(k, []))
@@ -790,9 +831,12 @@ def variations_hors_seuil(lignes, ops, seuil, table, norm):
             elif abs(r - 1) > seuil or dans:
                 sauts.append([k, d0, d1, round(r, 4)])
         for x, f in o:
-            if abs(f - 1) > seuil and (x, f) not in vues and s and s[0][0] < x <= s[-1][0]:
-                non_vues.append([k, x, round(f, 6), rapport.get((x, f))])
-    return sorted(sauts), sorted(non_vues, key=lambda n: (n[0], n[1]))
+            if abs(f - 1) > seuil and s and s[0][0] < x <= s[-1][0]:
+                if (x, f) in vues:
+                    grandes_vues.append([k, x, round(f, 6)])
+                else:
+                    non_vues.append([k, x, round(f, 6), rapport.get((x, f))])
+    return sorted(sauts), sorted(grandes_vues), sorted(non_vues, key=lambda n: (n[0], n[1]))
 
 
 def seuil_de_variation():

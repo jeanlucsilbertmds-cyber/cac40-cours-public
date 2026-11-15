@@ -1641,7 +1641,13 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       à la dernière date du fichier ; vide pour un fichier sans barre). Exemple mesuré le
       29-10-2026 sur le maître : 722 séances, du 2024-01-02 au 2026-10-28.
       [rend: 2]
-    ⑥ TRAITEMENT — ① lire par le lecteur unique · ② REFUSER la lecture (ValueError) quand le
+    ⑥ TRAITEMENT — ① lire par le lecteur unique ; pour un fichier déclaré au cours brut de Paris
+      (CONTRATS.FICHIERS_DE_COURS_AU_COURS_BRUT : le témoin des 20 ans), remplacer ses barres par la
+      courbe corrigée des opérations sur titre (`programmes/COURBE_DES_CALCULS.py`,
+      `courbe_si_le_fichier_est_brut`, depuis le 15-11-2026) ; le maître est rendu tel quel ; tout
+      autre fichier passe d'abord la garde de nature de la même porte (déclaré au brut : aucune
+      grande opération non vue ; non déclaré : aucune vue), puis est rendu tel quel s'il n'est pas
+      déclaré · ② REFUSER la lecture (ValueError) quand le
       lecteur a mis des lignes à part (`LIRE_LES_COURS.lignes_mises_a_part`, une propriété de
       conservation, pas une liste de sortes), quand le fichier est un fichier figé modifié ou
       allongé, ou quand une valeur lue n'a aucun passage dans l'indice · ③ pour chaque
@@ -1652,7 +1658,9 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       La borne de fin est la dernière date LUE, pas la date demandée : le teneur de positions
       tient pour « pas encore publiée » une séance que le fichier ne porte pas encore ; une
       séance du calendrier au-delà des cours la ferait passer pour une séance manquante.
-    ⑦ UNITÉ — Des euros par titre, des titres échangés, des dates AAAA-MM-JJ, des séances.
+    ⑦ UNITÉ — Des euros par titre, des titres échangés, des dates AAAA-MM-JJ, des séances. Pour un
+      fichier au cours brut : à l'échelle des actions d'aujourd'hui (R-108 ② ; MICHELIN 2022-06-15 :
+      111,45 € brut, 27,8625 € sur la courbe, division par quatre du 16-06-2022).
     ⑧ POURQUOI — A-577 ① et ② : la pratique reconnue n'ouvre un trade que si la valeur est
       dans l'indice à la date d'entrée (Norgate avec Wealth-Lab), et ne calcule pas un
       indicateur à travers un trou (pandas, min_periods). Mesuré : rejoué sur l'historique
@@ -1676,14 +1684,22 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       mesuré le 29-10-2026 : lire(…, 2026-12-31) rend 0 ligne à part, lire(…, 2027-01-01) lève.
       Le lecteur attend les cours jusqu'à la veille : le circuit du lundi 04-01-2027 s'arrêtera
       (versement, détecteur, teneur) tant que 2027 n'est pas relevé (BACKLOG A-639, bloquant).
-    ⑩ EFFET — Lit des fichiers. N'écrit rien.
-    ⑪ TERMINAISON — Rend la main, ou lève ValueError (lecture refusée, voir ⑥ ②, message
+    ⑩ EFFET — Lit des fichiers (pour tout fichier autre que le maître, aussi ceux des opérations sur
+      titre, par ASSEMBLER_LES_VINGT_ANS et RECONSTRUIRE_L_HISTORIQUE_LONG). N'écrit rien.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError (courbe impossible, nature contredite ou
+      opérations illisibles : message commençant par « la courbe des calculs », depuis le tour 3
+      de LU2 pour TOUS les refus de la courbe ; AttributeError seulement si le contrat ne déclare
+      pas FICHIERS_DE_COURS_AU_COURS_BRUT ; lecture refusée, voir ⑥ ②, message
       commençant par « le lecteur unique ») ou l'erreur du lecteur (OSError, ValueError) ou de la
       traduction (KeyError pour un mnémonique hors de `mnemo`).
       [sort: non]
     """
     lecteur = charger_module(os.path.join(base, "programmes", "LIRE_LES_COURS.py"), "lecteur_unique")
     c = lecteur.lire(base, fichier) if jusqu_au is None else lecteur.lire(base, fichier, jusqu_au)
+    # LA COURBE QUI SERT AUX CALCULS (R-108 ②, plan V7 étape LU ③, 15-11-2026) : pour un fichier déclaré au cours brut,
+    # les barres corrigées des opérations postérieures ; sinon `c` tel quel. Avant les refus : elle garde chaque barre.
+    c = charger_module(os.path.join(base, "programmes", "COURBE_DES_CALCULS.py"),
+                       "courbe_des_calculs").courbe_si_le_fichier_est_brut(base, lecteur, c)
     # LA LECTURE SE REFUSE ICI, UNE FOIS, POUR TOUS LES APPELANTS (superviseur R-759 du 27-10-2026) : le même test,
     # recopié dans `main` et dans `programmes/JOUER_LES_VERSIONS.py`, aurait divergé (R-708). Mesuré le 27-10-2026 :
     # une ligne datée « 26/10/2026 » passait l'ancienne liste de défauts, qui oubliait les dates illisibles.

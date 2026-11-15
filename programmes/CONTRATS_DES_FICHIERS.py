@@ -638,6 +638,20 @@ CONTRATS_DE_COURS = (COURS_MAITRE, COURS_NOUVEAUX)
 # n'est ni ici ni figé est un historique : il doit couvrir, dès sa première date, chaque valeur alors dans l'indice.
 FICHIERS_DE_COURS_INCREMENTS = ("donnees/claude_cours_nouveaux.csv",)
 
+# LES FICHIERS DE COURS AU COURS BRUT DE PARIS (15-11-2026, plan V7 étape LU ③, BACKLOG A-713 ③) : chaque ligne y porte
+# le cours tel que coté ce jour-là, jamais corrigé des opérations sur titre postérieures. Pour eux SEULS, le juge des
+# stratégies calcule sur la courbe corrigée de R-108 ② (programmes/COURBE_DES_CALCULS.py : prix × facteurs des opérations
+# postérieures, volume ÷ ces facteurs) ; le vrai cours reste ce que le lecteur rend (R-108 ①). Le témoin des 20 ans est
+# au cours brut PAR CONSTRUCTION : l'assemblage (ASSEMBLER_LES_VINGT_ANS.assembler) ramène au brut les lignes « google »
+# qu'une opération postérieure touche, et refuse celles dont le facteur est inconnu. Ni le maître ni la référence Google
+# n'y sont : leurs lignes « google » sont déjà corrigées par Google, et leur appliquer les facteurs une seconde fois
+# fabriquerait une marche (AIR LIQUIDE 2024-06-10 au maître, relecteur LU tour 1 du 12-11-2026, B2). Une NATURE SE
+# DÉCLARE, ELLE NE SE DEVINE PAS dans les lignes. Écrit À LA MAIN : un témoin figé demain s'y ajoute à son gel
+# (l'assemblage ne le fait pas encore — BACKLOG).
+FICHIERS_DE_COURS_AU_COURS_BRUT = (
+    "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv",
+)
+
 FICHIERS_DE_COURS_FIGES = {
     "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv": {
         "fin": "2026-11-11",

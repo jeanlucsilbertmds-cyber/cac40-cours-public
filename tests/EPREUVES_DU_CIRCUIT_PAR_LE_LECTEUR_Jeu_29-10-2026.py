@@ -28,7 +28,8 @@ Simulation uniquement — aucun ordre réel.
   C2 Eiffage, signal du 30-04-2026 : DONNÉ, avec les chiffres de la lecture d'avant la bascule (CMF 0,069936, CCI −97,01,
      relevés le 29-10-2026 sur le code d'avant) et la clôture de la vraie ligne du maître.
   C3 un trou dans Bouygues le 15-10-2026 : le signal du 22-10-2026 se calcule sur le morceau qui commence le 16-10, et
-     n'est pas donné ; sans le trou, il l'est, avec la clôture de la vraie ligne.
+     n'est pas donné ; sans le trou, il l'est, avec la clôture de la vraie ligne. Depuis le 15-11-2026 (LU2, tour 3), le
+     trou est écrit dans le maître de la copie, lu comme le circuit le lit, puis le maître est rendu à ses octets.
   C4 le détecteur lancé en entier sur le maître coupé au 22-10-2026 : signal Bouygues ; même maître troué : aucun.
   C5 le détecteur lancé en entier sur le maître coupé au 20-10-2026, Eiffage entrée dans l'indice le 21-10-2026 dans la
      copie (au lieu du 22-12-2025) : son vrai signal du 20-10 est refusé, dit au fichier et à l'écran ; avec les vrais
@@ -91,6 +92,8 @@ POS = "programmes/TENIR_LES_POSITIONS.py"
 BAN = "programmes/JUGE_DES_STRATEGIES.py"
 VER = "programmes/TENIR_L_HISTORIQUE.py"
 # Les gros dossiers de sources que ni le détecteur ni le teneur ne lisent (le lecteur lit le maître) : hors de la copie.
+# Tout cas qui fait lire au juge un fichier AUTRE que le maître a besoin d'eux (garde de nature de la courbe, LU2,
+# 15-11-2026) : un tel cas écrit donc dans le maître de la copie et le rend à ses octets d'origine (C3b).
 SANS = ("sources_yahoo", "sources_bnains", "sources_francfort")
 SABOTAGES = {
     "Z0": [],
@@ -191,11 +194,19 @@ def c3():
     e = next((x for x in dj if x["valeur"] == "BOUYGUES"), None)
     l = vraie("BOUYGUES", "2026-10-22")
     dire("C3a Bouygues 22-10-2026 sans trou : signal donné, clôture de la vraie ligne", e is not None and l and e["close"] == float(l["close"]), (e, l))
-    with open("_troue.csv", "w", encoding="utf-8") as f:
-        f.write("\n".join([ENTETE] + [x for x in LIGNES if x.split(",")[1] <= "2026-10-22"
-                                      and not x.startswith("BOUYGUES,2026-10-15,")]) + "\n")
-    mn = Bd.table_mnemoniques(Bd.trouver(".", "REFERENTIEL_VALEURS"))
-    ct, lt = Bd.lire_par_le_lecteur(".", "_troue.csv", mn)
+    # LE TROU EST ÉCRIT DANS LE MAÎTRE DE LA COPIE, puis le maître est rendu à ses octets d'origine (superviseur R-759 de
+    # LU2, tour 3, § 1, 15-11-2026) : jusque-là, ce cas lisait un fichier « _troue.csv » que le circuit ne lit jamais ;
+    # depuis la garde de nature de la courbe (LU2), tout fichier autre que le maître demande les opérations, absentes de
+    # la copie (SANS). Le maître, lui, est le chemin réel du circuit.
+    with open(MAITRE, "rb") as f:
+        _avant = f.read()
+    try:
+        ecrire_maitre(lambda x: x["date"] <= "2026-10-22" and not (x["valeur"] == "BOUYGUES" and x["date"] == "2026-10-15"))
+        mn = Bd.table_mnemoniques(Bd.trouver(".", "REFERENTIEL_VALEURS"))
+        ct, lt = Bd.lire_par_le_lecteur(".", MAITRE, mn)
+    finally:
+        with open(MAITRE, "wb") as f:
+            f.write(_avant)
     s, sig = D.signaux_sur(ct, lt, Bd, mod, "BOUYGUES", "2026-10-22")
     dj2, rf2, ss2, det2 = D.signaux_de_la_seance(ct, lt, Bd, mod, "2026-10-22")
     ok = s[0]["date"] == "2026-10-16" and "BOUYGUES" not in [x["valeur"] for x in dj2 + rf2] and "2026-10-15" in lt["trous"]["BOUYGUES"]
