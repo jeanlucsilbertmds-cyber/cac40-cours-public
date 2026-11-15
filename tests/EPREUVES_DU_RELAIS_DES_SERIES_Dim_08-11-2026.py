@@ -75,7 +75,10 @@ valeurs à chaque passage, et chacun doit la faire rougir.
   R6 copie exacte du relais sous un autre nom, R7 (tour 4) un circuit sans « permissions: », R8 (tour 4)
   « Actions: Write » → 1 refus chacun. Tour 3, sur la relecture de Cowork du tour 2 : V6
   une demande d'exactement 1 000 octets passe (C3) ; P29 un passage en attente derrière 30 passages finis est vu (le
-  faux gh applique « --limit », C7) ; G1 à G4 les réglages du GABARIT du relais, que l'empreinte ne garde pas :
+  faux gh applique « --limit », C7) ; (A-811, 15-11-2026) V2 porte une pointe, V7 main avec une pointe : la pointe
+  arrive telle quelle à l'entrée « pointe » du bouton ; P30 une version en attente sans pointe, P31 abrégée, P36 en
+  majuscules, P33 de 41 caractères, P34 donnée deux fois, E8 un examen avec une pointe → refusés pour leur raison ;
+  G1 à G4 les réglages du GABARIT du relais, que l'empreinte ne garde pas :
   déclencheur push sur demandes/ seul (N5), ubuntu-latest (N5), fetch-depth 2 et persist-credentials false (N7), gh
   employé seulement pour « run list » et « workflow run », un seul job (N6).
   V0 (tour 2, I-1) : le bouton appuyé sans relais, seule la version donnée : les défauts DÉCLARÉS du bouton mènent
@@ -110,6 +113,7 @@ FABRICANT = "programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py"
 TABLE = "tests/LANCEMENT_DES_EPREUVES.json"
 JOUEUR = "tests/outils/jouer_une_part.py"
 RASSEMBLEUR = "tests/outils/rassembler_les_parts.py"
+JOUEUR_D_EPREUVE = "tests/outils/jouer_une_epreuve_longue.py"   # 15-11-2026 (GHUB ②) : la matrice des épreuves longues
 GIT_ENV = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="essai",
                GIT_AUTHOR_EMAIL="essai@exemple.invalid", GIT_COMMITTER_NAME="essai",
                GIT_COMMITTER_EMAIL="essai@exemple.invalid")
@@ -133,6 +137,8 @@ if a[:2] == ["run", "list"]:
     if "--jq" not in a or "--json" not in a or a[a.index("--json") + 1] != "status":
         sys.exit("faux gh : run list sans --json status ou sans --jq")
     passages = json.loads(os.environ.get("FAUX_GH_PASSAGES", "[]"))
+    if isinstance(passages, dict):   # 15-11-2026 (GHUB ②) : des passages propres à chaque circuit
+        passages = passages.get(a[a.index("--workflow") + 1], []) if "--workflow" in a else []
     if "--limit" in a:
         passages = passages[:int(a[a.index("--limit") + 1])]   # le plus récent d'abord, comme gh
     p = subprocess.run(["jq", "-r", a[a.index("--jq") + 1]], input=json.dumps(passages),
@@ -152,7 +158,10 @@ sys.exit(int(os.environ.get("FAUX_UNSHARE_CODE", "0")))
 VALIDES = [
     ("V1 la demande réelle du premier passage", "main", "serie=Yahoo\nparts_yahoo=2\nlot_yahoo=21\n"),
     ("V2 toutes, quatre nombres distincts", "travail-essai",
-     "serie=toutes\nparts_hl=3\nlot_hl=13\nparts_yahoo=4\nlot_yahoo=11\n"),
+     "serie=toutes\npointe=1c5302a94959b9702e41bb49b13c7a5220a6da43\nparts_hl=3\nlot_hl=13\nparts_yahoo=4\n"
+     "lot_yahoo=11\n"),
+    # V7 (A-811, 15-11-2026) : main avec sa pointe — la pointe vraie d'une version en attente le 15-11-2026 (QE2)
+    ("V7 main avec une pointe", "main", "serie=HL\npointe=1c5302a94959b9702e41bb49b13c7a5220a6da43\n"),
     ("V3 HL seul, valeurs de la table", "main", "# premier essai\n\nserie=HL"),
     ("V4 a blanc", "main", "serie=toutes\nparts_hl=5\nlot_hl=9\na_blanc=oui\n"),
     ("V5 clés dans un autre ordre", "main", "lot_yahoo=7\nparts_yahoo=5\nserie=Yahoo\n"),
@@ -179,6 +188,12 @@ PIEGEES = [
     ("P19 plus de 1000 octets", "serie=HL\n" + "#" * 79 + "\n" * 1 + ("#" * 79 + "\n") * 12, "octets"),
     ("P20 espace autour du signe égal", "serie = HL\n", "illisible"),
     ("P28 elle règle une série qu'elle ne joue pas (m-3)", "serie=HL\nparts_yahoo=5\n", "qu'elle ne joue pas"),
+    # A-811 (15-11-2026) : la pointe a SON motif, 40 caractères hexadécimaux en minuscules, et ne vient qu'une fois
+    ("P31 pointe abrégée", "serie=HL\npointe=1c5302a9\n", "pointe de 40"),
+    ("P36 pointe en majuscules", "serie=HL\npointe=1C5302A94959B9702E41BB49B13C7A5220A6DA43\n", "pointe de 40"),
+    ("P33 pointe de 41 caractères", "serie=HL\npointe=1c5302a94959b9702e41bb49b13c7a5220a6da431\n", "pointe de 40"),
+    ("P34 pointe donnée deux fois", "serie=HL\npointe=1c5302a94959b9702e41bb49b13c7a5220a6da43\n"
+     "pointe=1c5302a94959b9702e41bb49b13c7a5220a6da43\n", "deux fois"),
 ]
 
 
@@ -364,6 +379,13 @@ def tour(racine):
         shutil.copyfile(os.path.join(racine, JOUEUR), os.path.join(version, JOUEUR))
         for epreuve in table["series_hors_de_la_nuit"]:
             open(os.path.join(version, epreuve), "w").close()
+        # 15-11-2026 (GHUB ②) : le pas matrice des épreuves longues lance tests/outils/jouer_une_epreuve_longue.py, qui
+        # lit la table par le fabricant de la version ; chaque épreuve longue y est un fichier vide
+        os.makedirs(os.path.join(version, "programmes"))
+        shutil.copyfile(os.path.join(racine, FABRICANT), os.path.join(version, FABRICANT))
+        shutil.copyfile(os.path.join(racine, JOUEUR_D_EPREUVE), os.path.join(version, JOUEUR_D_EPREUVE))
+        for e in (table.get("epreuves_longues") or {}).values():
+            open(os.path.join(version, e["chemin"]), "a").close()
         env_relais, script_relais = pas_du_gabarit(F.RELAIS, "relayer")
         env_matrice, script_matrice = pas_du_gabarit(F.SERIES, "matrice")
         env_jouer, script_jouer = pas_du_gabarit(F.SERIES, "jouer_la_part")
@@ -499,6 +521,9 @@ def tour(racine):
             lu = dict(l.split("=", 1) for l in demande.split("\n") if l and not l.startswith("#"))
             if boutons.get("version") != branche:
                 ecarts.append(f"{nom} : version {boutons.get('version')}, attendue {branche}")
+            # A-811 (15-11-2026) : la pointe de la demande arrive telle quelle à l'entrée « pointe » du bouton
+            if boutons.get("pointe", "") != lu.get("pointe", ""):
+                ecarts.append(f"{nom} : pointe {boutons.get('pointe')!r}, attendue {lu.get('pointe', '')!r}")
             choisies = sorted(ref) if lu["serie"] == "toutes" else [lu["serie"]]
             attendu = {s: (ref[s][0], int(lu.get(f"parts_{s.lower()}", ref[s][1])),
                            int(lu.get(f"lot_{s.lower()}", ref[s][2])), ref[s][3]) for s in choisies}
@@ -590,8 +615,10 @@ def tour(racine):
                 faux.append(f"{nom} : relais code {c}, {len(lances(appels))} lancement(s) : {o[-300:]}")
                 continue
             listes = [x["args"] for x in appels if x["args"][:2] == ["run", "list"]]
-            if len(listes) != 1 or listes[0][2:4] != ["--workflow", os.path.basename(F.CIRCUIT_SERIES)]:
-                faux.append(f"{nom} : le relais n'a pas regardé les passages du circuit des séries : {listes}")
+            # 15-11-2026 (GHUB ②) : les passages des DEUX circuits du groupe des machines longues, séries d'abord
+            if [x[2:4] for x in listes] != [["--workflow", os.path.basename(F.CIRCUIT_SERIES)],
+                                            ["--workflow", os.path.basename(F.CIRCUIT_EPREUVES)]]:
+                faux.append(f"{nom} : le relais n'a pas regardé les passages du groupe des machines longues : {listes}")
             if a_blanc:
                 if "A BLANC" not in o or "parts_hl 5 ; lot_hl 9" not in o:
                     faux.append(f"{nom} : le journal à blanc ne dit pas les valeurs : {o[-300:]}")
@@ -635,6 +662,8 @@ def tour(racine):
         refus("P25 branche créée par la poussée", "pointe d'avant",
               *relayer("main", [(NOM, b"serie=HL\n")], nouvelle_branche=True))
         refus("P26 branche qui n'est pas une version", "branche", *relayer("autre", [(NOM, b"serie=HL\n")]))
+        refus("P30 version en attente sans pointe (A-811)", "pointe manque",
+              *relayer("travail-essai", [(NOM, b"serie=HL\n")]))
         for etat in ("in_progress", "queued", "waiting", "pending", "requested"):   # N1 de Cowork (tour 2)
             refus(f"P27 un passage des séries « {etat} »", "en cours",
                   *relayer("main", [(NOM, b"serie=HL\n")], en_cours=json.dumps([{"status": "completed"}, {"status": etat}])))
@@ -675,10 +704,71 @@ def tour(racine):
         refus("E3 examen depuis une version en attente", "ne se lance pas depuis",
               *relayer("travail-essai", [(NOM, b"circuit=examen\n")]))
         refus("E4 examen avec un réglage de série", "aucun reglage", *relayer("main", [(NOM, b"circuit=examen\nserie=HL\n")]))
+        refus("E8 examen avec une pointe (A-811)", "aucun reglage",
+              *relayer("main", [(NOM, b"circuit=examen\npointe=1c5302a94959b9702e41bb49b13c7a5220a6da43\n")]))
         refus("E5 examen pendant un examen en attente", "en cours",
               *relayer("main", [(NOM, b"circuit=examen\n")], en_cours='[{"status": "queued"}]'))
         refus("E6 circuit inconnu", "circuit inconnu", *relayer("main", [(NOM, b"circuit=nuit\n")]))
         refus("E7 circuit absent", "circuit manque", *relayer("main", [(NOM, b"serie=HL\n")], circuit=False))
+        # X : les épreuves longues d'un tenant (étape GHUB ②, 15-11-2026, A-809, A-811, A-816) — « circuit=epreuve » :
+        # la liste de codes de la demande arrive telle quelle à l'entrée « epreuves » du bouton, puis à la matrice ; le
+        # compte des passages en cours porte sur les DEUX circuits du groupe des machines longues
+        epreuves = os.path.basename(F.CIRCUIT_EPREUVES)
+        series_yml = os.path.basename(F.CIRCUIT_SERIES)
+        codes = list(table.get("epreuves_longues") or {})
+        env_mx, script_mx = pas_du_gabarit(F.EPREUVES or "", "matrice")
+        p_ = "1c5302a94959b9702e41bb49b13c7a5220a6da43"
+        if len(codes) < 2 or env_mx is None:
+            faux.append(f"X0 la table n'a pas deux épreuves longues, ou le pas matrice du circuit des épreuves manque : {codes}")
+        else:
+            for nom, branche, demande, liste, pointe, a_blanc in (
+                    ("X1 deux épreuves, version en attente", "travail-essai",
+                     f"circuit=epreuve\nepreuves={codes[1]},{codes[0]}\npointe={p_}\n", f"{codes[1]},{codes[0]}", p_, False),
+                    ("X2 toutes, sur main sans pointe", "main", "epreuves=toutes\ncircuit=epreuve\n", "toutes", "", False),
+                    ("X3 à blanc", "main", f"circuit=epreuve\nepreuves={codes[0]}\na_blanc=oui\n", codes[0], "", True)):
+                c, o, appels = relayer(branche, [(NOM, demande.encode())])
+                attendus = [] if a_blanc else [["workflow", "run", epreuves, "--ref", branche, "-f", f"version={branche}",
+                                                "-f", f"pointe={pointe}", "-f", f"epreuves={liste}"]]
+                listes = [x["args"][2:4] for x in appels if x["args"][:2] == ["run", "list"]]
+                if (c != 0 or [x["args"] for x in lances(appels)] != attendus
+                        or sorted(listes) != sorted([["--workflow", series_yml], ["--workflow", epreuves]])):
+                    faux.append(f"{nom} : code {c}, lancements {[x['args'] for x in lances(appels)]}, run list {listes} : "
+                                f"{o[-200:]}")
+                    continue
+                if a_blanc:
+                    continue
+                # la liste du bouton → le pas « Fabriquer la matrice » du circuit des épreuves → la matrice
+                rt = tempfile.mkdtemp(prefix="rt_matrice_epreuves_", dir=d)
+                sortie = os.path.join(rt, "sortie")
+                env = dict(GIT_ENV, PATH=outils + os.pathsep + os.environ["PATH"], GITHUB_OUTPUT=sortie, RUNNER_TEMP=rt,
+                           **resoudre(env_mx, {"inputs.epreuves": liste}))
+                c, o = lancer(["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script_mx], env=env,
+                              cwd=version)
+                lu = dict(l.split("=", 1) for l in open(sortie, encoding="utf-8").read().split("\n") if "=" in l) \
+                    if os.path.exists(sortie) else {}
+                vus = [x.get("code") for x in json.loads(lu.get("matrice", "[]"))]
+                if c != 0 or vus != (codes if liste == "toutes" else liste.split(",")):
+                    faux.append(f"{nom} : matrice {vus}, code {c} : {o[-200:]}")
+            for nom, attendu, branche, demande, en_cours in (
+                    ("X4 épreuve inconnue", "epreuve inconnue", "main", "circuit=epreuve\nepreuves=Inconnue\n", None),
+                    ("X5 épreuve demandée deux fois", "deux fois", "main",
+                     f"circuit=epreuve\nepreuves={codes[0]},{codes[0]}\n", None),
+                    ("X6 version en attente sans pointe", "pointe manque", "travail-essai",
+                     f"circuit=epreuve\nepreuves={codes[0]}\n", None),
+                    ("X7 épreuve avec un réglage de série", "ne prend que", "main",
+                     f"circuit=epreuve\nepreuves={codes[0]}\nserie=HL\n", None),
+                    ("X8 série avec une liste d'épreuves", "ne vaut que", "main", f"serie=HL\nepreuves={codes[0]}\n", None),
+                    ("X9 épreuves pendant une série en attente (même groupe)", series_yml, "main",
+                     f"circuit=epreuve\nepreuves={codes[0]}\n", json.dumps({series_yml: [{"status": "queued"}]})),
+                    ("X10 série pendant des épreuves en cours (même groupe)", epreuves, "main", "serie=HL\n",
+                     json.dumps({epreuves: [{"status": "in_progress"}]})),
+                    ("X11 liste avec un point-virgule", "codes separes", "main",
+                     f"circuit=epreuve\nepreuves={codes[0]};id\n", None),
+                    ("X12 clé epreuves absente", "epreuves manque", "main", "circuit=epreuve\n", None),
+                    ("X13 liste donnée deux fois", "deux fois", "main",
+                     f"circuit=epreuve\nepreuves={codes[0]}\nepreuves={codes[1]}\n", None)):
+                refus(nom, attendu, *relayer(branche, [(NOM, demande.encode())],
+                                             **({"en_cours": en_cours} if en_cours else {})))
         # L : la lecture des arguments par le joueur et le rassembleur
         base = ["r", "tests/E.py", "tests/resultats/R.txt", "--part=0", "--nb-parts=2", "--travail=t"]
         for nom, args in (("L1 --lot donné deux fois (NV-2)", base + ["--lot=13", "--lot=11"]),
@@ -816,6 +906,14 @@ def tour(racine):
 # LES SABOTAGES : un par passage, chacun intervertit deux valeurs (ou retire une garde) ; (fichier, ancien, nouveau)
 # appliqués dans l'ordre à une copie ; chaque « ancien » doit s'y trouver exactement une fois.
 SABOTAGES = {
+    # A-811 (15-11-2026) : la pointe — son motif, son obligation, sa transmission, son unicité
+    "S70_pointe_sans_motif": [(FABRICANT, '''              [[ "$valeur" =~ """ + MOTIF_DE_POINTE + """ ]] ||''',
+                               '''              true ||''')],
+    "S71_pointe_non_exigee": [(FABRICANT, '''[ "$CIRCUIT" != "series" ] || [ "$BRANCHE" = "main" ] || [ -n "$POINTE" ] ||''',
+                               '''true ||''')],
+    "S72_pointe_non_transmise": [(FABRICANT, '''-f "pointe=$POINTE" -f "serie=''', '''-f "serie=''')],
+    "S54_pointe_des_epreuves_non_transmise": [(FABRICANT, '''-f "pointe=$POINTE" -f "epreuves=''', '''-f "epreuves=''')],
+    "S73_pointe_deux_fois_admise": [(FABRICANT, '''              [[ "$vus" != *" pointe "* ]] ||''', '''              true ||''')],
     "S01_table_les_deux_series_echangent_leur_code": [
         (TABLE, '"code": "HL"', '"code": "TMP"'), (TABLE, '"code": "Yahoo"', '"code": "HL"'),
         (TABLE, '"code": "TMP"', '"code": "Yahoo"')],
@@ -830,7 +928,10 @@ SABOTAGES = {
         (FABRICANT, '''          PARTS_%(M)s=%(n)d
           LOT_%(M)s=%(l)d''', '''          PARTS_%(M)s=%(l)d
           LOT_%(M)s=%(n)d''')],
-    "S05_relais_version_toujours_main": [(FABRICANT, '''-f "version=$BRANCHE"''', '''-f "version=main"''')],
+    # Ancre reprise le 15-11-2026 (GHUB ②, D1 du RELU de Cowork) : le relais lance aussi le circuit des épreuves avec
+    # `-f "version=$BRANCHE"` ; l'ancre porte « -f "serie=$SERIE" », qui n'est que dans le lancement des SÉRIES.
+    "S05_relais_version_toujours_main": [(FABRICANT, '''-f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE''',
+                                          '''-f "version=main" -f "pointe=$POINTE" -f "serie=$SERIE''')],
     "S06_matrice_entrees_parts_et_lot_interverties": [
         (FABRICANT, '"          PARTS_%s: ${{ inputs.parts_%s }}\\n          LOT_%s: ${{ inputs.lot_%s }}\\n"',
          '"          PARTS_%s: ${{ inputs.lot_%s }}\\n          LOT_%s: ${{ inputs.parts_%s }}\\n"')],
@@ -892,13 +993,27 @@ SABOTAGES = {
     # l'examen à la demande (08-11-2026, 18h06) : séries et examen intervertis dans la table du relais ; l'examen admis
     # hors de main ; le compte des passages toujours pris sur le circuit des séries
     "S38_relais_series_et_examen_intervertis": [
-        (FABRICANT, '(("series", os.path.basename(CIRCUIT_SERIES), MOTIF_DE_VERSION),\n                      ("examen", os.path.basename(CIRCUIT_CERTIFICATION), "^main$"))',
-         '(("series", os.path.basename(CIRCUIT_CERTIFICATION), MOTIF_DE_VERSION),\n                      ("examen", os.path.basename(CIRCUIT_SERIES), "^main$"))')],
+        (FABRICANT, '(("series", os.path.basename(CIRCUIT_SERIES), MOTIF_DE_VERSION),\n                      ("examen", os.path.basename(CIRCUIT_CERTIFICATION), "^main$"),',
+         '(("series", os.path.basename(CIRCUIT_CERTIFICATION), MOTIF_DE_VERSION),\n                      ("examen", os.path.basename(CIRCUIT_SERIES), "^main$"),')],
     "S39_relais_examen_depuis_toute_version": [
         (FABRICANT, '("examen", os.path.basename(CIRCUIT_CERTIFICATION), "^main$")',
          '("examen", os.path.basename(CIRCUIT_CERTIFICATION), MOTIF_DE_VERSION)')],
     "S40_relais_compte_toujours_les_series": [
-        (FABRICANT, 'en_cours=$(gh run list --workflow "$FICHIER"', 'en_cours=$(gh run list --workflow series_longues.yml')],
+        (FABRICANT, 'en_cours=$(gh run list --workflow "$F"', 'en_cours=$(gh run list --workflow series_longues.yml')],
+    # 15-11-2026 (GHUB ②) : les gardes du circuit « epreuve » du relais
+    "S48_relais_liste_d_epreuves_non_transmise": [(FABRICANT, '-f "epreuves=$EPREUVES"', '-f "epreuves=toutes"')],
+    "S49_relais_ne_compte_pas_le_groupe": [
+        (FABRICANT, "CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_SERIES), os.path.basename(CIRCUIT_EPREUVES))",
+         "CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_EPREUVES),)")],
+    "S50_relais_admet_une_epreuve_inconnue": [
+        (FABRICANT, '''" == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue''',
+         '''" == *" $c "* ]] || true || { echo "::error::DEMANDE REFUSEE : epreuve inconnue''')],
+    "S51_relais_epreuve_sans_pointe_admise": [
+        (FABRICANT, '''            [ "$BRANCHE" = "main" ] || [ -n "$POINTE" ] || { echo "::error::DEMANDE REFUSEE : la cle pointe manque''',
+         '''            true || { echo "::error::DEMANDE REFUSEE : la cle pointe manque''')],
+    "S52_relais_epreuve_en_double_admise": [(FABRICANT, '''[[ "$deja" != *" $c "* ]] ||''', '''true ||''')],
+    "S53_matrice_des_epreuves_dans_l_ordre_de_la_table": [
+        (JOUEUR_D_EPREUVE, '        codes = liste.split(",")\n', '        codes = [c for c in table if c in liste.split(",")]\n')],
     # tour 3 : les sabotages de Cowork du tour 2 qui ne mordaient pas (C3, C5, C7), et N5 / N6
     "S41_relais_1000_octets_refuses_C3": [(FABRICANT, '[ "$taille" -le """', '[ "$taille" -lt """')],
     "S42_relais_un_seul_commit_clone_C5": [(FABRICANT, "          fetch-depth: 2\n          persist-credentials: false\n",
@@ -928,7 +1043,7 @@ def main():
     ⑩ EFFET — Fiche en tête. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     faux = tour(DEPOT)
-    print("Z0 programmes tels quels : " + ("T0, V0 à V5, P01 à P28, E0 à E7, L1 à L3, F0 à F14, A0 à A14, R1 à R8, V6, P29, G1 à G4 conformes" if not faux else
+    print("Z0 programmes tels quels : " + ("T0, V0 à V5, V7, P01 à P28, P30, P31, P33, P34, P36, E0 à E8, X0 à X13, L1 à L3, F0 à F14, A0 à A14, R1 à R8, V6, P29, G1 à G4 conformes" if not faux else
                                             "FAUX " + " | ".join(faux)))
     code = 1 if faux else 0
     choix = [a.split("=", 1)[1].split(",") for a in sys.argv[1:] if a.startswith("--saboter=")]
@@ -937,7 +1052,7 @@ def main():
         for nom in noms:
             d = tempfile.mkdtemp(prefix="relais_series_sab_")
             try:
-                for f in (FABRICANT, TABLE, JOUEUR, RASSEMBLEUR):
+                for f in (FABRICANT, TABLE, JOUEUR, RASSEMBLEUR, JOUEUR_D_EPREUVE):
                     os.makedirs(os.path.dirname(os.path.join(d, f)), exist_ok=True)
                     shutil.copyfile(os.path.join(DEPOT, f), os.path.join(d, f))
                 for fichier, a, b in SABOTAGES[nom]:

@@ -61,7 +61,10 @@ leurre ; cas conseillé par le superviseur R-759 du 25-10-2026, écrit et éprou
 SÉRIE HORS DE LA NUIT À PORTÉE « epreuve » (ajouté le 04-11-2026 ; décision de Jean-Luc n°71 du 01-11-2026 à 11h41 :
 la série de l'épreuve d'arrivée des signaux ne se rejoue que quand le code de l'épreuve change) : la table déclare
 « portee_du_releve » : « epreuve », le relevé ne porte que l'empreinte de l'épreuve, l'épreuve lit donnees/choix.txt
-et CALCUL.py change après le relevé → 0 (avec la portée « lectures », S32 et S35 rendent 1).
+et CALCUL.py change après le relevé → 0 (avec la portée « lectures », S32 et S35 rendent 1). · S43 FICHIERS DE COMMANDES
+DE GITHUB (15-11-2026, superviseur R-759 GHUB, 2.1 : sur une machine du dépôt public, ce qu'une épreuve écrirait dans
+le résumé s'affiche à tout visiteur) : le certificateur est lancé avec les six variables posées (GITHUB_ENV,
+GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_STEP_SUMMARY, BASH_ENV), l'épreuve rend 1 si elle en voit une → 0.
 
 LES SABOTAGES (avec --saboter) : chaque correction du certificateur est retirée, une à la fois, dans une copie ; l'épreuve
 qui la surveille DOIT changer de résultat. Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas une
@@ -261,12 +264,14 @@ def lire(racine, chemin):
     return open(a, encoding="utf-8").read() if os.path.exists(a) else ""
 
 
-def certifier(certificateur, racine, *options):
+def certifier(certificateur, racine, *options, env=None):
     """Lance le certificateur sur `racine` et rend son code de sortie.
 
     ① RÔLE — Faire juger le dépôt minuscule par le certificateur (le vrai, ou une copie sabotée).
     ② CONTEXTE D'APPEL — Les cas, une à trois fois chacun.
-    ③ ENTRÉE — `certificateur` : le chemin du programme · `racine` · `options` : par exemple `--ecrire-la-reference`.
+    ③ ENTRÉE — `certificateur` : le chemin du programme · `racine` · `options` : par exemple `--ecrire-la-reference` ·
+      `env` : l'environnement du certificateur (None : celui de ce processus ; S43, 15-11-2026, y ajoute des variables
+      sans toucher à `os.environ`, que les quatre fils partagent).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le code de sortie (99 si le certificateur dépasse 900 secondes).
       [rend: 1]
@@ -280,7 +285,7 @@ def certifier(certificateur, racine, *options):
     """
     try:
         return subprocess.run([sys.executable, certificateur, racine] + list(options), capture_output=True, text=True,
-                              timeout=900).returncode
+                              timeout=900, env=env).returncode
     except subprocess.TimeoutExpired:
         return 99
 
@@ -310,10 +315,12 @@ def saboter_le_certificateur(tmp, certificateur, remplacements):
     chemin = os.path.join(tmp, "CERTIFIER_SABOTE.py")
     with open(chemin, "w", encoding="utf-8") as f:
         f.write(t)
-    # le certificateur charge programmes/SERIES_DE_SABOTAGES.py depuis son propre dossier (16-10-2026)
-    voisin = os.path.join(os.path.dirname(os.path.abspath(certificateur)), "SERIES_DE_SABOTAGES.py")
-    if os.path.isfile(voisin):
-        shutil.copy(voisin, os.path.join(tmp, "SERIES_DE_SABOTAGES.py"))
+    # le certificateur charge programmes/SERIES_DE_SABOTAGES.py (16-10-2026) et programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py
+    # (15-11-2026, la liste des fichiers de commandes de GitHub) depuis son propre dossier
+    for n in ("SERIES_DE_SABOTAGES.py", "FABRIQUER_LE_CIRCUIT_PUBLIC.py"):
+        voisin = os.path.join(os.path.dirname(os.path.abspath(certificateur)), n)
+        if os.path.isfile(voisin):
+            shutil.copy(voisin, os.path.join(tmp, n))
     return chemin
 
 
@@ -509,6 +516,17 @@ def cas(nom, cert, tmp):
         return (e == 0 and c == attendu and dit,
                 f"référence {e}, certification {c}" + (f", « que Python ne sait pas lire » au rapport : {dit}" if nom == "S24" else "")
                 + f" (attendu 0, {attendu}" + (", vrai)" if nom == "S24" else ")"))
+    if nom == "S43":
+        # 15-11-2026 (superviseur R-759 GHUB, 2.1) : une épreuve jouée par la certification ne reçoit AUCUNE variable des
+        # fichiers de commandes de GitHub (le résumé public, GITHUB_ENV, GITHUB_OUTPUT…), même quand le certificateur
+        # les a ; les noms sont ÉCRITS ici, pas lus au fabricant : l'épreuve ne lit pas la liste qu'elle éprouve
+        racine, e = base(tmp, cert)
+        noms = ("GITHUB_ENV", "GITHUB_PATH", "GITHUB_OUTPUT", "GITHUB_STATE", "GITHUB_STEP_SUMMARY", "BASH_ENV")
+        ecrire(racine, "tests/EPREUVE_GITHUB.py", "import os, sys\n"
+               f"sys.exit(1 if any(n in os.environ for n in {noms!r}) else 0)\n")
+        env = dict(os.environ, **{n: os.path.join(tmp, "commandes_" + n.lower()) for n in noms})
+        c = certifier(cert, racine, env=env)
+        return e == 0 and c == 0, f"référence {e}, certification avec les six variables posées {c} (attendu 0, 0)"
     if nom == "S26":
         racine, e = base(tmp, cert)
         ecrire(racine, "tests/EPREUVE_GIT.py", "import os, sys\n"
@@ -576,7 +594,7 @@ def cas(nom, cert, tmp):
     return c == attendu, f"certification : {c} (attendu {attendu})"
 
 
-NOMS = ["Z0"] + [f"S{i}" for i in range(1, 43)]
+NOMS = ["Z0"] + [f"S{i}" for i in range(1, 44)]
 
 # Chaque correction du certificateur, retirée une à la fois : (nom, [(ancien, nouveau)], cas qui DOIT changer de résultat).
 SABOTAGES = [
@@ -650,6 +668,9 @@ SABOTAGES = [
     # 04-11-2026, décision n°71 : la portée du relevé passe de la table à la vérification
     ("portée du relevé non transmise", [('                                           entree_de_la_serie.get("portee"))',
                                          '                                           None)')], "S42"),
+    # 15-11-2026, superviseur R-759 GHUB 2.1 : le résumé public et les autres fichiers de commandes de GitHub
+    ("fichiers de commandes de GitHub transmis aux épreuves",
+     [("    for v in fichiers_de_commandes_de_github():\n        env.pop(v, None)\n", "")], "S43"),
     ("le chemin relatif à un dossier ouvert résolu par le dossier courant",
      [("                if dir_fd is not None and not os.path.isabs(nom):\n", "                if False:\n")], "S41"),
 ]
@@ -695,7 +716,7 @@ def jouer(travail):
 
 
 def main():
-    """Joue les quarante-trois cas, puis, avec --saboter, chaque sabotage ; rend 0, 1 ou 2.
+    """Joue les quarante-quatre cas, puis, avec --saboter, chaque sabotage ; rend 0, 1 ou 2.
 
     ① RÔLE — Le programme entier (voir la fiche en tête).
     ② CONTEXTE D'APPEL — La ligne de commande ; le certificateur, à chaque certification.

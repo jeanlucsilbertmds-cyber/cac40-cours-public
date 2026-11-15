@@ -59,7 +59,11 @@
   ou tout code d'épreuve qui n'est plus au dépôt privé. LES DEUX CIRCUITS REFUSENT DE
   TOURNER si un seul fichier de code diffère entre les deux dépôts, ou n'existe que d'un
   côté : ce que la machine exécute est donc, octet pour octet, ce que le dépôt public
-  montre.
+  montre. · DEPUIS LE 15-11-2026 (livraison 1 du superviseur R-759, SUPERVISEUR_GHUB2_Dim_15-11-2026.md) : avec un
+  « .git » au dépôt privé, ce qui se publie est LU DANS LE COMMIT HEAD (`extraire_le_commit`), jamais sur le disque ;
+  après l'écriture, l'ÉTAGE A refuse un fichier écrit identique à un fichier du dépôt privé qui ne se publie pas
+  (historique entier, toutes branches, disque ; un dépôt superficiel s'arrête), et le TÉMOIN DU PARCOURS exige chaque
+  chemin du registre de provenance présent et lisible (`refus_selon_l_historique`).
 ⑦ UNITÉ — —
 ⑧ POURQUOI — Décision de Jean-Luc du 08-10-2026 (A-543) : le quota gratuit des
   machines GitHub du dépôt privé est épuisé ; un dépôt public ne consomme rien ;
@@ -129,15 +133,18 @@
   le dépôt privé : `jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-`.
   le dépôt public : `jeanlucsilbertmds-cyber/cac40-cours-public`.
 """
+import csv
 import hashlib
 import importlib.util
 import json
 import os
+import posixpath
 import re
 import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import unicodedata
 
 DEPOT_PRIVE = "jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-"
@@ -220,6 +227,10 @@ CIRCUIT_CERTIFICATION = os.path.join(".github", "workflows", "certifier_la_versi
 # LE CIRCUIT DES SÉRIES LONGUES DE SABOTAGES (patch du 04-11-2026) : lancé à la main seulement ; ses pas de départ et
 # de dépôt sont ceux de la certification (`depart_pour`, `pas_de_depot`), jamais recopiés.
 CIRCUIT_SERIES = os.path.join(".github", "workflows", "series_longues.yml")
+# LE CIRCUIT DES ÉPREUVES LONGUES D'UN TENANT (étape GHUB ②, 15-11-2026 ; A-809, A-811, A-816 de Jean-Luc, « GitHub en
+# priorité ») : une demande nomme des CODES d'épreuves ; chaque code renvoie, dans la table « epreuves_longues » de
+# tests/LANCEMENT_DES_EPREUVES.json, à une commande FIGÉE. Ses pas de départ et de dépôt sont ceux des séries.
+CIRCUIT_EPREUVES = os.path.join(".github", "workflows", "epreuves_longues.yml")
 # LES FICHES DE CIRCUIT DU PRIVÉ, PUBLIÉES À PART (décision de Jean-Luc du 15-10-2026 à 20h32, « 1 ») : une épreuve
 # publiée (celle du rattrapage) EXÉCUTE un pas écrit dans une fiche `.github/workflows/*.yml` du dépôt qu'on lui donne
 # (relecture de Cowork 5855cd4, cassure L). Les fiches du privé sont donc publiées, et comparées comme le code, mais
@@ -328,20 +339,165 @@ def forme_d_un_jeton():
     return module
 
 
-def refus_avant_publication(prive, chemins):
-    """Rend les raisons de refuser la publication : liens, chemins réels hors du dépôt, liens durs, texte non strict, jetons.
+# LA GARDE DES LIGNES ENTIÈRES — SA VRAIE PORTÉE (réécrite le 15-11-2026, livraison 1 du superviseur R-759,
+# SUPERVISEUR_GHUB2_Dim_15-11-2026.md, § 3 : « l'ancienne garde des lignes entières reste en place, avec sa phrase de
+# tête réduite à ce qu'elle fait vraiment ») : elle refuse un fichier publié qui recopie TELLE QUELLE une LIGNE ENTIÈRE
+# d'un fichier texte UTF-8 de `donnees/`, commençant à un début reconnu (DEBUT_POSSIBLE_D_UNE_LIGNE). ELLE NE GARDE PAS
+# « les données du dépôt privé » : une ligne entre « », entre accents graves, après « : », découpée en champs, avec un
+# autre séparateur, ou un fichier de données hors de `donnees/`, passent (Cowork, 15-11-2026, G03 à G10) ; vingt barres
+# réelles sont déjà dans le code publié (A-825). La garde de la FORME (aucune ligne publiée ne porte une date et des
+# prix) est la livraison 2 ; le fichier entier recopié est gardé par l'étage A (`refus_selon_l_historique`).
+# Son origine (superviseur R-759 du 15-11-2026, SUPERVISEUR_GHUB_Dim_15-11-2026.md,
+# 2.1, « voie élargie par A-811 : la branche publiée ») : publier le code de chaque version en attente, c'est publier
+# ses épreuves, qui portent des cas tirés de vraies lignes de fichier (R-732), alors que les cours des 20 ans ne
+# doivent jamais entrer au public (A-555) et que les cours d'ABC en sortent (A-662). Un fichier de données ajouté
+# demain à `donnees/` est couvert, pour ses lignes entières seulement. Une « ligne chiffrée » : une ligne d'un fichier texte UTF-8 de
+# DOSSIER_DES_DONNEES, sans ses blancs de bord, d'au moins LONGUEUR_D_UNE_LIGNE_DE_DONNEES caractères, dont au moins
+# CHIFFRES_D_UNE_LIGNE_DE_DONNEES chiffres. Mesure du 15-11-2026 (travail-ghub sur main 7d8024de) : 0 de ces lignes
+# dans les 196 fichiers que publie le fabricant ; la vraie ligne d'Accor du 03-01-2000 de bnains_cac40.csv, posée dans
+# un texte d'épreuve, est trouvée.
+DOSSIER_DES_DONNEES = "donnees"
+LONGUEUR_D_UNE_LIGNE_DE_DONNEES = 25      # caractères, celle que le superviseur a mesurée (0 sur 160 522 lignes de bnains)
+CHIFFRES_D_UNE_LIGNE_DE_DONNEES = 6       # chiffres au moins : une ligne d'en-tête ou un chemin sans date n'en est pas
+# Où une ligne de données peut commencer dans un fichier publié : en début de ligne (après les blancs, et après un
+# « # » de commentaire suivi de blancs), après un guillemet, une parenthèse ou un crochet ouvrants, ou après la
+# séquence « \n » écrite dans une chaîne.
+DEBUT_POSSIBLE_D_UNE_LIGNE = re.compile(r"(?m)^[ \t]*(?:#+[ \t]*)?|[\"'(\[]|\\n")
+
+
+def _ne_pas_taire(erreur):
+    """Fait échouer un parcours `os.walk` qui n'a pas pu lire un dossier, sauf le dossier de tête absent.
+
+    ① RÔLE — Le `onerror` des parcours de ce programme (R-734 : un contrôle qui n'a pas pu tourner rend un code non nul).
+    ② CONTEXTE D'APPEL — `os.walk` de `lignes_de_donnees` et de `refus_selon_l_historique`.
+    ③ ENTRÉE — `erreur` : l'OSError que `os.walk` a rencontrée.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Aucune valeur ; lève l'erreur, sauf « fichier absent » (ENOENT), que le témoin du parcours juge.
+      [rend: rien]
+    ⑥ TRAITEMENT — Laisser passer ENOENT (le `donnees/` absent d'un dépôt d'essai ; un fichier effacé pendant le
+      parcours), lever tout le reste (droit de lecture refusé, dossier illisible).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — C-D2 de Cowork (15-11-2026) : « dépôt sans donnees/ : index 0 lignes ; refus : [] » ; un `os.walk` sans
+      `onerror` saute en silence un dossier illisible. Le dossier ABSENT est jugé par le témoin du parcours (chaque
+      chemin du registre de provenance doit être présent et lisible, `refus_selon_l_historique`).
+    ⑨ CE QUI CLOCHE — Un dossier absent sans registre (dépôt d'essai) n'est pas une erreur : c'est voulu.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    import errno
+    if getattr(erreur, "errno", None) != errno.ENOENT:
+        raise erreur
+
+
+def lignes_de_donnees(prive):
+    """Rend l'index des lignes chiffrées des fichiers de données du dépôt privé.
+
+    ① RÔLE — Lire, une fois par publication, les lignes que le public ne doit jamais porter telles quelles.
+    ② CONTEXTE D'APPEL — `refus_avant_publication`, une fois par appel.
+    ③ ENTRÉE — `prive` : la racine du dépôt privé.
+    ④ CONDITIONS D'ENTRÉE — — (un dossier `donnees/` absent donne un index vide : un dépôt d'essai n'en a pas ; un
+      vrai dépôt sans `donnees/` est arrêté par le témoin du parcours, `refus_selon_l_historique`). Un dossier
+      illisible lève OSError (`_ne_pas_taire`), que `main` arrête (code 1).
+    ⑤ SORTIE — UNE valeur : un dictionnaire {les LONGUEUR_D_UNE_LIGNE_DE_DONNEES premiers caractères : la ligne, ou
+      l'ensemble des lignes qui commencent ainsi}.
+      [rend: 1]
+    ⑥ TRAITEMENT — Parcourir `prive/donnees` sans suivre les liens ; pour chaque fichier ordinaire (pas un lien) qui
+      se décode en UTF-8, chaque ligne sans ses blancs de bord, longue d'au moins LONGUEUR_D_UNE_LIGNE_DE_DONNEES
+      caractères, est rangée sous son début. Les chiffres ne sont pas comptés ici, mais à la rencontre
+      (`refus_avant_publication`) : compter un million de lignes coûtait 8 s, ranger les débuts en coûte 2 (mesuré le
+      15-11-2026 sur la machine du Chat).
+    ⑦ UNITÉ — Des caractères.
+    ⑧ POURQUOI — Commentaire de DOSSIER_DES_DONNEES.
+    ⑨ CE QUI CLOCHE — Les fichiers qui ne se décodent pas en UTF-8 ne sont pas lus, et les archives ZIP ne sont pas
+      ouvertes : une ligne des archives de bnains (2000-2017, dans `donnees/sources_bnains/archives_bnains/*.ZIP`)
+      publiée telle quelle n'est pas vue (leurs noms sont en Latin-1, `zipfile` refuse de les lire : mesuré le
+      15-11-2026) → BACKLOG. Les données rangées hors de `donnees/` (témoins, études) ne sont pas lues → BACKLOG.
+    ⑩ EFFET — Lit des fichiers. N'écrit rien.
+    ⑪ TERMINAISON — Rend la main ; des lectures de fichiers locaux.
+      [sort: non]
+    """
+    index = {}
+    for dossier, sous, fichiers in os.walk(os.path.join(prive, DOSSIER_DES_DONNEES), onerror=_ne_pas_taire):
+        sous[:] = [s for s in sous if not os.path.islink(os.path.join(dossier, s))]
+        for f in fichiers:
+            p = os.path.join(dossier, f)
+            if os.path.islink(p) or not os.path.isfile(p):
+                continue
+            try:
+                with open(p, "rb") as e:
+                    texte = e.read().decode("utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for ligne in texte.splitlines():
+                if len(ligne) < LONGUEUR_D_UNE_LIGNE_DE_DONNEES:
+                    continue
+                ligne = ligne.strip()
+                if len(ligne) < LONGUEUR_D_UNE_LIGNE_DE_DONNEES:
+                    continue
+                cle = ligne[:LONGUEUR_D_UNE_LIGNE_DE_DONNEES]
+                deja = index.get(cle)
+                if deja is None:
+                    index[cle] = ligne
+                elif isinstance(deja, str):
+                    if deja != ligne:
+                        index[cle] = {deja, ligne}
+                else:
+                    deja.add(ligne)
+    return index
+
+
+def ligne_de_donnees_publiee(texte, index):
+    """Rend la première ligne chiffrée de l'index que `texte` porte telle quelle, ou None.
+
+    ① RÔLE — Dire si un fichier à publier recopie une ligne de données du dépôt privé.
+    ② CONTEXTE D'APPEL — `refus_avant_publication`, une fois par fichier dont le texte est strict et sans jeton.
+    ③ ENTRÉE — `texte` : le contenu du fichier · `index` : celui de `lignes_de_donnees`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la ligne trouvée, ou None.
+      [rend: 1]
+    ⑥ TRAITEMENT — À chaque début possible (DEBUT_POSSIBLE_D_UNE_LIGNE), les LONGUEUR_D_UNE_LIGNE_DE_DONNEES
+      caractères suivants sont cherchés dans l'index ; une ligne de l'index qui commence là, en entier, et porte au
+      moins CHIFFRES_D_UNE_LIGNE_DE_DONNEES chiffres, est rendue.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Commentaire de DOSSIER_DES_DONNEES. La ligne ENTIÈRE est comparée : un début seul faisait 239 faux
+      rouges sur le code publié (des chemins de fichiers du registre de provenance), mesuré le 15-11-2026.
+    ⑨ CE QUI CLOCHE — Une ligne recopiée après d'autres caractères sur la même ligne du fichier publié (« x = 1;
+      ACCOR,2000-… ») ou coupée en deux chaînes n'est pas vue ; une ligne de données plus courte que
+      LONGUEUR_D_UNE_LIGNE_DE_DONNEES non plus → BACKLOG.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    for m in DEBUT_POSSIBLE_D_UNE_LIGNE.finditer(texte):
+        i = m.end()
+        lignes = index.get(texte[i:i + LONGUEUR_D_UNE_LIGNE_DE_DONNEES])
+        if lignes is None:
+            continue
+        for ligne in ([lignes] if isinstance(lignes, str) else sorted(lignes)):
+            if texte.startswith(ligne, i) and sum(c.isdigit() for c in ligne) >= CHIFFRES_D_UNE_LIGNE_DE_DONNEES:
+                return ligne
+    return None
+
+
+def refus_avant_publication(prive, chemins, source=None):
+    """Rend les raisons de refuser la publication : liens, chemins réels hors du dépôt, liens durs, texte non strict,
+    jetons, lignes de données.
 
     ① RÔLE — Dire, AVANT que rien ne soit écrit au dépôt public, si un des fichiers que le fabricant s'apprête à
       publier est un lien symbolique, a un chemin réel qui n'est pas son chemin dans le dépôt privé (un dossier lié,
       une cible hors du dépôt), est un lien dur (le même fichier porte un autre nom, peut-être hors du dépôt), n'est
       pas du TEXTE UTF-8 STRICT (de l'UTF-8 valide sans aucun caractère de contrôle, catégorie Unicode Cc, hors
-      tabulation et sauts de ligne), ou porte une chaîne de la forme d'un jeton (programmes/FORME_D_UN_JETON.py). Un seul
+      tabulation et sauts de ligne), porte une chaîne de la forme d'un jeton (programmes/FORME_D_UN_JETON.py), ou porte
+      telle quelle une ligne chiffrée d'un fichier de `donnees/` (`ligne_de_donnees_publiee`, 15-11-2026). Un seul
       contrôle pour les deux familles publiées : le code (`code_a_publier`) et les fiches de circuit
       (`fiches_a_publier`).
     ② CONTEXTE D'APPEL — `main`, une fois, juste après avoir dressé les deux listes et avant de fabriquer ou d'écrire
       quoi que ce soit ; les épreuves du circuit public (E8 de tests/EPREUVES_DU_CIRCUIT_PUBLIC_Jeu_15-10-2026.py).
-    ③ ENTRÉE — `prive` : la racine du dépôt privé · `chemins` : les chemins des fichiers à publier, relatifs à cette
-      racine, séparés par « / » (« programmes/X.py », « .github/workflows/collecte_abc.yml »).
+    ③ ENTRÉE — `prive` : la racine du dépôt privé (ses `donnees/` sont lues) · `chemins` : les chemins des fichiers à
+      publier, relatifs à la source, séparés par « / » (« programmes/X.py », « .github/workflows/collecte_abc.yml ») ·
+      `source` (15-11-2026, livraison 1 du superviseur R-759 GHUB2) : le dossier où les fichiers à publier sont LUS —
+      le commit du dépôt privé extrait par `extraire_le_commit` ; None : le dépôt privé lui-même (un dépôt sans git).
     ④ CONDITIONS D'ENTRÉE — Chaque chemin désigne une entrée existante (les deux listes ne rendent que des fichiers
       vus par `os.path.isfile`, qui suit les liens) ; programmes/FORME_D_UN_JETON.py est à côté de ce fichier.
     ⑤ SORTIE — UNE valeur : la liste des refus, une phrase par fichier refusé (la première raison trouvée), dans
@@ -354,7 +510,8 @@ def refus_avant_publication(prive, chemins):
       a plus d'un nom (`st_nlink > 1`) est refusé ; ④ sinon seulement, le contenu est lu EN ENTIER, en octets : refusé
       s'il ne se décode pas en UTF-8 (clause UTF-8), puis s'il porte un caractère de catégorie Cc autre que la
       tabulation, le saut de ligne et le retour chariot (clause des contrôles ; le refus nomme le premier, U+XXXX),
-      puis s'il porte la forme d'un jeton. Le contenu d'un fichier refusé en ①, ② ou ③ n'est jamais lu : on ne lit pas, même en mémoire, un fichier qui peut être hors du dépôt.
+      puis s'il porte la forme d'un jeton, puis s'il porte une ligne chiffrée de `donnees/` (clause des données ; le
+      refus nomme le fichier, jamais la ligne : le message s'affiche et pourrait être lu). Le contenu d'un fichier refusé en ①, ② ou ③ n'est jamais lu : on ne lit pas, même en mémoire, un fichier qui peut être hors du dépôt.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Défaut M5, mesuré par Cowork le 04-11-2026 à 21h17 (echanges/RELU.md, I1) : `shutil.copyfile` suit
       les liens, et `os.path.isfile` aussi ; un lien `etudes/outils/HORS.py` ou `.github/workflows/hors.yml` vers un
@@ -365,7 +522,8 @@ def refus_avant_publication(prive, chemins):
       fichier hors du dépôt était publié (D4, cas A1), et un fichier en UTF-16 portant un jeton aussi (D5, cas A5).
       Relecture neuve du tour 2 (05-11-2026, D1) : un octet nul est de l'UTF-8 valide, et un jeton en UTF-16 ou
       UTF-32 SANS BOM était publié, fabricant au code 0 ; le superviseur R-759 du 05-11-2026 à 03h10 a jugé « DE
-      FOND » le texte strict (0 refus mesuré sur les 144 fichiers que publie le fabricant).
+      FOND » le texte strict (0 refus mesuré sur les 144 fichiers que publie le fabricant). Clause des données :
+      commentaire de DOSSIER_DES_DONNEES (superviseur R-759 du 15-11-2026, 2.1).
       Réparé par des PROPRIÉTÉS (le chemin réel égale le chemin logique ; un seul nom ; tout ce qui est publié est du
       texte UTF-8 strict ; aucune forme de jeton), jamais par une liste de noms ni d'encodages ; et à UN seul endroit, appelé
       pour le code ET pour les fiches (R-708 : deux implémentations d'une même chose divergent toujours).
@@ -381,18 +539,23 @@ def refus_avant_publication(prive, chemins):
       refus nomme U+0085). · ENTRE LE CONTRÔLE ET LA COPIE, le fichier est rouvert PAR SON NOM par `shutil.copyfile`, qui
       suit les liens : si un acteur local le change, ou le remplace par un lien, pendant que le fabricant tourne,
       c'est le fichier changé qui est publié (relecture du 04-11-2026, D3, cas T1 et T2) ; de même un dossier échangé
-      entre `os.path.realpath` et l'ouverture n'est pas vu. Le remède jugé de fond (lire une fois avec O_NOFOLLOW et
-      écrire CES octets, ou publier les blobs commités) est proposé au BACKLOG. · CÔTÉ PUBLIC, rien n'est contrôlé :
+      entre `os.path.realpath` et l'ouverture n'est pas vu. Le remède jugé de fond (publier les blobs commités) est en place
+      depuis le 15-11-2026 quand le dépôt privé porte un « .git » : `main` lit alors les fichiers dans le commit extrait
+      (`source`), un dossier neuf qu'il a lui-même écrit ; sans « .git » (une copie d'épreuve), rien ne peut être
+      poussé (`refus_de_branche`). · CÔTÉ PUBLIC, rien n'est contrôlé :
       si `circuits_du_prive/` du clone public est un lien vers `.github/workflows/`, les fiches du privé y sont
       écrites et GitHub les MET EN SERVICE au dépôt public, avec ses secrets (relecture du 04-11-2026, D6, cas P1 :
       les sept fiches du privé arrivées dans `.github/workflows/` du public, fabricant au code 0) ; il faut pour cela
       un lien commité au dépôt public, que seul ce circuit écrit. La propriété « tout chemin écrit ou effacé au public
       a pour chemin réel la racine réelle du public suivie du chemin » est proposée au BACKLOG.
-    ⑩ EFFET — Lit les fichiers non refusés en ①, ② et ③, et charge programmes/FORME_D_UN_JETON.py. N'écrit rien.
+    ⑩ EFFET — Lit les fichiers non refusés en ①, ② et ③, les fichiers texte de `donnees/` (`lignes_de_donnees`, environ
+      2 s sur le vrai dépôt), et charge programmes/FORME_D_UN_JETON.py. N'écrit rien.
     ⑪ TERMINAISON — Rend la main ; des lectures de fichiers locaux, aucun appel qui puisse ne pas revenir.
       [sort: non]
     """
     forme = forme_d_un_jeton()
+    donnees = lignes_de_donnees(prive)
+    prive = prive if source is None else source   # les fichiers à publier sont lus dans la source (le commit extrait)
     racine = os.path.realpath(prive)
     refus = []
     for rel in chemins:
@@ -424,6 +587,10 @@ def refus_avant_publication(prive, chemins):
                 continue
             if forme.porte_une_forme_de_jeton(octets):
                 refus.append(f"{rel} : porte une chaîne de la forme d'un jeton")
+                continue
+            if ligne_de_donnees_publiee(texte, donnees) is not None:
+                refus.append(f"{rel} : porte telle quelle une ligne chiffrée d'un fichier de {DOSSIER_DES_DONNEES}/ "
+                             "(les données du dépôt privé ne se publient pas, A-555, A-662)")
     return refus
 
 
@@ -879,10 +1046,23 @@ jobs:
 # (« 20 total concurrent jobs », docs.github.com/en/actions/reference/limits, lue le 05-11-2026 par la relecture et le
 # superviseur R-759). 16 et non 20 (superviseur R-759 du 05-11-2026, N3) : à 20, une série prend tout le quota, et un
 # circuit du soir lancé pendant ce temps attend ; une séance non lue le jour même perd ses signaux pour toujours. La
-# page ne dit pas si le total couvre le compte entier (dépôts privé et public) : je ne sais pas ; 4 places restent
-# libres. Il ne règle que la matrice (« max-parallel ») : une part pousse UNE fois, sur une branche à elle.
-PARTS_EN_MEME_TEMPS = 16
+# page ne dit pas si le total couvre le compte entier (dépôts privé et public) : je ne sais pas. Il ne règle que la
+# matrice (« max-parallel ») : une part pousse UNE fois, sur une branche à elle.
+# 10 ET NON PLUS 16 (superviseur R-759 du 15-11-2026, SUPERVISEUR_GHUB_Dim_15-11-2026.md, 2.6, étape GHUB ①) : la
+# largeur simultanée des AUTRES circuits du dépôt public, lue dans leurs fiches par le superviseur, est 10 — le soir 1
+# (« collecte » attend « faut_il_tourner », un seul groupe), la certification 6 tranches, le relais 1, la fiche du
+# consensus 1, l'essai des archives 1. 16 + 6 + 1 = 23 dépassait déjà les 20 du compte : c'est le soir qui attendait
+# dans la file. Mesure du gain gardé : les 28 lancements longs passent de 776 min un à un à 83,5 min sur 10 machines
+# (le plancher, la lecture des cours `--saboter`, 5 007 s), comme sur 16. Le budget est la différence de deux nombres
+# écrits UNE fois ici ; le calcul de la marge à partir des fiches elles-mêmes reste à faire (BACKLOG, étape GHUB ②).
+TACHES_EN_MEME_TEMPS_DU_COMPTE = 20     # « 20 total concurrent jobs », offre gratuite, docs.github.com lu le 15-11-2026
+MARGE_DES_AUTRES_CIRCUITS = 10          # largeur simultanée des autres fiches publiques, relevée le 15-11-2026
+PARTS_EN_MEME_TEMPS = TACHES_EN_MEME_TEMPS_DU_COMPTE - MARGE_DES_AUTRES_CIRCUITS
 SERIES_IDENTITE = "series-longues-publiques"
+# LE GROUPE DE CONCURRENCE DES MACHINES LONGUES (étape GHUB ②, 15-11-2026) : le circuit des séries ET celui des
+# épreuves longues portent CE groupe. GitHub ne fait tourner qu'un passage d'un groupe à la fois ; les deux circuits se
+# partagent donc le même budget de PARTS_EN_MEME_TEMPS machines, et la marge des autres circuits reste entière.
+GROUPE_DES_MACHINES_LONGUES = "series-longues"
 # LES BRANCHES DES SÉRIES (superviseur R-759 du 04-11-2026, R1, « RUSTINE, À REPRENDRE » de l'archive jointe et de la
 # garde d'horaire). Chaque job pousse UNE fois sur SA branche neuve du dépôt privé, jamais sur main :
 #   series-longues/<passage>/<série>/part_<n>  (une part)   et   series-longues/<passage>/<série>/releve  (le relevé).
@@ -892,7 +1072,7 @@ SERIES_IDENTITE = "series-longues-publiques"
 # fois sur trois (relecture du 04-11-2026, I1, course locale) ; une référence neuve n'a aucun concurrent : mesuré par
 # le superviseur, 20 parts sur 20 et la collecte au premier essai, cinq fois sur cinq (course_branches.log), contre 1 à
 # 2 parts sur 20 au premier essai sur main (course_contre_epreuve_main.log). Le préfixe ne commence JAMAIS par
-# « travail- » : ce nom est réservé à l'unique version en attente que cherche le « check » (A-448).
+# « travail- » : ce nom est réservé aux versions en attente que cherche le « check » (A-448, élargi par A-735).
 # LE MÉNAGE : les branches restent au privé jusqu'à ce que le Chat ait lu le relevé et l'ait rangé dans tests/resultats/
 # de la version éprouvée (sa branche « travail-… », ou main) ; il les supprime alors TOUTES. Tant qu'il en reste une, « preparer » refuse un nouveau passage : jamais plus
 # d'un passage en attente, et un oubli se voit au lancement suivant.
@@ -1045,32 +1225,44 @@ SERIES_MEME_DEPOT = """      - name: Le depot prive est-il celui de la preparati
 #     code » compare au clone du privé ; une version demandée depuis une autre branche publique ferait comparer deux
 #     versions différentes (refus certain, mais pour une raison obscure) ou, pire, deux versions qui coïncident par
 #     hasard sous deux noms ;
-#   ② si c'est une version en attente, c'est la SEULE branche « travail-… » du dépôt privé (A-448 : jamais plus d'une
-#     version en attente à la fois) ;
+#   ② (A-811, décision de Jean-Luc du 15-11-2026 à 14h18, « 1 mais tu le note en autoportant maximum ») la branche
+#     EXISTE au dépôt privé, et la POINTE DONNÉE par la demande (entrée « pointe », 40 caractères hexadécimaux) est
+#     EXACTEMENT sa pointe actuelle ; pour main, une pointe vide vaut « la pointe actuelle ». Elle remplace l'ancienne
+#     ② (« la SEULE branche travail-… du dépôt privé », A-448) : depuis A-735 (12-11-2026) Cowork relit plusieurs
+#     versions à la fois, il y en avait 18 le 15-11-2026, et l'ancienne ② ne laissait passer que main ; elle écrivait
+#     de plus au journal PUBLIC les noms des branches du privé (superviseur R-759 du 15-11-2026, 2.1). Pourquoi la
+#     pointe exacte : on éprouve ce qui sera installé, pas une version plus ancienne ni une autre ; si la branche
+#     avance entre la demande et ce pas (un RELU.md déposé par Cowork), le passage est refusé et l'on redépose ;
 #   ③ le clone du privé est la POINTE actuelle de cette branche au dépôt privé : le sha noté ensuite par « Fabriquer la
 #     matrice », que clonent les parts, est donc celui de la version demandée.
 # Les valeurs viennent de l'environnement du pas, jamais recopiées dans le script : une entrée « inputs. » écrite en
-# clair dans un script de shell y serait exécutée.
+# clair dans un script de shell y serait exécutée. Les messages d'erreur ne nomment que des valeurs déjà validées par
+# motif (version, pointe), jamais une branche lue au privé.
 # La forme d'une version : la version officielle ou la version en attente (A-448). Écrite UNE fois, lue par la porte du
 # circuit des séries (SERIES_VERSION) et par le relais (RELAIS) : deux écritures d'une même chose divergent (R-708).
 MOTIF_DE_VERSION = "^(main|travail-[A-Za-z0-9._-]+)$"
+# La forme d'une pointe : un commit écrit en entier (A-811). Écrite UNE fois, lue par la porte (SERIES_VERSION) et par
+# le relais (RELAIS), qui la valide par CE motif et non par celui des autres valeurs (au plus 20 caractères).
+MOTIF_DE_POINTE = "^[0-9a-f]{40}$"
 SERIES_VERSION = """      - name: La version demandee est-elle celle de cette branche publique ?
         id: version
         shell: bash
         env:
 """ + JETON_DU_PAS + """          VERSION: ${{ inputs.version }}
+          POINTE: ${{ inputs.pointe }}
           BRANCHE_PUBLIQUE: ${{ github.ref_name }}
         run: |
           set -o pipefail
 """ + SANS_RIEN_DE_LA_VERSION + AUTORISATION + """          cd "$T"
-          [[ "$VERSION" =~ """ + MOTIF_DE_VERSION + """ ]] || { echo "::error::version refusee : $VERSION (main, ou une version en attente travail-...)"; exit 1; }
+          [[ "$VERSION" =~ """ + MOTIF_DE_VERSION + """ ]] || { echo "::error::version refusee : ${#VERSION} caractere(s), hors de la forme permise (main, ou une version en attente travail-...)"; exit 1; }
           [ "$VERSION" = "$BRANCHE_PUBLIQUE" ] || { echo "::error::la version $VERSION n'est pas la branche publique lancee ($BRANCHE_PUBLIQUE) : lancer ce circuit depuis la branche publique $VERSION"; exit 1; }
-          tetes=$(git "${A[@]}" ls-remote --heads "$PRIVE") || { echo "::error::branches du depot prive illisibles"; exit 1; }
-          if [ "$VERSION" != "main" ]; then
-            attente=$(printf '%s\\n' "$tetes" | cut -f2 | grep '^refs/heads/travail-' || true)
-            [ "$attente" = "refs/heads/$VERSION" ] || { echo "::error::la version en attente du depot prive n'est pas exactement $VERSION : $(printf '%s' "$attente" | tr '\\n' ' ')"; exit 1; }
+          if [ "$VERSION" != "main" ] || [ -n "$POINTE" ]; then
+            [[ "$POINTE" =~ """ + MOTIF_DE_POINTE + """ ]] || { echo "::error::pointe refusee : une version en attente se demande avec sa pointe, 40 caracteres hexadecimaux (A-811)"; exit 1; }
           fi
+          tetes=$(git "${A[@]}" ls-remote --heads "$PRIVE") || { echo "::error::branches du depot prive illisibles"; exit 1; }
           pointe=$(printf '%s\\n' "$tetes" | awk -v r="refs/heads/$VERSION" '$2 == r { print $1 }')
+          [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }
+          [ -z "$POINTE" ] || [ "$POINTE" = "$pointe" ] || { echo "::error::la pointe demandee $POINTE n'est pas la pointe actuelle de $VERSION au depot prive : redeposer la demande avec la pointe actuelle"; exit 1; }
           [ -n "$pointe" ] && [ "$(git -C "$GITHUB_WORKSPACE" -c core.hooksPath=/dev/null rev-parse HEAD)" = "$pointe" ] || { echo "::error::le clone du depot prive n'est pas la pointe de $VERSION"; exit 1; }
 """
 
@@ -1152,7 +1344,9 @@ SERIES_LIRE_LES_PARTS = """      - name: Lire les parts sur leurs branches
 # demande « HL » pouvait jouer l'épreuve Yahoo sans qu'aucune épreuve ne rougisse, relevé n°298).
 TOUTES = "toutes"                   # le choix du bouton et d'une demande qui joue chaque série de la table
 CODE_DE_SERIE = r"[A-Za-z][A-Za-z0-9]{0,19}"
-SERIES_AU_PLUS = 4                  # 2 + 2 × 4 = 10 entrées du bouton : la limite de GitHub lue le 05-11-2026 est 10
+SERIES_AU_PLUS = 4                  # 3 + 2 × 4 = 11 entrées du bouton (version, pointe, serie, puis parts et lot par
+                                    # série) : la limite de GitHub est 25 depuis le 04-12-2025 (« You can now use up to
+                                    # 25 inputs », github.blog/changelog, lu le 15-11-2026 ; le 05-11-2026 on avait lu 10)
 
 
 def series_du_circuit(racine=None):
@@ -1215,6 +1409,90 @@ try:
     SERIES_DU_CIRCUIT, ERREUR_DE_LA_TABLE = series_du_circuit(), None
 except (OSError, ValueError) as _e:
     SERIES_DU_CIRCUIT, ERREUR_DE_LA_TABLE = [], f"{type(_e).__name__} : {_e}"
+
+
+# LA TABLE DES ÉPREUVES LONGUES D'UN TENANT (étape GHUB ②, 15-11-2026). Elle vit dans tests/LANCEMENT_DES_EPREUVES.json,
+# clé « epreuves_longues » : code → {« chemin », « arguments », « pourquoi »}. Une demande ne porte QUE des codes ; la
+# commande jouée est celle de la table de la version éprouvée, jamais un argument venu de la demande. La forme d'un
+# code est celle d'un code de série (CODE_DE_SERIE) : elle devient du texte du circuit et du relais.
+EPREUVES_AU_PLUS = 64                 # codes au plus dans la table : une demande « toutes » reste sous 1 000 octets
+# Un argument figé : la racine de la copie jouée, ou un mot sans espace, sans guillemet ni caractère du shell.
+ARGUMENT_FIGE = r"\{copie\}|[A-Za-z0-9_.=,-]{1,40}"
+
+
+def epreuves_du_circuit(racine=None):
+    """Rend les épreuves longues de la table : [(code, chemin, arguments), …], dans l'ordre de la table.
+
+    ① RÔLE — Lire UNE fois la table des épreuves longues d'un tenant, pour que le circuit des épreuves, son pas
+      « Fabriquer la matrice », le relais et le joueur d'une épreuve en soient tous tirés (R-708).
+    ② CONTEXTE D'APPEL — Le haut de ce programme, une fois, pour EPREUVES_DU_CIRCUIT (lu par les gabarits EPREUVES et
+      RELAIS) ; tests/outils/jouer_une_epreuve_longue.py, sur la copie jouée (la table de la version éprouvée) ;
+      l'épreuve tests/EPREUVES_DU_CIRCUIT_DES_EPREUVES_LONGUES_Dim_15-11-2026.py.
+    ③ ENTRÉE — `racine` : la racine du dépôt ; None = le dossier parent de celui de ce programme.
+    ④ CONDITIONS D'ENTRÉE — `racine`/tests/LANCEMENT_DES_EPREUVES.json existe et se lit en UTF-8. La clé
+      « epreuves_longues » est facultative (absente : aucune épreuve, liste vide).
+    ⑤ SORTIE — UNE valeur : la liste des triplets (code : texte ; chemin : chemin relatif ; arguments : liste de
+      textes). Lève ValueError si la table ne convient pas, en nommant le code fautif.
+      [rend: 1]
+    ⑥ TRAITEMENT — pour chaque entrée : le code répond à CODE_DE_SERIE et n'est pas TOUTES ; deux codes ne se
+      ressemblent pas à la casse près ; le chemin a la forme tests/<nom>.py ou programmes/<nom>.py (lettres, chiffres,
+      « _ . - ») ; « arguments » est une liste non vide de textes qui répondent chacun à ARGUMENT_FIGE et contient
+      « {copie} » ; « pourquoi » est un texte non vide ; une épreuve de « series_hors_de_la_nuit » n'est pas admise
+      avec « --saboter » (sa série a son propre circuit, et son « --saboter » joue la série entière : des heures) ;
+      au plus EPREUVES_AU_PLUS entrées.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Point 1 de l'étape GHUB ② (« chaque code renvoie, dans la table, à une commande FIGÉE : aucun
+      argument libre ne vient de la demande ») ; les formes sont vérifiées ICI parce que les codes deviennent du texte
+      du circuit (noms de jobs, motifs du relais) et les arguments une ligne de commande.
+    ⑨ CE QUI CLOCHE — L'existence du fichier n'est pas vérifiée ici (une table de main peut nommer une épreuve d'une
+      version en attente) : le joueur la vérifie sur la version jouée, le pas « Fabriquer la matrice » aussi. Qu'une
+      épreuve ne nomme pas un programme interdit est vérifié par le joueur (tests/outils/jouer_une_epreuve_longue.py),
+      qui connaît INTERDITS, pas ici.
+    ⑩ EFFET — Lit la table.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    racine = racine or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    with open(os.path.join(racine, LANCEMENT), encoding="utf-8") as f:
+        table = json.load(f)
+    entrees = table.get("epreuves_longues")
+    if entrees is None:
+        return []
+    if not isinstance(entrees, dict):
+        raise ValueError("« epreuves_longues » n'est pas une table code → épreuve")
+    series = table.get("series_hors_de_la_nuit") or {}
+    rendu, vus = [], set()
+    for code, e in entrees.items():
+        if not re.fullmatch(CODE_DE_SERIE, code) or code.lower() == TOUTES:
+            raise ValueError(f"code d'épreuve longue refusé : {code!r}")
+        if code.lower() in vus:
+            raise ValueError(f"code d'épreuve longue en double (à la casse près) : {code}")
+        vus.add(code.lower())
+        if not isinstance(e, dict):
+            raise ValueError(f"épreuve longue {code} : entrée illisible")
+        chemin, arguments, pourquoi = e.get("chemin"), e.get("arguments"), e.get("pourquoi")
+        if not isinstance(chemin, str) or not re.fullmatch(r"(?:tests|programmes)/[A-Za-z0-9_.-]+\.py", chemin):
+            raise ValueError(f"épreuve longue {code} : chemin refusé {chemin!r} (tests/<nom>.py ou programmes/<nom>.py)")
+        if (not isinstance(arguments, list) or not arguments or "{copie}" not in arguments
+                or not all(isinstance(a, str) and re.fullmatch(ARGUMENT_FIGE, a) for a in arguments)):
+            raise ValueError(f"épreuve longue {code} : arguments refusés {arguments!r} (liste de mots figés, "
+                             "« {copie} » compris)")
+        if not isinstance(pourquoi, str) or not pourquoi.strip():
+            raise ValueError(f"épreuve longue {code} : « pourquoi » manque")
+        if chemin in series and "--saboter" in arguments:
+            raise ValueError(f"épreuve longue {code} : {chemin} --saboter est une série de sabotages, qui a son "
+                             "propre circuit (series_longues.yml)")
+        rendu.append((code, chemin, list(arguments)))
+    if len(rendu) > EPREUVES_AU_PLUS:
+        raise ValueError(f"{len(rendu)} épreuves longues dans la table (au plus {EPREUVES_AU_PLUS})")
+    return rendu
+
+
+try:
+    EPREUVES_DU_CIRCUIT = epreuves_du_circuit()
+except (OSError, ValueError) as _e:
+    EPREUVES_DU_CIRCUIT = []
+    ERREUR_DE_LA_TABLE = ERREUR_DE_LA_TABLE or f"{type(_e).__name__} : {_e}"
 # Les morceaux du circuit des séries tirés de la table (une boucle chacun, sur la même liste) :
 # les entrées du bouton, et l'environnement du pas « Fabriquer la matrice ».
 SERIES_ENTREES = ("""      serie:
@@ -1276,8 +1554,10 @@ SERIES = """# SERIES LONGUES DE SABOTAGES, EN PARALLELE — FICHIER FABRIQUÉ, N
 # circuit se lance depuis la branche de CE dépôt public qui porte le même nom, où le Chat a publié le code de cette
 # version (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py refuse d'écrire dans un clone public d'une autre branche que
 # celle du privé) : « publier ce qui tourne », cadre du 08-10-2026. « preparer » refuse de partir si la version n'est
-# pas la branche publique lancée, si elle n'est pas l'unique version en attente du dépôt privé, ou si le clone n'est
-# pas sa pointe ; chaque job compare ensuite le code publié de cette branche à celui de la version, octet pour octet.
+# pas la branche publique lancée, si elle n'existe pas au dépôt privé, si la pointe demandée (entrée « pointe »,
+# obligatoire pour une version en attente, A-811 du 15-11-2026) n'est pas exactement sa pointe actuelle, ou si le clone
+# n'est pas sa pointe ; chaque job compare ensuite le code publié de cette branche à celui de la version, octet pour
+# octet. Plusieurs versions en attente peuvent coexister (A-735) : ce n'est plus un refus.
 # La question posée le 05-11-2026 : « Comment veut-on utiliser GitHub pour les séries ? » — 1. après la fusion, retour
 # arrière si la série est NON CONFORME ; 2. avant la fusion, par cette entrée ; 3. réponse libre. Réponse : « 2 ».
 # Raison : avec 1, une version non éprouvée par ses séries serait la version officielle pendant environ une heure,
@@ -1294,8 +1574,13 @@ on:
         required: true
         type: string
         default: "main"
+      pointe:
+        description: "Pointe exacte de la version au depot prive, 40 caracteres hexadecimaux (obligatoire pour travail-... ; vide sur main : la pointe actuelle)"
+        required: false
+        type: string
+        default: ""
 %(entrees)sconcurrency:
-  group: series-longues
+  group: %(groupe)s
   cancel-in-progress: false
 permissions:
   contents: read
@@ -1320,8 +1605,8 @@ jobs:
           for c in $codes; do
             if [ "$SERIE" = "%(toutes)s" ] || [ "$SERIE" = "$c" ]; then choix="$choix $c"; fi
             vp="PARTS_${c^^}"; vl="LOT_${c^^}"
-            [[ "${!vp}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vp : ${!vp} (1 a 99)"
-            [[ "${!vl}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vl : ${!vl} (1 a 99)"
+            [[ "${!vp}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vp (1 a 99)"
+            [[ "${!vl}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vl (1 a 99)"
           done
           [ -n "$choix" ] || echec "serie inconnue : $SERIE"
           interdits=$(python3 -B tests/outils/jouer_une_part.py --interdits) || echec "liste des programmes interdits illisible"
@@ -1415,7 +1700,7 @@ jobs:
           exit "$code"
 %(deposer_final)s""" % {
     "defaults": DEFAULTS, "installer": INSTALLER_LA_MESURE, "en_meme_temps": PARTS_EN_MEME_TEMPS,
-    "branches": SERIES_BRANCHES,
+    "branches": SERIES_BRANCHES, "groupe": GROUPE_DES_MACHINES_LONGUES,
     "entrees": SERIES_ENTREES, "env_matrice": SERIES_ENV_MATRICE, "toutes": TOUTES,
     "codes": " ".join(s[0] for s in SERIES_DU_CIRCUIT),
     "depart_version": depart_pour(os.path.basename(CIRCUIT_SERIES), "des series longues",
@@ -1455,6 +1740,147 @@ jobs:
         branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/releve", valeurs=(("SERIE", "${{ matrix.serie }}"),))}
 
 
+# LE CIRCUIT DES ÉPREUVES LONGUES D'UN TENANT (étape GHUB ②, 15-11-2026 ; décisions de Jean-Luc A-809 du 15-11 à 14h01,
+# « Il faut absolument que tu l'utilises […] ça traite 10 fois plus vite », A-811 à 14h18 et A-816 à 15h32, « GitHub en
+# priorité »). Les 28 épreuves longues relevées le 15-11-2026 prennent 776 min l'une après l'autre sur une machine,
+# environ 83 min sur 10 machines en parallèle (le plancher : la plus longue, la lecture des cours, 5 007 s ; capture
+# etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log). Ce gabarit reprend TELS QUELS
+# les pas des séries — la porte de la version (SERIES_VERSION, pointe exacte), le départ figé, la copie sans .git ni
+# programmes interdits, le réseau coupé, le dépôt sur une branche à soi du privé — et n'ajoute que deux pas : la
+# matrice et le jeu d'une épreuve, tous deux confiés à tests/outils/jouer_une_epreuve_longue.py.
+EPREUVES_BRANCHES = "epreuves-longues/"
+EPREUVES_IDENTITE = "epreuves-longues-publiques"
+# LA DURÉE DU JOB « jouer » (R-D7 du relecteur du 15-11-2026, jugé DE FOND) : écrite UNE fois, ici ; le joueur
+# (tests/outils/jouer_une_epreuve_longue.py, `delai_restant`) la LIT et coupe l'épreuve sur le temps qui RESTE au job,
+# compté depuis le pas « depart » (première chose du job), moins MARGE_D_ECRITURE pour écrire et pousser le résultat.
+DUREE_D_UNE_EPREUVE_LONGUE = 330          # minutes, sous les 6 heures d'une tâche chez GitHub
+MARGE_D_ECRITURE = 10                     # minutes laissées, après la coupure, au dépôt du résultat
+EPREUVES_ENTREES = """      epreuves:
+        description: "Codes des epreuves a jouer, separes par des virgules, ou """ + TOUTES + """ (table epreuves_longues de tests/LANCEMENT_DES_EPREUVES.json)"
+        required: true
+        type: string
+"""
+EPREUVES = ("""# EPREUVES LONGUES D'UN TENANT, EN PARALLELE — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
+# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement. Lancé par le bouton « Run workflow »,
+# ou par le relais .github/workflows/demande_de_serie.yml (demande « circuit=epreuve »), qui appuie sur ce même bouton.
+# À QUOI IL SERT (étape GHUB ②, décisions de Jean-Luc A-809, A-811, A-816 du 15-11-2026) : jouer sur les machines de ce
+# dépôt les épreuves trop longues pour la machine du Chat (plus de 10 minutes), une machine par épreuve, au plus
+# %(en_meme_temps)d à la fois, et rendre au DÉPÔT PRIVÉ, pour chacune, sa sortie entière et son code de sortie.
+# LA TABLE : l'entrée « epreuves » ne porte que des CODES ; la commande de chaque code est FIGÉE dans la table
+# « epreuves_longues » de tests/LANCEMENT_DES_EPREUVES.json de la version éprouvée (lue par
+# tests/outils/jouer_une_epreuve_longue.py) ; aucun argument ne vient de la demande.
+# LE GROUPE : le même que le circuit des séries (%(groupe)s) : GitHub ne fait tourner qu'un passage du groupe à la fois,
+# les deux circuits ne dépassent donc jamais ensemble %(en_meme_temps)d machines, et la marge des autres circuits
+# (MARGE_DES_AUTRES_CIRCUITS du fabricant) reste entière.
+# CE QU'IL FAIT. ① « preparer » clone la version demandée, vérifie aussitôt, avant tout code de la version, qu'elle est
+# la branche publique lancée, qu'elle existe au privé et que la pointe demandée est exactement sa pointe (A-811 ; la
+# porte est celle du circuit des séries) ; puis il valide la liste contre la table de la version et fabrique la
+# matrice. ② « jouer » : une machine par épreuve, sur CE commit, réseau coupé, comme une tranche de la certification
+# (mêmes logiciels, mêmes paquets).
+# COMME LA CERTIFICATION : chaque job clone le dépôt privé, pose le code de ce dépôt s'il est celui du privé et efface
+# tout autre code ; chaque pas passe par programmes/ETAPE_MUETTE.py (le journal public ne dit que OK ou ÉCHEC).
+# OÙ VONT LES RÉSULTATS : AU DÉPÔT PRIVÉ, jamais sur main, jamais en archive jointe. Chaque épreuve pousse UNE fois sur
+# SA branche : %(branches)s<passage>/<code>, dossier rapports/epreuves_longues/<passage>/<code>/ (SORTIE.txt,
+# RESULTAT.json, et DEMANDE.json : la matrice ENTIÈRE du passage, pour que le rapatrieur sache quelles épreuves
+# manquent, R-D2), plus le journal du job. Le Chat les rapatrie par tests/outils/rapatrier_les_epreuves_longues.py.
+# PAS DE RELANCE : comme le circuit des séries (sa poussée n'est jamais forcée) ; un passage rouge se lit, puis un
+# NOUVEAU passage est demandé.
+# INTERDITS ICI : les programmes d'INTERDITS de tests/outils/jouer_une_part.py — retirés de la copie jouée ; une épreuve
+# qui les nomme est refusée par le joueur.
+name: Epreuves longues d'un tenant
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version du depot prive a eprouver : main, ou la version en attente travail-... (lancer ce circuit depuis la branche publique du meme nom)"
+        required: true
+        type: string
+        default: "main"
+      pointe:
+        description: "Pointe exacte de la version au depot prive, 40 caracteres hexadecimaux (obligatoire pour travail-... ; vide sur main : la pointe actuelle)"
+        required: false
+        type: string
+        default: ""
+%(entrees)sconcurrency:
+  group: %(groupe)s
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  preparer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      sha: ${{ steps.matrice.outputs.sha }}
+      matrice: ${{ steps.matrice.outputs.matrice }}
+%(defaults)s    steps:
+%(depart_version)s      - name: Fabriquer la matrice
+        id: matrice
+        env:
+          EPREUVES: ${{ inputs.epreuves }}
+        run: |
+          set -u -o pipefail
+          matrice=$(python3 -B tests/outils/jouer_une_epreuve_longue.py --matrice . "$EPREUVES") || { echo "::error::liste d epreuves refusee"; exit 1; }
+          n=$(jq length <<<"$matrice") || { echo "::error::matrice illisible"; exit 1; }
+          [ "$n" -ge 1 ] && [ "$n" -le 256 ] || { echo "::error::matrice de $n epreuve(s) : de 1 a 256"; exit 1; }
+          echo "$n epreuve(s) : $(jq -r '[.[].code] | join(" ")' <<<"$matrice")"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "matrice=$matrice" >> "$GITHUB_OUTPUT"
+  jouer:
+    needs: preparer
+    runs-on: ubuntu-latest
+    # DUREE_D_UNE_EPREUVE_LONGUE minutes : sous les 6 heures d'une tâche chez GitHub ; le joueur coupe l'épreuve sur le
+    # temps qui reste au job, compté depuis le pas « depart », moins MARGE_D_ECRITURE
+    timeout-minutes: %(duree)d
+    strategy:
+      # une épreuve rouge n'arrête pas les autres
+      fail-fast: false
+      max-parallel: %(en_meme_temps)d
+      matrix:
+        include: ${{ fromJSON(needs.preparer.outputs.matrice) }}
+    name: jouer ${{ matrix.code }}
+%(defaults)s    steps:
+      - name: Noter le depart du job
+        id: depart
+        shell: bash
+        run: |
+          echo "t=$EPOCHSECONDS" >> "$GITHUB_OUTPUT"
+%(depart_fige)s%(logiciels)s%(installer)s%(meme_depot)s%(copie)s%(reseau)s      - name: Jouer l epreuve
+        id: jouer_l_epreuve
+        env:
+          CODE: ${{ matrix.code }}
+          TMPDIR: ${{ runner.temp }}
+          MATRICE: ${{ needs.preparer.outputs.matrice }}
+          DEPART_DU_JOB: ${{ steps.depart.outputs.t }}
+        run: |
+          [[ "$CODE" =~ ^""" + CODE_DE_SERIE + """$ ]] || { echo "::error::code d epreuve refuse"; exit 1; }
+          mkdir -p "$GITHUB_WORKSPACE/rapports/epreuves_longues/$GITHUB_RUN_ID/$CODE"
+          printf '%%s\\n' "$MATRICE" > "$GITHUB_WORKSPACE/rapports/epreuves_longues/$GITHUB_RUN_ID/$CODE/DEMANDE.json"
+          unshare -rn python3 -B -u tests/outils/jouer_une_epreuve_longue.py "$RUNNER_TEMP/depot" "$CODE" \\
+            --sortie="$GITHUB_WORKSPACE/rapports/epreuves_longues/$GITHUB_RUN_ID/$CODE"
+%(deposer)s""") % {
+    "defaults": DEFAULTS, "installer": INSTALLER_LA_MESURE, "logiciels": LOGICIELS_DE_LA_CERTIFICATION,
+    "en_meme_temps": PARTS_EN_MEME_TEMPS, "branches": EPREUVES_BRANCHES, "groupe": GROUPE_DES_MACHINES_LONGUES,
+    "entrees": EPREUVES_ENTREES, "duree": DUREE_D_UNE_EPREUVE_LONGUE,
+    "depart_version": depart_pour(os.path.basename(CIRCUIT_EPREUVES), "des epreuves longues",
+                                  apres_le_clonage=SERIES_VERSION, ref="${{ inputs.version }}",
+                                  aussi=("demande_de_serie.yml",)),
+    "depart_fige": depart_pour(os.path.basename(CIRCUIT_EPREUVES), "des epreuves longues",
+                               ref="${{ needs.preparer.outputs.sha }}"),
+    "meme_depot": SERIES_MEME_DEPOT, "copie": SERIES_COPIE, "reseau": SERIES_RESEAU,
+    # chaque épreuve dépose son dossier de sortie et son journal renommé par son code (ETAPE_MUETTE le nomme par le
+    # job, le même pour toutes les épreuves), sur SA branche, comme une part des séries
+    "deposer": pas_de_depot(
+        "sortie de l epreuve ou journal introuvable",
+        "rapports/epreuves_longues rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}"
+        "_${CODE}.log",
+        "          mkdir -p rapports/epreuves_longues\n"
+        "          for f in rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log; do\n"
+        "            [ -f \"$f\" ] && mv \"$f\" \"${f%.log}_${CODE}.log\"\n"
+        "          done\n",
+        auteur=EPREUVES_IDENTITE, message="epreuves longues, une epreuve", reste="la sortie de l epreuve",
+        branche=EPREUVES_BRANCHES + "${GITHUB_RUN_ID}/${CODE}", valeurs=(("CODE", "${{ matrix.code }}"),))}
+
 # LE RELAIS DES DEMANDES DE SÉRIE (méthode du bloc 2 du 08-11-2026, action 4 ; options choisies par le Chat sous la
 # délégation de Jean-Luc, relevé du Chat n°347 — les mots cités sont ceux des options : Q1 = 1 « le relais », Q2 = 1 « la version est le nom de la branche », Q5 = 1 « actions: write pour le
 # seul relais, sans secret ni clone du privé, vérifié par le filet », Q7 = 1 « séries seulement »). Le Chat dépose un
@@ -1465,8 +1891,12 @@ jobs:
 # LE FICHIER DE DEMANDE, ASCII, une clé par ligne, « cle=valeur » sans espace ; lignes vides et lignes « # … »
 # ignorées ; chaque clé au plus une fois ; « serie » obligatoire (TOUTES ou un code de la table) ; « parts_<code> » et
 # « lot_<code> » (1 à 99) facultatifs, sinon la valeur de la table ; « a_blanc » (oui/non, non par défaut) : « oui »
-# écrit au journal ce qui aurait été lancé, et ne lance rien. Exemple :
+# écrit au journal ce qui aurait été lancé, et ne lance rien ; « pointe » (A-811, 15-11-2026) : le commit exact de la
+# version au dépôt privé, 40 caractères hexadécimaux, validé par MOTIF_DE_POINTE et non par le motif commun des
+# valeurs (au plus 20 caractères), OBLIGATOIRE pour le circuit des séries depuis une branche travail-…, facultatif
+# depuis main ; le relais ne peut pas lire le privé : c'est « preparer » qui la compare à la pointe actuelle. Exemple :
 #   serie=Yahoo
+#   pointe=1c5302a94959b9702e41bb49b13c7a5220a6da43
 #   parts_yahoo=2
 #   a_blanc=oui
 CIRCUIT_RELAIS = os.path.join(".github", "workflows", "demande_de_serie.yml")
@@ -1477,8 +1907,15 @@ NOM_DE_DEMANDE = r"^demandes/DEMANDE_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2
 # 3h45 (2 à 5 h d'attente par nuit), alors qu'un lancement à la main du 07-11-2026 a démarré aussitôt. L'examen n'a
 # pas d'entrée : il clone la version officielle du dépôt privé (son clonage ne porte pas « ref: »), il ne se lance
 # donc que depuis main. Seul le circuit des séries reçoit des réglages (serie, parts_<code>, lot_<code>).
+# Ajout du 15-11-2026 (étape GHUB ②, A-809, A-811, A-816) : « epreuve », le circuit des épreuves longues d'un tenant,
+# depuis main ou une version en attente, comme les séries ; il reçoit la liste des codes (« epreuves= ») et la pointe.
 CIRCUITS_DU_RELAIS = (("series", os.path.basename(CIRCUIT_SERIES), MOTIF_DE_VERSION),
-                      ("examen", os.path.basename(CIRCUIT_CERTIFICATION), "^main$"))
+                      ("examen", os.path.basename(CIRCUIT_CERTIFICATION), "^main$"),
+                      ("epreuve", os.path.basename(CIRCUIT_EPREUVES), MOTIF_DE_VERSION))
+# Les circuits qui partagent GROUPE_DES_MACHINES_LONGUES : avant de lancer l'un, le relais compte les passages en cours
+# ou en attente de TOUS (GitHub ne garde qu'un passage en attente par groupe, quel que soit le circuit : une demande
+# d'épreuves ferait disparaître sans message une série en attente, et l'inverse).
+CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_SERIES), os.path.basename(CIRCUIT_EPREUVES))
 TAILLE_DE_DEMANDE = 1000          # octets au plus
 
 
@@ -1517,8 +1954,11 @@ RELAIS = """# DEMANDE DE SERIE — LE RELAIS — FICHIER FABRIQUÉ, NE PAS ÉCRI
 # des séries (tests/LANCEMENT_DES_EPREUVES.json) ; ③ aucun passage du circuit des séries ne doit être en cours ou en
 # attente (GitHub n'en garde qu'un en attente par groupe : un troisième ferait disparaître le deuxième sans message) ;
 # ④ « a_blanc=oui » : il écrit au journal ce qu'il aurait lancé et s'arrête ; sinon il lance le circuit des séries
-# sur CETTE branche, version = nom de la branche, chaque valeur passée explicitement (celles absentes de la demande
-# prennent la valeur de la table).
+# sur CETTE branche, version = nom de la branche, pointe = la pointe demandée (obligatoire depuis travail-…, A-811),
+# chaque valeur passée explicitement (celles absentes de la demande prennent la valeur de la table).
+# « circuit=epreuve » (étape GHUB ②, 15-11-2026) : « epreuves=<code>,<code>… » ou « epreuves=""" + TOUTES + """ » (codes
+# de la table epreuves_longues), « pointe » obligatoire depuis travail-… ; il lance epreuves_longues.yml. Les séries et
+# les épreuves partagent un groupe de concurrence : le compte des passages en cours porte sur les DEUX circuits.
 # CE QU'IL N'A PAS : aucune clé du dépôt privé, aucun clonage du privé, aucun programme de la version lancé (seulement
 # des commandes du système et gh) ; permissions : lire le dépôt, lancer un circuit. Ce texte a été relu ; le
 # fabricant refuse de publier un relais qui n'est pas ce texte, octet pour octet (empreinte), et tout autre circuit
@@ -1555,7 +1995,7 @@ jobs:
         run: |
           set -u -o pipefail
           export LC_ALL=C
-          [[ "$BRANCHE" =~ """ + MOTIF_DE_VERSION + """ ]] || { echo "::error::DEMANDE REFUSEE : branche $BRANCHE (main, ou une version en attente travail-...)"; exit 1; }
+          [[ "$BRANCHE" =~ """ + MOTIF_DE_VERSION + """ ]] || { echo "::error::DEMANDE REFUSEE : branche hors de la forme permise (main, ou une version en attente travail-...)"; exit 1; }
           [[ "$AVANT" =~ ^[0-9a-f]{40}$ ]] && [[ "$AVANT" =~ [1-9a-f] ]] || { echo "::error::DEMANDE REFUSEE : pas de pointe d'avant (branche creee par cette poussee ?) : publier le code d'abord, puis la demande seule"; exit 1; }
           parent=$(git rev-parse -q --verify "$APRES^1") || { echo "::error::DEMANDE REFUSEE : commit sans parent lisible"; exit 1; }
           [ "$parent" = "$AVANT" ] || { echo "::error::DEMANDE REFUSEE : la poussee porte plus d'un commit ; la demande se depose seule, dans un commit a elle"; exit 1; }
@@ -1575,30 +2015,56 @@ jobs:
           vus=" "
           CIRCUIT=""
           SERIE=""
+          POINTE=""
+          EPREUVES=""
           A_BLANC="non"
 """ + _relais_par_serie("""          PARTS_%(M)s=%(n)d
           LOT_%(M)s=%(l)d
 """) + """          while IFS= read -r ligne || [ -n "$ligne" ]; do
             [ -n "$ligne" ] && [[ "$ligne" != "#"* ]] || continue
-            [[ "$ligne" =~ ^([a-z_]{1,20})=([A-Za-z0-9]{1,20})$ ]] || { echo "::error::DEMANDE REFUSEE : ligne illisible (cle=valeur, lettres et chiffres, sans espace) : ${ligne:0:80}"; exit 1; }
+            if [[ "$ligne" == pointe=* ]]; then
+              valeur="${ligne#pointe=}"
+              [[ "$valeur" =~ """ + MOTIF_DE_POINTE + """ ]] || { echo "::error::DEMANDE REFUSEE : pointe de 40 caracteres hexadecimaux en minuscules (${#valeur} caractere(s) recus)"; exit 1; }
+              [[ "$vus" != *" pointe "* ]] || { echo "::error::DEMANDE REFUSEE : cle donnee deux fois : pointe"; exit 1; }
+              vus="${vus}pointe "
+              POINTE="$valeur"
+              continue
+            fi
+            if [[ "$ligne" == epreuves=* ]]; then
+              valeur="${ligne#epreuves=}"
+              [[ "$valeur" =~ ^(""" + TOUTES + """|""" + CODE_DE_SERIE + """(,""" + CODE_DE_SERIE + """)*)$ ]] || { echo "::error::DEMANDE REFUSEE : epreuves = toutes, ou des codes separes par des virgules (${#valeur} caractere(s) recus)"; exit 1; }
+              [[ "$vus" != *" epreuves "* ]] || { echo "::error::DEMANDE REFUSEE : cle donnee deux fois : epreuves"; exit 1; }
+              vus="${vus}epreuves "
+              if [ "$valeur" != \"""" + TOUTES + """\" ]; then
+                deja=" "
+                for c in ${valeur//,/ }; do
+                  [[ " """ + " ".join(e[0] for e in EPREUVES_DU_CIRCUIT) + """ " == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue : $c"; exit 1; }
+                  [[ "$deja" != *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve demandee deux fois : $c"; exit 1; }
+                  deja="$deja$c "
+                done
+              fi
+              EPREUVES="$valeur"
+              continue
+            fi
+            [[ "$ligne" =~ ^([a-z_]{1,20})=([A-Za-z0-9]{1,20})$ ]] || { echo "::error::DEMANDE REFUSEE : ligne illisible (cle=valeur, lettres et chiffres, sans espace ; ${#ligne} caractere(s))"; exit 1; }
             cle="${BASH_REMATCH[1]}"
             valeur="${BASH_REMATCH[2]}"
             [[ "$vus" != *" $cle "* ]] || { echo "::error::DEMANDE REFUSEE : cle donnee deux fois : $cle"; exit 1; }
             vus="$vus$cle "
             if [ "$cle" = "circuit" ]; then
-              [[ "$valeur" =~ ^(""" + "|".join(c[0] for c in CIRCUITS_DU_RELAIS) + """)$ ]] || { echo "::error::DEMANDE REFUSEE : circuit inconnu : $valeur"; exit 1; }
+              [[ "$valeur" =~ ^(""" + "|".join(c[0] for c in CIRCUITS_DU_RELAIS) + """)$ ]] || { echo "::error::DEMANDE REFUSEE : circuit inconnu (""" + " ou ".join(c[0] for c in CIRCUITS_DU_RELAIS) + """)"; exit 1; }
               CIRCUIT="$valeur"
             elif [ "$cle" = "serie" ]; then
-              [[ "$valeur" =~ ^(""" + "|".join([TOUTES] + [s[0] for s in SERIES_DU_CIRCUIT]) + """)$ ]] || { echo "::error::DEMANDE REFUSEE : serie inconnue : $valeur"; exit 1; }
+              [[ "$valeur" =~ ^(""" + "|".join([TOUTES] + [s[0] for s in SERIES_DU_CIRCUIT]) + """)$ ]] || { echo "::error::DEMANDE REFUSEE : serie inconnue de la table"; exit 1; }
               SERIE="$valeur"
             elif [ "$cle" = "a_blanc" ]; then
-              [[ "$valeur" =~ ^(oui|non)$ ]] || { echo "::error::DEMANDE REFUSEE : a_blanc vaut oui ou non : $valeur"; exit 1; }
+              [[ "$valeur" =~ ^(oui|non)$ ]] || { echo "::error::DEMANDE REFUSEE : a_blanc vaut oui ou non"; exit 1; }
               A_BLANC="$valeur"
 """ + _relais_par_serie("""            elif [ "$cle" = "parts_%(m)s" ]; then
-              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : parts_%(m)s de 1 a 99 : $valeur"; exit 1; }
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : parts_%(m)s de 1 a 99"; exit 1; }
               PARTS_%(M)s="$valeur"
             elif [ "$cle" = "lot_%(m)s" ]; then
-              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_%(m)s de 1 a 99 : $valeur"; exit 1; }
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_%(m)s de 1 a 99"; exit 1; }
               LOT_%(M)s="$valeur"
 """) + """            else
               echo "::error::DEMANDE REFUSEE : cle inconnue : $cle"
@@ -1609,22 +2075,42 @@ jobs:
           FICHIER=""
 """ + "".join("""          if [ "$CIRCUIT" = "%s" ]; then
             FICHIER="%s"
-            [[ "$BRANCHE" =~ %s ]] || { echo "::error::DEMANDE REFUSEE : le circuit %s ne se lance pas depuis la branche $BRANCHE"; exit 1; }
+            [[ "$BRANCHE" =~ %s ]] || { echo "::error::DEMANDE REFUSEE : le circuit %s ne se lance pas depuis cette branche"; exit 1; }
           fi
 """ % (c, f, m, c) for c, f, m in CIRCUITS_DU_RELAIS) + """          [ -n "$FICHIER" ] || { echo "::error::DEMANDE REFUSEE : circuit sans fichier : $CIRCUIT"; exit 1; }
-          if [ "$CIRCUIT" != "series" ]; then
+          if [ "$CIRCUIT" = "examen" ]; then
             [ "$vus" = " circuit " ] || [ "$vus" = " circuit a_blanc " ] || [ "$vus" = " a_blanc circuit " ] || { echo "::error::DEMANDE REFUSEE : le circuit $CIRCUIT ne prend aucun reglage (seulement circuit et a_blanc) :$vus"; exit 1; }
           fi
+          if [ "$CIRCUIT" = "epreuve" ]; then
+            for k in $vus; do
+              [[ " circuit epreuves pointe a_blanc " == *" $k "* ]] || { echo "::error::DEMANDE REFUSEE : le circuit epreuve ne prend que circuit, epreuves, pointe et a_blanc : $k"; exit 1; }
+            done
+            [ -n "$EPREUVES" ] || { echo "::error::DEMANDE REFUSEE : la cle epreuves manque"; exit 1; }
+            [ "$BRANCHE" = "main" ] || [ -n "$POINTE" ] || { echo "::error::DEMANDE REFUSEE : la cle pointe manque (obligatoire depuis une version en attente, A-811)"; exit 1; }
+          fi
+          [ "$CIRCUIT" = "epreuve" ] || [ -z "$EPREUVES" ] || { echo "::error::DEMANDE REFUSEE : la cle epreuves ne vaut que pour le circuit epreuve"; exit 1; }
           [ "$CIRCUIT" != "series" ] || [ -n "$SERIE" ] || { echo "::error::DEMANDE REFUSEE : la cle serie manque"; exit 1; }
+          [ "$CIRCUIT" != "series" ] || [ "$BRANCHE" = "main" ] || [ -n "$POINTE" ] || { echo "::error::DEMANDE REFUSEE : la cle pointe manque (obligatoire depuis une version en attente, A-811)"; exit 1; }
 """ + _relais_par_serie("""          if [[ "$vus" == *" parts_%(m)s "* || "$vus" == *" lot_%(m)s "* ]] && [ "$SERIE" != "%(t)s" ] && [ "$SERIE" != "%(c)s" ]; then
             echo "::error::DEMANDE REFUSEE : elle regle la serie %(c)s, qu'elle ne joue pas (serie $SERIE)"
             exit 1
           fi
-""") + """          en_cours=$(gh run list --workflow "$FICHIER" --limit 100 --json status --jq '[.[] | select(.status != "completed")] | length') || { echo "::error::DEMANDE REFUSEE : passages de $FICHIER illisibles"; exit 1; }
-          [ "$en_cours" = "0" ] || { echo "::error::DEMANDE REFUSEE : $en_cours passage(s) de $FICHIER en cours ou en attente ; redeposer la demande quand ils sont finis"; exit 1; }
-          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; serie $SERIE""" + _relais_par_serie(" ; parts_%(m)s $PARTS_%(M)s ; lot_%(m)s $LOT_%(M)s") + """ ; a blanc $A_BLANC"
+""") + """          COMPTES="$FICHIER"
+          if [[ " """ + " ".join(CIRCUITS_DU_GROUPE_LONG) + """ " == *" $FICHIER "* ]]; then COMPTES=\"""" + " ".join(CIRCUITS_DU_GROUPE_LONG) + """\"; fi
+          for F in $COMPTES; do
+            en_cours=$(gh run list --workflow "$F" --limit 100 --json status --jq '[.[] | select(.status != "completed")] | length' 2>"$D/erreur_gh") || {
+              if grep -qi "could not find" "$D/erreur_gh"; then echo "::error::DEMANDE REFUSEE : le circuit $F est inconnu de GitHub au depot public (le relais et $F s installent dans la meme publication, puis une demande a_blanc=oui)"; else echo "::error::DEMANDE REFUSEE : passages de $F illisibles"; fi
+              exit 1; }
+            [ "$en_cours" = "0" ] || { echo "::error::DEMANDE REFUSEE : $en_cours passage(s) de $F en cours ou en attente ; redeposer la demande quand ils sont finis"; exit 1; }
+          done
+          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE""" + _relais_par_serie(" ; parts_%(m)s $PARTS_%(M)s ; lot_%(m)s $LOT_%(M)s") + """ ; epreuves $EPREUVES ; a blanc $A_BLANC"
           if [ "$A_BLANC" = "oui" ]; then
             echo "A BLANC : rien n'est lance"
+            exit 0
+          fi
+          if [ "$CIRCUIT" = "epreuve" ]; then
+            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "epreuves=$EPREUVES" || { echo "::error::le circuit des epreuves n'a pas pu etre lance"; exit 1; }
+            echo "LANCE : $FICHIER sur $BRANCHE"
             exit 0
           fi
           if [ "$CIRCUIT" != "series" ]; then
@@ -1632,11 +2118,11 @@ jobs:
             echo "LANCE : $FICHIER sur $BRANCHE"
             exit 0
           fi
-          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "serie=$SERIE\"""" + _relais_par_serie(""" -f "parts_%(m)s=$PARTS_%(M)s" -f "lot_%(m)s=$LOT_%(M)s\"""") + """ || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
+          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE\"""" + _relais_par_serie(""" -f "parts_%(m)s=$PARTS_%(M)s" -f "lot_%(m)s=$LOT_%(M)s\"""") + """ || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
           echo "LANCE : $FICHIER sur $BRANCHE"
 """
 if ERREUR_DE_LA_TABLE:
-    SERIES = RELAIS = None
+    SERIES = RELAIS = EPREUVES = None
 
 
 # LE FILET DES GABARITS PUBLICS (superviseur R-759 du 04-11-2026, R3 ; relecture du 04-11-2026 à 19h53, I3 : quatre
@@ -1658,7 +2144,7 @@ SANS_LECTURE_DU_RESULTAT = {
 # R-759 du 04-11-2026, tour 4, R2 ; deux écritures d'une même chose divergent toujours, R-708).
 RESUME_PUBLIC = "GITHUB_STEP_SUMMARY"
 # Les gabarits qui ont leurs branches : ils ne poussent que vers elles (« jamais sur main »).
-BRANCHES_DES_GABARITS = {"series": SERIES_BRANCHES}
+BRANCHES_DES_GABARITS = {"series": SERIES_BRANCHES, "epreuves": EPREUVES_BRANCHES}
 # LA SEULE FORME PERMISE D'UNE POUSSÉE dans un gabarit de BRANCHES_DES_GABARITS (superviseur R-759 du 04-11-2026, tour 4,
 # R2 : « une liste de formes interdites oublie toujours la suivante ; une forme permise unique n'a rien à oublier »).
 # Mesuré par le superviseur en git local : la propriété précédente (« toute cible refs/heads/… commence par le
@@ -1825,6 +2311,45 @@ CIBLE_DE_POUSSEE = r"(?:[A-Za-z0-9_./-]|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$\{\{ matr
 MALGRE_L_ECHEC = re.compile(r"(?<![\w.])(?:always|failure|cancelled)\s*\(\s*\)", re.I)
 
 
+MOTIF_CONTROLE = re.compile(r'\[\[ "(\$\{?!?[A-Za-z_][A-Za-z0-9_]*[^"]*)" =~ .*?\]\](.*)$')
+MESSAGE_D_ECHEC = re.compile(r'\b(?:echo|echec)\s+"([^"]*)"')
+
+
+def valeur_citee_apres_un_motif(texte):
+    """Rend la première ligne d'un script dont le message d'échec d'un contrôle par motif cite la valeur contrôlée.
+
+    ① RÔLE — La propriété C-D3 : une valeur REFUSÉE par un motif ne s'écrit jamais au journal.
+    ② CONTEXTE D'APPEL — `verifier_les_gabarits_publics`, pour chaque gabarit.
+    ③ ENTRÉE — `texte` : un gabarit fabriqué.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la ligne fautive (sans ses blancs de tête), ou None.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque ligne « [[ "<valeur>" =~ … ]] … » : le nom de la variable de <valeur> (« $X », « ${X…} »,
+      « ${!X} ») ; dans le reste de la ligne, chaque message « echo "…" » ou « echec "…" » ; s'il porte « $X » ou
+      « ${X » (« ${!X » pour une valeur indirecte), la ligne est fautive. « ${#X} » (la longueur) est permis.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — C-D3 (Cowork, relecture du 15-11-2026, cas B15 « travail-x\nmain ») : la valeur refusée était écrite
+      au journal PUBLIC ; un saut de ligne dans l'entrée y ouvrait une ligne libre, commandes « ::…:: » comprises.
+      Superviseur R-759 du 15-11-2026 : réparation « DE FOND » ; une propriété qui couvre toutes ces lignes, sans
+      distinguer celles qu'un « read » protège déjà.
+    ⑨ CE QUI CLOCHE — Une ligne de contrôle coupée en deux, un message écrit par « printf », ou une valeur recopiée
+      dans une autre variable avant d'être citée ne sont pas vus.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    for ligne in texte.split("\n"):
+        m = MOTIF_CONTROLE.search(ligne)
+        if not m:
+            continue
+        n = re.match(r"\$\{?(!?)([A-Za-z_][A-Za-z0-9_]*)", m.group(1))
+        interdit = re.compile(r"\$\{" + n.group(1) + re.escape(n.group(2)) + r"(?![A-Za-z0-9_])"
+                              + ("" if n.group(1) else r"|\$" + re.escape(n.group(2)) + r"(?![A-Za-z0-9_])"))
+        if any(interdit.search(msg) for msg in MESSAGE_D_ECHEC.findall(m.group(2))):
+            return ligne.strip()
+    return None
+
+
 def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
     """Post-condition du fabricant : refuse un gabarit public qui rendrait lisible ou poussable ce qu'il ne doit pas.
 
@@ -1860,7 +2385,8 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
       qu'il porte « git push » · ⑩ (tour 5) le script (« run: | ») d'un pas à jeton ne porte aucune expression
       « ${{ ». · ⑪ (08-11-2026) « actions: write » n'est admis qu'au premier niveau, avec « contents: read », et
       alors le gabarit doit passer `verifier_un_relais` (choix n°347, Q5 = 1) · ⑫ (08-11-2026, NV-1) aucun gabarit
-      ne porte la souche du nom d'une épreuve de série de la table (`souches_des_epreuves`).
+      ne porte la souche du nom d'une épreuve de série de la table (`souches_des_epreuves`) · ⑬ (15-11-2026, C-D3)
+      aucun message d'échec d'un contrôle par motif ne cite la valeur contrôlée (`valeur_citee_apres_un_motif`).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Superviseur R-759 du 04-11-2026, R3 : étendre le filet existant plutôt qu'écrire un second contrôle,
       par des propriétés (SI JE RENOMME UN PAS, LE CONTRÔLE NE CHANGE PAS D'AVIS). ⑥ ④ : programmes/MESSAGE_DU_SOIR.py
@@ -1964,6 +2490,10 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
                                  "« actions: write » au premier niveau pour un relais)")
         if RESUME_PUBLIC in texte:
             raise ValueError(f"gabarit {nom} : le résumé public du passage ({RESUME_PUBLIC})")
+        citee = valeur_citee_apres_un_motif(texte)
+        if citee:
+            raise ValueError(f"gabarit {nom} : le message d'échec d'un contrôle par motif cite la valeur contrôlée "
+                             f"(C-D3 : une valeur refusée ne s'écrit pas au journal public) : {citee[:120]}")
         for souche in souches_des_epreuves():   # NV-1 (08-11-2026) : le lien série → épreuve vient de la table
             if souche in texte:
                 raise ValueError(f"gabarit {nom} : il nomme l'épreuve d'une série (« {souche} ») : le lien série → "
@@ -2175,6 +2705,434 @@ def verifier_un_relais(nom, texte):
     if EMPREINTE_DU_RELAIS is None or vue != EMPREINTE_DU_RELAIS:
         raise ValueError(f"relais {nom} : il porte la permission de lancer un circuit et n'est pas, octet pour octet, le "
                          f"relais fabriqué (empreinte {vue[:16]}, attendue {(EMPREINTE_DU_RELAIS or '?')[:16]})")
+
+
+# LE REGISTRE DE PROVENANCE (A-599, A-812) : donnees/PROVENANCE_DES_FICHIERS.csv dit d'où vient chaque fichier de
+# données du dépôt privé (téléchargement, écrit à la main, fabriqué par un programme), avec son empreinte sha256. Il
+# sert ICI de liste de ce qui ne se publie JAMAIS : ni à son chemin, ni sous un autre nom (même empreinte), ni dans les
+# dossiers qu'il décrit. Contrôle demandé par l'étape GHUB ② (« tous les fichiers ÉCRITS au public sont publiables,
+# confronté au registre ») ; MODE_EMPLOI_DEPOT.md §13.5, bloc C-4, le disait THÉORIQUE.
+REGISTRE_DE_PROVENANCE = "donnees/PROVENANCE_DES_FICHIERS.csv"
+
+
+def refus_selon_la_provenance(prive, public, ecrits):
+    """Rend (refus, note) : les fichiers écrits au clone public qui ne sont pas publiables selon le registre.
+
+    ① RÔLE — Dire, APRÈS l'écriture au clone public et AVANT toute poussée, si un fichier écrit est une donnée du dépôt
+      privé : son chemin est au registre de provenance, ou sous un dossier que le registre décrit, ou son contenu est,
+      octet pour octet, celui d'un fichier du registre ; ou s'il n'est pas un vrai fichier du clone public.
+    ② CONTEXTE D'APPEL — `main`, une fois, après l'écriture des gabarits, avant `refus_des_circuits_publies` et
+      `publier` ; l'épreuve tests/EPREUVES_DU_CIRCUIT_DES_EPREUVES_LONGUES_Dim_15-11-2026.py.
+    ③ ENTRÉE — `prive` : la racine du dépôt privé (où est le registre) · `public` : le clone public · `ecrits` : les
+      chemins écrits ou retirés au clone public par `main` (séparés par « / »).
+    ④ CONDITIONS D'ENTRÉE — Le registre, s'il existe, est un CSV en UTF-8 dont l'en-tête porte « fichier » et
+      « sha256 ». S'il n'existe pas et que le dépôt privé a un dossier « donnees », le contrôle ne peut pas tourner :
+      OSError (R-734 : un contrôle qui n'a pas pu tourner rend un code non nul). Sans registre ni dossier « donnees »
+      (un dépôt d'essai), il n'y a rien à confronter : aucun refus, et la note le dit.
+    ⑤ SORTIE — DEUX valeurs : la liste des refus (une phrase par fichier, la première raison ; vide si tout est
+      publiable) ; une note d'une ligne (ce qui a été confronté). La phrase nomme le fichier et la raison, jamais le
+      contenu. Lève OSError ou ValueError si le registre manque ou ne se lit pas.
+      [rend: 2]
+    ⑥ TRAITEMENT — lire le registre : l'ensemble des chemins, des empreintes, et des premiers dossiers des chemins
+      (aujourd'hui « donnees » et « temoins ») ; pour chaque chemin écrit (une fois chacun) qui existe encore au clone
+      (un fichier retiré ne publie rien) : ① le chemin réel n'est pas exactement la racine réelle du clone suivie du
+      chemin, ou c'est un lien → refus (un lien posé côté public, fiche ⑨ de `refus_avant_publication`) ; ② son
+      premier dossier est un dossier du registre, ou le chemin est au registre → refus ; ③ un fichier non vide dont la
+      sha256 est au registre → refus.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le dépôt public est lisible par toute personne connectée ; une donnée privée publiée ne se retire pas
+      (décisions de Jean-Luc A-543 du 06 et 08-10-2026, « Je ne veux rien rendre public » ; A-812 du 15-11-2026, « Tu
+      sembles oublier les questions de public ou privé sur GitHub »). Les gardes d'AVANT l'écriture
+      (`refus_avant_publication`) jugent le dépôt privé ; celle-ci juge ce qui est réellement ÉCRIT au clone public,
+      donc aussi les gabarits fabriqués et tout fichier que `main` y pose demain. Propriété et non liste : les dossiers
+      refusés sont lus dans le registre, un fichier ajouté au registre est refusé sans rien écrire ici.
+    ⑨ CE QUI CLOCHE — Une donnée privée ABSENTE du registre, ou recopiée en partie, ou transformée (autre fin de ligne,
+      compressée) n'est pas vue ici (la garde des lignes de `refus_avant_publication` en voit une partie ; depuis le
+      15-11-2026, l'étage A, `refus_selon_l_historique`, voit une copie ENTIÈRE de tout fichier du dépôt privé qui ne se
+      publie pas, au registre ou non). Le rôle du registre comme liste de ce qui est privé est gardé tant que Jean-Luc
+      n'a pas tranché (proposition GHUB2, § 12, point 3). Un fichier
+      vide n'est pas confronté aux empreintes (il ne porte rien, et l'empreinte du vide serait un faux refus). Le
+      contrôle lit les fichiers APRÈS leur écriture : entre lui et la poussée, un acteur local peut encore les changer
+      (même limite que `refus_avant_publication`).
+    ⑩ EFFET — Lit le registre et les fichiers écrits. N'écrit rien.
+    ⑪ TERMINAISON — Rend la main ; des lectures locales.
+      [sort: non]
+    """
+    registre = os.path.join(prive, REGISTRE_DE_PROVENANCE)
+    if not os.path.isfile(registre):
+        if os.path.isdir(os.path.join(prive, DOSSIER_DES_DONNEES)):
+            raise OSError(f"{REGISTRE_DE_PROVENANCE} absent alors que le dépôt privé a un dossier {DOSSIER_DES_DONNEES}/")
+        return [], "provenance : aucun registre ni dossier de données au dépôt privé, rien à confronter"
+    with open(registre, encoding="utf-8", newline="") as f:
+        lecteur = csv.DictReader(f)
+        if not lecteur.fieldnames or "fichier" not in lecteur.fieldnames or "sha256" not in lecteur.fieldnames:
+            raise ValueError(f"{REGISTRE_DE_PROVENANCE} : en-tête sans « fichier » ni « sha256 »")
+        lignes = list(lecteur)
+    if not lignes:
+        raise ValueError(f"{REGISTRE_DE_PROVENANCE} : aucune ligne")
+    chemins = {l["fichier"].strip() for l in lignes if l.get("fichier")}
+    empreintes = {l["sha256"].strip().lower() for l in lignes if l.get("sha256")}
+    dossiers = {c.split("/")[0] for c in chemins if "/" in c}
+    racine = os.path.realpath(public)
+    refus, vus = [], 0
+    for rel in dict.fromkeys(ecrits):
+        p = os.path.join(public, rel)
+        if not os.path.lexists(p):
+            continue
+        vus += 1
+        if os.path.islink(p) or os.path.realpath(p) != os.path.join(racine, os.path.normpath(rel)):
+            refus.append(f"{rel} : lien, ou chemin réel hors du clone public")
+        elif rel in chemins or rel.split("/")[0] in dossiers:
+            refus.append(f"{rel} : chemin d'une donnée du registre de provenance ({', '.join(sorted(dossiers))})")
+        elif os.path.getsize(p) and hashlib.sha256(open(p, "rb").read()).hexdigest() in empreintes:
+            refus.append(f"{rel} : même contenu, octet pour octet, qu'un fichier du registre de provenance")
+    return refus, (f"provenance : {vus} fichier(s) écrit(s) au public confrontés aux {len(lignes)} lignes du registre "
+                   f"({', '.join(sorted(dossiers))}) ; {len(refus)} refus")
+
+
+# LA PUBLICATION DU COMMIT, L'ÉTAGE A ET LE TÉMOIN DU PARCOURS (livraison 1 du superviseur R-759 du 15-11-2026,
+# SUPERVISEUR_GHUB2_Dim_15-11-2026.md, § 3 et § 4 ; jugement fait à partir de la proposition
+# PROPOSITION_REPARATION_GHUB2_Dim_15-11-2026.md et de la relecture RELECTEUR_GHUB2_TOUR1_Dim_15-11-2026.md, défaut D1 :
+# « donnees/indice_cac40_quotidien.csv recopié sous tests/outils/VOLE_DONNEE.py […] fabricant au code 0, 0 refus »).
+# ① CE QUI SE PUBLIE, CE SONT LES BLOBS DU COMMIT du dépôt privé (HEAD), jamais le disque : un fichier non commité
+# n'est pas publié, et le fichier contrôlé est celui qui est écrit (plus de course entre le contrôle et la copie).
+# ② L'ÉTAGE A : un fichier publié dont le contenu ENTIER est, octet pour octet, celui d'un fichier du dépôt privé à un
+# chemin qui NE SE PUBLIE PAS (un fichier de données, une étude, une archive), dans N'IMPORTE QUEL commit de N'IMPORTE
+# QUELLE branche, ou sur le disque, est refusé. Aucune exemption par extension (le superviseur, § 1 (a)) : un « .py »
+# rangé dans `etudes/` est une référence comme une autre.
+# ③ AUCUNE EXEMPTION « DÉJÀ PUBLIC » (retirée le 15-11-2026 : F1 du RELU de Cowork d21df83c, superviseur R-759
+# SUPERVISEUR_GHUB2_F1_Dim_15-11-2026.md, « arrêter et simplifier »). Elle exemptait ce qui est sur `main` du PRIVÉ
+# à un chemin publié ; or être sur `main` ne prouve pas qu'un contenu a été publié : une donnée fusionnée dans `main`
+# (X2), ou un `main` local non poussé (X3), passait, code 0. La lire au dépôt public blanchirait toute fuite déjà
+# présente (X4). Les deux programmes qui la justifiaient (programmes/CONTROLER_LES_CAUSES_DES_TROUS.py et
+# programmes/verif_backlog.py, identiques à des copies rangées dans des études) ont changé une ligne de leur texte
+# explicatif : leur blob n'est plus celui des copies, leur code est le même.
+# ④ LE TÉMOIN DU PARCOURS (C-D2 de Cowork) : chaque chemin du registre de provenance (A-599) doit être vu par le
+# parcours du disque et lisible ; sinon le parcours n'a pas tourné en entier : arrêt, code 1 (R-734). Seulement présent
+# et lisible, jamais son empreinte : une donnée mise à jour avant son registre ne doit pas bloquer la publication.
+
+
+def est_un_chemin_publie(chemin):
+    """Dit si un chemin du dépôt privé est de ceux que le fabricant publie.
+
+    ① RÔLE — La propriété « ce chemin se publie », pour juger un chemin LU DANS L'HISTORIQUE, où `code_a_publier` et
+      `fiches_a_publier` (qui listent un dossier) ne peuvent pas servir.
+    ② CONTEXTE D'APPEL — `extraire_le_commit` (contrôle d'accord avec les deux listes), `refus_selon_l_historique`.
+    ③ ENTRÉE — `chemin` : relatif à la racine, séparé par « / ».
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : vrai si le chemin est un `.py` d'un emplacement de DOSSIERS_DE_CODE (sans sous-dossier),
+      tests/LANCEMENT_DES_EPREUVES.json, ou une fiche `.yml`/`.yaml` de `.github/workflows/`.
+      [rend: 1]
+    ⑥ TRAITEMENT — Séparer le dossier et le nom ; comparer.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une propriété, comme les deux listes. Deux écritures d'une même chose divergent (R-708) : `main`
+      vérifie à chaque fabrication que cette propriété et les deux listes désignent les MÊMES fichiers du commit
+      (`extraire_le_commit`), et s'arrête sinon.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    dossier, nom = posixpath.split(chemin)
+    return ((dossier in DOSSIERS_DE_CODE and nom.endswith(".py")) or chemin == LANCEMENT
+            or (dossier == FICHES_PRIVEES.replace(os.sep, "/") and nom.endswith((".yml", ".yaml"))))
+
+
+def _git_prive(prive, *args, entree=None):
+    """Lance git en lecture dans le dépôt privé ; rend la sortie en octets, ou lève OSError.
+
+    ① RÔLE — Un appel git borné, pour la publication du commit et l'étage A.
+    ② CONTEXTE D'APPEL — `extraire_le_commit`, `refus_selon_l_historique`.
+    ③ ENTRÉE — `prive` ; `args` : les arguments de git ; `entree` : des octets donnés à git sur son entrée, ou None.
+    ④ CONDITIONS D'ENTRÉE — git est installé.
+    ⑤ SORTIE — UNE valeur : la sortie de git, en octets. Lève OSError si git rend un code non nul (R-734 : un contrôle
+      qui n'a pas pu tourner ne passe jamais pour un contrôle vert).
+      [rend: 1]
+    ⑥ TRAITEMENT — « git -c core.quotepath=off -C <prive> <args> », sortie capturée.
+    ⑦ UNITÉ — Des secondes : la borne, 600.
+    ⑧ POURQUOI — Une seule écriture de l'appel (R-708).
+    ⑨ CE QUI CLOCHE — Un dépassement lève TimeoutExpired, que `main` arrête.
+    ⑩ EFFET — Ce que fait la commande git (des lectures).
+    ⑪ TERMINAISON — Rend la main ; 600 s au plus. Un de mes appels peut-il ne pas revenir ? git, borné à 600 s.
+      [sort: non]
+    """
+    p = subprocess.run(["git", "-c", "core.quotepath=off", "-C", prive] + list(args), input=entree,
+                       capture_output=True, timeout=600)
+    if p.returncode != 0:
+        raise OSError(f"git {args[0]} : code {p.returncode} : {p.stderr.decode('utf-8', 'replace').strip()[:200]}")
+    return p.stdout
+
+
+def empreinte_git(octets):
+    """Rend l'identifiant git (blob, SHA-1) d'un contenu.
+
+    ① RÔLE — Comparer un fichier publié aux blobs du dépôt privé sans relancer git pour chacun.
+    ② CONTEXTE D'APPEL — `extraire_le_commit`, `refus_selon_l_historique`.
+    ③ ENTRÉE — `octets` : le contenu.
+    ④ CONDITIONS D'ENTRÉE — Le dépôt privé est au format SHA-1 de git (le format par défaut ; `extraire_le_commit`
+      vérifie que le blob relu redonne son identifiant, sinon il s'arrête).
+    ⑤ SORTIE — UNE valeur : 40 caractères hexadécimaux.
+      [rend: 1]
+    ⑥ TRAITEMENT — sha1(« blob <taille>\0 » + contenu), la règle de git.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — —
+    ⑨ CE QUI CLOCHE — Un dépôt au format SHA-256 de git : les identifiants ne se recouvrent pas ; l'arrêt est garanti
+      par la vérification de `extraire_le_commit`.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return hashlib.sha1(b"blob %d\0" % len(octets) + octets).hexdigest()
+
+
+def extraire_le_commit(prive, dossier):
+    """Écrit dans `dossier` les blobs du commit HEAD du dépôt privé qui se trouvent aux emplacements du code publié.
+
+    ① RÔLE — Donner à `main` la SOURCE de la publication : le commit du dépôt privé, jamais son disque.
+    ② CONTEXTE D'APPEL — `main`, une fois, avant tout contrôle, quand le dépôt privé porte un « .git ».
+    ③ ENTRÉE — `prive` : le dépôt privé · `dossier` : un dossier neuf et vide.
+    ④ CONDITIONS D'ENTRÉE — `prive` est un dépôt git qui a un commit HEAD.
+    ⑤ SORTIE — DEUX valeurs : le commit (40 caractères hexadécimaux) ; la liste des chemins du commit qui se publient
+      selon `est_un_chemin_publie` (fichiers ordinaires seulement). Lève OSError si git échoue, si un blob relu ne
+      redonne pas son identifiant, ou si la propriété et les deux listes du fabricant ne désignent pas les mêmes
+      fichiers (R-708).
+      [rend: 2]
+    ⑥ TRAITEMENT — « git rev-parse HEAD^{commit} » ; « git ls-tree -r -z --full-tree <commit> » ; chaque entrée dont le
+      dossier est un emplacement de DOSSIERS_DE_CODE ou `.github/workflows/` est écrite dans `dossier` : un fichier
+      ordinaire avec les octets du blob (« git cat-file --batch »), un lien symbolique (mode 120000) comme un lien
+      symbolique — `refus_avant_publication` le refusera —, un sous-module (mode 160000) ignoré. Puis
+      `code_a_publier(dossier)` et `fiches_a_publier(dossier)` doivent désigner exactement les fichiers ordinaires du
+      commit que `est_un_chemin_publie` désigne.
+    ⑦ UNITÉ — Des octets.
+    ⑧ POURQUOI — Livraison 1 du superviseur R-759 du 15-11-2026 (§ 4 (a)) : « Publier les blobs du commit, pas le
+      disque : git archive (ou git show) du SHA poussé au privé ». Le relecteur du 15-11-2026 (D1) a publié un `.py` NON
+      SUIVI par git ; et la fiche ⑨ de `refus_avant_publication` disait la course entre le contrôle et la copie. Les
+      blobs sont lus par « git cat-file » et non par « git archive », qui applique les attributs `export-subst` et
+      `export-ignore` d'un `.gitattributes` : les octets écrits seraient alors autre chose que le blob.
+    ⑨ CE QUI CLOCHE — Le commit publié est HEAD : que ce commit soit DÉJÀ POUSSÉ au dépôt privé n'est pas vérifié ici
+      (les circuits publics le vérifient : leur porte compare la pointe demandée à celle du dépôt privé). La table des
+      séries et des épreuves (`series_du_circuit`, `epreuves_du_circuit`) est lue, au chargement de ce programme, sur
+      le disque à côté de lui, et non dans le commit (antérieur, BACKLOG). Les sous-dossiers des emplacements ne sont
+      pas extraits : `code_a_publier` ne les publie pas.
+    ⑩ EFFET — Lance git en lecture ; écrit dans `dossier`.
+    ⑪ TERMINAISON — Rend la main ; chaque git est borné (`_git_prive`).
+      [sort: non]
+    """
+    sha = _git_prive(prive, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
+    lieux = set(DOSSIERS_DE_CODE) | {FICHES_PRIVEES.replace(os.sep, "/")}
+    entrees = []
+    for e in _git_prive(prive, "ls-tree", "-r", "-z", "--full-tree", sha).split(b"\0"):
+        if not e:
+            continue
+        meta, chemin = e.split(b"\t", 1)
+        mode, _, objet = meta.decode().split()
+        chemin = chemin.decode("utf-8", "surrogateescape")
+        if posixpath.dirname(chemin) in lieux and mode != "160000":
+            entrees.append((mode, objet, chemin))
+    lot = _git_prive(prive, "cat-file", "--batch", entree="".join(o + "\n" for _, o, _ in entrees).encode())
+    i, publies = 0, []
+    for mode, objet, chemin in entrees:
+        fin = lot.index(b"\n", i)
+        tete = lot[i:fin].decode().split()
+        taille = int(tete[2])
+        octets = lot[fin + 1:fin + 1 + taille]
+        i = fin + 1 + taille + 1
+        if tete[0] != objet or empreinte_git(octets) != objet:
+            raise OSError(f"{chemin} : le blob relu ne redonne pas son identifiant")
+        cible = os.path.join(dossier, *chemin.split("/"))
+        os.makedirs(os.path.dirname(cible), exist_ok=True)
+        if mode == "120000":
+            os.symlink(os.fsdecode(octets), cible)
+            continue
+        with open(cible, "wb") as f:
+            f.write(octets)
+        if est_un_chemin_publie(chemin):
+            publies.append(chemin)
+    listes = set(code_a_publier(dossier)) | {FICHES_PRIVEES.replace(os.sep, "/") + "/" + f for f in fiches_a_publier(dossier)}
+    if listes != set(publies):
+        raise OSError("les listes du fabricant et la propriété est_un_chemin_publie ne désignent pas les mêmes fichiers : "
+                      + " ".join(sorted(listes ^ set(publies)))[:300])
+    return sha, sorted(publies)
+
+
+def refus_selon_l_historique(prive, public, ecrits, exclus=()):
+    """Rend (refus, note) : l'ÉTAGE A et le TÉMOIN DU PARCOURS, sur les fichiers écrits au clone public.
+
+    ① RÔLE — Refuser un fichier écrit au public dont le contenu entier est celui d'un fichier du dépôt privé à un chemin
+      qui ne se publie pas — dans l'historique entier, toutes branches, ou sur le disque —, sans aucune exemption ;
+      et prouver que le parcours du disque a tourné en entier (registre de provenance).
+    ② CONTEXTE D'APPEL — `main`, une fois, après l'écriture au clone public et avant `publier` ; l'épreuve
+      tests/EPREUVES_DU_CIRCUIT_DES_EPREUVES_LONGUES_Dim_15-11-2026.py.
+    ③ ENTRÉE — `prive` : le dépôt privé · `public` : le clone public · `ecrits` : les chemins écrits ou retirés au
+      clone public par `main` (séparés par « / ») · `exclus` : des dossiers à ne pas parcourir sur le disque (le clone
+      public et la source extraite, s'ils sont sous le dépôt privé).
+    ④ CONDITIONS D'ENTRÉE — Avec un « .git » au dépôt privé, git est installé. Le registre de provenance, s'il existe
+      au disque ou au commit, est un CSV en UTF-8 dont l'en-tête porte « fichier ».
+    ⑤ SORTIE — DEUX valeurs : la liste des refus (une phrase par fichier, qui nomme le fichier publié et l'identifiant
+      du blob, jamais un chemin ni un contenu du dépôt privé : le journal d'un circuit public est lisible par tous) ;
+      une note d'une ligne (ce qui a été parcouru, en nombres). Lève OSError si git échoue, si un dossier du disque est
+      illisible, ou si le témoin du parcours manque (un chemin du registre absent ou illisible) : le contrôle n'a pas
+      tourné en entier (R-734).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① l'empreinte git de chaque fichier écrit qui existe au clone public ; ② avec git : « git log --all
+      --raw --no-renames --diff-merges=separate --root -z » donne chaque couple (chemin, blob) de chaque commit de
+      chaque référence (un couple d'un commit apparaît dans le diff qui l'introduit) ; ③ le disque du dépôt privé,
+      sans `.git` ni les dossiers `exclus`, sans suivre les liens, `os.walk` qui lève sur un dossier illisible : chaque
+      fichier ordinaire est noté VU, et son empreinte n'est calculée que si sa taille est celle d'un fichier écrit ;
+      ④ AUCUNE EXEMPTION « DÉJÀ PUBLIC » (retirée le 15-11-2026, F1 du RELU de Cowork d21df83c, superviseur R-759
+      « arrêter et simplifier ») : être sur `main` du privé ne prouve pas qu'un contenu a déjà été publié, et lire le
+      public blanchirait toute fuite déjà présente ; ⑤ un fichier écrit dont le blob est, en ② ou ③, à un chemin où
+      `est_un_chemin_publie` est faux → refus ; ⑥ LE TÉMOIN : le registre REGISTRE_DE_PROVENANCE, exigé au disque s'il est au commit HEAD ;
+      chacun de ses chemins doit avoir été VU en ③ et s'ouvrir en lecture → sinon OSError. Un dépôt SUPERFICIEL
+      (« shallow ») lève OSError avant ② : son historique n'est pas entier. SANS « .git » au dépôt privé (une copie
+      d'épreuve, la copie jouée de la certification) : aucun refus de l'étage A — rien ne peut être poussé d'un tel
+      dépôt (`refus_de_branche` refuse un clone public qui a un « .git », `publier` exige une branche) ; le parcours du disque et le témoin tournent quand même.
+    ⑦ UNITÉ — Des octets, des fichiers.
+    ⑧ POURQUOI — Commentaire de tête (livraison 1 du superviseur R-759 du 15-11-2026). Le registre de provenance n'est
+      pas la liste de ce qui est privé (défaut D1 du relecteur : 47 fichiers de données de `donnees/` et 4 051 hors de
+      `donnees/` et `temoins/` n'y sont pas) ; ce qui est privé, c'est tout ce qui ne se publie pas.
+    ⑨ CE QUI CLOCHE — L'ÉTAGE A NE VOIT QU'UNE COPIE ENTIÈRE, octet pour octet : une donnée découpée, transformée
+      (autres fins de ligne, colonnes réordonnées, nombres arrondis), recopiée en partie dans un programme, encodée en
+      base64 ou compressée sous un nom de texte n'est pas vue (le texte UTF-8 strict de `refus_avant_publication`
+      refuse un ZIP ou un binaire publié sous un `.py` ; un base64 reste du texte et passe). Un fichier VIDE écrit au
+      public n'est pas confronté : il ne porte rien, et le blob vide est à des chemins privés (comme au registre de
+      provenance, `refus_selon_la_provenance`). Les barres de cours dans
+      le code sont l'affaire de la garde de la forme (livraison 2) et du remplacement des barres d'A-825 (livraison 3).
+      Une donnée qui n'est ni dans le dépôt (aucun commit, aucune branche, aucun fichier du disque) ni au registre —
+      chez Cowork, sur le Drive — n'est pas vue. Un programme publié IDENTIQUE, octet pour octet, à une copie rangée
+      dans une étude (ou à un fichier privé quelconque) est refusé à CHAQUE publication, même s'il est déjà au public :
+      le Chat change une ligne du texte explicatif du programme (son blob change, son code non) — refus voulu, la règle
+      la plus stricte (superviseur R-759 du 15-11-2026, F1). Une fuite déjà présente au public reste refusée à chaque
+      passage, jusqu'à la décision de Jean-Luc. L'exemption « sans .git, étage A sans objet » (0dfdab57) avait été
+      ajoutée pour les deux mêmes programmes : sa raison d'être a disparu, la garder ou non est au BACKLOG. Le témoin dit qu'un chemin du registre est vu ; il ne dit rien d'un fichier
+      qui n'y est pas (un dossier sans fichier enregistré, illisible, est arrêté par `os.walk`).
+    ⑩ EFFET — Lance git en lecture ; lit les fichiers écrits, le registre, les fichiers du disque de même taille qu'un
+      fichier écrit, et un octet de chaque fichier du registre. N'écrit rien.
+    ⑪ TERMINAISON — Rend la main ; git est borné (`_git_prive`) ; des lectures locales.
+      [sort: non]
+    """
+    publies = {}
+    for rel in dict.fromkeys(ecrits):
+        p = os.path.join(public, rel)
+        if os.path.isfile(p) and not os.path.islink(p) and os.path.getsize(p):
+            with open(p, "rb") as f:
+                publies[rel] = empreinte_git(f.read())
+    tailles = {os.path.getsize(os.path.join(public, rel)) for rel in publies}
+    voulus = set(publies.values())
+    lieux = {}
+    avec_git = os.path.lexists(os.path.join(prive, ".git"))
+    couples = 0
+    if avec_git:
+        if _git_prive(prive, "rev-parse", "--is-shallow-repository").strip() != b"false":
+            raise OSError("le dépôt privé est SUPERFICIEL (clone « shallow ») : son historique n'est pas entier, l'étage A "
+                          "ne peut pas le parcourir ; « git fetch --unshallow », puis relancer")
+        morceaux = _git_prive(prive, "log", "--all", "--raw", "--no-renames", "--diff-merges=separate", "--root",
+                              "--no-abbrev", "-z", "--format=").split(b"\0")
+        k = 0
+        while k < len(morceaux):
+            m = morceaux[k].lstrip(b"\n")
+            if m.startswith(b":") and k + 1 < len(morceaux):
+                couples += 1
+                blob = m.split()[3].decode()
+                if blob in voulus:
+                    lieux.setdefault(blob, set()).add(morceaux[k + 1].decode("utf-8", "surrogateescape"))
+                k += 2
+            else:
+                k += 1
+    racine = os.path.realpath(prive)
+    sauts = {os.path.realpath(x) for x in exclus}
+    vus, lus = set(), 0
+    for dossier, sous, fichiers in os.walk(racine, onerror=_ne_pas_taire):
+        sous[:] = [s for s in sous if not os.path.islink(os.path.join(dossier, s))
+                   and os.path.join(dossier, s) not in sauts and not (dossier == racine and s == ".git")]
+        for f in fichiers:
+            p = os.path.join(dossier, f)
+            if os.path.islink(p) or not os.path.isfile(p):
+                continue
+            rel = os.path.relpath(p, racine).replace(os.sep, "/")
+            vus.add(rel)
+            if os.path.getsize(p) in tailles:
+                lus += 1
+                with open(p, "rb") as e:
+                    b = empreinte_git(e.read())
+                if b in voulus:
+                    lieux.setdefault(b, set()).add(rel)
+    refus = []
+    for rel, b in publies.items():
+        prives = sorted(c for c in lieux.get(b, ()) if not est_un_chemin_publie(c))
+        if avec_git and prives:
+            refus.append(f"{rel} : même contenu, octet pour octet (blob {b[:12]}), qu'un fichier du dépôt privé qui ne se "
+                         f"publie pas ({len(prives)} chemin(s) dans l'historique ou sur le disque ; "
+                         f"« git log --all --find-object={b[:12]} » les nomme) — étage A")
+    au_commit = False
+    if avec_git:
+        try:
+            _git_prive(prive, "cat-file", "-e", "HEAD:" + REGISTRE_DE_PROVENANCE)
+            au_commit = True
+        except OSError:
+            au_commit = False
+    registre = os.path.join(racine, REGISTRE_DE_PROVENANCE)
+    if not os.path.isfile(registre):
+        if au_commit:
+            raise OSError(f"témoin du parcours : {REGISTRE_DE_PROVENANCE} est au commit mais pas sur le disque "
+                          "(clone partiel ?) : le parcours n'a pas vu les données")
+        temoin = "aucun registre de provenance (dépôt d'essai) : témoin sans objet"
+    else:
+        with open(registre, encoding="utf-8", newline="") as f:
+            lecteur = csv.DictReader(f)
+            if not lecteur.fieldnames or "fichier" not in lecteur.fieldnames:
+                raise OSError(f"témoin du parcours : {REGISTRE_DE_PROVENANCE} sans colonne « fichier »")
+            attendus = [l["fichier"].strip() for l in lecteur if (l.get("fichier") or "").strip()]
+        if not attendus:
+            raise OSError(f"témoin du parcours : {REGISTRE_DE_PROVENANCE} ne porte aucun chemin")
+        manquants = [c for c in attendus if c not in vus]
+        if manquants:
+            raise OSError(f"témoin du parcours : {len(manquants)} chemin(s) du registre de provenance non vus par le "
+                          f"parcours du disque (absents, liens ou illisibles), dont {manquants[0]} : contrôle incomplet")
+        for c in attendus:
+            try:
+                with open(os.path.join(racine, c), "rb") as e:
+                    e.read(1)
+            except OSError as e:
+                raise OSError(f"témoin du parcours : {c} du registre de provenance illisible ({type(e).__name__}) : "
+                              "contrôle incomplet") from e
+        temoin = f"témoin : les {len(attendus)} chemins du registre de provenance vus et lisibles"
+    if not avec_git:
+        return refus, (f"étage A sans objet : dépôt privé sans git, rien n'en peut être poussé (`refus_de_branche`) · "
+                       f"{len(vus)} fichier(s) du disque parcourus · {temoin}")
+    return refus, (f"étage A : {len(publies)} fichier(s) écrit(s) au public confrontés à "
+                   + f"{couples} couple(s) (chemin, blob) de l'historique entier, "
+                   + f"{len(vus)} fichier(s) du disque ({lus} de même taille relus), aucune exemption ; "
+                   f"{len(refus)} refus · {temoin}")
+
+
+def circuits_du_relais_non_ecrits(ecrits):
+    """Rend les circuits que le relais lance ou compte et que la publication n'écrit pas, si elle écrit le relais.
+
+    ① RÔLE — La propriété R-D3 : le relais et chaque circuit qu'il nomme arrivent dans la MÊME publication.
+    ② CONTEXTE D'APPEL — `fabriquer_et_publier`, après l'écriture des circuits ; l'épreuve du circuit des épreuves
+      longues (E3a).
+    ③ ENTRÉE — `ecrits` : les chemins écrits ou retirés au clone public (séparés par « / »).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste triée des noms de fichier absents ; vide si le relais n'est pas écrit.
+      [rend: 1]
+    ⑥ TRAITEMENT — Les fichiers de CIRCUITS_DU_RELAIS et de CIRCUITS_DU_GROUPE_LONG, cherchés sous
+      `.github/workflows/` dans `ecrits`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — R-D3 du relecteur du 15-11-2026 : le relais compte `epreuves_longues.yml` même pour une demande de
+      série ; tant que GitHub ne connaît pas ce circuit au dépôt public, il est plausible que « gh run list » échoue et
+      que TOUTE demande soit refusée (THÉORIQUE : aucun appel à l'API n'était permis). Le message du relais distingue
+      désormais « circuit inconnu de GitHub » de « passages illisibles ».
+    ⑨ CE QUI CLOCHE — Écrire le circuit dans la même publication ne garantit pas que GitHub l'ait enregistré au moment
+      de la première demande : le premier geste après installation reste une demande « a_blanc=oui ».
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if CIRCUIT_RELAIS.replace(os.sep, "/") not in ecrits:
+        return []
+    comptes = {f for _, f, _ in CIRCUITS_DU_RELAIS} | set(CIRCUITS_DU_GROUPE_LONG)
+    return sorted(f for f in comptes if FICHES_PRIVEES.replace(os.sep, "/") + "/" + f not in ecrits)
 
 
 def refus_des_circuits_publies(public):
@@ -2768,13 +3726,14 @@ def poser_le_crochet(public):
     return chemin
 
 
-def publier(prive, public, liste):
+def publier(prive, public, liste, sha_publie=None):
     """Commite ce que `main` a écrit ou retiré au clone public, et rien d'autre, et le pousse vers la branche du MÊME NOM.
 
     ① RÔLE — La seule poussée vers le dépôt public (le Chat ne fait plus « git push » au public).
     ② CONTEXTE D'APPEL — `main`, avec l'option --publier, après la fabrication.
     ③ ENTRÉE — `prive` : le clone privé ; `public` : le clone public, déjà écrit par `main` ; `liste` : les chemins
-      (relatifs à la racine, séparés par « / ») que `main` a ÉCRITS ou RETIRÉS au clone public, rendus par `main`.
+      (relatifs à la racine, séparés par « / ») que `main` a ÉCRITS ou RETIRÉS au clone public, rendus par `main` ;
+      `sha_publie` (15-11-2026) : le commit dont les blobs ont été écrits (`extraire_le_commit`), ou None.
     ④ CONDITIONS D'ENTRÉE — `refus_de_branche(prive, public)` a rendu None ; les deux sont des dépôts git ; `liste`
       n'est pas recalculée ici, elle est CONFRONTÉE à l'état du clone.
     ⑤ SORTIE — DEUX valeurs : code et message ; code 0 publié (ou rien à publier), 1 refusé.
@@ -2829,6 +3788,9 @@ def publier(prive, public, liste):
     if not b or refus_de_branche(prive, public):
         return 1, "publication refusée : le dépôt privé n'est sur aucune branche, ou le clone public sur une autre"
     sha = subprocess.run(["git", "-C", prive, "rev-parse", "HEAD"], capture_output=True, text=True, timeout=300).stdout.strip()
+    if sha_publie is not None and sha != sha_publie:
+        return 1, (f"publication refusée : le dépôt privé est à {sha[:12]}, le code écrit vient de {sha_publie[:12]} "
+                   "(HEAD a bougé pendant la fabrication) ; RIEN n'est commité")
     presents = [c for c in liste if os.path.lexists(os.path.join(public, c))]
     absents = [c for c in liste if c not in presents]
     for etape in ((git("--literal-pathspecs", "add", "--", *presents) if presents else None),
@@ -2891,13 +3853,50 @@ def main():
         print("usage : FABRIQUER_LE_CIRCUIT_PUBLIC.py <racine du dépôt privé> <clone du dépôt public> [--publier]")
         return 1
     prive, public = sys.argv[1], sys.argv[2]
-    a_publier = code_a_publier(prive)
+    if not os.path.lexists(os.path.join(prive, ".git")):
+        return fabriquer_et_publier(prive, public, prive, None)
+    extrait = tempfile.mkdtemp(prefix="commit_publie_")
+    try:
+        try:
+            sha, _ = extraire_le_commit(prive, extrait)
+        except (OSError, ValueError, subprocess.SubprocessError) as e:
+            print("ARRÊT — le commit du dépôt privé n'a pas pu être extrait ; RIEN n'est écrit au dépôt public :", e)
+            return 1
+        print(f"source de la publication : le commit {sha[:12]} du dépôt privé (ses blobs, jamais le disque)")
+        return fabriquer_et_publier(prive, public, extrait, sha)
+    finally:
+        shutil.rmtree(extrait, ignore_errors=True)
+
+
+def fabriquer_et_publier(prive, public, source, sha):
+    """Vérifie, fabrique, écrit ; avec --publier, commite et pousse ; rend le code de sortie.
+
+    ① RÔLE — Le corps de `main`, une fois la source choisie.
+    ② CONTEXTE D'APPEL — `main`, une fois.
+    ③ ENTRÉE — `prive` : le dépôt privé (ses données, son historique, sa branche) · `public` : le clone public ·
+      `source` : où LIRE ce qui se publie — le commit extrait par `extraire_le_commit` (dépôt privé avec git), ou le
+      dépôt privé lui-même (sans git : une copie d'épreuve ; rien n'en peut être poussé, `refus_de_branche` refuse
+      un clone public qui a un « .git ») · `sha` : le commit extrait, ou None.
+    ④ CONDITIONS D'ENTRÉE — Voir l'en-tête du programme.
+    ⑤ SORTIE — UNE valeur : le code de sortie.
+      [rend: 1]
+    ⑥ TRAITEMENT — Voir l'en-tête. Après l'écriture : le registre de provenance (`refus_selon_la_provenance`), l'étage A
+      et le témoin du parcours (`refus_selon_l_historique`), les circuits que le relais compte écrits dans la même
+      publication (R-D3), les permissions des circuits.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Livraison 1 du superviseur R-759 du 15-11-2026 (commentaire de `est_un_chemin_publie`).
+    ⑨ CE QUI CLOCHE — Voir l'en-tête et `extraire_le_commit`, ⑨.
+    ⑩ EFFET — Voir l'en-tête.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    a_publier = code_a_publier(source)
     if not any(f.startswith("programmes/") for f in a_publier) or LANCEMENT not in a_publier:
         print("ARRÊT — le dépôt privé ne porte pas de programmes, ou pas", LANCEMENT)
         return 1
-    fiches = fiches_a_publier(prive)
+    fiches = fiches_a_publier(source)
     try:
-        refus = refus_avant_publication(prive, a_publier + [FICHES_PRIVEES.replace(os.sep, "/") + "/" + f for f in fiches])
+        refus = refus_avant_publication(prive, a_publier + [FICHES_PRIVEES.replace(os.sep, "/") + "/" + f for f in fiches], source=source)
     except OSError as e:
         print("ARRÊT — le contrôle avant publication n'a pas pu tourner ; RIEN n'est écrit au dépôt public :", e)
         return 1
@@ -2907,7 +3906,7 @@ def main():
             print("  " + r)
         return 1
     try:
-        texte = fabriquer_le_circuit(open(os.path.join(prive, CIRCUIT_PRIVE), encoding="utf-8").read())
+        texte = fabriquer_le_circuit(open(os.path.join(source, CIRCUIT_PRIVE), encoding="utf-8").read())
     except (OSError, ValueError) as e:
         print("ARRÊT — circuit public non fabriqué :", e)
         return 1
@@ -2916,7 +3915,8 @@ def main():
               ERREUR_DE_LA_TABLE)
         return 1
     try:
-        verifier_les_gabarits_publics({"certification": CERTIFICATION, "series": SERIES, "relais": RELAIS}, texte)
+        verifier_les_gabarits_publics({"certification": CERTIFICATION, "series": SERIES, "relais": RELAIS,
+                                       "epreuves": EPREUVES}, texte)
     except ValueError as e:
         print("ARRÊT — gabarit public refusé :", e)
         return 1
@@ -2933,11 +3933,11 @@ def main():
     os.makedirs(os.path.dirname(os.path.join(public, CIRCUIT_PUBLIC)), exist_ok=True)
     ecrits = []   # tour 4, M-b : chaque chemin écrit ou retiré au clone public, noté au geste même
     for f in a_publier:
-        shutil.copyfile(os.path.join(prive, f), os.path.join(public, f))
+        shutil.copyfile(os.path.join(source, f), os.path.join(public, f))
         ecrits.append(f)
     os.makedirs(os.path.join(public, FICHES_PUBLIEES), exist_ok=True)
     for f in fiches:
-        shutil.copyfile(os.path.join(prive, FICHES_PRIVEES, f), os.path.join(public, FICHES_PUBLIEES, f))
+        shutil.copyfile(os.path.join(source, FICHES_PRIVEES, f), os.path.join(public, FICHES_PUBLIEES, f))
         ecrits.append(_chemin(FICHES_PUBLIEES, f))
     fiches_retirees = sorted(f for f in os.listdir(os.path.join(public, FICHES_PUBLIEES)) if f not in fiches)
     for f in fiches_retirees:
@@ -2949,7 +3949,7 @@ def main():
         os.remove(os.path.join(public, f))
         ecrits.append(f)
     for chemin, contenu in ((CIRCUIT_PUBLIC, texte), (CIRCUIT_CERTIFICATION, CERTIFICATION), (CIRCUIT_SERIES, SERIES),
-                             (CIRCUIT_RELAIS, RELAIS)):
+                             (CIRCUIT_RELAIS, RELAIS), (CIRCUIT_EPREUVES, EPREUVES)):
         with open(os.path.join(public, chemin), "w", encoding="utf-8") as s:
             s.write(contenu)
         ecrits.append(chemin.replace(os.sep, "/"))
@@ -2960,6 +3960,38 @@ def main():
     print(f"circuit fabriqué : {CIRCUIT_CERTIFICATION} ({len(CERTIFICATION.splitlines())} lignes)")
     print(f"circuit fabriqué : {CIRCUIT_SERIES} ({len(SERIES.splitlines())} lignes)")
     print(f"circuit fabriqué : {CIRCUIT_RELAIS} ({len(RELAIS.splitlines())} lignes)")
+    print(f"circuit fabriqué : {CIRCUIT_EPREUVES} ({len(EPREUVES.splitlines())} lignes)")
+    try:
+        refus, note = refus_selon_la_provenance(prive, public, ecrits)
+    except (OSError, ValueError) as e:
+        print("ARRÊT — le contrôle des fichiers écrits au public (registre de provenance) n'a pas pu tourner ; RIEN n'est "
+              "publié :", e)
+        return 1
+    print(note)
+    if refus:
+        print(f"ARRÊT — {len(refus)} fichier(s) écrit(s) au clone public ne sont pas publiables ; RIEN n'est publié :")
+        for r in refus:
+            print("  " + r)
+        return 1
+    try:
+        refus, note = refus_selon_l_historique(prive, public, ecrits, exclus=(public, source))
+    except (OSError, ValueError, subprocess.SubprocessError) as e:
+        print("ARRÊT — l'étage A ou le témoin du parcours n'a pas pu tourner ; RIEN n'est publié :", e)
+        return 1
+    print(note)
+    if refus:
+        print(f"ARRÊT — {len(refus)} fichier(s) écrit(s) au clone public sont des fichiers du dépôt privé qui ne se "
+              "publient pas ; RIEN n'est publié :")
+        for r in refus:
+            print("  " + r)
+        return 1
+    # R-D3 (relecteur du 15-11-2026) : chaque circuit que le relais lance ou compte est écrit dans la MÊME publication
+    # que lui ; sinon GitHub ne le connaîtrait pas, et le relais refuserait toute demande du groupe.
+    absents = circuits_du_relais_non_ecrits(ecrits)
+    if absents:
+        print("ARRÊT — le relais compte ou lance des circuits que cette publication n'écrit pas ; RIEN n'est publié :",
+              " ".join(absents))
+        return 1
     refus = refus_des_circuits_publies(public)
     if refus:
         print(f"ARRÊT — {len(refus)} circuit(s) du clone public portent la permission de lancer sans être le relais "
@@ -2970,7 +4002,7 @@ def main():
     if poser_le_crochet(public):
         print("crochet de poussée posé au clone public (une branche ne se pousse que vers la branche du même nom)")
     if len(sys.argv) == 4:
-        code, message = publier(prive, public, ecrits)
+        code, message = publier(prive, public, ecrits, sha)
         print(("" if code == 0 else "ARRÊT — ") + message)
         return code
     return 0

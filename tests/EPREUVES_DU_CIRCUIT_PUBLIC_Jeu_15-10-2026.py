@@ -89,6 +89,7 @@
   [sort: oui]
 """
 import ast
+import glob
 import json
 import os
 import re
@@ -282,8 +283,10 @@ SABOTAGES = {
     # R-759 du 05-11-2026 à 03h10, D1 et D4) : S117 retire la seule clause UTF-8 du texte strict (le cas cp500 doit
     # rougir), S120 la seule clause des contrôles (le cas UTF-16-LE sans BOM doit rougir), S121 remet « \b » devant
     # « gh » (le cas « X_ghp_… » doit rougir).
-    "S98_garde_m5_retiree": [(FAB, '        refus = refus_avant_publication(prive, a_publier + [FICHES_PRIVEES.replace(os.sep, "/") + "/" + f for f in fiches])\n', "        refus = []\n")],
-    "S99_fiches_hors_de_la_garde_m5": [(FAB, '        refus = refus_avant_publication(prive, a_publier + [FICHES_PRIVEES.replace(os.sep, "/") + "/" + f for f in fiches])\n', "        refus = refus_avant_publication(prive, a_publier)\n")],
+    # Ancres reprises le 15-11-2026 (livraison 1 du superviseur R-759 GHUB2 : la publication lit le commit extrait,
+    # « source ») : l'appel porte « source=source », et les listes se dressent dans la source.
+    "S98_garde_m5_retiree": [(FAB, '        refus = refus_avant_publication(prive, a_publier + [FICHES_PRIVEES.replace(os.sep, "/") + "/" + f for f in fiches], source=source)\n', "        refus = []\n")],
+    "S99_fiches_hors_de_la_garde_m5": [(FAB, '        refus = refus_avant_publication(prive, a_publier + [FICHES_PRIVEES.replace(os.sep, "/") + "/" + f for f in fiches], source=source)\n', "        refus = refus_avant_publication(prive, a_publier, source=source)\n")],
     "S100_liens_suivis_par_le_fabricant": [(FAB, "        if os.path.islink(p):\n", "        if False:\n"),
                                            (FAB, "        reel = os.path.realpath(p)\n",
                                             "        reel = os.path.normpath(os.path.join(racine, rel))\n")],
@@ -293,9 +296,9 @@ SABOTAGES = {
     "S103_en_tete_basic_non_cherche": [(MOD, '|authorization:[ \\t]*basic[ \\t]+[A-Za-z0-9+/=]{8,}"', '"')],
     "S104_motif_github_trop_large": [(MOD, 'rb"github_pat_\\w{20,}|', 'rb"github_pat_\\w{0,}|')],
     "S105_motif_basic_trop_large": [(MOD, '[A-Za-z0-9+/=]{8,}"', '[A-Za-z0-9+/=]{0,}"')],
-    "S106_ecrit_avant_de_refuser": [(FAB, "    fiches = fiches_a_publier(prive)\n    try:\n",
-                                     "    fiches = fiches_a_publier(prive)\n    os.makedirs(os.path.join(public, \"programmes\"), exist_ok=True)\n"
-                                     "    shutil.copyfile(os.path.join(prive, a_publier[0]), os.path.join(public, a_publier[0]))\n    try:\n")],
+    "S106_ecrit_avant_de_refuser": [(FAB, "    fiches = fiches_a_publier(source)\n    try:\n",
+                                     "    fiches = fiches_a_publier(source)\n    os.makedirs(os.path.join(public, \"programmes\"), exist_ok=True)\n"
+                                     "    shutil.copyfile(os.path.join(source, a_publier[0]), os.path.join(public, a_publier[0]))\n    try:\n")],
     "S107_jetons_gh_non_cherches": [(MOD, '|(?<![A-Za-z0-9])gh[pousr]_[A-Za-z0-9]{20,}|', '|')],
     "S108_motif_gh_trop_large": [(MOD, '[pousr]_[A-Za-z0-9]{20,}|', '[pousr]_[A-Za-z0-9]{0,}|')],
     "S109_adresse_a_identifiants_non_cherchee": [(MOD, '|https?://[^/\\s:@]+:[^/\\s@]+@|', '|')],
@@ -326,12 +329,16 @@ SABOTAGES = {
     'S122_series_sans_garde_des_parts': [(FAB, '      - name: Toutes les parts sont-elles vertes ?\n        id: parts_vertes\n        shell: bash\n        env:\n          JOUER: ${{ needs.jouer.result }}\n        run: |\n          [ "$JOUER" = "success" ] || { echo "::error::une part au moins n\'est pas verte ($JOUER) : rien n\'est rassemble, aucun releve"; exit 1; }\n', '')],
     'S123_series_identite_de_la_certification': [(FAB, 'SERIES_IDENTITE = "series-longues-publiques"', 'SERIES_IDENTITE = "certification-publique"')],
     'S124_series_archive_jointe': [(FAB, '          exit "$code"\n%(deposer_final)s"""', '          exit "$code"\n      - uses: actions/upload-artifact@v4\n        with:\n          path: rapports/series_longues\n%(deposer_final)s"""')],
-    'S125_series_contents_write': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:', 'permissions:\n  contents: write\njobs:\n  preparer:')],
+    # Ancres de S125, S129, S130 et S138 reprises le 15-11-2026 (GHUB ②, D1 du RELU de Cowork) : le gabarit des
+    # épreuves longues recopie ces textes du gabarit des séries ; chaque ancre porte désormais un texte qui n'est que
+    # dans le gabarit des SÉRIES (la sortie « series » du job preparer, la ligne « series=$series », la clé
+    # « depart_version » nommée par CIRCUIT_SERIES).
+    'S125_series_contents_write': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n', 'permissions:\n  contents: write\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n')],
     'S126_series_pousse_sur_main': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/releve",', 'branche="main",')],
     'S127_series_branches_travail': [(FAB, 'SERIES_BRANCHES = "series-longues/"', 'SERIES_BRANCHES = "travail-series/"')],
     'S128_certification_identite_du_soir': [(FAB, 'auteur="certification-publique", message=', 'auteur="circuit-public", message=')],
-    'S129_series_permission_en_ligne': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:', 'permissions: write-all\njobs:\n  preparer:')],
-    'S130_series_permission_de_job': [(FAB, '  jouer:\n    needs: preparer\n', '  jouer:\n    needs: preparer\n    permissions: write-all\n')],
+    'S129_series_permission_en_ligne': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n', 'permissions: write-all\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n')],
+    'S130_series_permission_de_job': [(FAB, '          echo "series=$series" >> "$GITHUB_OUTPUT"\n          echo "matrice=$matrice" >> "$GITHUB_OUTPUT"\n  jouer:\n    needs: preparer\n', '          echo "series=$series" >> "$GITHUB_OUTPUT"\n          echo "matrice=$matrice" >> "$GITHUB_OUTPUT"\n  jouer:\n    needs: preparer\n    permissions: write-all\n')],
     'S131_M1_sa_branche_et_main': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}",', 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}\\" \\"HEAD:refs/heads/main",')],
     'S132_N1_cible_courte_main': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}",', 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}\\" \\"HEAD:main",')],
     'S133_N2_seconde_cible_ligne_suivante': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}",', 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}\\" \\\\\\n            \\"HEAD:main",')],
@@ -343,8 +350,18 @@ SABOTAGES = {
     'S137_branche_publique_non_comparee': [(FAB, '        refus = refus_de_branche(prive, public)\n', '        refus = None\n')],
     # Ancre reprise le 08-11-2026 (bloc 3) : le bloc 2 (e50dd73c) a ajouté « aussi=… » après ce « ref: », et l'ancienne
     # ancre « ref=…), » n'existait plus (INAPPLICABLE, code 2).
-    'S138_series_preparation_sans_version': [(FAB, 'apres_le_clonage=SERIES_VERSION, ref="${{ inputs.version }}",', 'apres_le_clonage=SERIES_VERSION,')],
+    'S138_series_preparation_sans_version': [(FAB, '"depart_version": depart_pour(os.path.basename(CIRCUIT_SERIES), "des series longues",\n                                  apres_le_clonage=SERIES_VERSION, ref="${{ inputs.version }}",', '"depart_version": depart_pour(os.path.basename(CIRCUIT_SERIES), "des series longues",\n                                  apres_le_clonage=SERIES_VERSION,')],
     'V6_series_garde_renommee': [(FAB, '      - name: Toutes les parts sont-elles vertes ?\n        id: parts_vertes\n', '      - name: Les parts ont-elles toutes reussi ?\n        id: verifier_les_parts\n')],
+    # la clause des données (15-11-2026, superviseur R-759 GHUB 2.1), chaque garde par son cas
+    "S139_donnees_non_controlees": [(FAB, "            if ligne_de_donnees_publiee(texte, donnees) is not None:\n",
+                                     "            if False:\n")],
+    "S140_donnees_debut_seul": [(FAB, "            if texte.startswith(ligne, i) and sum(", "            if True and sum(")],
+    "S141_donnees_chiffres_non_comptes": [(FAB, " and sum(c.isdigit() for c in ligne) >= CHIFFRES_D_UNE_LIGNE_DE_DONNEES:",
+                                           ":")],
+    "S142_donnees_commentaire_non_vu": [(FAB, "(?:#+[ \\t]*)?", "")],
+    # ancre reprise le 15-11-2026 : le parcours porte « onerror=_ne_pas_taire » (C-D2, livraison 1 GHUB2)
+    "S143_donnees_dossier_non_lu": [(FAB, "os.walk(os.path.join(prive, DOSSIER_DES_DONNEES), onerror",
+                                     "os.walk(os.path.join(prive, DOSSIER_DES_DONNEES, \"rien\"), onerror")],
 }
 for _k, (_n, (_r, _m)) in enumerate(FORMES_HORS_SOUS_ENSEMBLE.items()):
     SABOTAGES[f"S{_NUMERO(_k)}_prive_{_n}"] = _r
@@ -754,7 +771,8 @@ def cas_de_branche(r, d):
       fusion, depuis une branche publique qui porte le code de la version en attente, du même nom (« publier ce qui
       tourne », cadre du 08-10-2026) ; option 1 (après la fusion, retour arrière) refusée, une version non éprouvée
       serait la version officielle environ une heure. Aucun écrit sur main du dépôt public par erreur de branche.
-    ⑨ CE QUI CLOCHE — Les dépôts sont des « git init » sans commit, pas des clones : la lecture de la branche est la
+    ⑨ CE QUI CLOCHE — Le privé reçoit un commit de son code (le fabricant publie le commit depuis le 15-11-2026) ; le
+      public est un « git init » sans commit ; aucun n'est un clone : la lecture de la branche est la
       même (symbolic-ref), la poussée qui suivrait n'est pas jouée. Le cas « clone public sans .git » n'est pas
       joué ici : c'est la fabrication principale de chaque passage.
     ⑩ EFFET — Écrit puis efface, dans `d` et dans `r`.
@@ -786,6 +804,14 @@ def cas_de_branche(r, d):
 
     try:
         init(r, "travail-essai")
+        # depuis le 15-11-2026 (livraison 1 du superviseur R-759 GHUB2), le fabricant publie le COMMIT d'un privé qui a
+        # un « .git » : le code de la copie est commité, et « main » pointe sur ce commit (depuis F1, 15-11-2026, aucune
+        # exemption « déjà public » : main n'exempte plus rien, la branche reste pour le contrôle des branches)
+        ident = dict(env, GIT_AUTHOR_NAME="e", GIT_AUTHOR_EMAIL="e@e", GIT_COMMITTER_NAME="e", GIT_COMMITTER_EMAIL="e@e")
+        for geste in (["add", "--", "programmes", ".github", "tests/LANCEMENT_DES_EPREUVES.json", "tests/outils"]
+                      + sorted(os.path.relpath(p, r) for p in glob.glob(os.path.join(r, "tests", "*.py"))),
+                      ["commit", "-q", "-m", "copie"], ["branch", "main"]):
+            subprocess.run(["git", "-C", r] + geste, check=True, capture_output=True, env=ident, timeout=120)
         for branche_pub, permis in (("main", False), ("travail-essai", True)):
             pub = os.path.join(d, "public_e9_" + branche_pub)
             os.makedirs(pub)
@@ -804,6 +830,39 @@ def cas_de_branche(r, d):
     finally:
         shutil.rmtree(os.path.join(r, ".git"), ignore_errors=True)
     return fautes
+
+
+LIGNE_REELLE_DE = "donnees/sources_bnains/bnains_cac40.csv"   # les cours des 20 ans, qui n'entrent jamais au public (A-555)
+
+
+def ligne_reelle_de_donnees(r):
+    """Rend la première ligne de LIGNE_REELLE_DE que le fabricant de la copie compte comme ligne chiffrée, ou None.
+
+    ① RÔLE — Donner à E8 une VRAIE ligne des cours des 20 ans (R-732 : au moins un cas vient d'une vraie ligne).
+    ② CONTEXTE D'APPEL — `cas_m5`, deux fois par tour.
+    ③ ENTRÉE — `r` : la copie du dépôt.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la ligne sans ses blancs de bord, ou None (fichier absent ou sans ligne qui convienne).
+      [rend: 1]
+    ⑥ TRAITEMENT — lire le fichier ; la première ligne d'au moins 25 caractères qui porte au moins 6 chiffres
+      (les seuils du fabricant le 15-11-2026, recopiés ici À DESSEIN : l'épreuve ne lit pas le seuil qu'elle éprouve).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une ligne inventée prouverait la propriété sur une forme qui n'existe pas au dépôt.
+    ⑨ CE QUI CLOCHE — Si le fabricant changeait ses seuils, cette ligne pourrait ne plus compter : E8 rougirait
+      (« non refusé »), jamais à tort en vert.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    p = os.path.join(r, LIGNE_REELLE_DE)
+    if not os.path.isfile(p):
+        return None
+    with open(p, encoding="utf-8") as e:
+        for ligne in e:
+            ligne = ligne.strip()
+            if len(ligne) >= 25 and sum(c.isdigit() for c in ligne) >= 6:
+                return ligne
+    return None
 
 
 def cas_m5(r, d):
@@ -923,6 +982,16 @@ def cas_m5(r, d):
               octets=f"X = '{jeton}'\n".encode("utf-16-le"))
         poser("tests/outils/CP500_M5.py", "jeton en EBCDIC cp500", "clause UTF-8",
               octets=f"X = '{jeton}'\n".encode("cp500"))
+        # la clause des données (superviseur R-759 du 15-11-2026, 2.1) : une VRAIE ligne de bnains (R-732), recopiée dans
+        # une chaîne et dans un commentaire ; sans ligne réelle dans la copie, l'épreuve rougit (rien ne serait prouvé)
+        reelle = ligne_reelle_de_donnees(r)
+        if reelle is None:
+            fautes.append(f"E8 données : aucune ligne réelle lisible dans {LIGNE_REELLE_DE} de la copie")
+        else:
+            poser("tests/outils/DONNEE_M5.py", "ligne de bnains dans une chaîne", "ligne chiffrée",
+                  octets=f"X = {reelle!r}\n".encode())
+            poser(programmes + "/DONNEE_COMMENTAIRE_M5.py", "ligne de bnains dans un commentaire", "ligne chiffrée",
+                  octets=f"# {reelle}\nX = 1\n".encode())
         pub = os.path.join(d, "public_m5_groupe")
         x = lancer(pub)
     finally:
@@ -971,6 +1040,14 @@ def cas_m5(r, d):
         "B = 'Authorization: Basic ${B64}'\n")
     try:
         pub = os.path.join(d, "public_m5_passe")
+        # (15-11-2026) la ligne réelle à son dernier caractère près (même début : seul le contrôle de la ligne ENTIÈRE
+        # la laisse passer), et l'en-tête de bnains_cac40.csv, une ligne de données de 25 caractères au moins SANS
+        # chiffres : toutes deux publiées
+        reelle = ligne_reelle_de_donnees(r) or ""
+        presque = reelle[:-1] + ("0" if reelle[-1:] != "0" else "1")
+        entete = open(os.path.join(r, LIGNE_REELLE_DE), encoding="utf-8").readline().strip() \
+            if os.path.isfile(os.path.join(r, LIGNE_REELLE_DE)) else ""
+        open(os.path.join(r, rel), "a").write(f"P = {presque!r}\nE = {entete!r}\n")
         x = lancer(pub)
     finally:
         os.remove(os.path.join(r, rel))

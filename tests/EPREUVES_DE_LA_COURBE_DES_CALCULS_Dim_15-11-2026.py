@@ -11,16 +11,18 @@ Simulation uniquement.
 ③ ENTRÉE — La racine du dépôt ; facultatif, « --saboter » (tous les sabotages de `SAB`) ou « --saboter=<noms courts
   séparés par des virgules> » (C0, S1…). Z0, le programme tel quel, est toujours joué ; sans « --saboter », lui seul.
 ④ CONDITIONS D'ENTRÉE — Sous la racine : programmes/ (le juge, le lecteur unique, COURBE_DES_CALCULS, l'assemblage,
-  RECONSTRUIRE et leurs voisins), donnees/ (dont DETACHEMENTS_OFFICIELS.csv) et le témoin des 20 ans déclaré au cours
-  brut. Un fichier absent fait échouer les cas, et le
-  programme rend 1 ou 2, jamais 0.
+  RECONSTRUIRE et leurs voisins), donnees/ (dont DETACHEMENTS_OFFICIELS.csv et l'historique long réparé, où les
+  barres corrigées des essais sont lues) et le témoin des 20 ans déclaré au cours brut (où les barres brutes des
+  essais sont lues). Un fichier absent fait échouer les cas, et le programme rend 1 ou 2, jamais 0 ; une source des
+  essais absente ou changée (empreinte) arrête avant tout cas, code 2.
 ⑤ SORTIE — AUCUNE valeur rendue ; affiche chaque cas et chaque sabotage. Code de sortie : 0 quand Z0 passe tous les
   cas et que chaque sabotage en fait échouer au moins un ; 1 sinon ; 2 quand une copie n'a pas pu se faire ou qu'une
   cible de sabotage est introuvable (R-734 : un contrôle qui n'a pas pu tourner ne rend pas 0).
 ⑥ TRAITEMENT — Pour Z0 puis chaque sabotage : ① une racine jetable — programmes/ COPIÉ (le sabotage y est écrit, et
   les petits fichiers d'essai déclarés au cours brut y sont déclarés), tout le reste de la racine relié par lien
   symbolique, sauf .git et prompts_taches/ ; un dossier essai_courbe/ avec cinq petits fichiers de cours faits de
-  VRAIES lignes (`ESSAIS` : MICHELIN du 08 au 22-06-2022, la division par quatre du 16-06-2022, au brut du témoin et
+  VRAIES lignes, LUES à chaque lancement dans leur fichier d'origine et contrôlées par empreinte (`EXTRAITS`,
+  `extraire` ; aucune barre n'est écrite dans ce programme, A-555) (`ESSAIS` : MICHELIN du 08 au 22-06-2022, la division par quatre du 16-06-2022, au brut du témoin et
   corrigé de l'historique long, chacun déclaré ou non ; SAINT-GOBAIN 2002 et 2009, deux opérations) · ② relancer ce
   programme en mode « --un » sur cette racine, borné à 900 secondes ; il joue les cas C1 à C13 et
   rend 0 si tous passent · ③ effacer la racine jetable · ④ juger : Z0 doit rendre 0, chaque sabotage autre chose
@@ -54,48 +56,101 @@ import tempfile
 
 TEMOIN = "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv"
 DETACHEMENTS = "donnees/sources_bnains/DETACHEMENTS_OFFICIELS.csv"
-# LES PETITS FICHIERS D'ESSAI, faits de VRAIES lignes (R-732), recopiées ici pour que les cas ne bougent pas avec les
-# fichiers. Brut : le témoin des 20 ans. Corrigé : l'historique long réparé (convention de Yahoo), mêmes dates.
+HISTORIQUE_LONG = "donnees/sources_yahoo/historique_long_repare.csv"
+# LES PETITS FICHIERS D'ESSAI, faits de VRAIES lignes (R-732 : un jeu d'épreuves ouvre le vrai fichier). Aucune
+# barre n'est écrite ici (A-555, A-543 : les données du dépôt privé ne se publient pas, et ce fichier est publié) :
+# seules les CLÉS le sont — le fichier d'origine, la valeur, les dates — avec l'EMPREINTE SHA-256 des lignes
+# retenues, prise le 15-11-2026 sur les lignes qui étaient écrites ici jusque-là (mêmes octets). Les lignes sont
+# LUES à chaque lancement (`extraire`) ; un fichier absent, une ligne manquante ou une empreinte différente arrête
+# l'épreuve (code 2, R-734). Brut : le témoin des 20 ans. Corrigé : l'historique long réparé (convention de
+# Yahoo), mêmes dates.
 ENTETE = "valeur,date,open,high,low,close,volume,source\n"
-MICHELIN_BRUT = ENTETE + """MICHELIN,2022-06-08,122.0,122.1,119.0,120.95,432479,yahoo ramené au brut ÷ 0.250000
-MICHELIN,2022-06-09,120.05,121.5,119.3,121.1,357690,yahoo ramené au brut ÷ 0.250000
-MICHELIN,2022-06-10,120.4,120.95,117.1,117.5,404658,yahoo ramené au brut ÷ 0.250000
-MICHELIN,2022-06-13,115.5,116.45,110.9,111.95,617182,yahoo ramené au brut ÷ 0.250000
-MICHELIN,2022-06-14,110.4,111.95,108.4,108.6,566448,yahoo ramené au brut ÷ 0.250000
-MICHELIN,2022-06-15,110.25,112.1,109.9,111.45,519803,yahoo ramené au brut ÷ 0.250000
-MICHELIN,2022-06-16,28.06,28.18,27.06,27.22,1187164,yahoo ramené au brut ÷ 1.000000
-MICHELIN,2022-06-17,27.44,27.975,27.405,27.815,3676440,yahoo ramené au brut ÷ 1.000000
-MICHELIN,2022-06-20,27.84,27.99,27.265,27.77,1289251,yahoo ramené au brut ÷ 1.000000
-MICHELIN,2022-06-21,27.7,28.2,27.65,27.81,1306124,yahoo ramené au brut ÷ 1.000000
-MICHELIN,2022-06-22,27.335,27.34,26.755,27.0,1760261,yahoo ramené au brut ÷ 1.000000
-"""
-MICHELIN_CORRIGE = ENTETE + """MICHELIN,2022-06-08,30.5,30.525,29.75,30.2375,1729916,yahoo
-MICHELIN,2022-06-09,30.0125,30.375,29.825,30.275,1430760,yahoo
-MICHELIN,2022-06-10,30.1,30.2375,29.275,29.375,1618632,yahoo
-MICHELIN,2022-06-13,28.875,29.1125,27.725,27.9875,2468728,yahoo
-MICHELIN,2022-06-14,27.6,27.9875,27.1,27.15,2265792,yahoo
-MICHELIN,2022-06-15,27.5625,28.025,27.475,27.8625,2079212,yahoo
-MICHELIN,2022-06-16,28.06,28.18,27.06,27.22,1187164,yahoo
-MICHELIN,2022-06-17,27.44,27.975,27.405,27.815,3676440,yahoo
-MICHELIN,2022-06-20,27.84,27.99,27.265,27.77,1289251,yahoo
-MICHELIN,2022-06-21,27.7,28.2,27.65,27.81,1306124,yahoo
-MICHELIN,2022-06-22,27.335,27.34,26.755,27,1760261,yahoo
-"""
-SAINT_GOBAIN_BRUT = ENTETE + """SAINT-GOBAIN,2002-06-25,177.9,179.5,174.0,176.2,549646,bnains
-SAINT-GOBAIN,2002-06-26,170.5,177.7,169.1,177.5,1103438,bnains
-SAINT-GOBAIN,2002-06-27,44.31,44.8,43.75,44.1,1374587,bnains
-SAINT-GOBAIN,2002-06-28,45.3,45.45,44.52,45.45,2588072,bnains
-SAINT-GOBAIN,2009-02-20,24.26,25.3,22.83,23.8,14602274,bnains
-SAINT-GOBAIN,2009-02-23,22.1,22.89,21.13,21.29,7093554,bnains
-"""
-# chemin → (contenu, déclaré au cours brut dans la copie du contrat)
-ESSAIS = {
-    "essai_courbe/MICHELIN_BRUT.csv": (MICHELIN_BRUT, True),
-    "essai_courbe/MICHELIN_BRUT_NON_DECLARE.csv": (MICHELIN_BRUT, False),
-    "essai_courbe/MICHELIN_CORRIGE.csv": (MICHELIN_CORRIGE, False),
-    "essai_courbe/MICHELIN_CORRIGE_DECLARE.csv": (MICHELIN_CORRIGE, True),
-    "essai_courbe/SAINT_GOBAIN_BRUT.csv": (SAINT_GOBAIN_BRUT, True),
+DATES_MICHELIN = ("2022-06-08", "2022-06-09", "2022-06-10", "2022-06-13", "2022-06-14", "2022-06-15", "2022-06-16",
+                  "2022-06-17", "2022-06-20", "2022-06-21", "2022-06-22")
+DATES_SAINT_GOBAIN = ("2002-06-25", "2002-06-26", "2002-06-27", "2002-06-28", "2009-02-20", "2009-02-23")
+# nom → (fichier d'origine, valeur, dates, empreinte SHA-256 des lignes retenues, chacune suivie d'un saut de ligne)
+EXTRAITS = {
+    "MICHELIN_BRUT": (TEMOIN, "MICHELIN", DATES_MICHELIN,
+                      "07e822d09d94df2ed4047a4c92c83f06ccb5c9e33cb7a18fbdae6fba8573223d"),
+    "MICHELIN_CORRIGE": (HISTORIQUE_LONG, "MICHELIN", DATES_MICHELIN,
+                         "86ffba4101c32dd31b0bbb93affaa6936c19da30b5c5ed941544066e73835228"),
+    "SAINT_GOBAIN_BRUT": (TEMOIN, "SAINT-GOBAIN", DATES_SAINT_GOBAIN,
+                          "15259f0f293937fba1ae30d466b9958a462a893b5873a115f36276ceb0e4cca7"),
 }
+# chemin → (nom de l'extrait, déclaré au cours brut dans la copie du contrat)
+ESSAIS = {
+    "essai_courbe/MICHELIN_BRUT.csv": ("MICHELIN_BRUT", True),
+    "essai_courbe/MICHELIN_BRUT_NON_DECLARE.csv": ("MICHELIN_BRUT", False),
+    "essai_courbe/MICHELIN_CORRIGE.csv": ("MICHELIN_CORRIGE", False),
+    "essai_courbe/MICHELIN_CORRIGE_DECLARE.csv": ("MICHELIN_CORRIGE", True),
+    "essai_courbe/SAINT_GOBAIN_BRUT.csv": ("SAINT_GOBAIN_BRUT", True),
+}
+_LUS = {}
+
+
+def extraire(depot, nom):
+    """Rend le contenu d'un petit fichier d'essai, lu dans son fichier d'origine et contrôlé par son empreinte.
+
+    ① RÔLE — Fournir les VRAIES lignes des essais sans qu'aucune soit écrite dans ce programme publié.
+    ② CONTEXTE D'APPEL — `preparer`, une fois par petit fichier ; mis en cache par nom pour le lancement.
+    ③ ENTRÉE — `depot` : la racine du dépôt · `nom` : une clé d'`EXTRAITS`.
+    ④ CONDITIONS D'ENTRÉE — Le fichier d'origine existe sous `depot` et porte, pour la valeur, chaque date une fois.
+    ⑤ SORTIE — UNE valeur : le texte du fichier d'essai (`ENTETE` puis les lignes retenues, dans l'ordre du fichier).
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire le fichier d'origine ligne à ligne ; garder celles dont les deux premiers champs sont la valeur
+      et une des dates ; exiger une ligne par date et l'empreinte SHA-256 d'`EXTRAITS`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — A-555 et A-543 : une barre du dépôt privé ne se publie pas ; R-732 : les cas viennent de vraies
+      lignes ; l'empreinte garantit que les cas lisent les mêmes octets qu'avant (sinon leurs attendus bougeraient).
+    ⑨ CE QUI CLOCHE — Une correction légitime du fichier d'origine arrête l'épreuve : l'empreinte se reprend alors, à
+      la main, après décision.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError (fichier absent) ou AssertionError (lignes ou empreinte),
+      que `main` transforme en code 2.
+      [sort: non]
+    """
+    import hashlib
+    if nom not in _LUS:
+        fichier, valeur, dates, empreinte = EXTRAITS[nom]
+        retenues = []
+        with open(os.path.join(depot, fichier), encoding="utf-8", newline="") as f:
+            for ligne in f:
+                champs = ligne.split(",", 2)
+                if champs[0] == valeur and len(champs) > 2 and champs[1] in dates:
+                    retenues.append(ligne.rstrip("\r\n") + "\n")
+        vues = [x.split(",", 2)[1] for x in retenues]
+        assert sorted(vues) == sorted(dates), f"{nom} : dates lues dans {fichier} {vues}, attendues {list(dates)}"
+        corps = "".join(retenues)
+        vu = hashlib.sha256(corps.encode("utf-8")).hexdigest()
+        assert vu == empreinte, f"{nom} : empreinte des lignes de {fichier} {vu}, attendue {empreinte}"
+        _LUS[nom] = ENTETE + corps
+    return _LUS[nom]
+
+
+def barres_d_essai(racine, fichier):
+    """Rend les barres d'un petit fichier d'essai, telles qu'écrites, par date : {date: {champ: nombre}}.
+
+    ① RÔLE — Donner aux cas les valeurs d'entrée des attendus sans les écrire dans le code.
+    ② CONTEXTE D'APPEL — `cas` (C1, C2, C7).
+    ③ ENTRÉE — `racine` : la racine jetable · `fichier` : un chemin d'`ESSAIS`.
+    ④ CONDITIONS D'ENTRÉE — Le fichier a été écrit par `preparer` (donc contrôlé par son empreinte).
+    ⑤ SORTIE — UNE valeur : le dictionnaire.
+      [rend: 1]
+    ⑥ TRAITEMENT — csv.DictReader ; open, high, low, close, volume en float.
+    ⑦ UNITÉ — Euros par titre et titres.
+    ⑧ POURQUOI — Les attendus sont des formules sur l'entrée (× 0,25, ÷ 0,25, tel quel) ; l'empreinte fige l'entrée,
+      donc les attendus sont les mêmes nombres qu'avant.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main ou lève.
+      [sort: non]
+    """
+    import csv
+    with open(os.path.join(racine, fichier), encoding="utf-8", newline="") as f:
+        return {x["date"]: {k: float(x[k]) for k in ("open", "high", "low", "close", "volume")}
+                for x in csv.DictReader(f)}
+
+
 DECLARATION = 'FICHIERS_DE_COURS_AU_COURS_BRUT = (\n'
 CROCHET = ('    c = charger_module(os.path.join(base, "programmes", "COURBE_DES_CALCULS.py"),\n'
            '                       "courbe_des_calculs").courbe_si_le_fichier_est_brut(base, lecteur, c)\n')
@@ -237,16 +292,19 @@ def cas(racine):
         s, _ = J.lire_par_le_lecteur(racine, "essai_courbe/MICHELIN_BRUT.csv", {"ML": "MICHELIN"})
         b = {x["date"]: x for x in s["MICHELIN"]}
         v15, v16 = b["2022-06-15"], b["2022-06-16"]
-        attendu = {"open": 110.25 * 0.25, "high": 112.1 * 0.25, "low": 109.9 * 0.25, "close": 111.45 * 0.25,
-                   "volume": 519803 / 0.25}
-        ok = all(proche(v15[k], v) for k, v in attendu.items()) and proche(v16["close"], 27.22) and len(b) == 11
+        e = barres_d_essai(racine, "essai_courbe/MICHELIN_BRUT.csv")   # l'entrée, figée par son empreinte
+        attendu = {k: e["2022-06-15"][k] * 0.25 for k in ("open", "high", "low", "close")}
+        attendu["volume"] = e["2022-06-15"]["volume"] / 0.25
+        ok = (all(proche(v15[k], v) for k, v in attendu.items()) and proche(v16["close"], e["2022-06-16"]["close"])
+              and len(b) == 11)
         return ok, ("15-06 " + " ".join(f"{k} {v15[k]}" for k in attendu) + f" · 16-06 clôture {v16['close']} · "
                     f"{len(b)} séances")
 
     def c2():
         s, _ = J.lire_par_le_lecteur(racine, "essai_courbe/MICHELIN_CORRIGE.csv", {"ML": "MICHELIN"})
         v15 = {x["date"]: x for x in s["MICHELIN"]}["2022-06-15"]
-        return v15["close"] == 27.8625 and v15["volume"] == 2079212, f"corrigé, non déclaré : 15-06 clôture {v15['close']}"
+        e = barres_d_essai(racine, "essai_courbe/MICHELIN_CORRIGE.csv")["2022-06-15"]   # figée par son empreinte
+        return v15["close"] == e["close"] and v15["volume"] == e["volume"], f"corrigé, non déclaré : 15-06 clôture {v15['close']}"
 
     def c3():
         R = C._assembler().R
@@ -302,12 +360,14 @@ def cas(racine):
         division = 1 / 4                                     # 4 pour 1 du 2002-06-27 (evenements.json, déclarée par Yahoo)
         s, _ = J.lire_par_le_lecteur(racine, "essai_courbe/SAINT_GOBAIN_BRUT.csv", {"SGO": "SAINT-GOBAIN"})
         b = {x["date"]: x for x in s["SAINT-GOBAIN"]}
-        ok = (all(proche(b["2002-06-26"][k], v * division * droit)
-                  for k, v in (("open", 170.5), ("high", 177.7), ("low", 169.1), ("close", 177.5)))
-              and proche(b["2002-06-27"]["close"], 44.1 * droit) and proche(b["2009-02-20"]["close"], 23.8 * droit)
-              and proche(b["2009-02-23"]["close"], 21.29))
+        e = barres_d_essai(racine, "essai_courbe/SAINT_GOBAIN_BRUT.csv")   # l'entrée, figée par son empreinte
+        ok = (all(proche(b["2002-06-26"][k], e["2002-06-26"][k] * division * droit)
+                  for k in ("open", "high", "low", "close"))
+              and proche(b["2002-06-27"]["close"], e["2002-06-27"]["close"] * droit)
+              and proche(b["2009-02-20"]["close"], e["2009-02-20"]["close"] * droit)
+              and proche(b["2009-02-23"]["close"], e["2009-02-23"]["close"]))
         return ok, (f"droit calculé {droit!r} · 26-06-2002 clôture {b['2002-06-26']['close']} (attendu "
-                    f"{177.5 * division * droit!r}) · 20-02-2009 {b['2009-02-20']['close']}")
+                    f"{e['2002-06-26']['close'] * division * droit!r}) · 20-02-2009 {b['2009-02-20']['close']}")
 
     def c8():
         return refus("essai_courbe/MICHELIN_BRUT_NON_DECLARE.csv", "n'est pas déclaré au cours brut")
@@ -386,7 +446,7 @@ def preparer(depot, sabotage):
     ⑤ SORTIE — UNE valeur : le chemin de la racine jetable.
       [rend: 1]
     ⑥ TRAITEMENT — Copier programmes/ ; relier tout le reste du dépôt sauf .git et prompts_taches/ ; écrire les cinq
-      petits fichiers d'`ESSAIS` ; déclarer au cours brut, dans la copie du contrat, ceux qui le sont ; appliquer le
+      petits fichiers d'`ESSAIS`, lus par `extraire` ; déclarer au cours brut, dans la copie du contrat, ceux qui le sont ; appliquer le
       sabotage.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Les données font plusieurs centaines de mégaoctets : les relier au lieu de les copier tient sur un
@@ -405,7 +465,8 @@ def preparer(depot, sabotage):
             if n not in ("programmes", ".git", "prompts_taches"):
                 os.symlink(os.path.join(os.path.abspath(depot), n), os.path.join(r, n))
         os.mkdir(os.path.join(r, "essai_courbe"))
-        for f, (contenu, _) in ESSAIS.items():
+        for f, (nom, _) in ESSAIS.items():
+            contenu = extraire(depot, nom)   # lu dans le fichier d'origine, contrôlé par son empreinte
             with open(os.path.join(r, f), "w", encoding="utf-8") as h:
                 h.write(contenu)
         p = os.path.join(r, "programmes", "CONTRATS_DES_FICHIERS.py")
@@ -461,7 +522,7 @@ def main(argv):
     for nom, s in jeu:
         try:
             r = preparer(depot, s)
-        except (OSError, AssertionError) as e:
+        except (OSError, AssertionError) as e:   # dont un fichier d'origine absent ou changé (`extraire`)
             print(f"== {nom} : NON JUGÉ — {type(e).__name__} : {e}")
             return 2
         try:

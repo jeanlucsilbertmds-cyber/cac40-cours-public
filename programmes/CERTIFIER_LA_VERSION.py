@@ -1228,6 +1228,40 @@ def refaire_des_essais(copie, py, reglages, manifestes, chemin, motif, nombre, d
     return 0, duree, [f"{len(choix)} essai(s) refait(s) cette nuit, identiques au relevé : {', '.join(choix)}"]
 
 
+def fichiers_de_commandes_de_github():
+    """Rend les noms des variables qui désignent les fichiers de commandes de GitHub, lus chez le fabricant.
+
+    ① RÔLE — Donner à `jouer` la liste des variables à retirer de l'environnement d'une épreuve.
+    ② CONTEXTE D'APPEL — `jouer`, une fois par lancement.
+    ③ ENTRÉE — — (le fabricant est programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, à côté de ce fichier).
+    ④ CONDITIONS D'ENTRÉE — Le fabricant est à côté de ce fichier et se charge ; sinon l'exception remonte et la
+      certification s'arrête : un lancement ne part jamais avec ces variables par défaut de liste.
+    ⑤ SORTIE — UNE valeur : le n-uplet FICHIERS_DE_COMMANDES_DE_GITHUB du fabricant.
+      [rend: 1]
+    ⑥ TRAITEMENT — charger le fabricant par son chemin (une fois, gardé dans `_COMMANDES_DE_GITHUB`), lire le n-uplet.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — La liste vit UNE fois, chez le fabricant ; le joueur des séries la lit déjà
+      (tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py) : deux écritures d'une même chose divergent toujours (R-708).
+    ⑨ CE QUI CLOCHE — Charger le fabricant exécute son module (lecture de la table des séries) : environ un dixième
+      de seconde, une fois par passage.
+    ⑩ EFFET — Lit et exécute un fichier Python du dépôt.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    global _COMMANDES_DE_GITHUB
+    if _COMMANDES_DE_GITHUB is None:
+        sp = importlib.util.spec_from_file_location("FABRICANT_DE_LA_CERTIFICATION",
+                                                    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                                 "FABRIQUER_LE_CIRCUIT_PUBLIC.py"))
+        fabricant = importlib.util.module_from_spec(sp)
+        sp.loader.exec_module(fabricant)
+        _COMMANDES_DE_GITHUB = tuple(fabricant.FICHIERS_DE_COMMANDES_DE_GITHUB)
+    return _COMMANDES_DE_GITHUB
+
+
+_COMMANDES_DE_GITHUB = None
+
+
 def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUREE_MAX_EPREUVE, lectures=None,
           garder=3):
     """Joue une épreuve sous la mesure et rend son code, sa durée et ses dernières lignes.
@@ -1246,14 +1280,20 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
       durée en secondes, les trois dernières lignes de sa sortie.
       [rend: 3]
     ⑥ TRAITEMENT — lancer `py <épreuve> <arguments>` dans le dossier, avec les variables qui
-      arment la mesure et désignent le dossier des empreintes, et sans la configuration Git de
-      la machine (`SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE`).
+      arment la mesure et désignent le dossier des empreintes, sans la configuration Git de
+      la machine (`SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE`), et sans aucune des variables des fichiers de
+      commandes de GitHub (`fichiers_de_commandes_de_github`).
     ⑦ UNITÉ — Des secondes.
     ⑧ POURQUOI — Le même Python pour toutes les épreuves : la mesure les suit toutes. Sans la
       configuration Git de la machine : le 02-10-2026 à 19h37, la machine du Chat signait ses
       commits par un programme apparu dans la journée, et une épreuve qui fabrique des dépôts
       Git (`SABOTER_LES_CORRECTIONS_DU_GARDE_FOU`) rougissait ici et pas ailleurs ; lancée sans
-      cette configuration, elle est verte. Une épreuve ne doit dépendre que du dépôt.
+      cette configuration, elle est verte. Une épreuve ne doit dépendre que du dépôt. Sans les fichiers de commandes
+      de GitHub (superviseur R-759 du 15-11-2026, SUPERVISEUR_GHUB_Dim_15-11-2026.md, 2.1) : sur une machine du
+      dépôt PUBLIC, ce qu'une épreuve écrirait dans GITHUB_STEP_SUMMARY s'afficherait à tout visiteur, et ce qu'elle
+      écrirait dans GITHUB_ENV ou GITHUB_OUTPUT changerait les pas suivants ; le joueur des séries les retirait
+      déjà, la nuit non (aucun programme n'y écrivait le 15-11-2026, recherche du superviseur : un trou fermé avant
+      d'être emprunté).
     ⑨ CE QUI CLOCHE — Une épreuve qui écrit dans la copie peut gêner la suivante ; toutes
       sont écrites pour travailler sur leurs propres copies.
     ⑩ EFFET — Lance un processus.
@@ -1262,6 +1302,8 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
     """
     env = dict(os.environ, COVERAGE_PROCESS_START=reglages, CERTIF_MANIFESTES=manifestes)
     env.update(SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE)
+    for v in fichiers_de_commandes_de_github():
+        env.pop(v, None)
     if lectures:
         env["CERTIF_LECTURES"] = lectures
     args = [a.replace("{copie}", copie) for a in arguments]

@@ -177,6 +177,14 @@
   "tests/EPREUVES_DES_SERIES_LONGUES_AU_RELAIS_Mer_11-11-2026.py --saboter": {
    "secondes": 300,
    "pourquoi": "Lancement nouveau du plan V7, bloc 2bis (agent E, 11-11-2026), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat (2 cœurs, sans couverture) le 11-11-2026 : 4 s ; délai = 4 fois cette durée (la mesure de couverture ralentit jusqu'à quatre fois, relecture du 16-10-2026), arrondi à la minute supérieure, 300 s au moins — même règle que les lancements nouveaux du bloc 3. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVES_DU_CIRCUIT_DES_EPREUVES_LONGUES_Dim_15-11-2026.py": {
+   "secondes": 300,
+   "pourquoi": "Lancement nouveau de l'étape GHUB ② (15-11-2026), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat (2 cœurs, sans couverture) le 15-11-2026 : 6 s ; délai = 4 fois cette durée (la mesure de couverture ralentit jusqu'à quatre fois, relecture du 16-10-2026), arrondi à la minute supérieure, 300 s au moins — même règle que les lancements nouveaux du bloc 3. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVES_DU_CIRCUIT_DES_EPREUVES_LONGUES_Dim_15-11-2026.py --saboter": {
+   "secondes": 300,
+   "pourquoi": "Lancement nouveau de l'étape GHUB ② (15-11-2026), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat (2 cœurs, sans couverture) le 15-11-2026 : 58 s ; délai = 4 fois cette durée (la mesure de couverture ralentit jusqu'à quatre fois, relecture du 16-10-2026), arrondi à la minute supérieure, 300 s au moins — même règle que les lancements nouveaux du bloc 3. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
   }
  },
  "series_hors_de_la_nuit": {
@@ -224,6 +232,283 @@
     "lot": 21,
     "pourquoi": "Ajoutée le 11-11-2026 (plan V7, bloc 2bis « Toutes les séries longues sur GitHub », agent E) : chaque série longue du dépôt doit pouvoir partir sur GitHub par le relais. Lot de 21 : le découpage du dernier relevé de la machine du Chat (tests/resultats/SERIE_DE_SABOTAGES_DE_L_ARRIVEE_DES_SIGNAUX_Dim_08-11-2026_21h58.txt : « 2 lots de 21 au plus, 2 à la fois », 30 sabotages, 34 minutes), pour que les lignes « lot k » du relevé restent comparables. 2 machines : un lot chacune (lots_de_la_part de tests/outils/jouer_une_part.py), l'épreuve copiant le dépôt sans .git ni etudes/ une fois par sabotage joué (sa fonction preparer) — deux machines séparent les disques. Durée attendue par machine : celle d'un lot, environ 34 minutes sur la machine du Chat, loin sous la limite de 330 minutes du job « jouer ». Disque d'un lot non mesuré sur GitHub : THÉORIQUE, le premier passage le dira (place libre minimale écrite au relevé ; 9 998 Mo libres au minimum sur la machine du Chat le 08-11-2026)."
    }
+  }
+ },
+ "format_des_epreuves_longues": "code (lettres et chiffres, commence par une lettre, 20 au plus : le nom de l'épreuve dans une demande « circuit=epreuve ») → chemin (tests/<nom>.py ou programmes/<nom>.py), arguments (mots figés ; « {copie} » désigne la racine de la copie jouée), pourquoi (d'où vient l'épreuve, et sa durée mesurée quand on l'a). Ajouté le 15-11-2026 (étape GHUB ②, décisions de Jean-Luc A-809, A-811, A-816) : la table des épreuves longues d'un tenant que le circuit .github/workflows/epreuves_longues.yml du dépôt public joue sur GitHub, une machine par épreuve. Une demande ne porte que des codes : la commande est celle de CETTE table, dans la version éprouvée. Lu par epreuves_du_circuit (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py), seul lecteur, et par tests/outils/jouer_une_epreuve_longue.py, qui l'appelle. Exclues : une épreuve qui nomme un programme interdit (INTERDITS de tests/outils/jouer_une_part.py), et le « --saboter » d'une série de « series_hors_de_la_nuit » (son circuit est series_longues.yml).",
+ "epreuves_longues": {
+  "CircuitSeries": {
+   "chemin": "tests/EPREUVES_DU_CIRCUIT_DES_SERIES_Jeu_05-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 1 082 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "CircuitPublic": {
+   "chemin": "tests/EPREUVES_DU_CIRCUIT_PUBLIC_Jeu_15-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 2 061 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "Relais": {
+   "chemin": "tests/EPREUVES_DU_RELAIS_DES_SERIES_Dim_08-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; 634 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "NuitDecoupee": {
+   "chemin": "tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 1 392 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "Certification": {
+   "chemin": "tests/EPREUVES_DE_LA_CERTIFICATION_Jeu_01-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; plus de 10 minutes sur la machine du Chat (note A_RELIRE_GHUB-1, 15-11-2026)"
+  },
+  "VenteUnique": {
+   "chemin": "tests/EPREUVES_DE_LA_VENTE_UNIQUE_A_Mer_11-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-r207bis (81ffa756) ; environ quinze minutes sur la machine du Chat (même note)"
+  },
+  "MessageDuSoir": {
+   "chemin": "tests/EPREUVES_DU_MESSAGE_DU_SOIR_Mer_30-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 974 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "VingtAns": {
+   "chemin": "tests/EPREUVES_DU_FICHIER_DES_VINGT_ANS_Jeu_12-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) (« en entier »)"
+  },
+  "RegistreEssais": {
+   "chemin": "tests/EPREUVES_B2_DU_REGISTRE_DES_ESSAIS_Mer_11-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) (« B2 ») ; délai de nuit 2 400 s (« delais » de cette table)"
+  },
+  "Bloc5A": {
+   "chemin": "tests/EPREUVES_B_DU_BLOC_5A_Mer_11-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 3 063 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "DossierLancement": {
+   "chemin": "tests/EPREUVES_DU_DOSSIER_DE_LANCEMENT_Lun_28-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 1 552 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "RegistreStrategies": {
+   "chemin": "tests/EPREUVES_DU_REGISTRE_DES_STRATEGIES_Jeu_05-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; variante « --saboter » d'une des 8 épreuves rouges non relancée, nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-r207bis (81ffa756)"
+  },
+  "CircuitLecteur": {
+   "chemin": "tests/EPREUVES_DU_CIRCUIT_PAR_LE_LECTEUR_Jeu_29-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) ; 2 456 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "JugeLecteur": {
+   "chemin": "tests/EPREUVES_DU_JUGE_PAR_LE_LECTEUR_Mar_27-10-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) ; sans « --saboter » (le fichier ne le lit pas) ; 1 595 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "Tri": {
+   "chemin": "tests/EPREUVES_DU_TRI_ET_DE_LA_FIN_CALCULEE_Mer_11-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) (« celui du tri ») ; sans « --saboter » (le fichier ne le lit pas)"
+  },
+  "Moulinette": {
+   "chemin": "tests/EPREUVES_DE_LA_MOULINETTE_Mar_20-10-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) ; sans « --saboter » (le fichier ne le lit pas) ; 1 032 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "ArriveeSignaux": {
+   "chemin": "tests/EPREUVES_DE_L_ARRIVEE_DES_SIGNAUX_Sam_31-10-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) ; le lancement simple : son « --saboter » est la série « Signaux » du circuit des séries ; 1 573 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "LectureCours": {
+   "chemin": "tests/EPREUVES_DE_LA_LECTURE_DES_COURS_Sam_10-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "bilan GHUB du 15-11-2026, §2 (« Lecture des cours, jeu entier », 57 min sur la machine du Chat) ; 5 007 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "SignalNomme": {
+   "chemin": "tests/EPREUVES_DU_SIGNAL_NOMME_Ven_30-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "3 951 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "PorteEntree": {
+   "chemin": "tests/EPREUVES_J_PORTE_D_ENTREE_Mer_11-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "2 174 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "Comblement": {
+   "chemin": "tests/EPREUVES_DU_COMBLEMENT_Jeu_24-09-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "2 269 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "VeriteJuge": {
+   "chemin": "tests/EPREUVES_D_VERITE_CONNUE_DU_JUGE_Mar_10-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "bilan GHUB du 15-11-2026, §2 (« --saboter entier du juge ») ; variante « --saboter » d'une des 8 épreuves rouges, nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-r207bis (81ffa756) ; 1 956 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "SeanceAchat": {
+   "chemin": "tests/EPREUVES_DE_LA_SEANCE_D_ACHAT_Lun_28-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "1 719 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "VenteReglable": {
+   "chemin": "tests/EPREUVES_DE_LA_VENTE_REGLABLE_Mer_11-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "1 500 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "DebutsSerie": {
+   "chemin": "tests/EPREUVES_DES_DEBUTS_DE_SERIE_Sam_31-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "1 500 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "Comptabilites": {
+   "chemin": "tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "variante « --saboter » d'une des 8 épreuves rouges, nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-r207bis (81ffa756) ; 1 426 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "BaremeFrais": {
+   "chemin": "tests/EPREUVES_DU_BAREME_DES_FRAIS_Jeu_29-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "1 337 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "LectureFiche": {
+   "chemin": "tests/EPREUVES_DE_LA_LECTURE_DE_LA_FICHE_Sam_31-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "1 320 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "GardeFou": {
+   "chemin": "tests/SABOTER_LES_CORRECTIONS_DU_GARDE_FOU_Mar_22-09-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "sans « --saboter » (le fichier ne le lit pas) ; 1 096 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "Confrontation": {
+   "chemin": "tests/EPREUVES_DE_LA_CONFRONTATION_AUX_DOCUMENTS_Sam_10-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "852 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "JeuRadar": {
+   "chemin": "tests/EPREUVES_DU_JEU_DU_RADAR_Lun_28-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "840 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "RsiRebond": {
+   "chemin": "tests/EPREUVES_DU_SIGNAL_RSI_REBOND_Mer_11-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "654 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "SoirFiche": {
+   "chemin": "tests/EPREUVES_C_LE_SOIR_LIT_LA_FICHE_Mar_10-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "607 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "TroisElements": {
+   "chemin": "tests/EPREUVES_DES_TROIS_ELEMENTS_Mer_30-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "variante « --saboter » d'une des 8 épreuves rouges non relancée, nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-r207bis (81ffa756)"
+  },
+  "CopieBoucles": {
+   "chemin": "tests/EPREUVES_DE_LA_COPIE_DES_BOUCLES_Jeu_01-10-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "variante « --saboter » d'une des 8 épreuves rouges non relancée, nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-r207bis (81ffa756)"
   }
  }
 }

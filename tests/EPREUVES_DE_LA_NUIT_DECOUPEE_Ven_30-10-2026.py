@@ -252,8 +252,11 @@ def essai(copie, circuit, faux):
     d = tempfile.mkdtemp(prefix="nuit_decoupee_")
     try:
         m = os.path.join(d, "depot")
+        # le fabricant aussi (15-11-2026) : le certificateur y lit la liste des fichiers de commandes de GitHub qu'il
+        # retire de l'environnement de chaque épreuve (`fichiers_de_commandes_de_github`), à côté de lui-même
         for c, t in [("programmes/P.py", PROGRAMME), ("programmes/CERTIFIER_LA_VERSION.py",
                                                        open(os.path.join(copie, CERTIF), encoding="utf-8").read()),
+                     (FAB, open(os.path.join(copie, FAB), encoding="utf-8").read()),
                      ("tests/LANCEMENT_DES_EPREUVES.json", json.dumps({"epreuves": {}}))] + [
                 (f"tests/T{f}.py", EPREUVE.replace("{f}", f)) for f in "abc"]:
             os.makedirs(os.path.dirname(os.path.join(m, c)), exist_ok=True)

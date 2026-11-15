@@ -3,6 +3,7 @@
 """
 CONTROLER_LES_CAUSES_DES_TROUS.py — Sam 31-10-2026 (Paris) — PROPOSÉ, non validé (A-633, décision de Jean-Luc du
 31-10-2026 à 21h08, annexe n°48). Simulation uniquement.
+Ligne ajoutée le 15-11-2026 (GHUB ②, F1) : ce texte diffère de la copie rangée dans une étude, le code non.
 
 ① RÔLE — Dire, pour l'historique des 20 ans, si CHAQUE séance de Bourse où une valeur n'a pas de cours porte une cause
   prouvée, prise dans une liste fermée, et rougir sinon. Un trou compté n'est pas un trou expliqué.

@@ -38,8 +38,10 @@
 # circuit se lance depuis la branche de CE dépôt public qui porte le même nom, où le Chat a publié le code de cette
 # version (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py refuse d'écrire dans un clone public d'une autre branche que
 # celle du privé) : « publier ce qui tourne », cadre du 08-10-2026. « preparer » refuse de partir si la version n'est
-# pas la branche publique lancée, si elle n'est pas l'unique version en attente du dépôt privé, ou si le clone n'est
-# pas sa pointe ; chaque job compare ensuite le code publié de cette branche à celui de la version, octet pour octet.
+# pas la branche publique lancée, si elle n'existe pas au dépôt privé, si la pointe demandée (entrée « pointe »,
+# obligatoire pour une version en attente, A-811 du 15-11-2026) n'est pas exactement sa pointe actuelle, ou si le clone
+# n'est pas sa pointe ; chaque job compare ensuite le code publié de cette branche à celui de la version, octet pour
+# octet. Plusieurs versions en attente peuvent coexister (A-735) : ce n'est plus un refus.
 # La question posée le 05-11-2026 : « Comment veut-on utiliser GitHub pour les séries ? » — 1. après la fusion, retour
 # arrière si la série est NON CONFORME ; 2. avant la fusion, par cette entrée ; 3. réponse libre. Réponse : « 2 ».
 # Raison : avec 1, une version non éprouvée par ses séries serait la version officielle pendant environ une heure,
@@ -56,6 +58,11 @@ on:
         required: true
         type: string
         default: "main"
+      pointe:
+        description: "Pointe exacte de la version au depot prive, 40 caracteres hexadecimaux (obligatoire pour travail-... ; vide sur main : la pointe actuelle)"
+        required: false
+        type: string
+        default: ""
       serie:
         description: "Serie a jouer (toutes : chaque serie de la table)"
         required: true
@@ -124,6 +131,7 @@ jobs:
         env:
           JETON: ${{ secrets.JETON_DEPOTS }}
           VERSION: ${{ inputs.version }}
+          POINTE: ${{ inputs.pointe }}
           BRANCHE_PUBLIQUE: ${{ github.ref_name }}
         run: |
           set -o pipefail
@@ -133,14 +141,15 @@ jobs:
           AIDE='!f() { echo username=x-access-token; echo "password=$JETON"; }; f'
           A=(-c credential.helper= -c "credential.helper=$AIDE")
           cd "$T"
-          [[ "$VERSION" =~ ^(main|travail-[A-Za-z0-9._-]+)$ ]] || { echo "::error::version refusee : $VERSION (main, ou une version en attente travail-...)"; exit 1; }
+          [[ "$VERSION" =~ ^(main|travail-[A-Za-z0-9._-]+)$ ]] || { echo "::error::version refusee : ${#VERSION} caractere(s), hors de la forme permise (main, ou une version en attente travail-...)"; exit 1; }
           [ "$VERSION" = "$BRANCHE_PUBLIQUE" ] || { echo "::error::la version $VERSION n'est pas la branche publique lancee ($BRANCHE_PUBLIQUE) : lancer ce circuit depuis la branche publique $VERSION"; exit 1; }
-          tetes=$(git "${A[@]}" ls-remote --heads "$PRIVE") || { echo "::error::branches du depot prive illisibles"; exit 1; }
-          if [ "$VERSION" != "main" ]; then
-            attente=$(printf '%s\n' "$tetes" | cut -f2 | grep '^refs/heads/travail-' || true)
-            [ "$attente" = "refs/heads/$VERSION" ] || { echo "::error::la version en attente du depot prive n'est pas exactement $VERSION : $(printf '%s' "$attente" | tr '\n' ' ')"; exit 1; }
+          if [ "$VERSION" != "main" ] || [ -n "$POINTE" ]; then
+            [[ "$POINTE" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::pointe refusee : une version en attente se demande avec sa pointe, 40 caracteres hexadecimaux (A-811)"; exit 1; }
           fi
+          tetes=$(git "${A[@]}" ls-remote --heads "$PRIVE") || { echo "::error::branches du depot prive illisibles"; exit 1; }
           pointe=$(printf '%s\n' "$tetes" | awk -v r="refs/heads/$VERSION" '$2 == r { print $1 }')
+          [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }
+          [ -z "$POINTE" ] || [ "$POINTE" = "$pointe" ] || { echo "::error::la pointe demandee $POINTE n'est pas la pointe actuelle de $VERSION au depot prive : redeposer la demande avec la pointe actuelle"; exit 1; }
           [ -n "$pointe" ] && [ "$(git -C "$GITHUB_WORKSPACE" -c core.hooksPath=/dev/null rev-parse HEAD)" = "$pointe" ] || { echo "::error::le clone du depot prive n'est pas la pointe de $VERSION"; exit 1; }
       - uses: actions/checkout@v5
         with:
@@ -219,8 +228,8 @@ jobs:
           for c in $codes; do
             if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "$c" ]; then choix="$choix $c"; fi
             vp="PARTS_${c^^}"; vl="LOT_${c^^}"
-            [[ "${!vp}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vp : ${!vp} (1 a 99)"
-            [[ "${!vl}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vl : ${!vl} (1 a 99)"
+            [[ "${!vp}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vp (1 a 99)"
+            [[ "${!vl}" =~ ^[1-9][0-9]?$ ]] || echec "nombre refuse pour $vl (1 a 99)"
           done
           [ -n "$choix" ] || echec "serie inconnue : $SERIE"
           interdits=$(python3 -B tests/outils/jouer_une_part.py --interdits) || echec "liste des programmes interdits illisible"
@@ -258,7 +267,7 @@ jobs:
     strategy:
       # une part rouge n'arrête pas les autres ; le rassemblement, lui, refuse dès qu'une seule n'est pas verte
       fail-fast: false
-      max-parallel: 16
+      max-parallel: 10
       matrix:
         include: ${{ fromJSON(needs.preparer.outputs.matrice) }}
     name: jouer ${{ matrix.serie }} ${{ matrix.part }}/${{ matrix.nb_parts }}

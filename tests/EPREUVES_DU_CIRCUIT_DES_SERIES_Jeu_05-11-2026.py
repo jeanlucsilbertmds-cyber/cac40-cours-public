@@ -10,13 +10,17 @@
   python3 tests/EPREUVES_DU_CIRCUIT_DES_SERIES_Jeu_05-11-2026.py <racine> [--saboter]
 ③ ENTRÉE — La racine du dépôt (on y prend programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, tests/outils/ et programmes/).
 ④ CONDITIONS D'ENTRÉE — git est installé ; aucun réseau n'est utilisé (dépôts nus locaux).
-⑤ SORTIE — Le code de sortie : 0 si G0 à G4, M1 à M3, X3, MB1 à MB4, X2, N1 à N5, P1 à P8, C1 à C5, R1 à R4 donnent la réponse attendue et, avec --saboter, si
+⑤ SORTIE — Le code de sortie : 0 si G0 à G4, GP1 à GP7, M1 à M3, X3, MB1 à MB4, X2, N1 à N5, P1 à P8, C1 à C5, R1 à R4 donnent la réponse attendue et, avec --saboter, si
   chaque sabotage en fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus.
   [rend: 1]
 ⑥ TRAITEMENT — G (le pas « version » et le pas « meme_depot » du circuit FABRIQUÉ, extraits du gabarit et joués par
   bash contre un dépôt privé nu local ; le jeton vide, l'aide aux identifiants n'a pas d'effet sur un dépôt local) :
-  G0 version en attente lancée depuis sa branche → 0 · G1 lancée depuis une autre branche publique → 1 · G2 deux
-  versions en attente au privé → 1 · G3 le privé a avancé après le clonage → 1 · G4 « meme_depot » : HEAD égal au
+  G0 version en attente lancée depuis sa branche, avec sa pointe exacte → 0 · G1 lancée depuis une autre branche
+  publique → 1 · G2 (A-811, 15-11-2026) deux versions en attente au privé, pointe exacte → 0 (plusieurs versions en
+  attente coexistent, A-735) · GP1 sans pointe → 1 · GP2 la pointe d'un ancêtre → 1 · GP3 la pointe d'une autre
+  branche → 1 · GP4 une pointe abrégée → 1 · GP5 une version absente du privé → 1 · GP6 main sans pointe → 0, avec
+  sa pointe → 0 · GP7 aucun message du pas ne nomme une autre branche du privé (fuite au journal public, superviseur
+  R-759 du 15-11-2026) · G3 le privé a avancé après le clonage → 1 · G4 « meme_depot » : HEAD égal au
   commit de la préparation → 0, autre commit → 1. M (la poussée vers le public, `publier` et le crochet du fabricant,
   dans de vrais clones git) : M1 LE CHEMIN RÉEL (tour 3, B-1) : un dépôt privé que `main` accepte, sur
   « travail-essai » ; le fabricant lancé en ligne de commande « <privé> <clone public> --publier » sur un clone public
@@ -32,7 +36,8 @@
   retiré du privé → 0, retiré du public · X2 un crochet « post-receive » du public remet la branche à son ancienne
   pointe après la poussée → 1, « n'est pas le commit poussé ». N1 le filet des gabarits accepte le gabarit
   des séries, et refuse ce gabarit privé de « persist-credentials: false », puis d'un « shell: bash » d'un pas qui
-  reçoit le jeton ; « max-parallel » vaut au plus 16 ; le joueur des parts et le rassembleur sont lancés sous
+  reçoit le jeton ; « max-parallel » du gabarit vaut PARTS_EN_MEME_TEMPS, et PARTS_EN_MEME_TEMPS plus la marge des
+  autres circuits ne dépasse pas les tâches simultanées du compte (15-11-2026) ; le joueur des parts et le rassembleur sont lancés sous
   « unshare -rn » · N2 (tour 3, M-2) le filet accepte le gabarit (T0) et refuse F1 à F7 : jeton dans l'env du job,
   du circuit, toJSON(secrets), secrets['…'], un pas bash à jeton qui lance un programme de la version, qui écrit ou
   copie vers $GITHUB_ENV, qui écrit une variable dans un fichier (F5 à F7 ajoutés AVANT le code de la version, pour
@@ -267,8 +272,17 @@ RETENU = "tests/resultats/SERIE_DE_SABOTAGES_DE_L_ESSAI_Mer_04-11-2026_14h00.txt
 SABOTAGES = {
     "SG1_branche_lancee_non_comparee": [(FABRICANT, '''          [ "$VERSION" = "$BRANCHE_PUBLIQUE" ] ||''',
                                          '''          true ||''')],
-    "SG2_versions_en_attente_non_comptees": [(FABRICANT, '''            [ "$attente" = "refs/heads/$VERSION" ] ||''',
-                                              '''            true ||''')],
+    "SGP1_pointe_non_exigee": [(FABRICANT, '''          if [ "$VERSION" != "main" ] || [ -n "$POINTE" ]; then''',
+                                '''          if [ -n "$POINTE" ]; then''')],
+    "SGP2_pointe_demandee_non_comparee": [(FABRICANT, '''          [ -z "$POINTE" ] || [ "$POINTE" = "$pointe" ] ||''',
+                                           '''          true ||''')],
+    "SGP5_version_absente_admise": [(FABRICANT, '''          [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }''',
+                                     '''          [ -n "$pointe" ] || pointe=$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)''')],
+    "SGP7_branches_du_prive_au_journal": [(FABRICANT, '''          [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }''',
+                                           '''          echo "$tetes" | cut -f2 | grep travail- || true
+          [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }''')],
+    "SN1_parts_au_dela_du_budget": [(FABRICANT, "PARTS_EN_MEME_TEMPS = TACHES_EN_MEME_TEMPS_DU_COMPTE - MARGE_DES_AUTRES_CIRCUITS\n",
+                                     "PARTS_EN_MEME_TEMPS = 16\n")],
     "SG3_pointe_non_comparee": [(FABRICANT, '''          [ -n "$pointe" ] && [ "$(git -C "$GITHUB_WORKSPACE" -c core.hooksPath=/dev/null rev-parse HEAD)" = "$pointe" ] ||''',
                                  '''          true ||''')],
     "SG4_meme_depot_non_compare": [(FABRICANT, '''          [ "$(git rev-parse HEAD)" = "$SHA" ] ||''', '''          true ||''')],
@@ -340,12 +354,18 @@ SABOTAGES = {
     # la vérification des valeurs de la matrice dans la poussée
     "SN5_pas_a_jeton_apres_le_code_admis": [(FABRICANT, '''                    if a_jeton and premier is not None and a > premier and not (rang == len(suite) - 1 and pousse):''',
                                              '''                    if False:''')],
-    "SN5_lecture_des_parts_apres_le_code": [(FABRICANT, '''apres_le_clonage=SERIES_PARTS_VERTES + SERIES_LIRE_LES_PARTS,''',
-                                             '''apres_le_clonage=SERIES_PARTS_VERTES,'''),
+    # Ancre reprise le 15-11-2026 (GHUB ②, D1 du RELU de Cowork) : le gabarit des épreuves longues recopie la ligne
+    # « "meme_depot": SERIES_MEME_DEPOT, "copie": SERIES_COPIE, » ; la première et la troisième paire n'en font plus
+    # qu'une, qui va de « SERIES_LIRE_LES_PARTS » (le seul pas qui lit les parts, propre au gabarit des SÉRIES) jusqu'à
+    # cette ligne.
+    "SN5_lecture_des_parts_apres_le_code": [(FABRICANT, '''apres_le_clonage=SERIES_PARTS_VERTES + SERIES_LIRE_LES_PARTS,
+                                     ref="${{ needs.preparer.outputs.sha }}"),
+    "meme_depot": SERIES_MEME_DEPOT, "copie": SERIES_COPIE,''',
+                                             '''apres_le_clonage=SERIES_PARTS_VERTES,
+                                     ref="${{ needs.preparer.outputs.sha }}"),
+    "lire": SERIES_LIRE_LES_PARTS, "meme_depot": SERIES_MEME_DEPOT, "copie": SERIES_COPIE,'''),
                                             (FABRICANT, '''%(reseau)s      - name: Rassembler et ecrire le releve''',
-                                             '''%(reseau)s%(lire)s      - name: Rassembler et ecrire le releve'''),
-                                            (FABRICANT, '''    "meme_depot": SERIES_MEME_DEPOT, "copie": SERIES_COPIE,''',
-                                             '''    "lire": SERIES_LIRE_LES_PARTS, "meme_depot": SERIES_MEME_DEPOT, "copie": SERIES_COPIE,''')],
+                                             '''%(reseau)s%(lire)s      - name: Rassembler et ecrire le releve''')],
     "SN6_expression_dans_un_pas_a_jeton_admise": [(FABRICANT, '''                if "${{" in script:''', '''                if False:''')],
     "SN7_valeur_de_la_matrice_non_verifiee": [(FABRICANT, '''""" + nom + """" =~ ^[A-Za-z0-9_-]+$ ]] ||''',
                                                '''""" + nom + """" =~ . ]] ||''')],
@@ -514,18 +534,54 @@ def tour(racine):
         def pas(script, **env):
             return lancer(["bash", "-e", script], env=dict(GIT_ENV, JETON="", GITHUB_WORKSPACE=ws, **env), cwd=ws)[0]
 
-        if pas(version, VERSION="travail-essai", BRANCHE_PUBLIQUE="travail-essai") != 0:
-            faux.append("G0 (version en attente depuis sa branche refusée)")
-        if pas(version, VERSION="travail-essai", BRANCHE_PUBLIQUE="main") != 1:
+        def pas_et_sortie(script, **env):
+            r = lancer(["bash", "-e", script], env=dict(GIT_ENV, JETON="", GITHUB_WORKSPACE=ws, **env), cwd=ws)
+            return r[0], r[1]
+
+        pointe_essai = lancer(["git", "-C", ws, "rev-parse", "HEAD"])[1].strip()
+        pointe_main = lancer(["git", "-C", graine, "rev-parse", "main"])[1].strip()
+        if pas(version, VERSION="travail-essai", POINTE=pointe_essai, BRANCHE_PUBLIQUE="travail-essai") != 0:
+            faux.append("G0 (version en attente depuis sa branche, pointe exacte, refusée)")
+        if pas(version, VERSION="travail-essai", POINTE=pointe_essai, BRANCHE_PUBLIQUE="main") != 1:
             faux.append("G1 (lancée depuis une autre branche publique, admise)")
-        lancer(["git", "-C", graine, "push", "-q", prive, "travail-essai:travail-autre"])
+        # A-811 (15-11-2026) : une autre version en attente au privé, avec un commit à elle (GP3 prend sa pointe)
+        lancer(["git", "-C", graine, "checkout", "-qb", "travail-autre"])
+        open(os.path.join(graine, "b.txt"), "w").write("autre\n")
+        lancer(["git", "-C", graine, "add", "-A"])
+        lancer(["git", "-C", graine, "commit", "-qm", "autre version en attente"])
+        lancer(["git", "-C", graine, "push", "-q", prive, "travail-autre"])
+        pointe_autre = lancer(["git", "-C", graine, "rev-parse", "HEAD"])[1].strip()
+        lancer(["git", "-C", graine, "checkout", "-q", "travail-essai"])
+        if pas(version, VERSION="travail-essai", POINTE=pointe_essai, BRANCHE_PUBLIQUE="travail-essai") != 0:
+            faux.append("G2 (deux versions en attente, pointe exacte : refusée)")
         if pas(version, VERSION="travail-essai", BRANCHE_PUBLIQUE="travail-essai") != 1:
-            faux.append("G2 (deux versions en attente, admises)")
+            faux.append("GP1 (version en attente sans pointe, admise)")
+        if pas(version, VERSION="travail-essai", POINTE=pointe_main, BRANCHE_PUBLIQUE="travail-essai") != 1:
+            faux.append("GP2 (la pointe d'un ancêtre, admise)")
+        if pas(version, VERSION="travail-essai", POINTE=pointe_autre, BRANCHE_PUBLIQUE="travail-essai") != 1:
+            faux.append("GP3 (la pointe d'une autre branche, admise)")
+        if pas(version, VERSION="travail-essai", POINTE=pointe_essai[:12], BRANCHE_PUBLIQUE="travail-essai") != 1:
+            faux.append("GP4 (une pointe abrégée, admise)")
+        if pas(version, VERSION="travail-absente", POINTE=pointe_essai, BRANCHE_PUBLIQUE="travail-absente") != 1:
+            faux.append("GP5 (une version absente du privé, admise)")
+        gw = os.path.join(d, "ws_main")
+        lancer(["git", "clone", "-q", "-b", "main", prive, gw])
+        k_vide = lancer(["bash", "-e", version], env=dict(GIT_ENV, JETON="", GITHUB_WORKSPACE=gw, VERSION="main",
+                                                         BRANCHE_PUBLIQUE="main"), cwd=gw)[0]
+        k_pointe = lancer(["bash", "-e", version], env=dict(GIT_ENV, JETON="", GITHUB_WORKSPACE=gw, VERSION="main",
+                                                           POINTE=pointe_main, BRANCHE_PUBLIQUE="main"), cwd=gw)[0]
+        if k_vide != 0 or k_pointe != 0:
+            faux.append(f"GP6 (main : sans pointe code {k_vide}, avec sa pointe code {k_pointe}, attendu 0 et 0)")
+        sorties = [pas_et_sortie(version, VERSION="travail-essai", POINTE=x, BRANCHE_PUBLIQUE="travail-essai")[1]
+                   for x in (pointe_essai, "", pointe_main, pointe_autre, "abc")]
+        if any("travail-autre" in s for s in sorties):
+            faux.append("GP7 (un message du pas nomme une autre branche du dépôt privé)")
         lancer(["git", "-C", graine, "push", "-q", prive, "--delete", "travail-autre"])
         open(os.path.join(graine, "a.txt"), "a").write("avance\n")
         lancer(["git", "-C", graine, "commit", "-qam", "avance"])
         lancer(["git", "-C", graine, "push", "-q", prive, "travail-essai"])
-        if pas(version, VERSION="travail-essai", BRANCHE_PUBLIQUE="travail-essai") != 1:
+        if pas(version, VERSION="travail-essai", BRANCHE_PUBLIQUE="travail-essai",
+               POINTE=lancer(["git", "-C", graine, "rev-parse", "HEAD"])[1].strip()) != 1:
             faux.append("G3 (le clone n'est plus la pointe, admis)")
         tete = lancer(["git", "-C", ws, "rev-parse", "HEAD"])[1].strip()
         if pas(meme, SHA=tete) != 0 or pas(meme, SHA="0" * 40) != 1:
@@ -918,8 +974,13 @@ def tour(racine):
             finally:
                 serveur.shutdown()
                 serveur.server_close()
-        if F.PARTS_EN_MEME_TEMPS > 16:
-            faux.append(f"N1 (max-parallel {F.PARTS_EN_MEME_TEMPS} > 16)")
+        # N1 (15-11-2026, superviseur R-759 2.6) : une propriété, pas un nombre recopié — le budget des parts plus la
+        # marge des autres circuits tient dans les tâches simultanées du compte, et le gabarit écrit ce budget
+        if F.PARTS_EN_MEME_TEMPS + F.MARGE_DES_AUTRES_CIRCUITS > F.TACHES_EN_MEME_TEMPS_DU_COMPTE:
+            faux.append(f"N1 (max-parallel {F.PARTS_EN_MEME_TEMPS} + marge {F.MARGE_DES_AUTRES_CIRCUITS} > "
+                        f"{F.TACHES_EN_MEME_TEMPS_DU_COMPTE} tâches du compte)")
+        if F.SERIES.count("max-parallel: %d\n" % F.PARTS_EN_MEME_TEMPS) != 1:
+            faux.append("N1 (le gabarit n'écrit pas max-parallel = PARTS_EN_MEME_TEMPS)")
         lances = [l.strip() for l in F.SERIES.split("\n") if '.py "$RUNNER_TEMP/depot"' in l]
         if len(lances) != 2 or not all(l.startswith("unshare -rn python3 ") for l in lances):
             faux.append(f"N1 (parts et rassemblement pas tous sous unshare -rn : {lances})")
@@ -1109,7 +1170,7 @@ def main():
     ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     faux = tour(DEPOT)
-    print("Z0 programmes tels quels : " + ("G0 à G4, M1 à M3, X3, MB1 à MB4, X2, N1 à N5, P1 à P8, C1 à C5, R1 à R4 conformes" if not faux else
+    print("Z0 programmes tels quels : " + ("G0 à G4, GP1 à GP7, M1 à M3, X3, MB1 à MB4, X2, N1 à N5, P1 à P8, C1 à C5, R1 à R4 conformes" if not faux else
                                             "FAUX " + ", ".join(faux)))
     code = 1 if faux else 0
     if "--saboter" in sys.argv:

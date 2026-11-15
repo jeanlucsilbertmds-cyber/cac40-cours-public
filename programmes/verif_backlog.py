@@ -7,6 +7,7 @@
 #             coherence de la ligne SANTE · date de MAJ presente sur les statuts vivants.
 # 30-09-2026 : trois elements en tete de chaque action (R-757 proposee) : ❌ a partir de A-502,
 #             ⚠ qui compte les vivantes plus anciennes (fonction trois_elements).
+# 15-11-2026 (GHUB ②, F1) : cette ligne seule distingue ce programme des copies rangees dans des etudes ; code inchange.
 """Contrôle le tableau des décisions du projet, y pose un tampon horodaté, et rend
 un code de sortie.
 
