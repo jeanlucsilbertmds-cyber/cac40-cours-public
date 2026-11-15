@@ -2237,6 +2237,33 @@ def afficher_le_groupe_temoin(ops_strategie, ops_temoin, epoques):
 # LA BORNE BASSE DU GAIN MOYEN — par rééchantillonnage
 # ─────────────────────────────────────────────────────────────────────
 
+def valeur_au_rang(triee, part):
+    """Rend la valeur d'une liste triée située à la part demandée, par son rang, sans interpolation.
+
+    ① RÔLE — LA convention de rang des quantiles tirés au sort, écrite une fois : `borne_basse_gain` (ce fichier) et
+      `MESURER_LES_INDICATEURS.seuils_1_sur_20_sur_5_ans` l'appellent (R-708 : deux implémentations divergent toujours).
+    ② CONTEXTE D'APPEL — `borne_basse_gain`, deux fois (5 % et 95 %) ; `programmes/MESURER_LES_INDICATEURS.py`.
+    ③ ENTRÉE — `triee` : une liste de nombres déjà rangée du plus petit au plus grand · `part` : la part voulue,
+      une fraction entre 0 et 1 (0,95 pour « dépassée par 5 % des tirages »).
+    ④ CONDITIONS D'ENTRÉE — La liste n'est pas vide et elle est triée ; 0 ≤ part < 1.
+    ⑤ SORTIE — UNE valeur : l'élément de rang `int(part × longueur)`, compté depuis zéro.
+      [rend: 1]
+    ⑥ TRAITEMENT — rang = partie entière de part × longueur ; rendre l'élément de ce rang.
+    ⑦ UNITÉ — Celle des nombres de la liste.
+    ⑧ POURQUOI — Cette convention était écrite deux fois dans `borne_basse_gain` (`int(0.05·T)`, `int(0.95·T)`), et
+      une troisième fois dans le lot INDIC du 14-11-2026. Le superviseur R-759 du 14-11-2026 (rapport
+      `SUPERVISEUR_INDIC_Sam_14-11-2026.md`, D5) : « sortir le choix du rang dans une fonction pure (liste triée →
+      valeur), l'éprouver sur une liste fixe (1..100), et la faire partager par `borne_basse_gain` ». Exemple : sur
+      la liste 1, 2, …, 100, la part 0,95 rend 96 et la part 0,05 rend 6. Ce que rend `borne_basse_gain` ne change pas.
+    ⑨ CE QUI CLOCHE — Aucune interpolation : c'est la convention d'origine de `borne_basse_gain` (son ⑨ ③), gardée
+      telle quelle. Le tri n'est pas vérifié ici (coût) ; une liste non triée rend une valeur sans sens.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève `IndexError` sur une liste vide ou une part ≥ 1.
+      [sort: non]
+    """
+    return triee[int(part * len(triee))]
+
+
 def borne_basse_gain(ops, n_tirages=2000, graine=GRAINE):
     """Rend l'intervalle du gain moyen par reechantillonnage.
 
@@ -2272,7 +2299,8 @@ def borne_basse_gain(ops, n_tirages=2000, graine=GRAINE):
       fois, tirer autant de gains qu'il y en a, AVEC REMISE, et noter leur
       moyenne · ⑤ trier les deux mille moyennes · ⑥ rendre le gain moyen
       observé et les deux moyennes situées au vingtième et au dix-neuf
-      vingtièmes de la liste triée.
+      vingtièmes de la liste triée, lues par `valeur_au_rang` (depuis le
+      14-11-2026, lot INDIC-1 ; même rang qu'avant, même résultat).
     ⑦ UNITÉ — Les gains et les bornes sont en EUROS. `n_tirages` et l'effectif
       sont des NOMBRES. La graine n'a pas d'unité.
     ⑧ POURQUOI — Le tirage AVEC REMISE est ce qui fait le sens de la mesure :
@@ -2336,8 +2364,8 @@ def borne_basse_gain(ops, n_tirages=2000, graine=GRAINE):
     moyennes.sort()
     return {"n": len(ops),
             "gain_moyen": round(sum(nets) / len(nets), 2),
-            "borne_basse_5pct": round(moyennes[int(0.05 * len(moyennes))], 2),
-            "borne_haute_95pct": round(moyennes[int(0.95 * len(moyennes))], 2),
+            "borne_basse_5pct": round(valeur_au_rang(moyennes, 0.05), 2),
+            "borne_haute_95pct": round(valeur_au_rang(moyennes, 0.95), 2),
             "graine": graine}
 
 
