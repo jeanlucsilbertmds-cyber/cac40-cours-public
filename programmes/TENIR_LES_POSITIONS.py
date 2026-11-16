@@ -1439,6 +1439,218 @@ def entrer(positions, cours, mod, horizon_seances=20, cle=None,
 # ─────────────────────────────────────────────────────────────────────
 # D) LES NOUVEAUX SIGNAUX
 # ─────────────────────────────────────────────────────────────────────
+class DepartageImpossible(Exception):
+    """Un signal arrive au départage R-207bis sans CCI fini : le choix du jeton ne peut pas se faire selon la règle.
+
+    ① RÔLE — Nommer la seule panne du départage, pour qu'elle ne se confonde avec aucune autre ValueError.
+    ② CONTEXTE D'APPEL — Levée par `_cci_du_signal` (donc par `departager_r207bis`) ; attrapée par
+      `mettre_a_part_les_cci_fautifs` (le soir) et, en dernier filet, par `tenir_pour_de_vrai`. Le rejeu
+      (`rejouer_les_signaux`) ne l'attrape pas : elle remonte, refus bruyant (A-839).
+    ③ ENTRÉE — Un message qui nomme la valeur, la date du signal et le CCI lu.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — —
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relecteur du tour 1 (14-11-2026, défaut mineur) : le `except ValueError` autour de `tenir` attrapait
+      toute ValueError, disait « départage » à tort et perdait la trace ; superviseur R-759 du 14-11-2026 (D2 ⑥) :
+      une exception nommée.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — —
+    """
+
+
+def _cci_du_signal(sg):
+    """Lit le CCI porté par un signal : un nombre fini, ou lève DepartageImpossible.
+
+    ① RÔLE — LA SEULE LECTURE du CCI d'un signal, pour le départage R-207bis comme pour la mise à part du soir.
+    ② CONTEXTE D'APPEL — `departager_r207bis`, une fois par signal ; `mettre_a_part_les_cci_fautifs`, une fois par
+      signal attribué, avant `tenir`.
+    ③ ENTRÉE — `sg` : un signal (dictionnaire) ; le CCI peut être un nombre (fichier JSON du détecteur, rejeu) ou un
+      texte à point décimal (une ligne de CSV).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le CCI en nombre à virgule, toujours fini.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① clé absente, None ou texte blanc → DepartageImpossible · ② conversion en nombre ; un texte qui ne
+      se convertit pas (« -57,03 » à virgule compris) → DepartageImpossible · ③ un nombre non fini (NaN, infini) →
+      DepartageImpossible.
+    ⑦ UNITÉ — Le CCI(14) est un niveau d'indice, sans unité.
+    ⑧ POURQUOI — Superviseur R-759 du 14-11-2026 (D1, « arrêter et simplifier ») : tout signal qui entre dans `tenir`
+      vient d'une fiche que le juge a admise, donc d'un module de signal, donc d'une stratégie technique ; il doit
+      porter un CCI fini. Il n'existe plus de « cas sans CCI » : avant, un CCI absent laissait l'ordre de l'univers,
+      code 0, sans un mot (relecteur du tour 1, D1, mesuré sur la soirée du 2026-10-20). Un NaN se range n'importe où
+      dans un tri : le laisser passer donnerait le jeton au hasard sans le dire. Un NaN et un null sont traités
+      pareil (D2).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève DepartageImpossible.
+      [sort: non]
+    """
+    import math
+    x = sg.get("cci")
+    if x is None or (isinstance(x, str) and not x.strip()):
+        raise DepartageImpossible("CCI absent pour %s (%s, stratégie %s)"
+                                  % (sg.get("valeur"), sg.get("date_signal"), sg.get("strategie")))
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        raise DepartageImpossible("CCI illisible pour %s (%s, stratégie %s) : %r"
+                                  % (sg.get("valeur"), sg.get("date_signal"), sg.get("strategie"), x))
+    if not math.isfinite(v):
+        raise DepartageImpossible("CCI non fini pour %s (%s, stratégie %s) : %r"
+                                  % (sg.get("valeur"), sg.get("date_signal"), sg.get("strategie"), x))
+    return v
+
+
+def departager_r207bis(signaux):
+    """Range les signaux selon R-207bis, stratégie par stratégie : le CCI le plus bas d'abord, égalité → alphabétique.
+
+    ① RÔLE — LE SEUL ENDROIT du circuit où R-207bis s'applique. Quand plusieurs valeurs signalent le même soir pour
+      une même stratégie, l'ordre rendu ici décide laquelle prend le jeton en « un jeton » : `ouvrir_sur_signaux` donne
+      le jeton au premier signal de la stratégie et ignore (en le disant) les suivants.
+    ② CONTEXTE D'APPEL — `ouvrir_sur_signaux`, en tête, à chaque séance. Le circuit du soir (`tenir_pour_de_vrai`
+      → `tenir`) et tout rejeu qui passe par `tenir` (par exemple `rejouer_les_signaux` de
+      `programmes/MESURER_LES_INDICATEURS.py`, qui ne départage plus lui-même depuis A-839) passent donc par lui sans
+      l'appeler eux-mêmes.
+    ③ ENTRÉE — `signaux` : la liste des signaux d'une séance, chacun avec `strategie`, `valeur` et `cci`.
+    ④ CONDITIONS D'ENTRÉE — Chaque signal porte un CCI fini (`_cci_du_signal`). Le soir, `tenir_pour_de_vrai` a déjà
+      mis à part les stratégies fautives (`mettre_a_part_les_cci_fautifs`) : la levée ici est un dernier filet.
+    ⑤ SORTIE — UNE valeur : une NOUVELLE liste, de même longueur, contenant les mêmes signaux (mêmes objets) ; la
+      liste reçue n'est pas modifiée.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire le CCI de chaque signal (`_cci_du_signal`, qui lève sur un CCI absent ou non fini) ·
+      ② regrouper les rangs des signaux par stratégie · ③ ranger les signaux de chaque stratégie par (CCI, valeur) et
+      les remettre dans les places qu'ils occupaient : l'entrelacement entre stratégies est gardé.
+    ⑦ UNITÉ — Le CCI(14), sans unité. Le tri alphabétique compare les noms de valeurs tels qu'écrits, comme
+      `MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py` (« (x["cci"], x["valeur"]) »), qui a produit le golden ; la clé
+      (nom ou mnémonique) est une question posée à Jean-Luc (superviseur R-759 du 14-11-2026, D5 ④) et n'est pas
+      changée ici.
+    ⑧ POURQUOI — R-207bis (gouvernance/REGISTRE_REGLES.md, 01-08-2026, tranche D2) : « Sélection quand plusieurs
+      signaux tombent le même jour : stratégies TECHNIQUES → le CCI le plus bas (la plus survendue), égalité →
+      alphabétique. Chemin CONSENSUS → le plus fort potentiel. » Jusqu'au 14-11-2026, le circuit du soir donnait le
+      jeton à la première valeur de l'univers (le détecteur écrit les signaux dans cet ordre), et l'adaptateur de
+      `tenir_pour_de_vrai` ne transmettait pas le CCI : rejoué ainsi, l'historique du golden donne 44 opérations à
+      65,9 % et +67 688,60 € au lieu de 44 · 63,6 % · +58 800,00 € (mesure de la branche `v7-indic`, F1). Exemple
+      réel, relu par le détecteur sur `donnees/cours_maitre.csv` le 14-11-2026 : le 2025-10-07, BOUYGUES (CCI −81,77,
+      première dans l'ordre de l'univers) et VINCI (CCI −120,54) signalent le même soir ; pour C5E10-OBS-V1, dont
+      l'univers porte les deux, le jeton va désormais à VINCI (épreuve
+      `tests/EPREUVES_DU_DEPARTAGE_R207BIS_Sam_14-11-2026.py`, T06). Aucun chemin CONSENSUS n'entre dans `tenir`
+      (mesuré par le relecteur du tour 1) : toute stratégie qui reçoit un signal y est technique, sa fiche ayant passé
+      `fiche_suivie` du juge, qui exige un module de signal. La règle est mesurée INDISCERNABLE DU HASARD (R-207bis,
+      mesure du 01/08) : elle est appliquée parce qu'elle est la loi, pas parce qu'elle rapporte.
+    ⑨ CE QUI CLOCHE — ① Le détecteur arrondit le CCI à deux décimales ; le module C5 trie sur le CCI non arrondi :
+      deux CCI distincts de moins d'un centième deviendraient égaux et se départageraient par le nom (non observé :
+      écart minimal 0,2774 sur le maître, relecteur du tour 1). ② La même règle est écrite une autre fois dans le
+      backtest du module C5 (l.951, la sélection ; le tri l.967 des jetons illimités n'est pas un départage) : ils
+      divergent sur le NaN, l'arrondi et la clé — consigné au BACKLOG (D5), non corrigé ici. (La copie du rejeu,
+      `ordre_de_departage`, est supprimée par A-839 : décision de Jean-Luc du 16-11-2026 à 07h56, « 1 ».) ③ Le chemin CONSENSUS (« le plus fort potentiel ») n'a pas de départage programmé
+      ici : il n'entre pas dans `tenir`.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève DepartageImpossible (CCI absent, illisible ou non fini).
+      [sort: non]
+    """
+    ccis = [_cci_du_signal(sg) for sg in signaux]
+    places = {}
+    for i, sg in enumerate(signaux):
+        places.setdefault(sg.get("strategie"), []).append(i)
+    rendu = list(signaux)
+    for strat, rangs in places.items():
+        ordre = sorted(rangs, key=lambda i: (ccis[i], str(signaux[i].get("valeur") or "")))
+        for place, i in zip(rangs, ordre):
+            rendu[place] = signaux[i]
+    return rendu
+
+
+def mettre_a_part_les_cci_fautifs(signaux):
+    """Sépare les signaux attribués en deux : ceux des stratégies saines, et TOUS ceux d'une stratégie dont un signal
+    porte un CCI absent, illisible ou non fini.
+
+    ① RÔLE — Faire qu'une seule ligne fautive n'arrête jamais le soir entier : seule la stratégie touchée est mise à
+      part, ce soir-là ; les autres reçoivent leurs signaux.
+    ② CONTEXTE D'APPEL — `tenir_pour_de_vrai`, une fois par soir, juste après `attribuer_aux_strategies` et avant
+      `tenir`.
+    ③ ENTRÉE — `signaux` : les signaux attribués, chacun {strategie, valeur, date_signal, cci}.
+    ④ CONDITIONS D'ENTRÉE — Chaque signal porte `strategie`.
+    ⑤ SORTIE — DEUX valeurs : ① les signaux gardés, dans l'ordre reçu · ② la liste des mises à part, une entrée par
+      stratégie fautive, {strategie, raisons (une par signal fautif), signaux (tous ceux de la stratégie)}. Ce sont des
+      ATTRIBUTIONS (un couple stratégie, signal) : un signal du détecteur attribué à deux stratégies compte deux fois
+      dans `signaux_mis_a_part` (RELU Cowork d88dc60a, R-e).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① lire le CCI de chaque signal par `_cci_du_signal` · ② noter fautive toute stratégie dont un
+      signal lève · ③ rendre à part TOUS les signaux d'une stratégie fautive, quel que soit leur nombre (un seul signal
+      au CCI null est mis à part comme un NaN) ; garder les autres.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 14-11-2026, D2 (« de fond sur le principe ») : avant, un seul CCI fautif levait
+      au milieu de `tenir`, `tenir_pour_de_vrai` sortait en 1, les signaux de TOUTES les stratégies étaient perdus pour
+      toujours (le détecteur réécrit son fichier le soir suivant) et le pas rouge sautait cockpit, dépôt public,
+      mesure, PILOTE, radar et audit (relecteur du tour 1, D2, mesuré sur la soirée du 2026-10-20). Principe du
+      versement partiel tranché par Jean-Luc le 30-10-2026 à 13h55 (BACKLOG A-638) : la ligne fautive est mise à part
+      et nommée, les autres passent, le passage rougit. On met à part TOUTE la stratégie, et non le seul signal fautif,
+      pour qu'aucun départage ne se fasse sur une liste amputée : un fichier qui porte un NaN est suspect.
+    ⑨ CE QUI CLOCHE — Le coût : les signaux de la stratégie fautive sont perdus aussi en jetons illimités, où aucun
+      départage n'est nécessaire (superviseur, D2 ⑤). Ils restent lisibles dans `donnees/signaux_du_jour.json`, commité
+      avant la tenue des positions ; aucun programme ne rejoue une séance mise à part (BACKLOG, R-754) : perdus, sauf
+      décision de Jean-Luc, prise sans regarder la suite des cours.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    raisons = {}
+    for sg in signaux:
+        try:
+            _cci_du_signal(sg)
+        except DepartageImpossible as e:
+            raisons.setdefault(sg.get("strategie"), []).append(str(e))
+    gardes = [sg for sg in signaux if sg.get("strategie") not in raisons]
+    a_part = [{"strategie": st, "raisons": rs,
+               "signaux": [sg for sg in signaux if sg.get("strategie") == st]}
+              for st, rs in raisons.items()]
+    return gardes, a_part
+
+
+def attribuer_aux_strategies(signaux, strategies, mnemo):
+    """Attribue chaque signal du détecteur aux stratégies vivantes dont l'univers porte sa valeur, CCI compris.
+
+    ① RÔLE — L'adaptateur entre le fichier du détecteur ({valeur, date_signal, cmf, cci, close}) et
+      `ouvrir_sur_signaux` ({strategie, valeur, date_signal, cci}).
+    ② CONTEXTE D'APPEL — `tenir_pour_de_vrai`, une fois par soir, après la confrontation au contrat SIGNAL.
+    ③ ENTRÉE — `signaux` : les signaux du fichier du détecteur · `strategies` : liste de couples (identifiant de
+      stratégie, ensemble des mnémoniques de son univers), lus au registre · `mnemo` : nom de valeur en majuscules
+      → mnémonique, lu au référentiel.
+    ④ CONDITIONS D'ENTRÉE — Chaque signal porte `valeur` et `date_signal` (le contrat SIGNAL l'a vérifié).
+    ⑤ SORTIE — TROIS valeurs : ① les signaux attribués, un par couple (signal, stratégie qui le prend), chacun
+      {strategie, valeur, date_signal, cci} · ② les valeurs sans mnémonique · ③ les valeurs connues hors de tout
+      univers vivant.
+      [rend: 3]
+    ⑥ TRAITEMENT — Pour chaque signal : ① son mnémonique · ② pour chaque stratégie dont l'univers le porte, un signal
+      attribué, AVEC SON CCI · ③ sinon, noté hors univers, ou sans mnémonique.
+    ⑦ UNITÉ — Le CCI, sans unité, recopié tel que le détecteur l'a écrit.
+    ⑧ POURQUOI — Le départage R-207bis (`departager_r207bis`) a besoin du CCI au moment de la sélection. Jusqu'au
+      14-11-2026, l'adaptateur (écrit en ligne dans `tenir_pour_de_vrai`) ne recopiait que la stratégie, la valeur et
+      la date : le CCI s'arrêtait là, et le jeton allait à la première valeur de l'univers. Sorti en fonction pour
+      que l'épreuve passe par le vrai code, pas par une copie.
+    ⑨ CE QUI CLOCHE — Le `cmf` et la `close` du signal ne voyagent pas : rien ne les lit après l'adaptateur aujourd'hui.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    traduits, sans_mnemo, hors_univers = [], [], []
+    for sg in signaux:
+        val = (sg.get("valeur") or "").strip().upper()
+        code = mnemo.get(val, "")
+        pris = False
+        for sid, univers in strategies:
+            if code and code in univers:
+                traduits.append({"strategie": sid, "valeur": sg["valeur"],
+                                 "date_signal": sg["date_signal"], "cci": sg.get("cci")})
+                pris = True
+        if code and not pris:
+            hors_univers.append(sg.get("valeur"))
+        if not code:
+            sans_mnemo.append(sg.get("valeur"))
+    return traduits, sans_mnemo, hors_univers
+
+
 def ouvrir_sur_signaux(positions, signaux, prochaine_seance):
     """Crée une ligne EN_ATTENTE_ENTREE par signal et par comptabilité.
 
@@ -1455,7 +1667,8 @@ def ouvrir_sur_signaux(positions, signaux, prochaine_seance):
       endroit où une position naît.
     ② CONTEXTE D APPEL — `tenir`, APRÈS les clôtures.
     ③ ENTRÉE — `positions` : toutes les positions · `signaux` : les signaux du
-      jour, tels que `programmes/DETECTER_LES_SIGNAUX_GITHUB.py` les a écrits ·
+      jour, tels que `programmes/DETECTER_LES_SIGNAUX_GITHUB.py` les a écrits,
+      attribués à leur stratégie par `attribuer_aux_strategies`, AVEC LEUR CCI ·
       `prochaine_seance` : une date d entrée **PROVISOIRE**, la séance qui
       suit celle du jour si elle est déjà publiée, None sinon — le cas normal
       du soir. **Elle n est qu un rappel : `entrer` la recalcule depuis la
@@ -1463,14 +1676,19 @@ def ouvrir_sur_signaux(positions, signaux, prochaine_seance):
       **Elle ne reçoit PAS les réglages : les seuils sont posés plus tard,
       par `entrer`.**
     ④ CONDITIONS D ENTRÉE — **Chaque signal doit porter sa stratégie**, sans quoi
-      la règle du jeton unique ne peut pas s appliquer.
+      la règle du jeton unique ne peut pas s appliquer. **Chaque signal porte un
+      CCI fini** (`_cci_du_signal`) : le soir, `mettre_a_part_les_cci_fautifs` a
+      déjà écarté les stratégies fautives.
     ⑤ SORTIE — DEUX valeurs : les positions augmentées, et la liste des signaux
       ignorés.
       [rend: 2]
     ⑥ TRAITEMENT — ① pour chaque signal, pour chaque comptabilité · ② **en un
       jeton, vérifier qu aucune position n est en cours POUR CETTE STRATÉGIE** ·
       ③ créer la ligne en attente d entrée, avec la date provisoire reçue
-      (vide le soir du signal) ; `entrer` fixe la vraie.
+      (vide le soir du signal) ; `entrer` fixe la vraie. **Les signaux sont
+      parcourus dans l ordre de `departager_r207bis` (depuis le 14-11-2026) :
+      en un jeton, le premier signal d une stratégie est celui du CCI le plus
+      bas, égalité → alphabétique (R-207bis).**
     ⑦ UNITÉ — **Les seuils sont en pourcents, l horizon en jours de bourse.**
     ⑧ POURQUOI — **Le système tient DEUX comptabilités séparées. En « un jeton », une seule
       position à la fois par stratégie : un signal reçu pendant qu une position est en cours est ignoré.
@@ -1481,10 +1699,13 @@ def ouvrir_sur_signaux(positions, signaux, prochaine_seance):
       qualité du signal.
     ⑨ CE QUI CLOCHE — **Un signal portant une stratégie absente des réglages est
       ignoré comme un signal en double.** Les deux cas finissent dans la même
-      liste, et rien ne les distingue au rapport.
+      liste, et rien ne les distingue au rapport. Jusqu au 14-11-2026, l ordre
+      reçu décidait seul du jeton (l ordre de l univers du détecteur), contre
+      R-207bis : réparé par l appel à `departager_r207bis`.
     ⑩ EFFET — **AJOUTE à la liste de positions reçue.**
 
-    ⑪ TERMINAISON — Rend toujours la main.
+    ⑪ TERMINAISON — Rend la main ; `departager_r207bis` lève DepartageImpossible
+      si un signal porte un CCI absent, illisible ou non fini.
       [sort: non]
     ⑫ DÉFINITIONS —
       un jeton : la comptabilité où une seule position peut être ouverte à la fois
@@ -1496,7 +1717,8 @@ def ouvrir_sur_signaux(positions, signaux, prochaine_seance):
 """
     nouvelles, ignores = [], []
 
-    for sg in signaux:
+    # R-207bis, A UN SEUL ENDROIT : le jeton va au CCI le plus bas, egalite -> alphabetique (14-11-2026).
+    for sg in departager_r207bis(signaux):
         strat = sg["strategie"]
         val = sg["valeur"]
         d_sig = sg["date_signal"]
@@ -2019,7 +2241,9 @@ def _calibrage(mod, base="."):
                                        "high": 53.0, "low": 51.5, "close": 52.5}]}
     cours_s3 = {"Z": cours_s2["Z"] + [{"date": "2026-05-06", "open": 60.0,
                                        "high": 61.0, "low": 59.0, "close": 60.0}]}
-    sig_s = [{"strategie": "S", "valeur": "Z", "date_signal": "2026-05-04"}]
+    # Tout signal qui entre dans `tenir` porte un CCI fini depuis le 14-11-2026 (R-207bis, `_cci_du_signal`) :
+    # les signaux fabriques du calibrage en portent un, sans effet ici (un seul signal par strategie).
+    sig_s = [{"strategie": "S", "valeur": "Z", "date_signal": "2026-05-04", "cci": -100.0}]
     r_s1 = tenir([], cours_s1, sig_s, None, mod, reglages=REG, bareme=_HIST)
     bons += _dire("soir du signal : la position attend son entree",
                   [x["statut"] for x in r_s1["positions"]], [EN_ATTENTE, EN_ATTENTE])
@@ -2386,7 +2610,7 @@ def _calibrage(mod, base="."):
                   {"date": "2026-05-04", "open": 50.0, "high": 52.0,
                    "low": 49.0, "close": 51.0}]}
     _av = tenir(_bl, _cz3, [{"strategie": "S", "valeur": "Z",
-                             "date_signal": "2026-05-04"}],
+                             "date_signal": "2026-05-04", "cci": -100.0}],
                 "2026-05-05", mod, reglages={"S": {"tp": 0.04, "sl": 0.025}})
     bons += _dire("le drapeau se leve MEME avec un nouveau signal",
                   _av["muet"], True)
@@ -2477,7 +2701,7 @@ def _calibrage(mod, base="."):
              "sl": "97.5", "horizon_fin": "2026-09-18", "statut": OUVERTE,
              "comptabilite": UN_JETON, "regles_pre_trade": "", "explication": ""}]
     n, ig = ouvrir_sur_signaux(pos2, [{"strategie": "S", "valeur": "B",
-                                       "date_signal": "2026-08-27"}], "2026-08-28")
+                                       "date_signal": "2026-08-27", "cci": -100.0}], "2026-08-28")
     bons += _dire("un jeton : le signal est ignore", len(ig), 1)
     bons += _dire("jetons illimites : il est ouvert quand meme",
                   sum(1 for x in n if x["comptabilite"] == JETONS_ILLIMITES), 1)
@@ -2551,7 +2775,7 @@ def _calibrage(mod, base="."):
             "prix_entree": INCONNU, "tp": INCONNU, "sl": INCONNU, "horizon_fin": INCONNU,
             "statut": EN_ATTENTE, "comptabilite": UN_JETON, "regles_pre_trade": "", "explication": ""}]
     _rs = tenir(_pa, {"A": _ca, "B": _cb},
-                [{"strategie": "S", "valeur": "B", "date_signal": "2026-05-05"}], None, mod,
+                [{"strategie": "S", "valeur": "B", "date_signal": "2026-05-05", "cci": -100.0}], None, mod,
                 reglages={"S": {"tp": 0.04, "sl": 0.025, "horizon": 20}})
     bons += _dire("achat et vente forcee le meme jour : vendu le soir meme",
                   [(x["valeur"], x["date_sortie"], x["motif_sortie"]) for x in _rs["trades"]],
@@ -2889,7 +3113,14 @@ def tenir_pour_de_vrai(base):
       13-11-2026 à 16h30) est SIGNALÉE et laissée telle quelle, les autres sont tenues, et la sortie du pas
       `positions_signalees=<n>` (fichier `GITHUB_OUTPUT`) fait rougir le pas de fin du circuit · ④ tenir la séance, au calendrier
       officiel, en n achetant que dans le CAC 40 — un achat refusé se dit par une ligne
-      « ⛔ » · ⑤ **contrôler toutes les lignes à écrire contre les
+      « ⛔ » ; chaque signal est confronté au contrat SIGNAL (tous, pas le seul premier) ;
+      les signaux sont attribués par `attribuer_aux_strategies`, CCI compris ; une stratégie
+      dont un signal porte un CCI absent, illisible ou non fini est MISE À PART ce soir par
+      `mettre_a_part_les_cci_fautifs`, nommée, et comptée dans la sortie du pas
+      `signaux_mis_a_part=<n>` (code 0, le pas de fin du circuit rougit) ; le jeton se
+      départage par R-207bis dans `ouvrir_sur_signaux` ; une DepartageImpossible levée
+      malgré tout par `tenir` arrête en code 1 sans écrire ni positions ni journal — la sortie
+      du pas, écrite avant `tenir`, l est déjà (RELU Cowork du 14-11-2026, n-2 ②) · ⑤ **contrôler toutes les lignes à écrire contre les
       contrats du journal et des positions, et s'arrêter en code 1 sans rien
       écrire sur la moindre faute** (depuis le 27-09-2026) · ⑥ réécrire les deux
       fichiers, avec les colonnes des contrats.
@@ -3026,11 +3257,16 @@ def tenir_pour_de_vrai(base):
     # ou il peut changer sans repasser par le detecteur.**
     # LA TOLERANCE `sg.get("date")` DISPARAIT AVEC : ce n est plus au code de
     # decider quel nom est le bon, c est au contrat.
+    # CHAQUE SIGNAL SE CONFRONTE AU CONTRAT, PAS LE SEUL PREMIER (superviseur R-759 du 14-11-2026, D1 ④) : un
+    # deuxieme signal hors contrat passait sans un mot. La VALEUR du CCI ne se controle pas ici : sa seule lecture
+    # est `_cci_du_signal`, appelee plus bas par `mettre_a_part_les_cci_fautifs`.
     if signaux:
         try:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             from CONTRATS_DES_FICHIERS import verifier as _verif_c
-            _ec = _verif_c("SIGNAL", list(signaux[0].keys()), "LU")
+            _ec = []
+            for _sg in signaux:
+                _ec += [_x for _x in _verif_c("SIGNAL", list(_sg.keys()), "LU") if _x not in _ec]
             if _ec:
                 print("  ❌ LE FICHIER DES SIGNAUX NE RESPECTE PAS SON CONTRAT :")
                 for _x in _ec:
@@ -3041,20 +3277,25 @@ def tenir_pour_de_vrai(base):
         except ImportError:
             print("  ⚠️ CONTRATS_DES_FICHIERS introuvable — lecture NON VERIFIEE")
 
-    traduits, sans_mnemo, hors_univers = [], [], []
-    for sg in signaux:
-        val = (sg.get("valeur") or "").strip().upper()
-        code = mnemo.get(val, "")
-        pris = False
-        for sid, univers in strategies:
-            if code and code in univers:
-                traduits.append({"strategie": sid, "valeur": sg["valeur"],
-                                 "date_signal": sg["date_signal"]})
-                pris = True
-        if code and not pris:
-            hors_univers.append(sg.get("valeur"))
-        if not code:
-            sans_mnemo.append(sg.get("valeur"))
+    # LE CCI VOYAGE AVEC LE SIGNAL jusqu a la selection (R-207bis, 14-11-2026) : l adaptateur vit dans
+    # `attribuer_aux_strategies`, pour que l epreuve passe par ce code-ci et non par une copie.
+    traduits, sans_mnemo, hors_univers = attribuer_aux_strategies(signaux, strategies, mnemo)
+    # UNE LIGNE FAUTIVE N'ARRETE JAMAIS LE SOIR ENTIER (superviseur R-759 du 14-11-2026, D2 ; principe du versement
+    # partiel tranche par Jean-Luc le 30-10-2026 a 13h55, A-638) : une strategie dont un signal porte un CCI absent,
+    # illisible ou non fini est mise a part CE SOIR, nommee ; les autres recoivent leurs signaux ; la sortie du pas
+    # `signaux_mis_a_part=<n>` fait rougir le pas de fin « Rougir si des signaux ont ete mis a part ».
+    traduits, _cci_a_part = mettre_a_part_les_cci_fautifs(traduits)
+    _n_mis_a_part = sum(len(_m["signaux"]) for _m in _cci_a_part)
+    if _cci_a_part:
+        print(f"  ❌ {_n_mis_a_part} ATTRIBUTION(S) DE SIGNAL MIS A PART — une par couple (strategie, signal) ; CCI absent, "
+              f"illisible ou non fini (R-207bis ne peut pas choisir le jeton) :")
+        for _m in _cci_a_part:
+            print(f"     strategie {_m['strategie']} : " + ", ".join(
+                f"{_x.get('valeur')} ({_x.get('date_signal')}, cci={_x.get('cci')!r})" for _x in _m["signaux"]))
+            for _r in _m["raisons"]:
+                print(f"       raison : {_r}")
+        print("     Ces signaux sont PERDUS, sauf decision de Jean-Luc, prise sans regarder la suite des cours ;")
+        print("     ils restent lisibles dans donnees/signaux_du_jour.json. Les autres strategies sont tenues.")
     # DIRE LAQUELLE DES DEUX FAUTES, JAMAIS LES DEUX D UN COUP.
     # U2 de Cowork, 12-09 : mon message proposait deux causes et laissait choisir —
     # « aucune strategie ne porte cette valeur, OU elle n a pas de mnemonique ».
@@ -3149,7 +3390,13 @@ def tenir_pour_de_vrai(base):
         print("     Une strategie dont un parametre change est une AUTRE strategie : nouvelle fiche, nouvel identifiant.")
         positions = [p for p in positions if not any(p is q for q in a_part)]
         signaux = [sg for sg in signaux if (sg.get("strategie") or "").strip() not in {s_ for _v, s_ in _cles_a_part}]
+    # Les deux sorties du pas, ecrites ensemble et de la meme facon (superviseur R-759 du 14-11-2026, D2 ① : une
+    # seule convention sur ce pas). Les noms lus par `collecte_abc.yml` sont confrontes a ceux-ci par l'epreuve
+    # `tests/EPREUVES_DU_DEPARTAGE_R207BIS_Sam_14-11-2026.py` (T10), et chaque pas rouge est garde par
+    # `tests/GARDE_DU_PAS_ROUGE.py`. LA PREMIERE LIGNE RESTE A L'OCTET (RELU Cowork d88dc60a, N-1) : elle est la cible
+    # du sabotage S27 de `tests/EPREUVES_DE_LA_VENTE_UNIQUE_A_Mer_11-11-2026.py` ; la seconde s'ajoute a part.
     _ligne_du_pas = "positions_signalees=%d" % len(_sans_horizon)
+    _ligne_du_pas += "\nsignaux_mis_a_part=%d" % _n_mis_a_part
     _sortie_du_pas = os.environ.get("GITHUB_OUTPUT")
     if _sortie_du_pas:
         try:
@@ -3160,9 +3407,18 @@ def tenir_pour_de_vrai(base):
                   f"un signalement ne serait pas vu par le circuit.")
             return 1
     else:
-        print("  " + _ligne_du_pas + "  (GITHUB_OUTPUT absent : sortie du pas affichee seulement)")
+        for _l in _ligne_du_pas.split("\n"):
+            print("  " + _l + "  (GITHUB_OUTPUT absent : sortie du pas affichee seulement)")
 
-    r = tenir(positions, cours, signaux, prochaine, mod, base=base, lecture=lecture, juge=juge)
+    try:
+        r = tenir(positions, cours, signaux, prochaine, mod, base=base, lecture=lecture, juge=juge)
+    except DepartageImpossible as e:
+        # DERNIER FILET : `mettre_a_part_les_cci_fautifs` a deja ecarte tout CCI fautif ; arriver ici est une panne
+        # du programme, pas une ligne fautive. Seule cette exception est attrapee (superviseur R-759 du 14-11-2026,
+        # D2 ⑥) : toute autre erreur garde sa trace.
+        print(f"  ❌ PANNE DU DEPARTAGE R-207bis APRES LA MISE A PART — ni positions ni journal ne sont ecrits "
+              f"(la sortie du pas l est deja) : {e}")
+        return 1
     if a_part:
         r["positions"] = list(r["positions"]) + a_part   # recopiées TELLES QUELLES, à l'octet de leurs champs
 

@@ -257,7 +257,8 @@ def epreuves(depot, tmp):
         ca = [{"date": "2026-05-04", "open": 100.0, "high": 100.5, "low": 99.5, "close": 100.0},
               {"date": "2026-05-05", "open": 100.0, "high": 100.5, "low": 97.0, "close": 97.2}]
         cours = {"A": ca, "B": [dict(x, open=50.0, high=51.0, low=49.0, close=50.0) for x in ca]}
-        sig = [{"strategie": "S", "valeur": "B", "date_signal": "2026-05-05"}]
+        # un CCI fini, exige de tout signal entrant dans `tenir` depuis le 14-11-2026 (R-207bis)
+        sig = [{"strategie": "S", "valeur": "B", "date_signal": "2026-05-05", "cci": -100.0}]
         reg = {"S": {"tp": 0.04, "sl": 0.025, "horizon": 20}}
         r1 = T.tenir([att("A", "2026-05-04")], cours, sig, None, mod, reglages=reg, bareme=HIST)
         r2 = T.tenir(copy.deepcopy(r1["positions"]), cours, sig, None, mod, reglages=reg, bareme=HIST)

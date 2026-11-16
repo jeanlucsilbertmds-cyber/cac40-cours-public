@@ -143,6 +143,9 @@ SABOTAGES = {
                                                    "  collecte:\n    continue-on-error: true\n    runs-on:")],
     "S33_tenir_saute_par_un_if": [(".github/workflows/collecte_abc.yml", "        id: tenir_les_positions\n",
                                    "        id: tenir_les_positions\n        if: false\n")],
+    # S34 (superviseur R-759 du tour 2 de R-207bis, 14-11-2026, N-2) : la GARDE PARTAGÉE faussée (elle attend une
+    # condition inversée) — V10f rougit, et l'épreuve du départage R-207bis rougit sous le même sabotage : une seule garde.
+    "S34_garde_partagee_faussee": [("tests/GARDE_DU_PAS_ROUGE.py", "outputs.%s != '0'\"", "outputs.%s == '0'\"")],
     "S25_controle_sans_objet": [(TEN, "        if (p.get(\"statut\") or \"\").strip() != OUVERTE or horizon_connu(p, reglages) is not None:",
                                   "        if (p.get(\"statut\") or \"\").strip() != OUVERTE or True:")],
     "S26_controle_sur_toute_position": [(TEN, "        if (p.get(\"statut\") or \"\").strip() != OUVERTE or horizon_connu(p, reglages) is not None:",
@@ -472,6 +475,9 @@ def copie(sab):
                     ignore=shutil.ignore_patterns("__pycache__"))
     # le circuit du soir est copié aussi (13-11-2026) : V10f lit son pas de fin, S28 le retire
     shutil.copytree(os.path.join(DEPOT, ".github", "workflows"), os.path.join(d, ".github", "workflows"))
+    # la garde partagée des pas rouges est copiée aussi (14-11-2026) : V10f la charge d'ici, S34 la sabote
+    os.makedirs(os.path.join(d, "tests"))
+    shutil.copy(os.path.join(DEPOT, "tests", "GARDE_DU_PAS_ROUGE.py"), os.path.join(d, "tests", "GARDE_DU_PAS_ROUGE.py"))
     for rep in ("donnees", "temoins", "gouvernance"):
         os.makedirs(os.path.join(d, rep))
         for f in os.listdir(os.path.join(DEPOT, rep)):
@@ -502,7 +508,8 @@ def bout_en_bout(d):
     D'ENTRÉE — le registre de la copie est un fichier (ECRITS). ⑤ SORTIE — un dictionnaire de deux épreuves.
     [rend: 1] ⑥ TRAITEMENT — (a) registre sans VIVANTE, position Vinci en attente, séance du 07-06-2024 ; (b) registre
     où C5E10-OBS-V1 achète « CLOSE », signal VINCI, champ garde_du_soir. ⑦ UNITÉ — — ⑧ POURQUOI — voir l'en-tête.
-    ⑨ CE QUI CLOCHE — V10f LIT le YAML du circuit, il ne l'EXÉCUTE pas : il énumère des façons de ne pas rougir
+    ⑨ CE QUI CLOCHE — V10f LIT le YAML du circuit (par la garde partagée `tests/GARDE_DU_PAS_ROUGE.py` depuis le
+    14-11-2026), il ne l'EXÉCUTE pas : il énumère des façons de ne pas rougir
     (pas rouge absent, id mal lu, pas sans always() après lui, continue-on-error sur « Tenir », le pas rouge ou leur
     job, `if` autre que always() sur « Tenir »). Restent INVISIBLES : `|| true` ou `set +e` dans un `run`, un
     `shell:` changé, un `exit 1` placé dans une branche qui ne s'exécute pas, un `timeout` ; seul un vrai passage
@@ -616,45 +623,22 @@ def bout_en_bout(d):
             c, signalee == [vraie], [t.get("horizon_fin") or t.get("motif") for t in tenue], sortie.strip(), o.strip()[-260:])]
     # (f) LE PAS DE FIN DU CIRCUIT : il existe, il lit la sortie du pas du teneur, il rougit (exit 1), il tourne
     # même après un pas rouge (always()) et il vient APRÈS tout pas sans always() (sinon un pas rouge le sauterait).
-    import yaml
-    jobs = yaml.safe_load(open(os.path.join(d, ".github", "workflows", "collecte_abc.yml"), encoding="utf-8"))["jobs"]
-    # chaque pas GARDE SON JOB (superviseur R-759 E1F N-1, 14-11-2026) : un continue-on-error posé sur le JOB
-    # neutralise ses pas aussi sûrement que sur le pas ; aplatir les jobs perdait cette information.
-    job_du_pas = [j for j in jobs.values() for x in j.get("steps", [])]
-    pas = [x for j in jobs.values() for x in j.get("steps", [])]
-    # PAR PROPRIÉTÉ, JAMAIS PAR L'ID ÉPELÉ (superviseur R-759 E1F phase 2, M-2) : le pas rouge est celui dont le `if`
-    # cite `positions_signalees` et dont le `run` fait `exit 1` ; l'id qu'il lit est extrait de `steps.<id>` de ce
-    # `if` ; un pas de CET id doit exister, le précéder, lancer TENIR_LES_POSITIONS.py (le seul à écrire
-    # `positions_signalees`, dans GITHUB_OUTPUT : TENIR_LES_POSITIONS.py, ligne `_ligne_du_pas`) et ne pas porter
-    # continue-on-error. Sur GitHub, `steps.<id absent>.outputs.x` vaut '' : le pas rouge ne tournerait jamais.
-    import re
-    rang = [k for k, x in enumerate(pas) if "positions_signalees" in str(x.get("if", ""))
-            and "exit 1" in str(x.get("run", ""))]
-    lus = set(re.findall(r"steps\.([A-Za-z0-9_-]+)\.outputs\.positions_signalees", str(pas[rang[0]].get("if", "")))) \
-        if len(rang) == 1 else set()
-    tenir = [k for k, x in enumerate(pas) if len(lus) == 1 and x.get("id") in lus]
-    sans_always = [k for k, x in enumerate(pas) if "always()" not in str(x.get("if", ""))]
-    # UNE PROPRIÉTÉ (superviseur R-759 E1F, N-1 + N-2, 14-11-2026) : le pas « Tenir » et le pas rouge ne peuvent être
-    # NI NEUTRALISÉS NI SAUTÉS — aucun continue-on-error, ni sur le pas ni sur son job ; sur « Tenir », aucun `if`
-    # sauf `always()` seul (« un if qui ne peut pas être faux » est indécidable : proscrit). Sur GitHub, un pas en
-    # continue-on-error qui fait `exit 1` laisse le passage VERT (relecture Cowork du 14-11-2026 à 02h39, N-1).
-    def _neutralise(k):
-        return bool(pas[k].get("continue-on-error")) or bool(job_du_pas[k].get("continue-on-error"))
-    def _if_de_tenir_permis(k):
-        brut = str(pas[k].get("if", "")).strip()
-        if brut.startswith("${{") and brut.endswith("}}"):
-            brut = brut[3:-2].strip()
-        return brut in ("", "always()")
-    ok = (len(rang) == 1 and "always()" in str(pas[rang[0]].get("if")) and rang[0] > max(sans_always)
-          and len(lus) == 1 and len(tenir) == 1 and tenir[0] < rang[0]
-          and not _neutralise(tenir[0]) and not _neutralise(rang[0]) and _if_de_tenir_permis(tenir[0])
-          and "programmes/TENIR_LES_POSITIONS.py" in str(pas[tenir[0]].get("run", "")))
+    # UNE SEULE GARDE (superviseur R-759 du tour 2 de R-207bis, 14-11-2026, N-2) : la propriété vit dans
+    # tests/GARDE_DU_PAS_ROUGE.py, que l'épreuve du départage R-207bis appelle aussi pour chaque sortie écrite par le
+    # teneur. Elle est CHARGÉE DEPUIS LA COPIE (copiée par `copie`), pour que le sabotage S34 de la garde l'atteigne ;
+    # chargée par chemin, et non importée, pour ne pas dépendre du dossier du script. Elle reprend tout ce que V10f
+    # vérifiait (pas rouge unique, always(), place, continue-on-error sur le pas, son job ou « Tenir », id lu qui existe
+    # et précède, « Tenir » qui lance le teneur sans autre if que always()) et y ajoute la forme exacte du if et
+    # « exit 1 » en dernière ligne, que l'ancien V10f ne voyait pas (condition inversée, exit 0 : mesuré par le
+    # superviseur). La clé du résultat est inchangée, au caractère près.
+    import importlib.util as _iu
+    _sp = _iu.spec_from_file_location("garde_du_pas_rouge_copie", os.path.join(d, "tests", "GARDE_DU_PAS_ROUGE.py"))
+    _G = _iu.module_from_spec(_sp)
+    _sp.loader.exec_module(_G)
+    _manques = _G.garde_du_pas_rouge(open(os.path.join(d, ".github", "workflows", "collecte_abc.yml"),
+                                          encoding="utf-8").read(), "positions_signalees", TEN)
     res["V10f le pas de fin rougit sur une position signalee, apres tout pas sans always(), et lit l'id du pas Tenir"] = [
-        ok, "pas rouge %s · id lu %s · pas de cet id %s · dernier pas sans always() %s · neutralises (tenir, rouge) %s"
-        " · if de tenir %r"
-        % (rang, sorted(lus), tenir, max(sans_always) if sans_always else None,
-           (_neutralise(tenir[0]) if len(tenir) == 1 else None, _neutralise(rang[0]) if len(rang) == 1 else None),
-           pas[tenir[0]].get("if") if len(tenir) == 1 else None)]
+        not _manques, " · ".join(_manques) or "garde du pas rouge : rien ne manque"]
     ecrire(origine, {"seance": derniere, "signaux": []}, [vraie])
     c, o = run(d, TEN, d)
     ok = c == 0 and "POSITION(S) SIGNALEE(S)" not in o and "positions_signalees=0" in o
