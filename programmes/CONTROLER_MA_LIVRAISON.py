@@ -62,6 +62,12 @@
   le code diffère de la version officielle `origin/main` sans épreuve de `tests/`
   qui le désigne, et, pour une livraison qui modifie un programme, un piège de
   R-755 ③ sans sortie qui l écarte ; refuser si `origin/main` est introuvable ·
+  ⑫ter (16-11-2026, A-857) refuser ce que l étage A de la publication refuserait :
+  un fichier que la publication écrirait depuis ce disque et dont le contenu entier
+  est, dans l historique entier ou sur le disque, à un chemin qui ne se publie pas
+  (`copies_de_fichiers_publies` APPELLE l étage A de
+  `programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py`, sans critère à lui), et refuser si
+  git échoue (R-734) ·
   ⑬ afficher le compte rendu, puis sortir en 1 s il y a un refus · ⑭ sinon calculer l empreinte du corps du document et,
   selon l option, la comparer à la ligne de contrôle déjà posée ou l écrire en
   queue.
@@ -124,7 +130,9 @@
   compris en mode relecture. LIT tous les fichiers Python du dossier
   `programmes` pour confronter leurs fiches, sans consulter Git pour ce
   contrôle-là ; LANCE `git` en lecture pour comparer les programmes à la version
-  officielle (depuis le 30-09-2026). Aucun autre fichier du dépôt n est touché, aucun accès réseau n est
+  officielle (depuis le 30-09-2026), et pour relever les copies de fichiers
+  publiés (depuis le 16-11-2026, A-857), et importe pour cela
+  `programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py`. Aucun autre fichier du dépôt n est touché, aucun accès réseau n est
   fait par le programme lui-même.
 
 ⑪ TERMINAISON — SORT DU PROGRAMME à chaque issue, sans jamais rendre la main.
@@ -828,7 +836,8 @@ def _git(racine, *arguments):
 
     ① RÔLE — Un seul endroit où ce programme appelle `git`.
     ② CONTEXTE D APPEL — `programmes_modifies`, trois fois, puis une fois par
-      programme qui diffère de la version officielle.
+      programme qui diffère de la version officielle ; `copies_de_fichiers_publies`,
+      deux fois (A-857, 16-11-2026), l étage A lançant ses propres appels.
     ③ ENTRÉE — `racine` : le dossier du dépôt · `arguments` : les mots de la
       commande, sans le mot `git`.
     ④ CONDITIONS D ENTRÉE — `git` doit être installé ; sinon l appel lève.
@@ -919,6 +928,134 @@ def programmes_modifies(racine):
                 pass                     # illisible : compté comme modifié
         modifies.append(chemin)
     return modifies, None
+
+
+def _fabricant():
+    """Rend le module FABRIQUER_LE_CIRCUIT_PUBLIC, voisin de ce programme.
+
+    ① RÔLE — Donner à `copies_de_fichiers_publies` l étage A de la publication (`refus_selon_l_historique`), la
+      liste de ce que la publication écrit (`ce_que_la_publication_ecrit`) et la propriété « ce chemin se publie »,
+      telles que le fabricant de la publication les écrit.
+    ② CONTEXTE D APPEL — `copies_de_fichiers_publies`, une fois par passage.
+    ③ ENTRÉE — Aucune.
+    ④ CONDITIONS D ENTRÉE — `FABRIQUER_LE_CIRCUIT_PUBLIC.py` doit se trouver à côté de ce programme ; sinon l import
+      lève.
+    ⑤ SORTIE — UNE valeur : le module.
+      [rend: 1]
+    ⑥ TRAITEMENT — charger le fichier voisin par son chemin, sous un nom propre à ce programme.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Deux implémentations d une même chose divergent toujours (R-708) : l étage A et le critère
+      « publié » sont ceux du fabricant, importés et jamais recopiés (consigne d A-857, 16-11-2026 ; superviseur
+      R-759 SUPERVISEUR_COPIE_CTL_Lun_16-11-2026.md). Le chargement par chemin évite de
+      prendre un module du même nom ailleurs dans le chemin des imports.
+    ⑨ CE QUI CLOCHE — Le code de tête du fabricant s exécute à l import (des définitions ; 0,07 s mesurées le
+      16-11-2026).
+    ⑩ EFFET — Exécute le code de tête du fabricant.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    import importlib.util as _iu
+    ici = os.path.dirname(os.path.abspath(__file__))
+    _sp = _iu.spec_from_file_location("FABRIQUER_LE_CIRCUIT_PUBLIC_vu_du_controle",
+                                      os.path.join(ici, "FABRIQUER_LE_CIRCUIT_PUBLIC.py"))
+    _f = _iu.module_from_spec(_sp)
+    _sp.loader.exec_module(_f)
+    return _f
+
+
+def copies_de_fichiers_publies(racine):
+    """Rend les refus que l ÉTAGE A de la publication opposerait à ce que la publication écrirait depuis ce disque.
+
+    ① RÔLE — Le contrôle avant dépôt d A-857 : empêcher la cause des faux refus de l étage A de la publication. Une
+      copie d un fichier publié rangée à un chemin qui ne se publie pas (une étude, une archive), dans l historique
+      entier ou sur le disque, fait refuser TOUTE publication par l étage A ; elle ne sert à rien, git garde chaque
+      version. Le contrôle n a PAS de critère à lui : il APPELLE l étage A (`refus_selon_l_historique` du fabricant).
+    ② CONTEXTE D APPEL — `main`, une fois par passage ; l épreuve
+      tests/EPREUVES_DU_CONTROLE_DES_COPIES_PUBLIEES_Lun_16-11-2026.py.
+    ③ ENTRÉE — `racine` : le dossier du dépôt examiné.
+    ④ CONDITIONS D ENTRÉE — `racine` porte un « .git », un commit HEAD, et `.github/workflows/collecte_abc.yml` sur
+      le disque (le circuit privé dont le fabricant tire le circuit public) ; `FABRIQUER_LE_CIRCUIT_PUBLIC.py` est à
+      côté de ce programme et lit sa table des séries (tests/LANCEMENT_DES_EPREUVES.json au-dessus de lui). Sinon :
+      une erreur (R-734). `origin/main` n est pas lu : son absence n est pas une erreur ici (le refus « origin/main
+      introuvable » appartient à `programmes_modifies`, et un seul contrôle doit le porter, sinon l un masque l autre
+      dans programmes/EPREUVES_DU_GARDE_FOU.py).
+    ⑤ SORTIE — DEUX valeurs : la liste des refus de l étage A, telle qu il la rend (une phrase par fichier publié :
+      le chemin publié, le blob entier, la commande « git log --all --find-object » qui nomme les chemins privés, le
+      remède unique), puis rien ; ou rien, puis le texte de l erreur (R-734 : un contrôle qui n a pas pu tourner ne
+      passe jamais pour un contrôle vert).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① exiger « .git » et HEAD · ② les chemins du disque que la publication écrirait : « git ls-files
+      --cached --others --exclude-standard -z », gardés si `est_un_chemin_publie` (le critère du fabricant) et si le
+      disque porte un fichier ordinaire (pas un lien, pas un fichier effacé) · ③ le circuit public fabriqué par
+      `fabriquer_le_circuit` depuis le circuit privé du disque · ④ `ce_que_la_publication_ecrit` du fabricant (la
+      liste qu il écrit lui-même au clone public : le code, les fiches sous circuits_du_prive/, les CINQ circuits
+      fabriqués) écrit dans un dossier temporaire HORS du dépôt · ⑤ `refus_selon_l_historique(racine, dossier,
+      chemins, exclus=(dossier,))` · ⑥ le dossier est effacé, quoi qu il arrive.
+    ⑦ UNITÉ — Des CHEMINS ; des identifiants de blob git (40 caractères hexadécimaux).
+    ⑧ POURQUOI — Superviseur R-759 du 16-11-2026 (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/
+      SUPERVISEUR_COPIE_CTL_Lun_16-11-2026.md, « RUSTINE, À REPRENDRE ») : la version précédente réécrivait à la main
+      le critère de l étage A (arbre de HEAD, index, écart à origin/main), et cette seconde implémentation a laissé
+      passer une copie commitée puis retirée (B1, la panne d A-848) ; deux implémentations d une même chose divergent
+      toujours (R-708). Appeler l étage A règle aussi M2 (la version de HEAD d un fichier publié modifié était comptée
+      « publiée » : archiver l ancienne version avant le commit était refusé à tort ; seul ce qui sera ÉCRIT est
+      confronté) et M3 (les circuits fabriqués n étaient pas confrontés). Le disque est lu, et non le commit, parce
+      que ce contrôle tourne AVANT le commit.
+    ⑨ CE QUI CLOCHE — Contournable : un agent qui commite sans lancer ce programme n est pas arrêté ; on retombe alors
+      sur un faux refus de l étage A, réparable en une ligne, jamais sur une fuite (A-857). Le pas de commit du
+      circuit, que nomme aussi A-857, n est pas couvert ici. PLUS STRICT QUE LA PUBLICATION RÉELLE, et peut donc
+      SUR-DÉTECTER : en local, « git log --all » lit aussi les branches locales, la remise (« stash ») et des
+      références distantes périmées, et le parcours du disque lit les fichiers ignorés par .gitignore ; la
+      publication, elle, part d un clone neuf. Une branche distante effacée depuis : « git fetch --prune », puis
+      relancer. Seule une copie entière, à l octet, est vue (comme l étage A, dont ce contrôle hérite chaque limite,
+      voir sa fiche ⑨). Le circuit privé et la table des séries sont lus sur le DISQUE : un changement non commité
+      y est compté, comme le code.
+    ⑩ EFFET — Lance `git` en lecture (`_git`, et l étage A) ; lit le disque du dépôt ; importe le fabricant
+      (`_fabricant`) ; écrit puis efface un dossier temporaire hors du dépôt. N écrit rien dans le dépôt.
+    ⑪ TERMINAISON — Rend la main. Chaque appel à `git` est borné (60 secondes ici, 600 dans l étage A) ; un
+      dépassement lève et remonte à `main`, qui refuse.
+      [sort: non]
+    """
+    import posixpath
+    import shutil as _sh
+    import tempfile as _tf
+    dossier = None
+    try:
+        F = _fabricant()
+        if not os.path.lexists(os.path.join(racine, ".git")):
+            raise OSError(f"{racine} ne porte pas de « .git » : l étage A n y a pas d historique à lire")
+        tete = _git(racine, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
+        if tete.returncode != 0:
+            raise OSError("git rev-parse HEAD : aucun commit HEAD (branche orpheline ou dépôt vide)")
+        liste = _git(racine, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+        if liste.returncode != 0:
+            raise OSError(f"git ls-files : code {liste.returncode} : {(liste.stderr or '').strip()[:200]}")
+        fiches_privees = F.FICHES_PRIVEES.replace(os.sep, "/")
+        a_publier, fiches = [], []
+        for chemin in sorted({c for c in liste.stdout.split("\0") if c}):
+            p = os.path.join(racine, *chemin.split("/"))
+            if not F.est_un_chemin_publie(chemin) or os.path.islink(p) or not os.path.isfile(p):
+                continue
+            if posixpath.dirname(chemin) == fiches_privees:
+                fiches.append(posixpath.basename(chemin))
+            else:
+                a_publier.append(chemin)
+        with open(os.path.join(racine, F.CIRCUIT_PRIVE), encoding="utf-8") as e:
+            texte = F.fabriquer_le_circuit(e.read())
+        ecritures = F.ce_que_la_publication_ecrit(racine, a_publier, fiches, texte)
+        dossier = _tf.mkdtemp(prefix="ce_que_la_publication_ecrirait_")
+        for chemin, octets in ecritures:
+            cible = os.path.join(dossier, *chemin.split("/"))
+            os.makedirs(os.path.dirname(cible), exist_ok=True)
+            with open(cible, "wb") as s:
+                s.write(octets)
+        # le nom « refus » est réservé à la liste des refus de `main` (EPREUVES_DU_GARDE_FOU, cibles du sabotage)
+        de_l_etage_a, _note = F.refus_selon_l_historique(racine, dossier, [c for c, _ in ecritures], exclus=(dossier,))
+        return sorted(de_l_etage_a), None
+    except (OSError, ValueError) as e:
+        return None, f"{type(e).__name__} : {e}"
+    finally:
+        if dossier:
+            _sh.rmtree(dossier, ignore_errors=True)
 
 
 def epreuves_de(racine, programme):
@@ -1203,7 +1340,9 @@ def main():
       les niveaux, qui ne porte pas ses onze premiers éléments · ⑭ refuser toute affirmation de conformité qui
       n est ni citée entre délimiteurs, ni enfermée dans un bloc, ni précédée d une
       sortie capturée · ⑭bis (30-09-2026, R-755 ② et ③) relever les programmes dont
-      le code diffère de la version officielle `origin/main`, refuser si ce relevé
+      le code diffère de la version officielle `origin/main` (et, juste avant, depuis le 16-11-2026, A-857 : refuser
+      ce que l étage A de la publication refuserait, `copies_de_fichiers_publies`, qui l appelle,
+      et refuser si ce relevé échoue, R-734), refuser si ce relevé
       est impossible, refuser chacun qu aucune épreuve de `tests/` ne désigne, et,
       s il y en a au moins un, refuser chaque piège de R-755 ③ dont l intitulé, en
       gras, n est pas suivi dans les 1 500 caractères, avant le piège suivant, d une
@@ -1278,7 +1417,8 @@ def main():
       confronter les fiches, sans consulter Git pour ce contrôle-là, et fait
       calculer `programmes/LIRE_LE_CODE.py`. LANCE `git` en
       lecture dans la racine du document pour comparer les programmes à
-      `origin/main` (depuis le 30-09-2026), et importe `QUI_TOUCHE_CE_FICHIER.py`.
+      `origin/main` (depuis le 30-09-2026) et relever les copies de fichiers publiés (A-857, 16-11-2026), et importe
+      `QUI_TOUCHE_CE_FICHIER.py` et `FABRIQUER_LE_CIRCUIT_PUBLIC.py`.
       Affiche de deux à une dizaine de lignes. Aucun autre fichier du dépôt n est
       touché.
     ⑪ TERMINAISON — SORT DU PROGRAMME à chaque issue, et ne rend jamais la main.
@@ -1734,6 +1874,27 @@ def main():
     if nus:
         refus.append("CONFORMITÉ SANS PREUVE (R-720) — " + " · ".join(nus[:6])
                      + (f" … et {len(nus)-6} autre(s)" if len(nus) > 6 else ""))
+
+    # LA COPIE D UN FICHIER PUBLIÉ — A-857, 16-11-2026 (superviseur R-759 SUPERVISEUR_ETAGE_A_D1_Lun_16-11-2026.md).
+    # Une copie, à l octet, d un fichier publié rangée à un chemin qui ne se publie pas fait refuser TOUTE publication
+    # par l étage A (A-848 : etudes/…/TENIR_UN_PLANNING.py, réparé par 32aa88d0) ; elle ne sert à rien, git garde
+    # chaque version. Elle est arrêtée ici, avant le dépôt, par l étage A LUI-MÊME (superviseur R-759
+    # SUPERVISEUR_COPIE_CTL_Lun_16-11-2026.md). Un contrôle qui ne peut pas tourner refuse (R-734).
+    _racc = os.path.dirname(os.path.dirname(os.path.abspath(chemin)))
+    try:
+        _copies, _errc = copies_de_fichiers_publies(_racc)
+    except Exception as _e:
+        _copies, _errc = None, f"{type(_e).__name__} : {_e}"
+    if _errc:
+        refus.append(f"COPIES DE FICHIERS PUBLIÉS NON MESURÉES (R-734) — {_errc}")
+    elif _copies:
+        refus.append("COPIE D UN FICHIER PUBLIÉ À UN CHEMIN QUI NE SE PUBLIE PAS (A-857) — l étage A de la publication "
+                     "refuserait toute publication ; chaque refus ci-après est le sien, avec son remède. "
+                     "Si la copie ne vit que dans un objet LOCAL — une branche locale jamais poussée, une remise "
+                     "(stash), une référence distante périmée —, retirer cet objet suffit (git branch -D <branche>, "
+                     "git stash drop, git fetch --prune) et aucun fichier publié n a à changer : "
+                     + " · ".join(_copies[:6])
+                     + (f" … et {len(_copies)-6} autre(s)" if len(_copies) > 6 else ""))
 
     # ⑤ R-755 ② ET ③ — 30-09-2026 (A-494, décision de Jean-Luc du 29-09 à 09h36).
     # ② Tout programme dont le CODE diffère de la version officielle est vérifié par

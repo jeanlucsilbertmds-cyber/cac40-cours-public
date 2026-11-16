@@ -672,6 +672,20 @@ CAS = [
     ("R-755 : sans version officielle", CORRECT, 1,
      "R-734 : sans origin/main, les programmes modifiés ne sont pas mesurés — refus",
      {"cas.py": PROG_CORRECT}, {"sans_git": True}),
+    ("R-755 : dépôt Git sans origin/main", CORRECT, 1,
+     "R-734 : sans origin/main, les programmes modifiés ne sont pas mesurés — seul ce refus le dit (16-11-2026)",
+     {"cas.py": PROG_CORRECT}, {"sans_origine": True}),
+
+    # A-857 — 16-11-2026 : une copie à l'octet d'un fichier publié, à un chemin qui ne se publie pas
+    ("A-857 : copie d un programme publié sous etudes/", CORRECT, 1,
+     "A-848 : la copie de sauvegarde d un programme publié faisait refuser toute publication par l étage A",
+     {"cas.py": PROG_CORRECT}, {"apres": {"etudes/sauvegarde/cas.py": PROG_CORRECT}}),
+    ("A-857 : copie à un octet près", CORRECT, 0,
+     "calibrage : une copie qui diffère d un octet n est pas une copie",
+     {"cas.py": PROG_CORRECT}, {"apres": {"etudes/sauvegarde/cas.py": PROG_CORRECT + "\n"}}),
+    ("A-857 : git échoue pendant le relevé des copies", CORRECT, 1,
+     "R-734 : un contrôle qui n a pas pu tourner ne passe jamais pour un contrôle vert",
+     {"cas.py": PROG_CORRECT}, {"orphelin": True}),
     ("R-755 : programme modifié sans épreuve", CORRECT_PIEGES, 1,
      "R-755 ② : un programme dont le code diffère de la version officielle a une épreuve",
      {"cas.py": PROG_CORRECT}, MONTAGE_MODIFIE),
@@ -843,7 +857,10 @@ def batir(texte, programmes=_DEFAUT, montage=None):
       omis, un seul programme correct, `PROG_CORRECT`. `montage` (30-09-2026) : un
       dictionnaire facultatif — `fichiers`, écrits AVANT la version de départ ;
       `apres`, écrits APRÈS ; `commiter_apres`, vrai pour enregistrer ces
-      changements ; `sans_git`, vrai pour ne pas faire de dépôt Git.
+      changements ; `sans_git`, vrai pour ne pas faire de dépôt Git ; `sans_origine`
+      (16-11-2026), vrai pour un dépôt Git SANS `origin/main` ; `orphelin` (16-11-2026),
+      vrai pour placer HEAD sur une branche orpheline, sans commit, après la version de
+      départ (git échoue alors sur « HEAD »).
     ④ CONDITIONS D ENTRÉE — Pouvoir créer un dossier temporaire et y écrire ;
       `git` doit être installé, sauf avec `sans_git`.
     ⑤ SORTIE — UNE valeur : le chemin absolu du document écrit, une chaîne.
@@ -852,7 +869,8 @@ def batir(texte, programmes=_DEFAUT, montage=None):
       `echanges/A_RELIRE.md` · ③ si des programmes sont fournis, créer
       `programmes` et y écrire chacun · ④ écrire les `fichiers` du montage ·
       ⑤ sauf `sans_git`, faire du dossier un dépôt Git, enregistrer la version de
-      départ et la nommer `origin/main`, puis écrire les fichiers `apres` et, si
+      départ et la nommer `origin/main` (sauf `sans_origine`), passer sur une branche
+      orpheline avec `orphelin`, puis écrire les fichiers `apres` et, si
       demandé, les enregistrer · ⑥ rendre le chemin du document.
     ⑦ UNITÉ — Aucune grandeur : des chemins et des textes.
     ⑧ POURQUOI — **Deux endroits fabriquaient ce dépôt, `jouer` et
@@ -914,12 +932,24 @@ def _batir(texte, programmes=_DEFAUT, montage=None):
     montage = montage or {}
     # un registre qui porte le protocole, sauf si le montage en pose un autre (16-10-2026 : `gestes_du_protocole`)
     _ecrire(d, {"gouvernance/REGISTRE_REGLES.md": REGISTRE_PROTOCOLE, **montage.get("fichiers", {})})
+    # le circuit privé du vrai dépôt (16-11-2026, superviseur R-759 SUPERVISEUR_COPIE_CTL_Lun_16-11-2026.md) : le
+    # garde-fou appelle l étage A de la publication sur ce qu elle écrirait, circuit public fabriqué compris ; sans
+    # circuit privé, rien ne se fabrique et le relevé des copies refuse (R-734). Absent du vrai dépôt : non écrit, et
+    # chaque cas qui doit passer rougit, au lieu de se taire.
+    _circuit = os.path.join(os.path.dirname(ICI), ".github", "workflows", "collecte_abc.yml")
+    if os.path.isfile(_circuit):
+        _ecrire(d, {".github/workflows/collecte_abc.yml": open(_circuit, encoding="utf-8").read()})
     if not montage.get("sans_git"):
         # la version de départ tient lieu de version officielle (origin/main)
         g = ["git", "-C", d, "-c", "user.name=epreuve", "-c", "user.email=epreuve@local"]
         for a in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "base"],
                   ["update-ref", "refs/remotes/origin/main", "HEAD"]):
+            if a[0] == "update-ref" and montage.get("sans_origine"):
+                continue
             subprocess.run(g + a, capture_output=True, check=True)
+        if montage.get("orphelin"):
+            # HEAD sans commit (branche orpheline), origin/main présent : git échoue sur « HEAD » (A-857, R-734)
+            subprocess.run(g + ["checkout", "-q", "--orphan", "orpheline"], capture_output=True, check=True)
         _ecrire(d, montage.get("apres", {}))
         if montage.get("commiter_apres"):
             for a in (["add", "-A"], ["commit", "-q", "-m", "travail"]):
@@ -1120,13 +1150,19 @@ def copie_du_garde_fou(lignes):
       garde-fou copié.
       [rend: 2]
     ⑥ TRAITEMENT — Créer un dossier `programmes`, y écrire la copie, puis ses voisins s'ils
-      existent : `LIRE_LE_CODE.py`, `QUI_TOUCHE_CE_FICHIER.py`, `FABRIQUER_LE_SOCLE.py`, et
-      `emp.py` au-dessus.
+      existent : `LIRE_LE_CODE.py`, `QUI_TOUCHE_CE_FICHIER.py`, `FABRIQUER_LE_SOCLE.py`,
+      `FABRIQUER_LE_CIRCUIT_PUBLIC.py` (depuis le 16-11-2026 : le garde-fou en importe le critère
+      « publié », A-857 ; sans lui, chaque copie refusait tout et les 26 refus paraissaient non
+      surveillés), `tests/LANCEMENT_DES_EPREUVES.json` (la table des séries que le fabricant lit à
+      côté de lui ; sans elle, ses gabarits manquent et le relevé des copies refuse tout, R-734,
+      16-11-2026), et `emp.py` au-dessus.
     ⑦ UNITÉ — Aucune grandeur : des chemins et des textes.
     ⑧ POURQUOI — Une copie posée seule ne démarre pas (commentaire du 22-09-2026 dans
       `saboter_le_programme`) ; écrite une fois pour la copie intacte et les copies sabotées,
       parce que deux implémentations d'une même chose divergent toujours (R-708).
-    ⑨ CE QUI CLOCHE — —
+    ⑨ CE QUI CLOCHE — La liste des voisins est une énumération : un import nouveau du garde-fou
+      oublié ici fait refuser tout à la copie (mesuré le 16-11-2026, A-857) ; le témoin ne le voit
+      pas, une copie qui refuse tout le passe.
     ⑩ EFFET — Un dossier temporaire, que l'appelant efface.
     ⑪ TERMINAISON — Rend la main après quelques écritures de fichiers ; aucun appel ne peut
       bloquer.
@@ -1141,8 +1177,13 @@ def copie_du_garde_fou(lignes):
                         os.path.join(d, "programmes", "QUI_TOUCHE_CE_FICHIER.py")),
                        (os.path.join(ICI, "FABRIQUER_LE_SOCLE.py"),
                         os.path.join(d, "programmes", "FABRIQUER_LE_SOCLE.py")),
+                       (os.path.join(ICI, "FABRIQUER_LE_CIRCUIT_PUBLIC.py"),
+                        os.path.join(d, "programmes", "FABRIQUER_LE_CIRCUIT_PUBLIC.py")),
+                       (os.path.join(os.path.dirname(ICI), "tests", "LANCEMENT_DES_EPREUVES.json"),
+                        os.path.join(d, "tests", "LANCEMENT_DES_EPREUVES.json")),
                        (os.path.join(os.path.dirname(ICI), "emp.py"), os.path.join(d, "emp.py"))):
         if os.path.exists(voisin):
+            os.makedirs(os.path.dirname(ou), exist_ok=True)
             shutil.copy(voisin, ou)
     return d, g
 

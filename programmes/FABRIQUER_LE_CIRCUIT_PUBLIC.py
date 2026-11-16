@@ -2904,6 +2904,16 @@ def refus_selon_la_provenance(prive, public, ecrits):
 # et lisible, jamais son empreinte : une donnée mise à jour avant son registre ne doit pas bloquer la publication.
 
 
+# LE REMÈDE NOMMÉ PAR LE REFUS DE L'ÉTAGE A (A-857, 16-11-2026 ; superviseur R-759
+# SUPERVISEUR_ETAGE_A_D1_Lun_16-11-2026.md) : un faux refus de l'étage A (une copie d'un fichier publié rangée à un
+# chemin privé, cas d'A-848) se répare en une ligne ; 32aa88d0 l'a prouvé (une ligne de commentaire de
+# programmes/TENIR_UN_PLANNING.py changée, essai à blanc « 0 refus »). Le message le dit, pour que celui qui lit le
+# refus n'ait pas à le retrouver. La décision de refuser ne dépend pas de ce texte. Le remède est UNIQUE depuis le
+# 16-11-2026 (superviseur R-759 SUPERVISEUR_COPIE_CTL_Lun_16-11-2026.md, point 8, et M1) : « retirer la copie » ne
+# valait que pour une copie jamais commitée, l'étage A lisant l'historique entier ; le proposer égarait.
+REMEDE_DE_L_ETAGE_A = "changer une ligne du fichier publié (comme 32aa88d0)"
+
+
 def est_un_chemin_publie(chemin):
     """Dit si un chemin du dépôt privé est de ceux que le fabricant publie.
 
@@ -3060,8 +3070,9 @@ def refus_selon_l_historique(prive, public, ecrits, exclus=()):
       public et la source extraite, s'ils sont sous le dépôt privé).
     ④ CONDITIONS D'ENTRÉE — Avec un « .git » au dépôt privé, git est installé. Le registre de provenance, s'il existe
       au disque ou au commit, est un CSV en UTF-8 dont l'en-tête porte « fichier ».
-    ⑤ SORTIE — DEUX valeurs : la liste des refus (une phrase par fichier, qui nomme le fichier publié et l'identifiant
-      du blob, jamais un chemin ni un contenu du dépôt privé : le journal d'un circuit public est lisible par tous) ;
+    ⑤ SORTIE — DEUX valeurs : la liste des refus (une phrase par fichier, qui nomme le fichier publié, l'identifiant
+      ENTIER du blob et le remède REMEDE_DE_L_ETAGE_A — A-857 —, jamais un chemin ni un contenu du dépôt privé : le
+      journal d'un circuit public est lisible par tous) ;
       une note d'une ligne (ce qui a été parcouru, en nombres). Lève OSError si git échoue, si un dossier du disque est
       illisible, ou si le témoin du parcours manque (un chemin du registre absent ou illisible) : le contrôle n'a pas
       tourné en entier (R-734).
@@ -3095,7 +3106,12 @@ def refus_selon_l_historique(prive, public, ecrits, exclus=()):
       dans une étude (ou à un fichier privé quelconque) est refusé à CHAQUE publication, même s'il est déjà au public :
       le Chat change une ligne du texte explicatif du programme (son blob change, son code non) — refus voulu, la règle
       la plus stricte (superviseur R-759 du 15-11-2026, F1). Une fuite déjà présente au public reste refusée à chaque
-      passage, jusqu'à la décision de Jean-Luc. L'exemption « sans .git, étage A sans objet » (0dfdab57) avait été
+      passage, jusqu'à la décision de Jean-Luc. Le remède écrit au refus (A-857) est UNIQUE depuis le 16-11-2026 :
+      « changer une ligne du fichier publié » ; « retirer la copie » ne suffisait que si elle n'était dans AUCUN commit
+      d'aucune branche (l'étage A lit l'historique entier), et n'est plus proposé. Le contrôle avant dépôt
+      (programmes/CONTROLER_MA_LIVRAISON.py, `copies_de_fichiers_publies`) APPELLE cette fonction sur ce que la
+      publication écrirait (`ce_que_la_publication_ecrit`) : il empêche la cause, sans être incontournable.
+      L'exemption « sans .git, étage A sans objet » (0dfdab57) avait été
       ajoutée pour les deux mêmes programmes : sa raison d'être a disparu, la garder ou non est au BACKLOG. Le témoin dit qu'un chemin du registre est vu ; il ne dit rien d'un fichier
       qui n'y est pas (un dossier sans fichier enregistré, illisible, est arrêté par `os.walk`).
     ⑩ EFFET — Lance git en lecture ; lit les fichiers écrits, le registre, les fichiers du disque de même taille qu'un
@@ -3153,9 +3169,9 @@ def refus_selon_l_historique(prive, public, ecrits, exclus=()):
     for rel, b in publies.items():
         prives = sorted(c for c in lieux.get(b, ()) if not est_un_chemin_publie(c))
         if avec_git and prives:
-            refus.append(f"{rel} : même contenu, octet pour octet (blob {b[:12]}), qu'un fichier du dépôt privé qui ne se "
+            refus.append(f"{rel} : même contenu, octet pour octet (blob {b}), qu'un fichier du dépôt privé qui ne se "
                          f"publie pas ({len(prives)} chemin(s) dans l'historique ou sur le disque ; "
-                         f"« git log --all --find-object={b[:12]} » les nomme) — étage A")
+                         f"« git log --all --find-object={b} » les nomme) — étage A ; remède : {REMEDE_DE_L_ETAGE_A}")
     au_commit = False
     if avec_git:
         try:
@@ -3960,6 +3976,56 @@ def main():
         shutil.rmtree(extrait, ignore_errors=True)
 
 
+def ce_que_la_publication_ecrit(source, a_publier, fiches, texte):
+    """Rend ce que la publication écrit au clone public : (chemin publié, octets), dans l'ordre de l'écriture.
+
+    ① RÔLE — UNE seule écriture de la liste « ce que la publication écrirait » (chemin publié → octets), pour le
+      fabricant, qui l'écrit au clone public, et pour le contrôle avant dépôt
+      (programmes/CONTROLER_MA_LIVRAISON.py, `copies_de_fichiers_publies`), qui la donne à l'étage A
+      (`refus_selon_l_historique`) sans rien publier.
+    ② CONTEXTE D'APPEL — `fabriquer_et_publier`, une fois ; `copies_de_fichiers_publies` du contrôle, une fois.
+    ③ ENTRÉE — `source` : où lire les fichiers (le commit extrait, ou le disque du dépôt privé pour le contrôle) ·
+      `a_publier` : les chemins de code publiés (comme `code_a_publier`), relatifs à `source` · `fiches` : les NOMS
+      des fiches de `.github/workflows/` publiées (comme `fiches_a_publier`) · `texte` : le circuit public fabriqué
+      (`fabriquer_le_circuit`).
+    ④ CONDITIONS D'ENTRÉE — Chaque chemin existe sous `source` ; les gabarits CERTIFICATION, SERIES, RELAIS et
+      EPREUVES ne sont pas None (une table des séries illisible les met à None : ValueError).
+    ⑤ SORTIE — UNE valeur : la liste des couples (chemin publié séparé par « / », octets) ; d'abord le code, puis les
+      fiches (rangées sous FICHES_PUBLIEES), puis les CINQ circuits fabriqués. Lève OSError sur une lecture refusée,
+      ValueError si un gabarit manque.
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire les octets de chaque fichier de code et de chaque fiche ; encoder en UTF-8 le circuit public et
+      les quatre gabarits.
+    ⑦ UNITÉ — Des octets.
+    ⑧ POURQUOI — Superviseur R-759 du 16-11-2026 (SUPERVISEUR_COPIE_CTL_Lun_16-11-2026.md, « RUSTINE, À REPRENDRE ») :
+      le contrôle avant dépôt réécrivait à la main le critère de l'étage A, et cette seconde implémentation a laissé
+      passer une copie commitée puis retirée (B1 ; deux implémentations d'une même chose divergent toujours, R-708).
+      Le contrôle appelle désormais l'étage A lui-même, sur ce que la publication ÉCRIRAIT ; « pour ne pas écrire la
+      liste une troisième fois », elle vit ici, une fois.
+    ⑨ CE QUI CLOCHE — Les octets d'un circuit sont ceux de `str.encode("utf-8")` ; avant le 16-11-2026, le fabricant
+      les écrivait en mode texte, ce qui est identique sous Linux (pas de traduction des fins de ligne) et différerait
+      sous Windows. Un lien symbolique de `source` est SUIVI ici (comme `shutil.copyfile` avant) : le fabricant l'a
+      déjà refusé (`refus_avant_publication`), le contrôle ne lui en donne pas. Tout est tenu en mémoire (environ
+      230 fichiers, quelques mégaoctets au 16-11-2026).
+    ⑩ EFFET — Lit des fichiers. N'écrit rien.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    rendu = []
+    for f in a_publier:
+        with open(os.path.join(source, f), "rb") as e:
+            rendu.append((f, e.read()))
+    for f in fiches:
+        with open(os.path.join(source, FICHES_PRIVEES, f), "rb") as e:
+            rendu.append((_chemin(FICHES_PUBLIEES, f), e.read()))
+    for chemin, contenu in ((CIRCUIT_PUBLIC, texte), (CIRCUIT_CERTIFICATION, CERTIFICATION), (CIRCUIT_SERIES, SERIES),
+                             (CIRCUIT_RELAIS, RELAIS), (CIRCUIT_EPREUVES, EPREUVES)):
+        if contenu is None:
+            raise ValueError(f"{chemin} : gabarit absent (table des séries illisible : {ERREUR_DE_LA_TABLE})")
+        rendu.append((chemin.replace(os.sep, "/"), contenu.encode("utf-8")))
+    return rendu
+
+
 def fabriquer_et_publier(prive, public, source, sha):
     """Vérifie, fabrique, écrit ; avec --publier, commite et pousse ; rend le code de sortie.
 
@@ -4024,13 +4090,14 @@ def fabriquer_et_publier(prive, public, source, sha):
         os.makedirs(os.path.join(public, dossier), exist_ok=True)
     os.makedirs(os.path.dirname(os.path.join(public, CIRCUIT_PUBLIC)), exist_ok=True)
     ecrits = []   # tour 4, M-b : chaque chemin écrit ou retiré au clone public, noté au geste même
-    for f in a_publier:
-        shutil.copyfile(os.path.join(source, f), os.path.join(public, f))
-        ecrits.append(f)
+    # la liste « ce que la publication écrit » vit à UN endroit, lu aussi par le contrôle avant dépôt (R-708)
+    ecritures = ce_que_la_publication_ecrit(source, a_publier, fiches, texte)
+    copies, circuits = ecritures[:len(a_publier) + len(fiches)], ecritures[len(a_publier) + len(fiches):]
     os.makedirs(os.path.join(public, FICHES_PUBLIEES), exist_ok=True)
-    for f in fiches:
-        shutil.copyfile(os.path.join(source, FICHES_PRIVEES, f), os.path.join(public, FICHES_PUBLIEES, f))
-        ecrits.append(_chemin(FICHES_PUBLIEES, f))
+    for chemin, octets in copies:
+        with open(os.path.join(public, *chemin.split("/")), "wb") as s:
+            s.write(octets)
+        ecrits.append(chemin)
     fiches_retirees = sorted(f for f in os.listdir(os.path.join(public, FICHES_PUBLIEES)) if f not in fiches)
     for f in fiches_retirees:
         os.remove(os.path.join(public, FICHES_PUBLIEES, f))
@@ -4040,11 +4107,10 @@ def fabriquer_et_publier(prive, public, source, sha):
     for f in retires:
         os.remove(os.path.join(public, f))
         ecrits.append(f)
-    for chemin, contenu in ((CIRCUIT_PUBLIC, texte), (CIRCUIT_CERTIFICATION, CERTIFICATION), (CIRCUIT_SERIES, SERIES),
-                             (CIRCUIT_RELAIS, RELAIS), (CIRCUIT_EPREUVES, EPREUVES)):
-        with open(os.path.join(public, chemin), "w", encoding="utf-8") as s:
-            s.write(contenu)
-        ecrits.append(chemin.replace(os.sep, "/"))
+    for chemin, octets in circuits:
+        with open(os.path.join(public, *chemin.split("/")), "wb") as s:
+            s.write(octets)
+        ecrits.append(chemin)
     print(f"{len(a_publier)} fichiers de code copiés · {len(retires)} retiré(s) {' '.join(retires)}".rstrip())
     print(f"{len(fiches)} fiches de circuit du privé copiées dans {FICHES_PUBLIEES}/ · {len(fiches_retirees)} retirée(s) "
           f"{' '.join(fiches_retirees)}".rstrip())

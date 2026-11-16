@@ -11,7 +11,10 @@
   Aucune tâche automatique ne l appelle.
 ③ ENTRÉE — Aucun argument. Lit `programmes/CONTROLER_MA_LIVRAISON.py` et
   `programmes/LIRE_LE_CODE.py` ; copie en plus, dans chaque dossier jetable, les épreuves,
-  `emp.py`, `programmes/QUI_TOUCHE_CE_FICHIER.py` et `programmes/FABRIQUER_LE_SOCLE.py`.
+  `emp.py`, `programmes/QUI_TOUCHE_CE_FICHIER.py`, `programmes/FABRIQUER_LE_SOCLE.py` et
+  `programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py` (importé par le garde-fou depuis le 16-11-2026, A-857),
+  `tests/LANCEMENT_DES_EPREUVES.json` et `.github/workflows/collecte_abc.yml` (le garde-fou appelle
+  l étage A sur ce que la publication écrirait, depuis le 16-11-2026).
 ④ CONDITIONS D ENTRÉE — Être lancé depuis la racine du dépôt. Chacune des lignes visées
   (une par sabotage de la liste SABOTAGES) doit figurer une fois et une seule dans le
   fichier qu elle vise — le garde-fou ou LIRE_LE_CODE —, sinon le programme s arrête.
@@ -179,8 +182,14 @@ for nom, quel, avant, apres in [TEMOIN] + SABOTAGES:
     open(os.path.join(d, "programmes", "LIRE_LE_CODE.py"), "w", encoding="utf-8").write(
         LIRE.replace(avant, apres) if quel == "LIRE" else LIRE)
     shutil.copy("programmes/EPREUVES_DU_GARDE_FOU.py", os.path.join(d, "programmes"))
-    for voisin in ("QUI_TOUCHE_CE_FICHIER.py", "FABRIQUER_LE_SOCLE.py"):   # importés par epreuves_de (R-755 ②)
+    # importés par epreuves_de (R-755 ②), et FABRIQUER_LE_CIRCUIT_PUBLIC.py par copies_de_fichiers_publies (A-857)
+    for voisin in ("QUI_TOUCHE_CE_FICHIER.py", "FABRIQUER_LE_SOCLE.py", "FABRIQUER_LE_CIRCUIT_PUBLIC.py"):
         shutil.copy(os.path.join("programmes", voisin), os.path.join(d, "programmes"))
+    # depuis le 16-11-2026 (superviseur R-759 SUPERVISEUR_COPIE_CTL) le garde-fou appelle l étage A sur ce que la
+    # publication écrirait : la table des séries du fabricant et le circuit privé que les cas recopient
+    for voisin in ("tests/LANCEMENT_DES_EPREUVES.json", ".github/workflows/collecte_abc.yml"):
+        os.makedirs(os.path.join(d, os.path.dirname(voisin)), exist_ok=True)
+        shutil.copy(voisin, os.path.join(d, voisin))
     r = subprocess.run([sys.executable, "-c",
                         f"import sys; sys.path.insert(0, {os.path.join(d, 'programmes')!r}); "
                         "import EPREUVES_DU_GARDE_FOU as E; [E.jouer(*c) for c in E.CAS]"],

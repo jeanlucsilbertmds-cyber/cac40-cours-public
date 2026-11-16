@@ -57,6 +57,9 @@ rapatriement rend, pour chaque épreuve, le code de sortie et la sortie capturé
   refus ; P3 le fabricant en ligne de commande sur la racine, vers un clone public neuf de la même branche : code 0 et
   « 0 refus » (joué seulement si la racine est un clone git qui porte tout le dépôt : la certification, qui joue
   une copie sans .git, ne le joue pas).
+  A (l'étage A, `etage_a`) : détaillé dans la fiche de `etage_a` ; depuis le 16-11-2026, A8 (A-857) : le refus
+  nomme le blob entier et le remède unique « changer une ligne du fichier publié (comme 32aa88d0) », sans jamais
+  proposer de retirer la copie (superviseur R-759 SUPERVISEUR_COPIE_CTL_Lun_16-11-2026.md, M1).
 ⑦ UNITÉ — Des codes de sortie ; des secondes (J5).
 ⑧ POURQUOI — R-731 : tout code écrit a ses épreuves au dépôt, avec des sabotages qui mordent chacun pour sa raison.
 ⑨ CE QUI CLOCHE — Rien n'est joué sur GitHub : actions/checkout et ETAPE_MUETTE sont imités (bash) ; le jeton est
@@ -68,6 +71,7 @@ rapatriement rend, pour chaque épreuve, le code de sortie et la sortie capturé
 ⑪ TERMINAISON — Rend la main ; chaque lancement est borné à 300 secondes ; sort par sys.exit.
   [sort: oui]
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -227,7 +231,9 @@ def etage_a(F, d):
       refusés ; PROPRE (sur main, sans copie) et VIDE passent. X2 (la donnée fusionnée dans main et poussée, publication
       de main), X3 (main local avancé non poussé, publication d'une autre branche) et X4 (la fuite déjà présente au
       dépôt public) : refusés (F1 du RELU de Cowork d21df83c). A2 le témoin ; A3 un clone superficiel ; A7 une copie sans git (étage A sans objet) ;
-      A4 l'extraction du commit ; A5 la publication refusée si HEAD a bougé ; A6 la garde des lignes ne se tait plus.
+      A4 l'extraction du commit ; A5 la publication refusée si HEAD a bougé ; A6 la garde des lignes ne se tait plus ;
+      A8 (A-857) le refus de OK.py nomme le blob entier et le remède unique « changer une ligne du fichier publié
+      (comme 32aa88d0) », sans « retirer » (M1 du superviseur R-759 du 16-11-2026) (sabotages SE37, SE38, SE39).
     ⑦ UNITÉ — — ⑧ POURQUOI — R-731 : chaque défaut a son cas, chaque garde son sabotage.
     ⑨ CE QUI CLOCHE — Un dépôt minuscule : le coût sur le vrai dépôt est mesuré par P3, et seulement sur un clone entier.
     ⑩ EFFET — Écrit dans `d`. ⑪ TERMINAISON — Rend la main ; chaque git est borné (`lancer`). [sort: non]
@@ -279,6 +285,13 @@ def etage_a(F, d):
                            "programmes/NEUF.py", "programmes/OK.py"])
         if vus != attendus or "témoin : les 1 chemins" not in note:
             faux.append(f"A1 étage A : refusés {vus} au lieu de {attendus} ; {note[-160:]}")
+        # A8 (A-857, 16-11-2026) : le refus nomme le blob ENTIER et le remède prouvé par 32aa88d0 — le texte est écrit
+        # ici en toutes lettres, jamais lu dans le fabricant (sinon un remède vidé passerait)
+        ok = [r for r in refus if r.startswith("programmes/OK.py : ")]
+        blob_ok = hashlib.sha1(b"blob %d\0" % len(b"VALEUR = 1\n") + b"VALEUR = 1\n").hexdigest()
+        if (len(ok) != 1 or f"blob {blob_ok}" not in ok[0] or f"--find-object={blob_ok}" not in ok[0]
+                or "remède : changer une ligne du fichier publié (comme 32aa88d0)" not in ok[0] or "retir" in ok[0]):
+            faux.append(f"A8 (A-857) le refus ne nomme pas le blob {blob_ok} et le remède : {ok}")
     except (OSError, ValueError) as e:
         faux.append(f"A1 étage A n'a pas tourné : {e}")
     # X2, X3, X4 (F1 du RELU de Cowork d21df83c, 15-11-2026) : aucune exemption « déjà public », ni lue au privé ni au
@@ -803,6 +816,10 @@ SABOTAGES = {
                                            (FABRICANT, "        if avec_git and prives:\n", "        if avec_git and prives and b not in deja:\n")],
     "SE36_etage_a_exempte_ce_qui_est_au_public": [(FABRICANT, "    refus = []\n    for rel, b in publies.items():\n", '    deja = set()\n    for depot_lu in (public,):\n        for ref in ("refs/remotes/origin/main", "refs/heads/main"):\n            try:\n                arbre = _git_prive(depot_lu, "ls-tree", "-r", "-z", "--full-tree", ref)\n            except OSError:\n                continue\n            for e in arbre.split(b"\\0"):\n                if e:\n                    meta, chemin = e.split(b"\\t", 1)\n                    if est_un_chemin_publie(chemin.decode("utf-8", "surrogateescape")):\n                        deja.add(meta.decode().split()[2])\n' + "    refus = []\n    for rel, b in publies.items():\n"),
                                                   (FABRICANT, "        if avec_git and prives:\n", "        if avec_git and prives and b not in deja:\n")],
+    "SE37_refus_sans_le_remede": [(FABRICANT, ' — étage A ; remède : {REMEDE_DE_L_ETAGE_A}")', ' — étage A")')],
+    "SE39_remede_qui_propose_de_retirer": [(FABRICANT, 'REMEDE_DE_L_ETAGE_A = "changer une ligne du fichier publié (comme 32aa88d0)"',
+                                            'REMEDE_DE_L_ETAGE_A = "changer une ligne du fichier publié (comme 32aa88d0) ou retirer la copie"')],
+    "SE38_refus_sans_le_blob_entier": [(FABRICANT, '(blob {b}), qu\'un fichier du dépôt privé', '(blob {b[:12]}), qu\'un fichier du dépôt privé')],
     "SE22_temoin_retire": [(FABRICANT, "        if manquants:\n            raise OSError(f\"témoin du parcours : {len(manquants)}",
                             "        if False:\n            raise OSError(f\"témoin du parcours : {len(manquants)}")],
     "SE23_superficiel_admis": [(FABRICANT, '"--is-shallow-repository").strip() != b"false":', '"--is-shallow-repository").strip() == b"jamais":')],
@@ -841,7 +858,7 @@ def main():
     ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     faux = tour(DEPOT)
-    print("Z0 programmes tels quels : " + ("T0 à T2, G1 à G5, J1 à J6, E3a, E7, E10a, R1 à R7, P1 à P3, A1 à A7, X2 à X4 conformes"
+    print("Z0 programmes tels quels : " + ("T0 à T2, G1 à G5, J1 à J6, E3a, E7, E10a, R1 à R7, P1 à P3, A1 à A8, X2 à X4 conformes"
                                             if not faux else "FAUX " + " | ".join(faux)))
     for n in dict.fromkeys(NOTES):
         print("NOTE " + n)
