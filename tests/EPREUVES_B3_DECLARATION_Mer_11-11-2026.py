@@ -45,6 +45,14 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 ICI = os.path.abspath(__file__)
+# LE RÉGLAGE GIT DE LA MACHINE N'ENTRE PAS DANS LE VERDICT (étape MIN du plan V7, A-751 ⑤, RF-2 de Cowork du
+# 13-11-2026) : une machine qui signe ses commits par un service réseau faisait rougir les commits jetables de cette
+# épreuve, et le garde-fou criait « sortie fabriquée ». Voir tests/outils/GIT_SANS_LA_MACHINE.py.
+_sp_git = importlib.util.spec_from_file_location("GIT_SANS_LA_MACHINE", os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "outils", "GIT_SANS_LA_MACHINE.py"))
+_git_sans_la_machine = importlib.util.module_from_spec(_sp_git)
+_sp_git.loader.exec_module(_git_sans_la_machine)
+_git_sans_la_machine.isoler_git_de_la_machine()
 DECL = "programmes/DECLARER_UNE_STRATEGIE.py"
 CODE = (DECL, "programmes/CONTRATS_DES_FICHIERS.py", "programmes/TENIR_LE_REGISTRE_DES_ESSAIS.py", "programmes/COMMUN.py",
         "programmes/JUGE_DES_STRATEGIES.py")   # le juge : LA lecture des colonnes du signal (REGARD tour 3, T2-D2)

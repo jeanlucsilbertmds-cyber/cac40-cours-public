@@ -59,6 +59,16 @@ import sys
 import tempfile
 
 ICI = os.path.abspath(__file__)
+# LE RÉGLAGE GIT DE LA MACHINE N'ENTRE PAS DANS LE VERDICT (étape MIN du plan V7, tour 2, 15-11-2026 ; RELU 1/N-2 de
+# Cowork) : cette épreuve commit dans des dépôts jetables, et n'était isolée que PAR ACCIDENT, parce qu'elle charge
+# l'épreuve J et le bloc 5A, qui posent l'isolement à leur import. Mesuré par Cowork, réseau coupé : avec J et B5A de
+# main, « '/tmp/REGARD_ep_…', 'commit', … status 128 ». L'appel explicite ne dépend plus de ce que chargent les autres.
+# Voir tests/outils/GIT_SANS_LA_MACHINE.py.
+_sp_git = importlib.util.spec_from_file_location("GIT_SANS_LA_MACHINE", os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "outils", "GIT_SANS_LA_MACHINE.py"))
+_git_sans_la_machine = importlib.util.module_from_spec(_sp_git)
+_sp_git.loader.exec_module(_git_sans_la_machine)
+_git_sans_la_machine.isoler_git_de_la_machine()
 PORTE = "programmes/JUGER_UNE_FICHE.py"
 ESSAIS = "programmes/TENIR_LE_REGISTRE_DES_ESSAIS.py"
 JUGE = "programmes/JUGE_DES_STRATEGIES.py"

@@ -142,7 +142,7 @@ SABOTAGES = {
             "JOUER ne compare plus la coupe réelle à la frontière écrite (M1)"),
     "S33": (P_MJ, "        if declaree not in set(seances):", "        if False:", ["F10"],
             "une frontière déclarée qui n'est pas une séance est acceptée"),
-    "S34": (P_MJ, "    if frontiere is None:\n        raise", "    if False:\n        raise", ["F12"],
+    "S34": (P_MJ, "    if frontiere is None or not str(frontiere).strip():\n        raise", "    if False:\n        raise", ["F12"],
             "la coupure accepte de ne pas recevoir de frontière"),
     "S35": (P_JOUER, "            if len(ligne) > i and ligne[i] <= fin:", "            if len(ligne) > i:", ["T16"],
             "l'empreinte porte sur tout le fichier de cours : le maître qui grandit rend le tri impossible (M2)"),
@@ -191,6 +191,28 @@ SABOTAGES = {
             "un embargo non entier sur une version chiffrée passe (N-4)"),
     "S20": (P_JOUER, '("aucune opération" if not ref_jouee["n"] else', '("aucune opération" if False else', ["J8"],
             "« aucune opération » redevient un arrêt"),
+    # ÉTAPE MIN DU PLAN V7 (A-752 ⑦, A-750, A-751 ; 15-11-2026) : les trous d'épreuve relevés après l'installation du tri
+    "S53": (P_TRI, '">": lambda a, b: a > b,', '">": lambda a, b: a >= b,', ["T35"],
+            "RT-1 de Cowork : le « > » strict du critère devient « >= »"),
+    "S54": (P_TRI, '">=": lambda a, b: a >= b,', '">=": lambda a, b: a > b,', ["T35"],
+            "le « >= » du critère devient strict"),
+    "S55": (P_TRI, '"<": lambda a, b: a < b,', '"<": lambda a, b: a <= b,', ["T35"],
+            "le « < » strict du critère devient « <= »"),
+    "S56": (P_TRI, '"<=": lambda a, b: a <= b}', '"<=": lambda a, b: a < b}', ["T35"],
+            "le « <= » du critère devient strict"),
+    "S57": (P_MJ, "    if frontiere is None or not str(frontiere).strip():", "    if frontiere is None:", ["F14"],
+            "RT-2 de Cowork : une frontière vide ou faite de blancs n'est plus refusée comme absente"),
+    "S58": (P_MJ, "    if cal and not (cal[0] <= frontiere <= cal[-1]):", "    if False:", ["F14"],
+            "RT-2 de Cowork : une frontière hors du calendrier coupe sans bruit"),
+    "S61": (P_MJ, "    if frontiere is None or not str(frontiere).strip():",
+            "    if not ops:\n        return {\"n_70\": 0, \"n_30\": 0, \"n_ecartes\": 0}\n"
+            "    if frontiere is None or not str(frontiere).strip():", ["F14"],
+            "6/N-1 de Cowork (15-11-2026) : « liste vide → trois zéros » remis AVANT le contrôle de la frontière"),
+    "S59": (P_JOUER, "r_t, _ = jouer_une(fusion, b_tem, ops_t, periode_jouee)", "r_t, _ = jouer_une(fusion, b_tem, ops_t, bornes)",
+            ["J14"], "défaut 1 du relecteur G9 (A-750 ①) : le témoin est rejoué sur la période de la fiche, pas sur la "
+            "période ramenée"),
+    "S60": (P_JOUER, "r_t, _ = jouer_une(fusion, b_tem, ops_t, periode_jouee)", "r_t, _ = jouer_une(fusion, None, ops_t, periode_jouee)",
+            ["J14"], "le témoin est rejoué sous le barème des résultats, pas sous le sien"),
 }
 
 
@@ -487,7 +509,8 @@ def volume(champs_contrat, n=None, **changer):
 
 def famille_tri():
     """Éprouve le tri : la partie de réglage seule, le compte, le critère, les refus.
-    ① RÔLE — Les cas T0 à T15. ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — —
+    ① RÔLE — Les cas T0 à T35 (T35 : la frontière exacte des quatre comparaisons du critère, étape MIN du
+      15-11-2026). ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — —
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête. ⑤ SORTIE — Aucune valeur. [rend: 0]
     ⑥ TRAITEMENT — Chaque cas lance le tri (sous-processus) ou appelle ses fonctions, et compare à un calcul fait ICI.
     ⑦ UNITÉ — Des versions, des euros. ⑧ POURQUOI — Le compte, le partage et l'étanchéité aux 30 % sont les promesses.
@@ -715,6 +738,34 @@ def famille_tri():
         _, tri = lire(out) if c == 0 else ([], [])
         noter("T13b programme entier, seuil qui laisse tout passer : 2 retenues sur 3, « dont 1 non mesurables »",
               c == 0 and len(tri) == 2 and "dont 1 non mesurables" in s, s)
+    if voulu("T35"):
+        # RT-1 de Cowork (13-11-2026), étape MIN (A-751 ①, 15-11-2026) : aucune épreuve ne gardait le « > » STRICT du
+        # critère (sabotage « a >= b » : 83 cas sur 83 restaient verts). Une VRAIE ligne (R-732), la première du fichier
+        # réel d'avant le 11-11-2026, dont la case lue vaut EXACTEMENT le seuil, puis un centime au-dessus et au-dessous :
+        # chacune des quatre comparaisons doit trancher sa frontière. Puis le critère RÉEL de la racine, appliqué à une
+        # version qui l'égale : elle ne passe que si la comparaison lue contient « = ».
+        T = module(P_TRI, "tri_t35")
+        _, reel32 = lire(os.path.join(RACINE, REEL_ANCIEN))
+        l32 = dict(reel32[0], operations_70=reel32[0]["operations"], gain_net_euros_70=reel32[0]["gain_net_euros"],
+                   reussite_pourcents_exacte_70=reel32[0]["reussite_pourcents_exacte"])
+        seuil = T.nombre(l32["gain_net_euros_70"])
+        attendu32, rendu32 = [], []
+        for ecart, verdicts in ((0.0, {">": False, ">=": True, "<": False, "<=": True}),
+                                (0.01, {">": True, ">=": True, "<": False, "<=": False}),
+                                (-0.01, {">": False, ">=": False, "<": True, "<=": True})):
+            ligne = dict(l32, gain_net_euros_70="%.2f" % (seuil + ecart))
+            for comp, v in verdicts.items():
+                attendu32.append((ecart, comp, v))
+                rendu32.append((ecart, comp, T.passe_le_critere(ligne, [("gain_net_euros_70", comp, seuil)])[0]))
+        conds, _statut, _src = T.lire_le_critere(RACINE)
+        reels = [(c, o, T.passe_le_critere(dict(l32, **{c: "%.2f" % v}), [(c, o, v)])[0]) for c, o, v in conds]
+        noter("T35 frontière exacte des quatre comparaisons (vraie ligne %s, gain %s) : « > » et « < » stricts, « >= » "
+              "et « <= » larges ; critère réel %s : la version qui l'égale %s"
+              % (l32["id_version"], l32["gain_net_euros_70"], [(c, o, v) for c, o, v in conds],
+                 [r for _, _, r in reels]),
+              seuil is not None and rendu32 == attendu32 and reels
+              and all(r == ("=" in o) for _, o, r in reels),
+              [x for x, y in zip(rendu32, attendu32) if x != y] or reels)
     if voulu("T7"):
         # N5 : un statut de décision à la bonne forme (date, heure, renvoi au BACKLOG) est accepté et recopié
         dec = "DÉCIDÉ PAR JEAN-LUC LE 12-11-2026 À 09h10 (A-708)"
@@ -911,7 +962,9 @@ def brute(dates, debut, fin_fiche, h):
 
 def famille_fin():
     """Éprouve `fin_utilisable`, `recul_en_seances` et `lire_le_recul_maximum`.
-    ① RÔLE — Les cas F1 à F9. ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — — ④ CONDITIONS D'ENTRÉE — Le maître existe.
+    ① RÔLE — Les cas F1 à F14 (F10 à F14 : la frontière 70/30 et la coupure du module de jugement ; F14, étape MIN
+      du 15-11-2026 : la frontière vide ou hors du calendrier refusée). ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — —
+      ④ CONDITIONS D'ENTRÉE — Le maître existe.
     ⑤ SORTIE — Aucune valeur. [rend: 0]
     ⑥ TRAITEMENT — Charger les séries par le lecteur unique du juge (comme JOUER) ; comparer à `brute`.
     ⑦ UNITÉ — Dates ; séances.
@@ -999,6 +1052,31 @@ def famille_fin():
             r12 = "%s : %s" % (type(e).__name__, e)
         noter("F12 la coupure sans frontière s'arrête, « la frontière est exigée » (plus de repli silencieux, M1)",
               r12 is True, r12)
+    if voulu("F14"):
+        # RT-2 de Cowork (13-11-2026), réparé à l'étape MIN (A-751 ②, 15-11-2026) : une frontière vide, faite de blancs,
+        # ou hors du calendrier est REFUSÉE ; avant, « » coupait à la première séance et « 2030-01-01 » vidait la partie
+        # jamais vue sans bruit. Calendrier et opérations RÉELS (R-732) : les séances du maître du 2024-01-02 au
+        # 2026-07-10 (bornes de C5E10-OBS-V1), une opération par mois à sa première séance.
+        seances14 = sorted(d for d in {d for ds in tout.values() for d in ds} if "2024-01-02" <= d <= "2026-07-10")
+        ops14 = [{"date_signal": d, "net": 1.0} for i, d in enumerate(seances14) if i == 0 or d[:7] != seances14[i - 1][:7]]
+
+        def refus14(fr, ops=None):
+            try:
+                MJ.coupure_70_30(ops14 if ops is None else ops, set(seances14), horizon=5, frontiere=fr)
+                return "PASSE"
+            except ValueError as e:
+                return str(e)
+        # LISTE D'OPÉRATIONS VIDE (relecture de Cowork du 15-11-2026, 6/N-1) : le contrôle de la frontière passe AVANT
+        # « liste vide → trois zéros » ; sans ces deux appels, remettre ce retour en tête restait vert (SX4 de Cowork).
+        vides = [refus14(x) for x in ("", "   ")] + [refus14("", [])]
+        hors = [refus14(x) for x in ("2030-01-01", "2023-12-29")] + [refus14("2030-01-01", [])]
+        bords = [MJ.coupure_70_30(ops14, set(seances14), horizon=5, frontiere=x).get("frontiere")
+                 for x in (seances14[0], seances14[-1], "2025-05-31")]
+        noter("F14 frontière « » ou blancs : « exigée » ; 2030-01-01 et 2023-12-29 (hors des %d séances) : « hors du "
+              "calendrier » ; les mêmes refus sur une liste d'opérations VIDE ; première, dernière séance et un samedi : "
+              "acceptées (RT-2)" % len(seances14),
+              all("frontière est exigée" in v for v in vides) and all("hors du calendrier" in h for h in hors)
+              and bords == [seances14[0], seances14[-1], "2025-06-02"], (vides, hors, bords))
     if voulu("F11"):
         # calcul indépendant : la séance de rang 70 % parmi celles des bornes, comptée à la main sur les vraies séances
         seances = {d for ds in tout.values() for d in ds}
@@ -1011,8 +1089,10 @@ def famille_fin():
 
 def famille_jouer():
     """Éprouve JOUER_LES_VERSIONS en sous-processus : l'option, le passage au juge, la fin, les garde-fous.
-    ① RÔLE — Les cas J1 à J9. ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — —
-    ④ CONDITIONS D'ENTRÉE — La combinatoire de C5E10-OBS-V1 E01 et le maître existent sous la racine.
+    ① RÔLE — Les cas J1 à J14 (J14, étape MIN du 15-11-2026 : la branche « barème du témoin » sur une fin ramenée).
+      ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — La combinatoire de C5E10-OBS-V1 E01, son témoin de résultats et le maître existent sous la
+      racine.
     ⑤ SORTIE — Aucune valeur. [rend: 0]
     ⑥ TRAITEMENT — Trois versions réelles (0001, 0500 et 0914, celle de la fiche) ; des fichiers de cours tronqués du
       maître dans un dossier temporaire ; deux copies du programme modifiées ICI pour atteindre un garde-fou (J6, J8).
@@ -1206,6 +1286,56 @@ def famille_jouer():
               "écrit %s · juge sur la période ramenée %s · juge sur la fiche entière %s · bornes %s"
               % (ecrit, (attendu, ramenee["n"], ramenee.get("net")), (bornes[1], entiere["n"], entiere.get("net")),
                  bornes))
+    if voulu("J14"):
+        # DÉFAUT 1 DU RELECTEUR G9 (A-750 ①, A-751 ④ ; étape MIN, 15-11-2026) : la branche « barème du témoin » de
+        # `jouer_une` n'était gardée par aucune épreuve (sabotage « periode=bornes » : tri 83/83 et moulinette 51/51
+        # verts). Ce cas réunit les deux conditions qui la rendent visible : un TÉMOIN fait sous un autre barème que les
+        # résultats ET une fin RAMENÉE (cours coupés au 20-07-2026). Le témoin part des VRAIES lignes du témoin du dépôt
+        # (R-732, barème HIST_COURTAGE_SANS_TTF) ; ses chiffres sont recalculés ICI par le juge appelé à part, sous ce
+        # barème, sur (début, fin calculée par la force brute) — sans le code de JOUER, sauf `fusionner`. JOUER doit
+        # écrire, sans écart au témoin et sans rompre l'invariant des deux barèmes. Le cas exige que la fiche entière
+        # donne un autre compte que la période ramenée : sinon il ne verrait pas une période ignorée, et il le dit.
+        F = resultats_reels()
+        sys.path.insert(0, os.path.join(RACINE, "programmes"))
+        import JUGE_DES_STRATEGIES as J
+        import CONTRATS_DES_FICHIERS as contrat_
+        V = module(P_JOUER, "jouer_j14")
+        mn = J.table_mnemoniques(J.trouver(RACINE, "REFERENTIEL_VALEURS"))
+        lus, lecture = J.lire_par_le_lecteur(RACINE, os.path.relpath(F["cours"], RACINE), mn)
+        fiche = contrat_.fiches_du_registre(J.trouver(RACINE, contrat_.NOM_DU_REGISTRE_DES_STRATEGIES))["C5E10-OBS-V1"]
+        bornes = J.porte_0(dict(fiche))[2]
+        mod_pos = J.charger_module(J.trouver(RACINE, "MODULE_POSITIONS.py"), "pos_j14")
+        champs_c, comb14 = lire(F["combinatoire"])
+        codes = sorted({x.strip() for l in comb14 for x in l["univers"].split(",") if x.strip()})
+        fin14 = brute({m: [b["date"] for b in lus[mn.get(m, J.cle_valeur(m))]] for m in codes},
+                      bornes[0], bornes[1], max(int(l["horizon"]) for l in comb14))
+        champs_t, temoin_reel = lire(os.path.join(RACINE, os.path.dirname(COMB_C5),
+                                                  "TEMOIN_RESULTATS_C5E10-OBS-V1_E01.csv"))
+        par_id = {l["id_version"]: l for l in temoin_reel}
+        b_tem = {l["bareme"] for l in temoin_reel}
+        lignes_t, ecart_vu = [], False
+        for v in comb14:
+            fusion = V.fusionner(dict(fiche), v)
+            jouer_sur = lambda periode: J.resumer(J.jouer(dict(fusion), lus, mn, J.signal_de_la_fiche(RACINE, fusion),
+                                                          mod_pos, periode=periode, lecture=lecture,
+                                                          bareme="HIST_COURTAGE_SANS_TTF")[0])
+            r = jouer_sur((bornes[0], fin14))
+            ecart_vu = ecart_vu or jouer_sur(tuple(bornes))["n"] != r["n"]
+            lignes_t.append(dict(par_id[v["id_version"]], versions_dans_l_essai="3", periode_fin=fin14,
+                                 operations=str(r["n"]),
+                                 reussite_pourcents_exacte="%.6f" % r["wr_exact"] if r["n"] else "",
+                                 gain_net_euros="%.2f" % r["net"] if r["n"] else "0.00"))
+        d14 = dossier()
+        f_comb14 = ecrire(os.path.join(d14, "COMBINATOIRE_C5E10-OBS-V1_E01.csv"), champs_c, comb14)
+        ecrire(os.path.join(d14, "TEMOIN_RESULTATS_C5E10-OBS-V1_E01.csv"), champs_t, lignes_t)
+        out14 = os.path.join(d14, "R14.csv")
+        c, s = lancer(P_JOUER, ".", f_comb14, out14, "--cours=" + os.path.relpath(F["cours"], RACINE))
+        noter("J14 témoin fait sous HIST_COURTAGE_SANS_TTF, fin ramenée au %s : JOUER rejoue le témoin sur la période "
+              "ramenée, 0 écart, l'invariant des barèmes tient, le fichier est écrit (A-750 ①)" % fin14,
+              b_tem == {"HIST_COURTAGE_SANS_TTF"} and fin14 is not None and fin14 < bornes[1] and ecart_vu
+              and c == 0 and os.path.exists(out14) and "TÉMOIN FAIT SOUS LE BARÈME HIST_COURTAGE_SANS_TTF" in s
+              and "TÉMOIN DE RÉSULTATS : 3 versions comparées, 0 écarts" in s,
+              "barème %s · fin %s · fiche entière distincte %s · code %s · %s" % (b_tem, fin14, ecart_vu, c, s[-700:]))
     if voulu("J10"):
         # N2 : DEUX CHEMINS — la frontière et l'embargo écrits par JOUER contre ceux que le juge IMPRIME pour la fiche
         F = resultats_reels()
@@ -1261,7 +1391,9 @@ def main(argv):
     RACINE = os.path.abspath(pos[0])
     manque = [f for f in (P_TRI, P_JOUER, REEL_ANCIEN, COMB_C5, "donnees/cours_maitre.csv",
                           "donnees/combinatoires/SEUIL_DU_TRI_PROVISOIRE.csv",
-                          "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv")
+                          "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv",
+                          # le témoin réel dont J14 part (étape MIN, 15-11-2026)
+                          os.path.join(os.path.dirname(COMB_C5), "TEMOIN_RESULTATS_C5E10-OBS-V1_E01.csv"))
               if not os.path.exists(os.path.join(RACINE, f))]
     if manque:
         print("ÉPREUVE IMPOSSIBLE : absents %s" % manque)

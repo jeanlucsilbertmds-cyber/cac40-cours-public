@@ -1207,7 +1207,9 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       de la zone retirée, `None` par défaut, et l'appelant de production laisse
       ce défaut · `horizon` : le nombre de séances pendant lesquelles une
       position est tenue, que le juge des stratégies lit sur la fiche de la stratégie ·
-      `frontiere` : la date rendue par `frontiere_de_la_fiche`, EXIGÉE. Le
+      `frontiere` : la date rendue par `frontiere_de_la_fiche`, EXIGÉE, non
+      vide et comprise entre la première et la dernière séance du calendrier
+      (depuis le 15-11-2026, A-751 ②). Le
       paramètre `part` et le repli « sans frontière, la calculer sur tout le
       calendrier » sont retirés le 12-11-2026 (relecteur de la mission TRI,
       tour 3, M1) : ce repli ignorait une frontière déclarée dans la fiche, et
@@ -1217,12 +1219,16 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       refuse tout calcul par une TypeError : il n'est accepté qu'avec un
       embargo explicite (`embargo_seances`), sinon elle tombe (`int(horizon or 0)`). Rien n'y lit « aucune » en texte.
     ④ CONDITIONS D'ENTRÉE — Les dates doivent s'écrire de la même façon dans
-      les opérations et dans le calendrier. Le calendrier ne doit pas être vide,
-      sans quoi la recherche de la frontière tombe.
+      les opérations, dans le calendrier et dans la frontière (AAAA-MM-JJ). Le
+      calendrier ne doit pas être vide, sans quoi la recherche de la frontière tombe.
     ⑤ SORTIE — UNE valeur : un dictionnaire, et il prend TROIS formes
       différentes. Sur une liste d'opérations vide, trois cases seulement :
       les deux effectifs et le nombre d'écartées, tous à zéro — mesuré le
-      19-09-2026. Quand aucune date n'est reconnue au calendrier : une seule
+      19-09-2026 — MAIS SEULEMENT SI LA FRONTIÈRE EST ACCEPTÉE : depuis le
+      15-11-2026 son contrôle passe AVANT, et une frontière manquante ou hors
+      d'un calendrier non vide LÈVE même sur une liste vide (relecture de
+      Cowork du 15-11-2026, 5/N-4 : « '2030-01-01' vide -> ValueError … hors du
+      calendrier »). Quand aucune date n'est reconnue au calendrier : une seule
       case, un motif en clair. Dans le cas normal : sept cases, dont la date de
       frontière, la largeur retenue de la zone retirée, les trois effectifs et
       les deux résumés chiffrés des deux parties.
@@ -1232,7 +1238,9 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       liste est vide · ③ numéroter les séances dans l'ordre · ④ ne garder que
       les opérations dont la date de signal est au calendrier, et rendre un
       motif s'il n'en reste aucune · ⑤ prendre la frontière reçue (refus si elle
-      manque) et la situer dans le calendrier (rang de la première séance qui ne
+      manque ou n'est faite que de blancs, AVANT tout autre geste ; refus si elle
+      tombe avant la première séance ou après la dernière d'un calendrier non
+      vide, juste après le tri du calendrier) et la situer dans le calendrier (rang de la première séance qui ne
       la précède pas) ; la case `frontiere` rendue est la séance où la coupure a
       RÉELLEMENT coupé, que l'appelant compare à celle qu'il écrit · ⑥ ranger chaque opération avant la zone retirée, après la
       frontière, ou dans la zone retirée · ⑦ rendre les effectifs et le résumé
@@ -1285,6 +1293,13 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       frontière manque (« la frontière est exigée »), et TypeError si l'horizon
       vaut « aucune » sans embargo explicite ; le juge des stratégies rattrape
       et affiche « COUPURE 70/30 non mesuree ».
+      LÈVE aussi ValueError (15-11-2026, A-751 ②, RT-2 de Cowork du 13-11-2026)
+      si la frontière est vide ou faite de blancs (« la frontière est exigée »),
+      ou si elle tombe hors du calendrier non vide reçu (« hors du calendrier ») :
+      avant ce geste, « » coupait à la première séance et « 2030-01-01 » rangeait
+      toutes les opérations avant la frontière, sans bruit. Aucun appelant de
+      production n'atteint ces cas le 15-11-2026 (la frontière vient de
+      `frontiere_de_la_fiche`, sur le calendrier des mêmes bornes).
       Un de ses appels peut ne pas revenir : `_resume` rend toujours la main.
       [sort: non]
     ⑫ DÉFINITIONS
@@ -1319,11 +1334,16 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
     # court ; on prend donc le PLUS GRAND des deux.
     if embargo_seances is None:
         embargo_seances = max(21, int(horizon or 0))
-    if frontiere is None:
+    if frontiere is None or not str(frontiere).strip():
         raise ValueError("coupure_70_30 : la frontière est exigée (frontiere=, rendue par frontiere_de_la_fiche)")
+    cal = sorted(seances_projet)
+    # UNE FRONTIÈRE HORS DU CALENDRIER NE COUPE RIEN (RT-2 de Cowork, 13-11-2026 ; réparé le 15-11-2026, A-751 ②) :
+    # après la dernière séance, toutes les opérations tombaient avant elle et la partie jamais vue restait vide sans
+    # bruit ; avant la première, c'est la partie de réglage qui restait vide. Un calendrier vide garde son motif.
+    if cal and not (cal[0] <= frontiere <= cal[-1]):
+        raise ValueError("coupure_70_30 : frontière %s hors du calendrier (%s -> %s)" % (frontiere, cal[0], cal[-1]))
     if not ops:
         return {"n_70": 0, "n_30": 0, "n_ecartes": 0}
-    cal = sorted(seances_projet)
     rang = {d: i for i, d in enumerate(cal)}
     connues = [o for o in ops if o["date_signal"] in rang]
     if not connues:
