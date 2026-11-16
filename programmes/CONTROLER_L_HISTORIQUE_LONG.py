@@ -34,7 +34,8 @@ Simulation uniquement.
   défaire : `lire_a_defaire`).
 ⑤ SORTIE — UNE valeur : le code de sortie. 0 = aucun contrôle bloquant n'a rien trouvé · 1 = au
   moins un refus, chacun nommé · 2 = le contrôle n'a pas pu tourner (fichier absent, illisible,
-  colonnes manquantes, ou toute erreur imprévue) — jamais 0 dans ce cas (R-734).
+  colonnes manquantes, indice CAC 40 sans aucune séance où ses deux sources s'accordent, fichier d'origine sans
+  aucune ligne lisible (A-864, 16-11-2026), ou toute erreur imprévue) — jamais 0 dans ce cas (R-734).
 ⑥ TRAITEMENT — ① lire le fichier (`lire_cours`) et l'extrait bnains, et en ôter les barres prouvées
   fausses (`oter_les_barres_fausses`) · ② calculer le calendrier, les
   écarts et les jours douteux · ③ passer les contrôles K1 à K22 (`controler`), puis K23 : pour un fichier réparé
@@ -3222,10 +3223,22 @@ def main(argv):
     ⑥ TRAITEMENT — ⑥ du programme. Chaque contrôle affiche son nombre et ses huit premiers cas, et
       dit combien il en reste.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Un compte sans exemple ne se vérifie pas ; une liste coupée sans le dire ment.
-    ⑨ CE QUI CLOCHE — —
+    ⑧ POURQUOI — Un compte sans exemple ne se vérifie pas ; une liste coupée sans le dire ment. · L'indice CAC 40 et
+      le fichier d'origine lus VIDES arrêtent le contrôle (code 2, le fichier nommé) : `controler` saute sans le dire
+      l'arbitre de l'indice (K19, K19b) quand l'indice manque, et K18 et K20 quand l'origine manque — `None` y est la
+      valeur par défaut, légitime pour les épreuves qui jugent un contrôle seul ; ici, il ne l'est jamais. Série HL du
+      16-11-2026 (passage 43948482277) NON CONFORME par T54 ; superviseur R-759 du 16-11-2026 (« la garde va dans
+      main ») ; décision de Jean-Luc A-864 du 16-11-2026 à 22h29, « 1 » : « le contrôle s'arrête si l'indice est
+      absent ou vide ». Gardé par les épreuves H76 à H79 de l'historique long.
+    ⑨ CE QUI CLOCHE — Le calendrier des séances (`CAL.lire_les_seances`) et `controler` sont appelés HORS du `try` :
+      une erreur qu'ils lèvent sort de `main` ; seul le bloc final la change en 2 (« erreur imprévue »), et un appelant
+      direct de `main` (les épreuves) la reçoit telle quelle (mesuré le 16-11-2026 : un indice réduit à son en-tête
+      faisait lever le calendrier avant la garde d'A-864) → BACKLOG. · Les gardes d'A-864 ne jugent que le VIDE : un
+      indice ou une origine partiels (quelques séances seulement) passent, et K19 ne juge que les séances lues. · Un
+      fichier contrôlé vide n'arrête pas le contrôle (aucune garde, hors du périmètre d'A-864) — non mesuré ici.
     ⑩ EFFET — Affiche le compte rendu.
-    ⑪ TERMINAISON — Rend la main ; l'erreur imprévue est changée en 2 par le bloc final.
+    ⑪ TERMINAISON — Rend la main ; l'erreur imprévue est changée en 2 par le bloc final. Un indice sans séance
+      d'accord ou un fichier d'origine sans ligne lisible rendent 2 par le `except` de la lecture (ValueError).
       [sort: non]
     """
     if not argv or not os.path.isdir(argv[0]):
@@ -3242,7 +3255,13 @@ def main(argv):
         detachements, sans_date = lire_detachements(os.path.join(racine, DROITS), os.path.join(racine, OFFICIELS))
         francfort = lire_francfort(os.path.join(racine, FRANCFORT))
         indice = lire_indice(os.path.join(racine, INDICE))
+        if not indice:      # A-864 (Jean-Luc, 16-11-2026 22h29) : sans séance d'accord, K19 ne jugerait rien (R-734)
+            raise ValueError(f"{INDICE} : aucune séance où les deux sources de l'indice s'accordent — K19 ne peut pas "
+                             f"juger")
         origine, defauts_o, _ = lire_cours(os.path.join(racine, ORIGINE))
+        if not origine:     # A-864 : sans le fichier d'origine, K18 et K20 ne jugeraient rien (R-734)
+            raise ValueError(f"{ORIGINE} : aucune ligne lisible ({len(defauts_o)} défaut(s) de lecture) — K18 et K20 "
+                             f"ne peuvent pas juger")
         citations = lire_citations(os.path.join(racine, OFFICIELS))
         officielles = lire_divisions_officielles(os.path.join(racine, DIVISIONS_DOCUMENTEES))
         alignes = lire_alignes(os.path.join(racine, JOURNAL))
