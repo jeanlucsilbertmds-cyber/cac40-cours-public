@@ -664,6 +664,38 @@ FICHIERS_DE_COURS_FIGES = {
         "sha256": "e472c09da5679ec3758912d78e8c96f7a5225f39b84fc9ab02e0449dddfdf24a"},
 }
 
+# LES FICHES DONT L'UNIVERS BORNÉ EST ACCEPTÉ SUR LE REGARD UNIQUE — écrit À LA MAIN, sur décision écrite de Jean-Luc
+# seulement : {identifiant de la fiche : « qui, quand, la réponse et la question »}. Le juge refuse une fiche dont l'univers
+# ne voit pas des sociétés sorties de la composition historique dans la fenêtre du regard unique (garde M, superviseur
+# R-759 du 14-11-2026 ②), sauf si elle est ici. Vide au 14-11-2026 : aucune décision.
+UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE = {}
+
+# LES FICHIERS DE COURS QUI PORTENT LES SOCIÉTÉS SORTIES DE L'INDICE (14-11-2026, QE2 tour 2, superviseur R-759 ①) : pour
+# eux, le lecteur unique attend chaque société sortie à chaque séance de sa présence dans l'indice, même sans aucune barre
+# d'elle, et compte à part celles qu'il ne sait pas lire (sans mnémonique). Les autres (le maître, la référence Google,
+# collectés pour les valeurs du référentiel) n'en attendent rien. Une propriété du CONTRAT du fichier, pas de ses barres :
+# un témoin qui aurait perdu toutes les lignes de Peugeot S.A. (UG) les voit manquer. Écrit À LA MAIN : un témoin figé
+# demain s'y ajoute au gel (l'assemblage ne le fait pas encore — au BACKLOG, A-829).
+FICHIERS_DE_COURS_QUI_PORTENT_LES_SOCIETES_SORTIES = (
+    "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv",
+)
+
+# LES LIGNES D'UN FICHIER DE COURS ÉCARTÉES SUR DÉCISION — écrit À LA MAIN, une entrée par ligne écartée, sous le chemin
+# du fichier (relatif à la racine). Un fichier figé n'est JAMAIS réécrit : la ligne y reste, et le lecteur unique
+# (`LIRE_LES_COURS.lire`) la met de côté sous « ecartees » au lieu de la compter parmi les lignes mises à part ; une
+# entrée qui ne retrouve pas sa ligne, à l'identique, arrête la lecture. « ligne » : la ligne CSV exacte ; « cause » :
+# pourquoi elle est fausse, avec les faits ; « decision » : qui, quand, et la réponse donnée à quelle question.
+LIGNES_ECARTEES_SUR_DECISION = {
+    "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv": [
+        {"ligne": "VK,2016-03-28,3.318,3.318,3.318,3.318,0,bnains archives (société sortie 66)",
+         "cause": "barre fausse : le 2016-03-28 est le lundi de Pâques, Bourse de Paris fermée (calendrier Euronext) ; "
+                  "barre plate 3,318 et volume 0 ; seule ligne du témoin un jour férié Euronext, seule date du témoin à "
+                  "moins de 4 valeurs ; source « bnains archives (société sortie 66) »",
+         "decision": "Jean-Luc, Sam 14-11-2026 à 13h41, « 1 » à : « Écarter la ligne VK du 2016-03-28 comme fausse, "
+                     "avec sa cause notée »"},
+    ],
+}
+
 # l état civil des stratégies — Jean-Luc décide, les programmes lisent
 STRATEGIE = [
     "id", "nom", "chemin", "indicateurs",
@@ -906,6 +938,11 @@ PASSAGES_DANS_LE_CAC40 = ["isin_bnains", "libelle_bnains", "premiere_seance", "d
 # faire (« relevé par agent », « à compléter », « à trancher »). Exemple : Engie, numéro 14, trois lignes — Gaz de
 # France (GAZ), GDF SUEZ (GSZ) du 22-07-2008, ENGIE (ENGI) du 31-07-2015, même ISIN FR0010208488.
 IDENTITES_DES_SOCIETES = ["numero", "societe", "debut", "fin", "nom_cote", "mnemonique", "isin", "preuve", "etat"]
+# Ce que la colonne `mnemonique` porte quand le mnémonique d'une société n'a pas été trouvé (25 sociétés au
+# 14-11-2026, dont Dexia, numéro 41). Lu par l'ASSEMBLAGE des 20 ans, qui n'écrit pas les barres d'une telle société, et
+# par le LECTEUR UNIQUE, qui ne la reconnaît sous aucun mnémonique (livraison QE, A-713 ①, 14-11-2026) : un seul
+# endroit pour les deux bouts (R-708 : deux écritures d'une même valeur divergent toujours).
+MNEMONIQUE_NON_TROUVE = "non trouvé"
 
 # Les ajustements que Yahoo applique à ses cours, jugés un par un contre une source officielle (A-539, 08-10-2026).
 # Écrit À LA MAIN, une ligne par ajustement, chacune avec sa preuve — comme DETACHEMENTS_OFFICIELS. Lu par

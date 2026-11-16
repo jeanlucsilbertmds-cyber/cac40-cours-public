@@ -131,6 +131,18 @@ ECARTS_A_LA_COLONNE = {
     ("2017-03-18", "Retrait", "2017-09-18"), ("2017-03-20", "Admission", "2017-09-18"),
     ("2018-06-24", "Admission", "2019-06-24"), ("2020-06-22", "Admission", "2020-09-21"),
 }
+# LES CODES PÉRIMÉS QUE BNAINS GARDE APRÈS UN CHANGEMENT DE SOCIÉTÉ — écrit À LA MAIN, chacun avec sa preuve (14-11-2026,
+# D3 du relecteur QE2, superviseur R-759 du 14-11-2026, liste fermée ③). Clé : le code de bnains ; valeur : (première
+# séance du nouveau titre, son code ISIN, son nom, la preuve). Le passage de bnains est COUPÉ à cette séance : jusqu'à la
+# veille, le code de bnains ; à partir d'elle, le nouveau code. Technip : « le 16-01-2017 est le dernier jour de
+# négociation des titres Technip », TechnipFMC cotée le 17-01-2017 (boursorama, relevé par le relecteur QE2) ;
+# remplacée au CAC 40 par Worldline le 23-03-2020 (« en lieu et place de TechnipFMC », allnews.ch/node/25128).
+CODES_PERIMES_DE_BNAINS = {
+    "FR0000131708": ("2017-01-17", "GB00BDSFG982", "TechnipFMC",
+                     "boursorama : « le 16 janvier 2017 est le dernier jour de négociation des titres Technip » ; "
+                     "TechnipFMC (GB00BDSFG982) cotée à Paris le 17-01-2017 ; « en lieu et place de TechnipFMC », "
+                     "allnews.ch/node/25128 (relecteur QE2, 14-11-2026)"),
+}
 NOTE_D_EFFET = re.compile(r"(\d\d)/(\d\d)/(\d{4}) (avant l'ouverture|à l'ouverture|après la clôture)")
 
 
@@ -822,9 +834,47 @@ def relever(racine):
             ecarts[-1][1] = s
         else:
             ecarts.append([s, s, n])
-    lignes = preuves(passages(membres, libelles), ev, initiale, seances)
+    lignes = couper_les_codes_perimes(preuves(passages(membres, libelles), ev, initiale, seances), seances)
     return {"passages": lignes, "evenements": ev, "membres": membres,
             "sans_effet": sans_effet, "ecarts": ecarts}
+
+
+def couper_les_codes_perimes(lignes, seances):
+    """Coupe chaque passage d'un code périmé de bnains à la première séance du nouveau titre.
+
+    ① RÔLE — Rendre à chaque titre ses séances quand bnains garde l'ancien code après un changement de société.
+    ② CONTEXTE D'APPEL — `relever`, après `preuves`.
+    ③ ENTRÉE — `lignes` : les passages avec leurs preuves · `seances` : les séances du calendrier, triées.
+    ④ CONDITIONS D'ENTRÉE — La première séance du nouveau titre est une séance du calendrier (ValueError sinon).
+    ⑤ SORTIE — UNE valeur : la liste des passages, chaque passage coupé remplacé par deux, triée comme `passages`.
+      [rend: 1]
+    ⑥ TRAITEMENT — pour chaque passage dont le code est dans CODES_PERIMES_DE_BNAINS et qui contient la date de coupure
+      (après sa première séance) : le premier morceau finit la veille (séance précédente), sa sortie porte la preuve ;
+      le second commence à la coupure sous le nouveau code et le nouveau nom, son entrée porte la preuve, sa sortie
+      garde celle du passage d'origine.
+    ⑦ UNITÉ — Des séances.
+    ⑧ POURQUOI — D3 du relecteur QE2 (14-11-2026) : les 817 séances de TechnipFMC (2017-01-17 au 2020-03-20) étaient
+      prêtées à Technip, une autre société et un autre code ; une recherche de sources partait sur le mauvais titre.
+    ⑨ CE QUI CLOCHE — Les autres codes périmés connus (Lafarge pour LafargeHolcim, Dassault Systèmes avant 2021) ne
+      sont pas coupés : BACKLOG (B4).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main ou lève ValueError. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    rang = {d.isoformat(): i for i, d in enumerate(seances)}
+    out = []
+    for r in lignes:
+        c = CODES_PERIMES_DE_BNAINS.get(r["isin_bnains"])
+        if c is None or not (r["premiere_seance"] < c[0] <= (r["derniere_seance"] or "9999")):
+            out.append(r)
+            continue
+        if c[0] not in rang:
+            raise ValueError(f"code périmé {r['isin_bnains']} : {c[0]} n'est pas une séance")
+        veille = seances[rang[c[0]] - 1].isoformat()
+        out.append(dict(r, derniere_seance=veille, preuve_sortie="code périmé chez bnains : " + c[3]))
+        out.append(dict(r, isin_bnains=c[1], libelle_bnains=c[2], premiere_seance=c[0],
+                        preuve_entree="code périmé chez bnains : " + c[3]))
+    return sorted(out, key=lambda r: (r["libelle_bnains"].lower(), r["premiere_seance"]))
 
 
 def corrections_de_l_avis(evenements):

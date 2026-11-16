@@ -609,13 +609,16 @@ def relire_par_le_lecteur(lignes):
       colonnes du contrat COURS_MAITRE.
     ④ CONDITIONS D'ENTRÉE — Le dossier courant est la racine du dépôt (`main` s'y est placé) ; le lecteur commun et ce
       qu'il lit (référentiel, calendrier officiel, nature des trous, passages dans le CAC 40) sont en place.
-    ⑤ SORTIE — DEUX valeurs : le nombre de lignes que le lecteur mettrait à part (`lignes_mises_a_part`), ou None si la
-      lecture elle-même a échoué ; et une liste de lignes de texte qui disent quoi, pour l'écran et l'alerte.
-      [rend: 2]
+    ⑤ SORTIE — TROIS valeurs : le nombre de lignes que le lecteur mettrait à part (`lignes_mises_a_part`), ou None si
+      la lecture elle-même a échoué ; une liste de lignes de texte qui disent quoi, pour l'écran et l'alerte ; et la
+      liste des textes des anomalies d'identité que le lecteur a rendues sans s'arrêter (champ `anomalies_d_identite`
+      de `LIRE_LES_COURS.lire`, vide si la lecture a échoué).
+      [rend: 3]
     ⑥ TRAITEMENT — ① écrire les lignes dans un fichier temporaire, hors du dépôt · ② le faire lire par
       `LIRE_LES_COURS.lire` · ③ compter par `LIRE_LES_COURS.lignes_mises_a_part`, une PROPRIÉTÉ de conservation et non
       une liste de sortes · ④ pour le dire, montrer les premières lignes de chaque relevé non vide du lecteur ·
-      ⑤ une erreur du lecteur (HorsCalendrier, ValueError, OSError) rend None et son texte · ⑥ effacer le fichier.
+      ⑤ une erreur du lecteur (HorsCalendrier, ValueError, OSError) rend None et son texte · ⑥ effacer le fichier ·
+      ⑦ rendre aussi les anomalies d'identité du lecteur, que `main` dit (K-1 de Cowork, 14-11-2026).
     ⑦ UNITÉ — Des LIGNES du fichier.
     ⑧ POURQUOI — Superviseur R-759 du 29-10-2026, verdict DE FOND : le versement jugeait la date par « samedi ou
       dimanche », le lecteur par le calendrier officiel ; une barre VINCI du 01-05-2026 (Bourse fermée) entrait au
@@ -625,7 +628,9 @@ def relire_par_le_lecteur(lignes):
       strict : écarter au lecteur a été jugé RUSTINE le 29-10-2026 (deux politiques d'une même lecture, R-708 ; un trou
       fabriqué). Le versement partiel, décidé par Jean-Luc le 30-10-2026 à 13h55 — la question que ce verdict lui
       renvoyait —, met la ligne à part AVANT le maître, qui reste propre ; le trou existe, il est nommé (alerte, code 3,
-      passage rouge) et se lève par correction (superviseur R-759 du 30-10-2026, tour 3).
+      passage rouge) et se lève par correction (superviseur R-759 du 30-10-2026, tour 3). · K-1 de Cowork
+      (14-11-2026) : le lecteur rendait ses anomalies d'identité dans un champ que personne ne lisait ; ce dictionnaire
+      était jeté ici, et le soir se taisait.
     ⑨ CE QUI CLOCHE — Le maître est relu une fois chaque soir ordinaire ; un soir où des lignes sont mises à part, il est
       relu jusqu'à N+3 fois pour N lignes neuves (`trier_les_lignes_neuves`), environ une demi-seconde par lecture. ·
       Le relevé à l'écran montre les sortes que nomme `SORTES_DU_LECTEUR` ; une sorte nouvelle refuse quand même (le
@@ -636,10 +641,10 @@ def relire_par_le_lecteur(lignes):
     """
     n, c, erreur = _relecture(lignes)
     if n is None:
-        return None, [f"le lecteur commun n'a pas pu relire le maître complété : {erreur}"]
+        return None, [f"le lecteur commun n'a pas pu relire le maître complété : {erreur}"], []
     return n, [f"{SORTES_DU_LECTEUR.get(cle, cle)} : "
                + " ; ".join(_lisible(e) for e in (list(x.items()) if hasattr(x, 'items') else list(x))[:3])
-               for cle, x in c.items() if cle in SORTES_DU_LECTEUR and x]
+               for cle, x in c.items() if cle in SORTES_DU_LECTEUR and x], list(c.get("anomalies_d_identite") or [])
 
 
 def _lisible(e):
@@ -880,6 +885,80 @@ def _jj_mm_aaaa(d):
     return f"{d[8:10]}-{d[5:7]}-{d[0:4]}" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) else d
 
 
+def dire_les_anomalies_d_identite(anomalies):
+    """Dit les anomalies d'identité que le lecteur a rendues sans s'arrêter, et écrit leur nombre en sortie du pas.
+
+    ① RÔLE — Faire qu'une faute de la table des identités sur une société sortie absente du maître ne passe plus en
+      silence dans le circuit du soir : l'écran la nomme, et la ligne `anomalies_d_identite=<n>` du fichier nommé par
+      `GITHUB_OUTPUT` fait rougir le pas de fin « Rougir si une anomalie d'identite a ete dite ».
+    ② CONTEXTE D'APPEL — `main`, après la relecture finale du maître complété par le lecteur commun, avant toute
+      écriture du maître, y compris en `--verifier`.
+    ③ ENTRÉE — `anomalies` : la liste des textes rendue par `relire_par_le_lecteur` (troisième valeur).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : vrai si la sortie du pas est écrite, ou si `GITHUB_OUTPUT` n'est pas posée (hors de
+      GitHub : la ligne est alors seulement affichée, et l'écran dit que RIEN ne rougira) ; faux si `GITHUB_OUTPUT` est
+      posée mais vide, ou si son fichier ne s'écrit pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① écrire `anomalies_d_identite=<n>`, n le nombre d'anomalies, 0 compris, dans le fichier de
+      `GITHUB_OUTPUT`, en ajout · ② afficher chaque anomalie, avec le geste qui la lève, et ce qui suivra : « le passage
+      rougira » seulement si la sortie est écrite (N-1 de Cowork, 15-11-2026) ; en panne, chaque anomalie avec le geste
+      qui la lève, puis la panne, dite selon qu'il y a des anomalies ou aucune (remarques de Cowork, RELU 38b7e4a3).
+    ⑦ UNITÉ — Un nombre d'anomalies, pas de lignes de cours.
+    ⑧ POURQUOI — K-1 de Cowork (14-11-2026) : la tolérance I-1 rendait l'anomalie dans un champ que seul `resume` lisait ;
+      le soir avec la faute sortait à l'identique d'un soir sans faute (mesuré : « SORTIES_IDENTIQUES »). Forme des
+      superviseurs R-759 du 14-11-2026 (QE2 K et R-207bis) : la convention qui existe déjà sur le pas « Tenir les
+      positions » (`positions_signalees=<n>`, code 0, pas de fin qui rougit) plutôt qu'un code 3 réutilisé, dont la
+      branche du circuit fait un `git add` d'un nom fixe qui tombe en « pathspec did not match » sans ce fichier.
+    ⑨ CE QUI CLOCHE — Le radar (`audit_ecosysteme.py`) ne lit pas cette sortie : un soir rouge se voit sur GitHub, pas
+      dans `audit_du_jour.md` (A-642 ②, au BACKLOG). · Une anomalie revient chaque soir tant que la table n'est pas
+      corrigée : c'est voulu.
+    ⑩ EFFET — Affiche ; ajoute une ligne au fichier de `GITHUB_OUTPUT`.
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    ligne = "anomalies_d_identite=%d" % len(anomalies)
+    sortie = os.environ.get("GITHUB_OUTPUT")
+    # N-1 de Cowork (15-11-2026) : « le passage rougira » ne se dit que si la sortie du pas est ÉCRITE ; une variable
+    # posée mais VIDE n'est pas une absence (hors du circuit) mais une panne : code 1, comme un fichier qui ne s'écrit pas.
+    if sortie is not None and not sortie.strip():
+        quoi = "GITHUB_OUTPUT est posée mais vide"
+    elif sortie is not None:
+        try:
+            with open(sortie, "a", encoding="utf-8") as fh:
+                fh.write(ligne + "\n")
+            quoi = ""
+        except OSError as e:
+            quoi = f"{type(e).__name__} : {e}"
+    else:
+        quoi = None
+    if quoi:
+        # Remarques de Cowork (RELU 38b7e4a3, 15-11-2026) : en panne, l'anomalie porte aussi « Ce qui la lève », et le
+        # message ne parle plus d'« une anomalie » un soir qui n'en a aucune. Texte seulement : le code rendu ne change pas.
+        for a in anomalies:
+            print(f"  ❌ ANOMALIE D'IDENTITÉ : {a}")
+        if anomalies:
+            print(f"     Ce qui la lève : corriger la ligne de la société nommée dans {IDENTITES_A_CORRIGER} "
+                  f"(décision de Jean-Luc) ; ce soir la séance N'EST PAS versée : réparer d'abord la sortie du pas.")
+        print(f"  ❌ SORTIE DU PAS IMPOSSIBLE À ÉCRIRE ({quoi}) — RIEN N'EST ÉCRIT : "
+              + ("ces anomalies d'identité ne seraient pas vues par le circuit." if anomalies else
+                 "aucune anomalie d'identité ce soir, mais une anomalie ne serait pas vue par le circuit."))
+        return False
+    suite = ("le passage rougira" if quoi == "" else
+             "hors du circuit, GITHUB_OUTPUT absente : RIEN ne rougira, l'anomalie n'est dite qu'ici")
+    for a in anomalies:
+        print(f"  ❌ ANOMALIE D'IDENTITÉ (lecture poursuivie, {suite}) : {a}")
+    if anomalies:
+        print(f"     Ce qui la lève : corriger la ligne de la société nommée dans {IDENTITES_A_CORRIGER} "
+              f"(décision de Jean-Luc) ; la séance du soir est versée.")
+    if quoi is None:
+        print("  " + ligne + "  (GITHUB_OUTPUT absente : sortie du pas affichée seulement)")
+    return True
+
+
+# LA TABLE QU'UNE ANOMALIE D'IDENTITÉ DEMANDE DE CORRIGER — pour le texte de `dire_les_anomalies_d_identite` seulement.
+IDENTITES_A_CORRIGER = "donnees/sources_indice/IDENTITES_DES_SOCIETES.csv"
+
+
 def main():
     """Verse les séances du jour dans le fichier maître des cours.
 
@@ -923,7 +1002,9 @@ def main():
       `juger_la_ligne` ou mise à part par le lecteur (`trier_les_lignes_neuves`) est mise à
       part, nommée, et les autres sont versées** ; le maître complété final est relu et doit
       rendre 0 ligne à part, sinon tout est refusé ; alerte
-      `rapports/ALERTE_LIGNES_MISES_A_PART.md`, code 3 ·
+      `rapports/ALERTE_LIGNES_MISES_A_PART.md`, code 3 · ③ quinquies (14-11-2026, K-1 de Cowork) les anomalies
+      d'identité rendues par le lecteur sont dites par `dire_les_anomalies_d_identite`, sortie du pas
+      `anomalies_d_identite=<n>`, sans changer le code ·
       ④ pour chaque ligne : absente du maître, elle est ajoutée avec la source
       qu elle porte, ou à défaut celle que dit sa date ; déjà présente,
       ses cinq champs sont comparés à l ancienne · ⑤ si un écart est trouvé,
@@ -953,12 +1034,16 @@ def main():
       par `os.chdir`, ce qui rend tous les chemins relatifs à la racine passée ·
       **`extrasaction=\"ignore\"` JETTE SILENCIEUSEMENT toute colonne absente de
       `COLONNES`** — une colonne ajoutée en amont disparaîtrait sans un mot.
+      · **ajoute la ligne `anomalies_d_identite=<n>` au fichier nommé par `GITHUB_OUTPUT`**, quand il est posé
+      (14-11-2026, K-1 de Cowork).
     ⑪ TERMINAISON — **NE REND JAMAIS LA MAIN : tous les chemins terminent le
       programme.** Code 2 : aucun argument, `--increment` sans chemin, option inconnue ou mal placée · Code 1 : reconstruction qui perdrait des séances enregistrées, ligne refusée par `juger_la_ligne`, ligne que le lecteur commun mettrait à part ou relecture impossible (29-10-2026), référentiel illisible, maître absent sans
       `--premier-remplissage`, maître qui a rétréci, version enregistrée ou
       historique Google illisibles, incrément vide, ou révisions détectées · Code 3 (30-10-2026) : versement fait SANS
       les lignes neuves mises à part, nommées à l'écran et dans `rapports/ALERTE_LIGNES_MISES_A_PART.md` ; aussi en
-      `--verifier`, sans écriture · Code 0 : versement fait, ou vérification demandée.
+      `--verifier`, sans écriture · Code 0 : versement fait, ou vérification demandée. · Code 1 aussi, sans rien
+      écrire, si la sortie du pas ne s'écrit pas (14-11-2026). Le nombre d'anomalies d'identité ne change JAMAIS le
+      code : il passe par la sortie du pas `anomalies_d_identite=<n>`.
       **Le circuit du soir n a pas de tolérance sur ce pas : un code non nul
       [sort: oui]
     ⑫ DÉFINITIONS —
@@ -1238,7 +1323,7 @@ def main():
     # LE LECTEUR COMMUN JUGE LE MAÎTRE COMPLÉTÉ AVANT QU'IL SOIT ÉCRIT (superviseur R-759 du 29-10-2026, DE FOND) :
     # une ligne qu'il mettrait à part arrêterait le détecteur et le teneur chaque soir, sur un maître qui ne se
     # réécrit jamais. Exemple réel : une barre VINCI du 01-05-2026, Bourse fermée, entrait en code 0.
-    n_lecteur, dit = relire_par_le_lecteur(lignes)
+    n_lecteur, dit, anomalies_d_identite = relire_par_le_lecteur(lignes)
     # LES LIGNES NEUVES QUE LE LECTEUR METTRAIT À PART sont mises à part elles aussi, le soir seulement (décision de
     # Jean-Luc du 30-10-2026 à 13h55). Un lecteur en échec (None) refuse tout : rien ne dit alors quelles lignes sont
     # saines — par exemple le calendrier 2027 non relevé (A-639).
@@ -1255,7 +1340,7 @@ def main():
             ajouts -= len(ecartees)
             # LE MAÎTRE COMPLÉTÉ FINAL EST RELU : deux lignes neuves admises chacune seule mais pas ensemble ne
             # passent pas. Il faut 0 ligne à part, sinon tout est refusé.
-            n_lecteur, dit = relire_par_le_lecteur(lignes)
+            n_lecteur, dit, anomalies_d_identite = relire_par_le_lecteur(lignes)
     if n_lecteur != 0:
         quoi = ("la relecture par le lecteur commun a échoué" if n_lecteur is None else
                 f"le lecteur commun mettrait {n_lecteur} ligne(s) à part dans le maître complété")
@@ -1281,6 +1366,13 @@ def main():
 
     for x, motif in a_part:
         print(f"  ⛔ MISE À PART : {x.get('valeur')} · séance du {_jj_mm_aaaa(x.get('date') or '')} · {motif}")
+
+    # K-1 DE COWORK (14-11-2026) : LE SOIR NE TAIT PLUS UNE ANOMALIE D'IDENTITÉ. Elle est dite à l'écran, et la sortie
+    # du pas `anomalies_d_identite=<n>` fait rougir le pas de fin « Rougir si une anomalie d'identite a ete dite » ; le
+    # code reste celui du versement — convention de « positions_signalees » (superviseurs R-759 du 14-11-2026), sans
+    # code de sortie nouveau ni fichier d'alerte à ajouter au dépôt. Avant toute écriture, et aussi en `--verifier`.
+    if not dire_les_anomalies_d_identite(anomalies_d_identite):
+        sys.exit(1)
 
     if verifier:
         print(f"  {len(lignes)} lignes · {ajouts} à ajouter · {len(a_part)} mise(s) à part · 0 révision · AUCUNE ÉCRITURE")

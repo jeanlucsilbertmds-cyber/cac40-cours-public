@@ -81,6 +81,7 @@ sys.path.insert(0, ICI)
 import CONTROLER_L_HISTORIQUE_LONG as K          # noqa: E402  lecture des cours, Paris, facteurs appliqués (R-708)
 import RECONSTRUIRE_L_HISTORIQUE_LONG as R       # noqa: E402  opérations sur titre et facteur d'une date (R-708)
 from CONTRATS_DES_FICHIERS import COURS_MAITRE, COURS_BNAINS, COURS_DE_REMPLACEMENT_DES_TROUS   # noqa: E402
+from CONTRATS_DES_FICHIERS import MNEMONIQUE_NON_TROUVE   # noqa: E402  partagé avec le lecteur unique (R-708)
 
 N3 = os.path.join("etudes", "brouillons_chat", "NUIT_DES_20_ANS_Mer_21-10-2026", "N3_societes_sorties",
                   "BARRES_SOCIETES_SORTIES_PROPOSITION.csv.gz")
@@ -90,7 +91,12 @@ IDENTITES = os.path.join("donnees", "sources_indice", "IDENTITES_DES_SOCIETES.cs
 CONTRAT = os.path.join("programmes", "CONTRATS_DES_FICHIERS.py")
 TEMOINS = "temoins"
 GARDEE = "GARDEE"                    # statut des barres N3 retenues par leur extraction (RAPPORT_N3.md)
-NON_TROUVE = "non trouvé"            # écrit tel quel dans la colonne mnemonique de la table des identités
+# Ce que le manifeste dit des trous des sociétés sorties (QE, A-713 ①, 14-11-2026) : écrit par `signaler` au gel et
+# par `remesurer_le_manifeste` ; avant QE, « non comptés — le lecteur unique ne connaît pas les sociétés sorties (QE) ».
+TROUS_DES_SOCIETES_SORTIES = ("comptés par le lecteur unique (lecture_par_le_lecteur_unique), entre la première et la "
+                              "dernière barre de chaque société sortie ; ses séances dans l'indice hors de ses barres : "
+                              "A-713 ②")
+NON_TROUVE = MNEMONIQUE_NON_TROUVE  # écrit tel quel dans la colonne mnemonique ; la valeur vit au contrat (QE, 14-11-2026)
 SAMEDI = 5
 JOURS = ("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim")
 # les sources écrites dans la huitième colonne, pour les parts que ce programme calcule (les autres parts gardent la
@@ -611,6 +617,12 @@ def assembler(racine, coupure=None, recoupee=SOURCE_RECOUPEE):
               "④ A_VERSER sociétés sorties")
 
     lignes = sorted((x for x, _ in sortie.values()), key=lambda x: (x[1], x[0]))
+    # D4 du relecteur QE (14-11-2026) : une ligne ÉCARTÉE SUR DÉCISION (CONTRATS.LIGNES_ECARTEES_SUR_DECISION, quel que
+    # soit le témoin sous lequel elle est déclarée) n'est plus jamais écrite — le prochain témoin ne rebloque pas le juge
+    ecartees = lignes_ecartees_sur_decision()
+    lignes, retirees = [x for x in lignes if tuple(x) not in ecartees], [x for x in lignes if tuple(x) in ecartees]
+    if retirees:
+        non_versees["écartée sur décision (CONTRATS.LIGNES_ECARTEES_SUR_DECISION)"] += len(retirees)
     if len({(x[0], x[1]) for x in lignes}) != len(lignes):
         refus.append("une clé (valeur, date) écrite deux fois")
     vides = sum(1 for x in lignes if not x[7].strip())
@@ -626,6 +638,29 @@ def assembler(racine, coupure=None, recoupee=SOURCE_RECOUPEE):
                     "barres_n3_d_un_jour_douteux_gardees": gardees,
                     "barres_n3_redatees": [list(x) for x in redatees],
                     "societes_sorties": dict(sorted(numero_de.items()))}
+
+
+def lignes_ecartees_sur_decision():
+    """Rend l'ensemble des lignes de cours écartées sur décision, tous fichiers confondus.
+
+    ① RÔLE — Faire lire à l'assemblage la même décision que le lecteur unique (R-708).
+    ② CONTEXTE D'APPEL — `assembler` ; l'épreuve du fichier des 20 ans (P7).
+    ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — CONTRATS.LIGNES_ECARTEES_SUR_DECISION existe (dictionnaire chemin → entrées « ligne »).
+    ⑤ SORTIE — UNE valeur : l'ensemble des lignes, chacune un tuple de ses huit cases (lues en CSV).
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire chaque « ligne » de chaque fichier déclaré, en CSV.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — D4 du relecteur QE (14-11-2026) : la décision de Jean-Luc du 14-11-2026 à 13h41 (VK, 2016-03-28) n'était
+      lue que par le lecteur, sous le chemin d'un témoin ; un témoin assemblé de nouveau l'aurait réécrite. Tous fichiers
+      confondus : une barre déclarée fausse l'est dans tout fichier qui la porterait.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    import CONTRATS_DES_FICHIERS as C
+    return {tuple(next(csv.reader([x["ligne"]]))) for liste in C.LIGNES_ECARTEES_SUR_DECISION.values() for x in liste}
 
 
 def _lecteur():
@@ -878,7 +913,7 @@ def signaler(racine, lignes, comptes):
     ⑧ POURQUOI — Écrits une fois au gel, à titre INFORMATIF (superviseur R-759 de E2b, tour 3, ②) : aucune épreuve
       ne les relit. Superviseur R-759 de E2b, tour 1, marche ⑤ 3 : les barres repérées sont signalées, pas retirées ; les
       trous des sociétés sorties ne sont PAS comptés ici (une seconde table des trous serait contraire à R-708) :
-      le lecteur unique ne les connaît pas (QE).
+      depuis QE (14-11-2026), le lecteur unique les compte, et le manifeste le dit (TROUS_DES_SOCIETES_SORTIES).
     ⑨ CE QUI CLOCHE — Voir `variations_hors_seuil`.
     ⑩ EFFET — Lit des fichiers.
     ⑪ TERMINAISON — Rend la main ou lève.
@@ -890,7 +925,7 @@ def signaler(racine, lignes, comptes):
     _, ops = operations(racine)
     sauts, non_vues = variations_hors_seuil(lignes, ops, seuil, table, lc.COMMUN.norm_valeur)
     return {"seuil_de_variation": seuil, "sauts_signales": sauts, "operations_non_vues": non_vues,
-            "trous_des_societes_sorties": "non comptés — le lecteur unique ne connaît pas les sociétés sorties (QE)"}
+            "trous_des_societes_sorties": TROUS_DES_SOCIETES_SORTIES}
 
 
 def empreinte(chemin):
@@ -964,13 +999,16 @@ def mesurer_les_trous(racine, chemin):
     ③ ENTRÉE — `racine` · `chemin` : du témoin, relatif à la racine.
     ④ CONDITIONS D'ENTRÉE — Le témoin est déclaré figé au contrat.
     ⑤ SORTIE — UNE valeur : {« fige », « fige_modifie », « lignes_lues », « lignes_mises_a_part », « inconnues »
-      {nom : lignes}, « trous » {mnémonique : {nature : nombre}}, « seances_sans_cours » : le total}.
+      {nom : lignes}, « trous » {mnémonique : {nature : nombre}}, « seances_sans_cours » : le total, « barres_rangees »
+      et « doublons » (depuis le 14-11-2026, QE), « lignes_ecartees » (les [valeur, date] écartées sur décision,
+      CONTRATS.LIGNES_ECARTEES_SUR_DECISION) : lignes lues = barres rangées + doublons + écartées + mises à part}.
       [rend: 1]
     ⑥ TRAITEMENT — `lire`, `lignes_mises_a_part`, puis `trous` pour chaque mnémonique rangé.
     ⑦ UNITÉ — Des séances du calendrier ; des lignes.
     ⑧ POURQUOI — Une seule table des trous (R-708) : ce programme n'en crée pas d'autre ; il écrit au manifeste ce que
       le lecteur mesure, avec la nature qu'il lit dans donnees/NATURE_DES_TROUS.csv.
-    ⑨ CE QUI CLOCHE — Les sociétés sorties sont « inconnues » du lecteur : leurs trous ne sont pas mesurés.
+    ⑨ CE QUI CLOCHE — Les trous d'une société sortie ne sont comptés qu'entre sa première et sa dernière barre (le
+      lecteur la tient hors univers depuis QE, 14-11-2026) : ses séances dans l'indice hors de ses barres, A-713 ②.
     ⑩ EFFET — Lit des fichiers.
     ⑪ TERMINAISON — Rend la main ou lève.
       [sort: non]
@@ -982,7 +1020,53 @@ def mesurer_les_trous(racine, chemin):
             "lignes_lues": c["lignes_lues"], "lignes_mises_a_part": lc.lignes_mises_a_part(c),
             "inconnues": dict(sorted(c["inconnues"].items())),
             "trous": {m: t for m, t in trous.items() if t},
-            "seances_sans_cours": sum(sum(t.values()) for t in trous.values())}
+            "seances_sans_cours": sum(sum(t.values()) for t in trous.values()),
+            "barres_rangees": sum(len(b) for b in c["barres"].values()), "doublons": len(c["doublons"]),
+            "lignes_ecartees": [[v, d] for v, d, _ in c.get("ecartees", [])]}
+
+
+def remesurer_le_manifeste(racine, chemin):
+    """Réécrit, dans le manifeste d'un témoin figé, ce que le lecteur unique en mesure aujourd'hui.
+
+    ① RÔLE — Mettre à jour PAR PROGRAMME la mesure écrite au manifeste quand le lecteur change volontairement, sans
+      toucher au témoin ni à rien d'autre du manifeste.
+    ② CONTEXTE D'APPEL — `main`, option « --remesurer=<chemin du témoin> ». Une fois après QE, le 14-11-2026.
+    ③ ENTRÉE — `racine` · `chemin` : le témoin, relatif à la racine ; son manifeste est `<chemin sans .csv>_MANIFESTE.json`.
+    ④ CONDITIONS D'ENTRÉE — Le témoin est déclaré figé au contrat et INTACT (empreinte), son manifeste existe et porte
+      la même empreinte (« sha256 ») ; sinon ValueError, rien n'est écrit.
+    ⑤ SORTIE — UNE valeur : la nouvelle mesure (rendu de `mesurer_les_trous`).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① `mesurer_les_trous` · ② refuser un témoin non figé, modifié, ou un manifeste d'une autre empreinte ·
+      ③ remplacer « lecture_par_le_lecteur_unique » et « trous_des_societes_sorties » (TROUS_DES_SOCIETES_SORTIES),
+      noter « lecture_remesuree_le » (heure de Paris) et garder l'ancienne mesure sous « lecture_avant_remesure » (rien
+      ne se supprime) · ④ réécrire le manifeste, mêmes réglages JSON qu'au gel.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Principe de Jean-Luc du 13-11-2026 à 22h55, rappelé le 14-11-2026 pour QE : une épreuve qui compare à
+      un état figé d'avant un changement voulu se met à jour par programme, sans lui redemander. Le manifeste du témoin
+      du 13-11-2026 à 10h59 portait la mesure du lecteur d'avant QE (68 391 lignes mises à part) ; P5 compare le
+      manifeste au lecteur. R-728 : ce qui se calcule ne s'écrit pas à la main.
+    ⑨ CE QUI CLOCHE — Les autres champs du manifeste (comptes de l'assemblage, durées) ne sont pas recalculés : ils ne
+      dépendent pas du lecteur.
+    ⑩ EFFET — Réécrit le manifeste.
+    ⑪ TERMINAISON — Rend la main ou lève ValueError / OSError. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    lu = mesurer_les_trous(racine, chemin)
+    if not lu["fige"] or lu["fige_modifie"]:
+        raise ValueError(f"{chemin} n'est pas un témoin figé intact (fige {lu['fige']}, modifié {lu['fige_modifie']})")
+    f_m = os.path.join(racine, chemin[:-4] + "_MANIFESTE.json")
+    with open(f_m, encoding="utf-8") as f:
+        manifeste = json.load(f)
+    if manifeste.get("sha256") != empreinte(os.path.join(racine, chemin)):
+        raise ValueError(f"le manifeste {f_m} ne porte pas l'empreinte du témoin")
+    manifeste.setdefault("lecture_avant_remesure", manifeste.get("lecture_par_le_lecteur_unique"))
+    manifeste["lecture_par_le_lecteur_unique"] = lu
+    manifeste["trous_des_societes_sorties"] = TROUS_DES_SOCIETES_SORTIES
+    manifeste["lecture_remesuree_le"] = datetime.datetime.now(ZoneInfo("Europe/Paris")).isoformat(timespec="minutes")
+    with open(f_m, "w", encoding="utf-8") as f:
+        json.dump(manifeste, f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    return lu
 
 
 def _contrat_relu(racine):
@@ -1015,7 +1099,7 @@ def main(argv):
 
     ① RÔLE — Le point d'entrée.
     ② CONTEXTE D'APPEL — La ligne de commande (② du programme).
-    ③ ENTRÉE — `argv` : racine, --coupure=AAAA-MM-JJ, --ecrire.
+    ③ ENTRÉE — `argv` : racine, --coupure=AAAA-MM-JJ, --ecrire ; ou racine, --remesurer=<chemin du témoin> (seule).
     ④ CONDITIONS D'ENTRÉE — Toute autre option arrête (code 2).
     ⑤ SORTIE — UNE valeur : 0, 1 ou 2 (⑤ du programme).
       [rend: 1]
@@ -1031,11 +1115,22 @@ def main(argv):
     """
     args = [a for a in argv if not a.startswith("--")]
     opts = [a for a in argv if a.startswith("--")]
-    mal = [a for a in opts if a != "--ecrire" and not (a.startswith("--coupure=") and len(a) == len("--coupure=") + 10)]
+    remesure = [a.split("=", 1)[1] for a in opts if a.startswith("--remesurer=") and len(a) > len("--remesurer=")]
+    mal = [a for a in opts if a != "--ecrire" and not (a.startswith("--coupure=") and len(a) == len("--coupure=") + 10)
+           and not (remesure and a.startswith("--remesurer=") and len(opts) == 1)]
     if len(args) != 1 or not os.path.isdir(args[0]) or mal:
-        print("USAGE : ASSEMBLER_LES_VINGT_ANS.py <racine> [--coupure=AAAA-MM-JJ] [--ecrire]")
+        print("USAGE : ASSEMBLER_LES_VINGT_ANS.py <racine> [--coupure=AAAA-MM-JJ] [--ecrire] | <racine> --remesurer=<témoin>")
         return 2
     racine = os.path.abspath(args[0])
+    if remesure:   # QE, 14-11-2026 : la mesure du lecteur au manifeste, refaite par programme
+        try:
+            lu = remesurer_le_manifeste(racine, remesure[0])
+        except (OSError, ValueError) as e:
+            print(f"ARRÊT — le manifeste n'a pas pu être remesuré : {type(e).__name__} : {e}")
+            return 2
+        print(f"REMESURÉ {remesure[0]} : {lu['lignes_mises_a_part']} ligne(s) mises à part, {lu['seances_sans_cours']} "
+              f"séance(s) sans cours, {lu['barres_rangees']} barres rangées, {len(lu['inconnues'])} nom(s) inconnu(s)")
+        return 0
     coupure = next((a.split("=", 1)[1] for a in opts if a.startswith("--coupure=")), None)
     t0 = datetime.datetime.now().timestamp()
     try:

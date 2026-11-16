@@ -11,22 +11,24 @@
   aussi dans une copie sans .git (le rejeu du contrôle de livraison).
 ⑤ SORTIE — Le code de sortie : 0 si tous les cas passent (et, avec --saboter, si chaque sabotage mord) ; 1 sinon ;
   2 si un sabotage ne s'applique plus. [rend: 1]
-⑥ TRAITEMENT — N1 vraie ligne (Alcatel, FR0000130007 : ALU, 2000-01-03 → 2016-01-06, numéro ≥ 41 ; 39 lignes,
-  38 numéros) · N2 Alstom : ses deux codes ont le même numéro · N3 la vraie liste des taxes : 216 cases remplacées,
+⑥ TRAITEMENT — N1 vraie ligne (Alcatel, FR0000130007 : ALU, 2000-01-03 → 2016-01-06, numéro ≥ 41 ; 40 lignes,
+  39 numéros) · N2 Alstom : ses deux codes ont le même numéro · N3 la vraie liste des taxes : 216 cases remplacées,
   plus aucun ISIN en deuxième colonne, toute autre ligne identique à l'octet, fins de ligne gardées · N4 un passage
   encore ouvert est refusé · N5 un mnémonique sourcé déjà porté par une autre société est refusé · N6 un ISIN de la
   liste sans mnémonique, ou avec deux, est refusé · N7 écriture sur une copie minimale : code 0, puis relancé « rien à
   faire », code 0 · N8 une table dont le plus grand numéro est 5 commence quand même à 41 · N9 le programme appliqué
-  aux tables reconstruites redonne, à l'octet, les tables vivantes (si elles portent déjà les numéros).
+  aux tables reconstruites redonne, à l'octet, les tables vivantes (si elles portent déjà les numéros) · N10 (14-11-2026,
+  QE) la garde d'après écriture (`ecart_du_rendu`) admet un mnémonique ajouté par une ligne écrite (UG), refuse un
+  ajout non écrit, des années prêtées à une société déjà lue (celles d'UG à STLAP) et un mnémonique perdu.
 ⑦ UNITÉ — Des codes de sortie.
 ⑧ POURQUOI — R-731 (tout code écrit passe des épreuves sabotées) ; R-732 (un cas vient d'une vraie ligne : N1, N3).
-⑨ CE QUI CLOCHE — La branche « rendu du lecteur unique changé → fichiers remis à l'identique » n'est pas éprouvée :
-  aucune ligne écrite par le programme n'a de fin vide, le lecteur ne peut donc pas changer d'avis sans sabotage du
-  lecteur lui-même. · La reconstruction suppose que les numéros ≥ 41 ne viennent que de ce programme : une ligne
+⑨ CE QUI CLOCHE — La branche « garde levée → fichiers remis à l'identique » n'est pas éprouvée de bout en bout : N10
+  éprouve la garde seule, sur des rendus construits. · La reconstruction suppose que les numéros ≥ 41 ne viennent que de ce programme : une ligne
   ajoutée à la main sous un tel numéro serait retirée à tort, et N9 rougirait.
 ⑩ EFFET — Des dossiers jetables, effacés à la fin.
 ⑪ TERMINAISON — Rend la main ; sort par sys.exit. Le lancement de N7 est borné à 120 secondes. [sort: oui]
 """
+import csv
 import importlib.util
 import os
 import shutil
@@ -51,6 +53,13 @@ SABOTAGES = {
     "S7_premier_numero_ignore": [(" + [PREMIER_NUMERO - 1]", "")],
     # tour 4 (D2) : le nom corrigé ignoré, le libellé bnains tronqué revient (N9 doit rougir)
     "S8_nom_corrige_ignore": [('        nom = nm["nom"] if nm else libelle[code]\n', "        nom = libelle[code]\n")],
+    # 14-11-2026 (QE, A-713 ①) : la garde d'après écriture, une dent par moitié, et la garde d'avant QE (N7 doit rougir)
+    "S9_garde_d_avant_qe_rendu_egal": [("    changes = sorted(m for m in avant if apres.get(m) != avant[m])\n",
+                                        "    changes = [] if apres == avant else ['rendu entier']\n")],
+    "S10_mnemoniques_deja_lus_non_gardes": [("    changes = sorted(m for m in avant if apres.get(m) != avant[m])\n",
+                                             "    changes = []\n")],
+    "S11_mnemoniques_nouveaux_non_gardes": [('    inattendus = sorted(set(apres) - set(avant) - {r["mnemonique"] for r in nouvelles})\n',
+                                             "    inattendus = []\n")],
 }
 
 
@@ -137,7 +146,8 @@ def tour(outil):
     groupes = {r["isin"]: r for r in lignes_csv(open(T.GROUPES, "rb").read())}
     nouv, refus = T.plan_des_numeros(ident, passages, mnemos, groupes, ok)
     alc = [r for r in nouv if r["isin"] == "FR0000130007"]
-    if refus or len(nouv) != 39 or len({r["numero"] for r in nouv}) != 38 or len(alc) != 1 \
+    # 40 lignes et 39 numéros depuis le 14-11-2026 (QE2 tour 2, D3 : TechnipFMC, GB00BDSFG982, coupée de Technip)
+    if refus or len(nouv) != 40 or len({r["numero"] for r in nouv}) != 39 or len(alc) != 1 \
             or (alc[0]["mnemonique"], alc[0]["debut"], alc[0]["fin"]) != ("ALU", "2000-01-03", "2016-01-06") \
             or int(alc[0]["numero"]) < 41:
         faux.append("N1")
@@ -187,11 +197,32 @@ def tour(outil):
         if k1.returncode != 0 or "FINI écrit" not in k1.stdout or k2.returncode != 0 or "rien à faire" not in k2.stdout:
             faux.append(f"N7 ({k1.returncode}, {k2.returncode} : {(k1.stdout + k1.stderr)[-200:]!r})")
         vivant_id = open(os.path.join(RACINE, F_ID), "rb").read()
-        if vivant_id != o_id and (open(os.path.join(d, F_ID), "rb").read() != vivant_id
+        # N9 depuis le 14-11-2026 (QE2 tour 2) : une société numérotée APRÈS le premier passage du programme (TechnipFMC,
+        # 79) prend, rejouée d'un seul coup, la place que lui donne l'ordre des séances, et décale les numéros suivants ;
+        # une société garde son numéro (I-7). N9 compare donc les lignes par code ISIN, numéro mis à part, puis exige
+        # autant de numéros distincts — l'octet près reste exigé pour la liste des taxes.
+        par_isin = lambda b: sorted([x[1:] for x in csv.reader(b.decode("utf-8-sig").splitlines()[1:]) if x])
+        if vivant_id != o_id and (par_isin(open(os.path.join(d, F_ID), "rb").read()) != par_isin(vivant_id)
+                                  or len({x[0] for x in csv.reader(open(os.path.join(d, F_ID), encoding="utf-8-sig").read().splitlines()[1:]) if x})
+                                  != len({x[0] for x in csv.reader(vivant_id.decode("utf-8-sig").splitlines()[1:]) if x})
                                   or open(os.path.join(d, F_TTF), "rb").read() != open(os.path.join(RACINE, F_TTF), "rb").read()):
             faux.append("N9 (le programme appliqué aux tables reconstruites ne redonne pas les tables vivantes)")
     finally:
         shutil.rmtree(d, ignore_errors=True)
+    # N10 (14-11-2026, QE) : la garde d'après écriture, sur des rendus construits ; UG (Peugeot S.A.) et STLAP sont de
+    # vrais mnémoniques, leurs passages lus dans le rendu réel du lecteur
+    vrai = LECTEUR.lire_les_passages(RACINE)
+    if "UG" in vrai and "STLAP" in vrai:
+        sans_ug = {m: p for m, p in vrai.items() if m != "UG"}
+        prete = dict(vrai, STLAP=sorted(vrai["STLAP"] + vrai["UG"]))
+        attendus = [T.ecart_du_rendu(sans_ug, vrai, [{"mnemonique": "UG"}]) is None,        # ajout écrit : admis
+                    T.ecart_du_rendu(sans_ug, vrai, [{"mnemonique": "XX"}]) is not None,    # ajout non écrit : refusé
+                    T.ecart_du_rendu(vrai, prete, []) is not None,                           # années prêtées : refusé
+                    T.ecart_du_rendu(vrai, sans_ug, []) is not None]                         # mnémonique perdu : refusé
+        if not all(attendus):
+            faux.append(f"N10 (garde d'après écriture : {attendus})")
+    else:
+        faux.append("N10 (UG ou STLAP absent du rendu du lecteur : prémisse fausse)")
     return faux
 
 

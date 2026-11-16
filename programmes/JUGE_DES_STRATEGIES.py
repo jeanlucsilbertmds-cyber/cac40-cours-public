@@ -1629,8 +1629,10 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       racine (`donnees/cours_maitre.csv` ou l'historique long) · `mnemo` : la table de
       `table_mnemoniques`, du mnémonique à la clé de la valeur · `jusqu_au` : la date jusqu'à
       laquelle les séances doivent avoir leurs cours, passée telle quelle au lecteur.
-    ④ CONDITIONS D'ENTRÉE — Celles de `LIRE_LES_COURS.lire`. Chaque mnémonique lu doit être
-      dans `mnemo`.
+    ④ CONDITIONS D'ENTRÉE — Celles de `LIRE_LES_COURS.lire`. Un mnémonique lu hors de `mnemo` (une
+      société sortie de l'indice, que le lecteur reconnaît depuis le 14-11-2026, QE) prend la clé
+      `cle_valeur(mnémonique)`, la traduction de repli de `jouer` ; deux mnémoniques qui tombent sur
+      la même clé sont refusés (ValueError).
     ⑤ SORTIE — DEUX valeurs : les séries, au format de `charger_cours` (clé de la valeur →
       séances triées, prix en nombres) ; et la lecture, un dictionnaire : « passages »
       (clé → liste des (entrée, sortie ou None), dates AAAA-MM-JJ), « trous » (clé → liste
@@ -1638,8 +1640,10 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       valeur dans l'indice le jour de l'achat), « seances » (depuis le 29-10-2026 : la liste
       triée, AAAA-MM-JJ, des séances du calendrier officiel — l'indice publié pour le passé, la
       liste d'Euronext `donnees/CALENDRIER_EURONEXT.csv` pour l'avenir, R-110 — de la première
-      à la dernière date du fichier ; vide pour un fichier sans barre). Exemple mesuré le
-      29-10-2026 sur le maître : 722 séances, du 2024-01-02 au 2026-10-28.
+      à la dernière date du fichier ; vide pour un fichier sans barre), « trous_non_decides »
+      (depuis le 14-11-2026, QE2 : clé → les trous dont la nature n'est pas écrite dans
+      donnees/NATURE_DES_TROUS.csv, R-111 ⑤ — ni suspension, ni donnée perdue décidée). Exemple
+      mesuré le 29-10-2026 sur le maître : 722 séances, du 2024-01-02 au 2026-10-28.
       [rend: 2]
     ⑥ TRAITEMENT — ① lire par le lecteur unique ; pour un fichier déclaré au cours brut de Paris
       (CONTRATS.FICHIERS_DE_COURS_AU_COURS_BRUT : le témoin des 20 ans), remplacer ses barres par la
@@ -1668,7 +1672,10 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       des mêmes cours divergent toujours (R-708) : le juge lit par le lecteur unique au lieu
       d'en refaire une partie.
     ⑨ CE QUI CLOCHE — Une barre que le lecteur rend mais dont un prix ne se lit pas lève une
-      ValueError : `charger_cours` la sautait sans le dire. · `programmes/JUGER_SUR_8_CRITERES.py`
+      ValueError : `charger_cours` la sautait sans le dire. · Le repli `cle_valeur(mnémonique)` (QE,
+      14-11-2026) est celui de `jouer` et de `juger` (`mnemo.get(m, cle_valeur(m))`) : une fiche qui
+      demande ALO (Alstom, sortie) le retrouve sous la même clé ; sur le maître, aucune société sortie
+      n'a de barre et rien ne change. · `programmes/JUGER_SUR_8_CRITERES.py`
       lit encore autrement (`charger_cours`, relevé le 27-10-2026). · Dans le circuit du soir,
       le détecteur (`programmes/DETECTER_LES_SIGNAUX_GITHUB.py`) et le teneur de positions
       (`programmes/TENIR_LES_POSITIONS.py`, son chemin réel) lisent par ici depuis le 29-10-2026 (A-577,
@@ -1691,7 +1698,8 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       de LU2 pour TOUS les refus de la courbe ; AttributeError seulement si le contrat ne déclare
       pas FICHIERS_DE_COURS_AU_COURS_BRUT ; lecture refusée, voir ⑥ ②, message
       commençant par « le lecteur unique ») ou l'erreur du lecteur (OSError, ValueError) ou de la
-      traduction (KeyError pour un mnémonique hors de `mnemo`).
+      traduction (ValueError, « le lecteur unique rend … sous la même clé », pour deux mnémoniques
+      d'une même clé). Aucun de mes appels ne peut ne pas revenir.
       [sort: non]
     """
     lecteur = charger_module(os.path.join(base, "programmes", "LIRE_LES_COURS.py"), "lecteur_unique")
@@ -1713,19 +1721,150 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
         raise ValueError("le lecteur unique ne connaît aucun passage dans le CAC 40 pour %s : rien n'est jugé"
                          % ", ".join(sans))
     iso = lambda d: d.isoformat() if hasattr(d, "isoformat") else str(d)
-    cours, passages, trous = {}, {}, {}
+    cours, passages, trous, non_decides = {}, {}, {}, {}
     for m, barres in c["barres"].items():
-        v = mnemo[m.upper()]
+        # QE (A-713 ①, superviseur R-759 du 14-11-2026) : `mnemo[m.upper()]` levait KeyError pour une société sortie,
+        # absente du référentiel. Repli de `jouer` (R-708) ; une clé prise deux fois écraserait une série sans un mot.
+        v = mnemo.get(m.upper(), cle_valeur(m))
+        if v in cours:
+            raise ValueError("le lecteur unique rend deux mnémoniques sous la même clé %s (dont %s) : rien n'est jugé"
+                             % (v, m))
         cours[v] = [{"date": iso(d), "open": float(r["open"]), "high": float(r["high"]),
                      "low": float(r["low"]), "close": float(r["close"]), "volume": float(r["volume"])}
                     for d, r in sorted(barres.items())]
         passages[v] = [(iso(a), iso(b) if b else None) for a, b in c["dans_l_indice"].get(m, [])]
         trous[v] = sorted(iso(d) for d, _ in lecteur.trous(c, m))
+        non_decides[v] = sorted(iso(d) for d, n in lecteur.trous(c, m) if n == lecteur.NON_DECIDEE)
     # LES SÉANCES DU CALENDRIER OFFICIEL (A-577, étape 7, 29-10-2026) : celles que le lecteur a lues, bornées aux
     # dates du fichier ; le teneur de positions les prend au lieu de les tirer des cours (R-708).
     lues = [d for b in c["barres"].values() for d in b]
     seances = [iso(d) for d, _ in lecteur.CAL.seances_entre(min(lues), max(lues), c["seances"])] if lues else []
-    return cours, {"passages": passages, "trous": trous, "composition": True, "seances": seances}
+    return cours, {"passages": passages, "trous": trous, "composition": True, "seances": seances,
+                   "trous_non_decides": non_decides}
+
+
+def composition_hors_univers(base, fiche, debut, fin):
+    """Mesure M : séances × sociétés sorties de la composition historique, absentes de l'univers de la fiche.
+
+    ① RÔLE — Dire, AVANT de jouer une fiche, quelle part de la composition historique du CAC 40 son univers écrit ne
+      peut pas voir : la garde M (superviseur R-759 du 14-11-2026, liste fermée ②).
+    ② CONTEXTE D'APPEL — `main`, pour chaque fiche, avant `jouer` (donc avant la garde du regard unique) ; l'épreuve.
+    ③ ENTRÉE — `base` : la racine · `fiche` : la fiche (colonne « univers ») · `debut`, `fin` : la période jugée,
+      AAAA-MM-JJ (celle de la fiche, bornée au fichier des cours).
+    ④ CONDITIONS D'ENTRÉE — Les deux tables de la règle I-3 et le calendrier (programmes/LIRE_LES_COURS.py, ses voisins).
+    ⑤ SORTIE — TROIS valeurs : M sur la période ; M dans la fenêtre du regard unique ; le nombre de sociétés comptées.
+      [rend: 3]
+    ⑥ TRAITEMENT — ① société sortie : aucune ligne d'identité sans fin · ② écartée si l'un de ses mnémoniques (toutes
+      lignes, « non trouvé » exclu) est écrit dans l'univers · ③ ses séances de présence : les passages de ses codes
+      ISIN (table des PASSAGES) × le calendrier des séances (`CAL.seances_entre`), dans [debut, fin] · ④ M : la somme ;
+      la même, réduite à la fenêtre du regard unique.
+    ⑦ UNITÉ — Des séances × sociétés.
+    ⑧ POURQUOI — D2 du relecteur QE2 (14-11-2026) : une fiche dont l'univers est la liste des valeurs d'aujourd'hui
+      (IND-001-RETEST, 39 mnémoniques) ne voit aucune société sortie ; un signal sur ses mnémoniques ÉCRITS ne pouvait
+      rien dire, et le regard unique, consommé une fois, ne se rejoue pas. Mesuré par le superviseur :
+      IND-001-RETEST M = 61 284 (dont 60 034 dans la fenêtre), C5-EI-PARAMS M = 950.
+    ⑨ CE QUI CLOCHE — M ne compte que les sociétés SORTIES : une valeur d'aujourd'hui absente d'une liste courte n'y est
+      pas (pour C5, la sélection fait partie de la stratégie). Un univers « composition du jour » n'existe pas encore
+      (au BACKLOG, A-829 : B3 ; K-6 de Cowork). L'exactitude de PASSAGES n'est pas vérifiée ici (A-583).
+    ⑩ EFFET — Lit des fichiers.
+    ⑪ TERMINAISON — Rend la main ou lève l'erreur de lecture. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    import CONTRATS_DES_FICHIERS as _C
+    lec = charger_module(os.path.join(base, "programmes", "LIRE_LES_COURS.py"), "lecteur_garde_m")
+    _, ident = lec._lire_csv(os.path.join(base, lec.IDENTITES), [lec.CONTRATS.IDENTITES_DES_SOCIETES], lec.IDENTITES)
+    _, passages = lec._lire_csv(os.path.join(base, lec.PASSAGES), [lec.CONTRATS.PASSAGES_DANS_LE_CAC40], lec.PASSAGES)
+    sc = lec.CAL.lire_les_seances(base)
+    seances = {d.isoformat() for d, _ in lec.CAL.seances_entre(lec.CAL._date_stricte(debut), lec.CAL._date_stricte(fin), sc)}
+    univers = set(mnemoniques_de_l_univers(fiche["univers"]))
+    ouvertes = {r["numero"] for r in ident if not r["fin"]}
+    codes, mnemos = defaultdict(set), defaultdict(set)
+    for r in ident:
+        if r["numero"] not in ouvertes:
+            if r["isin"]:
+                codes[r["numero"]].add(r["isin"])
+            if r["mnemonique"].strip() and r["mnemonique"].strip() != _C.MNEMONIQUE_NON_TROUVE:
+                mnemos[r["numero"]].add(r["mnemonique"].strip().upper())
+    r_debut, r_fin = _C.fenetre_du_regard_unique()
+    m_total, m_regard, n = 0, 0, 0
+    for numero in codes:
+        if mnemos[numero] & univers:
+            continue
+        jours = {d for d in seances for p in passages if p["isin_bnains"] in codes[numero]
+                 and p["premiere_seance"] <= d <= (p["derniere_seance"] or "9999")}
+        if jours:
+            n += 1
+            m_total += len(jours)
+            m_regard += sum(1 for d in jours if r_debut <= d <= r_fin)
+    return m_total, m_regard, n
+
+
+def garde_composition(base, fiche, periode):
+    """La garde M, en un seul endroit : la ligne BORNÉ, et le refus dans la fenêtre du regard unique.
+
+    ① RÔLE — Une seule écriture de la garde M pour `main` et pour `jouer` (R-708 : deux implémentations divergent).
+    ② CONTEXTE D'APPEL — `main` (chaque fiche, avant `jouer`) ; `jouer` (quand un reçu est passé : la porte qui
+      consomme le regard unique, `JUGER_UNE_FICHE`).
+    ③ ENTRÉE — `base` : la racine · `fiche` · `periode` : (début, fin) AAAA-MM-JJ jugés, ou None.
+    ④ CONDITIONS D'ENTRÉE — Celles de `composition_hors_univers`.
+    ⑤ SORTIE — DEUX valeurs : la ligne « UNIVERS BORNE … » (vide si M = 0) ; le texte du refus (vide s'il n'y en a pas).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① M par `composition_hors_univers` sur la période · ② refus si M dans la fenêtre > 0 et que la fiche
+      n'est pas dans CONTRATS.UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE.
+    ⑦ UNITÉ — Des séances × sociétés.
+    ⑧ POURQUOI — Superviseur R-759 du 14-11-2026 ② ; Q-1 de Cowork : la garde n'était que dans `main`, où la garde du
+      regard refuse de toute façon ; la porte à reçu (`JUGER_UNE_FICHE`) jugeait sans elle.
+    ⑨ CE QUI CLOCHE — L'exemption est une clé d'identifiant : elle ne fige ni M, ni la période, ni l'univers (Q-1 de
+      Cowork ; au BACKLOG, A-829 : B9).
+    ⑩ EFFET — Lit des fichiers.
+    ⑪ TERMINAISON — Rend la main ou lève l'erreur de lecture. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    import CONTRATS_DES_FICHIERS as _CM
+    if not periode or periode[0] > periode[1]:
+        return "", ""
+    m_total, m_regard, n = composition_hors_univers(base, fiche, *periode)
+    ligne = ("    UNIVERS BORNE (garde M) : M = %d seances x societes sorties de la composition historique (PASSAGES) "
+             "absentes de l'univers de la fiche, %d societe(s), dont %d dans la fenetre du regard unique — le "
+             "verdict ne vaut que pour l'univers ecrit" % (m_total, n, m_regard)) if m_total else ""
+    if m_regard and (fiche.get("id") or "") not in getattr(_CM, "UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE", {}):
+        return ligne, ("    REFUSEE (garde M, regard unique) : %d seance(s) x societe(s) sortie(s) invisibles a l'univers "
+                       "dans la fenetre du regard unique, sans decision ecrite de Jean-Luc (CONTRATS.UNIVERS_BORNES_"
+                       "ACCEPTES_SUR_LE_REGARD_UNIQUE)" % m_regard)
+    return ligne, ""
+
+
+def trous_non_expliques(fiche, lecture, mnemo, bornes):
+    """Rend, pour l'univers d'une fiche et sa période, les trous dont la nature n'est pas décidée.
+
+    ① RÔLE — Dire nettement qu'un verdict repose sur des séances sans cours que rien n'explique.
+    ② CONTEXTE D'APPEL — `main`, pour chaque fiche jugée.
+    ③ ENTRÉE — `fiche` : la fiche (colonne « univers ») · `lecture` : la lecture de `lire_par_le_lecteur` (ou None) ·
+      `mnemo` : la table des mnémoniques · `bornes` : (début, fin) de la période de la fiche, AAAA-MM-JJ.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste triée des (clé, nombre de séances, première, dernière) ; vide sans lecture.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque mnémonique de l'univers, sa clé ; ses « trous_non_decides » compris dans les bornes.
+    ⑦ UNITÉ — Des séances.
+    ⑧ POURQUOI — QE2 (D1 du relecteur QE, 14-11-2026) : le juge disait « OK, calibré » sur des séances manquantes
+      tues ; R-111 ② veut chaque trou signalé, ⑤ distingue la nature décidée (suspension, donnée perdue) du reste.
+      Le juge SIGNALE, il ne refuse pas : la table des natures est vide, et refuser bloquerait toute fiche — décision
+      à Jean-Luc.
+    ⑨ CE QUI CLOCHE — Les causes de donnees/CAUSES_DES_SEANCES_SANS_COURS.csv (décision n°48, par NOM, pour
+      l'historique long) ne sont pas lues par le lecteur : un trou qui y a sa cause est ici « non expliqué ».
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    if not lecture:
+        return []
+    out = []
+    for m in mnemoniques_de_l_univers(fiche["univers"]):
+        v = mnemo.get(m, cle_valeur(m))
+        jours = [d for d in lecture.get("trous_non_decides", {}).get(v, []) if bornes[0] <= d <= bornes[1]]
+        if jours:
+            out.append((v, len(jours), jours[0], jours[-1]))
+    return sorted(out)
 
 
 def dans_l_indice(passages, jour):
@@ -3026,7 +3165,55 @@ class RegardNonInscrit(RuntimeError):
 # fois par opération et par tirage du hasard ; sans ce cache, chaque appel referait un `fetch`. Seule la LECTURE est
 # gardée (présence, nature, pas de résultat) : la fiche, le module et la période se confrontent à chaque appel. Un reçu
 # clos APRÈS sa première lecture reste admis dans ce processus (même processus : limite J1).
+class UniversBorneSurLeRegard(RegardNonInscrit):
+    """Refus de la garde M dans la fenêtre du regard unique, levé par `jouer` quand un reçu est passé.
+
+    ① RÔLE — Arrêter AVANT toute opération la porte qui consommerait le regard unique sur un univers borné.
+    ② CONTEXTE D'APPEL — `jouer`, par `garde_composition`.
+    ③ ENTRÉE — Le texte du refus.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — —
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Q-1 de Cowork (14-11-2026).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — —
+    """
+
+
 _RECUS_VERIFIES = {}
+
+
+def touche_la_fenetre_du_regard_unique(premiere, derniere):
+    """Dit si des séances jouées de `premiere` à `derniere` touchent la fenêtre du regard unique.
+
+    ① RÔLE — La seule écriture DANS LE JUGE de « ces séances touchent la fenêtre du regard unique » (R-505 ③), partagée
+      par la garde du regard unique et par la garde M de `jouer`. Elle n'est PAS la seule du système : le pré-filtre de
+      `MODULE_C5_ETENDU_10.backtest_c5etendu10` (« if _d and min(_d) <= _fin and max(_d) >= _deb », qui décide d'appeler
+      la garde du regard pour C5) en est une seconde (N-7 de Cowork, RELU 38b7e4a3 du 15-11-2026).
+    ② CONTEXTE D'APPEL — `_garde_du_regard_unique` ; `jouer`, avant la garde M sur la porte qui consomme le regard.
+    ③ ENTRÉE — `premiere`, `derniere` : la première et la dernière séance jouées, des dates ou leurs textes AAAA-MM-JJ.
+    ④ CONDITIONS D'ENTRÉE — Les deux au même format (le texte AAAA-MM-JJ se compare dans l'ordre des dates).
+    ⑤ SORTIE — UNE valeur : vrai si `premiere` est non vide et si [premiere, derniere] recoupe la fenêtre du contrat.
+      [rend: 1]
+    ⑥ TRAITEMENT — lire la fenêtre (`CONTRATS_DES_FICHIERS.fenetre_du_regard_unique`), comparer les textes.
+    ⑦ UNITÉ — Des dates.
+    ⑧ POURQUOI — K-9 de Cowork (14-11-2026) : la garde M de `jouer` et la garde du regard unique écrivaient chacune ce
+      test ; si l'un changeait (une fenêtre en plusieurs périodes), la garde M pouvait cesser de s'appliquer sans un mot
+      (R-708 : deux implémentations d'une même chose divergent toujours).
+    ⑨ CE QUI CLOCHE — Une série qui saute la fenêtre (avant 2000 puis après 2023) est prise pour la toucher : côté strict.
+      · N-7 de Cowork : le pré-filtre du module C5 écrit le même test une seconde fois ; aujourd'hui équivalent, il
+      divergerait si la fenêtre devenait plusieurs périodes et que seule cette fonction était adaptée (R-708). Les réunir
+      (la fonction dans `CONTRATS_DES_FICHIERS`, que C5 importe déjà) touche la stratégie de production sous golden et
+      la garde du regard : à juger par un superviseur R-759 avant tout geste — au BACKLOG, A-829 (N-7).
+    ⑩ EFFET — Lit le contrat.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import CONTRATS_DES_FICHIERS as _C
+    debut, fin = _C.fenetre_du_regard_unique()
+    return bool(premiere) and not (str(premiere) > fin or str(derniere) < debut)
 
 
 def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_module=None):
@@ -3069,7 +3256,7 @@ def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_modul
     """
     import CONTRATS_DES_FICHIERS as _C
     debut, fin = _C.fenetre_du_regard_unique()
-    if not premiere or str(premiere) > fin or str(derniere) < debut:
+    if not touche_la_fenetre_du_regard_unique(premiere, derniere):
         return
     cause = "fiche %s : séances jouées de %s à %s, dans la fenêtre du regard unique %s..%s" % (
         qui or "(non nommée)", premiere, derniere, debut, fin)
@@ -3315,6 +3502,12 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
     _debuts = [str(cours[v][0]["date"]) for v in univers if cours[v]]
     _fins = [str(cours[v][-1]["date"]) for v in univers if cours[v]]
     _premiere = max([min(_debuts)] + ([str(periode[0])] if periode else [])) if _debuts else ""
+    # LA GARDE M SUR LA PORTE QUI CONSOMME LE REGARD (Q-1 de Cowork, 14-11-2026) : avec un reçu et des séances jouées
+    # dans la fenêtre du regard unique, la même fonction que `main`, AVANT la vérification du reçu
+    if recu and touche_la_fenetre_du_regard_unique(_premiere, max(_fins, default="")):
+        _l_m, _refus_m = garde_composition(recu[0], fiche, (_premiere, max(_fins, default="")))
+        if _refus_m:
+            raise UniversBorneSurLeRegard(_refus_m.strip())
     # une fiche SANS identifiant n'est jamais la fiche d'un reçu : « » ne se ramène à aucune fiche (T2-D4)
     _garde_du_regard_unique(fiche.get("id") or "", _premiere, max(_fins, default=""), periode, recu)
 
@@ -5034,6 +5227,17 @@ def main():
             raise RuntimeError("fiche sans bornes apres la porte 0 : la porte "
                                "et le jugement ne lisent plus la meme chose")
         print("    periode de la fiche : %s -> %s" % _bornes)
+        # LA GARDE M (superviseur R-759 du 14-11-2026, liste fermée ②), AVANT `jouer` et donc avant la garde du regard
+        # unique : M > 0 borne le verdict à l'univers écrit ; dans la fenêtre du regard unique, M > 0 REFUSE la fiche (code
+        # 1), sauf décision écrite de Jean-Luc au contrat (UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE).
+        _s_lues = lecture.get("seances") if lecture else []
+        _per = (max(str(_bornes[0]), _s_lues[0]), min(str(_bornes[1]), _s_lues[-1])) if _s_lues else None
+        _ligne_m, _refus_m = garde_composition(base, f, _per)
+        if _refus_m:
+            en_echec.append(f["id"])
+            print(_ligne_m)
+            print(_refus_m + "\n")
+            continue
         try:
             # REGARD UNIQUE (R-505 ③) : `main` n'inscrit rien, donc ne passe aucun reçu — refus dans la fenêtre.
             ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture)
@@ -5048,12 +5252,19 @@ def main():
             continue
         if inconnus:
             print("    ALERTE - valeurs demandees et absentes des cours : %s" % inconnus)
+        _trous_nx = trous_non_expliques(f, lecture, mnemo, tuple(str(x) for x in _bornes))
         r = resumer(ops)
         # LE SIGNAL JOUÉ SE DIT, APRÈS LE RÉSULTAT (A-542) : la ligne du résultat reste à sa place, trois lignes au plus
         # après « === » — tests/EPREUVES_DU_JUGE_PAR_LE_LECTEUR (M3) et la moulinette la lisent là.
         _ligne_signal = "    signal : %s . empreinte du module %s" % (mod_sig.declaration, empreinte(mod_sig.module.__file__))
         # LES FILTRES SE DISENT, ILS NE SE JOUENT PAS (décision de Jean-Luc du 31-10-2026 à 17h15, QJ-17) : la colonne
         # `filtres` reste un texte affiché ; chaque verdict écrit ce qui n'a pas été joué.
+        if _ligne_m:   # QE2 tour 2 : la garde M, dite après le résultat (la ligne du résultat garde sa place, M3)
+            _ligne_signal += "\n" + _ligne_m
+        if _trous_nx:   # QE2 : dit après le résultat, la ligne du résultat garde sa place (M3)
+            _ligne_signal += ("\n    ATTENTION - TROUS NON EXPLIQUES DANS L'UNIVERS (nature non decidee, R-111 ⑤) : %d seance(s) "
+                              "sur %d valeur(s) — %s" % (sum(x[1] for x in _trous_nx), len(_trous_nx),
+                                                         " . ".join("%s %d (%s..%s)" % x for x in _trous_nx[:6])))
         _filtres = (f.get("filtres") or "").strip()
         if _filtres.lower() not in VIDE:
             _ligne_signal += "\n    filtres non joués : %s" % _filtres

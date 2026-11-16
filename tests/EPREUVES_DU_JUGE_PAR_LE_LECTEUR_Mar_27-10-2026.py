@@ -67,7 +67,8 @@ SAB = {
     "S10 un volume mal converti": ('"low": float(r["low"]), "close": float(r["close"]), "volume": float(r["volume"])}',
                                    '"low": float(r["low"]), "close": float(r["close"]), "volume": float(r["volume"]) + 1}'),
     # S11 recalé le 29-10-2026 (A-577, étape 7) : la lecture porte aussi « seances », la cible est le même texte allongé.
-    "S11 la composition éteinte par le lecteur": ('"composition": True, "seances": seances}', '"composition": False, "seances": seances}'),
+    # S11 recalé le 14-11-2026 (QE2 : la lecture porte aussi « trous_non_decides ») ; même visée
+    "S11 la composition éteinte par le lecteur": ('"composition": True, "seances": seances,', '"composition": False, "seances": seances,'),
     "S12 la lecture non passée par main": (
         "ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture)",
         "ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes)"),
@@ -86,6 +87,31 @@ SAB = {
                                                   'return dans_l_indice(lecture["passages"].get(v, []), serie[min(j + 1, len(serie) - 1)]["date"])'),
     "S14 les trous d'une autre valeur": ("trous[v] = sorted(iso(d) for d, _ in lecteur.trous(c, m))",
                                          'trous[v] = sorted(iso(d) for d, _ in lecteur.trous(c, "VIE"))'),
+    # QE (A-713 ①, 14-11-2026) : la traduction d'un mnémonique de société sortie (R8) et le refus d'une clé prise
+    # deux fois (R9).
+    "S23 le mnémonique d'une société sortie exigé au référentiel": ("        v = mnemo.get(m.upper(), cle_valeur(m))\n",
+                                                                    "        v = mnemo[m.upper()]\n"),
+    # QE2 (14-11-2026) : les trous non expliqués de l'univers d'une fiche, signalés sur sa période (R10)
+    "S25 les trous non expliqués comptés hors de la période": ("if bornes[0] <= d <= bornes[1]]", "]"),
+    "S26 les trous non expliqués jamais rendus par la lecture": (
+        "        non_decides[v] = sorted(iso(d) for d, n in lecteur.trous(c, m) if n == lecteur.NON_DECIDEE)",
+        "        non_decides[v] = []"),
+    # QE2 tour 2 (superviseur R-759 ②) : la garde M (R11, M8, M9)
+    "S27 la garde M ne refuse pas sur le regard unique": (
+        "    if m_regard and (fiche.get(\"id\") or \"\") not in getattr(_CM, \"UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE\", {}):",
+        "    if False:"),
+    # Q-1 et Q-2 de Cowork (14-11-2026) : la garde M dans `jouer` avec un reçu (R12) ; la fenêtre de M épinglée (R11)
+    "S30 la garde M absente de la porte à reçu": ("        if _refus_m:\n            raise UniversBorneSurLeRegard",
+                                                 "        if False:\n            raise UniversBorneSurLeRegard"),
+    "S31 la fenêtre de M coupée au 2015-12-31": ("m_regard += sum(1 for d in jours if r_debut <= d <= r_fin)",
+                                                "m_regard += sum(1 for d in jours if r_debut <= d <= \"2015-12-31\")"),
+    # K-9 de Cowork (14-11-2026) : une seule écriture de « les séances touchent la fenêtre » (R12)
+    "S32 la fenêtre du regard jamais touchée": ("    return bool(premiere) and not (str(premiere) > fin or str(derniere) < debut)",
+                                                "    return False"),
+    "S28 la garde M compte les sociétés écrites dans l'univers": ("        if mnemos[numero] & univers:\n            continue\n", ""),
+    "S29 la ligne de la garde M non affichée": ("            _ligne_signal += \"\\n\" + _ligne_m\n", "            pass\n"),
+    "S24 une clé prise deux fois admise": ("        if v in cours:\n            raise ValueError(\"le lecteur unique rend deux",
+                                           "        if False:\n            raise ValueError(\"le lecteur unique rend deux"),
 }
 
 
@@ -253,7 +279,8 @@ def cas(copie, racine):
     ④ CONDITIONS D'ENTRÉE — Celles du programme (④ de l'en-tête).
     ⑤ SORTIE — UNE valeur : la liste des (nom du cas, réussi ou non, détail).
       [rend: 1]
-    ⑥ TRAITEMENT — Cas fabriqués T1 à T4 ; cas réels R1 à R5 ; lancements M1 à M3. Un cas qui lève une erreur
+    ⑥ TRAITEMENT — Cas fabriqués T1 à T8 ; cas réels R1 à R9 (R8 et R9 depuis le 14-11-2026, QE : une vraie ligne
+      de Peugeot S.A., sortie, sous UG ; R10 depuis QE2 : ses trous non expliqués, sur la période) ; lancements M1 à M7. Un cas qui lève une erreur
       compte comme échoué, avec l'erreur en détail.
     ⑦ UNITÉ — Des dates, des motifs, des nombres d'opérations.
     ⑧ POURQUOI — Voir ⑧ de l'en-tête.
@@ -449,6 +476,109 @@ def cas(copie, racine):
     un("R6 un fichier incrément est refusé", r6)
     un("R7 des lignes dans le désordre", r7)
 
+    # QE (A-713 ①, superviseur R-759 du 14-11-2026) : une VRAIE ligne d'une société sortie (R-732), Peugeot S.A. sous
+    # UG, recopiée du témoin des 20 ans du 13-11-2026 à 10h59 ; le juge levait KeyError sur `mnemo["UG"]`.
+    ligne_ug = "UG,2017-02-28,18.015,18.085,17.9,17.96,2561602,bnains archives (société sortie 48)"
+    d_qe = tempfile.mkdtemp()
+    try:
+        f_qe = os.path.join(d_qe, "maitre_et_ug.csv")
+        with open(f_qe, "w", encoding="utf-8") as h:
+            h.write(open(f_maitre, encoding="utf-8").read().rstrip("\n") + "\n" + ligne_ug + "\n")
+
+        def r8():
+            c8, l8 = B.lire_par_le_lecteur(racine, os.path.relpath(f_qe, racine), mnemo)
+            v = B.cle_valeur("UG")
+            got = ([b["date"] for b in c8.get(v, [])], B.dans_l_indice(l8["passages"].get(v, []), "2017-02-28"),
+                   B.dans_l_indice(l8["passages"].get(v, []), "2021-01-18"), "UG" in mnemo,
+                   {k: s for k, s in c8.items() if k != v} == neuf)
+            return got == (["2017-02-28"], True, False, False, True), \
+                "UG (au référentiel : %s) : séances %s, dans l'indice le 2017-02-28 %s, le 2021-01-18 %s ; " \
+                "les autres séries égales au maître %s (attendu : non, [2017-02-28], oui, non, oui)" % (
+                    got[3], got[0], got[1], got[2], got[4])
+
+        def r9():
+            # deux mnémoniques traduits vers la même clé : la seconde série écraserait la première sans un mot
+            faux = dict(mnemo)
+            faux["UG"] = mnemo["AC"]
+            try:
+                B.lire_par_le_lecteur(racine, os.path.relpath(f_qe, racine), faux)
+                return False, "UG et AC sous la même clé %s : lu sans refus" % mnemo["AC"]
+            except ValueError as e:
+                return str(e).startswith("le lecteur unique rend deux mnémoniques sous la même clé %s" % mnemo["AC"]), \
+                    "refus : %s" % str(e)[:100]
+
+        un("R8 une société sortie (UG, vraie ligne) est lue sous sa clé, avec ses passages", r8)
+        un("R9 deux mnémoniques sous la même clé sont refusés", r9)
+
+        def r10():
+            # QE2 : la lecture rend les trous de nature non décidée ; UG (vraie ligne, sortie le 2021-01-15) en a dans sa
+            # présence dans l'indice ; la fiche qui le demande les voit sur sa période, et seulement là
+            c10, l10 = B.lire_par_le_lecteur(racine, os.path.relpath(f_qe, racine), mnemo)
+            nd = l10["trous_non_decides"].get("UG", [])
+            fiche = {"univers": "UG"}
+            dedans = B.trous_non_expliques(fiche, l10, mnemo, ("2018-01-01", "2018-12-31"))
+            attendu = [x for x in nd if "2018-01-01" <= x <= "2018-12-31"]
+            ok = (len(nd) > 0 and nd == l10["trous"]["UG"] and len(attendu) > 0
+                  and dedans == [("UG", len(attendu), attendu[0], attendu[-1])]
+                  and B.trous_non_expliques(fiche, l10, mnemo, ("2022-01-01", "2022-12-31")) == [])
+            return ok, "UG : %d trous non décidés ; en 2018 : %s ; en 2022 : %s" % (
+                len(nd), dedans, B.trous_non_expliques(fiche, l10, mnemo, ("2022-01-01", "2022-12-31")))
+
+        un("R10 les trous non expliqués de l'univers sur la période de la fiche (UG)", r10)
+
+        def composition_attendue(univers, debut, fin, fenetre=None):
+            # calcul de l'épreuve, sans le juge : IDENTITES et PASSAGES lus en CSV, les dates de l'indice publié
+            import csv as _csv
+            lire = lambda rel: list(_csv.DictReader(open(os.path.join(racine, rel), encoding="utf-8-sig", newline="")))
+            ident = lire("donnees/sources_indice/IDENTITES_DES_SOCIETES.csv")
+            pas = lire("donnees/sources_indice/PASSAGES_DANS_LE_CAC40.csv")
+            dates = [l.split(",", 1)[0] for l in open(os.path.join(racine, "donnees/sources_indice/INDICE_CAC40.csv"),
+                                                    encoding="utf-8-sig").read().splitlines()[1:]]
+            dates = [d for d in dates if debut <= d <= fin]
+            ouvertes = {r["numero"] for r in ident if not r["fin"]}
+            total, dedans = 0, 0
+            for numero in {r["numero"] for r in ident} - ouvertes:
+                ls = [r for r in ident if r["numero"] == numero]
+                if {r["mnemonique"].strip().upper() for r in ls} & set(univers):
+                    continue
+                codes = {r["isin"] for r in ls if r["isin"]}
+                per = [(p["premiere_seance"], p["derniere_seance"] or "9999") for p in pas if p["isin_bnains"] in codes]
+                jours = [d for d in dates if any(a <= d <= b for a, b in per)]
+                total += len(jours)
+                dedans += sum(1 for d in jours if fenetre and fenetre[0] <= d <= fenetre[1])
+            return (total, dedans) if fenetre else total
+
+        def r11():
+            # la garde M, fonction seule : l'univers écrit d'IND-001-RETEST, et le même avec UG (sortie) ajouté
+            f11 = contrat.fiches_du_registre(B.trouver(racine, contrat.NOM_DU_REGISTRE_DES_STRATEGIES))["IND-001-RETEST"]
+            u = B.mnemoniques_de_l_univers(f11["univers"])
+            m1 = B.composition_hors_univers(racine, f11, "2000-01-03", "2026-10-30")
+            m2 = B.composition_hors_univers(racine, dict(f11, univers=f11["univers"] + ",UG"), "2000-01-03", "2026-10-30")
+            a1, a2 = composition_attendue(u, "2000-01-03", "2026-10-30"), composition_attendue(u + ["UG"], "2000-01-03", "2026-10-30")
+            # Q-2 de Cowork : la part dans la fenêtre du regard unique, LUE au contrat, épinglée elle aussi
+            _, f1 = composition_attendue(u, "2000-01-03", "2026-10-30", contrat.fenetre_du_regard_unique())
+            return (m1[0] == a1 and m2[0] == a2 and a2 < a1 and m1[1] == f1 and 0 < f1 < a1), \
+                "IND-001-RETEST M %s (attendu %d, dont %d dans la fenêtre) ; avec UG %s (attendu %d)" % (m1, a1, f1, m2, a2)
+
+        un("R11 la garde M, calculée sur la composition historique (IND-001-RETEST, avec et sans UG)", r11)
+
+        def r12():
+            # Q-1 de Cowork : la porte qui consomme le regard unique passe un reçu à `jouer` ; la garde M doit l'arrêter
+            # AVANT la vérification du reçu (un reçu fictif : sans la garde, c'est le reçu qui serait refusé, autrement)
+            f12 = contrat.fiches_du_registre(B.trouver(racine, contrat.NOM_DU_REGISTRE_DES_STRATEGIES))["IND-001-RETEST"]
+            c12, l12 = B.lire_par_le_lecteur(racine, HISTORIQUE, mnemo)
+            try:
+                B.jouer(f12, c12, mnemo, B.signal_de_la_fiche(racine, f12), pos, periode=("2000-01-03", "2023-12-29"),
+                        lecture=l12, recu=(racine, "RECU_FICTIF_DE_L_EPREUVE"))
+                return False, "jouer a rendu la main"
+            except B.RegardNonInscrit as e:
+                return (type(e).__name__ == "UniversBorneSurLeRegard" and "REFUSEE (garde M, regard unique)" in str(e)), \
+                    "%s : %s" % (type(e).__name__, str(e)[:110])
+
+        un("R12 la garde M arrête `jouer` quand un reçu est passé (porte JUGER_UNE_FICHE)", r12)
+    finally:
+        shutil.rmtree(d_qe, ignore_errors=True)
+
     d = tempfile.mkdtemp()
     try:
         faux = os.path.join(d, "cours.csv")
@@ -521,6 +651,60 @@ def cas(copie, racine):
         un("M5 une option mal écrite arrête le juge", m5)
         un("M6 une fiche visée absente arrête le juge", m6)
         un("M7 le compte exact des coupures", m7)
+
+        # QE2 tour 2 : la garde M, LUE DANS LA SORTIE du juge. M8 : le maître allongé d'une vraie ligne de 2000 fait
+        # entrer la fiche IND-001-RETEST dans la fenêtre du regard unique : refus, code 1, AVANT la garde
+        # RegardNonInscrit. M9 : la fiche C5E10-QA-V1 sur le maître, verdict BORNÉ, M lu dans la ligne.
+        # N-14 (RELU Cowork du 15-11-2026, réparé le 16-11-2026) : la ligne était ACCOR du 2000-01-03 au cours brut ;
+        # depuis la courbe des calculs (programmes/COURBE_DES_CALCULS.py, venue de main), un fichier de cours autre que
+        # le maître, non déclaré au cours brut, qui laisse VOIR une grande opération au jour dit est refusé avant toute
+        # garde du juge (garder_la_nature, règle 2) — et entre ACCOR 2000-01-03 et ACCOR 2024 du maître passe la
+        # scission Edenred (AC 2010-07-02, ×0,6498), vue : le juge s'arrêtait sur la courbe, jamais sur la garde M.
+        # La garde de la courbe a raison ; c'était la PRÉMISSE du cas qui était fausse. La ligne est donc choisie par
+        # une PROPRIÉTÉ, sans écrire de cours dans ce fichier : la première ligne du 2000-01-03 de l'historique des
+        # 20 ans (HISTORIQUE, une vraie ligne, R-732) d'une valeur de l'univers de la fiche à laquelle RECONSTRUIRE ne
+        # connaît AUCUNE opération sur titre (lue par COURBE_DES_CALCULS.lire_les_operations, la liste unique, R-708) :
+        # aucune grande opération ne peut alors tomber entre 2000 et le maître. M ne dépend que de l'univers et de la
+        # date de début : le cas éprouve la même garde, avec le même M attendu.
+        long_ = os.path.join(d, "avec_2000.csv")
+        C8 = B.charger_module(os.path.join(racine, "programmes", "COURBE_DES_CALCULS.py"), "courbe_du_cas_m8")
+        connus8, ops8 = C8.lire_les_operations(racine)
+        u8 = B.mnemoniques_de_l_univers(contrat.fiches_du_registre(
+            B.trouver(racine, contrat.NOM_DU_REGISTRE_DES_STRATEGIES))["IND-001-RETEST"]["univers"])
+        noms8 = {mnemo[m].replace("_", " ") for m in u8 if m in mnemo} & (connus8 - set(ops8))
+        ligne8 = next((l.rstrip("\n") for l in open(os.path.join(racine, HISTORIQUE), encoding="utf-8")
+                       if l.split(",")[1:2] == ["2000-01-03"] and l.split(",")[0] in noms8), None)
+        with open(long_, "w", encoding="utf-8") as h:
+            h.write(open(f_maitre, encoding="utf-8").read().rstrip("\n") + "\n" + (ligne8 or "") + "\n")
+        dates_maitre = sorted(l.split(",")[1] for l in open(f_maitre, encoding="utf-8").read().splitlines()[1:] if l)
+
+        def m8():
+            if ligne8 is None:
+                return False, ("PRÉMISSE FAUSSE : aucune ligne du 2000-01-03 dans %s pour une valeur de l'univers "
+                               "d'IND-001-RETEST sans opération sur titre connue (%d candidate(s)) — rien n'est éprouvé"
+                               % (HISTORIQUE, len(noms8)))
+            code, out = lancer_le_juge(copie, racine, "IND-001-RETEST", "--cours=" + long_)
+            n = re.search(r"UNIVERS BORNE \(garde M\) : M = (\d+) .*?dont (\d+) dans la fenetre", out)
+            u = B.mnemoniques_de_l_univers(contrat.fiches_du_registre(
+                B.trouver(racine, contrat.NOM_DU_REGISTRE_DES_STRATEGIES))["IND-001-RETEST"]["univers"])
+            att = composition_attendue(u, "2000-01-03", min("2026-10-30", dates_maitre[-1]))
+            ok = (code == 1 and "REFUSEE (garde M, regard unique)" in out and "RegardNonInscrit" not in out
+                  and n is not None and int(n.group(1)) == att)
+            return ok, "IND-001-RETEST avec une ligne de 2000 (%s) : code %d, refus dit %s, M lu %s (attendu %d)" % (
+                ligne8.split(",")[0], code, "REFUSEE (garde M" in out, n.group(1) if n else "absent", att)
+
+        def m9():
+            code, out = lancer_le_juge(copie, racine, FICHE)
+            n = re.search(r"UNIVERS BORNE \(garde M\) : M = (\d+) ", out)
+            f9 = contrat.fiches_du_registre(B.trouver(racine, contrat.NOM_DU_REGISTRE_DES_STRATEGIES))[FICHE]
+            deb, fin = [x.strip() for x in f9["periode"].split("->")]
+            att = composition_attendue(B.mnemoniques_de_l_univers(f9["univers"]), max(deb, dates_maitre[0]),
+                                       min(fin, dates_maitre[-1]))
+            ok = code == 0 and n is not None and int(n.group(1)) == att and att > 0 and "REFUSEE (garde M" not in out
+            return ok, "%s sur le maître : code %d, M lu %s (attendu %d)" % (FICHE, code, n.group(1) if n else "absent", att)
+
+        un("M8 la garde M refuse sur le regard unique, avant RegardNonInscrit", m8)
+        un("M9 la garde M dit un verdict BORNÉ, M lu dans la sortie", m9)
     finally:
         shutil.rmtree(d, ignore_errors=True)
     return res

@@ -21,7 +21,7 @@
   les épreuves du jeu sont affichées, et un sabotage qui a une épreuve NON JUGÉE ne compte JAMAIS comme mordant.
   [rend: 1]
 ⑥ TRAITEMENT — Pour Z0 puis pour chaque sabotage : copier les quatre programmes dans un dossier jetable, y appliquer
-  le sabotage, importer la lecture des cours copiée, jouer les épreuves L1 à L32 et L38.
+  le sabotage, importer la lecture des cours copiée, jouer les épreuves L1 à L32 et L38 à L45.
 ⑦ UNITÉ — Des séances et des dates.
 ⑧ POURQUOI — Décision de Jean-Luc du 10-10-2026, « Oui, vas-y » : construire le calendrier et le module. R-731 : tout
   code passe des épreuves sabotées ; un cas au moins vient d'une vraie ligne (R-732).
@@ -120,6 +120,27 @@
      l'indice depuis 2000 : ces trois séances sont ses trous (la dent de S69, l'indice ignoré).
   L32 (ajoutée le 27-10-2026) : `lignes_mises_a_part` vaut 0 sur le maître et l'historique réparé, 1 pour une ligne
      d'un nom inconnu, d'une date illisible ou d'un samedi ajoutée au maître, 0 pour un doublon exact ;
+  L39 (ajoutée le 14-11-2026, QE, A-713 ①, superviseur R-759 du 14-11-2026) : une société SORTIE de l'indice (aucune
+     ligne d'identité sans fin) est lue sous le mnémonique de sa dernière ligne, avec les passages de ses codes — UG
+     (Peugeot S.A.) et ALO (Alstom) sur deux vraies lignes du témoin des 20 ans, et une société fabriquée ; un nom
+     inconnu et « non trouvé » restent mis à part ; quatre tables fausses sont refusées avec leur raison.
+  L40 (ajoutée le 14-11-2026, décision de Jean-Luc de 13h41) : une ligne écartée sur décision au contrat
+     (LIGNES_ECARTEES_SUR_DECISION) n'est ni rangée ni mise à part, et elle est signalée ; sans la déclaration, la même
+     vraie ligne (VK 2016-03-28) est trouvée par le calendrier comme barre d'un jour fermé ; une déclaration qui ne
+     retrouve pas sa ligne arrête la lecture.
+  L41 (ajoutée le 14-11-2026, QE2) : une société sortie (UG) est attendue à chaque séance de sa présence dans l'indice
+     et seulement là ; ses trous se regroupent en périodes, une suspension écrite à part. L40 dit aussi une ligne écartée
+     présente deux fois (D3).
+  L42 (ajoutée le 14-11-2026, QE2 tour 2) : un fichier déclaré porter les sociétés sorties (contrat) attend Alstom sans
+     aucune barre et compte à part une société sortie sans mnémonique ; non déclaré, il n'attend rien d'elles.
+  L43 (ajoutée le 14-11-2026, I-1 de Cowork) : une anomalie d'identité d'une société sortie absente du fichier lu est
+     signalée et comptée, la lecture se poursuit ; présente, elle arrête la lecture. L39 : une société sortie sous un
+     mnémonique du référentiel (DG) est refusée par la garde de `lire` (X1 de Cowork).
+  L44 (ajoutée le 14-11-2026, K-3 de Cowork) : les deux autres anomalies tolérées par I-1 — un mnémonique pour deux
+     sociétés sorties (Dexia écrite « UG »), deux dernières lignes le même jour (Peugeot sous UG et UGX) — sont
+     signalées sur le maître et arrêtent la lecture avec une ligne UG. Filet posé AVANT tout remaniement de `refuser`.
+  L45 (ajoutée le 14-11-2026, K-4 de Cowork) : la fin de Dexia écrite « 2010-9-17 » est tolérée sur le maître ; sur un
+     fichier déclaré porter les sociétés sorties, elle arrête la lecture, et le message dit pourquoi (fichier déclaré).
   L31 (ajoutée le 13-10-2026, cassure H de Cowork 15e647c) : un code ISIN mal écrit est refusé, avec sa raison — le
      premier passage de STMicroelectronics avec une espace après son code, ou en minuscules (il passait pour une
      société sortie, et les 423 trous disparaissaient) ; le code d'Accor aux identités avec une clé fausse ; la clé
@@ -285,10 +306,13 @@ SABOTAGES = {
     "S68_dernieres_seances_au_dela_du_fige": [(LC, "    if cours.get(\"fin_du_fige\") and jusqu_au > cours[\"fin_du_fige\"]:", "    if False:")],
     "S69_indice_ignore": [(LC, "        for a, b in cours[\"dans_l_indice\"].get(m, []):", "        for a, b in []:")],
     "S70_indice_non_borne_au_fichier": [(LC, "            a, b = max(a, cours[\"debut\"]), min(b or cours[\"fin\"], cours[\"fin\"])", "            a, b = max(a, cours[\"debut\"] - timedelta(days=30)), min(b or cours[\"fin\"], cours[\"fin\"])")],
-    "S71_hors_univers_attendu_dans_l_indice": [(LC, "    if m in cours[\"hors_univers\"] and not cours[\"hors_univers\"][m] and cours[\"debut\"] is not None:", "    if m in cours[\"hors_univers\"] and cours[\"debut\"] is not None:")],
+    # ancre recalée le 14-11-2026 (QE2 : la condition admet aussi les sociétés sorties) ; même visée
+    "S71_hors_univers_attendu_dans_l_indice": [(LC, "    if m in cours[\"hors_univers\"] and (not cours[\"hors_univers\"][m] or m in cours.get(\"sorties\", ())\n                                       and (cours.get(\"porte_les_sorties\") or cours[\"barres\"].get(m))) \\\n            and cours[\"debut\"] is not None:", "    if m in cours[\"hors_univers\"] and cours[\"debut\"] is not None:")],
     "S72_passages_pretes_par_tous_les_codes": [(LC, "                         for p in passages if p[\"isin_bnains\"] in codes[numero]),", "                         for p in passages if p[\"isin_bnains\"] in set().union(*codes.values()) and m != \"MT\"),")],
     "S73_deux_noms_d_aujourd_hui_admis": [(LC, "            if r[\"numero\"] in actuel:\n                raise", "            if False:\n                raise")],
-    "S74_meme_mnemonique_admis": [(LC, "        if m in out:\n            raise", "        if False:\n            raise")],
+    # ancre allongée le 14-11-2026 (QE) : `societes_sorties` porte la même garde, « … deux sociétés sorties » ; S74 vise
+    # toujours celle de `lire_les_passages`, et S100 l'autre
+    "S74_meme_mnemonique_admis": [(LC, "        if m in out:\n            raise ValueError(f\"identités : le mnémonique {m} désigne deux sociétés\")", "        if False:\n            raise ValueError(f\"identités : le mnémonique {m} désigne deux sociétés\")")],
     "S75_increment_attendu_comme_un_historique": [(LC, "    if chemin in CONTRATS.FICHIERS_DE_COURS_INCREMENTS:\n        dans_l_indice = {}", "    if False:\n        dans_l_indice = {}")],
     "S76_valeur_sans_passage_admise": [(LC, "    if sans:\n        raise", "    if False:\n        raise")],
     "S81_passage_a_l_envers_admis": [(LC, "        if sortie is not None and sortie < entree:", "        if False:")],
@@ -311,10 +335,46 @@ SABOTAGES = {
     "S77_code_de_deux_societes_admis": [(LC, "        if r[\"isin\"] and societe_du_code.setdefault(r[\"isin\"], r[\"numero\"]) != r[\"numero\"]:", "        if False:")],
     "S78_passage_non_borne_a_la_fin": [(LC, "min(b or cours[\"fin\"], cours[\"fin\"])\n", "(b or cours[\"fin\"])\n")],
     "S63_tout_fichier_d_arrivee_fige": [(LC, "    fige = chemin in CONTRATS.FICHIERS_DE_COURS_FIGES\n", "    fige = chemin in CONTRATS.FICHIERS_DE_COURS_FIGES or chemin.startswith(\"donnees/c\") and \"maitre\" not in chemin\n"), (LC, "CAL._date_stricte(CONTRATS.FICHIERS_DE_COURS_FIGES[chemin][\"fin\"]) if fige", "CAL._date_stricte(\"2026-07-10\") if fige"), (LC, "        modifie = empreinte if empreinte != CONTRATS.FICHIERS_DE_COURS_FIGES[chemin][\"sha256\"] else None\n", "        modifie = None\n")],
-    "S93_lignes_mises_a_part_muettes": [(LC, "    return cours[\"lignes_lues\"] - sum(len(b) for b in cours[\"barres\"].values()) - len(cours[\"doublons\"])",
+    # S93 et S94 : ancres recalées le 14-11-2026 (le retour soustrait aussi les lignes écartées sur décision) ; même visée
+    "S93_lignes_mises_a_part_muettes": [(LC, "    return (cours[\"lignes_lues\"] - sum(len(b) for b in cours[\"barres\"].values()) - len(cours[\"doublons\"])\n            - len(cours.get(\"ecartees\", [])))",
                                          "    return 0")],
-    "S94_doublons_comptes_ecartes": [(LC, " - len(cours[\"doublons\"])\n\n\ndef trous", "\n\n\ndef trous")],
+    "S94_doublons_comptes_ecartes": [(LC, " - len(cours[\"doublons\"])\n            - len(cours.get(", "\n            - len(cours.get(")],
     "S25_date_des_cours_libre": [(LC, "            d = CAL._date_stricte(r[\"date\"])\n        except ValueError:\n            illisibles", "            d = CAL.date.fromisoformat(r[\"date\"])\n        except ValueError:\n            illisibles")],
+    # QE (A-713 ①, 14-11-2026) : la reconnaissance des sociétés sorties, une dent par geste (L39 ; S102 aussi L28).
+    "S95_societes_sorties_hors_de_la_lecture": [(LC, "    for m, (numero, sortie) in sorted(societes_sorties(ident, anomalies).items()):", "    for m, (numero, sortie) in []:")],
+    "S96_societes_sorties_sans_passages": [(LC, "    for m, (numero, _) in societes_sorties(ident, anomalies).items():   # QE", "    for m, (numero, _) in {}.items():   # QE")],
+    "S97_premiere_ligne_au_lieu_de_la_derniere": [(LC, "        if avant is None or fin > avant[0]:", "        if avant is None:")],
+    "S98_non_trouve_pris_pour_un_mnemonique": [(LC, "        if m in VIDES or m == CONTRATS.MNEMONIQUE_NON_TROUVE:", "        if m in VIDES:")],
+    "S99_ecriture_du_referentiel_admise": [(LC, "        if m in hors or table.get(k, m) != m:", "        if m in hors:")],
+    "S100_deux_societes_sorties_sous_un_mnemonique": [(LC, "        if m in out:\n            refuser([out[m][0], numero]", "        if False:\n            refuser([out[m][0], numero]")],
+    "S101_fin_illisible_sans_sa_societe": [(LC, "        except ValueError:\n            refuser([r[\"numero\"]], f\"identités : date de fin illisible", "        except KeyError:\n            refuser([r[\"numero\"]], f\"identités : date de fin illisible")],
+    # I-1 de Cowork (14-11-2026) : une anomalie d'identité n'arrête que si elle touche une valeur présente (L43)
+    "S116_anomalie_d_identite_toujours_fatale": [(LC, "    for m, (numero, sortie) in sorted(societes_sorties(ident, anomalies).items()):", "    for m, (numero, sortie) in sorted(societes_sorties(ident).items()):")],
+    "S117_anomalie_toleree_meme_presente": [(LC, "        if noms & lus:\n            raise ValueError(texte", "        if False:\n            raise ValueError(texte")],
+    "S118_anomalie_d_identite_tue": [(LC, "    if c.get(\"anomalies_d_identite\"):", "    if False:")],
+    # K-3 de Cowork (14-11-2026) : ses sabotages SX1 et SX2 — la tolérance redevient fatale (L44)
+    "S119_mnemonique_double_redevient_fatal": [(LC, "refuser([out[m][0], numero], f\"identités : le mnémonique", "raise ValueError(f\"identités : le mnémonique")],
+    "S120_deux_dernieres_lignes_redevient_fatal": [(LC, "refuser([r[\"numero\"]], f\"identités : la société sortie", "raise ValueError(f\"identités : la société sortie")],
+    # K-4 de Cowork (14-11-2026) : le motif du fichier déclaré ne se dit plus (L45)
+    "S121_motif_du_fichier_declare_tu": [(LC, "    except ValueError as e:\n        # K-4", "    except KeyError as e:\n        # K-4")],
+    # X1 de Cowork : la moitié « m in hors » de la garde (L39, société sortie sous « DG »)
+    "S115_mnemonique_du_referentiel_admis_pour_une_sortie": [(LC, "        if m in hors or table.get(k, m) != m:", "        if table.get(k, m) != m:")],
+    "S102_deux_dernieres_lignes_admises": [(LC, "        if avant is not None and avant[0] == fin and avant[1] != m:", "        if False:")],
+    # 14-11-2026, décision de Jean-Luc de 13h41 : la ligne écartée sur décision (L40)
+    "S103_ecart_declare_ignore": [(LC, "        if a_ecarter and tuple(r[c] for c in entete) in a_ecarter:", "        if False:")],
+    "S104_ecart_introuvable_tolere": [(LC, "    if len(ecartees) != len(a_ecarter):", "    if False:")],
+    "S105_ecartee_comptee_mise_a_part": [(LC, "\n            - len(cours.get(\"ecartees\", [])))", ")")],
+    # QE2 (14-11-2026) : les trous d'une société sortie, bornés à sa présence dans l'indice (L41) ; D3 (L40)
+    "S106_societe_sortie_attendue_entre_ses_barres": [(LC, "    p = _periode(cours, m) if m not in cours.get(\"sorties\", ()) else (None, None)", "    p = _periode(cours, m)")],
+    "S107_presence_d_une_societe_sortie_ignoree": [(LC, "(not cours[\"hors_univers\"][m] or m in cours.get(\"sorties\", ())\n                                       and (cours.get(\"porte_les_sorties\") or cours[\"barres\"].get(m)))", "not cours[\"hors_univers\"][m]")],
+    "S108_periode_qui_mele_deux_natures": [(LC, "        if out and out[-1][3] == nature and rang[d] == rang[out[-1][1]] + 1:", "        if out and rang[d] == rang[out[-1][1]] + 1:")],
+    "S109_periode_qui_enjambe_une_barre": [(LC, "        if out and out[-1][3] == nature and rang[d] == rang[out[-1][1]] + 1:", "        if out and out[-1][3] == nature:")],
+    "S111_societe_sortie_attendue_d_un_fichier_qui_ne_la_porte_pas": [(LC, " and (cours.get(\"porte_les_sorties\") or cours[\"barres\"].get(m)))", ")")],
+    # QE2 tour 2 (superviseur R-759 ①) : le contrat du fichier, pas ses barres (L42) ; les sociétés sans clé (L42)
+    "S112_presence_attendue_par_les_barres_seulement": [(LC, "(cours.get(\"porte_les_sorties\") or cours[\"barres\"].get(m))", "cours[\"barres\"].get(m)")],
+    "S113_societes_sorties_sans_cle_tues": [(LC, "        if jours:\n            out[numero] = (nom[numero], len(jours), min(jours), max(jours))", "        pass")],
+    "S114_presence_sans_cle_non_bornee_au_fichier": [(LC, "                a = max(CAL._date_stricte(p[\"premiere_seance\"]), debut)", "                a = CAL._date_stricte(p[\"premiere_seance\"])")],
+    "S110_ligne_ecartee_doublee_dite_introuvable": [(LC, "        doubles = sorted(k for k, n in vues.items() if n > 1)", "        doubles = []")],
 }
 MARCHE = ["2010-12-24", "2010-12-31", "2012-12-24", "2012-12-31", "2015-12-31"]
 # Attentes remesurées par programme, décision de Jean-Luc du 13-11-2026 à 22h51, réponse « 1 » (remplacer les chiffres
@@ -520,6 +580,34 @@ def code_absent(*tables):
     raise PremisseFausse("aucun code FR999… absent des tables en mille essais")
 
 
+def mnemonique_absent(*tables):
+    """Rend un mnémonique absent PAR CONSTRUCTION de toutes les cases des lignes données.
+
+    ① RÔLE — Donner aux épreuves un mnémonique « inconnu » qui le reste quand les tables grandissent (comme
+      `code_absent` pour les codes ISIN).
+    ② CONTEXTE D'APPEL — L28 (sociétés d'aujourd'hui inconnues du référentiel) et L39 (société sortie fabriquée).
+    ③ ENTRÉE — `tables` : des listes de lignes CSV (les tables du dépôt telles qu'elles sont lues).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le premier « QZ0 », « QZ1 »… qui n'est ni une case de ces lignes, ni une case une fois
+      mise en capitales.
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire chaque ligne en CSV, ranger chaque case en capitales ; essayer QZ0, QZ1… jusqu'au premier absent.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — QE (14-11-2026) : L28 prenait GTO et ALU comme « mnémoniques inconnus » de deux sociétés d'aujourd'hui ;
+      ce sont ceux de Gemalto (73) et d'Alcatel (53), sorties, que le lecteur reconnaît désormais : la lecture levait
+      « désigne deux sociétés », à juste titre, et l'épreuve tombait pour une prémisse devenue fausse.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main : au plus mille essais, puis lève.
+      [sort: non]
+    """
+    cases = {c.strip().upper() for t in tables for l in csv.reader(t) for c in l}
+    for i in range(1000):
+        if f"QZ{i}" not in cases:
+            return f"QZ{i}"
+    raise PremisseFausse("aucun mnémonique QZ… absent des tables en mille essais")
+
+
 def leve(f, *a):
     """Rend le nom de l'erreur levée par f(*a), ou None si elle rend la main.
 
@@ -592,7 +680,7 @@ def muet(f, *a):
 
 
 def epreuves(dossier, tmp):
-    """Joue L1 à L32 et L38 avec les programmes du dossier `dossier`, et rend la liste (nom, verdict).
+    """Joue L1 à L32, L38 et L39 avec les programmes du dossier `dossier`, et rend la liste (nom, verdict).
 
     ① RÔLE — Les épreuves décrites en tête.
     ② CONTEXTE D'APPEL — `main`, une fois par sabotage.
@@ -1354,8 +1442,9 @@ def epreuves(dossier, tmp):
         ⑥ TRAITEMENT — lire l'historique réparé jusqu'au 02-10-2026 ; compter les trous d'AIR, STMPA, URW, STLAP et HO hors
           trous de tout le marché ; lire le maître ; puis cinq tables fausses, chacune doit être refusée (deux noms
           d'aujourd'hui, un mnémonique pour deux sociétés, la table des passages absente, STMPA renommé STM, le code
-          d'Air Liquide sous Stellantis, les lignes d'Air Liquide retirées) ; trois sociétés sorties (Vivendi, et deux
-          dont le code reste à trouver) sont admises, et un passage sans code n'est prêté à aucune des deux ; un passage d'Air Liquide fermé au 31-12-2026, après la fin du maître, ne
+          d'Air Liquide sous Stellantis, les lignes d'Air Liquide retirées) ; trois sociétés d'aujourd'hui inconnues du
+          référentiel (Vivendi, et deux sans code, sous des mnémoniques fabriqués depuis le 14-11-2026) sont admises, et
+          un passage sans code n'est prêté à aucune des deux ; un passage d'Air Liquide fermé au 31-12-2026, après la fin du maître, ne
           donne aucun trou après cette fin ; l'arrivée du soir, déclarée incrément, n'a aucun trou avant la première
           barre de chaque valeur.
         ⑦ UNITÉ — Des séances.
@@ -1415,9 +1504,17 @@ def epreuves(dossier, tmp):
         _lignes = list(csv.reader(ident[1:]))
         _num = {x[6]: x[0] for x in _lignes if x[6]}
         _neuf = max(int(x[0]) for x in _lignes) + 1
+        # 14-11-2026 (QE) : GTO et ALU sont les mnémoniques de Gemalto (73) et d'Alcatel (53), sociétés SORTIES que le
+        # lecteur reconnaît désormais (`societes_sorties`) ; deux sociétés d'aujourd'hui sous ces noms seraient refusées
+        # (« désigne deux sociétés »), à juste titre. Les deux mnémoniques sont donc FABRIQUÉS, absents des tables.
+        with open(glob.glob(os.path.join(DEPOT, "donnees", "REFERENTIEL_VALEURS_*.csv"))[0], encoding="utf-8-sig") as f:
+            _ref28 = f.read().splitlines()
+        q1 = mnemonique_absent(ident, _ref28)
+        q2 = mnemonique_absent(ident, _ref28, [q1])
+        premisse(q1 != q2, "L28 : les deux mnémoniques fabriqués sont égaux")
         sortie = ident + [_num.get("FR0000127771", str(_neuf + 2)) + ",Vivendi,,,Vivendi,VIV,FR0000127771,épreuve,épreuve",
-                          str(_neuf) + ",Gemalto,,,Gemalto,GTO,,épreuve,épreuve",
-                          str(_neuf + 1) + ",Alcatel,,,Alcatel,ALU,,épreuve,épreuve"]
+                          str(_neuf) + f",Société fabriquée A,,,Société fabriquée A,{q1},,épreuve,épreuve",
+                          str(_neuf + 1) + f",Société fabriquée B,,,Société fabriquée B,{q2},,épreuve,épreuve"]
         with open(os.path.join(DEPOT, "donnees", "sources_indice", "PASSAGES_DANS_LE_CAC40.csv"), encoding="utf-8") as f:
             pas_vide = f.read().splitlines() + [",Passage sans code,2001-01-02,2001-06-29,épreuve,épreuve"]
         admis = M.lire(racine(tmp, "l28_g", identites=sortie, passages=pas_vide), CM, FIN[CM])
@@ -1447,7 +1544,7 @@ def epreuves(dossier, tmp):
                 and pourquoi_mnemo is not None and "le mnémonique AI désigne deux sociétés" in pourquoi_mnemo
                 and refus[2] in ("FileNotFoundError", "OSError", "ValueError") and refus[3] == "ValueError"
                 and refus[4] == "ValueError" and refus[5] == "ValueError" and admis["dans_l_indice"].get("VIV")
-                and admis["dans_l_indice"].get("GTO") == [] and admis["dans_l_indice"].get("ALU") == []
+                and admis["dans_l_indice"].get(q1) == [] and admis["dans_l_indice"].get(q2) == []
                 and M.trous(b, "AI") == [] and avant_la_premiere == [] and meme_increment()
                 and len(borne) == len(pas) and borne != pas)
     essai("L28 sur les 20 ans, trous ordinaires hors marché seulement (AIR 1, STMPA 2, URW 7, HO 0 ; la règle « avant "
@@ -1671,6 +1768,390 @@ def epreuves(dossier, tmp):
         return comptes == [1, 1, 1, 0]
     essai("L32 lignes mises à part : 0 sur les vrais fichiers ; un nom inconnu, une date illisible, un samedi : 1 ; "
           "un doublon exact : 0", l32)
+
+    def l39():
+        """Une société sortie de l'indice est lue sous son mnémonique, avec ses passages ; un nom inconnu reste à part.
+
+        ① RÔLE — L39 (QE, A-713 ①, 14-11-2026) : éprouver `societes_sorties` et ses deux appels, dans `lire` (les
+          barres) et dans `lire_les_passages` (les périodes dans l'indice).
+        ② CONTEXTE D'APPEL — `essai`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — Le maître figé (FIGES) ; les deux tables de la règle I-3 du dépôt, où Peugeot S.A.
+          (société 48) est sortie sous UG le 2021-01-15 (code FR0000121501) et où la dernière ligne d'Alstom (société
+          42) porte ALO, sortie le 2024-03-15, après une ligne « non trouvé » close le 2002-04-02 ; vérifié en prémisse.
+        ⑤ SORTIE — UNE valeur : vrai si verte.
+          [rend: 1]
+        ⑥ TRAITEMENT — ① le maître figé, plus deux VRAIES lignes du témoin des 20 ans (UG du 2017-02-28, ALO du
+          2023-03-03, R-732), une ligne d'une société sortie FABRIQUÉE (numéro, code et mnémonique neufs, ajoutée aux
+          identités avec un passage du 2010-01-04 au 2015-06-19 : la propriété, pas une liste), et les deux cas qui
+          DOIVENT ÉCHOUER : un nom inconnu de toutes les tables, et une ligne écrite « non trouvé » · ② attendu :
+          exactement ces deux lignes mises à part ; UG, ALO et la société fabriquée rangées, chacune avec les passages
+          de SES codes lus dans la table des passages (calcul de l'épreuve, pas du lecteur), hors univers au motif
+          « sortie de l'indice le … » (leurs trous, depuis QE2 : L41) · ③ refusées avec leur raison : une société sortie fabriquée sous
+          « VINCI » (une écriture du référentiel), une seconde société sortie sous UG, une société sortie à la date de
+          fin illisible, une société sortie dont deux lignes finissent le même jour sous deux mnémoniques.
+        ⑦ UNITÉ — Des lignes, des séances.
+        ⑧ POURQUOI — Superviseur R-759 du 14-11-2026 (SUPERVISEUR_LU_TOUR7_Sam_14-11-2026, verdict ARRÊTER ET
+          SIMPLIFIER) : le lecteur ne connaissait pas les 18 sociétés sorties, 68 391 lignes du témoin des 20 ans étaient
+          mises à part et le juge refusait de tourner. Le cas fabriqué prouve que la reconnaissance tient à la table
+          (aucune ligne sans fin), et qu'une société ajoutée demain est reconnue sans toucher au code.
+        ⑨ CE QUI CLOCHE — Les deux vraies lignes sont recopiées ici, telles qu'au témoin du 13-11-2026 à 10h59 : le
+          dossier jetable de l'épreuve ne porte pas le témoin (`depot_fige`), une prémisse le relit dans le dépôt donné
+          quand il y est.
+        ⑩ EFFET — Écrit des racines jetables.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        ug = "UG,2017-02-28,18.015,18.085,17.9,17.96,2561602,bnains archives (société sortie 48)"
+        alo = ("ALO,2023-03-03,27.8000,28.2100,27.6300,28.1600,1140102,yahoo_reconstruit palier 9 facteur 1.000000 ; "
+               "fondé sur 6 points de Paris (0 bnains + 6 boursorama) du 2021-04-16 au 2023-03-03 ; volume Yahoo non Paris")
+        temoin = glob.glob(os.path.join(DEPOT_DONNE, "temoins", "TEMOIN_VINGT_ANS_*_FIGE_Ven_13-11-2026_10h59.csv"))
+        if temoin:
+            with open(temoin[0], encoding="utf-8") as f:
+                vraies = set(f.read().splitlines())
+            premisse(ug in vraies and alo in vraies, "L39 : les lignes UG du 2017-02-28 et ALO du 2023-03-03 ne sont "
+                                                      "plus celles du témoin des 20 ans du 13-11-2026 à 10h59")
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "IDENTITES_DES_SOCIETES.csv"), encoding="utf-8") as f:
+            ident = f.read().splitlines()
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "PASSAGES_DANS_LE_CAC40.csv"), encoding="utf-8") as f:
+            pas = f.read().splitlines()
+        with open(glob.glob(os.path.join(DEPOT, "donnees", "REFERENTIEL_VALEURS_*.csv"))[0], encoding="utf-8-sig") as f:
+            ref = f.read().splitlines()
+        lignes = list(csv.reader(ident[1:]))
+        premisse(any(x[0] == "48" and x[5] == "UG" and x[3] == "2021-01-15" and x[6] == "FR0000121501" for x in lignes)
+                 and not any(x[0] == "48" and not x[3] for x in lignes),
+                 "L39 : Peugeot S.A. (48) n'est plus sortie sous UG le 2021-01-15, code FR0000121501")
+        alstom = sorted((x[3], x[5]) for x in lignes if x[0] == "42")
+        premisse(alstom == [("2002-04-02", "non trouvé"), ("2024-03-15", "ALO")],
+                 f"L39 : les lignes d'Alstom (42) ne sont plus « non trouvé » puis ALO : {alstom}")
+        code = code_absent(ident, pas)
+        q = mnemonique_absent(ident, ref)
+        neuf = str(max(int(x[0]) for x in lignes) + 1)
+        premisse(isin_bien_forme(code) and q not in {x[5] for x in lignes}, f"L39 : {code} ou {q} n'est pas neuf")
+        fabriquee = f"{neuf},Société sortie fabriquée,2010-01-04,2015-06-19,Fabriquée,{q},{code},épreuve,épreuve"
+        passage = f"{code},Société sortie fabriquée,2010-01-04,2015-06-19,épreuve,épreuve"
+        cours = maitre + [ug, alo, f"{q},2012-03-01,10,11,9,10.5,1000,épreuve",
+                          "SOCIETE INVENTEE,2012-03-01,10,11,9,10.5,1000,épreuve",
+                          "non trouvé,2001-03-01,10,11,9,10.5,1000,épreuve"]
+        c = M.lire(racine(tmp, "l39", cours=cours, identites=ident + [fabriquee], passages=pas + [passage]), CM, FIN[CM])
+
+        def passages_de(*codes):   # calculés par l'épreuve, depuis la table, sans le lecteur
+            out = [(D(x[2]), D(x[3]) if x[3] else None) for x in csv.reader(pas[1:] + [passage]) if x[0] in codes]
+            return sorted(out, key=lambda p: (p[0], p[1] or date.max))
+        codes_alstom = [x[6] for x in lignes if x[0] == "42"]
+        attendus = {"UG": (D("2017-02-28"), passages_de("FR0000121501"), "2021-01-15"),
+                    "ALO": (D("2023-03-03"), passages_de(*codes_alstom), "2024-03-15"),
+                    q: (D("2012-03-01"), [(D("2010-01-04"), D("2015-06-19"))], "2015-06-19")}
+        ranges = all(set(c["barres"].get(m, {})) == {d} and c["dans_l_indice"].get(m) == p and len(p) > 0
+                     and c["hors_univers"].get(m, "").startswith(f"sortie de l'indice le {fin} ")
+                     for m, (d, p, fin) in attendus.items())   # leurs trous (QE2) : L41
+        refus = []
+        for n, t in (("vinci", ident + [f"{neuf},Fausse,2001-01-02,2003-01-02,Fausse,VINCI,,épreuve,épreuve"]),
+                     ("double", ident + [f"{neuf},Fausse,2001-01-02,2003-01-02,Fausse,UG,,épreuve,épreuve"]),
+                     ("fin", ident + [f"{neuf},Fausse,2001-01-02,2003-1-2,Fausse,{q},,épreuve,épreuve"]),
+                     ("deux", ident + [f"{neuf},Fausse,2001-01-02,2003-01-02,Fausse,{q},,épreuve,épreuve",
+                                       f"{neuf},Fausse,2000-01-03,2003-01-02,Fausse,{q}X,,épreuve,épreuve"])):
+            # I-1 (14-11-2026) : une anomalie n'arrête la lecture que si elle touche une valeur écrite dans le fichier ;
+            # chaque cas porte donc une ligne de la société en cause (UG, ou le mnémonique fabriqué)
+            refus.append(raison(M.lire, racine(tmp, "l39_" + n, identites=t, cours=maitre + [
+                ug, f"{q},2012-03-01,10,11,9,10.5,1000,épreuve"]), CM, FIN[CM]) or "")
+        # X1 de Cowork : une société sortie fabriquée sous « DG », mnémonique du référentiel (Vinci)
+        refus.append(raison(M.lire, racine(tmp, "l39_dg", identites=ident + [
+            f"{neuf},Fausse,2001-01-02,2003-01-02,Fausse,DG,,épreuve,épreuve"]), CM, FIN[CM]) or "")
+        return (M.lignes_mises_a_part(c) == 2 and set(c["inconnues"]) == {"SOCIETE INVENTEE", "non trouvé"}
+                and ranges
+                and "le mnémonique « VINCI » de la société sortie" in refus[0] and "déjà une écriture" in refus[0]
+                and "le mnémonique UG désigne deux sociétés sorties (" in refus[1] and "48" in refus[1]
+                and f"date de fin illisible « 2003-1-2 » pour la société {neuf}" in refus[2]
+                and f"la société sortie {neuf} (Fausse) a deux dernières lignes le 2003-01-02" in refus[3]
+                and "le mnémonique « DG » de la société sortie" in refus[4] and "(DG)" in refus[4])
+    def l40():
+        """Une ligne écartée sur décision au contrat n'est ni rangée ni mise à part ; un jour fermé est trouvé sans liste.
+
+        ① RÔLE — L40 (14-11-2026) : éprouver LIGNES_ECARTEES_SUR_DECISION dans `lire` et `lignes_mises_a_part`, et le
+          contrôle « jour fermé » par le calendrier sur la vraie ligne écartée.
+        ② CONTEXTE D'APPEL — `essai`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — Le maître figé (FIGES) ; la ligne VK du 2016-03-28 recopiée du témoin des 20 ans
+          (R-732), vérifiée en prémisse quand le témoin est dans le dépôt donné.
+        ⑤ SORTIE — UNE valeur : vrai si verte.
+          [rend: 1]
+        ⑥ TRAITEMENT — le maître plus la ligne VK : ① sans déclaration, elle est mise à part comme barre d'un jour sans
+          séance (le calendrier la trouve, aucune date n'est écrite dans le lecteur) · ② déclarée écartée (dans le
+          contrat du module, en mémoire, sous le chemin du maître), elle n'est ni rangée ni mise à part, elle est dite
+          écartée avec sa cause, et `main` la signale · ③ déclarée mais absente du fichier : la lecture s'arrête, avec
+          sa raison.
+        ⑦ UNITÉ — Des lignes.
+        ⑧ POURQUOI — Décision de Jean-Luc du 14-11-2026 à 13h41, « 1 » à : « Écarter la ligne VK du 2016-03-28 comme
+          fausse, avec sa cause notée » ; le témoin figé n'est jamais réécrit : l'écart est une DONNÉE.
+        ⑨ CE QUI CLOCHE — La déclaration est posée en mémoire sur le module chargé : elle est retirée à la fin, même
+          si l'épreuve lève.
+        ⑩ EFFET — Écrit des racines jetables.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        vk = "VK,2016-03-28,3.318,3.318,3.318,3.318,0,bnains archives (société sortie 66)"
+        temoin = glob.glob(os.path.join(DEPOT_DONNE, "temoins", "TEMOIN_VINGT_ANS_*_FIGE_Ven_13-11-2026_10h59.csv"))
+        if temoin:
+            with open(temoin[0], encoding="utf-8") as f:
+                premisse(vk in set(f.read().splitlines()), "L40 : la ligne VK du 2016-03-28 n'est plus celle du témoin")
+        r = racine(tmp, "l40", cours=maitre + [vk])
+        sans = M.lire(r, CM, FIN[CM])
+        decl = M.CONTRATS.__dict__.setdefault("LIGNES_ECARTEES_SUR_DECISION", {})
+        garde = decl.get(CM)
+        try:
+            decl[CM] = [{"ligne": vk, "cause": "épreuve : jour fermé", "decision": "épreuve"}]
+            avec = M.lire(r, CM, FIN[CM])
+            code = muet(M.main, [r, CM, FIN[CM].isoformat()])
+            sortie = muet(M.resume, avec)[0]
+            # D3 du relecteur QE : la ligne présente DEUX fois est dite doublée, pas « introuvable : [] »
+            doublee = raison(M.lire, racine(tmp, "l40d", cours=maitre + [vk, vk]), CM, FIN[CM]) or ""
+            decl[CM] = [{"ligne": vk.replace("3.318,0,", "3.318,1,"), "cause": "épreuve", "decision": "épreuve"}]
+            absente = raison(M.lire, r, CM, FIN[CM]) or ""
+        finally:
+            if garde is None:
+                decl.pop(CM, None)
+            else:
+                decl[CM] = garde
+        return (M.lignes_mises_a_part(sans) == 1 and [(m, d) for m, d, _ in sans["hors_seance"]] == [("VK", D("2016-03-28"))]
+                and M.lignes_mises_a_part(avec) == 0 and avec["hors_seance"] == []
+                and [(v, d) for v, d, _ in avec["ecartees"]] == [("VK", "2016-03-28")]
+                and "2016-03-28" not in {d.isoformat() for b in avec["barres"].values() for d in b}
+                and code == 1 and any("LIGNES ÉCARTÉES SUR DÉCISION" in x and "VK 2016-03-28" in x for x in sortie)
+                and "introuvable(s) à l'identique" in absente and "('VK', '2016-03-28')" in absente
+                and "présente(s) plusieurs fois à l'identique : [('VK', '2016-03-28')]" in doublee
+                and "introuvable" not in doublee)
+    def l41():
+        """Une société sortie est attendue à chaque séance de sa présence dans l'indice, et seulement là.
+
+        ① RÔLE — L41 (QE2, 14-11-2026) : éprouver `_attendues` pour une société sortie et `trous_par_periode`.
+        ② CONTEXTE D'APPEL — `essai`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — Le maître figé ; la vraie ligne UG du 2017-02-28 (R-732) ; la table des passages, où UG
+          (Peugeot S.A.) est dans l'indice du 2000-01-03 au 2012-09-21 et du 2015-03-23 au 2021-01-15 (prémisse).
+        ⑤ SORTIE — UNE valeur : vrai si verte.
+          [rend: 1]
+        ⑥ TRAITEMENT — le maître, la vraie ligne UG et une ligne UG FABRIQUÉE le 2013-06-03 (hors de l'indice) ; une
+          nature SUSPENSION écrite pour UG le 2018-06-15 · attendu, calculé ici par le calendrier (K.seances_entre),
+          pas par le lecteur : les trous d'UG sont les séances du 2015-03-23 au 2021-01-15 sans le 2017-02-28, aucune
+          entre le 2013-06-03 et le 2015-03-20 ; quatre périodes : avant la barre, après, la suspension seule, après.
+        ⑦ UNITÉ — Des séances.
+        ⑧ POURQUOI — D1 du relecteur QE (14-11-2026) : 6 027 séances de présence sans barre, aucune comptée ; et,
+          entre deux barres hors de l'indice, des trous qui n'en sont pas (Nokia).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Écrit une racine jetable.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        ug = "UG,2017-02-28,18.015,18.085,17.9,17.96,2561602,bnains archives (société sortie 48)"
+        hors_indice = "UG,2013-06-03,10,10,10,10,1,épreuve : hors de l'indice"
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "PASSAGES_DANS_LE_CAC40.csv"), encoding="utf-8") as f:
+            pas = list(csv.reader(f.read().splitlines()[1:]))
+        ug_pas = sorted((x[2], x[3]) for x in pas if x[0] == "FR0000121501")
+        premisse(ug_pas == [("2000-01-03", "2012-09-21"), ("2015-03-23", "2021-01-15")],
+                 f"L41 : les passages de FR0000121501 ont changé : {ug_pas}")
+        natures = [ENTETE_NATURES, "UG,2018-06-15,SUSPENSION,épreuve,épreuve,2026-11-14"]
+        c = M.lire(racine(tmp, "l41", cours=maitre + [ug, hors_indice], natures=natures), CM, FIN[CM])
+        sc = c["seances"]
+        seances = lambda a, b: [d for d, _ in K.seances_entre(D(a), D(b), sc)]
+        attendus = [d for d in seances("2015-03-23", "2021-01-15") if d != D("2017-02-28")]
+        t = M.trous(c, "UG")
+        avant = seances("2015-03-23", "2017-02-27")
+        apres1, apres2 = seances("2017-03-01", "2018-06-14"), seances("2018-06-18", "2021-01-15")
+        periodes = [(avant[0], avant[-1], len(avant), M.NON_DECIDEE), (apres1[0], apres1[-1], len(apres1), M.NON_DECIDEE),
+                    (D("2018-06-15"), D("2018-06-15"), 1, "SUSPENSION"),
+                    (apres2[0], apres2[-1], len(apres2), M.NON_DECIDEE)]
+        return ([d for d, _ in t] == attendus and dict(t)[D("2018-06-15")] == "SUSPENSION"
+                and not [d for d, _ in t if d < D("2015-03-23")] and M.trous_par_periode(c, "UG") == periodes)
+    essai("L41 société sortie (UG, vraie ligne) : trous à chaque séance de sa présence dans l'indice, aucun hors de "
+          "l'indice ; quatre périodes, la suspension à part", l41)
+
+    def l42():
+        """Un fichier DÉCLARÉ porter les sociétés sorties les attend sans barre, et compte à part celles sans clé.
+
+        ① RÔLE — L42 (QE2 tour 2, superviseur R-759 ①) : le contrat du fichier, pas ses barres ; la présence des
+          sociétés sorties sans mnémonique, comptée à part.
+        ② CONTEXTE D'APPEL — `essai`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — Le maître figé (commence le 2024-01-02, aucune ligne d'Alstom) ; Alstom (ALO) dans
+          l'indice du 2020-09-21 au 2024-03-15 (prémisse) ; une société sortie FABRIQUÉE, « non trouvé », code neuf, passage du
+          2023-11-01 au 2024-02-29.
+        ⑤ SORTIE — UNE valeur : vrai si verte.
+          [rend: 1]
+        ⑥ TRAITEMENT — ① non déclaré : ALO n'a aucun trou, rien n'est compté à part · ② déclaré (contrat du module, en
+          mémoire) : ALO, sans AUCUNE barre — le cas « toutes les lignes UG retirées » —, a pour trous chaque séance du
+          2024-01-02 au 2024-03-15 ; la société fabriquée est comptée à part sur les séances du 2024-01-02 au 2024-02-29
+          (bornées au fichier) ; `resume` le dit. Attendus calculés ici par le calendrier (K.seances_entre).
+        ⑦ UNITÉ — Des séances.
+        ⑧ POURQUOI — D1 du relecteur QE2 (14-11-2026) : 19 813 séances de sociétés sorties sans clé comptées nulle part,
+          et un témoin privé de toutes les lignes UG perdait 1 009 trous sans un mot.
+        ⑨ CE QUI CLOCHE — La déclaration est posée en mémoire sur le module chargé, retirée à la fin.
+        ⑩ EFFET — Écrit une racine jetable.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "PASSAGES_DANS_LE_CAC40.csv"), encoding="utf-8") as f:
+            pas = f.read().splitlines()
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "IDENTITES_DES_SOCIETES.csv"), encoding="utf-8") as f:
+            ident = f.read().splitlines()
+        premisse(any(x.startswith("FR0010220475,") and ",2020-09-21,2024-03-15," in x for x in pas),
+                 "L42 : le passage d'Alstom FR0010220475 n'est plus 2020-09-21 → 2024-03-15")
+        code = code_absent(ident, pas)
+        neuf = str(max(int(x[0]) for x in csv.reader(ident[1:])) + 1)
+        r = racine(tmp, "l42", identites=ident + [f"{neuf},Sortie sans clé,2023-11-01,2024-02-29,Sortie sans clé,non trouvé,"
+                                                  f"{code},épreuve,épreuve"],
+                   passages=pas + [f"{code},Sortie sans clé,2023-11-01,2024-02-29,épreuve,épreuve"])
+        sans = M.lire(r, CM, FIN[CM])
+        attr = "FICHIERS_DE_COURS_QUI_PORTENT_LES_SOCIETES_SORTIES"
+        garde = getattr(M.CONTRATS, attr, ())
+        try:
+            setattr(M.CONTRATS, attr, tuple(garde) + (CM,))
+            avec = M.lire(r, CM, FIN[CM])
+            dit = muet(M.resume, avec)[0]
+        finally:
+            setattr(M.CONTRATS, attr, garde)
+        alo = [d for d, _ in K.seances_entre(D("2024-01-02"), D("2024-03-15"), avec["seances"])]
+        fab = [d for d, _ in K.seances_entre(D("2024-01-02"), D("2024-02-29"), avec["seances"])]
+        return (M.trous(sans, "ALO") == [] and not sans["sorties_sans_cle"]
+                and "ALO" not in avec["barres"] and [d for d, _ in M.trous(avec, "ALO")] == alo
+                and avec["sorties_sans_cle"].get(neuf) == ("Sortie sans clé", len(fab), fab[0], fab[-1])
+                and any(x.startswith("  SOCIÉTÉS SORTIES SANS CLÉ") and f"Sortie sans clé {len(fab)}" in x for x in dit))
+    def l43():
+        """Une anomalie d'identité d'une société sortie absente du fichier est signalée ; présente, elle arrête la lecture.
+
+        ① RÔLE — L43 (I-1 de Cowork, 14-11-2026) : le scénario exact de Cowork — la fin de Peugeot S.A. (société 48)
+          écrite « 2021-1-15 » dans IDENTITES, le maître lu.
+        ② CONTEXTE D'APPEL — `essai`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — IDENTITES porte « 48,Peugeot S.A.,2000-01-03,2021-01-15, » (prémisse) ; le maître figé
+          n'a aucune ligne UG.
+        ⑤ SORTIE — UNE valeur : vrai si verte.
+          [rend: 1]
+        ⑥ TRAITEMENT — ① le maître lu avec la faute : lecture faite, aucune ligne à part, l'anomalie rendue sous
+          « anomalies_d_identite » et dite par `resume` ; Peugeot n'a plus de passages · ② le maître plus la vraie ligne
+          UG du 2017-02-28 : la lecture s'arrête, avec la raison et « elle touche une valeur écrite ».
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — I-1 : sur main, le maître se lisait ; après QE, la même faute arrêtait la lecture du maître, et le
+          circuit du soir perdait la séance et ses signaux pour toujours, pour une société sans aucune barre dans le maître.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Écrit des racines jetables.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "IDENTITES_DES_SOCIETES.csv"), encoding="utf-8") as f:
+            ident = f.read().splitlines()
+        premisse(sum(x.startswith("48,Peugeot S.A.,2000-01-03,2021-01-15,") for x in ident) == 1,
+                 "L43 : la ligne de Peugeot S.A. (48) n'est plus « 2000-01-03 → 2021-01-15 »")
+        faute = [x.replace("48,Peugeot S.A.,2000-01-03,2021-01-15,", "48,Peugeot S.A.,2000-01-03,2021-1-15,") for x in ident]
+        ug = "UG,2017-02-28,18.015,18.085,17.9,17.96,2561602,bnains archives (société sortie 48)"
+        c = M.lire(racine(tmp, "l43a", identites=faute), CM, FIN[CM])
+        dit = muet(M.resume, c)[0]
+        arret = raison(M.lire, racine(tmp, "l43b", identites=faute, cours=maitre + [ug]), CM, FIN[CM]) or ""
+        msg = "date de fin illisible « 2021-1-15 » pour la société 48 (Peugeot S.A.)"
+        return (M.lignes_mises_a_part(c) == 0 and any(msg in x for x in c["anomalies_d_identite"])
+                and not c["dans_l_indice"].get("UG")
+                and any(x.startswith("  IDENTITÉS : 1 anomalie(s)") and msg in x for x in dit)
+                and msg in arret and "elle touche une valeur écrite dans donnees/cours_maitre.csv" in arret)
+    essai("L43 I-1 (Cowork) : la fin de Peugeot écrite « 2021-1-15 » — le maître se lit et le dit ; avec une ligne UG, "
+          "la lecture s'arrête", l43)
+
+    def l44():
+        """Les deux autres anomalies tolérées par I-1 sont signalées sur le maître ; avec une ligne UG, elles arrêtent.
+
+        ① RÔLE — L44 (K-3 de Cowork, 14-11-2026) : éprouver les deux tolérances de `societes_sorties` que L43 ne joue
+          pas — un mnémonique pour deux sociétés sorties, deux dernières lignes le même jour.
+        ② CONTEXTE D'APPEL — `essai`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — IDENTITES porte la vraie ligne de Dexia (41, « non trouvé », BE0003796134) et celle de
+          Peugeot S.A. (48, fin 2021-01-15, UG) (prémisses) ; le maître figé n'a aucune ligne UG ; « UGX » n'est
+          l'écriture d'aucune valeur.
+        ⑤ SORTIE — UNE valeur : vrai si verte.
+          [rend: 1]
+        ⑥ TRAITEMENT — Pour chaque cas, sur une copie de la vraie table : ① le maître lu : lecture faite, aucune ligne à
+          part, l'anomalie rendue sous « anomalies_d_identite » avec son texte exact · ② le maître plus la vraie ligne
+          UG du 2017-02-28 : la lecture s'arrête, avec le texte et « elle touche une valeur écrite ». Cas a : Dexia
+          écrite « UG » · cas b : une seconde ligne de Peugeot au 2021-01-15 sous « UGX ».
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — K-3 de Cowork : remettre `refuser(` en `raise ValueError(` sur ces deux chemins laissait le jeu
+          vert (SX1, SX2, mesuré sur fabd8224). Le superviseur R-759 du 14-11-2026 : les écrire SUR LE CODE ACTUEL,
+          comme filet du remaniement de `refuser` (lot C).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Écrit des racines jetables.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "IDENTITES_DES_SOCIETES.csv"), encoding="utf-8") as f:
+            ident = f.read().splitlines()
+        dexia = "41,Dexia (Ex-Dexia Belgium),2000-01-03,2010-09-17,Dexia (Ex-Dexia Belgium),non trouvé,BE0003796134,"
+        peugeot = "48,Peugeot S.A.,2000-01-03,2021-01-15,Peugeot S.A.,UG,FR0000121501,"
+        premisse(sum(x.startswith(dexia) for x in ident) == 1, "L44 : la ligne de Dexia (41) n'est plus « non trouvé »")
+        premisse(sum(x.startswith(peugeot) for x in ident) == 1, "L44 : la ligne de Peugeot S.A. (48) a changé")
+        ug = "UG,2017-02-28,18.015,18.085,17.9,17.96,2561602,bnains archives (société sortie 48)"
+        cas = {"a": ([x.replace(",non trouvé,BE0003796134,", ",UG,BE0003796134,") if x.startswith(dexia) else x
+                      for x in ident], "identités : le mnémonique UG désigne deux sociétés sorties (41 et 48)"),
+               "b": (ident + ["48,Peugeot S.A.,2000-01-03,2021-01-15,Peugeot S.A.,UGX,,épreuve,épreuve"],
+                     "identités : la société sortie 48 (Peugeot S.A.) a deux dernières lignes le 2021-01-15, sous UG "
+                     "et UGX")}
+        ok = True
+        for k, (table, msg) in cas.items():
+            c = M.lire(racine(tmp, "l44" + k, identites=table), CM, FIN[CM])
+            arret = raison(M.lire, racine(tmp, "l44" + k + "u", identites=table, cours=maitre + [ug]), CM, FIN[CM]) or ""
+            ok = ok and (M.lignes_mises_a_part(c) == 0 and any(msg in x for x in c["anomalies_d_identite"])
+                         and msg in arret and "elle touche une valeur écrite dans donnees/cours_maitre.csv" in arret)
+        return ok
+    essai("L44 K-3 (Cowork) : Dexia écrite « UG », Peugeot sous UG et UGX le même jour — le maître se lit et le dit ; "
+          "avec une ligne UG, la lecture s'arrête", l44)
+
+    def l45():
+        """Sur un fichier déclaré porter les sociétés sorties, une anomalie d'identité arrête la lecture, motif dit.
+
+        ① RÔLE — L45 (K-4 de Cowork, 14-11-2026) : la fin de Dexia (41, sans mnémonique) écrite « 2010-9-17 ».
+        ② CONTEXTE D'APPEL — `essai`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — IDENTITES porte la vraie ligne de Dexia (41, fin 2010-09-17, « non trouvé ») (prémisse).
+        ⑤ SORTIE — UNE valeur : vrai si verte.
+          [rend: 1]
+        ⑥ TRAITEMENT — ① le maître non déclaré, lu : lecture faite, l'anomalie rendue sous « anomalies_d_identite » ·
+          ② le même maître déclaré porter les sociétés sorties (contrat du module, en mémoire, comme L42) : la lecture
+          s'arrête ; le message porte la faute et « fichier déclaré porter les sociétés sorties », et pas « elle touche
+          une valeur écrite » (Dexia n'a aucun mnémonique : aucune barre ne peut porter son nom).
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — K-4 de Cowork : sur le témoin des 20 ans, la même faute arrêtait la lecture sans dire pourquoi, et
+          la fiche de `lire` promettait la tolérance. Superviseur R-759 : le comportement est le bon, seuls la fiche et
+          le message changent.
+        ⑨ CE QUI CLOCHE — La déclaration est posée en mémoire sur le module chargé, retirée à la fin.
+        ⑩ EFFET — Écrit une racine jetable.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        with open(os.path.join(DEPOT, "donnees", "sources_indice", "IDENTITES_DES_SOCIETES.csv"), encoding="utf-8") as f:
+            ident = f.read().splitlines()
+        dexia = "41,Dexia (Ex-Dexia Belgium),2000-01-03,2010-09-17,"
+        premisse(sum(x.startswith(dexia) for x in ident) == 1, "L45 : la ligne de Dexia (41) n'est plus « → 2010-09-17 »")
+        faute = [x.replace(dexia, "41,Dexia (Ex-Dexia Belgium),2000-01-03,2010-9-17,") for x in ident]
+        msg = "date de fin illisible « 2010-9-17 » pour la société 41 (Dexia (Ex-Dexia Belgium))"
+        r = racine(tmp, "l45", identites=faute)
+        c = M.lire(r, CM, FIN[CM])
+        attr = "FICHIERS_DE_COURS_QUI_PORTENT_LES_SOCIETES_SORTIES"
+        garde = getattr(M.CONTRATS, attr, ())
+        try:
+            setattr(M.CONTRATS, attr, tuple(garde) + (CM,))
+            arret = raison(M.lire, r, CM, FIN[CM]) or ""
+        finally:
+            setattr(M.CONTRATS, attr, garde)
+        return (any(msg in x for x in c["anomalies_d_identite"]) and msg in arret
+                and "fichier déclaré porter les sociétés sorties" in arret and "elle touche" not in arret)
+    essai("L45 K-4 (Cowork) : la fin de Dexia écrite « 2010-9-17 » — tolérée sur le maître ; fatale sur un fichier "
+          "déclaré, motif dit", l45)
+
+    essai("L42 fichier déclaré porter les sociétés sorties : ALO sans aucune barre a ses trous, une société sans clé est "
+          "comptée à part et dite ; non déclaré, rien", l42)
+
+    essai("L40 ligne écartée sur décision (VK 2016-03-28, vraie ligne) : sans déclaration, jour fermé mis à part ; "
+          "déclarée, ni rangée ni à part, signalée ; déclarée absente, lecture arrêtée", l40)
+
+    essai("L39 sociétés sorties (QE) : UG et ALO (vraies lignes) et une société fabriquée rangées avec leurs passages ; "
+          "un nom inconnu et « non trouvé » restent à part ; quatre tables fausses refusées avec leur raison", l39)
     return res
 
 

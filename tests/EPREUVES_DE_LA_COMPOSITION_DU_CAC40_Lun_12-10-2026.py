@@ -21,7 +21,8 @@
 ⑧ POURQUOI — Décision de Jean-Luc du 11-10-2026 à 22h57 (« Oui » : construire les deux tables de la règle I-3) et
   du 12-10-2026 à 07h47 (« Oui dépose les »). R-731 : tout code passe des épreuves sabotées.
   LES ÉPREUVES (chaque date vient d'un avis officiel gardé, sauf mention) :
-  C1 93 passages, sur 80 codes ISIN (mesuré par le prototype du 11-10-2026, avant ce programme) ;
+  C1 94 passages, sur 81 codes ISIN (93 sur 80 mesurés par le prototype du 11-10-2026, avant ce programme, plus le
+     passage de TechnipFMC coupé du code périmé de Technip le 14-11-2026) ; C25 ce passage et ses preuves ;
   C2 Aventis (FR0000130460) : du 03-01-2000 au 18-06-2004 — avis 2004-1786, « provisoirement retirée … à l'issue de
      la séance du 18 juin 2004 » ; son entrée est prouvée par la composition du 03-01-2000, sa sortie par l'avis
      (gardé sous le nom 0_4245_1626_53424_195930125_00.pdf) ;
@@ -137,6 +138,10 @@ SABOTAGES = {
     "S27_publication_ignoree": [(R, "            if publie.get(nom) and meilleure < publie[nom]:", "            if False:")],
     "S28_corrections_non_comparees": [(R, "plages == set(ECARTS_CONNUS) and corrections_de_l_avis(evenements) == ECARTS_A_LA_COLONNE", "plages == set(ECARTS_CONNUS)")],
     "S29_numero_d_avis_absent": [(R, "                numero[nom[:-4]] = (m[1], int(m[2]))", "                pass")],
+    # QE2 tour 2 (D3) : le code périmé de Technip non coupé (C1, C25)
+    "S33_code_perime_non_coupe": [(R, "    lignes = couper_les_codes_perimes(preuves(passages(membres, libelles), ev, initiale, seances), seances)",
+                                   "    lignes = preuves(passages(membres, libelles), ev, initiale, seances)")],
+    "S34_coupure_le_jour_d_avant": [(R, "        veille = seances[rang[c[0]] - 1].isoformat()", "        veille = seances[rang[c[0]] - 2].isoformat()")],
     "S30_en_tete_bilingue_non_lu": [(R, "\\s*(?:\\d{4}\\s*)?(?:/[^/N]", "\\s*(?:/[^/N]")],
     "S31_date_future_de_l_avis_jetee": [(R, "        if futures:\n", "        if False:\n")],
 }
@@ -282,8 +287,15 @@ def epreuves(dossier, tmp):
         return next(p for p in r["passages"] if p["isin_bnains"] == isin and p["premiere_seance"] == premiere)
 
     seances = sorted(d for d in M.CAL.lire_les_seances(DEPOT)["indice"] if d >= M.DEBUT)
-    essai("C1 93 passages sur 80 codes ISIN",
-          lambda: len(r["passages"]) == 93 and len({p["isin_bnains"] for p in r["passages"]}) == 80)
+    # C1 : 93 passages sur 80 codes ISIN de bnains, plus, depuis le 14-11-2026 (QE2 tour 2, D3), le passage de TechnipFMC
+    # coupé du code périmé de Technip : 94 sur 81
+    essai("C1 94 passages sur 81 codes ISIN (93 sur 80 de bnains, plus TechnipFMC coupé de Technip)",
+          lambda: len(r["passages"]) == 94 and len({p["isin_bnains"] for p in r["passages"]}) == 81)
+    essai("C25 Technip finit le 2017-01-16 ; TechnipFMC (GB00BDSFG982) du 2017-01-17 au 2020-03-20, preuve écrite",
+          lambda: ligne("FR0000131708", "2009-09-21")["derniere_seance"] == "2017-01-16"
+          and ligne("GB00BDSFG982", "2017-01-17")["derniere_seance"] == "2020-03-20"
+          and ligne("GB00BDSFG982", "2017-01-17")["preuve_entree"].startswith("code périmé chez bnains : boursorama")
+          and ligne("FR0000131708", "2009-09-21")["preuve_sortie"].startswith("code périmé chez bnains : boursorama"))
     essai("C2 Aventis du 03-01-2000 au 18-06-2004, entrée prouvée par la composition du 03-01-2000",
           lambda: de("FR0000130460") == [("2000-01-03", "2004-06-18")]
           and ligne("FR0000130460", "2000-01-03")["preuve_entree"].startswith("déjà dans l'indice le 03-01-2000")
@@ -376,7 +388,8 @@ def epreuves(dossier, tmp):
         ev = r["evenements"]
         glisse = [dict(x, origine_date=x["origine_date"] + " (bnains écrivait 2013-12-23)") if x["libelle"] == "Alcatel"
                   else x for x in ev]
-        return (code == 0 and lu[0] == M.CONTRATS.PASSAGES_DANS_LE_CAC40 and len(lu) == 94
+        # 95 lignes depuis le 14-11-2026 : l'en-tête et 94 passages (C1, TechnipFMC coupé de Technip)
+        return (code == 0 and lu[0] == M.CONTRATS.PASSAGES_DANS_LE_CAC40 and len(lu) == 95
                 and M.code_de_sortie(e, ev) == 0 and M.code_de_sortie(deplace, ev) == 1
                 and M.code_de_sortie(e[1:], ev) == 1 and M.code_de_sortie(plus, ev) == 1
                 and M.code_de_sortie(e, glisse) == 1)

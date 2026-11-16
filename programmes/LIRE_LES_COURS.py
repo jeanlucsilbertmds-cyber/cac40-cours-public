@@ -262,12 +262,163 @@ def isin_valide(code):
     return (10 - somme % 10) % 10 == int(code[-1])
 
 
-def lire_les_passages(racine):
-    """Rend, pour chaque mnémonique d'aujourd'hui, les périodes où sa société était dans le CAC 40.
+def presence_des_societes_sorties_sans_cle(ident, passages, seances, debut, fin):
+    """Rend, pour chaque société sortie SANS clé de lecture, ses séances de présence dans l'indice entre deux dates.
+
+    ① RÔLE — Compter à part ce que le lecteur ne peut pas lire : une société sortie dont aucune barre ne se range, faute
+      de mnémonique (« non trouvé »), reste visible par sa présence dans l'indice.
+    ② CONTEXTE D'APPEL — `lire`, pour un fichier déclaré porter les sociétés sorties.
+    ③ ENTRÉE — `ident`, `passages` : les lignes des deux tables de la règle I-3 · `seances` : le calendrier
+      (CAL.lire_les_seances) · `debut`, `fin` : les bornes du fichier (dates).
+    ④ CONDITIONS D'ENTRÉE — Les dates des passages se lisent (`lire_les_passages` l'a déjà exigé).
+    ⑤ SORTIE — UNE valeur : {numéro : (société, nombre de séances, première, dernière)} pour chaque société sans ligne
+      ouverte et absente de `societes_sorties`, présente au moins une séance entre `debut` et `fin`.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① les sociétés sorties : aucune ligne sans `fin` · ② sans clé : absentes de `societes_sorties` ·
+      ③ leurs codes ISIN (toutes lignes) · ④ les passages de ces codes, bornés à [debut, fin], en séances du calendrier.
+    ⑦ UNITÉ — Des séances du calendrier.
+    ⑧ POURQUOI — D1 du relecteur QE2 (14-11-2026) : 20 sociétés sorties « non trouvé » (Dexia, Lagardère, AGF…),
+      19 813 séances de présence, comptées nulle part ; avec TechnipFMC (D3), 811 de plus (mesuré : 811 au calendrier comme aux dates de l'indice, Q-6 de Cowork). Superviseur R-759 du
+      14-11-2026, liste fermée ① : compter à part, par une propriété des deux tables, pas par `dans_l_indice`.
+      K-4 de Cowork (14-11-2026) : toute anomalie de la table des identités y est fatale, parce que le compte de
+      présence dépend de toute la table ; le message le dit, pour ne pas laisser croire à la tolérance de `lire` (I-1).
+    ⑨ CE QUI CLOCHE — Ces séances ne sont PAS des trous de `trous` : aucune clé ne les porte. Leur versement (barres N3
+      déjà gardées pour 19 d'entre elles) est au BACKLOG, A-829 (B1 ; K-6 de Cowork).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError sur toute anomalie de la table des identités (motif : fichier
+      déclaré). Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    ouvertes = {r["numero"] for r in ident if not r["fin"]}
+    try:
+        avec_cle = {n for n, _ in societes_sorties(ident).values()}
+    except ValueError as e:
+        # K-4 de Cowork (14-11-2026) : le comportement ne change pas — toute anomalie y reste fatale ; le motif se dit
+        raise ValueError(f"{e} — fichier déclaré porter les sociétés sorties "
+                         f"(CONTRATS.FICHIERS_DE_COURS_QUI_PORTENT_LES_SOCIETES_SORTIES) : son compte de présence "
+                         f"dépend de toute la table des identités, toute anomalie d'identité y est fatale") from None
+    codes, nom = defaultdict(set), {}
+    for r in ident:
+        if r["numero"] not in ouvertes and r["numero"] not in avec_cle:
+            nom.setdefault(r["numero"], r["societe"])
+            if r["isin"]:
+                codes[r["numero"]].add(r["isin"])
+    out = {}
+    for numero in sorted(nom, key=lambda x: int(x) if x.isdigit() else 0):
+        jours = set()
+        for p in passages:
+            if p["isin_bnains"] in codes[numero]:
+                a = max(CAL._date_stricte(p["premiere_seance"]), debut)
+                b = min(CAL._date_stricte(p["derniere_seance"]) if p["derniere_seance"] else fin, fin)
+                if a <= b:
+                    jours |= {d for d, _ in CAL.seances_entre(a, b, seances)}
+        if jours:
+            out[numero] = (nom[numero], len(jours), min(jours), max(jours))
+    return out
+
+
+def societes_sorties(ident, anomalies=None):
+    """Rend le mnémonique de chaque société SORTIE de l'indice, lu dans la table des identités.
+
+    ① RÔLE — Dire, en un seul endroit, sous quel mnémonique une société qui n'est plus cotée dans le CAC 40 est
+      reconnue : par la lecture des cours (`lire`, ses barres) et par `lire_les_passages` (ses périodes dans l'indice).
+    ② CONTEXTE D'APPEL — `lire`, une fois par lecture ; `lire_les_passages`, une fois.
+    ③ ENTRÉE — `ident` : les lignes de donnees/sources_indice/IDENTITES_DES_SOCIETES.csv, chacune un dictionnaire sous
+      le contrat CONTRATS.IDENTITES_DES_SOCIETES (rendu de `_lire_csv`) · `anomalies` : None (lever), ou une liste où
+      ranger les anomalies.
+    ④ CONDITIONS D'ENTRÉE — La date `fin` de chaque ligne d'une société sortie s'écrit AAAA-MM-JJ ; deux lignes d'une
+      même société sortie ne finissent pas le même jour sous deux mnémoniques différents, et deux sociétés sorties n'ont
+      pas le même mnémonique. Sinon : ValueError avec la société, OU, quand `anomalies` est une liste (`lire`, depuis le
+      14-11-2026, I-1 de Cowork), l'anomalie (numéros, texte) y est ajoutée et la société sort du rendu.
+    ⑤ SORTIE — UNE valeur : {mnémonique : (numéro de la société, date de fin de sa dernière ligne)}. Exemple réel du
+      14-11-2026 : « UG » → (« 48 », 2021-01-15), Peugeot S.A. ; 18 mnémoniques sur la vraie table.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① une société est SORTIE quand AUCUNE de ses lignes n'est sans `fin` (une ligne sans `fin` dit son
+      nom d'aujourd'hui : `lire_les_passages`) · ② sa dernière ligne est celle dont la `fin` est la plus tardive ;
+      son mnémonique, espaces de bord retirés, est celui de la société · ③ un mnémonique vide (VIDES) ou
+      CONTRATS.MNEMONIQUE_NON_TROUVE ne désigne rien : la société n'est pas rendue.
+    ⑦ UNITÉ — Des dates.
+    ⑧ POURQUOI — A-713 ① (QE), superviseur R-759 du 14-11-2026 (SUPERVISEUR_LU_TOUR7_Sam_14-11-2026) : le lecteur ne
+      connaissait que les 40 valeurs du référentiel et les sociétés sans date de fin ; les 18 sociétés sorties, que
+      l'assemblage des 20 ans écrit sous leur mnémonique (décision de Jean-Luc du 11-11-2026 à 22h26), étaient des
+      « noms sans mnémonique » : 68 391 lignes mises à part sur le témoin installé, et le juge refusait tout le fichier.
+      Reconnues par une PROPRIÉTÉ de la table (aucune ligne ouverte), jamais par une liste : une société qui sort
+      demain y entre d'elle-même quand sa ligne reçoit sa date de fin. La dernière ligne, comme le nom d'aujourd'hui
+      d'une société cotée : Alstom (42) a deux lignes, « non trouvé » jusqu'au 2002-04-02 puis ALO jusqu'au
+      2024-03-15 — ALO.
+    ⑨ CE QUI CLOCHE — Une société sortie dont la DERNIÈRE ligne porte « non trouvé » mais une ligne plus ancienne un
+      vrai mnémonique n'est pas rendue : ses barres seraient « sans mnémonique », mises à part et signalées — le sens
+      sûr, aucun cas sur la vraie table au 14-11-2026. · Une barre écrite sous un AUTRE mnémonique de la société que
+      celui de sa dernière ligne n'est pas reconnue (même sens sûr ; l'assemblage écrit le mnémonique de la ligne qui
+      couvre la date, `cle_d_une_societe_sortie`, et chaque société sortie n'a qu'un vrai mnémonique au 14-11-2026).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main ou lève ValueError. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    ecartees = set()
+
+    def refuser(numeros, texte):
+        """Lève l'anomalie d'identité, ou la range et retire la ou les sociétés en cause du rendu.
+
+        ① RÔLE — Un seul endroit où `societes_sorties` dit une anomalie de la table des identités.
+        ② CONTEXTE D'APPEL — `societes_sorties`, à chaque anomalie (fin illisible, deux dernières lignes, un mnémonique
+          pour deux sociétés sorties).
+        ③ ENTRÉE — `numeros` : les numéros des sociétés en cause · `texte` : le message.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — Ne rend rien.
+          [rend: rien]
+        ⑥ TRAITEMENT — sans liste d'anomalies : lever ValueError(texte) ; sinon ajouter (numéros, texte) à la liste et
+          les numéros aux sociétés écartées du rendu.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — I-1 de Cowork (14-11-2026) : une faute dans IDENTITES sur une société sortie arrêtait la lecture du
+          maître, où elle n'a aucune barre ; `lire` décide désormais si l'anomalie touche une valeur écrite dans le fichier.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Modifie `anomalies` et l'ensemble des sociétés écartées.
+        ⑪ TERMINAISON — Rend la main ou lève ValueError. Aucun de mes appels ne peut ne pas revenir.
+          [sort: non]
+        """
+        if anomalies is None:
+            raise ValueError(texte)
+        anomalies.append((tuple(numeros), texte))
+        ecartees.update(numeros)
+
+    ouvertes = {r["numero"] for r in ident if not r["fin"]}
+    derniere = {}
+    for r in ident:
+        if r["numero"] in ouvertes:
+            continue
+        try:
+            fin = CAL._date_stricte(r["fin"])
+        except ValueError:
+            refuser([r["numero"]], f"identités : date de fin illisible « {r['fin']} » pour la société {r['numero']} "
+                                   f"({r['societe']})")
+            continue
+        m = r["mnemonique"].strip()
+        avant = derniere.get(r["numero"])
+        if avant is not None and avant[0] == fin and avant[1] != m:
+            refuser([r["numero"]], f"identités : la société sortie {r['numero']} ({r['societe']}) a deux dernières "
+                                   f"lignes le {fin}, sous {avant[1]} et {m}")
+        if avant is None or fin > avant[0]:
+            derniere[r["numero"]] = (fin, m)
+    out = {}
+    for numero, (fin, m) in sorted(derniere.items()):
+        if m in VIDES or m == CONTRATS.MNEMONIQUE_NON_TROUVE:
+            continue
+        if m in out:
+            refuser([out[m][0], numero], f"identités : le mnémonique {m} désigne deux sociétés sorties ({out[m][0]} et "
+                                         f"{numero})")
+            continue
+        out[m] = (numero, fin)
+    return {m: v for m, v in out.items() if v[0] not in ecartees}
+
+
+def lire_les_passages(racine, anomalies=None):
+    """Rend, pour chaque mnémonique d'aujourd'hui ou de société sortie, les périodes où sa société était dans le CAC 40.
 
     ① RÔLE — Dire depuis quand une valeur est attendue, sans le déduire de ses cours (cassure B de Cowork).
-    ② CONTEXTE D'APPEL — `lire`, une fois par lecture.
-    ③ ENTRÉE — `racine` : la racine du dépôt, qui porte PASSAGES et IDENTITES.
+    ② CONTEXTE D'APPEL — `lire`, une fois par lecture ; les épreuves de l'arrivée des signaux.
+    ③ ENTRÉE — `racine` : la racine du dépôt, qui porte PASSAGES et IDENTITES · `anomalies` : transmise à
+      `societes_sorties` (None : une anomalie d'une société sortie lève).
     ④ CONDITIONS D'ENTRÉE — Les deux fichiers existent, chacun sous son contrat (CONTRATS.PASSAGES_DANS_LE_CAC40,
       CONTRATS.IDENTITES_DES_SOCIETES) ; une société a au plus une ligne d'identité sans date de fin (son nom
       d'aujourd'hui) ; deux sociétés n'ont pas le même mnémonique d'aujourd'hui ; un code ISIN n'appartient qu'à une
@@ -277,17 +428,22 @@ def lire_les_passages(racine):
       code ISIN ne se chevauchent pas, une sortie le jour d'une entrée comprise, et seul le dernier peut être sans fin
       (ValueError sinon, pour chacune de ces conditions, avec le passage en cause). `lire` vérifie en plus que chaque valeur de l'univers a au moins un passage. Un mnémonique
       d'aujourd'hui inconnu du référentiel est admis : c'est une société sortie de l'indice (relecture indépendante du
-      12-10-2026 : l'exiger aurait fait tomber toute lecture le jour où A-564 ajoute Vivendi).
-    ⑤ SORTIE — UNE valeur : {mnémonique d'aujourd'hui : liste triée des (première séance, dernière séance ou None pour
-      une société encore dans l'indice)}.
+      12-10-2026 : l'exiger aurait fait tomber toute lecture le jour où A-564 ajoute Vivendi). Les conditions de
+      `societes_sorties` s'appliquent, et un mnémonique de société sortie qui est aussi celui d'une société
+      d'aujourd'hui est refusé (« désigne deux sociétés »).
+    ⑤ SORTIE — UNE valeur : {mnémonique : liste triée des (première séance, dernière séance ou None pour une société
+      encore dans l'indice)} — le mnémonique d'aujourd'hui pour une société cotée, celui de `societes_sorties` pour une
+      société sortie (depuis le 14-11-2026, QE ; exemple réel : UG, Peugeot S.A., DEUX passages, du 2000-01-03 au
+      2012-09-21 et du 2015-03-23 au 2021-01-15 — D2 du relecteur QE, tour 1).
       [rend: 1]
     ⑥ TRAITEMENT — ⓪ chaque code non vide des deux tables, forme et clé d'un ISIN (relecture de Cowork 15e647c,
       cassure H : un code écrit avec une espace détachait STMicroelectronics de son premier passage) · chaque
       passage, qu'il appartienne ou non à une société connue : ses dates se lisent, sa sortie
       n'est pas avant son entrée ; les passages d'un même code ISIN (un code vide n'en est pas un), dans l'ordre, ne se
       chevauchent pas · ① chaque société (colonne `numero`) : l'ensemble de ses codes ISIN, toutes périodes
-      confondues, et son mnémonique d'aujourd'hui (la ligne sans `fin`) · ② chaque passage dont le code ISIN de bnains
-      est l'un de ces codes est rangé sous ce mnémonique.
+      confondues, et son mnémonique d'aujourd'hui (la ligne sans `fin`) ou, pour une société sortie, celui de
+      `societes_sorties` · ② chaque passage dont le code ISIN de bnains est l'un de ces codes est rangé sous ce
+      mnémonique.
       Un passage à l'envers ou un code dans l'indice deux fois le même jour est une table fausse : relecture de Cowork
       du 12-10-2026 (9c882a6, cassure G) — la sortie d'EADS mise au 09-07-1999, avant son entrée du 10-07-2000, faisait
       disparaître les 292 trous d'Airbus sans un mot. Les deux dates d'un passage sont des séances DANS l'indice
@@ -298,8 +454,8 @@ def lire_les_passages(racine):
       Systèmes avant sa division de 2021) ; la table des identités relie chaque code à sa société. Peugeot S.A.
       (FR0000121501) n'est pas Stellantis (NL00150001Q9) : son code n'est dans aucune identité de Stellantis, ses
       années ne lui sont donc pas prêtées (ligne E2 de Cowork).
-    ⑨ CE QUI CLOCHE — Une société sortie de l'indice n'a pas encore d'identités (A-564) : ses passages ne sont rangés
-      sous aucun mnémonique. · La table des identités est écrite à la main : une ligne fausse qui rattache le code d'une
+    ⑨ CE QUI CLOCHE — Une société sortie dont le mnémonique est « non trouvé » (CONTRATS.MNEMONIQUE_NON_TROUVE, 25
+      sociétés au 14-11-2026) : ses passages ne sont rangés sous aucun mnémonique. · La table des identités est écrite à la main : une ligne fausse qui rattache le code d'une
       autre société (Peugeot S.A., FR0000121501, sous Stellantis) lui prête ses années sans alerte — relecture
       indépendante du 12-10-2026 : 4 742 trous pour STLAP ; seule la relecture de la table l'empêche. · Le
       chevauchement de deux codes DIFFÉRENTS d'une même société n'est pas refusé : il ne change rien aux séances
@@ -350,6 +506,8 @@ def lire_les_passages(racine):
             if r["numero"] in actuel:
                 raise ValueError(f"identités : la société {r['numero']} a deux lignes sans date de fin")
             actuel[r["numero"]] = r["mnemonique"]
+    for m, (numero, _) in societes_sorties(ident, anomalies).items():   # QE : une société sortie, sous son dernier mnémonique
+        actuel[numero] = m
     out = {}
     for numero, m in actuel.items():
         if m in out:
@@ -444,9 +602,25 @@ def lire(racine, fichier=FICHIER_DES_COURS, jusqu_au=None):
       elle passe la dernière séance déclarée (None sinon) — les séances d'entre les deux ne sont pas des trous ;
       « fin_du_fige » : la dernière séance déclarée (None pour un fichier non figé) ; « dans_l_indice » : le rendu de
       `lire_les_passages`, vide pour un fichier déclaré incrément (CONTRATS.FICHIERS_DE_COURS_INCREMENTS) ;
-      « lignes_lues » : le nombre de lignes de données du fichier (depuis le 27-10-2026, pour `lignes_mises_a_part`).
+      « lignes_lues » : le nombre de lignes de données du fichier (depuis le 27-10-2026, pour `lignes_mises_a_part`) ;
+      « ecartees » : les (valeur, date, cause) des lignes écartées sur décision (CONTRATS.LIGNES_ECARTEES_SUR_DECISION,
+      depuis le 14-11-2026), ni rangées ni mises à part ; « sorties » : les mnémoniques des sociétés sorties de
+      l'indice (`societes_sorties`, depuis le 14-11-2026, QE2), attendues à chaque séance de leur présence dans l'indice
+      couverte par le fichier (`_attendues`) ; « porte_les_sorties » : vrai pour un fichier déclaré
+      CONTRATS.FICHIERS_DE_COURS_QUI_PORTENT_LES_SOCIETES_SORTIES ; « sorties_sans_cle » : pour un tel fichier, le rendu de
+      `presence_des_societes_sorties_sans_cle` (vide sinon) ; « anomalies_d_identite » : les textes des TROIS anomalies
+      de `societes_sorties` — fin illisible, deux dernières lignes le même jour, un mnémonique pour deux sociétés
+      sorties — sur des sociétés sorties ABSENTES du fichier lu (I-1 de Cowork, 14-11-2026). Les autres fautes des deux
+      tables — ISIN mal écrit, ISIN à deux sociétés, date de PASSAGES — arrêtent TOUJOURS la lecture (ValueError), même
+      sur une société sortie absente (K-2 et K-7 de Cowork, lot C). Une des trois qui touche un nom écrit dans le fichier
+      arrête la lecture (ValueError) ; sur un fichier déclaré porter les
+      sociétés sorties, toute anomalie d'identité arrête la lecture, parce que le compte de présence dépend de toute la
+      table (K-4 de Cowork) ; les autres sont rendues ici ; `resume` les dit, et le versement du soir aussi
+      (`TENIR_L_HISTORIQUE.dire_les_anomalies_d_identite`, sortie du pas `anomalies_d_identite`, K-1 de Cowork).
       [rend: 1]
-    ⑥ TRAITEMENT — ① la table des écritures · ② le calendrier des séances · ③ chaque ligne : son nom rapproché en
+    ⑥ TRAITEMENT — ① la table des écritures, à laquelle s'ajoute le mnémonique de chaque société sortie
+      (`societes_sorties`, hors univers au motif « sortie de l'indice le … » ; QE, 14-11-2026) · ② le calendrier des
+      séances · ③ chaque ligne : son nom rapproché en
       mnémonique (sinon « inconnues »), sa date lue (sinon « dates_illisibles »), son état au calendrier (hors séance ou
       hors calendrier : mise à part), puis rangée ; un second exemplaire égal sur les cinq champs de la barre est un
       doublon, gardé une fois ; différent, un conflit, et les DEUX sont mis à part · ④ la fin, en reculant jusqu'à une
@@ -478,6 +652,19 @@ def lire(racine, fichier=FICHIER_DES_COURS, jusqu_au=None):
       [sort: non]
     """
     table, hors = table_des_ecritures(racine)
+    _, ident = _lire_csv(os.path.join(racine, IDENTITES), [CONTRATS.IDENTITES_DES_SOCIETES], IDENTITES)
+    sorties, anomalies = set(), []
+    for m, (numero, sortie) in sorted(societes_sorties(ident, anomalies).items()):
+        # QE (A-713 ①, 14-11-2026) : l'assemblage des 20 ans écrit une société sortie sous son MNÉMONIQUE (décision de
+        # Jean-Luc du 11-11-2026 à 22h26) ; elle est hors univers, motif « sortie de l'indice » : plus collectée, elle
+        # n'est attendue qu'entre sa première et sa dernière barre (`_periode`), jamais absente du maître.
+        k = COMMUN.norm_valeur(m)
+        if m in hors or table.get(k, m) != m:
+            raise ValueError(f"identités : le mnémonique « {m} » de la société sortie {numero} est déjà une écriture "
+                             f"ou un mnémonique du référentiel ({table.get(k, m)})")
+        table[k] = m
+        hors[m] = f"sortie de l'indice le {sortie.isoformat()} (IDENTITES_DES_SOCIETES, société {numero})"
+        sorties.add(m)
     sc = CAL.lire_les_seances(racine)
     chemin = os.path.relpath(os.path.join(racine, fichier), racine).replace(os.sep, "/")
     fige = chemin in CONTRATS.FICHIERS_DE_COURS_FIGES
@@ -491,10 +678,19 @@ def lire(racine, fichier=FICHIER_DES_COURS, jusqu_au=None):
             empreinte = hashlib.sha256(f.read()).hexdigest()
         modifie = empreinte if empreinte != CONTRATS.FICHIERS_DE_COURS_FIGES[chemin]["sha256"] else None
     entete, lignes = _lire_csv(os.path.join(racine, fichier), CONTRATS.CONTRATS_DE_COURS, fichier)
+    # LIGNES ÉCARTÉES SUR DÉCISION (14-11-2026, décision de Jean-Luc de 13h41) : une DONNÉE du contrat, jamais une date
+    # écrite ici ; la ligne doit être retrouvée à l'identique, sinon la lecture s'arrête.
+    a_ecarter = {}
+    for x in getattr(CONTRATS, "LIGNES_ECARTEES_SUR_DECISION", {}).get(chemin, []):
+        a_ecarter[tuple(next(csv.reader([x["ligne"]])))] = x
+    ecartees = []
     barres, ecritures = defaultdict(dict), defaultdict(Counter)
     inconnues, illisibles = Counter(), Counter()
     doublons, conflits, hors_seance, hors_cal = [], set(), [], []
     for r in lignes:
+        if a_ecarter and tuple(r[c] for c in entete) in a_ecarter:
+            ecartees.append((r["valeur"], r["date"], a_ecarter[tuple(r[c] for c in entete)]["cause"]))
+            continue
         m = table.get(COMMUN.norm_valeur(r["valeur"]))
         if m is None:
             inconnues[r["valeur"]] += 1
@@ -523,6 +719,14 @@ def lire(racine, fichier=FICHIER_DES_COURS, jusqu_au=None):
         else:
             conflits.add((m, d))
             del barres[m][d]
+    if len(ecartees) != len(a_ecarter):
+        vues = Counter((v, d) for v, d, _ in ecartees)
+        manquent = [k[:2] for k in a_ecarter if vues[tuple(k[:2])] == 0]
+        doubles = sorted(k for k, n in vues.items() if n > 1)   # D3 du relecteur QE : « introuvable : [] » trompait
+        raise ValueError(f"{fichier} : ligne(s) déclarée(s) écartée(s) au contrat (LIGNES_ECARTEES_SUR_DECISION) "
+                         + (f"introuvable(s) à l'identique : {manquent}" if manquent else "")
+                         + (" ; " if manquent and doubles else "")
+                         + (f"présente(s) plusieurs fois à l'identique : {doubles}" if doubles else ""))
     rangees = [d for b in barres.values() for d in b]
     debut = min(rangees) if rangees else None
     allonge = sorted({d for d in rangees if d > fin_declaree}) if fige else []
@@ -532,13 +736,29 @@ def lire(racine, fichier=FICHIER_DES_COURS, jusqu_au=None):
     while CAL.etat_du_jour(fin, sc) == CAL.FERMEE:
         fin -= timedelta(days=1)
     natures = lire_les_natures(racine, hors)
-    dans_l_indice = lire_les_passages(racine)
+    dans_l_indice = lire_les_passages(racine, [])   # ses anomalies sont celles de `anomalies`, déjà rangées
+    # I-1 de Cowork (14-11-2026) : une anomalie d'identité d'une société sortie n'arrête la lecture que si elle touche une
+    # valeur PRÉSENTE dans le fichier lu — un nom écrit dans le fichier qui est l'un des mnémoniques de cette société ;
+    # sinon elle est signalée et comptée (`resume`), et la lecture se poursuit : une faute de saisie sur Peugeot S.A. ne
+    # doit pas faire perdre au circuit du soir la séance du maître, où Peugeot n'a aucune barre.
+    lus = {COMMUN.norm_valeur(x) for x in inconnues}
+    for numeros, texte in anomalies:
+        noms = {COMMUN.norm_valeur(r["mnemonique"].strip()) for r in ident if r["numero"] in numeros
+                and r["mnemonique"].strip() not in VIDES and r["mnemonique"].strip() != CONTRATS.MNEMONIQUE_NON_TROUVE}
+        if noms & lus:
+            raise ValueError(texte + f" — elle touche une valeur écrite dans {fichier}")
     sans = sorted(m for m, motif in hors.items() if not motif and not dans_l_indice.get(m))
     if sans:
         raise ValueError(f"identités : valeur(s) de l'univers sans aucun passage dans l'indice {sans} — un renommage "
                          f"dans IDENTITES_DES_SOCIETES, ou ses lignes retirées ?")
     if chemin in CONTRATS.FICHIERS_DE_COURS_INCREMENTS:
         dans_l_indice = {}
+    # QE2 tour 2 (D1 du relecteur QE2, superviseur R-759 du 14-11-2026 ①) : un fichier DÉCLARÉ porter les sociétés
+    # sorties (contrat) compte À PART la présence dans l'indice de chaque société sortie SANS clé de lecture
+    porte = chemin in getattr(CONTRATS, "FICHIERS_DE_COURS_QUI_PORTENT_LES_SOCIETES_SORTIES", ())
+    _, rangees_passages = _lire_csv(os.path.join(racine, PASSAGES), [CONTRATS.PASSAGES_DANS_LE_CAC40], PASSAGES)
+    sans_cle = (presence_des_societes_sorties_sans_cle(ident, rangees_passages, sc, debut, fin)
+                if porte and debut is not None else {})
     for (m, d) in natures:
         try:
             ferme = CAL.etat_du_jour(d, sc) == CAL.FERMEE
@@ -553,7 +773,9 @@ def lire(racine, fichier=FICHIER_DES_COURS, jusqu_au=None):
             "hors_univers": hors, "natures": natures, "natures_sans_trou": sans_trou, "fichier": fichier,
             "source_ecrite": "source" in entete, "fige": fige, "fige_allonge": allonge, "fige_modifie": modifie,
             "au_dela_du_fige": au_dela, "fin_du_fige": fin_declaree, "dans_l_indice": dans_l_indice,
-            "lignes_lues": len(lignes)}
+            "lignes_lues": len(lignes), "ecartees": ecartees, "sorties": sorties,
+            "porte_les_sorties": porte, "sorties_sans_cle": sans_cle,
+            "anomalies_d_identite": [texte for _, texte in anomalies]}
 
 
 def _periode(cours, m):
@@ -600,26 +822,40 @@ def _attendues(cours, m):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste triée des séances.
       [rend: 1]
-    ⑥ TRAITEMENT — ① les séances de `_periode` · ② pour une valeur de l'univers, en plus, les séances où sa société
-      était dans le CAC 40 (« dans_l_indice », lu par `lire_les_passages`), bornées au fichier : de sa première date
-      rangée (« debut ») à sa fin (« fin »).
+    ⑥ TRAITEMENT — ① les séances de `_periode`, sauf pour une société sortie · ② pour une valeur de l'univers ET pour une société sortie de l'indice
+      (« sorties », depuis le 14-11-2026, QE2), en plus, les séances où sa société était dans le CAC 40
+      (« dans_l_indice », lu par `lire_les_passages`), bornées au fichier : de sa première date rangée (« debut ») à sa
+      fin (« fin »).
     ⑦ UNITÉ — Des séances.
     ⑧ POURQUOI — Cassure B de Cowork (11-10-2026, e183c98) : avant sa première barre, une valeur n'avait pas de trou —
       9 514 séances tues dans l'historique long, alors qu'elle était dans l'indice ; décision de Jean-Luc A8
       (10-10-2026) : ces séances sont marquées. Exemple : Airbus (AIR), dans l'indice sous EADS depuis le 10-07-2000
       (avis 2000-2926), première barre de l'historique long le 03-09-2001. Borné au début du FICHIER, pas de l'indice :
       le fichier maître, qui commence plus tard, n'est pas tenu de couvrir 2000.
-    ⑨ CE QUI CLOCHE — Une valeur hors univers n'en reçoit rien : elle n'est plus collectée par décision. Un fichier
-      déclaré incrément (CONTRATS.FICHIERS_DE_COURS_INCREMENTS) n'en reçoit rien non plus : « dans_l_indice » y est vide.
+      QE2 (14-11-2026, D1 du relecteur QE, tour 1) : une société SORTIE n'était attendue qu'entre sa première et sa
+      dernière barre — mesuré par le relecteur, 6 027 séances dans l'indice sans barre et aucune comptée (Worldline,
+      2023-01-30 au 2023-12-15 : 227) ; un biais du survivant sur les périodes qui précèdent une sortie. Elle est
+      reconnue par la table des identités (`societes_sorties`), pas par une liste. Seulement dans un fichier DÉCLARÉ porter les sociétés
+      sorties (CONTRATS.FICHIERS_DE_COURS_QUI_PORTENT_LES_SOCIETES_SORTIES, « porte_les_sorties »), ou qui porte au moins
+      une barre d'elle : le maître et la référence Google, collectés pour les valeurs du référentiel, ne disent rien d'une société
+      sortie et n'en attendent rien (mesuré : sans cette condition, ALO, VIV, EDEN et TEP y prenaient des trous en
+      2024-2025, et L14, L17, L26, L27 rougissaient).
+    ⑨ CE QUI CLOCHE — Un fichier NON DÉCLARÉ qui a perdu toutes les barres d'une société sortie n'en dit rien (un fichier
+      déclaré, lui, garde ses trous : L42). · Une valeur hors univers PAR DÉCISION (ArcelorMittal, « AMSTERDAM ») n'en reçoit rien : elle n'est
+      plus collectée. Un fichier déclaré incrément (CONTRATS.FICHIERS_DE_COURS_INCREMENTS) n'en reçoit rien non plus : « dans_l_indice » y est vide.
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    p = _periode(cours, m)
+    # QE2 : une société sortie n'est attendue QUE pendant sa présence dans l'indice (ci-dessous), jamais entre ses barres
+    # hors de l'indice (Nokia, barres de 2004 et de 2011, entrée au CAC 40 le 2016-01-07)
+    p = _periode(cours, m) if m not in cours.get("sorties", ()) else (None, None)
     jours = set()
     if p[0] is not None:
         jours |= {d for d, _ in CAL.seances_entre(p[0], p[1], cours["seances"])}
-    if m in cours["hors_univers"] and not cours["hors_univers"][m] and cours["debut"] is not None:
+    if m in cours["hors_univers"] and (not cours["hors_univers"][m] or m in cours.get("sorties", ())
+                                       and (cours.get("porte_les_sorties") or cours["barres"].get(m))) \
+            and cours["debut"] is not None:
         for a, b in cours["dans_l_indice"].get(m, []):
             a, b = max(a, cours["debut"]), min(b or cours["fin"], cours["fin"])
             if a <= b:
@@ -636,7 +872,8 @@ def lignes_mises_a_part(cours):
       lecture qui a écarté des lignes ; toute autre lecture qui doit tout garder.
     ③ ENTRÉE — `cours` : le rendu de `lire`.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : lignes lues − barres rangées − doublons exacts ; 0 quand rien n'a été écarté.
+    ⑤ SORTIE — UNE valeur : lignes lues − barres rangées − doublons exacts − lignes écartées SUR DÉCISION (« ecartees »,
+      déclarées au contrat, depuis le 14-11-2026) ; 0 quand rien n'a été mis à part.
       [rend: 1]
     ⑥ TRAITEMENT — Une soustraction.
     ⑦ UNITÉ — Des LIGNES du fichier.
@@ -652,7 +889,8 @@ def lignes_mises_a_part(cours):
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    return cours["lignes_lues"] - sum(len(b) for b in cours["barres"].values()) - len(cours["doublons"])
+    return (cours["lignes_lues"] - sum(len(b) for b in cours["barres"].values()) - len(cours["doublons"])
+            - len(cours.get("ecartees", [])))
 
 
 def trous(cours, m):
@@ -682,6 +920,38 @@ def trous(cours, m):
         if d not in b:
             nature = "DEUX VERSIONS" if d in en_conflit else cours["natures"].get((m, d), (NON_DECIDEE, ""))[0]
             out.append((d, nature))
+    return out
+
+
+def trous_par_periode(cours, m):
+    """Rend les trous d'une valeur regroupés en périodes de séances consécutives du calendrier, avec leur nature.
+
+    ① RÔLE — Dire ce qui manque « par valeur et par période » : la liste à remettre à une recherche de sources, et le
+      résumé que le juge affiche.
+    ② CONTEXTE D'APPEL — Le juge des stratégies (`lire_par_le_lecteur`) ; le relevé des trous des sociétés sorties.
+    ③ ENTRÉE — `cours` : le rendu de `lire` · `m` : un mnémonique.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste, dans l'ordre, des (première séance, dernière séance, nombre de séances, nature) ;
+      une période ne mêle pas deux natures.
+      [rend: 1]
+    ⑥ TRAITEMENT — les trous de `trous` ; deux trous sont dans la même période quand aucune séance du calendrier ne les
+      sépare et qu'ils ont la même nature.
+    ⑦ UNITÉ — Des séances du calendrier.
+    ⑧ POURQUOI — QE2 (14-11-2026) : 6 027 séances manquent aux sociétés sorties ; les lire une à une ne sert à
+      personne, une période (Worldline, du 2023-01-30 au 2023-12-15, 227 séances) se cherche en une fois.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    t = trous(cours, m)
+    rang = {d: i for i, (d, _) in enumerate(CAL.seances_entre(t[0][0], t[-1][0], cours["seances"]))} if t else {}
+    out = []
+    for d, nature in t:
+        if out and out[-1][3] == nature and rang[d] == rang[out[-1][1]] + 1:
+            out[-1] = (out[-1][0], d, out[-1][2] + 1, nature)
+        else:
+            out.append((d, d, 1, nature))
     return out
 
 
@@ -822,6 +1092,20 @@ def resume(cours):
         if objet:
             L.append(f"  {titre} : " + " · ".join(f"« {x} » {y}" for x, y in sorted(objet.items())))
             k += 1
+    if c.get("anomalies_d_identite"):
+        L.append(f"  IDENTITÉS : {len(c['anomalies_d_identite'])} anomalie(s) sur des sociétés sorties absentes du fichier "
+                 f"(lecture poursuivie, I-1) — " + " · ".join(c["anomalies_d_identite"][:3]))
+        k += 1
+    if c.get("sorties_sans_cle"):
+        sc_ = c["sorties_sans_cle"]
+        L.append(f"  SOCIÉTÉS SORTIES SANS CLÉ (dans l'indice, aucun mnémonique pour lire leurs barres) : "
+                 f"{sum(x[1] for x in sc_.values())} séance(s), {len(sc_)} société(s) — "
+                 + ", ".join(f"{x[0]} {x[1]}" for x in list(sc_.values())[:5]) + (" …" if len(sc_) > 5 else ""))
+        k += 1
+    if c.get("ecartees"):
+        L.append(f"  LIGNES ÉCARTÉES SUR DÉCISION (CONTRATS.LIGNES_ECARTEES_SUR_DECISION) : {len(c['ecartees'])} — "
+                 + ", ".join(f"{v} {d}" for v, d, _ in c["ecartees"][:5]))
+        k += 1
     for titre, objet in (("DOUBLONS IDENTIQUES (un gardé)", c["doublons"]),
                          ("CONFLITS (deux versions, aucune gardée)", c["conflits"]),
                          ("BARRES UN JOUR SANS SÉANCE (mises à part)", c["hors_seance"]),

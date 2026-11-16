@@ -5,9 +5,11 @@
 ① RÔLE — Éprouver le fichier des 20 ans figé (le témoin écrit par programmes/ASSEMBLER_LES_VINGT_ANS.py) par ses
   propriétés, chacune sabotée sur sa condition : P1 une seule ligne par valeur et date · P2 2024 → coupure identiques
   au maître · P3 empreinte recalculée = empreinte du contrat = empreinte du manifeste · P4 aucune ligne sans source ·
-  P5 trous écrits (le manifeste dit ce que le lecteur unique mesure : séances sans cours et lignes mises à part) ·
+  P5 trous écrits (depuis QE, 14-11-2026 : le manifeste dit ce que le lecteur unique mesure, champ par champ ; aucun nom
+  du témoin n'est inconnu du lecteur ; chaque ligne est rangée, doublon ou mise à part, et comptée) ·
   P6 deux vraies lignes (ACCOR 2000-01-03 = la barre de Paris de bnains ; ALSTOM 2006-08-01 = la ligne de A_VERSER) ·
-  P7 le programme, relancé, rend le fichier ligne pour ligne (R-728 : le fichier se calcule, il ne s'écrit pas) ·
+  P7 le programme, relancé, rend le fichier ligne pour ligne, moins les lignes écartées sur décision déclarées pour lui
+  (CONTRATS.LIGNES_ECARTEES_SUR_DECISION, D4 du 14-11-2026 ; R-728 : le fichier se calcule, il ne s'écrit pas) ·
   P8 aucune opération connue hors du seuil de variation qui ne se voie pas au jour dit, EN ABSOLU (seuil lu dans
   CONTROLER_LES_COURS.SEUIL_VARIATION ; rien n'est comparé au manifeste) · P9 l'ancre : sur chaque ligne « ramené au
   brut » qui est la veille d'une opération de donnees/sources_bnains/DIVISIONS_BNAINS.csv, la clôture vaut la colonne
@@ -650,13 +652,24 @@ def verifier(e):
                                                          f"manifeste {m['sha256'][:16]}")
     vides = sum(1 for l in lignes if len(l) != 8 or not l[7].strip())
     r["P4"] = (vides == 0, f"{vides} ligne(s) sans source")
+    # P5 depuis QE (A-713 ①, 14-11-2026 ; principe de Jean-Luc du 13-11-2026 à 22h55, l'épreuve suit un changement
+    # voulu par programme) : AVANT, « lignes mises à part = lignes des sociétés sorties », vrai tant que le lecteur ne
+    # les connaissait pas. APRÈS : ① le manifeste dit ce que le lecteur mesure (mêmes champs, tous) · ② aucun nom écrit
+    # au témoin n'est inconnu du lecteur (les sociétés sorties sont reconnues) · ③ conservation : chaque ligne du témoin
+    # est rangée, doublon exact, ou mise à part — aucune ne se perd sans être comptée.
     lu, ecrit = e["lecture"], m["lecture_par_le_lecteur_unique"]
-    hors = sum(1 for l in lignes if e["norm"](l[0]) not in e["table"])
-    r["P5"] = (lu["trous"] == ecrit["trous"] and lu["seances_sans_cours"] == ecrit["seances_sans_cours"]
-               and ecrit["lignes_mises_a_part"] == lu["lignes_mises_a_part"] == hors,
-               f"séances sans cours : lecteur {lu['seances_sans_cours']}, manifeste {ecrit['seances_sans_cours']} · "
-               f"lignes mises à part : lecteur {lu['lignes_mises_a_part']}, manifeste {ecrit['lignes_mises_a_part']}, "
-               f"sociétés sorties écrites {hors}")
+    champs = ("trous", "seances_sans_cours", "lignes_mises_a_part", "inconnues", "barres_rangees", "doublons",
+              "lignes_ecartees")
+    differents = [k for k in champs if lu.get(k) != ecrit.get(k)]
+    # (14-11-2026, décision de Jean-Luc de 13h41) une ligne écartée sur décision au contrat est comptée, pas perdue
+    comptees = lu["barres_rangees"] + lu["doublons"] + lu["lignes_mises_a_part"] + len(lu["lignes_ecartees"])
+    # lignes DISTINCTES + doublons : une ligne recopiée à l'identique est l'affaire de P1 (S1), pas de P5
+    distinctes = len({tuple(l) for l in lignes})
+    r["P5"] = (not differents and lu["inconnues"] == {} and distinctes + lu["doublons"] == comptees,
+               f"champs du manifeste différents du lecteur : {differents} · noms inconnus du lecteur : "
+               f"{len(lu['inconnues'])} · lignes distinctes du témoin {distinctes}, rangées {lu['barres_rangees']} + doublons "
+               f"{lu['doublons']} + mises à part {lu['lignes_mises_a_part']} + écartées sur décision "
+               f"{len(lu['lignes_ecartees'])} = {comptees}")
     t = {(l[0], l[1]): l for l in lignes}
     a, p = t.get(("ACCOR", "2000-01-03")), e["paris_accor"]
     al, y = t.get(("ALO", "2006-08-01")), e["yahoo_alstom"]
@@ -757,9 +770,12 @@ def verifier(e):
                               f"lignes bnains jugées : {jugees} · différentes de la ligne brute de leur fichier : "
                               f"{len(fautives)} {fautives[:2]}")
     if e["reassemble"] is not None:
+        # D4 (14-11-2026) : le programme relancé n'écrit plus les lignes écartées sur décision ; le témoin figé les garde
         rl = [list(x) for x in e["reassemble"]]
-        r["P7"] = (rl == lignes, f"relancé : {len(rl)} lignes, témoin : {len(lignes)}, "
-                                 f"différentes : {sum(1 for x, y in zip(rl, lignes) if x != y) + abs(len(rl) - len(lignes))}")
+        ecartees = e.get("ecartees_declarees", set())
+        gardees = [l for l in lignes if tuple(l) not in ecartees]
+        r["P7"] = (rl == gardees, f"relancé : {len(rl)} lignes, témoin : {len(lignes)} dont {len(lignes) - len(gardees)} écartée(s) sur décision, "
+                                 f"différentes : {sum(1 for x, y in zip(rl, gardees) if x != y) + abs(len(rl) - len(gardees))}")
     return r
 
 
@@ -976,6 +992,8 @@ def juger(racine, argv):
         print(f"ARRÊT — l'épreuve n'a pas pu tourner : {type(x).__name__} : {x}")
         return 2
     e = {"lignes": lignes, "octets": octets, "sha_contrat": C.FICHIERS_DE_COURS_FIGES[chemin]["sha256"],
+         "ecartees_declarees": {tuple(next(csv.reader([x["ligne"]])))
+                                for x in getattr(C, "LIGNES_ECARTEES_SUR_DECISION", {}).get(chemin, [])},
          "fin_contrat": C.FICHIERS_DE_COURS_FIGES[chemin]["fin"],
          "manifeste": manifeste, "maitre": maitre, "table": table, "norm": lc.COMMUN.norm_valeur, "lecture": lecture,
          "paris_accor": paris_accor, "yahoo_alstom": yahoo_alstom, "reassemble": reassemble, "ops": ops,
@@ -1023,6 +1041,15 @@ def juger(racine, argv):
             lignes=lignes[:sorties[0]] + [lignes[sorties[0]][:7] + [" "]] + lignes[sorties[0] + 1:])),
         "S5 une ligne de société sortie de moins (manque non écrit)": ("P5", copie(
             lignes=lignes[:sorties[0]] + lignes[sorties[0] + 1:])),
+        # QE (14-11-2026) : un lecteur qui ne connaîtrait plus les sociétés sorties, manifeste mesuré par lui (seule ②
+        # de P5 peut le voir) ; puis un manifeste non remesuré, d'une ligne mise à part de plus (①)
+        "S29 un lecteur sans les sociétés sorties (manifeste d'accord)": ("P5", copie(
+            lecture=dict(e["lecture"], inconnues={lignes[sorties[0]][0]: 1}),
+            manifeste=dict(manifeste, lecture_par_le_lecteur_unique=dict(e["lecture"], inconnues={lignes[sorties[0]][0]: 1})))),
+        "S30 le manifeste non remesuré (une ligne à part de plus)": ("P5", copie(
+            manifeste=dict(manifeste, lecture_par_le_lecteur_unique=dict(
+                manifeste["lecture_par_le_lecteur_unique"],
+                lignes_mises_a_part=manifeste["lecture_par_le_lecteur_unique"]["lignes_mises_a_part"] + 1)))),
         "S6 ACCOR 2000-01-03 prise ramenée au lieu de Paris": ("P6", copie(lignes=[
             (l[:7] + ["yahoo ramené au brut ÷ 0.652401"] if l[:2] == ["ACCOR", "2000-01-03"] else l) for l in lignes])),
         # E2c — S13 : P9 privée de la liste des barres fausses ; l'ancre fausse redevient un écart (AIR LIQUIDE 2014)
@@ -1198,6 +1225,17 @@ def juger(racine, argv):
     rs = verifier(dict(e, reassemble=sab))
     bon = not rs["P7"][0]
     verdict(bon, f"S7 programme sans barre de Paris {'mord' if bon else 'NE MORD PAS'} : P7 {rs['P7'][1]}")
+    # S41 (D4 du relecteur QE, 14-11-2026) : l'assemblage qui ne lit plus les lignes écartées sur décision réécrit la
+    # barre du lundi de Pâques de Vallourec — P7 doit tomber
+    garde41 = A.lignes_ecartees_sur_decision
+    A.lignes_ecartees_sur_decision = lambda: set()
+    try:
+        sab, _ = A.assembler(racine, C.FICHIERS_DE_COURS_FIGES[chemin]["fin"])
+    finally:
+        A.lignes_ecartees_sur_decision = garde41
+    rs = verifier(dict(e, reassemble=sab))
+    bon = not rs["P7"][0]
+    verdict(bon, f"S41 assemblage sans les lignes écartées sur décision {'mord' if bon else 'NE MORD PAS'} : P7 {rs['P7'][1]}")
     # S10 et S11 (superviseur R-759 de E2b tour 2, marche ④ 3) : le CHEMIN COMPLET, sur une copie du dépôt — le
     # programme saboté, l'ancien gel retiré, un gel neuf, puis cette épreuve sur la copie
     for nom, avant, apres, cible in CHEMINS_COMPLETS:

@@ -37,6 +37,16 @@ Simulation uniquement — aucun ordre réel.
      '1'`, échoue (`exit 1`), et TOUT pas placé après lui porte `always()` (superviseur R-759 du 30-10-2026, tour 3) ;
      et le pas `versement` ne porte pas `continue-on-error` : un code 1 laisserait le détecteur calculer sur des cours
      périmés (relecteur du tour 4).
+  W8 à W11 (14-11-2026, K-1 de Cowork, lot B de QE2) : le faux versement écrit aussi `anomalies_d_identite=<n>` dans
+  `$GITHUB_OUTPUT`, comme le vrai (`dire_les_anomalies_d_identite`). Puis CHAQUE pas de fin dont la condition lit une
+  sortie du pas `versement` est JOUÉ : sa condition évaluée sur les sorties réellement écrites, son `env` résolu, son
+  `run` lancé sous bash.
+  W8 code 0, une anomalie, AUCUNE alerte des lignes (le cas « pathspec did not match » du superviseur R-759 du
+     14-11-2026, s'il avait servi par un code 3) : pas 0, maître poussé, et un pas de fin rougit (code 1, il dit le
+     nombre).
+  W9 code 0, aucune anomalie (`anomalies_d_identite=0`) : pas 0, maître poussé, aucun pas de fin ne rougit.
+  W10 code 3 avec l'alerte des lignes ET une anomalie : pas 0, et deux pas de fin rougissent.
+  W11 statique : le pas de fin qui lit `anomalies_d_identite` a `always()`, échoue, et tout pas après lui a `always()`.
 ⑦ UNITÉ — Des codes de sortie et des nombres de commits.
 ⑧ POURQUOI — Relecteur du 30-10-2026, tour 3, I4 : la partie du code 3 qui vit dans le circuit n'était gardée par
   aucune épreuve ; « -eq 3 » changé en « -eq 4 » laissait un passage VERT avec une valeur mise à part (R-731 : tout code
@@ -75,6 +85,13 @@ SABOTAGES = {
                                         "                     && true \\\n                     || echo \"::error::L ALERTE DU FICHIER MAITRE N A PAS PU ETRE DEPOSEE\";")],
     "W_alerte_du_maitre_resolue_hors_commit": [('            git add "$RESOLUE" \\\n              && git rm -q --cached --ignore-unmatch rapports/ALERTE_FICHIER_MAITRE.md',
                                                 '            true \\\n              && true')],
+    # 14-11-2026, K-1 de Cowork (lot B de QE2) : le pas de fin des anomalies d'identité (W8 à W11)
+    "W_anomalie_lue_sous_un_autre_nom": [("steps.versement.outputs.anomalies_d_identite != '' && steps.versement.outputs.anomalies_d_identite != '0'",
+                                          "steps.versement.outputs.anomalie_d_identite != '' && steps.versement.outputs.anomalie_d_identite != '0'")],
+    "W_anomalie_sans_exit": [("(decision de Jean-Luc : corriger la ligne de la societe nommee)\"\n          exit 1\n",
+                              "(decision de Jean-Luc : corriger la ligne de la societe nommee)\"\n")],
+    "W_anomalie_rougit_meme_a_zero": [(" && steps.versement.outputs.anomalies_d_identite != '0'", "")],
+    "W_anomalie_sans_always": [("        if: always() && steps.versement.outputs.anomalies_d_identite", "        if: steps.versement.outputs.anomalies_d_identite")],
     "W_alerte_des_lignes_resolue_hors_commit": [('            git add "$RESOLUE" \\\n              && git rm -q --cached --ignore-unmatch rapports/ALERTE_LIGNES_MISES_A_PART.md',
                                                  '            true \\\n              && true')],
 }
@@ -99,12 +116,13 @@ def deplacer_rougir(t):
 GIT = dict(os.environ, GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="commit.gpgsign", GIT_CONFIG_VALUE_0="false")
 
 
-def jouer(texte_du_pas, code, alerte, prealable):
+def jouer(texte_du_pas, code, alerte, prealable, identite=None):
     """Joue le pas `versement` dans un dépôt jetable, avec un faux versement, et rend ce qu'il a fait.
 
     ① RÔLE — Un cas W1 à W6. ② CONTEXTE D APPEL — `jeu`. ③ ENTRÉE — `texte_du_pas` : le `run` du pas ; `code` : le code
     rendu par le faux versement ; `alerte` : « lignes » ou « maitre » (l'alerte que le faux écrit), ou faux ; `prealable` : « lignes »,
-    « maitre » ou « » (alerte d'un soir précédent posée et commitée). ④ CONDITIONS D ENTRÉE — bash et git installés.
+    « maitre » ou « » (alerte d'un soir précédent posée et commitée) ; `identite` : None, ou le nombre d'anomalies
+    d'identité que le faux écrit en `anomalies_d_identite=<n>` dans `$GITHUB_OUTPUT` (W8 à W10). ④ CONDITIONS D ENTRÉE — bash et git installés.
     ⑤ SORTIE — UNE valeur : un dictionnaire (code du pas, sortie, rapports, archives, suivis au commit, commits poussés).
     [rend: 1] ⑥ TRAITEMENT — dépôt distant nu + dépôt de travail, faux versement, pas lancé sous bash -eo pipefail.
     ⑦ UNITÉ — —. ⑧ POURQUOI — Le pas parle git et `$GITHUB_OUTPUT` : il ne se juge qu'en le jouant. ⑨ CE QUI CLOCHE — —.
@@ -127,6 +145,8 @@ def jouer(texte_du_pas, code, alerte, prealable):
             + ("open('rapports/ALERTE_LIGNES_MISES_A_PART.md','w').write('neuve\\n')\n" if alerte == "lignes" else "")
             + ("open('rapports/ALERTE_FICHIER_MAITRE.md','w').write('neuve\\n')\n" if alerte == "maitre" else "")
             + "open('donnees/cours_maitre.csv','a').write('x,y\\n')\n"
+            + ("import os\nopen(os.environ['GITHUB_OUTPUT'],'a').write('anomalies_d_identite=%d\\n')\n" % identite
+               if identite is not None else "")
             + f"sys.exit({code})\n")
         run(f"git remote add origin {nu} && git add -A && git -c user.name=a -c user.email=a@a commit -qm init "
             "&& git push -q -u origin main", ws)
@@ -149,6 +169,57 @@ def jouer(texte_du_pas, code, alerte, prealable):
                     pousses=len(run("git log --oneline main", nu).stdout.split("\n")) - 1)
     finally:
         shutil.rmtree(d, ignore_errors=True)
+
+
+def pas_de_fin(pas_, sortie):
+    """Joue chaque pas dont la condition lit une sortie du pas `versement`, et rend ceux qui ont tourné.
+
+    ① RÔLE — Juger le circuit, pas seulement le pas : une sortie écrite ne rougit le passage que si un pas de fin la lit
+    sous ce nom et échoue. ② CONTEXTE D APPEL — `jeu`, W8 à W10. ③ ENTRÉE — `pas_` : la liste des pas du circuit ;
+    `sortie` : les lignes « nom=valeur » écrites par le pas `versement`. ④ CONDITIONS D ENTRÉE — bash installé.
+    ⑤ SORTIE — UNE valeur : la liste des (id, code, texte affiché) des pas dont la condition est vraie. [rend: 1]
+    ⑥ TRAITEMENT — ① garder les pas dont `if:` contient « steps.versement.outputs. » · ② évaluer la condition : une
+    conjonction (`&&`) de `always()` et de comparaisons `steps.X.outputs.Y == / != 'v'` ; une sortie non écrite vaut
+    la chaîne vide, comme sous GitHub ; tout autre terme lève (la condition ne se juge pas ici) · ③ résoudre son `env`
+    (`${{ steps.X.outputs.Y }}`) · ④ lancer son `run` sous `bash --noprofile --norc -eo pipefail`.
+    ⑦ UNITÉ — —. ⑧ POURQUOI — K-1 de Cowork : le superviseur R-759 du 14-11-2026 a montré qu'une épreuve du seul
+    programme reste verte sur un circuit qui se tait ; le pas de fin se trouve par ce qu'il LIT, jamais par son nom.
+    ⑨ CE QUI CLOCHE — Les sorties des autres pas valent la chaîne vide ici. · `always()` est pris pour vrai : W7 et W11
+    disent la place des pas. ⑩ EFFET — Des fichiers temporaires, effacés. ⑪ TERMINAISON — Chaque pas borné à 60 s ;
+    lève ValueError sur un terme de condition inconnu. [sort: non]
+    """
+    import re
+    vals = dict(x.split("=", 1) for x in sortie if "=" in x)
+    out = []
+    for p in pas_:
+        cond = str(p.get("if", ""))
+        if "steps.versement.outputs." not in cond:
+            continue
+        vrai = True
+        for terme in [x.strip() for x in cond.split("&&")]:
+            m = re.fullmatch(r"steps\.(\w+)\.outputs\.(\w+)\s*(==|!=)\s*'([^']*)'", terme)
+            if terme == "always()":
+                continue
+            if not m:
+                raise ValueError(f"terme de condition non jugé ici : {terme!r} (pas {p.get('id')})")
+            v = vals.get(m.group(2), "") if m.group(1) == "versement" else ""
+            vrai = vrai and ((v == m.group(4)) if m.group(3) == "==" else (v != m.group(4)))
+        if not vrai:
+            continue
+        env = dict(os.environ)
+        for k, v in (p.get("env") or {}).items():
+            env[k] = re.sub(r"\$\{\{\s*steps\.(\w+)\.outputs\.(\w+)\s*\}\}",
+                            lambda m_: vals.get(m_.group(2), "") if m_.group(1) == "versement" else "", str(v))
+        f = tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False)
+        f.write(str(p.get("run", "")))
+        f.close()
+        try:
+            q = subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", f.name], env=env,
+                               capture_output=True, text=True, timeout=60)
+            out.append((p.get("id"), q.returncode, q.stdout + q.stderr))
+        finally:
+            os.unlink(f.name)
+    return out
 
 
 def jeu(sab):
@@ -204,6 +275,27 @@ def jeu(sab):
         and "continue-on-error" not in next(p for p in pas_ if p.get("id") == "versement")
     dire("W7 « Rougir » : condition always(), échoue, et aucun pas sans always() après lui", ok,
          noms[i + 1:] if i is not None else "pas introuvable")
+    try:
+        r = jouer(v, 0, False, "", identite=1)
+        f = pas_de_fin(pas_, r["sortie"])
+        dire("W8 code 0 et une anomalie d'identité, sans alerte des lignes : pas 0, maître poussé, un pas de fin rougit",
+             r["pas"] == 0 and r["pousses"] == 2 and "anomalies_d_identite=1" in r["sortie"]
+             and "a_part=1" not in r["sortie"] and any(c == 1 and "1 ANOMALIE" in t for _i, c, t in f), (r, f))
+        r = jouer(v, 0, False, "", identite=0)
+        f = pas_de_fin(pas_, r["sortie"])
+        dire("W9 code 0 sans anomalie : pas 0, maître poussé, aucun pas de fin ne rougit",
+             r["pas"] == 0 and r["pousses"] == 2 and "anomalies_d_identite=0" in r["sortie"] and f == [], (r, f))
+        r = jouer(v, 3, "lignes", "", identite=1)
+        f = pas_de_fin(pas_, r["sortie"])
+        dire("W10 code 3 et une anomalie : pas 0, deux pas de fin rougissent",
+             r["pas"] == 0 and "a_part=1" in r["sortie"] and sum(c == 1 for _i, c, _t in f) == 2, (r, f))
+    except ValueError as e:
+        dire("W8-W10 pas de fin jugeables", False, str(e))
+    k = next((n for n, p in enumerate(pas_) if "outputs.anomalies_d_identite" in str(p.get("if", ""))), None)
+    ok = k is not None and str(pas_[k].get("if", "")).replace(" ", "").startswith("always()&&") \
+        and "exit 1" in pas_[k].get("run", "") and all("always()" in str(p.get("if", "")) for p in pas_[k + 1:])
+    dire("W11 le pas de fin des anomalies d'identité : always(), échoue, aucun pas sans always() après lui", ok,
+         [p.get("id") for p in pas_[k + 1:]] if k is not None else "pas introuvable")
     return rouges
 
 

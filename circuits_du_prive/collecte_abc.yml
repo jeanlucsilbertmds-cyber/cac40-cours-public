@@ -506,6 +506,22 @@ jobs:
           echo "::error::$SIGNALEES POSITION(S) SIGNALEE(S) CE SOIR — fiche modifiee sur place pendant une position ouverte, position laissee telle quelle ; lire la sortie du pas « Tenir les positions » (decision de Jean-Luc : remettre la fiche, ou ouvrir une nouvelle strategie)"
           exit 1
 
+      - name: Rougir si une anomalie d identite a ete dite
+        id: rougir_si_une_anomalie_d_identite_a_ete_dite
+        # K-1 DE COWORK (14-11-2026) : une faute de la table des identites sur une societe sortie absente du maitre
+        # (fin de Peugeot S.A. ecrite « 2021-1-15 ») ne fait plus tomber la lecture (I-1) ; le versement la DIT, verse
+        # la seance, garde son code et ecrit anomalies_d_identite=<n>. Ce pas de fin, copie sur « Rougir si une
+        # position a ete signalee » (convention choisie par les superviseurs R-759 du 14-11-2026 a la place d un
+        # code 3 : la branche du code 3 du versement fait un git add d un nom fixe, qui tomberait en « pathspec did
+        # not match » un soir sans lignes mises a part), fait ROUGIR le passage. Place apres tout pas sans always().
+        # Les noms lus ici sont confrontes a ceux qu ecrivent les programmes par tests/EPREUVES_DES_SORTIES_DES_PAS.
+        if: always() && steps.versement.outputs.anomalies_d_identite != '' && steps.versement.outputs.anomalies_d_identite != '0'
+        env:
+          ANOMALIES: ${{ steps.versement.outputs.anomalies_d_identite }}
+        run: |
+          echo "::error::$ANOMALIES ANOMALIE(S) D IDENTITE CE SOIR — une faute de la table donnees/sources_indice/IDENTITES_DES_SOCIETES.csv sur une societe sortie absente du maitre ; la seance est versee, les signaux calcules ; lire la sortie du pas « Verser la seance du jour dans le fichier maitre » (decision de Jean-Luc : corriger la ligne de la societe nommee)"
+          exit 1
+
       - name: Rougir si des signaux ont ete mis a part
         id: rougir_si_des_signaux_ont_ete_mis_a_part
         # R-207bis (superviseur R-759 du 14-11-2026, D2) : une strategie dont un signal porte un CCI absent, illisible

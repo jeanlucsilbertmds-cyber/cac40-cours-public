@@ -417,6 +417,15 @@ jobs:
           echo "::error::$SIGNALEES POSITION(S) SIGNALEE(S) CE SOIR — fiche modifiee sur place pendant une position ouverte, position laissee telle quelle ; lire la sortie du pas « Tenir les positions » (decision de Jean-Luc : remettre la fiche, ou ouvrir une nouvelle strategie)"
           exit 1
 
+      - name: Rougir si une anomalie d identite a ete dite
+        id: rougir_si_une_anomalie_d_identite_a_ete_dite
+        if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (always() && steps.versement.outputs.anomalies_d_identite != '' && steps.versement.outputs.anomalies_d_identite != '0') }}
+        env:
+          ANOMALIES: ${{ steps.versement.outputs.anomalies_d_identite }}
+        run: |
+          echo "::error::$ANOMALIES ANOMALIE(S) D IDENTITE CE SOIR — une faute de la table donnees/sources_indice/IDENTITES_DES_SOCIETES.csv sur une societe sortie absente du maitre ; la seance est versee, les signaux calcules ; lire la sortie du pas « Verser la seance du jour dans le fichier maitre » (decision de Jean-Luc : corriger la ligne de la societe nommee)"
+          exit 1
+
       - name: Rougir si des signaux ont ete mis a part
         id: rougir_si_des_signaux_ont_ete_mis_a_part
         if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (always() && steps.tenir_les_positions.outputs.signaux_mis_a_part != '' && steps.tenir_les_positions.outputs.signaux_mis_a_part != '0') }}

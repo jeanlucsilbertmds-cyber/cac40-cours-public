@@ -15,7 +15,8 @@ antidaté), A4 (GIT_DIR, environnement d'un crochet), le témoin du transport co
 M2 fermé, k sur la branche, l'arbre sali, D7 (`cas=None`), D8 (loi absente), les mesureurs au contrat. TOUR 2 (relecteur
 REGARD R-D1, R-D3 à R-D6 ; superviseur REGARD, pas ③ et ④) : une fusion ordinaire qui perd une déclaration, une fusion
 sur la branche des regards, une copie locale, la garde de `jouer_une_entree` et de `backtest_c5etendu10`, le reçu clos,
-le registre abîmé (XS1), le commit vide (XS5).
+le registre abîmé (XS1), le commit vide (XS5). N-11 de Cowork (RELU 38b7e4a3, 15-11-2026) : les deux bornes de
+la fenêtre, comprises (cas BORNES, sabotages RS31 et RS32).
 
 Chaque cas tourne sur SON dépôt fabriqué par `fabriquer` de l'épreuve J (cours fabriqués 2024-2025, aucune année de la
 fenêtre jouée sauf par la garde, sur une série plate qui ne donne aucun signal) ; le dépôt distant est un dépôt NU LOCAL
@@ -102,7 +103,7 @@ SABOTAGES = {
     "RS09_configuration_purgee": (ESSAIS, 'lieux = {v for v in r.stdout.split() if not v.startswith("GIT_CONFIG")}',
                                   'lieux = {v for v in r.stdout.split()} | {k for k in os.environ if k.startswith("GIT_CONFIG")}',
                                   "TRANSPORT"),
-    "RS10_garde_de_jouer_ouverte": (JUGE, "    if not premiere or str(premiere) > fin or str(derniere) < debut:\n        return\n",
+    "RS10_garde_de_jouer_ouverte": (JUGE, "    if not touche_la_fenetre_du_regard_unique(premiere, derniere):\n        return\n",
                                     "    if True:\n        return\n", "GARDE"),
     "RS11_m2_lit_la_fenetre": (EPREUVE_M2, '            if l.split(",", 2)[1] > fin:', "            if True:", "M2"),
     "RS12_cas_de_l_appelant_aux_sorties": (PORTE, 'return rendre(cas=None, k="INCONNU", declaration_manquants=lecture["champs_en_defaut"])',
@@ -150,12 +151,17 @@ SABOTAGES = {
     "RS22_backtest_sans_garde": ("programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py",
                                  "    if _d and min(_d) <= _fin and max(_d) >= _deb:", "    if False:", "GARDE"),
     "RS23_XS5_commit_vide_pousse": (ESSAIS, "        if code != 0 or len(commit) != 40:", "        if code != 0:", "VIDE"),
+    # N-11 de Cowork (RELU 38b7e4a3, 15-11-2026) : les bornes de la fenêtre, comprises — chaque sabotage en exclut une
+    "RS31_borne_de_fin_exclue": (JUGE, "not (str(premiere) > fin or str(derniere) < debut)",
+                                 "not (str(premiere) >= fin or str(derniere) < debut)", "BORNES"),
+    "RS32_borne_de_debut_exclue": (JUGE, "not (str(premiere) > fin or str(derniere) < debut)",
+                                   "not (str(premiere) > fin or str(derniere) <= debut)", "BORNES"),
     "RS14_mesureur_retire_du_contrat": (CONTRAT, '    "kelly": "JUGER_UNE_FICHE._kelly",', '    "kelly": None,',
                                         "MESUREURS"),
 }
 ORDRE_DES_CAS = ("A1", "A1b", "SIMUL", "FF", "A3", "SALE", "K", "A4", "TRANSPORT", "GARDE", "M2", "D7", "D8",
                  "MESUREURS", "ANCRE", "NON_ANCETRE", "SANS_SOMMET", "RETARD", "AMONT", "FUSION_REGARDS", "COPIE",
-                 "VIDE")
+                 "VIDE", "BORNES")
 
 
 def charger(chemin, nom):
@@ -373,16 +379,29 @@ def cas(d, nom):
             except JS.RegardNonInscrit as e:
                 return "REFUS " + str(e)[-90:]
         sans = essai(periode=periode)
-        avec = essai(periode=periode, recu=(d, recu))
-        faux = essai(periode=periode, recu=(d, "0000000000000000"))
-        autre_fiche = essai(periode=periode, recu=(d, autre))
-        plus_large = essai(periode=(jours[0], "2010-12-31"), recu=(d, recu))
-        sans_periode = essai(recu=(d, recu))
+        # GARDE M (Q-1 de Cowork, 14-11-2026) : en janvier 2010, des sociétés sorties étaient dans l'indice et l'univers
+        # « AIR,TTE,DG » ne les voit pas — un reçu valable est REFUSÉ par la garde M tant que Jean-Luc n'a pas écrit son
+        # accord au contrat ; l'accord posé ICI EN MÉMOIRE, le reçu est joué comme avant
+        borne = essai(periode=periode, recu=(d, recu))
+        _acc = getattr(C, "UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE", None)
+        if _acc is not None:
+            _acc["BONNE-B"] = "épreuve : accord simulé en mémoire"
+        try:   # sous l'accord, les refus du REÇU lui-même restent éprouvés, chacun pour sa raison
+            avec = essai(periode=periode, recu=(d, recu))
+            faux = essai(periode=periode, recu=(d, "0000000000000000"))
+            autre_fiche = essai(periode=periode, recu=(d, autre))
+            plus_large = essai(periode=(jours[0], "2010-12-31"), recu=(d, recu))
+            sans_periode = essai(recu=(d, recu))
+        finally:
+            if _acc is not None:
+                _acc.pop("BONNE-B", None)
         ok("GARDE jouer dans la fenêtre : sans reçu REFUS ; reçu valable joué (0 opération, série plate) ; reçu forgé, "
            "d'une autre fiche, période plus large, sans période (JUGER_SUR_8_CRITERES) : REFUS",
            sans.startswith("REFUS") and avec == "ops=0" and faux.startswith("REFUS") and autre_fiche.startswith("REFUS")
-           and plus_large.startswith("REFUS") and sans_periode.startswith("REFUS"),
-           " | ".join((sans, avec, faux, autre_fiche, plus_large, sans_periode)))
+           and plus_large.startswith("REFUS") and sans_periode.startswith("REFUS")
+           and (_acc is None or (borne.startswith("REFUS") and "UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE" in borne))
+           and not any("UNIVERS_BORNES_ACCEPTES" in x for x in (faux, autre_fiche, plus_large, sans_periode)),
+           " | ".join((sans, borne, avec, faux, autre_fiche, plus_large, sans_periode)))
         # TOUR 2 (relecteur REGARD, R-D4, R-D5, R-D6/XS1) : les deux autres calculateurs gardés ; un reçu CLOS refusé ;
         # un registre abîmé refuse même un reçu neuf. Seuls des REFUS sont attendus : aucun gain n'est calculé.
         def refus(f):
@@ -397,23 +416,33 @@ def cas(d, nom):
         entree = refus(lambda: JS.jouer_une_entree(v0, cours[v0], 2, 0.04, 0.025, 20, mod_pos, None, "HIST_FORFAIT_300"))
         C5 = charger(os.path.join(d, "programmes", "MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py"), "c5_regard")
         backtest = refus(lambda: C5.backtest_c5etendu10({C5.C5E10_UNIVERS[0]: list(barres)}, bareme="HIST_FORFAIT_300"))
-        try:                                        # T2-D4 : une fiche SANS identifiant, avec le reçu d'une autre
-            JS.jouer({k: v for k, v in fiche.items() if k != "id"}, cours, mnemo, signal, mod_pos, periode=periode,
-                     recu=(d, autre))
-            sans_id = "JOUÉ"
-        except JS.RegardNonInscrit as e:
-            sans_id = "REFUS " + str(e)[-80:]
-        clos = T.preenregistrer(d, "BONNE-B", dict(hyp, periode="%s..%s" % periode))
-        T.inscrire_le_resultat(d, clos, resultat={"essai": "clos"})
-        recu_clos = essai(periode=periode, recu=(d, clos))
-        neuf = T.preenregistrer(d, "BONNE-B", dict(hyp, periode="%s..%s" % periode,
-                                                  empreinte_des_reglages="0000000000000005"))   # un autre signal = d'autres réglages
-        T._pousser_l_entree(d, "0123456789abcdef", b'{"abime": 1}\n')       # un défaut au registre
-        abime = essai(periode=periode, recu=(d, neuf))
+        # garde M (Q-1 de Cowork, 14-11-2026) : l'accord posé en mémoire pour BONNE-B et pour une fiche sans identifiant,
+        # pour que chaque refus ci-dessous soit celui du REÇU, pas celui de la garde M (sinon RS19, RS20, RS27 survivent)
+        if _acc is not None:
+            _acc.update({"BONNE-B": "épreuve", "": "épreuve"})
+        try:
+            try:                                        # T2-D4 : une fiche SANS identifiant, avec le reçu d'une autre
+                JS.jouer({k: v for k, v in fiche.items() if k != "id"}, cours, mnemo, signal, mod_pos, periode=periode,
+                         recu=(d, autre))
+                sans_id = "JOUÉ"
+            except JS.RegardNonInscrit as e:
+                sans_id = "REFUS " + str(e)[-80:]
+            clos = T.preenregistrer(d, "BONNE-B", dict(hyp, periode="%s..%s" % periode))
+            T.inscrire_le_resultat(d, clos, resultat={"essai": "clos"})
+            recu_clos = essai(periode=periode, recu=(d, clos))
+            neuf = T.preenregistrer(d, "BONNE-B", dict(hyp, periode="%s..%s" % periode,
+                                                      empreinte_des_reglages="0000000000000005"))   # un autre signal = d'autres réglages
+            T._pousser_l_entree(d, "0123456789abcdef", b'{"abime": 1}\n')       # un défaut au registre
+            abime = essai(periode=periode, recu=(d, neuf))
+        finally:
+            if _acc is not None:
+                _acc.pop("BONNE-B", None)
+                _acc.pop("", None)
         ok("GARDE2 sans reçu : jouer_une_entree et backtest_c5etendu10 REFUS ; reçu clos par son résultat : REFUS ; "
            "registre abîmé, reçu neuf : REFUS ; fiche sans identifiant, reçu d'une autre : REFUS",
            entree.startswith("REFUS") and backtest.startswith("REFUS") and recu_clos.startswith("REFUS")
-           and abime.startswith("REFUS") and sans_id.startswith("REFUS"),
+           and abime.startswith("REFUS") and sans_id.startswith("REFUS")
+           and not any("UNIVERS_BORNES_ACCEPTES" in x for x in (recu_clos, abime, sans_id)),
            " | ".join((entree, backtest, recu_clos, abime, sans_id)))
     elif nom in ("ANCRE", "NON_ANCETRE", "SANS_SOMMET"):
         # L'ANCRAGE RÉPARÉ (décision de Jean-Luc du 12-11-2026 à 09h04, « Reparer » ; superviseur ANCRAGE, pas 5) : la
@@ -628,6 +657,22 @@ def cas(d, nom):
         ok("MESUREURS déclarés au contrat et résolus par la porte (kelly → JUGER_UNE_FICHE._kelly) ; la porte n'a plus de "
            "dictionnaire MESUREURS", fonctions.get("kelly") is P._kelly and not hasattr(P, "MESUREURS") and not raisons,
            repr((sorted(fonctions), raisons)))
+    elif nom == "BORNES":
+        # N-11 de Cowork (RELU 38b7e4a3, 15-11-2026) : la fonction SEULE, aux bornes de la fenêtre lue au contrat. Une
+        # séance jouée le jour même de la fin, ou de début, TOUCHE la fenêtre ; la veille du début et le lendemain de la
+        # fin, non. Aujourd'hui les bornes sont un samedi et un dimanche (aucune séance n'y tombe) : sans ce cas, une
+        # borne exclue passait toutes les épreuves (sabotages K9b et K9c de Cowork).
+        import datetime as _dt
+        debut, fin = C.fenetre_du_regard_unique()
+        dec = lambda j, n: (_dt.date.fromisoformat(j) + _dt.timedelta(days=n)).isoformat()
+        f = JS.touche_la_fenetre_du_regard_unique
+        vu = {"fin le jour même": f(fin, dec(fin, 5)), "début le jour même": f(dec(debut, -5), debut),
+              "lendemain de la fin": f(dec(fin, 1), dec(fin, 5)), "veille du début": f(dec(debut, -5), dec(debut, -1)),
+              "sans première séance": f("", dec(fin, 5))}
+        attendu = {"fin le jour même": True, "début le jour même": True, "lendemain de la fin": False,
+                   "veille du début": False, "sans première séance": False}
+        ok("BORNES la fenêtre du regard unique comprend ses deux bornes (%s..%s) ; la veille et le lendemain n'y sont pas"
+           % (debut, fin), vu == attendu, repr({k: v for k, v in vu.items() if v != attendu[k]}))
     else:
         ok("cas inconnu " + nom, False)
     return res

@@ -17,8 +17,9 @@
 ⑤ SORTIE — Le code de sortie : 0 (fait, ou rien à faire), 2 (arrêt, rien n'est écrit). [rend: 1]
 ⑥ TRAITEMENT — ① lire · ② `plan_des_numeros` : les lignes nouvelles · ③ `ramener_la_taxe` : la liste des taxes
   réécrite · ④ à blanc : afficher ; avec --ecrire : écrire les deux fichiers, puis relire les passages par le lecteur
-  unique (LIRE_LES_COURS.lire_les_passages) et exiger le MÊME rendu qu'avant — sinon remettre les deux fichiers
-  d'origine et rendre 2.
+  unique (LIRE_LES_COURS.lire_les_passages) et exiger (`ecart_du_rendu`) que chaque mnémonique déjà lu garde ses
+  passages et que tout mnémonique nouveau soit celui d'une ligne écrite — sinon remettre les deux fichiers d'origine
+  et rendre 2.
 ⑦ UNITÉ — —
 ⑧ POURQUOI — Décisions de Jean-Luc du 11-11-2026 à 22h26 (« 1 » : les règles I-2 à I-4 du registre s'appliquent
   telles quelles aux sociétés sorties, numéros 41 et suivants, le fichier des 20 ans les désigne par leur mnémonique)
@@ -31,7 +32,8 @@
   passages), pas la validité réelle de l'identifiant : chaque ligne nouvelle est donc « à compléter ». · Un mnémonique
   est une observation datée (la date de sa source) : sa validité sur toute la période n'est pas vérifiée (Teleperformance
   a pu porter un autre code avant 2020). · 21 sociétés n'ont pas de mnémonique sourcé : « non trouvé ». · Toutes les
-  lignes nouvelles ont une `fin` : le lecteur unique ne range donc pas encore leurs passages (point M2, au Chat).
+  lignes nouvelles ont une `fin` : depuis le 14-11-2026 (QE, A-713 ①), le lecteur unique les reconnaît comme sociétés
+  sorties et range leurs passages sous leur mnémonique — la garde d'après écriture l'admet (`ecart_du_rendu`).
 ⑩ EFFET — Avec --ecrire : réécrit les deux fichiers de données (fins de ligne gardées ligne à ligne).
 ⑪ TERMINAISON — Rend la main ; aucun de mes appels ne peut ne pas revenir. [sort: oui]
 """
@@ -220,6 +222,40 @@ def _ecrire_les_identites(octets, nouvelles, entete):
     return base + buf.getvalue().encode("utf-8")
 
 
+def ecart_du_rendu(avant, apres, nouvelles):
+    """Dit pourquoi l'écriture a changé le rendu du lecteur unique au-delà de ce qu'elle ajoute, ou None.
+
+    ① RÔLE — La garde d'après écriture : numéroter des sociétés sorties ne doit RIEN changer à ce que le lecteur sait
+      déjà, et ne peut ajouter que les mnémoniques des lignes écrites.
+    ② CONTEXTE D'APPEL — `main`, après l'écriture des deux fichiers ; l'épreuve (N10).
+    ③ ENTRÉE — `avant`, `apres` : deux rendus de LIRE_LES_COURS.lire_les_passages ({mnémonique : passages}) ·
+      `nouvelles` : les lignes d'identité écrites (dictionnaires, colonne « mnemonique »).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : None si la propriété tient, sinon le texte de la raison.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① chaque mnémonique de `avant` a, dans `apres`, exactement les mêmes passages (ni changé, ni
+      disparu) · ② chaque mnémonique de `apres` absent de `avant` est le mnémonique d'une ligne de `nouvelles`.
+    ⑦ UNITÉ — Des mnémoniques.
+    ⑧ POURQUOI — Jusqu'au 14-11-2026, la garde exigeait un rendu ÉGAL : vrai tant que le lecteur ignorait les sociétés
+      sorties. Depuis QE (A-713 ①, superviseur R-759 du 14-11-2026), il les reconnaît, et une numérotation juste AJOUTE
+      leurs mnémoniques : l'égalité rendait 2 sur chaque écriture (N7). Principe de Jean-Luc du 13-11-2026 à 22h55 :
+      une épreuve qui compare à un état d'avant un changement voulu se met à jour par programme. La propriété qui
+      compte reste celle d'origine : aucune année prêtée à une société déjà lue (Peugeot S.A. à Stellantis).
+    ⑨ CE QUI CLOCHE — Les passages d'un mnémonique NOUVEAU ne sont pas jugés ici : le lecteur les tire de la table des
+      passages par les codes ISIN, et ses propres gardes (un code pour deux sociétés…) lèvent ValueError.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    changes = sorted(m for m in avant if apres.get(m) != avant[m])
+    if changes:
+        return f"le rendu du lecteur unique a changé pour {len(changes)} mnémonique(s) déjà lu(s) : {changes[:5]}"
+    inattendus = sorted(set(apres) - set(avant) - {r["mnemonique"] for r in nouvelles})
+    if inattendus:
+        return f"le lecteur unique rend des mnémoniques que l'écriture n'a pas ajoutés : {inattendus[:5]}"
+    return None
+
+
 def main(argv):
     """Le programme entier (fiche en tête).
 
@@ -281,14 +317,16 @@ def main(argv):
     open(f_ttf, "wb").write(n_ttf_ttf)
     try:
         apres = LECTEUR.lire_les_passages(racine)
-        if apres != avant:
-            raise ValueError("le rendu du lecteur unique a changé")
+        raison = ecart_du_rendu(avant, apres, nouvelles)
+        if raison:
+            raise ValueError(raison)
     except ValueError as e:
         open(f_id, "wb").write(o_id)
         open(f_ttf, "wb").write(o_ttf)
         print(f"ARRET après écriture, {e} : les deux fichiers sont remis à l'identique")
         return 2
-    print("FINI écrit : table des identités et liste des taxes ; rendu du lecteur unique des passages inchangé")
+    print("FINI écrit : table des identités et liste des taxes ; passages des mnémoniques déjà lus inchangés, "
+          f"{len(set(apres) - set(avant))} mnémonique(s) de sociétés sorties ajouté(s) au rendu du lecteur unique")
     return 0
 
 
