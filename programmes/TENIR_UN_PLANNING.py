@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# 16-11-2026 : ligne ajoutée pour changer l'empreinte du fichier — une copie identique rangée sous etudes/ (commit db9003b9) faisait refuser sa publication par l'étage A (A-848).
 """Fait tenir un planning par un programme : chaque jalon a une échéance et une preuve, et un retard ne se tait pas.
 
 ① RÔLE — Lire un fichier de jalons et dire, toutes les 10 minutes, où en est le
