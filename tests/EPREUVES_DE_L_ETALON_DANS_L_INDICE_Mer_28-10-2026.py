@@ -215,7 +215,9 @@ _sp = _iu.spec_from_file_location("sta", _fs); S_ = _iu.module_from_spec(_sp); _
 seances = {b["date"] for s_ in cr.values() for b in s_}
 import io, contextlib
 with contextlib.redirect_stdout(io.StringIO()):
-    B.juger(f, o2, cr, seances, mand, S_, P, mnemo, bornes, (sig,), lecture=lr)
+    # racine= : depuis le voisinage du juge (R-505 ⑩, décision de Jean-Luc du 11-11-2026 à 19h08), `juger` lit
+    # donnees/combinatoires/VOISINAGE_DU_JUGE.csv sous la racine et refuse de juger sans elle (certification du 16-11-2026).
+    B.juger(f, o2, cr, seances, mand, S_, P, mnemo, bornes, (sig,), lecture=lr, racine=R)
 modes = sorted(k.get("mode") for k in recus)
 dire("E11a juger appelle l'étalon dans les deux modes, avec la période de la fiche",
      modes == ["date", "valeur"] and all(tuple(k.get("periode") or ()) == tuple(bornes) for k in recus), (modes, [k.get("periode") for k in recus]))

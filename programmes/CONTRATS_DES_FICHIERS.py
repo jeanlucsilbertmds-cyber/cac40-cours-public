@@ -200,53 +200,45 @@ FABRIQUES_DU_SOIR = (
 REGISTRE_DES_STRATEGIES = "donnees/cac40_strategies.csv"
 NOM_DU_REGISTRE_DES_STRATEGIES = REGISTRE_DES_STRATEGIES.rsplit("/", 1)[-1]
 
-# LES FICHIERS QUE LES BOUCLES COWORK COPIENT DANS LE DOSSIER DU PROJET (étape 5bis de leur
-# texte : la ligne `cp` des programmes, puis celle du registre des stratégies), écrits une
-# fois ici, en chemins sous la racine du dépôt. Le 01-10-2026, la fusion a donné à
-# programmes/TENIR_LES_POSITIONS.py deux imports (CONTRATS_DES_FICHIERS, COMMUN) que la ligne
-# `cp` des boucles ne copiait pas : leurs étapes 3 (signaux) et 5bis (positions) tombaient à
-# l'import, et rien au dépôt ne pouvait le voir (relecture de Cowork aff6d33, réponse du Chat
-# cc990b8, réparation 51fe7b2 ; décision de Jean-Luc du 01-10-2026 à 16h31 : « Fait ce qu'il
-# faut pour réparer professionnellement »). tests/EPREUVES_DE_LA_COPIE_DES_BOUCLES_Jeu_01-10-
-# 2026.py rougit quand un programme de cette liste importe, ou charge par son nom de fichier,
-# un programme du dépôt absent de la liste, et quand ces seuls fichiers, copiés dans un
-# dossier vide, ne refont plus un vrai trade du journal. Le texte des trois boucles doit
-# copier exactement ces fichiers : c'est Cowork, seul à lire les tâches, qui le confronte.
-# LES DEUX PROGRAMMES DE L'HISTORIQUE LONG (ajoutés le 15-10-2026) : ce module NOMME
-# programmes/REPARER_L_HISTORIQUE_LONG.py dans FICHIERS_REPARES, plus bas — un nom écrit pour
-# être comparé au registre de provenance, jamais chargé ; et ce programme nomme à son tour
-# programmes/CONTROLER_L_HISTORIQUE_LONG.py. L'épreuve compte tout nom écrit dans le code
-# comme une dépendance, par choix : « la liste s'élargit à tort plutôt que de se taire » (son ⑨).
-# Elle rougissait (E1) depuis l'ajout de FICHIERS_REPARES le 13-10-2026 (A-578) ; trouvé le
-# 15-10-2026 avant le versement de l'historique long, réparé sur décision de Jean-Luc (« 2 »,
-# 08h57 : réparer les épreuves rouges avant de verser). Les boucles copient deux fichiers de plus.
-# LE LECTEUR UNIQUE (ajouté le 27-10-2026) : depuis l'étape 1 de A-577 (commit 39e4909), le juge
-# charge programmes/LIRE_LES_COURS.py par son nom, pour lire les cours ; l'épreuve rougissait
-# (E1 : « JUGE_DES_STRATEGIES.py dépend de programmes/LIRE_LES_COURS.py »). Les fonctions du juge
-# qu'appelle programmes/TENIR_LES_POSITIONS.py — `charger_cours`, `fichiers_de_cours`, `cle_valeur`,
-# relevées le 27-10-2026 — ne passent pas par le lecteur : les boucles ne tombaient pas. Elles
-# copient un fichier de plus, et c'est Cowork qui l'ajoute à la ligne `cp` de leur texte.
-# LE CALENDRIER DE LA BOURSE (ajouté le 27-10-2026) : programmes/CONTROLER_L_HISTORIQUE_LONG.py l'importe
-# depuis qu'il lit le calendrier officiel (A-555 (b)), et le lecteur unique le charge par son nom — ce
-# que l'épreuve E1 ne voyait pas, un nom composé à l'exécution (relecture du 27-10-2026, défaut 7 ;
-# limite déjà écrite au ⑨ de `dependances`). Un fichier de plus pour la ligne `cp` des boucles.
-COPIE_DES_BOUCLES = (
+# LES RACINES DE LA COPIE DES BOUCLES — les fichiers d'où part la liste que les boucles Cowork copient
+# dans le dossier du projet (étape 5bis de leur texte), écrits une fois ici, en chemins sous la racine du
+# dépôt. LA LISTE ENTIÈRE N'EST PLUS ÉCRITE À LA MAIN (16-11-2026, CERT-3 tour 2) : programmes/COPIER_POUR_LES_
+# BOUCLES.py la DÉRIVE de ces racines, en suivant les imports réels de chaque programme copié, à tous les
+# niveaux de son code, et les noms de programmes écrits dans ses chaînes, dans son propre dossier puis à la
+# racine du dépôt. Raison : la liste écrite à la main se rouvrait à chaque lot — le superviseur R-759 du
+# 15-11-2026 à 14h32 l'a jugée RUSTINE (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/
+# SUPERVISEUR_CERTIFICATION_Dim_15-11-2026.md, réparation 10 (b) : « Le fond : une liste dérivée des
+# imports ») ; et elle était aveugle à la racine : programmes/LIRE_LE_CODE.py importe emp.py, qui vit à la
+# racine du dépôt, et la liste copiait le premier sans le second (relecteur du 16-11-2026, D2).
+# Sont racines : les deux programmes que la boucle lance elle-même — le programme des positions (étape 5bis)
+# et le module du signal, qu'elle charge par son nom pour recalculer les signaux (étape 3) — et les fichiers
+# de données que lisent les programmes copiés, qu'aucun import ne nomme : le registre des stratégies, et
+# le barème des frais avec la liste des valeurs taxées (A-550, 29-10-2026 : MODULE_POSITIONS.cout_d_un_ordre
+# lit ces deux fichiers sous leur seul nom, à côté de lui, dans la copie à plat ; sans eux, la boucle ne
+# chiffre plus un trade).
+# HISTOIRE DE LA LISTE ÉCRITE À LA MAIN, gardée parce qu'elle dit pourquoi la dérivation existe. Le
+# 01-10-2026, la fusion a donné à programmes/TENIR_LES_POSITIONS.py deux imports (CONTRATS_DES_FICHIERS,
+# COMMUN) que la ligne `cp` des boucles ne copiait pas : leurs étapes 3 (signaux) et 5bis (positions)
+# tombaient à l'import, et rien au dépôt ne pouvait le voir (relecture de Cowork aff6d33, réponse du Chat
+# cc990b8, réparation 51fe7b2 ; décision de Jean-Luc du 01-10-2026 à 16h31 : « Fait ce qu'il faut pour
+# réparer professionnellement »). La liste a ensuite grandi à la main, à chaque fois après qu'une épreuve
+# eut rougi : le 15-10-2026, les deux programmes de l'historique long (ce module nomme
+# programmes/REPARER_L_HISTORIQUE_LONG.py dans FICHIERS_REPARES, plus bas) ; le 27-10-2026, le lecteur
+# unique des cours puis le calendrier de la bourse ; le 29-10-2026, le barème des frais ; le 16-11-2026,
+# six programmes gagnés depuis le 11-11-2026 (la courbe des calculs, l'assemblage des vingt ans, le lecteur
+# du code, le registre des essais, la reconstruction de l'historique long, le contrôle des cours). Pour ces
+# six, mesuré par le relecteur du 16-11-2026 (D3) sur une copie à plat de la liste sans eux : seule la
+# réparation de l'historique long tombait à l'import (« No module named 'RECONSTRUIRE_L_HISTORIQUE_LONG' ») ;
+# le juge, lui, s'importait, parce qu'il charge la courbe, le lecteur du code et le registre des essais en
+# différé, dans les fonctions qui s'en servent — il ne serait tombé qu'à l'appel de ces fonctions.
+# tests/EPREUVES_DE_LA_COPIE_DES_BOUCLES_Jeu_01-10-2026.py confronte la liste dérivée à une seconde lecture
+# des imports, indépendante, et importe chaque programme copié à plat dans un dossier jetable (E6). Que le
+# texte des trois boucles appelle bien programmes/COPIER_POUR_LES_BOUCLES.py, c'est Cowork, seul à lire les
+# tâches, qui le confronte.
+RACINES_DE_LA_COPIE_DES_BOUCLES = (
     "programmes/TENIR_LES_POSITIONS.py",
-    "programmes/MODULE_POSITIONS.py",
-    "programmes/JUGE_DES_STRATEGIES.py",
-    "programmes/LIRE_LES_COURS.py",
     "programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py",
-    "programmes/CONTRATS_DES_FICHIERS.py",
-    "programmes/COMMUN.py",
-    "programmes/MODULE_JUGEMENT.py",
-    "programmes/REPARER_L_HISTORIQUE_LONG.py",
-    "programmes/CONTROLER_L_HISTORIQUE_LONG.py",
-    "programmes/CALENDRIER_DE_LA_BOURSE.py",
     REGISTRE_DES_STRATEGIES,
-    # LE BARÈME DES FRAIS (ajouté le 29-10-2026, A-550) : MODULE_POSITIONS.cout_d_un_ordre lit
-    # donnees/BAREME_FRAIS.csv et donnees/VALEURS_TTF.csv (ou, dans la copie à plat, ces deux
-    # fichiers sous leur seul nom, à côté de lui) ; sans eux, la boucle ne chiffre plus un trade.
-    # Deux fichiers de plus pour la ligne `cp` des boucles.
     "donnees/BAREME_FRAIS.csv",
     "donnees/VALEURS_TTF.csv",
 )

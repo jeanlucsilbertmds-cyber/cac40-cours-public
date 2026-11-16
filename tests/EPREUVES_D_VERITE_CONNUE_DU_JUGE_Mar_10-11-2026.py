@@ -431,7 +431,9 @@ def cas(copie, racine):
             ops, _ = JU.jouer(fiche, cours, mnemo, sig, P)
             tampon = io.StringIO()
             with contextlib.redirect_stdout(tampon):
-                JU.juger(fiche, ops, cours, seances, J, S, P, mnemo, None, (sig,), None, None)
+                # racine= : le voisinage du juge (R-505 ⑩, décision de Jean-Luc du 11-11-2026 à 19h08) lit ses réglages
+                # sous la racine et refuse de juger sans elle (certification du 16-11-2026).
+                JU.juger(fiche, ops, cours, seances, J, S, P, mnemo, None, (sig,), None, None, racine=racine)
             d = lire_le_jugement(tampon.getvalue())
             for lib, ok, det in controles(nom, genre, attendu, d, ops, lendemain):
                 res.append(("%s · %s" % (nom, lib), "VERT" if ok else "ROUGE", "%d op ; %s" % (len(ops), det)))
