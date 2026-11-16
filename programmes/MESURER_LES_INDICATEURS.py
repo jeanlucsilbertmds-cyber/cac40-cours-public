@@ -45,9 +45,12 @@ il retrouve le golden un jeton au centime (44 opérations, 63,6 %, +58 800,00 �
   borne basse de Wilson, le creux « 1 fois sur 20 sur 5 ans » en euros et en un jeton, et le gain net par an au pire,
   qui sont donc calculés ici.
 ⑨ CE QUI CLOCHE — Consigné, non corrigé (R-752) : voir le ⑨ de chaque fonction, et la note de livraison
-  `echanges/A_RELIRE.md`. Le plus lourd : le circuit du soir ne range PAS les signaux par CCI avant `tenir` (il les
-  passe dans l'ordre de l'univers) ; rejoué dans cet ordre-là, l'historique donne 44 opérations à 65,9 % et
-  +67 688,60 €, pas le golden. R-207bis n'est donc appliquée qu'ici.
+  `echanges/A_RELIRE.md`. Le plus lourd, jusqu'à A-839 : le circuit du soir ne rangeait PAS les signaux par CCI
+  avant `tenir` (il les passait dans l'ordre de l'univers) ; rejoué dans cet ordre-là, l'historique donne 44
+  opérations à 65,9 % et +67 688,60 €, pas le golden. Depuis A-839 (décision de Jean-Luc du 16-11-2026 à 07h56,
+  « 1 » : « À un seul endroit, la tenue des positions du soir »), R-207bis (la plus survendue, CCI le plus bas)
+  ne vit qu'à UN endroit : `departager_r207bis` de `programmes/TENIR_LES_POSITIONS.py`, que `tenir` applique au
+  circuit du soir comme au rejeu ; ce module-ci ne départage plus, il passe les signaux tels quels à `tenir`.
 ⑩ EFFET — Lit des fichiers ; n'écrit aucun fichier ; ne sort pas sur le réseau ; affiche quand il est lancé.
 ⑪ TERMINAISON — Rend la main ; lancé seul, termine le programme par son code de sortie.
 
@@ -153,41 +156,6 @@ def charger_les_briques(racine):
     return b
 
 
-def ordre_de_departage(signaux_du_jour):
-    """Range les signaux d'un même jour selon R-207bis : le CCI le plus bas d'abord, puis l'ordre alphabétique.
-
-    ① RÔLE — Dire, quand plusieurs valeurs signalent le même soir, laquelle prend le jeton en un jeton.
-    ② CONTEXTE D'APPEL — `rejouer_les_signaux`, une fois par séance qui porte des signaux.
-    ③ ENTRÉE — `signaux_du_jour` : la liste des signaux d'une même séance, chacun avec sa `valeur` et, s'il en a un,
-      son `cci` (nombre).
-    ④ CONDITIONS D'ENTRÉE — Tous les signaux portent un CCI, ou aucun.
-    ⑤ SORTIE — UNE valeur : une nouvelle liste, rangée ; la liste reçue n'est pas modifiée.
-      [rend: 1]
-    ⑥ TRAITEMENT — ① si aucun signal n'a de CCI, ranger par valeur (choix délégué DÉL-D17) · ② si tous en ont un,
-      ranger par (CCI, valeur) · ③ sinon, refuser.
-    ⑦ UNITÉ — Le CCI est un niveau d'indice, sans unité.
-    ⑧ POURQUOI — R-207bis (décision du 01-08-2026, tranche D2) : « stratégies TECHNIQUES → le CCI le plus bas (la
-      plus survendue), égalité → alphabétique ». Mesuré le 14-11-2026 sur l'historique du golden : dans l'ordre de
-      l'univers, les TOTAUX changent (44 opérations à 65,9 % et +67 688,60 € au lieu de 63,6 % et +58 800,00 €) ;
-      dans l'ordre alphabétique, les totaux restent ceux du golden mais DEUX OPÉRATIONS changent (TOTALENERGIES au
-      lieu de VINCI le 2024-06-07, EIFFAGE au lieu de VEOLIA le 2024-12-23) — seul le calibrage opération par
-      opération le voit (relecteur INDIC, D3).
-    ⑨ CE QUI CLOCHE — Le circuit du soir (`DETECTER_LES_SIGNAUX_GITHUB.py`, puis `tenir_pour_de_vrai`) ne range pas
-      les signaux par CCI : il les passe dans l'ordre de l'univers du module. Le chemin du consensus (« le plus fort
-      potentiel ») n'est pas traité ici.
-    ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main ; lève `ValueError` si certains signaux ont un CCI et d'autres non.
-      [sort: non]
-    """
-    avec = [s for s in signaux_du_jour if s.get("cci") is not None]
-    if not avec:
-        return sorted(signaux_du_jour, key=lambda s: s["valeur"])
-    if len(avec) != len(signaux_du_jour):
-        raise ValueError("départage R-207bis impossible : %d signal(aux) sur %d portent un CCI"
-                         % (len(avec), len(signaux_du_jour)))
-    return sorted(signaux_du_jour, key=lambda s: (float(s["cci"]), s["valeur"]))
-
-
 def rejouer_les_signaux(racine, cours, signaux, reglages, bareme, fin, recu=None):
     """Repasse l'historique des signaux, soir après soir, dans la tenue des positions du circuit.
 
@@ -201,15 +169,15 @@ def rejouer_les_signaux(racine, cours, signaux, reglages, bareme, fin, recu=None
       `fin` : la dernière séance jouée, AAAA-MM-JJ · `recu` : le reçu d'inscription au registre des essais, exigé
       si la période touche la fenêtre du regard unique (R-505 ③), `None` sinon.
     ④ CONDITIONS D'ENTRÉE — Les noms de valeurs des signaux se rapprochent de ceux des cours par
-      `JUGE_DES_STRATEGIES.cle_valeur`.
+      `JUGE_DES_STRATEGIES.cle_valeur`. Chaque signal porte un CCI fini : sans lui, `tenir` refuse (A-839).
     ⑤ SORTIE — DEUX valeurs : les lignes de journal écrites par `cloturer` (les deux comptabilités, chacune avec son
       prix réel et son prix de convention), et la liste des incidents, positions restées ouvertes en fin comprises.
       [rend: 2]
     ⑥ TRAITEMENT — ① refuser une période qui touche la fenêtre du regard unique sans reçu, par la garde du juge ·
       ② fabriquer le calendrier des séances jusqu'à `fin` · ③ pour chaque séance S : couper les cours à S (rien du
-      lendemain n'est visible), ranger les signaux de S par `ordre_de_departage`, appeler
-      `TENIR_LES_POSITIONS.tenir` avec la séance suivante · ④ recueillir trades et incidents · ⑤ dire les positions
-      encore ouvertes à la fin.
+      lendemain n'est visible), passer les signaux de S TELS QUELS à `TENIR_LES_POSITIONS.tenir` avec la séance
+      suivante — c'est `tenir` qui les départage par `departager_r207bis` (R-207bis vit à UN seul endroit, A-839) ·
+      ④ recueillir trades et incidents · ⑤ dire les positions encore ouvertes à la fin.
     ⑦ UNITÉ — Les montants du journal sont en euros ; les dates en AAAA-MM-JJ ; une séance est un jour de bourse.
     ⑧ POURQUOI — L'analyse d'impact du 14-11-2026 (A5, « le trou le plus grave ») : le juge ne joue que les jetons
       illimités, et le collège qui a reconstruit un jeton à la main a trouvé 46 opérations à 69,6 % au lieu de 44 à
@@ -221,7 +189,9 @@ def rejouer_les_signaux(racine, cours, signaux, reglages, bareme, fin, recu=None
       positions en attente d'entrée à la fin sont dites, pas comptées. ④ `cloturer` écrit les prix à cinq décimales :
       le net de convention peut différer de quelques centimes de « mise × 4 % − frais » (aucun écart sur le golden).
     ⑩ EFFET — Appelle `tenir`, qui n'écrit aucun fichier. Aucune écriture ici.
-    ⑪ TERMINAISON — Rend la main ; lève `RegardNonInscrit` (garde du juge) et `ValueError` (départage).
+    ⑪ TERMINAISON — Rend la main ; lève `RegardNonInscrit` (garde du juge) et laisse remonter
+      `TENIR_LES_POSITIONS.DepartageImpossible` quand un signal du jour arrive sans CCI : refus bruyant, jamais
+      de rangement alphabétique en silence (décision de Jean-Luc A-839, 16-11-2026 à 07h56, « 1 »).
       [sort: non]
     """
     b = charger_les_briques(racine)
@@ -238,7 +208,7 @@ def rejouer_les_signaux(racine, cours, signaux, reglages, bareme, fin, recu=None
     positions, trades, incidents = [], [], []
     for i, d in enumerate(toutes):
         coupes = {k: s[:bisect.bisect_right(dates_par_valeur[k], d)] for k, s in cours.items()}
-        du_jour = ordre_de_departage(par_jour.get(d, []))
+        du_jour = list(par_jour.get(d, []))  # départage R-207bis : dans `tenir` seul (A-839)
         suivante = toutes[i + 1] if i + 1 < len(toutes) else ""
         r = TP.tenir(positions, coupes, du_jour, suivante, MP, cle=JS.cle_valeur, reglages=reglages,
                      base=racine, bareme=bareme)

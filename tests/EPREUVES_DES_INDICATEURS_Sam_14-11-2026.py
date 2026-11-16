@@ -129,12 +129,16 @@ def cas(M):
     ⑤ SORTIE — UNE valeur : la liste des cas.
       [rend: 1]
     ⑥ TRAITEMENT — T01 calibrage au centime · T02 les 44 opérations contre l'étude du 01-11 · T03 contre
-      `backtest_c5etendu10` · T04 opérations par mois · T05 jours entre deux gains · T06 taux et Wilson (contre la
+      `backtest_c5etendu10` · T03b doublon et date de sortie vus · T03c le calibrage refuse des totaux justes aux
+      valeurs échangées (garde de S22) · T04 opérations par mois · T05 jours entre deux gains · T06 taux et Wilson (contre la
       formule de la mesure du soir) · T07 gain moyen et sa borne · T08 gagnante et perdante moyennes · T09 gain par
       an et sa borne · T10 pire creux (témoins 14 000 € et 22 500 €) · T11 jours sous l'eau (témoin 156 j) · T12
       plus longue série · T13 seuils 1 sur 20 (cas dégénérés exacts et témoin figé) · T14 Kelly (contre `_kelly`
-      de la porte et la formule fermée) · T15 Sortino (formule fermée) · T16 Calmar · T17 refus d'entrée · T18
-      départage · T19 garde du regard unique.
+      de la porte et la formule fermée) · T15 Sortino (formule fermée) · T16 Calmar · T17 refus d'entrée · T19 garde du
+      regard unique. Plus de T01c ni de T18 : le départage R-207bis ne vit plus dans le rejeu, il est éprouvé par
+      `tests/EPREUVES_DU_DEPARTAGE_R207BIS_Sam_14-11-2026.py` (T07 : le golden opération par opération, par `tenir`
+      seul ; sabotages S1 ordre de l'univers, S2 CCI le plus haut, S3 alphabétique) — décision de Jean-Luc A-839,
+      16-11-2026 à 07h56, « 1 ».
     ⑦ UNITÉ — Celles des indicateurs.
     ⑧ POURQUOI — Chaque indicateur a au moins un cas qui le pince ; chaque cas a un sabotage qui le fait rougir.
     ⑨ CE QUI CLOCHE — Voir le ⑨ du fichier : trois témoins figés de régression.
@@ -167,7 +171,6 @@ def cas(M):
             ok, det = False, "%s: %s" % (type(e).__name__, str(e)[:160])
         R.append((nom, bool(ok), det))
 
-    garde_departage = M.ordre_de_departage
     ok_cal, lignes, rendu = M.calibrer_sur_le_golden(RACINE)
     import json
     golden = json.load(open(M.charger_les_briques(RACINE)["JS"].trouver(
@@ -180,38 +183,6 @@ def cas(M):
         ok_cal and len(uj) == golden["un_jeton"]["n"] and proche(sum(o["net"] for o in uj), golden["un_jeton"]["net"])
         and len(ji) == golden["jetons_illimites"]["n"]
         and proche(sum(o["net"] for o in ji), golden["jetons_illimites"]["net"]), " | ".join(lignes[-2:])))
-
-    def t01c():
-        """Éprouve que le programme lancé seul rend le code 1 sous un départage alphabétique.
-
-        ① RÔLE — Le calibrage doit refuser la mauvaise règle, pas seulement l'épreuve (relecteur INDIC, D3).
-        ② CONTEXTE D'APPEL — `cas`.
-        ③ ENTRÉE — —
-        ④ CONDITIONS D'ENTRÉE — —
-        ⑤ SORTIE — DEUX valeurs : tenu, détail.
-          [rend: 2]
-        ⑥ TRAITEMENT — module neuf, départage remplacé par l'ordre alphabétique, `main` lancé sur la racine, sortie
-          avalée ; exiger le code 1.
-        ⑦ UNITÉ — —
-        ⑧ POURQUOI — Avec l'ordre alphabétique, les totaux du golden sont retrouvés et deux opérations changent.
-        ⑨ CE QUI CLOCHE — Le module saboté est celui que `M` désigne : si `M` est déjà saboté ailleurs, le cas
-          porte sur ce module-là.
-        ⑩ EFFET — Lance `main` ; aucune écriture.
-        ⑪ TERMINAISON — Rend la main.
-          [sort: non]
-        """
-        import io
-        import contextlib
-        M.ordre_de_departage = lambda sj: sorted(sj, key=lambda x: x["valeur"])
-        argv = sys.argv
-        sys.argv = ["MESURER_LES_INDICATEURS.py", RACINE]
-        try:
-            with contextlib.redirect_stdout(io.StringIO()) as sortie:
-                code = M.main()
-        finally:
-            sys.argv = argv
-            M.ordre_de_departage = garde_departage
-        return code == 1, "code %s ; %s" % (code, [l for l in sortie.getvalue().split("\n") if "une à une" in l][:2])
 
     def t02():
         """Compare les 44 opérations rejouées à celles reconstruites par l'étude du 01-11-2026.
@@ -245,7 +216,6 @@ def cas(M):
     note("T03 le calibrage compare les opérations une à une à backtest_c5etendu10 (il l'appelle, l'épreuve ne recopie rien)",
          lambda: (all(any(l.startswith("OK %s : opérations une à une" % c) for l in lignes)
                       for c in ("un_jeton", "jetons_illimites")), " | ".join(l for l in lignes if "une à une" in l)))
-    note("T01c départage alphabétique : le programme lancé seul rend le code 1", t01c)
 
     def t03b():
         """Éprouve que la comparaison au producteur du golden compte les doublons et lit la date de sortie.
@@ -279,6 +249,80 @@ def cas(M):
                 "%s / doublon %s / sortie %s" % ([tel[k][0] for k in c], [double[k][0] for k in c],
                                                 [decale[k][0] for k in c]))
     note("T03b comparaison au producteur : un doublon et une date de sortie fausse sont vus", t03b)
+
+    def t03c():
+        """Éprouve que le calibrage REFUSE un journal à totaux justes dont deux opérations ont échangé leur valeur.
+
+        ① RÔLE — Garder la ligne du calibrage « ok = ok and k == 0 » (relecteur INDIC, D3) : sans elle, S22 ne mord
+          pas (D-B, superviseur R-759 du 16-11-2026, rapport SUPERVISEUR_R207BIS_S22_Lun_16-11-2026.md, réparation R1).
+        ② CONTEXTE D'APPEL — `cas`.
+        ③ ENTRÉE — —
+        ④ CONDITIONS D'ENTRÉE — Chaque comptabilité rejouée compte au moins deux opérations de valeurs différentes
+          (mesuré le 16-11-2026 : 10 valeurs sur 44 et sur 100 opérations) ; sinon le cas tombe en le disant.
+        ⑤ SORTIE — DEUX valeurs : tenu, détail.
+          [rend: 2]
+        ⑥ TRAITEMENT — ① envelopper `M.operations_du_journal` : dans chaque comptabilité, échanger la VALEUR de la
+          première opération et de la première opération de valeur différente, sans toucher aux dates ni au net ·
+          ② rejouer `M.calibrer_sur_le_golden` · ③ exiger : les deux lignes de totaux en « OK », les deux lignes
+          « une à une » en « ÉCART » avec au moins deux différences, et le oui-ou-non à FAUX · ④ remettre la fonction
+          (`finally`).
+        ⑦ UNITÉ — Comptes.
+        ⑧ POURQUOI — Sur les vraies données, le bon rejeu donne zéro différence : sans ce cas, aucun journal à totaux
+          justes et opérations fausses ne passe jamais par le calibrage. Échanger les valeurs ne change ni n, ni taux,
+          ni net, ni motifs, ni dates : le refus ne peut venir que de la comparaison une à une. Écarté : échanger des
+          DATES, qui peut créer un chevauchement en un jeton et faire refuser pour une autre raison (T17).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Remplace une fonction du module éprouvé le temps du cas.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        cle = b["JS"].cle_valeur
+        origine = M.operations_du_journal
+        manque = []
+
+        def echanger(trades, comptabilite, prix):
+            """Rend les opérations de `operations_du_journal` avec la valeur de deux opérations échangée.
+
+            ① RÔLE — Fabriquer un journal à totaux justes et opérations fausses.
+            ② CONTEXTE D'APPEL — `calibrer_sur_le_golden`, à la place de `operations_du_journal`, pendant `t03c`.
+            ③ ENTRÉE — Celles de `operations_du_journal`.
+            ④ CONDITIONS D'ENTRÉE — —
+            ⑤ SORTIE — UNE valeur : la liste des opérations, copiées.
+              [rend: 1]
+            ⑥ TRAITEMENT — trouver la première opération de valeur différente de la première ; échanger leurs valeurs.
+            ⑦ UNITÉ — —
+            ⑧ POURQUOI — Voir le ⑧ de `t03c`.
+            ⑨ CE QUI CLOCHE — —
+            ⑩ EFFET — Note la comptabilité dans `manque` si l'échange est impossible.
+            ⑪ TERMINAISON — Rend la main.
+              [sort: non]
+            """
+            ops = [dict(o) for o in origine(trades, comptabilite, prix)]
+            j = next((i for i, o in enumerate(ops) if cle(o["valeur"]) != cle(ops[0]["valeur"])), None)
+            if j is None:
+                manque.append(comptabilite)
+            else:
+                ops[0]["valeur"], ops[j]["valeur"] = ops[j]["valeur"], ops[0]["valeur"]
+            return ops
+
+        M.operations_du_journal = echanger
+        try:
+            ok_e, lignes_e, _r = M.calibrer_sur_le_golden(RACINE)
+        finally:
+            M.operations_du_journal = origine
+        c = ("un_jeton", "jetons_illimites")
+        totaux = all(any(l.startswith("OK %s : " % k) and "une à une" not in l for l in lignes_e) for k in c)
+        une = {}
+        for k in c:
+            for l in lignes_e:
+                if l.startswith("ÉCART %s : opérations une à une" % k):
+                    une[k] = int(l.split(" : ")[2].split(" ")[0])
+        ecart = all(une.get(k, 0) >= 2 for k in c)
+        raison = "" if not ok_e else " ; REFUS ATTENDU ABSENT : calibrer_sur_le_golden rend ok = VRAI malgré l'écart une à une"
+        return (not manque and totaux and ecart and not ok_e,
+                "valeurs échangées ; échange impossible %s ; totaux OK %s ; différences une à une %s ; ok %s%s" % (
+                    manque, totaux, une, ok_e, raison))
+    note("T03c le calibrage refuse des totaux justes obtenus par des opérations fausses (valeurs échangées)", t03c)
 
     # jetons illimités : le seuil de creux se tire (calcul exact infaisable) ; 20 000 tirages suffisent ici, aucun cas
     # ne lit ce seuil-là, et 200 000 coûteraient une dizaine de secondes à chaque tour de sabotage
@@ -498,7 +542,7 @@ def cas(M):
         """Rend vrai si l'appel lève `ValueError`.
 
         ① RÔLE — Éprouver un refus.
-        ② CONTEXTE D'APPEL — T17, T18.
+        ② CONTEXTE D'APPEL — T17.
         ③ ENTRÉE — `f` : une fonction sans argument.
         ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — UNE valeur : vrai si `ValueError` est levée.
@@ -522,11 +566,6 @@ def cas(M):
         and not leve(lambda: M.mesurer_les_indicateurs(chevauche, "jetons_illimites", per, RACINE))
         and leve(lambda: M.mesurer_les_indicateurs(uj, "un_jeton", (per[0], "2025-01-01"), RACINE))
         and leve(lambda: M.mesurer_les_indicateurs(uj, "les_deux", per, RACINE)), "refus"))
-    note("T18 départage R-207bis : CCI le plus bas, puis alphabétique ; CCI mêlés refusés", lambda: (
-        [s["valeur"] for s in M.ordre_de_departage([{"valeur": "B", "cci": -60}, {"valeur": "A", "cci": -60},
-                                                    {"valeur": "C", "cci": -90}])] == ["C", "A", "B"]
-        and [s["valeur"] for s in M.ordre_de_departage([{"valeur": "B"}, {"valeur": "A"}])] == ["A", "B"]
-        and leve(lambda: M.ordre_de_departage([{"valeur": "B", "cci": -60}, {"valeur": "A"}])), "ordre"))
 
     def t19():
         """Éprouve que le rejeu refuse une période dans la fenêtre du regard unique sans reçu.
@@ -580,7 +619,7 @@ def cas(M):
 
 
 def sabotages():
-    """Rend la liste des sabotages : (nom, fonction qui casse le module, fonction qui restaure les briques).
+    """Rend la liste des sabotages : (nom, fonction qui casse le module, fonction qui restaure, raison attendue).
 
     ① RÔLE — Casser un à un ce que chaque cas surveille.
     ② CONTEXTE D'APPEL — `main`, option `--saboter`.
@@ -599,16 +638,18 @@ def sabotages():
     """
     S = []
 
-    def ajouter(nom, casser, restaurer=None):
+    def ajouter(nom, casser, restaurer=None, attendu=None):
         """Inscrit un sabotage.
 
         ① RÔLE — Inscrire.
         ② CONTEXTE D'APPEL — `sabotages`.
-        ③ ENTRÉE — `nom` : le nom · `casser` : fonction(M) qui casse · `restaurer` : fonction(M) qui restaure.
+        ③ ENTRÉE — `nom` : le nom · `casser` : fonction(M) qui casse · `restaurer` : fonction(M) qui restaure ·
+          `attendu` : facultatif, (cas qui doit tomber, texte qui doit figurer dans son détail) — la raison attendue
+          (superviseur R-759 du 16-11-2026, D-B : S22 doit mordre PAR T03c et dire pourquoi).
         ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — Rien.
           [rend: rien]
-        ⑥ TRAITEMENT — ajouter le triplet.
+        ⑥ TRAITEMENT — ajouter le quadruplet.
         ⑦ UNITÉ — —
         ⑧ POURQUOI — —
         ⑨ CE QUI CLOCHE — —
@@ -616,7 +657,7 @@ def sabotages():
         ⑪ TERMINAISON — Rend la main.
           [sort: non]
         """
-        S.append((nom, casser, restaurer))
+        S.append((nom, casser, restaurer, attendu))
 
     def remplacer(M, nom, f):
         """Remplace une fonction du module éprouvé par `f(ancienne, *a, **k)`.
@@ -658,8 +699,9 @@ def sabotages():
             sum(1 for x in nets if x < 0) / len(nets))))
     ajouter("S10 Calmar sur le gain total", lambda M: remplacer(
         M, "calmar", lambda o, g, c: o(None if g is None else g * 2.519, c)))
-    ajouter("S11 départage dans l'ordre de l'univers (celui du circuit)", lambda M: setattr(
-        M, "ordre_de_departage", lambda s: list(s)))
+    # S11, S20 et S21 (départage dans l'ordre de l'univers, par le CCI le plus haut, alphabétique) sont retirés :
+    # le rejeu ne départage plus (A-839, Jean-Luc, 16-11-2026 à 07h56, « 1 »). Leurs équivalents mordent sur la règle
+    # elle-même, dans tests/EPREUVES_DU_DEPARTAGE_R207BIS_Sam_14-11-2026.py : S1 = S11, S2 = S20, S3 = S21, contre T07.
     ajouter("S12 barème réel au lieu du forfait du golden", lambda M: remplacer(
         M, "rejouer_les_signaux", lambda o, r, c, s, g, bar, f, recu=None: o(r, c, s, g, "REEL", f, recu)))
 
@@ -745,10 +787,8 @@ def sabotages():
             setattr(M.charger_les_briques(RACINE)[sigle], nom, garde["f"])
         return casser, restaurer
 
-    ajouter("S21 départage alphabétique (le CCI ignoré)", lambda M: setattr(
-        M, "ordre_de_departage", lambda s: sorted(s, key=lambda x: x["valeur"])))
     ajouter("S22 comparaison opération par opération retirée du calibrage", lambda M: charger_mute(
-        [("        ok = ok and k == 0\n", "        ok = ok\n")]))
+        [("        ok = ok and k == 0\n", "        ok = ok\n")]), attendu=("T03c", "REFUS ATTENDU ABSENT"))
     ajouter("S23 une opération à 0 € comptée gagnante dans le taux", lambda M: charger_mute(
         [("    taux = 100.0 * sum(1 for x in nets if x > 0) / len(nets)\n    return taux, MJ.wilson_bas",
           "    taux = 100.0 * sum(1 for x in nets if x >= 0) / len(nets)\n    return taux, MJ.wilson_bas")]))
@@ -813,8 +853,6 @@ def sabotages():
         [("            \"creux_marge_basse_eur\": tires[bas], \"creux_marge_haute_eur\": tires[haut],",
           "            \"creux_marge_basse_eur\": 21600.0, \"creux_marge_haute_eur\": 21600.0,")]))
     ajouter("S19 année comptée 365 jours", lambda M: setattr(M, "JOURS_PAR_AN", 365.0))
-    ajouter("S20 départage par le CCI le plus HAUT", lambda M: setattr(
-        M, "ordre_de_departage", lambda s: sorted(s, key=lambda x: (-float(x["cci"]), x["valeur"]))))
     c, r = brique("MJ", "borne_basse_gain", lambda o, ops, **k: dict(o(ops, **k), borne_basse_5pct=o(ops, **k).get("gain_moyen")))
     ajouter("S14 borne basse du gain = gain moyen", c, r)
     c, r = brique("MJ", "plus_longue_serie_de_pertes", lambda o, ops: max(0, o(ops) - 1))
@@ -841,8 +879,9 @@ def comparer():
     ④ CONDITIONS D'ENTRÉE — Celles de `calibrer_sur_le_golden`.
     ⑤ SORTIE — Rien : affiche.
       [rend: rien]
-    ⑥ TRAITEMENT — ① une fois : le rejeu un jeton avec les signaux dans l'ordre où le circuit du soir les passe
-      (l'ordre de l'univers) · pour chaque comptabilité : ② `pire_chute` (mesure du soir) dans l'ordre des sorties ·
+    ⑥ TRAITEMENT — (l'ancien ① — le rejeu un jeton dans l'ordre de l'univers — est retiré : le rejeu ne départage
+      plus, `tenir` le fait, A-839 ; cette mesure-là vit dans le sabotage S1 de
+      `tests/EPREUVES_DU_DEPARTAGE_R207BIS_Sam_14-11-2026.py`) · pour chaque comptabilité : ② `pire_chute` (mesure du soir) dans l'ordre des sorties ·
       ③ `pire_chute` dans l'ordre des ENTRÉES (l'ordre du juge), avec DEUX clés de tri explicites pour les entrées
       d'un même jour, (entrée, valeur) et (entrée, valeur à l'envers), d'où une fourchette · ④
       `calculer_time_underwater` nourri des dates d'entrée (ce que fait le juge) et des dates de sortie · ⑤ le calcul
@@ -861,12 +900,6 @@ def comparer():
     ok, _l, rendu = M.calibrer_sur_le_golden(RACINE)
     b = M.charger_les_briques(RACINE)
     for compta in ("un_jeton", "jetons_illimites"):
-        if compta == "un_jeton":
-            M2 = charger()
-            M2.ordre_de_departage = lambda sj: list(sj)
-            _ok2, l2, _r2 = M2.calibrer_sur_le_golden(RACINE)
-            print("COMPARER départage dans l'ordre de l'univers (le circuit du soir) : "
-                  + next(l for l in l2 if " un_jeton : " in l and "opérations ." in l))
         ops = rendu[compta]
         par_sortie = sorted(ops, key=lambda o: (o["date_sortie"], o["date_entree"], o["valeur"]))
         par_entree = sorted(ops, key=lambda o: (o["date_entree"], o["valeur"]))
@@ -947,7 +980,8 @@ def main():
     ⑤ SORTIE — UNE valeur : 0, 1 ou 2 (voir le ⑤ du fichier).
       [rend: 1]
     ⑥ TRAITEMENT — ① `--comparer` : mesurer et rendre 0 · ② jouer les cas, afficher · ③ `--saboter` : pour chaque
-      sabotage, module neuf, casser, jouer, restaurer ; exiger au moins un cas tombé.
+      sabotage, module neuf, casser, jouer, restaurer ; exiger au moins un cas tombé et, si le sabotage porte une
+      raison attendue, que son cas tombe avec ce texte dans son détail.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — R-734 : un contrôle qui n'a pas pu tourner rend un code non nul (2).
     ⑨ CE QUI CLOCHE — —
@@ -973,7 +1007,7 @@ def main():
     print("CAS : %d / %d tenus" % (tenus, len(R)))
     code = 0 if tenus == len(R) else 1
     if "--saboter" in sys.argv:
-        for nom, casser, restaurer in sabotages():
+        for nom, casser, restaurer, attendu in sabotages():
             M = charger()
             try:
                 M = casser(M) or M
@@ -989,8 +1023,12 @@ def main():
                 if restaurer:
                     restaurer(M)
             tombes = [n.split(" ")[0] for n, ok, _d in Rs if not ok]
-            print("== %s : %s" % (nom, ("MORD (" + ", ".join(tombes) + ")") if tombes else "NE MORD PAS"))
-            if not tombes:
+            par_sa_raison = attendu is None or any(n.split(" ")[0] == attendu[0] and attendu[1] in d
+                                                   for n, ok, d in Rs if not ok)
+            print("== %s : %s%s" % (nom, ("MORD (" + ", ".join(tombes) + ")") if tombes else "NE MORD PAS",
+                                    "" if attendu is None else (" ; raison attendue (%s : %s) %s" % (
+                                        attendu[0], attendu[1], "VUE" if par_sa_raison else "NON VUE"))))
+            if not tombes or not par_sa_raison:
                 code = 1
     print("CODE %d" % code)
     return code

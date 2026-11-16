@@ -506,6 +506,23 @@ jobs:
           echo "::error::$SIGNALEES POSITION(S) SIGNALEE(S) CE SOIR — fiche modifiee sur place pendant une position ouverte, position laissee telle quelle ; lire la sortie du pas « Tenir les positions » (decision de Jean-Luc : remettre la fiche, ou ouvrir une nouvelle strategie)"
           exit 1
 
+      - name: Rougir si des signaux ont ete mis a part
+        id: rougir_si_des_signaux_ont_ete_mis_a_part
+        # R-207bis (superviseur R-759 du 14-11-2026, D2) : une strategie dont un signal porte un CCI absent, illisible
+        # ou non fini est mise a part CE SOIR par le teneur, qui tient les autres, sort en 0 et dit
+        # signaux_mis_a_part=<n>. Ce pas de fin, copie sur « Rougir si une position a ete signalee » (une seule
+        # convention sur le pas « Tenir les positions »), fait ROUGIR le passage. Place apres tout pas sans always().
+        # Le nom de la sortie lue ici est confronte a celui que le teneur ecrit par l'epreuve
+        # tests/EPREUVES_DU_DEPARTAGE_R207BIS_Sam_14-11-2026.py (T10) : une faute de frappe rendrait le soir vert. La
+        # forme de ce pas (if exact, always(), exit 1 en fin, aucun continue-on-error, place) est gardee par
+        # tests/GARDE_DU_PAS_ROUGE.py, la meme fonction que celle qui garde « Rougir si une position a ete signalee ».
+        if: always() && steps.tenir_les_positions.outputs.signaux_mis_a_part != '' && steps.tenir_les_positions.outputs.signaux_mis_a_part != '0'
+        env:
+          MIS_A_PART: ${{ steps.tenir_les_positions.outputs.signaux_mis_a_part }}
+        run: |
+          echo "::error::$MIS_A_PART ATTRIBUTION(S) DE SIGNAL MIS A PART CE SOIR (une par couple strategie, signal) — CCI absent, illisible ou non fini, la strategie touchee n a recu aucun signal ; lire la sortie du pas « Tenir les positions » et donnees/signaux_du_jour.json (signaux perdus sauf decision de Jean-Luc, prise sans regarder la suite des cours)"
+          exit 1
+
       - name: Dire quels pas non bloquants sont tombes
         id: dire_quels_pas_non_bloquants_sont_tomb
         # DEFAUT NOMME PAR JEAN-LUC LE 16-09-2026 : « ces etapes peuvent tomber
