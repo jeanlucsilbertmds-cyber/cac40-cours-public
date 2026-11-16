@@ -1,0 +1,3 @@
+circuit=series
+serie=Yahoo
+pointe=1893cb9bbceea8243a2f010e1233b455e547ad51
