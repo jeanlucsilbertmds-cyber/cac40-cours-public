@@ -209,8 +209,9 @@ def _chemin_des_donnees(nom_du_fichier):
     ③ ENTRÉE — `nom_du_fichier` : son nom seul (« BAREME_FRAIS.csv »).
     ④ CONDITIONS D'ENTRÉE — Le fichier est dans `donnees/` à côté du dossier de ce
       programme (le dépôt, ses copies), ou dans le même dossier que ce programme (la
-      copie à plat de `programmes/COPIER_POUR_LES_BOUCLES.py`, où chaque fichier de
-      `COPIE_DES_BOUCLES` est posé sous son seul nom).
+      copie à plat de `programmes/COPIER_POUR_LES_BOUCLES.py`, où chaque fichier de la
+      liste qu'il dérive des racines RACINES_DE_LA_COPIE_DES_BOUCLES est posé sous son seul
+      nom).
     ⑤ SORTIE — UNE valeur : le chemin absolu trouvé.
       [rend: 1]
     ⑥ TRAITEMENT — essayer `../donnees/<nom>` depuis le dossier de ce fichier, puis

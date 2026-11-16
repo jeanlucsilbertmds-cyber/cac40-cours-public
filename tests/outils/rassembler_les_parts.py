@@ -25,8 +25,9 @@ réparé le Jeu 05-11-2026 pour la version B (étude github_series/RAPPORT.md). 
   (un sabotage manque, est doublé, ne mord pas, ou un lot a rendu autre chose que 0 — jugé par le joueur). 2 : rien
   d'écrit par ce programme, ou le joueur a dû rejouer un lot (part manquante ou en double, manifestes en désaccord,
   lot absent, code d'un lot illisible ou différent de celui du manifeste, programme interdit lu par une part, flux
-  d'écoute d'une part qui avait des lots absent ou qui ne nomme pas l'épreuve, fichier d'une part illisible, empreintes du
-  départ différentes, part sans sa place libre minimale (témoin du milieu), découpage différent de celui du joueur, dossier de travail non vide, toute erreur imprévue,
+  d'écoute d'une part qui avait des lots absent ou qui ne nomme pas l'épreuve, fichier d'une part illisible, départs
+  (etat_du_depart.json) de contenus différents, ou un départ absent, illisible, qui n'est pas un dictionnaire non
+  vide d'empreintes sha256 ou qui donne une clé deux fois (refus sans trace Python), part sans sa place libre minimale (témoin du milieu), découpage différent de celui du joueur, dossier de travail non vide, toute erreur imprévue,
   code 2 du joueur, ou joueur qui ne rend ni 0 ni 1, ou qui rend 0 ou 1 sans avoir dit « FINI … relevé » ni écrit le
   relevé). Aucune trace Python ne sort en code 1, ni du rassembleur ni du joueur qu'il lance : 1 veut toujours dire
   « relevé écrit, NON conforme ».
@@ -38,8 +39,11 @@ réparé le Jeu 05-11-2026 pour la version B (étude github_series/RAPPORT.md). 
   exiger qu'aucune part n'y ait nommé un programme interdit (`interdits_lus` de jouer_une_part.py), et que le flux
   existe ET nomme l'épreuve (`ecoute_nomme`, chemin de l'épreuve sur la machine de la part) pour toute part qui a
   joué un lot (une part sans lot peut arriver sans ses dossiers vides : une
-  archive ne garde pas forcément un dossier vide) · ④ exiger le même etat_du_depart.json dans toutes les
-  parts · ④bis exiger de chaque part sa place libre minimale (`lire_la_place` du joueur : chaque lot compté de la
+  archive ne garde pas forcément un dossier vide) · ④ exiger que les etat_du_depart.json de toutes les parts
+  DISENT LA MÊME CHOSE (`refus_des_departs` : chacun lu par `lire_un_depart` — un dictionnaire non vide
+  chemin → empreinte sha256 en 64 caractères hexadécimaux minuscules, sans clé en double — puis comparé au
+  premier par égalité complète des contenus, clés en plus ou en moins comprises ; l'ordre des clés et la forme
+  d'écriture ne comptent pas) · ④bis exiger de chaque part sa place libre minimale (`lire_la_place` du joueur : chaque lot compté de la
   part porte « lot_NN.place », tour 3, B-2), et copier ces fichiers avec les lots : le joueur prend le minimum sur
   tous les lots et le juge contre son plancher · ⑤ écrire le dossier réuni : `preparer_le_travail` du joueur (module d'écoute et un dossier par flux),
   départ, début = le plus tôt des parts, lots, fichiers de chaque flux renommés
@@ -60,6 +64,12 @@ réparé le Jeu 05-11-2026 pour la version B (étude github_series/RAPPORT.md). 
   privé la portée « code_execute » de tout code exécuté (le joueur s'arrête alors : l'épreuve n'est pas couverte).
   La préparation, le découpage et la liste des flux sont ceux du joueur (R-708). Une trace d'erreur système dans la
   sortie d'un lot est jugée par le joueur, ici même : série NON CONFORME (1), jamais « mord ».
+  16-11-2026 (série HL du passage GitHub 43913791964, superviseur R-759 « DE FOND ») : la garde ④ comparait les
+  OCTETS des etat_du_depart.json ; les 18 parts portaient les mêmes 6 856 empreintes dans des ordres différents (le
+  joueur remplit le dictionnaire dans l'ordre de os.walk, qui n'est pas garanti) et le rassemblement a refusé une
+  série saine. Réparé par une propriété — les contenus — et non par une forme d'écriture (le joueur écrit aussi,
+  depuis ce jour, un dictionnaire trié : hygiène, pas garde). Un départ absent sortait sur une trace Python : il sort
+  en ARRET, code 2 (R-734). Éprouvé par tests/EPREUVES_DE_LA_GARDE_DU_DEPART_Lun_16-11-2026.py.
 ⑨ CE QUI CLOCHE — La ligne d'en-tête « série jouée du … au … , L lots de T au plus, P à la fois » diffère forcément
   d'un relevé de la machine : autres heures, et P compte les lots joués en même temps sur toutes les machines. Les
   empreintes, les lignes des sabotages et le verdict, eux, sont identiques (essai local du 04-11-2026). · Le
@@ -85,6 +95,8 @@ sys.path.insert(0, ICI)
 import jouer_une_part as PART   # noqa: E402  (découpage et partage : une rédaction pour les deux programmes)
 
 ACCORD = ("epreuve", "releve", "lot", "nb_parts", "noms")   # ce que toutes les parts d'une série partagent
+NOM_DU_DEPART = "etat_du_depart.json"   # écrit par le joueur et par jouer_une_part.py dans le dossier de chaque part
+EMPREINTE = re.compile(r"[0-9a-f]{64}")   # SERIE.empreinte : sha256 en hexadécimal minuscule (hexdigest)
 
 
 def arret(message):
@@ -119,6 +131,104 @@ def trouver_les_parts(depuis, epreuve):
             if m.get("epreuve") == epreuve:
                 trouvees.append((r, m))
     return sorted(trouvees, key=lambda dm: dm[0])
+
+
+def lire_un_depart(chemin):
+    """Rend le contenu d'un etat_du_depart.json ; lève ValueError, avec la raison, s'il ne se lit pas comme un état.
+
+    ① RÔLE — Lire un départ en exigeant qu'il soit bien un état du dépôt, avant toute comparaison.
+    ② CONTEXTE D'APPEL — `refus_des_departs`.
+    ③ ENTRÉE — `chemin` : le fichier etat_du_depart.json d'une part.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le dictionnaire {chemin relatif : empreinte}. [rend: 1]
+    ⑥ TRAITEMENT — json.load en UTF-8 avec un `object_pairs_hook` qui refuse une clé donnée deux fois ; puis exiger un
+      dictionnaire, non vide, dont chaque valeur est une chaîne de 64 caractères hexadécimaux minuscules (EMPREINTE).
+      Les clés d'un objet JSON sont toujours des chaînes : elles n'ont pas à être contrôlées.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 16-11-2026, point 5 : json.load garde la DERNIÈRE valeur d'une clé en double (deux
+      parts différentes pourraient se lire égales) ; une valeur d'un autre type, ou un fichier qui n'est pas un
+      dictionnaire, n'est pas un état ; un départ VIDE dans toutes les parts passerait la comparaison et viderait la
+      vérification de la racine que fait le joueur (il ne compare que les clés du départ). Un fichier absent ou
+      illisible levait une exception non rattrapée : il devient une raison (R-734) ; RecursionError aussi, depuis la
+      relecture du 16-11-2026 (M3), pour que le refus sorte sans trace Python comme le dit la fiche en tête.
+    ⑨ CE QUI CLOCHE — Le fichier est lu en entier en mémoire (1,1 Mo pour la série HL du 16-11-2026). Un JSON très
+      imbriqué (« [ » répété 100 000 fois, mesuré par la relecture du 16-11-2026, M3) fait lever RecursionError au
+      décodeur : elle est rattrapée avec OSError et ValueError et devient une raison « illisible ». Une MemoryError
+      (fichier démesuré) n'est pas rattrapée ici : la garde générale de `__main__` la rend en ARRET, code 2, avec trace.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError (y compris pour un fichier absent, illisible ou trop imbriqué) ;
+      seule une erreur imprévue (MemoryError par exemple) sort autrement. [sort: non]
+    """
+    def sans_doublon(paires):
+        """Rend le dictionnaire d'un objet JSON ; lève ValueError si une clé y est donnée deux fois.
+
+        ① RÔLE — Refuser une clé en double au lieu de garder la dernière. ② CONTEXTE D'APPEL — json.load de
+        `lire_un_depart`, une fois par objet JSON. ③ ENTRÉE — `paires` : les (clé, valeur) de l'objet, dans l'ordre
+        du fichier. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : le dictionnaire. [rend: 1] ⑥ TRAITEMENT —
+        chaque clé ajoutée une fois ; une clé déjà vue lève. ⑦ UNITÉ — — ⑧ POURQUOI — Superviseur R-759 du
+        16-11-2026, point 5. ⑨ CE QUI CLOCHE — — ⑩ EFFET — Aucun. ⑪ TERMINAISON — Rend la main, ou lève.
+        [sort: non]
+        """
+        vues = {}
+        for c, v in paires:
+            if c in vues:
+                raise ValueError(f"la clé « {c[:120]} » est donnée deux fois")
+            vues[c] = v
+        return vues
+
+    try:
+        with open(chemin, encoding="utf-8") as f:
+            etat = json.load(f, object_pairs_hook=sans_doublon)
+    except (OSError, ValueError, RecursionError) as e:
+        raise ValueError(f"illisible : {type(e).__name__} : {e}") from None
+    if not isinstance(etat, dict):
+        raise ValueError(f"ce n'est pas un dictionnaire mais un {type(etat).__name__}")
+    if not etat:
+        raise ValueError("c'est un dictionnaire vide : rien à comparer")
+    for c, v in etat.items():
+        if not isinstance(v, str) or not EMPREINTE.fullmatch(v):
+            raise ValueError(f"la valeur de « {c[:120]} » n'est pas une empreinte sha256 (64 caractères hexadécimaux "
+                             f"minuscules) : {str(v)[:70]!r}")
+    return etat
+
+
+def refus_des_departs(dossiers):
+    """Rend None si les etat_du_depart.json des parts disent la même chose, sinon la raison du refus (une phrase).
+
+    ① RÔLE — La garde ④ du rassembleur : toutes les parts sont parties du même état du dépôt.
+    ② CONTEXTE D'APPEL — `main`, une fois, après la garde ③bis ; tests/EPREUVES_DE_LA_GARDE_DU_DEPART_Lun_16-11-2026.py
+      la joue par la ligne de commande.
+    ③ ENTRÉE — `dossiers` : les dossiers des parts, dans l'ordre de `trouver_les_parts` (le premier sert de référence).
+    ④ CONDITIONS D'ENTRÉE — Au moins un dossier (`main` a refusé l'absence de parts).
+    ⑤ SORTIE — UNE valeur : None, ou une phrase qui nomme etat_du_depart.json et le dossier en cause. [rend: 1]
+    ⑥ TRAITEMENT — chaque départ lu par `lire_un_depart` (une raison de lecture arrête tout) ; puis chacun comparé au
+      premier par égalité de dictionnaires : mêmes clés, mêmes valeurs ; l'ordre des clés et les octets du fichier ne
+      comptent pas. La phrase compte les clés en plus, en moins et de valeur différente.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Fiche en tête, ⑧ (16-11-2026). Strict par choix (superviseur R-759 du 16-11-2026, point 3) : le joueur
+      et jouer_une_part.py ne regardent que les clés du départ, et c'est voulu chez eux ; ici, une clé en plus dans
+      UNE part dit qu'elle n'est pas partie du même dépôt.
+    ⑨ CE QUI CLOCHE — Le refus ne nomme que la PREMIÈRE part en désaccord (la première raison de lecture, ou le
+      premier départ qui diffère de celui de la première part) : avec 18 parts, les autres parts éventuellement en
+      désaccord restent inconnues tant que celle-ci n'est pas réglée (relecture du 16-11-2026, M4).
+    ⑩ EFFET — Lit des fichiers.
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    lus = []
+    for d in dossiers:
+        try:
+            lus.append(lire_un_depart(os.path.join(d, NOM_DU_DEPART)))
+        except ValueError as e:
+            return f"le départ {NOM_DU_DEPART} de la part rangée dans {d} est refusé : {e}"
+    premier = lus[0]
+    for d, etat in zip(dossiers[1:], lus[1:]):
+        if etat != premier:
+            en_plus = len(set(etat) - set(premier))
+            en_moins = len(set(premier) - set(etat))
+            autres = sum(1 for c in set(etat) & set(premier) if etat[c] != premier[c])
+            return (f"les parts ne sont pas parties du même état du dépôt : le {NOM_DU_DEPART} de {d} diffère de celui "
+                    f"de {dossiers[0]} ({en_plus} clé(s) en plus, {en_moins} en moins, {autres} valeur(s) différente(s))")
+    return None
 
 
 def lire_les_arguments(arguments):
@@ -229,9 +339,10 @@ def main():
                 return arret(f"la part {m['part']} a joué {len(attendus)} lot(s) mais son flux d'écoute « {nom_du_flux} » "
                              "ne nomme pas l'épreuve : écoute sourde")
     # ④ même départ partout
-    departs = {open(os.path.join(d, "etat_du_depart.json"), "rb").read() for d, _ in parts}
-    if len(departs) != 1:
-        return arret("les parts ne sont pas parties du même état du dépôt (etat_du_depart.json différents)")
+    # (16-11-2026, superviseur R-759) par le CONTENU, jamais par les octets : l'ordre des clés n'est pas garanti
+    refus = refus_des_departs([d for d, _ in parts])
+    if refus:
+        return arret(refus)
     # ④bis le témoin du milieu de chaque part (superviseur R-759 du 05-11-2026, M1 (2)) : sans lui, rien de sûr
     places = {m["part"]: joueur.lire_la_place(d) for d, m in parts}
     sans = sorted(p for p, v in places.items() if v is None)
@@ -240,7 +351,7 @@ def main():
     # ⑤ le dossier réuni
     # le module d'écoute et un dossier par flux : la préparation du joueur de la racine (R-708), rien venu d'une part
     joueur.preparer_le_travail(travail)
-    shutil.copyfile(os.path.join(parts[0][0], "etat_du_depart.json"), os.path.join(travail, "etat_du_depart.json"))
+    shutil.copyfile(os.path.join(parts[0][0], NOM_DU_DEPART), os.path.join(travail, NOM_DU_DEPART))
     debuts = [datetime.datetime.strptime(open(os.path.join(d, "debut.txt")).read().strip(), "%d-%m-%Y %Hh%M")
               for d, _ in parts]
     open(os.path.join(travail, "debut.txt"), "w").write(min(debuts).strftime("%d-%m-%Y %Hh%M"))

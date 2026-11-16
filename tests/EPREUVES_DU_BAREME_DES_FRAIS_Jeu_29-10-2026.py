@@ -800,7 +800,7 @@ def epreuves(sab):
             "fs = B.trouver(R, 'MODULE_STATISTIQUES'); sp = iu.spec_from_file_location('sta', fs); S_ = iu.module_from_spec(sp); sp.loader.exec_module(S_)\n"
             "seances = {x['date'] for s_ in cr.values() for x in s_}\n"
             "with contextlib.redirect_stdout(io.StringIO()):\n"
-            "    B.juger(f, ops, cr, seances, mand, S_, P, mnemo, bornes, (sig,), lecture=lr, bareme='REEL')\n"
+            "    B.juger(f, ops, cr, seances, mand, S_, P, mnemo, bornes, (sig,), lecture=lr, bareme='REEL', racine=R)\n"
             "a, k, r = vus[0] if vus else ((None,) * 5, {}, None)\n"
             "print('JUGER', len(vus), a[2] is ops, (list(a) + [None] * 5)[4] or k.get('bareme'),\n"
             "      'ECART_A_LA_MAIN', 'aucun' if r is not None and abs(r - att) < 1e-9 else (r, att),\n"

@@ -632,8 +632,11 @@ def etat_du_depot(racine):
     """Rend l'empreinte de chaque fichier du dépôt, sans .git ni __pycache__.
 
     ① RÔLE — Fixer l'état de départ, pour la reprise et pour la vérification de fin. ② CONTEXTE D'APPEL — `main`.
-    ③ ENTRÉE — `racine` : le dépôt. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : {chemin relatif : sha256}.
-    [rend: 1] ⑥ TRAITEMENT — os.walk. ⑦ UNITÉ — — ⑧ POURQUOI — Voir la fiche en tête, ⑥ ②.
+    ③ ENTRÉE — `racine` : le dépôt. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : {chemin relatif : sha256},
+    clés dans l'ordre trié des chemins. [rend: 1] ⑥ TRAITEMENT — os.walk, puis tri des clés. ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir la fiche en tête, ⑥ ②. Le tri (16-11-2026, série HL du passage GitHub 43913791964) : l'ordre de
+    os.walk n'est pas garanti, et deux parts parties du même dépôt écrivaient des etat_du_depart.json d'octets
+    différents. Hygiène seulement : les lecteurs comparent les contenus (rassembler_les_parts.py, `refus_des_departs`).
     ⑨ CE QUI CLOCHE — Les liens symboliques sont suivis comme des fichiers. ⑩ EFFET — Lit tout le dépôt.
     ⑪ TERMINAISON — Rend la main. [sort: non]
     """
@@ -644,7 +647,7 @@ def etat_du_depot(racine):
             p = os.path.join(r, f)
             if os.path.isfile(p):
                 etat[os.path.relpath(p, racine).replace(os.sep, "/")] = SERIE.empreinte(p)
-    return etat
+    return dict(sorted(etat.items()))
 
 
 def jouer_un_lot(racine, epreuve, travail, k, lot):

@@ -2,21 +2,27 @@
 # -*- coding: utf-8 -*-
 """EPREUVES_DE_LA_COPIE_DES_BOUCLES — Jeu 01-10-2026 (Paris)
 Rôle : rougir AVANT qu'une boucle Cowork tombe parce qu'un programme qu'elle copie a gagné une dépendance.
-Quand l'appeler : avant toute livraison qui touche un fichier de COPIE_DES_BOUCLES (programmes/CONTRATS_DES_FICHIERS.py)
-ou cette liste (R-731).
+Quand l'appeler : avant toute livraison qui touche un fichier de la liste DÉRIVÉE par programmes/COPIER_POUR_LES_BOUCLES.py,
+ce programme, ou ses racines RACINES_DE_LA_COPIE_DES_BOUCLES (programmes/CONTRATS_DES_FICHIERS.py) (R-731).
 
 À QUOI ÇA SERT. Les boucles Cowork de 07h05, 08h35 et 21h05 copient quelques fichiers du dépôt dans le dossier du projet,
 puis les importent : l'étape 3 recalcule les signaux (la seule redondance de calcul de l'écosystème), l'étape 5bis tient le
 second jeu de positions. Le 01-10-2026, la fusion a donné à TENIR_LES_POSITIONS.py deux imports (CONTRATS_DES_FICHIERS,
 COMMUN) que leur ligne `cp` ne copiait pas : les deux étapes tombaient à l'import, et rien au dépôt ne le voyait (relecture
-de Cowork aff6d33). La liste des fichiers copiés est désormais écrite une fois, dans COPIE_DES_BOUCLES ; ces épreuves la
-confrontent au code et la font tourner seule.
+de Cowork aff6d33). La liste des fichiers copiés a d'abord été écrite une fois, à la main, dans COPIE_DES_BOUCLES ; elle se
+rouvrait à chaque programme gagnant un import (superviseur R-759 du 15-11-2026 : « RUSTINE » ; le fond, « une liste dérivée
+des imports »). Depuis le 16-11-2026 (CERT-3 tour 2), programmes/COPIER_POUR_LES_BOUCLES.py la DÉRIVE des racines
+RACINES_DE_LA_COPIE_DES_BOUCLES (programmes/CONTRATS_DES_FICHIERS.py) en suivant les imports réels ; ces épreuves confrontent
+la liste dérivée à une seconde lecture du code, indépendante, et la font tourner seule.
 
 LES ÉPREUVES :
-E1 PROPRIÉTÉ : tout programme du dépôt qu'un programme de la liste importe (à tous les niveaux du code) ou dont il écrit le
-   nom de fichier dans une chaîne de son code (« JUGE_DES_STRATEGIES.py » dans os.path.join, un tuple parcouru par une
-   boucle…) est dans la liste — la liste est fermée ; le relevé se calibre sur le module C5 (qui doit dépendre du module
-   de positions) et sur le texte libre de COMMUN.py (qui ne doit rien ajouter) ;
+E1 PROPRIÉTÉ : tout fichier Python du dépôt — sous programmes/ ou à la racine — qu'un programme de la liste dérivée importe
+   (à tous les niveaux du code) ou dont il écrit le nom de fichier dans une chaîne de son code (« JUGE_DES_STRATEGIES.py »
+   dans os.path.join, un tuple parcouru par une boucle…) est dans la liste — la liste est fermée. Le relevé est une SECONDE
+   lecture, écrite ici et non empruntée au programme de copie, exprès : une épreuve qui emprunterait l'œil de ce qu'elle
+   juge serait aveugle avec lui. Il se calibre sur le module C5 (qui doit dépendre du module de positions), sur le lecteur
+   du code (qui doit dépendre de emp.py, à la racine : relecteur du 16-11-2026, D2) et sur le texte libre de COMMUN.py (qui
+   ne doit rien ajouter) ;
 E2 dans un dossier vide qui tient lieu de projet, la liste copiée par programmes/COPIER_POUR_LES_BOUCLES.py — le programme
    que les boucles appellent — et rien d'autre : le calibrage sur le dépôt
    (`--calibrage`) rend 0 et dit « CALIBRAGE OK », et AUCUN fichier du dépôt ne change (empreinte de chaque fichier hors
@@ -33,21 +39,35 @@ E4 dans ce dossier, `tenir`, avec les modules COPIÉS, refait les DEUX vrais tra
    01-10-2026) ; la sortie sur objectif a été ajoutée au troisième tour, parce qu'une dépendance cachée dans cette seule
    branche passait.
 Les sous-processus tournent avec `python3 -E` : un PYTHONPATH hérité ne doit pas cacher un fichier manquant.
-LES SABOTAGES, avec les épreuves qui DOIVENT rougir (chacune est exigée) : S1 COMMUN.py retiré de la liste (E1, E2) · S2 un
-import d'un programme hors liste en tête du module de positions (E1, E2) · S3 la liste perd le module du signal, que la boucle charge elle-même (E3, E4 ; le calibrage ne le voit pas : il
+LES SABOTAGES, avec les épreuves qui DOIVENT rougir (chacune est exigée) : S1 COMMUN.py retiré de la liste (E1, E2, E6) · S2 un
+import en tête du module de positions, que la dérivation ne lit plus (E1, E2, E6) · S3 la liste dérivée perd le module du signal, que la boucle charge elle-même (E1, E3, E4 ; le calibrage ne le voit pas : il
 charge les modules du dépôt, et non les copies — relecteur du 01-10-2026) ·
-S4 un import hors liste écrit dans une fonction, que l'import du module n'exécute pas (E1) · S5 un chargement par nom de
-fichier hors liste, appelé par la fonction de séance du module de positions (E1, E4) · S6 le calibrage écrit un fichier
-dans le dépôt (E2) · S7 le module ne rend plus aucun signal (E3) · S8 un nom de fichier hors liste dans un tuple parcouru par
-une boucle, dans la fonction de séance (E1 ; relecteur, second tour) · S9 un nom de fichier COMPOSÉ à l'exécution, chargé
+S4 un import écrit dans une fonction, que l'import du module n'exécute pas, et que la dérivation ne lit plus (E1) · S5 un
+chargement par nom de fichier, appelé par la fonction de séance du module de positions, que la dérivation ne lit plus (E1,
+E4) · S6 le calibrage écrit un fichier
+dans le dépôt (E2) · S7 le module ne rend plus aucun signal (E3) · S8 un nom de fichier dans un tuple parcouru par
+une boucle, dans la fonction de séance, que la dérivation ne lit plus (E1 ; relecteur, second tour) · S9 un nom de fichier COMPOSÉ à l'exécution, chargé
 dans la seule branche de la sortie sur objectif (E4 ; E1 ne le voit pas, par construction — relecteur, troisième tour) ·
 S10 le programme de copie ne vérifie plus que chaque fichier existe (E5) · S11 il annonce la copie sans copier (E2, E3, E4).
 S12 il vérifie chaque fichier en le copiant, et non avant (E5 ; relecteur, quatrième tour).
 E5 un clone auquel manque le seul DERNIER fichier de la liste : le programme de copie ne copie RIEN et rend un code non nul.
+E6 (16-11-2026, CERT-3 tour 2) : la liste copiée à plat dans un dossier jetable par le programme de copie, CHAQUE programme
+   copié s'y importe, un processus neuf par programme. C'est le chemin réel de la boucle, et la seule épreuve qui voit ce
+   que la lecture du code ne voit pas (un nom composé, un fichier hors des deux dossiers) — à l'import seulement : un
+   import différé dans une fonction n'est pris que si E2 à E4 traversent la fonction.
+LES TÉMOINS QUI DOIVENT RESTER VERTS (16-11-2026) : jusqu'au 15-11-2026, S2, S4, S5 et S8 ajoutaient une dépendance au module
+de positions et devaient faire rougir, parce que la liste écrite à la main ne la suivait pas. La liste étant dérivée, elle la
+suit : ces quatre ajouts sont devenus des témoins (T2, T4, T5, T8), où TOUTES les épreuves doivent rester vertes. Chacun est
+apparié à un sabotage de la dérivation qui rend la même dépendance invisible, et qui doit, lui, faire rougir : S2 la
+dérivation ne lit plus les `import X` · S4 elle ne lit plus que le niveau du module, pas les fonctions · S5 elle ne lit plus
+les chaînes · S8 elle ne lit plus les chaînes d'un tuple. S13 la dérivation ne cherche plus à la racine du dépôt (E1, E6 :
+emp.py manque, D2) · S14 LA LISTE REMISE À LA MAIN : COPIE_DES_BOUCLES, telle qu'elle était sur main avant CERT-3, et le
+programme de copie la lit au lieu de dériver (E1, E6 : la réparation de l'historique long ne s'importe plus sans sa
+reconstruction). S1 retire COMMUN.py de la liste dérivée (E1, E2, E6).
 
 USAGE : python3 tests/EPREUVES_DE_LA_COPIE_DES_BOUCLES_Jeu_01-10-2026.py <racine du dépôt> [--saboter]
-CODE : 0 si Z0 est vert et, avec --saboter, si chaque sabotage fait rougir CHAQUE épreuve qu'il vise ; 1 sinon ; 2 si un
-sabotage ne s'applique plus.
+CODE : 0 si Z0 est vert et, avec --saboter, si chaque témoin reste vert et chaque sabotage fait rougir CHAQUE épreuve qu'il
+vise ; 1 sinon ; 2 si un sabotage ne s'applique plus.
 """
 import ast, hashlib, json, os, re, shutil, subprocess, sys, tempfile
 
@@ -58,23 +78,50 @@ MODP = "programmes/MODULE_POSITIONS.py"
 TEN = "programmes/TENIR_LES_POSITIONS.py"
 C5 = "programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py"
 COP = "programmes/COPIER_POUR_LES_BOUCLES.py"
+# LA LISTE À LA MAIN, telle qu'elle était sur main avant CERT-3 (origin/main, 16-11-2026) : le sabotage S14 la remet.
+_A_LA_MAIN = ("COPIE_DES_BOUCLES = (\n" + "".join(f'    "programmes/{p}.py",\n' for p in (
+    "TENIR_LES_POSITIONS", "MODULE_POSITIONS", "JUGE_DES_STRATEGIES", "LIRE_LES_COURS", "MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32",
+    "CONTRATS_DES_FICHIERS", "COMMUN", "MODULE_JUGEMENT", "REPARER_L_HISTORIQUE_LONG", "CONTROLER_L_HISTORIQUE_LONG",
+    "CALENDRIER_DE_LA_BOURSE")) + '    REGISTRE_DES_STRATEGIES,\n    "donnees/BAREME_FRAIS.csv",\n    "donnees/VALEURS_TTF.csv",\n)\n')
+_DERIVE = "    return deriver(depot, list(m.RACINES_DE_LA_COPIE_DES_BOUCLES))\n"
+_IMPORTS = "        if isinstance(n, ast.Import):\n"
+_CHAINES = "        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in seules:\n"
+_T2 = (MODP, "\nCAPITAL = 100_000.0\n", "\nimport FAUT_IL_RATTRAPER\nCAPITAL = 100_000.0\n")
+_T4 = (MODP, "    import sys\n", "    import sys\n    import FAUT_IL_RATTRAPER\n")
+_T8 = (MODP, "    # LES DEUX SAUTS D'OUVERTURE D'ABORD",
+       "    for _n in ('FAUT_IL_RATTRAPER.py',):\n        pass\n    # LES DEUX SAUTS D'OUVERTURE D'ABORD")
 _AIDE = ("def _aide():\n    import importlib.util, os\n"
          "    sp = importlib.util.spec_from_file_location('a', os.path.join(os.path.dirname("
          "os.path.abspath(__file__)), 'FAUT_IL_RATTRAPER.py'))\n"
          "    m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m)\n\n\n")
+_T5 = [(MODP, "\ndef tester_seance(", "\n" + _AIDE + "def tester_seance("),
+       (MODP, "    # LES DEUX SAUTS D'OUVERTURE D'ABORD", "    _aide()\n    # LES DEUX SAUTS D'OUVERTURE D'ABORD")]
+# LES TÉMOINS : une dépendance nouvelle, sous quatre formes ; la liste dérivée la suit, et TOUT doit rester vert.
+TEMOINS = {"T2_import_en_tete_suivi": [_T2], "T4_import_dans_une_fonction_suivi": [_T4],
+           "T5_chargement_par_nom_suivi": _T5, "T8_nom_dans_un_tuple_suivi": [_T8]}
 SABOTAGES = {
     "Z0": ([], set()),
-    "S1_commun_oublie": ([(CTR, '    "programmes/COMMUN.py",\n', "")], {"E1", "E2"}),
-    "S2_import_hors_liste": ([(MODP, "\nCAPITAL = 100_000.0\n", "\nimport FAUT_IL_RATTRAPER\nCAPITAL = 100_000.0\n")],
-                             {"E1", "E2"}),
-    "S3_module_du_signal_oublie": ([(CTR, '    "programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py",\n', "")],
-                                   {"E3", "E4"}),
-    "S4_import_dans_une_fonction": ([(MODP, "    import sys\n", "    import sys\n    import FAUT_IL_RATTRAPER\n")], {"E1"}),
-    "S5_chargement_par_nom": ([(MODP, "\ndef tester_seance(", "\n" + _AIDE + "def tester_seance("),
-                               (MODP, "    # LES DEUX SAUTS D'OUVERTURE D'ABORD", "    _aide()\n    # LES DEUX SAUTS D'OUVERTURE D'ABORD")], {"E1", "E4"}),
-    "S8_nom_dans_un_tuple": ([(MODP, "    # LES DEUX SAUTS D'OUVERTURE D'ABORD",
-                                "    for _n in ('FAUT_IL_RATTRAPER.py',):\n        pass\n    # LES DEUX SAUTS D'OUVERTURE D'ABORD")],
-                             {"E1"}),
+    "S1_commun_oublie": ([(COP, _DERIVE, "    return [f for f in deriver(depot, list(m.RACINES_DE_LA_COPIE_DES_BOUCLES))"
+                                         " if not f.endswith('/COMMUN.py')]\n")], {"E1", "E2", "E6"}),
+    "S2_import_en_tete_non_lu": ([_T2, (COP, _IMPORTS, "        if isinstance(n, ast.Import) and False:\n")],
+                                 {"E1", "E2", "E6"}),
+    # S3 RETIRE LE MODULE DU SIGNAL DE LA LISTE DÉRIVÉE, et non de ses racines : le juge et le module des contrats écrivent son
+    # nom dans leur code, la dérivation le retrouverait (mesuré le 16-11-2026, CERT-3 tour 2 : retiré des racines, S3 ne
+    # mordait plus).
+    "S3_module_du_signal_oublie": ([(COP, _DERIVE, "    return [f for f in deriver(depot, list(m.RACINES_DE_LA_COPIE_DES_BOUCLES))"
+                                                   " if 'MODULE_C5_ETENDU_10' not in f]\n")], {"E1", "E3", "E4"}),
+    "S4_import_dans_une_fonction_non_lu": ([_T4, (COP, "    for n in ast.walk(arbre):\n        if isinstance(n, ast.Import)",
+                                                  "    for n in arbre.body:\n        if isinstance(n, ast.Import)")], {"E1"}),
+    "S5_chargement_par_nom_non_lu": (_T5 + [(COP, _CHAINES, _CHAINES.replace("elif ", "elif False and "))], {"E1", "E4"}),
+    "S8_nom_dans_un_tuple_non_lu": ([_T8, (COP, "    noms = set()\n    for n in ast.walk(arbre):\n",
+                                           "    noms = set()\n    _tuples = {id(e) for x in ast.walk(arbre) if isinstance(x, ast.Tuple)"
+                                           " for e in x.elts}\n    for n in ast.walk(arbre):\n"),
+                                     (COP, _CHAINES, _CHAINES.replace(" not in seules:", " not in seules and id(n) not in _tuples:"))],
+                                    {"E1"}),
+    "S13_derivation_sans_la_racine": ([(COP, "    dossiers = (os.path.dirname(source), depot)\n",
+                                        "    dossiers = (os.path.dirname(source),)\n")], {"E1", "E6"}),
+    "S14_liste_remise_a_la_main": ([(CTR, "RACINES_DE_LA_COPIE_DES_BOUCLES = (\n", _A_LA_MAIN + "RACINES_DE_LA_COPIE_DES_BOUCLES = (\n"),
+                                    (COP, _DERIVE, "    return list(m.COPIE_DES_BOUCLES)\n")], {"E1", "E6"}),
     "S9_nom_compose_sur_objectif": ([(MODP, "\ndef tester_seance(", "\n" + _AIDE.replace("'FAUT_IL_RATTRAPER.py'", "_x + '_IL_RATTRAPER.py'").replace("def _aide():\n", "def _aide():\n    _x = 'FAUT'\n") + "def tester_seance("),
                                       (MODP, '    if bar["open"] >= tp:\n        return bar["open"], "TP_GAP"', '    if bar["open"] >= tp:\n        _aide()\n        return bar["open"], "TP_GAP"')],
                                      {"E4"}),
@@ -100,28 +147,32 @@ TRADES_CONNUS = [("BUREAU_VERITAS", "2026-07-27", 27.28, "2026-07-29", "TP_GAP",
 
 
 def liste(depot):
-    """Lit COPIE_DES_BOUCLES dans le module des contrats du dépôt donné et la rend.
+    """Rend la liste que dérive le programme de copie du dépôt donné.
 
-    ① RÔLE — Prendre la liste là où elle est écrite, jamais la recopier (R-708 : deux implémentations d'une même chose
+    ① RÔLE — Prendre la liste là où elle est produite (le programme de copie la dérive), jamais la dériver une seconde fois
+      ici ni la recopier (R-708 : deux implémentations d'une même chose
       divergent toujours).
     ② CONTEXTE D'APPEL — `epreuves`, une fois.
     ③ ENTRÉE — `depot` : la racine du dépôt éprouvé.
-    ④ CONDITIONS D'ENTRÉE — Le dépôt porte programmes/CONTRATS_DES_FICHIERS.py avec COPIE_DES_BOUCLES.
+    ④ CONDITIONS D'ENTRÉE — Le dépôt porte programmes/COPIER_POUR_LES_BOUCLES.py (et sa `lire_la_liste`) et
+      programmes/CONTRATS_DES_FICHIERS.py avec RACINES_DE_LA_COPIE_DES_BOUCLES.
     ⑤ SORTIE — UNE valeur : la liste des chemins sous la racine.
       [rend: 1]
-    ⑥ TRAITEMENT — importer le module sous un nom propre, lire la constante.
+    ⑥ TRAITEMENT — charger programmes/COPIER_POUR_LES_BOUCLES.py de la copie sous un nom propre, appeler sa
+      `lire_la_liste` (depuis le 16-11-2026 : la liste n'est plus écrite, elle est dérivée des racines du contrat).
     ⑦ UNITÉ — Des chemins relatifs à la racine du dépôt.
-    ⑧ POURQUOI — Les sabotages changent la liste dans une copie : il faut lire celle de la copie.
+    ⑧ POURQUOI — Les sabotages changent la dérivation ou le code dans une copie : il faut la liste de la copie, et celle
+      que le programme de copie copie vraiment, non une seconde dérivation écrite ici.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Importe un module.
     ⑪ TERMINAISON — Rend la main, ou lève si l'import échoue.
       [sort: non]
     """
     import importlib.util
-    sp = importlib.util.spec_from_file_location("ctr_%d" % id(depot), os.path.join(depot, CTR))
+    sp = importlib.util.spec_from_file_location("cop_%d" % id(depot), os.path.join(depot, COP))
     m = importlib.util.module_from_spec(sp)
     sp.loader.exec_module(m)
-    return list(m.COPIE_DES_BOUCLES)
+    return list(m.lire_la_liste(depot))
 
 
 def dependances(depot, chemin):
@@ -131,7 +182,8 @@ def dependances(depot, chemin):
     ② CONTEXTE D'APPEL — `epreuves`, une fois par programme de la liste.
     ③ ENTRÉE — `depot` : la racine · `chemin` : le programme, sous la racine.
     ④ CONDITIONS D'ENTRÉE — Le fichier existe et se lit en Python.
-    ⑤ SORTIE — UNE valeur : l'ensemble des chemins « programmes/X.py » que le fichier importe (`import X`, `from X
+    ⑤ SORTIE — UNE valeur : l'ensemble des chemins « programmes/X.py », ou « X.py » à la racine du dépôt quand
+      programmes/ n'en porte pas (depuis le 16-11-2026 : emp.py, relecteur D2), que le fichier importe (`import X`, `from X
       import …`, à tous les niveaux) ou dont il écrit le nom de fichier « X.py » dans une chaîne de son code — un
       argument d'appel, une constante, un tuple parcouru par une boucle.
       [rend: 1]
@@ -165,7 +217,10 @@ def dependances(depot, chemin):
         # de positions).
         if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in seules:
             vus |= set(re.findall(r"[A-Za-z0-9_\-]+\.py\b", n.value))
-    return {"programmes/" + f for f in vus if f in existants and "programmes/" + f != chemin}
+    # LA RACINE AUSSI (16-11-2026, D2) : programmes/LIRE_LE_CODE.py ajoute la racine à son chemin d'import pour emp.py.
+    a_la_racine = {f for f in os.listdir(depot) if f.endswith(".py") and os.path.isfile(os.path.join(depot, f))}
+    trouves = {"programmes/" + f if f in existants else f for f in vus if f in existants or f in a_la_racine}
+    return trouves - {chemin}
 
 
 def empreinte(racine):
@@ -214,8 +269,15 @@ SCRIPT = (
     "                            t['motif_sortie'], float(t['pnl_net_eur'])] for t in r['trades']]))\n")
 
 
+# L'IMPORT D'UN PROGRAMME COPIÉ, dans le dossier à plat, sous son nom de module : le chemin d'import est celui d'une boucle
+# qui lance un programme de ce dossier (le dossier en tête), et un nom qui n'est pas un identifiant (le module C5) se charge
+# par son chemin, comme la boucle le fait.
+IMPORTER = ("import sys, importlib.util as u\nsys.path.insert(0, '.')\nf = sys.argv[1]\nn = f[:-3]\n"
+            "s = u.spec_from_file_location(n, f)\nm = u.module_from_spec(s)\nsys.modules[n] = m\ns.loader.exec_module(m)\n")
+
+
 def epreuves(depot, tmp):
-    """Joue E1 à E4 sur la copie `depot` et rend la liste (code de l'épreuve, nom, verdict).
+    """Joue E1 à E6 sur la copie `depot` et rend la liste (code de l'épreuve, nom, verdict).
 
     ① RÔLE — Les épreuves décrites en tête.
     ② CONTEXTE D'APPEL — `main`, une fois par sabotage.
@@ -224,14 +286,15 @@ def epreuves(depot, tmp):
     ⑤ SORTIE — UNE valeur : la liste des triplets (« E1 »…, nom, vrai si verte).
       [rend: 1]
     ⑥ TRAITEMENT — ① la propriété sur le code · ② copier la liste dans un dossier vide · ③ calibrer sur la copie du dépôt
-      en mesurant ses fichiers avant et après · ④ y recalculer les signaux connus et y refaire le trade connu.
+      en mesurant ses fichiers avant et après · ④ y recalculer les signaux connus et y refaire le trade connu · ⑤ un clone
+      incomplet (E5) · ⑥ copier à nouveau, dans un dossier neuf, et importer chaque programme copié (E6).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — E1 voit une dépendance nouvelle sans rien lancer ; E2 à E4 empruntent le chemin réel de la boucle, avec les
       fichiers copiés.
     ⑨ CE QUI CLOCHE — Les épreuves ne lisent pas le texte des tâches : que la boucle copie exactement la liste, c'est Cowork
       qui le confronte. E3 lit les cours comme la boucle (historique figé et fichier de la collecte) : si ce dernier perdait
       ses séances de juillet et d'août, E3 rougirait à tort.
-    ⑩ EFFET — Écrit dans `tmp` ; lance deux processus.
+    ⑩ EFFET — Écrit dans `tmp` ; lance des processus : copie, calibrage, rejeu, clone incomplet, un import par programme.
     ⑪ TERMINAISON — Rend la main ; chaque processus est borné à 300 secondes, et un dépassement ou une sortie illisible
       lève, ce qui arrête les épreuves en erreur (code non nul).
       [sort: non]
@@ -244,6 +307,7 @@ def epreuves(depot, tmp):
     # module de positions par son nom, écrit dans un tuple — et sur un cas qui ne doit pas sortir — le texte libre de
     # COMMUN.py, posé seul, cite audit_ecosysteme.py.
     calibre = ("programmes/MODULE_POSITIONS.py" in dependances(depot, C5)
+               and "emp.py" in dependances(depot, "programmes/LIRE_LE_CODE.py")
                and "programmes/audit_ecosysteme.py" not in dependances(depot, "programmes/COMMUN.py"))
     res.append(("E1", "la liste est fermée : aucune dépendance hors liste" + (" — " + " · ".join(hors) if hors else "")
                 + ("" if calibre else " — LE RELEVÉ DES DÉPENDANCES N'EST PAS CALIBRÉ"), not hors and calibre))
@@ -284,6 +348,25 @@ def epreuves(depot, tmp):
                           capture_output=True, text=True, errors="replace", timeout=300)
     res.append(("E5", "un clone auquel manque le dernier fichier de la liste : rien n'est copié et le code est non nul",
                 rate.returncode != 0 and not os.listdir(vide) and "COPIE DES BOUCLES IMPOSSIBLE" in rate.stdout))
+    # E6 — CHAQUE PROGRAMME COPIÉ S'IMPORTE, UNE FOIS COPIÉ À PLAT DANS UN DOSSIER JETABLE NEUF (16-11-2026, CERT-3 tour 2) :
+    # un processus neuf par programme, pour qu'un module déjà chargé par un autre ne cache rien. Le relecteur du 16-11-2026
+    # a mesuré ainsi que programmes/LIRE_LE_CODE.py, copié sans emp.py, tombait (D2), ce qu'E1 ne voyait pas.
+    plat = os.path.join(tmp, "projet_a_plat")
+    os.makedirs(plat)
+    cop2 = subprocess.run([sys.executable, "-E", "-B", os.path.join(depot, COP), depot, plat],
+                          capture_output=True, text=True, errors="replace", timeout=300)
+    programmes = sorted(f for f in os.listdir(plat) if f.endswith(".py"))
+    tombes = []
+    for f in programmes:
+        r = subprocess.run([sys.executable, "-E", "-B", "-c", IMPORTER, f], cwd=plat,
+                           capture_output=True, text=True, errors="replace", timeout=300)
+        if r.returncode != 0:
+            tombes.append(f + " : " + ((r.stderr.strip().splitlines() or ["code " + str(r.returncode)])[-1]))
+    res.append(("E6", "chaque programme copié s'importe, une fois copié à plat dans un dossier jetable"
+                + (" — copie : code " + str(cop2.returncode) if cop2.returncode else "")
+                + (" — aucun programme copié" if not programmes else "")
+                + (" — " + " · ".join(tombes) if tombes else ""),
+                cop2.returncode == 0 and bool(programmes) and not tombes))
     return res
 
 
@@ -296,7 +379,8 @@ def main():
     ④ CONDITIONS D'ENTRÉE — La racine donnée est une copie complète du dépôt.
     ⑤ SORTIE — UNE valeur : le code de sortie.
       [rend: 1]
-    ⑥ TRAITEMENT — pour chaque cas : copier le dépôt, saboter, jouer, et exiger que chaque épreuve visée rougisse.
+    ⑥ TRAITEMENT — pour chaque cas : copier le dépôt, saboter, jouer, et exiger que chaque épreuve visée rougisse — ou,
+      pour Z0 et les témoins, qu'aucune ne rougisse.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Une épreuve qui reste verte quand on retire ce qu'elle teste est une décoration (R-731) ; exiger chaque
       épreuve visée, et non « au moins une », donne ses dents à chacune (relecteur du 01-10-2026).
@@ -305,10 +389,12 @@ def main():
     ⑪ TERMINAISON — Rend la main par son code.
       [sort: non]
     """
-    choix = list(SABOTAGES) if "--saboter" in sys.argv else ["Z0"]
+    cas = dict(SABOTAGES)
+    cas.update({nom: (modifs, set()) for nom, modifs in TEMOINS.items()})
+    choix = list(cas) if "--saboter" in sys.argv else ["Z0"]
     bon = True
     for sab in choix:
-        modifs, visees = SABOTAGES[sab]
+        modifs, visees = cas[sab]
         tmp = tempfile.mkdtemp(prefix="copie_boucles_")
         try:
             depot = os.path.join(tmp, "depot")
@@ -327,9 +413,12 @@ def main():
         for c, x in rouges:
             print(f"     ROUGE {c} {x}")
         manquent = sorted(visees - {c for c, _ in rouges})
-        if sab == "Z0" and rouges:
+        # Z0 ET LES TÉMOINS doivent rester entièrement verts : un témoin rouge dit que la dérivation n'a pas suivi.
+        if (sab == "Z0" or sab in TEMOINS) and rouges:
+            if sab in TEMOINS:
+                print(f"     ⚠ LE TÉMOIN {sab} ROUGIT : la liste dérivée n'a pas suivi la dépendance nouvelle")
             bon = False
-        if sab != "Z0" and (not rouges or manquent):
+        if sab != "Z0" and sab not in TEMOINS and (not rouges or manquent):
             print(f"     ⚠ LE SABOTAGE {sab} NE FAIT PAS ROUGIR " + (", ".join(manquent) if manquent else "aucune épreuve"))
             bon = False
     print("VERDICT :", "tout est conforme" if bon else "NON CONFORME")

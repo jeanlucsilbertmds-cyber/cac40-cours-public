@@ -317,7 +317,9 @@ def releve_de(c, epreuve, entete):
     ⑩ EFFET — Lit des fichiers.
     ⑪ TERMINAISON — Rend la main. [sort: non]
     """
-    return next((p for p in glob.glob(os.path.join(c, RESULTATS, "*"))
+    # filter(os.path.isfile, …) : tests/resultats/ porte aussi des DOSSIERS (epreuves_longues/, 15-11-2026) ; les ouvrir levait
+    # IsADirectoryError (certification du 16-11-2026, cas C10).
+    return next((p for p in filter(os.path.isfile, glob.glob(os.path.join(c, RESULTATS, "*")))
                  if open(p, encoding="utf-8", errors="replace").read().split("\n")[:2] == [entete, LIGNE_EPREUVE + epreuve]),
                 None)
 
