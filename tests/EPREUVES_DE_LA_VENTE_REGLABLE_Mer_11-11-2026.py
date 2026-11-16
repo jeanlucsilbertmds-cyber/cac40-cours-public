@@ -82,6 +82,9 @@ import json, os, shutil, subprocess, sys, tempfile
 
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
 DEPOT = os.path.abspath(_args[0] if _args else ".")
+sys.path.insert(0, os.path.join(DEPOT, "programmes"))
+import CONTRATS_DES_FICHIERS as K  # le chemin du registre se lit au contrat (R-708 ; G1 de l'épreuve du registre des stratégies, enquête du 15-11-2026, C3)
+sys.path.pop(0)
 MODP, BAN, COM = "programmes/MODULE_POSITIONS.py", "programmes/JUGE_DES_STRATEGIES.py", "programmes/COMMUN.py"
 PREP = "programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py"
 DECL, JOUE = "programmes/DECLINER_LES_STRATEGIES.py", "programmes/JOUER_LES_VERSIONS.py"
@@ -152,7 +155,7 @@ def essai(nom, f):
 def b(d, o, h, l, c):
     return {"date": "2026-01-%02d" % d, "open": o, "high": h, "low": l, "close": c, "volume": 1000}
 cours = B.charger_cours(glob.glob("temoins/TEMOIN_cac40_ohlcv_JEU_DU_GOLDEN*.csv")[0])
-from CONTRATS_DES_FICHIERS import fiches_du_registre, chemin_du_registre
+from CONTRATS_DES_FICHIERS import fiches_du_registre, chemin_du_registre, REGISTRE_DES_STRATEGIES
 FICHES = fiches_du_registre(chemin_du_registre("."))
 
 def w0():
@@ -340,9 +343,9 @@ def w15():
     mutantes = [dict(qa, id="MUT-SANS-STOP", nom="MUT1", sl="sans stop"), dict(qa, id="MUT-AUCUNE", nom="MUT2", horizon="aucune"),
                 dict(qa, id="MUT-LES-DEUX", nom="MUT3", sl="Sans Stop", horizon="aucune"),
                 dict(qa, id="MUT-SL-ILLISIBLE", nom="MUT4", sl="abc"), dict(qa, id="MUT-TP-SANS-STOP", nom="MUT5", tp="sans stop")]
-    w = csv.DictWriter(open(os.path.join(d, "donnees", "cac40_strategies.csv"), "w", encoding="utf-8", newline=""), fieldnames=champs)
+    w = csv.DictWriter(open(os.path.join(d, REGISTRE_DES_STRATEGIES), "w", encoding="utf-8", newline=""), fieldnames=champs)
     w.writeheader(); w.writerows(lignes + mutantes)
-    fiches = fiches_du_registre(os.path.join(d, "donnees", "cac40_strategies.csv"))
+    fiches = fiches_du_registre(os.path.join(d, REGISTRE_DES_STRATEGIES))
     r = T.reglages_du_registre(d)
     mn = B.table_mnemoniques(B.trouver(".", "REFERENTIEL_VALEURS"))
     ecarts, vus = [], {}
@@ -470,7 +473,7 @@ def bout_en_bout(d):
     t = tempfile.mkdtemp(prefix="vente_reglable_w13_")
     try:
         univers = None
-        for l in csv.DictReader(open(os.path.join(d, "donnees", "cac40_strategies.csv"), encoding="utf-8-sig")):
+        for l in csv.DictReader(open(os.path.join(d, K.REGISTRE_DES_STRATEGIES), encoding="utf-8-sig")):
             if l.get("id") == "C5E10-OBS-V1":
                 univers = l["univers"]   # la DERNIÈRE ligne fait foi (n°83)
         f_c = os.path.join(t, "COMBINATOIRE_C5E10-OBS-V1_E97.csv")
@@ -528,7 +531,7 @@ def juge_a_8(d):
       [sort: non]
     """
     import csv
-    f_reg = os.path.join(d, "donnees", "cac40_strategies.csv")
+    f_reg = os.path.join(d, K.REGISTRE_DES_STRATEGIES)
     lignes = list(csv.DictReader(open(f_reg, encoding="utf-8-sig")))
     champs = list(lignes[0].keys())
     os.remove(f_reg)   # LE LIEN EST RETIRÉ AVANT L'ÉCRITURE : le registre du dépôt n'est jamais touché

@@ -329,6 +329,9 @@ SABOTAGES = {
     'S122_series_sans_garde_des_parts': [(FAB, '      - name: Toutes les parts sont-elles vertes ?\n        id: parts_vertes\n        shell: bash\n        env:\n          JOUER: ${{ needs.jouer.result }}\n        run: |\n          [ "$JOUER" = "success" ] || { echo "::error::une part au moins n\'est pas verte ($JOUER) : rien n\'est rassemble, aucun releve"; exit 1; }\n', '')],
     'S123_series_identite_de_la_certification': [(FAB, 'SERIES_IDENTITE = "series-longues-publiques"', 'SERIES_IDENTITE = "certification-publique"')],
     'S124_series_archive_jointe': [(FAB, '          exit "$code"\n%(deposer_final)s"""', '          exit "$code"\n      - uses: actions/upload-artifact@v4\n        with:\n          path: rapports/series_longues\n%(deposer_final)s"""')],
+    # Fusion du 15-11-2026 (CERT-5, remise de travail-cert2 sur main) : l'ancre de travail-cert2 (« group: series-longues »,
+    # B2 de la relecture Cowork de travail-cert) ne vit plus au fabricant de main (groupe écrit « %(groupe)s ») ; l'ancre
+    # de main sert la même intention (texte unique au gabarit des séries, mesurée 1 fois au fabricant fusionné).
     # Ancres de S125, S129, S130 et S138 reprises le 15-11-2026 (GHUB ②, D1 du RELU de Cowork) : le gabarit des
     # épreuves longues recopie ces textes du gabarit des séries ; chaque ancre porte désormais un texte qui n'est que
     # dans le gabarit des SÉRIES (la sortie « series » du job preparer, la ligne « series=$series », la clé

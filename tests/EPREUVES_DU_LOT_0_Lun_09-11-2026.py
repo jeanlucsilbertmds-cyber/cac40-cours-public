@@ -123,7 +123,7 @@ def epreuves(dossier_programmes):
     jouer("E4", e4)
 
     def e5():
-        with open(os.path.join(RACINE, "donnees", "cac40_strategies.csv"), encoding="utf-8") as fh:
+        with open(os.path.join(RACINE, K.REGISTRE_DES_STRATEGIES), encoding="utf-8") as fh:  # le chemin du registre se lit au contrat (R-708 ; G1 de l'épreuve du registre des stratégies, enquête du 15-11-2026, C3)
             lignes = list(csv.DictReader(fh))
         par_id = {l["id"]: l for l in lignes}
         cas = [(C.lire_horizon(par_id["C1-002"]["horizon"]), C.lire_horizon_ou_aucune(par_id["C1-002"]["horizon"])),
@@ -135,7 +135,7 @@ def epreuves(dossier_programmes):
     jouer("E5", e5)
 
     def e6():
-        with open(os.path.join(RACINE, "donnees", "cac40_strategies.csv"), encoding="utf-8") as fh:
+        with open(os.path.join(RACINE, K.REGISTRE_DES_STRATEGIES), encoding="utf-8") as fh:  # le chemin du registre se lit au contrat (R-708 ; G1 de l'épreuve du registre des stratégies, enquête du 15-11-2026, C3)
             entete = next(csv.reader(fh))
         manques = []
         for col, lecteur in K.LECTEURS_DE_LA_FICHE_POUR_LE_SOIR.items():

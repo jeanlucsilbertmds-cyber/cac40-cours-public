@@ -180,7 +180,7 @@ def operations(racine):
       recopiait l'enchaînement du `main` de RECONSTRUIRE ; le superviseur R-759 de E2b (tour 1) a demandé une fonction
       partagée : elle existe depuis le tour 2, et les deux tables écrites par RECONSTRUIRE sont restées identiques à
       l'octet (mesuré sur deux clones, avant et après).
-    ⑨ CE QUI CLOCHE — etudes/VINGT_ANS_A_PART_Mer_11-11-2026/INVENTORIER_LES_VINGT_ANS.py garde sa propre copie de
+    ⑨ CE QUI CLOCHE — etudes/outils/INVENTORIER_LES_VINGT_ANS.py garde sa propre copie de
       l'enchaînement, sans les divisions officielles (→ BACKLOG). Aucune épreuve ne confronte les facteurs à
       RECONSTRUCTION_PAR_OPERATION.csv : la justesse du ramené au brut est gardée par la propriété de continuité
       (`variations_hors_seuil`, épreuve P8).

@@ -57,7 +57,32 @@ JUGE = "programmes/JUGE_DES_STRATEGIES.py"   # le critère de la garde y vit (`f
 MSG = "programmes/MESSAGE_DU_SOIR.py"
 CTR = "programmes/CONTRATS_DES_FICHIERS.py"
 YML = ".github/workflows/collecte_abc.yml"
-REG = "donnees/cac40_strategies.csv"
+
+
+def registre_au_contrat(racine):
+    """Rend le chemin du registre des stratégies, lu au contrat de la racine.
+
+    ① RÔLE — Ne jamais écrire ici le chemin du registre : il vit au contrat, une fois.
+    ② CONTEXTE D'APPEL — Au chargement de ce fichier, une fois, pour REG.
+    ③ ENTRÉE — `racine` : la racine du dépôt éprouvé (RACINE).
+    ④ CONDITIONS D'ENTRÉE — `programmes/CONTRATS_DES_FICHIERS.py` existe sous la racine.
+    ⑤ SORTIE — UNE valeur : `REGISTRE_DES_STRATEGIES` du contrat, un chemin relatif à la racine. [rend: 1]
+    ⑥ TRAITEMENT — charger le contrat par son chemin, sous un nom à part, et lire sa constante.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Deux écritures d'une même chose divergent toujours (R-708) : G1 de l'épreuve du registre des
+      stratégies rougissait sur la constante écrite ici (enquête du 15-11-2026, C3).
+    ⑨ CE QUI CLOCHE — Un contrat absent fait tomber le chargement sur une trace, code non nul (R-734).
+    ⑩ EFFET — Exécute le contrat, qui ne fait que poser des constantes et des fonctions.
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("contrat_pour_c_le_soir", os.path.join(racine, CTR))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.REGISTRE_DES_STRATEGIES
+
+
+REG = registre_au_contrat(RACINE)
 SIG = "donnees/signaux_du_jour.json"
 POS = "donnees/claude_positions_ouvertes.csv"
 OBS_DIX = ["TOTALENERGIES", "ENGIE", "VEOLIA", "BOUYGUES", "EIFFAGE", "AIRBUS", "RENAULT",

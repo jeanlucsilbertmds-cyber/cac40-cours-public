@@ -271,7 +271,8 @@ def poser_le_registre(d):
     ⑦ UNITÉ — —. ⑧ POURQUOI — voir ①. ⑨ CE QUI CLOCHE — —. ⑩ EFFET — écrit un fichier.
     ⑪ TERMINAISON — Rend la main. [sort: non]"""
     os.makedirs(os.path.join(d, "donnees"), exist_ok=True)
-    with open(os.path.join(d, "donnees/cac40_strategies.csv"), "w", encoding="utf-8") as f:
+    # le chemin du registre se lit au contrat chargé par `cas` (R-708 ; enquête du 15-11-2026, C3)
+    with open(os.path.join(d, sys.modules["CONTRATS_DES_FICHIERS"].REGISTRE_DES_STRATEGIES), "w", encoding="utf-8") as f:
         f.write("id\n" + "".join(i + "\n" for i in IDS_DE_L_EPREUVE))
     reglages = os.path.join(d, "donnees/REGLAGES_DU_REGISTRE_DES_ESSAIS.csv")
     if not os.path.exists(reglages):        # le seul réglage de l'écriture (mission REGARD) ; la portée reste absente

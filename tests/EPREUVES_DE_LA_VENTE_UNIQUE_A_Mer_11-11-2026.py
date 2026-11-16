@@ -75,7 +75,10 @@ _args = [a for a in sys.argv[1:] if not a.startswith("--")]
 DEPOT = os.path.abspath(_args[0] if _args else ".")
 MODP, BAN = "programmes/MODULE_POSITIONS.py", "programmes/JUGE_DES_STRATEGIES.py"
 TEN, C5 = "programmes/TENIR_LES_POSITIONS.py", "programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py"
-ECRITS = ("cac40_strategies.csv", "claude_positions_ouvertes.csv", "claude_journal_trades.csv", "signaux_du_jour.json",
+sys.path.insert(0, os.path.join(DEPOT, "programmes"))
+import CONTRATS_DES_FICHIERS as _K  # le chemin du registre se lit au contrat (R-708 ; G1 de l'épreuve du registre des stratégies, enquête du 15-11-2026, C3)
+sys.path.pop(0)
+ECRITS = (_K.NOM_DU_REGISTRE_DES_STRATEGIES, "claude_positions_ouvertes.csv", "claude_journal_trades.csv", "signaux_du_jour.json",
           "cours_maitre.csv")   # le maître est copié : V10c en retire la séance du 10-11-2026
 
 SABOTAGES = {
@@ -156,6 +159,7 @@ SABOTAGES = {
 CODE = r'''
 import sys, os, json, glob, ast, csv
 sys.path.insert(0, "programmes")
+from CONTRATS_DES_FICHIERS import REGISTRE_DES_STRATEGIES, NOM_DU_REGISTRE_DES_STRATEGIES
 import MODULE_POSITIONS as P, JUGE_DES_STRATEGIES as B, TENIR_LES_POSITIONS as T, COMMUN
 import importlib.util
 sp = importlib.util.spec_from_file_location("c5", glob.glob("programmes/MODULE_C5_ETENDU_10_*.py")[0])
@@ -244,13 +248,13 @@ def v6():
     import tempfile
     d = tempfile.mkdtemp()
     reg = os.path.join(d, "donnees"); os.makedirs(reg)
-    src = "donnees/cac40_strategies.csv"
+    src = REGISTRE_DES_STRATEGIES
     lignes = list(csv.DictReader(open(src, encoding="utf-8-sig")))
     champs = list(lignes[0].keys())
     for l in lignes:
         if l["id"] == "C5E10-OBS-V1":
             l["horizon"] = "aucune"
-    w = csv.DictWriter(open(os.path.join(reg, "cac40_strategies.csv"), "w", encoding="utf-8", newline=""), fieldnames=champs)
+    w = csv.DictWriter(open(os.path.join(reg, NOM_DU_REGISTRE_DES_STRATEGIES), "w", encoding="utf-8", newline=""), fieldnames=champs)
     w.writeheader(); w.writerows(lignes)
     sys.modules.pop("JUGE_DES_STRATEGIES", None)
     # LE RÉGLAGE DU SOIR (12-11-2026, mission VENTE tour 2) : sans lui, le soir refuse « aucune » (valeur la plus
@@ -410,7 +414,7 @@ def v17():
              "prix_entree": "78.00000", "tp": "81.12000", "sl": "76.05000", "horizon_fin": "EN_ATTENTE", "statut": "OUVERTE",
              "comptabilite": "un_jeton", "regles_pre_trade": "", "explication": "", "frais_non_chiffrables": ""}
     serie = {"TOTALENERGIES": [{"date": "2026-11-10", "open": 78.0, "high": 79.0, "low": 77.0, "close": 78.5, "volume": 1}]}
-    src = list(csv.DictReader(open("donnees/cac40_strategies.csv", encoding="utf-8-sig")))
+    src = list(csv.DictReader(open(REGISTRE_DES_STRATEGIES, encoding="utf-8-sig")))
     champs = list(src[0].keys())
     obs = [l for l in src if l["id"] == "C5E10-OBS-V1"][-1]   # la dernière ligne fait foi (n°83)
     cas = {"intacte": ([], vraie), "aucune": ([dict(obs, horizon="aucune")], vraie),
@@ -420,7 +424,7 @@ def v17():
     for nom, (ajout, pos) in cas.items():
         d = tempfile.mkdtemp(); os.makedirs(os.path.join(d, "donnees"))
         try:
-            with open(os.path.join(d, "donnees", "cac40_strategies.csv"), "w", encoding="utf-8", newline="") as fh:
+            with open(os.path.join(d, REGISTRE_DES_STRATEGIES), "w", encoding="utf-8", newline="") as fh:
                 w = csv.DictWriter(fh, fieldnames=champs); w.writeheader(); w.writerows(src + ajout)
             sig = T.positions_sans_horizon_du_soir(d, [dict(pos)], B)
             _, inc = T.completer_echeances([dict(pos)], serie, T.reglages_du_registre(d), 20)
@@ -497,7 +501,22 @@ def copie(sab):
 
 
 def run(d, *args):
-    r = subprocess.run([sys.executable, "-B", *args], cwd=d, capture_output=True, text=True, timeout=900)
+    """Lance `python3 -B <args>` dans la copie, sans le fichier de sortie du pas de la machine qui joue l'épreuve.
+
+    ① RÔLE — Jouer un programme de la copie comme un soir sans GitHub. ② CONTEXTE D'APPEL — `epreuves`,
+    `bout_en_bout`. ③ ENTRÉE — `d` : la copie · `args` : le programme et ses arguments. ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : le code de sortie, la sortie standard et d'erreur réunies. [rend: 2]
+    ⑥ TRAITEMENT — retirer GITHUB_OUTPUT de l'environnement transmis, puis lancer. ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une épreuve ne dépend que du dépôt. Sur GitHub, la certification de nuit porte GITHUB_OUTPUT : le
+      programme du soir y écrivait « positions_signalees=0 » au lieu de l'afficher, et V10e, qui le lit à l'écran,
+      rougissait chaque nuit depuis le 12-11-2026, verte sur la machine du Chat (enquête du 15-11-2026, C6 ; cause
+      établie le 15-11-2026 en rejouant l'épreuve sous la mesure de la certification avec GITHUB_OUTPUT posé : V10e
+      rouge, mêmes trois dernières lignes que la nuit du 14-11). V10d pose son propre fichier et ne passe pas par ici.
+    ⑨ CE QUI CLOCHE — Les autres variables de la machine passent ; seule celle-ci a été vue faire changer un verdict.
+    ⑩ EFFET — Lance un processus. ⑪ TERMINAISON — Borné à 900 s. [sort: non]
+    """
+    env = {k: v for k, v in os.environ.items() if k != "GITHUB_OUTPUT"}
+    r = subprocess.run([sys.executable, "-B", *args], cwd=d, capture_output=True, text=True, timeout=900, env=env)
     return r.returncode, r.stdout + r.stderr
 
 
@@ -521,8 +540,8 @@ def bout_en_bout(d):
     import CONTRATS_DES_FICHIERS as K
     sys.path.pop(0)
     res = {}
-    f_reg = os.path.join(d, "donnees", "cac40_strategies.csv")
-    origine = list(csv.DictReader(open(os.path.join(DEPOT, "donnees", "cac40_strategies.csv"), encoding="utf-8-sig")))
+    f_reg = os.path.join(d, K.REGISTRE_DES_STRATEGIES)
+    origine = list(csv.DictReader(open(os.path.join(DEPOT, K.REGISTRE_DES_STRATEGIES), encoding="utf-8-sig")))
     champs = list(origine[0].keys())
 
     def ecrire(lignes, signaux, positions):
@@ -660,22 +679,37 @@ def epreuves(sab):
 
 def main():
     choix = list(SABOTAGES) if "--saboter" in sys.argv else (["Z0"] + _args[1:2] if len(_args) > 1 else ["Z0"])
+    # L'ÉPREUVE SE JOUE TOUJOURS COMME SUR GITHUB (enquête du 15-11-2026, C6) : un fichier GITHUB_OUTPUT leurre est
+    # posé ; `run` doit le retirer, sinon V10e rougit ici aussi, et le leurre doit rester vide.
+    leurre = tempfile.NamedTemporaryFile(prefix="vente_unique_sortie_du_pas_", delete=False)
+    leurre.close()
+    os.environ["GITHUB_OUTPUT"] = leurre.name
     code = 0
-    for sab in choix:
-        try:
-            res = epreuves(sab)
-        except LookupError as e:
-            print("ARRET : %s" % e)
-            return 2
-        rouges = [k for k, v in res.items() if not v[0]]
-        print("== %s : %d vertes, %d rouges%s" % (sab, len(res) - len(rouges), len(rouges),
-                                                 "  <-- ATTENDU : 0 rouge" if sab == "Z0" and rouges else ""))
-        for k in rouges:
-            print("     ROUGE %s · %s" % (k, res[k][1]))
-        if (sab == "Z0") == bool(rouges):
-            code = 1
-            if sab != "Z0":
-                print("     NE MORD PAS")
+    # le leurre est effacé sur TOUS les chemins — arrêt (code 2), exception, fin normale (relecture Cowork de
+    # travail-cert2, N2 : un leurre vide restait dans /tmp après un arrêt) ; il n'est LU que sur le chemin normal
+    try:
+        for sab in choix:
+            try:
+                res = epreuves(sab)
+            except LookupError as e:
+                print("ARRET : %s" % e)
+                return 2
+            rouges = [k for k, v in res.items() if not v[0]]
+            print("== %s : %d vertes, %d rouges%s" % (sab, len(res) - len(rouges), len(rouges),
+                                                     "  <-- ATTENDU : 0 rouge" if sab == "Z0" and rouges else ""))
+            for k in rouges:
+                print("     ROUGE %s · %s" % (k, res[k][1]))
+            if (sab == "Z0") == bool(rouges):
+                code = 1
+                if sab != "Z0":
+                    print("     NE MORD PAS")
+        ecrit = open(leurre.name, encoding="utf-8").read()
+    finally:
+        if os.path.exists(leurre.name):
+            os.remove(leurre.name)
+    if ecrit:
+        print("     ROUGE le fichier de sortie du pas de la machine a reçu : %r" % ecrit[:200])
+        code = 1
     print("CODE %d" % code)
     return code
 

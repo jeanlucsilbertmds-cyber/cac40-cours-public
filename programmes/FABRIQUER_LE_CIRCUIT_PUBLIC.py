@@ -730,11 +730,20 @@ RATTRAPAGE_PUBLIC = "${{ needs.faut_il_tourner.outputs.rattrapage }}"
 # programmes/. Le NOMBRE de tranches est écrit ICI et nulle part ailleurs (R-708) : le circuit le passe sur la ligne de
 # commande de programmes/CERTIFIER_LA_VERSION.py, qui répartit les épreuves par leurs durées relevées (`repartir`).
 # Six : le plus petit nombre pour lequel la tranche la plus chargée tenait sous le TIERS de sa limite au 30-10-2026,
-# les durées ayant varié du simple au double d'une nuit à l'autre ; en quatre et en cinq, non. Les charges ne sont pas
+# les durées ayant varié du simple au double d'une nuit à l'autre ; en quatre et en cinq, non.
+# DOUZE depuis le 15-11-2026 (superviseur R-759 du 15-11-2026, réparation 3, « ARRÊTER ET SIMPLIFIER ») : mesuré par
+# lui avec `repartir` sur main et les journaux du 15-11-2026 (170 lancements, 67 551 s prévues), la tranche la plus
+# lourde vaut 11 259 s à 6, 8 452 s à 8, 7 510 s à 9, 6 760 s à 10 et 5 635 s à 12, pour un tiers de 330 minutes
+# de 6 600 s : 12 est le premier nombre vert. La décision du 30-10-2026 « 8 tranches » (A-711) est dépassée par
+# cette mesure. N5 reste l'ALARME : la nuit grossit d'environ 35 lancements par semaine (126 le 10-11, 161 le
+# 14-11, 170 sur main), et elle rougira de nouveau. LE MUR : GitHub n'accepte que 20 tâches simultanées sur un
+# compte gratuit ; la certification en prend 12 (plus « preparer » et « reunir », qui ne tournent pas en même temps
+# que les tranches) et le circuit des séries jusqu'à 16 (PARTS_EN_MEME_TEMPS) : lancés ensemble, l'un attend l'autre
+# (file d'attente supposée, non mesurée). Augmenter encore ce nombre approche ce mur. Les charges ne sont pas
 # recopiées ici (R-728 : ce qui se calcule ne s'écrit pas à la main) : `repartir` les calcule à chaque nuit, chaque
 # certificat partiel les porte (« charges_prevues_secondes »), et tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py
 # (N5) les recalcule et rougit quand une tranche dépasse ce tiers : il faut alors augmenter ce nombre.
-TRANCHES_DE_LA_NUIT = 6
+TRANCHES_DE_LA_NUIT = 12
 # LES ESSAIS DE POUSSÉE D'UNE TÂCHE DE LA CERTIFICATION : le nombre de tranches PLUS TROIS. Choix technique du Chat
 # (31-10-2026), pas une décision de Jean-Luc. Sa raison est une loi, mesurée par le superviseur R-759 du 31-10-2026
 # (simulation `sup_N/course.sh` : six clones poussent vers un même dépôt à la même seconde) : un essai d'une tranche ne
@@ -863,7 +872,9 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
       [rend: 1]
     ⑥ TRAITEMENT — SANS `branche` (la certification) : identité `certification-publique` (programmes/MESSAGE_DU_SOIR.py
       la cherche dans l'historique), `avant`, ajout, commit, puis `ESSAIS_DE_POUSSEE` essais : chacun abandonne
-      d'abord un rebasage resté en plan par l'essai précédent, reprend le dépôt et pousse ; après chaque essai
+      d'abord un rebasage resté en plan par l'essai précédent, reprend le dépôt et pousse « HEAD:refs/heads/main »
+      (15-11-2026 : la certification clone le privé à un commit, en tête détachée, où un « git push » nu ne sait
+      pas quelle branche pousser — superviseur R-759 du 15-11-2026, §3) ; après chaque essai
       refusé, le dernier compris, une attente tirée au hasard de 1 à 15 s (jusqu'à 15 s perdues avant le message
       d'erreur). AVEC `branche` (patch du 04-11-2026, superviseur R-759, R1 ; tour 5, superviseur R-759 du
       06-11-2026, §4 ①) : SANS_RIEN_DE_LA_VERSION ; chaque valeur de `valeurs` vérifiée (lettres, chiffres, « _ »,
@@ -933,7 +944,7 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
           git commit -q -m \"""" + message + """, passage public ${GITHUB_RUN_ID} [skip ci]"
           for i in $(seq 1 """ + str(ESSAIS_DE_POUSSEE) + """); do
             git rebase --abort 2>/dev/null || true
-            if git pull -q --rebase --autostash origin main && git push -q; then echo "depose"; exit 0; fi
+            if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
           echo "::error::POUSSEE REFUSEE """ + str(ESSAIS_DE_POUSSEE) + """ FOIS — """ + reste + """ reste sur la machine jetable"; exit 1
@@ -970,6 +981,94 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
 """)
 
 
+def depart_pour(fiche, nom, ref=None, apres_le_clonage="", aussi=(), jeton_garde=False):
+    """Rend les pas de départ de la certification, adaptés à une autre fiche de circuit public.
+
+    ① RÔLE — Donner au circuit des séries, et depuis le 15-11-2026 à la certification elle-même au commit de sa nuit,
+      EXACTEMENT les pas de départ de la certification (clonage du privé avec
+      JETON_DEPOTS, clonage du public, pose du code public s'il est celui du privé et effacement de tout autre code,
+      contrôle que le circuit qui tourne est celui que fabrique le privé, Python), sans en recopier une ligne (R-708).
+    ② CONTEXTE D'APPEL — Le gabarit SERIES, trois fois (une par job : « preparer » à la version demandée, les deux
+      autres au commit de la préparation) ; « preparer » et « rassembler » y glissent leurs pas de lecture à jeton.
+      Le gabarit CERTIFICATION, une fois (15-11-2026), pour ses tranches et sa tâche finale, au commit noté par son
+      job « preparer », avec `jeton_garde`.
+    ③ ENTRÉE — `aussi` (08-11-2026) : d'autres fichiers de circuit public, comparés eux aussi à ce que fabrique le
+      privé (le relais demande_de_serie.yml, pour « preparer ») · `fiche` : le nom du fichier de circuit public (« series_longues.yml ») · `nom` : le circuit en
+      minuscules, pour le nom du pas et le message (« des series longues ») · `ref` : None, ou la version à cloner
+      au privé (une expression de GitHub : l'entrée « version », ou le commit de la préparation), ajoutée au clonage
+      du privé sous « ref: » · `apres_le_clonage` (tour 5) : des pas, au format du fichier de circuit, placés JUSTE
+      APRÈS le clonage du privé, avant le clonage du public et tout pas qui exécute du code de la version ·
+      `jeton_garde` (15-11-2026) : avec `ref`, ne pas ajouter « persist-credentials: false » — le clonage garde le
+      jeton, comme le clonage du privé de DEPART_DE_LA_CERTIFICATION l'a toujours gardé, car le pas de dépôt de la
+      certification (`pas_de_depot` sans `branche`) pousse au privé avec lui.
+    ④ CONDITIONS D'ENTRÉE — DEPART_DE_LA_CERTIFICATION nomme sa fiche 3 fois, le circuit 2 fois (casse comprise),
+      porte « fetch-depth: 0 » une fois (le clonage du privé) et le clonage du public (« path: _code ») une fois.
+    ⑤ SORTIE — UNE valeur : le texte des pas. Lève ValueError si un ancrage n'a pas le compte attendu.
+      [rend: 1]
+    ⑥ TRAITEMENT — trois remplacements, quatre avec `ref` (« ref: » seul avec `jeton_garde`, « ref: » et
+      « persist-credentials: false » sinon), cinq avec `apres_le_clonage` (inséré devant le clonage du public), chacun
+      compté avant d'être fait.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le pas « poser le code » porte la loi d'A-600 (aucun code privé ne tourne au public) : une seconde
+      rédaction finirait par diverger. DEPART_DE_LA_CERTIFICATION n'est pas modifié (élément validé) : il est LU.
+      Avec `ref`, le clonage du privé porte aussi « persist-credentials: false » (superviseur R-759 du 05-11-2026,
+      N1) : sans lui, actions/checkout laisse le jeton dans .git/config pendant tout le job, à portée du code de la
+      version en attente, non validé ; seuls les pas qui lisent ou poussent au privé le reçoivent (JETON_DU_PAS).
+      `ref` (tour 3, piste du superviseur R-759 du 04-11-2026) : les parts et le rassemblement jouent le commit FIGÉ
+      de la préparation, quoi que reçoive main pendant le passage (collecte du soir, Chat, Cowork). « preparer »
+      clone l'entrée « version » (décision de Jean-Luc du 05-11-2026 à 13h36, « 2 » : la version en attente
+      s'éprouve AVANT sa fusion ; voir SERIES_VERSION) : le pas « poser le code » compare alors la branche publique
+      lancée à cette version, et non à main. `apres_le_clonage` (tour 5, superviseur R-759 du 06-11-2026, §3) : le
+      shell par défaut de chaque job est programmes/ETAPE_MUETTE.py, du code de la version ; un pas de lecture à jeton
+      placé avant ce code ne peut rien lire que ce code ait écrit (fichiers de commandes de GitHub, .git/config).
+    ⑨ CE QUI CLOCHE — Dépend du texte de DEPART_DE_LA_CERTIFICATION : s'il renomme sa fiche une quatrième fois ou change
+      le nom de son pas, le fabricant lève à l'import (aucun circuit fabriqué) au lieu de produire un circuit faux.
+      Que actions/checkout clone bien un commit donné par « ref: » avec « fetch-depth: 0 » n'est pas vu chez GitHub
+      (documentation : « The branch, tag or SHA to checkout ») : le pas `meme_depot` le vérifie à chaque job.
+      `jeton_garde` laisse le jeton dans .git/config pendant tout le job : c'était déjà le cas de la certification
+      avant le 15-11-2026 (elle n'exécute que la version main, validée) ; ce n'est pas permis aux séries (propriété ⑧
+      de `verifier_les_gabarits_publics`, qui ne regarde que les gabarits de BRANCHES_DES_GABARITS).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    texte = DEPART_DE_LA_CERTIFICATION
+    remplacements = [(os.path.basename(CIRCUIT_CERTIFICATION), fiche, 3),
+                     ("Le circuit de certification", "Le circuit " + nom, 1),
+                     ("LE CIRCUIT DE CERTIFICATION", "LE CIRCUIT " + nom.upper(), 1)]
+    if ref is not None:
+        remplacements.append(("          fetch-depth: 0\n", "          fetch-depth: 0\n          ref: " + ref + "\n"
+                              + ("" if jeton_garde else "          persist-credentials: false\n"), 1))
+    for autre in aussi:   # 08-11-2026 (méthode du bloc 2, §5 R7) : un autre circuit fabriqué, comparé lui aussi
+        remplacements.append(("          rm -rf _code\n", "          cp _code/.github/workflows/" + autre
+                              + ' "$RUNNER_TEMP/circuit_public/"\n          rm -rf _code\n', 1))
+        fin = ' N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }\n'
+        remplacements.append((fin, fin + '          cmp "$RUNNER_TEMP/refait/.github/workflows/' + autre
+                              + '" "$RUNNER_TEMP/circuit_public/' + autre + '" \\\n            || { echo "::error::LE CIRCUIT '
+                              + autre + ' N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et publier"; exit 1; }\n', 1))
+    if apres_le_clonage:
+        public = "      - uses: actions/checkout@v5\n        with:\n          path: _code\n"
+        remplacements.append((public, apres_le_clonage + public, 1))
+    for ancien, nouveau, fois in remplacements:
+        if texte.count(ancien) != fois:
+            raise ValueError(f"pas de départ de la certification : « {ancien} » trouvé {texte.count(ancien)} fois, "
+                             f"{fois} attendu(s)")
+        texte = texte.replace(ancien, nouveau)
+    return texte
+
+
+# Le commit que jouent les parts et le rassemblement : celui de la préparation (clonage à « ref: », `depart_pour`). Ce
+# pas vérifie que le clonage l'a bien posé : sinon les parts ne joueraient pas la même version (le rassemblement s'en
+# apercevrait par les empreintes du départ, mais plus tard et moins clairement). Depuis le tour 3 il compare HEAD au
+# commit, sans exclusion : plus rien de ce circuit n'est poussé sur main.
+SERIES_MEME_DEPOT = """      - name: Le depot prive est-il celui de la preparation ?
+        id: meme_depot
+        env:
+          SHA: ${{ needs.preparer.outputs.sha }}
+        run: |
+          [ "$(git rev-parse HEAD)" = "$SHA" ] || { echo "::error::LE COMMIT CLONE N EST PAS CELUI DE LA PREPARATION"; exit 1; }
+"""
+
 CERTIFICATION = """# CERTIFIER LA VERSION — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
 # Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py (décision de Jean-Luc du 12-10-2026 à
 # 16h46, ordre confirmé le 15-10-2026 à 08h36). La certification rejoue toutes les épreuves et
@@ -981,6 +1080,13 @@ CERTIFICATION = """# CERTIFIER LA VERSION — FICHIER FABRIQUÉ, NE PAS ÉCRIRE 
 # Depuis le 30-10-2026 (décision de Jean-Luc à 19h02) : les épreuves sont réparties en tranches
 # jouées en même temps sur des machines distinctes (job « certifier »), puis une tâche finale
 # (job « reunir ») réunit leurs certificats partiels et rougit s'il en manque un.
+# Depuis le 15-11-2026 (superviseur R-759 du 15-11-2026, réparation 1b-β) : UN SEUL COMMIT DU DÉPÔT
+# PRIVÉ PAR NUIT. Le job « preparer » note la pointe de main au départ ; les tranches et la tâche
+# finale clonent ce commit (« ref: »), et le pas « meme_depot » vérifie que c'est bien lui. Raison :
+# le 14-11-2026, une installation faite au privé à 04h33, pendant le passage, a fait rougir la tâche
+# finale (05h04), qui clonait le privé à sa pointe alors que le public restait figé au déclenchement.
+# La tâche finale lit ensuite les certificats partiels à la pointe de main, où les tranches les ont
+# poussés ; le code qu'elle exécute reste celui du commit noté.
 name: Certifier la version
 on:
   workflow_dispatch:
@@ -994,7 +1100,25 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  preparer:
+    # LE COMMIT DE LA NUIT : la pointe de main du dépôt privé, lue UNE fois, au départ (aucun code n'est exécuté ici).
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.noter.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: %(prive)s
+          token: ${{ secrets.JETON_DEPOTS }}
+          ref: main
+          persist-credentials: false
+      - name: Noter le commit du depot prive
+        id: noter
+        shell: bash
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   certifier:
+    needs: preparer
     runs-on: ubuntu-latest
     # 330 minutes PAR TRANCHE : GitHub coupe toute tâche à 6 heures ; chaque tranche a les siennes.
     timeout-minutes: 330
@@ -1004,17 +1128,25 @@ jobs:
       matrix:
         tranche:
 %(tranches)s%(defaults)s    steps:
-%(depart)s%(logiciels)s%(installer)s      - name: Certifier une tranche
+%(depart)s%(meme_depot)s%(logiciels)s%(installer)s      - name: Certifier une tranche
         id: certifier
         continue-on-error: true
         run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/%(nombre)d
 %(deposer_tranche)s%(verdict)s  reunir:
     # LA TÂCHE FINALE : après toutes les tranches, MÊME si l'une a échoué, a été coupée ou annulée.
-    needs: certifier
+    # la liste « à tirets », comme la matrice : le sous-ensemble YAML lu par ce fabricant refuse « [ … ] »
+    needs:
+      - preparer
+      - certifier
     if: ${{ always() }}
     runs-on: ubuntu-latest
 %(defaults)s    steps:
-%(depart)s%(installer)s      - name: Reunir les tranches
+%(depart)s%(meme_depot)s      - name: Lire les certificats partiels a la pointe du depot prive
+        id: partiels
+        run: |
+          git fetch -q origin main
+          git checkout FETCH_HEAD -- rapports/certificats_partiels
+%(installer)s      - name: Reunir les tranches
         id: certifier
         continue-on-error: true
         run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir %(nombre)d
@@ -1023,7 +1155,13 @@ jobs:
     # entre crochets, qui commence par un indicateur YAML ; c'est le producteur qui parle la langue du lecteur
     # (superviseur R-759 du 31-10-2026, B1, « DE FOND »)
     "tranches": "".join("          - %d\n" % i for i in range(1, TRANCHES_DE_LA_NUIT + 1)), "nombre": TRANCHES_DE_LA_NUIT,
-    "defaults": DEFAULTS, "depart": DEPART_DE_LA_CERTIFICATION, "logiciels": LOGICIELS_DE_LA_CERTIFICATION,
+    # UN SEUL COMMIT PAR NUIT (15-11-2026) : les pas de départ au commit noté par « preparer », par le mécanisme des
+    # séries (`depart_pour`, SERIES_MEME_DEPOT), sans en écrire un second (R-708) ; le jeton reste au clonage, comme
+    # avant, pour la poussée de `pas_de_depot`
+    "prive": DEPOT_PRIVE, "meme_depot": SERIES_MEME_DEPOT,
+    "depart": depart_pour(os.path.basename(CIRCUIT_CERTIFICATION), "de certification",
+                          ref="${{ needs.preparer.outputs.sha }}", jeton_garde=True),
+    "defaults": DEFAULTS, "logiciels": LOGICIELS_DE_LA_CERTIFICATION,
     "installer": INSTALLER_LA_MESURE, "verdict": VERDICT_DE_LA_CERTIFICATION,
     # chaque tranche renomme son journal (ETAPE_MUETTE le nomme par le job, le même pour toutes) et pousse son partiel
     "deposer_tranche": pas_de_depot(
@@ -1079,72 +1217,6 @@ GROUPE_DES_MACHINES_LONGUES = "series-longues"
 # PAS DE RELANCE (superviseur R-759 du 04-11-2026, tour 4, R1 et R3) : la poussée est sans « --force », donc un passage
 # rouge ne se relance pas (voir l'en-tête du circuit fabriqué, « PAS DE RELANCE ») ; ménage, puis nouveau passage.
 SERIES_BRANCHES = "series-longues/"
-
-
-def depart_pour(fiche, nom, ref=None, apres_le_clonage="", aussi=()):
-    """Rend les pas de départ de la certification, adaptés à une autre fiche de circuit public.
-
-    ① RÔLE — Donner au circuit des séries EXACTEMENT les pas de départ de la certification (clonage du privé avec
-      JETON_DEPOTS, clonage du public, pose du code public s'il est celui du privé et effacement de tout autre code,
-      contrôle que le circuit qui tourne est celui que fabrique le privé, Python), sans en recopier une ligne (R-708).
-    ② CONTEXTE D'APPEL — Le gabarit SERIES, trois fois (une par job : « preparer » à la version demandée, les deux
-      autres au commit de la préparation) ; « preparer » et « rassembler » y glissent leurs pas de lecture à jeton.
-    ③ ENTRÉE — `aussi` (08-11-2026) : d'autres fichiers de circuit public, comparés eux aussi à ce que fabrique le
-      privé (le relais demande_de_serie.yml, pour « preparer ») · `fiche` : le nom du fichier de circuit public (« series_longues.yml ») · `nom` : le circuit en
-      minuscules, pour le nom du pas et le message (« des series longues ») · `ref` : None, ou la version à cloner
-      au privé (une expression de GitHub : l'entrée « version », ou le commit de la préparation), ajoutée au clonage
-      du privé sous « ref: » · `apres_le_clonage` (tour 5) : des pas, au format du fichier de circuit, placés JUSTE
-      APRÈS le clonage du privé, avant le clonage du public et tout pas qui exécute du code de la version.
-    ④ CONDITIONS D'ENTRÉE — DEPART_DE_LA_CERTIFICATION nomme sa fiche 3 fois, le circuit 2 fois (casse comprise),
-      porte « fetch-depth: 0 » une fois (le clonage du privé) et le clonage du public (« path: _code ») une fois.
-    ⑤ SORTIE — UNE valeur : le texte des pas. Lève ValueError si un ancrage n'a pas le compte attendu.
-      [rend: 1]
-    ⑥ TRAITEMENT — trois remplacements, quatre avec `ref`, cinq avec `apres_le_clonage` (inséré devant le clonage
-      du public), chacun compté avant d'être fait.
-    ⑦ UNITÉ — —
-    ⑧ POURQUOI — Le pas « poser le code » porte la loi d'A-600 (aucun code privé ne tourne au public) : une seconde
-      rédaction finirait par diverger. DEPART_DE_LA_CERTIFICATION n'est pas modifié (élément validé) : il est LU.
-      Avec `ref`, le clonage du privé porte aussi « persist-credentials: false » (superviseur R-759 du 05-11-2026,
-      N1) : sans lui, actions/checkout laisse le jeton dans .git/config pendant tout le job, à portée du code de la
-      version en attente, non validé ; seuls les pas qui lisent ou poussent au privé le reçoivent (JETON_DU_PAS).
-      `ref` (tour 3, piste du superviseur R-759 du 04-11-2026) : les parts et le rassemblement jouent le commit FIGÉ
-      de la préparation, quoi que reçoive main pendant le passage (collecte du soir, Chat, Cowork). « preparer »
-      clone l'entrée « version » (décision de Jean-Luc du 05-11-2026 à 13h36, « 2 » : la version en attente
-      s'éprouve AVANT sa fusion ; voir SERIES_VERSION) : le pas « poser le code » compare alors la branche publique
-      lancée à cette version, et non à main. `apres_le_clonage` (tour 5, superviseur R-759 du 06-11-2026, §3) : le
-      shell par défaut de chaque job est programmes/ETAPE_MUETTE.py, du code de la version ; un pas de lecture à jeton
-      placé avant ce code ne peut rien lire que ce code ait écrit (fichiers de commandes de GitHub, .git/config).
-    ⑨ CE QUI CLOCHE — Dépend du texte de DEPART_DE_LA_CERTIFICATION : s'il renomme sa fiche une quatrième fois ou change
-      le nom de son pas, le fabricant lève à l'import (aucun circuit fabriqué) au lieu de produire un circuit faux.
-      Que actions/checkout clone bien un commit donné par « ref: » avec « fetch-depth: 0 » n'est pas vu chez GitHub
-      (documentation : « The branch, tag or SHA to checkout ») : le pas `meme_depot` le vérifie à chaque job.
-    ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main, ou lève.
-      [sort: non]
-    """
-    texte = DEPART_DE_LA_CERTIFICATION
-    remplacements = [(os.path.basename(CIRCUIT_CERTIFICATION), fiche, 3),
-                     ("Le circuit de certification", "Le circuit " + nom, 1),
-                     ("LE CIRCUIT DE CERTIFICATION", "LE CIRCUIT " + nom.upper(), 1)]
-    if ref is not None:
-        remplacements.append(("          fetch-depth: 0\n", "          fetch-depth: 0\n          ref: " + ref + "\n"
-                              "          persist-credentials: false\n", 1))
-    for autre in aussi:   # 08-11-2026 (méthode du bloc 2, §5 R7) : un autre circuit fabriqué, comparé lui aussi
-        remplacements.append(("          rm -rf _code\n", "          cp _code/.github/workflows/" + autre
-                              + ' "$RUNNER_TEMP/circuit_public/"\n          rm -rf _code\n', 1))
-        fin = ' N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }\n'
-        remplacements.append((fin, fin + '          cmp "$RUNNER_TEMP/refait/.github/workflows/' + autre
-                              + '" "$RUNNER_TEMP/circuit_public/' + autre + '" \\\n            || { echo "::error::LE CIRCUIT '
-                              + autre + ' N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et publier"; exit 1; }\n', 1))
-    if apres_le_clonage:
-        public = "      - uses: actions/checkout@v5\n        with:\n          path: _code\n"
-        remplacements.append((public, apres_le_clonage + public, 1))
-    for ancien, nouveau, fois in remplacements:
-        if texte.count(ancien) != fois:
-            raise ValueError(f"pas de départ de la certification : « {ancien} » trouvé {texte.count(ancien)} fois, "
-                             f"{fois} attendu(s)")
-        texte = texte.replace(ancien, nouveau)
-    return texte
 
 
 # LE JETON, PAS PAR PAS (superviseur R-759 du 05-11-2026, N1 : « Le jeton seulement dans les pas qui poussent ou lisent
@@ -1203,18 +1275,6 @@ SANS_RIEN_DE_LA_VERSION = ("          export PATH=/usr/bin:/bin GIT_TRACE_REDACT
 # refuse tout pas à jeton qui nomme JETON hors d'une copie mot pour mot de ce texte.
 AUTORISATION = ("          AIDE='!f() { echo username=x-access-token; echo \"password=$JETON\"; }; f'\n"
                 "          A=(-c credential.helper= -c \"credential.helper=$AIDE\")\n")
-
-# Le commit que jouent les parts et le rassemblement : celui de la préparation (clonage à « ref: », `depart_pour`). Ce
-# pas vérifie que le clonage l'a bien posé : sinon les parts ne joueraient pas la même version (le rassemblement s'en
-# apercevrait par les empreintes du départ, mais plus tard et moins clairement). Depuis le tour 3 il compare HEAD au
-# commit, sans exclusion : plus rien de ce circuit n'est poussé sur main.
-SERIES_MEME_DEPOT = """      - name: Le depot prive est-il celui de la preparation ?
-        id: meme_depot
-        env:
-          SHA: ${{ needs.preparer.outputs.sha }}
-        run: |
-          [ "$(git rev-parse HEAD)" = "$SHA" ] || { echo "::error::LE COMMIT CLONE N EST PAS CELUI DE LA PREPARATION"; exit 1; }
-"""
 
 # LA VERSION ÉPROUVÉE, VÉRIFIÉE AVANT TOUT (décision de Jean-Luc du 05-11-2026 à 13h36, « 2 » : les séries tournent sur
 # GitHub AVANT la fusion ; la question, les options et la raison sont dans l'en-tête du gabarit SERIES). Le pas de
@@ -2365,13 +2425,17 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
       « GITHUB_STEP_SUMMARY » (le résumé public du passage) · ④ s'il commite, il signe d'au moins une identité
       (« user.name »), et ses identités sont DISTINCTES de celles de chaque autre gabarit et du circuit du soir ·
       ⑤ un job dont la condition porte always(), failure() ou cancelled() lit « needs.<j>.result » de chaque job en
-      matrice <j> dont il dépend, sauf déclaration dans SANS_LECTURE_DU_RESULTAT · ⑥ dans un gabarit de
+      matrice <j> dont il dépend (« needs: » en ligne ou en liste à tirets, depuis le 15-11-2026), sauf déclaration dans SANS_LECTURE_DU_RESULTAT · ⑥ dans un gabarit de
       BRANCHES_DES_GABARITS, les lignes coupées par une barre inverse sont recollées (la barre, la fin de ligne et
       les blancs du début de la ligne suivante retirés), puis toute ligne qui contient « push » (sans égard à la casse) doit avoir
       EXACTEMENT la forme permise, git push -q origin "HEAD:refs/heads/<préfixe><CIBLE_DE_POUSSEE>" || { echo
-      "<message>"; exit 1; } ; et le préfixe de ses branches ne commence pas par « travail- » · ⑦ dans un gabarit de
-      BRANCHES_DES_GABARITS, chaque clonage du dépôt privé (« - uses: actions/checkout@… » dont le bloc, lu par
-      indentation, porte « repository: » DEPOT_PRIVE) porte une ligne « ref: » non vide · ⑧ dans un gabarit de
+      "<message>"; exit 1; } ; et le préfixe de ses branches ne commence pas par « travail- » · ⑦ dans TOUT gabarit
+      (depuis le 15-11-2026 ; avant, ceux de BRANCHES_DES_GABARITS seulement), chaque clonage du dépôt privé
+      (« - uses: actions/checkout@… » dont le bloc, lu par indentation, porte « repository: » DEPOT_PRIVE) porte une
+      ligne « ref: » non vide ; ⑦ bis (15-11-2026) si cette ligne est une sortie d'un autre job
+      (« ${{ needs.<j>.outputs.<x> }} »), le job du clonage (de sa ligne « <nom>: » à deux espaces à la suivante)
+      porte la ligne « SHA: » de cette même expression et la comparaison « [ "$(git rev-parse HEAD)" = "$SHA" ] »
+      de SERIES_MEME_DEPOT · ⑧ dans un gabarit de
       BRANCHES_DES_GABARITS, chaque pas (« - » à six espaces, lu jusqu'au pas suivant) : un clonage du dépôt privé
       porte « persist-credentials: false » ; toute ligne qui porte « secrets » (sans égard à la casse, à tout
       niveau d'indentation) est soit « token: ${{ secrets.JETON_DEPOTS }} » d'un clonage du dépôt privé, soit
@@ -2400,7 +2464,12 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
       Jean-Luc du 05-11-2026 à 13h36 (« 2 », les séries éprouvent la version en attente AVANT sa fusion ; voir
       SERIES_VERSION) : un clonage du privé sans « ref: » prend la branche par défaut, la version officielle ; ce job
       jouerait alors main pendant que les autres jouent la version en attente, et le relevé mêlerait deux versions.
-      Propriété et non nom de pas : un job ajouté demain est couvert sans rien déclarer. ⑥ ⑧ : superviseur R-759 du
+      Propriété et non nom de pas : un job ajouté demain est couvert sans rien déclarer. ⑦ ÉTENDUE ET ⑦ BIS : superviseur
+      R-759 du 15-11-2026 (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/SUPERVISEUR_CERTIFICATION_Dim_15-
+      11-2026.md, F1 et 1b-β) : les 7 jobs de la certification clonaient le privé à sa pointe, chacun à son heure,
+      alors que le public restait figé au déclenchement ; la nuit du 14-11-2026, une installation à 04h33 a fait
+      rougir la tâche finale. Un clonage sans « ref: » est la course elle-même ; un clonage à un commit noté sans
+      vérification de HEAD n'aurait aucune alarme si actions/checkout prenait un autre commit. ⑥ ⑧ : superviseur R-759 du
       05-11-2026, N1 (« persist-credentials: false sur chaque clonage. Le jeton seulement dans les pas qui poussent ou
       lisent les parts ») ; avec l'option 2, ETAPE_MUETTE, les parts et le rassembleur sont du code NON VALIDÉ.
       Depuis le tour 3 (M-2), une propriété du TEXTE ENTIER et non deux mots cherchés dans un pas : commentaire de
@@ -2436,6 +2505,9 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
       (N4). ⑥ ⑨ juge « exécute du code » par la LISTE des commandes du système, comme ⑧ : un pas « shell: bash » qui
       lance un programme sous un nom de cette liste (« tar --to-command », « git -c alias… ») est cru inoffensif ;
       l'ordre des jobs entre eux n'est pas lu (chaque job a sa machine). ⑥ ⑩ ne lit que le bloc « run: | ».
+      ⑦ bis cherche deux textes dans le job, pas un pas : il ne vérifie ni que la comparaison vient APRÈS le clonage,
+      ni qu'elle rougit (c'est SERIES_MEME_DEPOT, écrit une fois, qui le fait) ; un « ref: » écrit autrement qu'une
+      sortie « needs. » (un nom de branche : « main », « ${{ inputs.version }} ») n'exige aucune comparaison.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main, ou lève.
       [sort: non]
@@ -2510,13 +2582,45 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
         en_matrice = {j for j, b in jobs.items() if re.search(r"^      matrix:", b, re.M)}
         for j, b in jobs.items():
             m_if = re.search(r"^    if:\s*(.*)$", b, re.M)
-            m_needs = re.search(r"^    needs:\s*(.*)$", b, re.M)
+            # « needs: » en ligne (« needs: a », « needs: [a, b] ») ou en liste à tirets sur les lignes suivantes
+            # (15-11-2026 : la tâche finale de la certification dépend de deux jobs, écrits à tirets)
+            m_needs = re.search(r"^    needs:[ \t]*(.*)\n((?:      - .*\n)*)", b + "\n", re.M)
             if not (m_if and m_needs and MALGRE_L_ECHEC.search(m_if.group(1))):
                 continue
-            for d in re.findall(r"[A-Za-z_][\w-]*", m_needs.group(1)):
+            for d in re.findall(r"[A-Za-z_][\w-]*", m_needs.group(1) + " " + m_needs.group(2).replace("- ", " ")):
                 if d in en_matrice and f"needs.{d}.result" not in b and (nom, j) not in SANS_LECTURE_DU_RESULTAT:
                     raise ValueError(f"gabarit {nom} : le job « {j} » tourne malgré l'échec du job en matrice « {d} » "
                                      f"sans lire needs.{d}.result")
+        # ⑦ (étendue à TOUT gabarit le 15-11-2026, superviseur R-759 du 15-11-2026, 1b-β) : chaque clonage du privé
+        # porte « ref: » ; et ⑦ bis : un job qui clone le privé à la sortie d'un autre job (« needs.<j>.outputs.<x> »)
+        # porte le pas qui compare HEAD à cette même sortie (SERIES_MEME_DEPOT)
+        for i, l in enumerate(lignes):
+            m = re.match(r"^(\s*)-\s+uses:\s*actions/checkout@", l)
+            if not m:
+                continue
+            bloc = []
+            for suite in lignes[i + 1:]:
+                if suite.strip() and len(suite) - len(suite.lstrip()) <= len(m.group(1)):
+                    break
+                bloc.append(suite.strip())
+            if ("repository: " + DEPOT_PRIVE) not in bloc:
+                continue
+            refs = [re.fullmatch(r"ref:\s*(\S.*)", b) for b in bloc]
+            refs = [r.group(1).strip() for r in refs if r]
+            if not refs:
+                raise ValueError(f"gabarit {nom} : un clonage du dépôt privé sans « ref: » (ligne {i + 1}) : il "
+                                 "prendrait la pointe de la version officielle, et deux jobs d'un même passage "
+                                 "pourraient jouer deux versions")
+            if re.fullmatch(r"\$\{\{ needs\.[A-Za-z_][\w-]*\.outputs\.[A-Za-z_][\w-]* \}\}", refs[0]):
+                debut = max((k for k in range(i + 1) if re.match(r"^  [A-Za-z_][\w-]*:\s*$", lignes[k])), default=0)
+                fin = next((k for k in range(i + 1, len(lignes)) if re.match(r"^  [A-Za-z_][\w-]*:\s*$", lignes[k])),
+                           len(lignes))
+                job = "\n".join(lignes[debut:fin])
+                if ("          SHA: " + refs[0] + "\n") not in job or \
+                        '[ "$(git rev-parse HEAD)" = "$SHA" ]' not in job:
+                    raise ValueError(f"gabarit {nom} : le job de la ligne {debut + 1} clone le privé à « {refs[0]} » "
+                                     "sans le pas qui vérifie que HEAD est bien ce commit (SERIES_MEME_DEPOT) : un "
+                                     "clonage qui aurait pris un autre commit passerait sans bruit")
         prefixe = BRANCHES_DES_GABARITS.get(nom)
         if prefixe is not None:
             if prefixe.startswith("travail-"):
@@ -2527,18 +2631,6 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
                 if "push" in l.lower() and not forme.fullmatch(l):
                     raise ValueError(f"gabarit {nom} : une poussée hors de la forme permise (git push -q origin "
                                      f"\"HEAD:refs/heads/{prefixe}…\" || {{ echo …; exit 1; }}) : {l.strip()[:120]}")
-            for i, l in enumerate(lignes):
-                m = re.match(r"^(\s*)-\s+uses:\s*actions/checkout@", l)
-                if not m:
-                    continue
-                bloc = []
-                for suite in lignes[i + 1:]:
-                    if suite.strip() and len(suite) - len(suite.lstrip()) <= len(m.group(1)):
-                        break
-                    bloc.append(suite.strip())
-                if ("repository: " + DEPOT_PRIVE) in bloc and not any(re.fullmatch(r"ref:\s*\S.*", b) for b in bloc):
-                    raise ValueError(f"gabarit {nom} : un clonage du dépôt privé sans « ref: » (ligne {i + 1}) : il "
-                                     "prendrait la version officielle, quelle que soit la version demandée")
             # ⑧ le jeton (superviseur R-759 du 05-11-2026, N1, et tour 3, M-2 ; commentaire de COMMANDES_DU_SYSTEME)
             permises = set()
             debuts = [i for i, l in enumerate(lignes) if re.match(r"^      - ", l)] + [len(lignes)]

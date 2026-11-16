@@ -173,7 +173,7 @@ def poser_racine(d, C, portee="lignee", declarations=(), en_tete=None, reglages=
     un dépôt git avec son dépôt distant nu.
     ⑪ TERMINAISON — Rend la main. [sort: non]"""
     os.makedirs(os.path.join(d, "donnees"), exist_ok=True)
-    with open(os.path.join(d, "donnees/cac40_strategies.csv"), "w", encoding="utf-8") as f:
+    with open(os.path.join(d, C.REGISTRE_DES_STRATEGIES), "w", encoding="utf-8") as f:   # R-708 : le chemin du contrat
         f.write("id\n" + "".join(i + "\n" for i in ids))
     reg = os.path.join(d, "donnees/REGLAGES_DU_REGISTRE_DES_ESSAIS.csv")
     if portee is None:
@@ -426,7 +426,7 @@ def cas(copie, racine):
         decl_vraies = [{"fiche_id": "C5E10-QA-V1", "lignee": "C5E10-QA-V1 → C5E10-SELECTION, C5E10-TP5-SL5",
                         "part_regardee": "2000-2023, rejeu du 28-10"}]
         poser_racine(d, C, declarations=decl_vraies)
-        shutil.copy(os.path.join(racine, "donnees/cac40_strategies.csv"), os.path.join(d, "donnees/cac40_strategies.csv"))
+        shutil.copy(os.path.join(racine, C.REGISTRE_DES_STRATEGIES), os.path.join(d, C.REGISTRE_DES_STRATEGIES))
         git_jetable(d, "add", ".")
         git_jetable(d, "commit", "-qm", "registre")
         git_jetable(d, "update-ref", "refs/remotes/origin/main", "HEAD")   # k se lit sur la branche principale (REGARD)
@@ -446,7 +446,7 @@ def cas(copie, racine):
            b2["annees_deja_regardees"] == "OUI" and b2["lignee"] == ["C5E10-QA-V1", "C5E10-SELECTION", "C5E10-TP5-SL5"]
            and b2["essais_de_la_fiche"] == 0 and b2["essais_de_la_lignee"] == 1 and b2["essais_du_registre"] == 1, repr(b2))
         poser_racine(d, C, portee=None, declarations=decl_vraies)
-        shutil.copy(os.path.join(racine, "donnees/cac40_strategies.csv"), os.path.join(d, "donnees/cac40_strategies.csv"))
+        shutil.copy(os.path.join(racine, C.REGISTRE_DES_STRATEGIES), os.path.join(d, C.REGISTRE_DES_STRATEGIES))
         b3 = T.bilan_de_la_fiche(d, "C5E10-SELECTION", EXAMEN)
         ok("B5 réglages absents (fiche CONNUE) : « INCONNU », jamais « AUCUN REGARD INSCRIT »",
            b3["fiche_id"] == "C5E10-SELECTION" and b3["annees_deja_regardees"] == "INCONNU" and "regards" in b3["raisons"], repr(b3["annees_deja_regardees"]))
@@ -608,8 +608,14 @@ def main(argv):
         print(__doc__.split("\n\n")[2])
         return 2
     racine = os.path.abspath(argv[0])
+    if not os.path.exists(os.path.join(racine, CONTRAT)):
+        print("DONNÉE MANQUANTE : %s" % CONTRAT)
+        return 2
+    # le chemin du registre des stratégies se lit au contrat, jamais écrit ici (R-708 ; G1 de l'épreuve du registre
+    # des stratégies, enquête du 15-11-2026, C3)
+    registre = charger(os.path.join(racine, CONTRAT), "CONTRATS_DES_FICHIERS").REGISTRE_DES_STRATEGIES
     for f in ("donnees/REGLAGES_DU_REGISTRE_DES_ESSAIS.csv", "donnees/DECLARATIONS_DATEES.csv",
-              "donnees/cac40_strategies.csv") + (ESSAIS,) + VOISINS:
+              registre) + (ESSAIS,) + VOISINS:
         if not os.path.exists(os.path.join(racine, f)):
             print("DONNÉE MANQUANTE : %s" % f)
             return 2

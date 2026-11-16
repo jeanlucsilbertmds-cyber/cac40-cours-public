@@ -585,7 +585,7 @@ def lire_les_entrees():
     ⑥ TRAITEMENT — Les lectures que `main` faisait elle-même jusqu'au 12-11-2026, dans le même ordre.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Superviseur R-759 de E2b, tour 1 (12-11-2026) : l'enchaînement de `main` existait en trois exemplaires
-      (ce `main`, etudes/VINGT_ANS_A_PART_Mer_11-11-2026/INVENTORIER_LES_VINGT_ANS.py, ASSEMBLER) ; deux implémentations
+      (ce `main`, etudes/outils/INVENTORIER_LES_VINGT_ANS.py, ASSEMBLER) ; deux implémentations
       d'une même chose divergent toujours (R-708).
     ⑨ CE QUI CLOCHE — INVENTORIER_LES_VINGT_ANS garde sa propre copie (elle n'appelle pas les divisions officielles) :
       non rebranché ici (→ BACKLOG).

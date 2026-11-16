@@ -325,7 +325,12 @@ def t7():
          and "LECTURE DES COURS REFUSEE" in out, (code, out[-300:]))
 def c7():
     # VINCI privée du 20-10-2026 (cas réel du relecteur du 29-10-2026, I2) : 6 séances sans trou au 28-10, aucun CMF.
-    ecrire_maitre(lambda x: not (x["valeur"] == "VINCI" and x["date"] == "2026-10-20"))
+    # LE MAÎTRE S'ARRÊTE AU 28-10-2026, QUELLE QUE SOIT SA LONGUEUR (enquête du 15-11-2026, C2) : le cas réel ne vaut
+    # qu'à cette date. Avec le maître entier, chaque séance versée depuis donne à VINCI une séance sans trou de plus ;
+    # dès la nuit du 10-11-2026 elle en avait assez pour calculer, n'était plus « ◌ », et C7 rougissait chaque nuit
+    # (rejoué le 15-11-2026 : « séance 2026-11-13 · … 0 valeur(s) sans calcul »). Même réparation que V10c de
+    # l'épreuve de la vente unique (11-11-2026).
+    ecrire_maitre(lambda x: x["date"] <= "2026-10-28" and not (x["valeur"] == "VINCI" and x["date"] == "2026-10-20"))
     code, out = lancer("programmes/DETECTER_LES_SIGNAUX_GITHUB.py")
     dire("C7 VINCI privée du 20-10-2026 : dite « ◌ » et comptée, code 0", code == 0 and "◌ VINCI" in out
          and "depuis le 2026-10-21" in out and "1 valeur(s) sans calcul possible" in out, (code, out[-400:]))

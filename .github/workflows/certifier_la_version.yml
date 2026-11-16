@@ -9,6 +9,13 @@
 # Depuis le 30-10-2026 (décision de Jean-Luc à 19h02) : les épreuves sont réparties en tranches
 # jouées en même temps sur des machines distinctes (job « certifier »), puis une tâche finale
 # (job « reunir ») réunit leurs certificats partiels et rougit s'il en manque un.
+# Depuis le 15-11-2026 (superviseur R-759 du 15-11-2026, réparation 1b-β) : UN SEUL COMMIT DU DÉPÔT
+# PRIVÉ PAR NUIT. Le job « preparer » note la pointe de main au départ ; les tranches et la tâche
+# finale clonent ce commit (« ref: »), et le pas « meme_depot » vérifie que c'est bien lui. Raison :
+# le 14-11-2026, une installation faite au privé à 04h33, pendant le passage, a fait rougir la tâche
+# finale (05h04), qui clonait le privé à sa pointe alors que le public restait figé au déclenchement.
+# La tâche finale lit ensuite les certificats partiels à la pointe de main, où les tranches les ont
+# poussés ; le code qu'elle exécute reste celui du commit noté.
 name: Certifier la version
 on:
   workflow_dispatch:
@@ -22,7 +29,25 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  preparer:
+    # LE COMMIT DE LA NUIT : la pointe de main du dépôt privé, lue UNE fois, au départ (aucun code n'est exécuté ici).
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.noter.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
+          token: ${{ secrets.JETON_DEPOTS }}
+          ref: main
+          persist-credentials: false
+      - name: Noter le commit du depot prive
+        id: noter
+        shell: bash
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   certifier:
+    needs: preparer
     runs-on: ubuntu-latest
     # 330 minutes PAR TRANCHE : GitHub coupe toute tâche à 6 heures ; chaque tranche a les siennes.
     timeout-minutes: 330
@@ -37,6 +62,12 @@ jobs:
           - 4
           - 5
           - 6
+          - 7
+          - 8
+          - 9
+          - 10
+          - 11
+          - 12
     defaults:
       run:
         shell: python3 programmes/ETAPE_MUETTE.py {0}
@@ -46,6 +77,7 @@ jobs:
           repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
           token: ${{ secrets.JETON_DEPOTS }}
           fetch-depth: 0
+          ref: ${{ needs.preparer.outputs.sha }}
       - uses: actions/checkout@v5
         with:
           path: _code
@@ -100,6 +132,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Le depot prive est-il celui de la preparation ?
+        id: meme_depot
+        env:
+          SHA: ${{ needs.preparer.outputs.sha }}
+        run: |
+          [ "$(git rev-parse HEAD)" = "$SHA" ] || { echo "::error::LE COMMIT CLONE N EST PAS CELUI DE LA PREPARATION"; exit 1; }
       # Les logiciels que les programmes cherchent par shutil.which : pdftotext (les PDF) et soffice
       # (les .doc). Absents de la machine de GitHub, ils ont fait rougir trois epreuves au premier
       # certificat public (16-10-2026, f5aac6b). continue-on-error : si l'installation tombe, la
@@ -118,7 +156,7 @@ jobs:
       - name: Certifier une tranche
         id: certifier
         continue-on-error: true
-        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/6
+        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/12
       - name: Deposer au depot prive
         id: deposer
         if: always()
@@ -134,12 +172,12 @@ jobs:
             || { echo "::error::certificat partiel ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
           git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
-          for i in $(seq 1 9); do
+          for i in $(seq 1 15); do
             git rebase --abort 2>/dev/null || true
-            if git pull -q --rebase --autostash origin main && git push -q; then echo "depose"; exit 0; fi
+            if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
-          echo "::error::POUSSEE REFUSEE 9 FOIS — le certificat reste sur la machine jetable"; exit 1
+          echo "::error::POUSSEE REFUSEE 15 FOIS — le certificat reste sur la machine jetable"; exit 1
       - name: Rougir si la version n'est pas certifiee
         id: verdict
         if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'success' }}
@@ -148,7 +186,10 @@ jobs:
           exit 1
   reunir:
     # LA TÂCHE FINALE : après toutes les tranches, MÊME si l'une a échoué, a été coupée ou annulée.
-    needs: certifier
+    # la liste « à tirets », comme la matrice : le sous-ensemble YAML lu par ce fabricant refuse « [ … ] »
+    needs:
+      - preparer
+      - certifier
     if: ${{ always() }}
     runs-on: ubuntu-latest
     defaults:
@@ -160,6 +201,7 @@ jobs:
           repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
           token: ${{ secrets.JETON_DEPOTS }}
           fetch-depth: 0
+          ref: ${{ needs.preparer.outputs.sha }}
       - uses: actions/checkout@v5
         with:
           path: _code
@@ -214,13 +256,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Le depot prive est-il celui de la preparation ?
+        id: meme_depot
+        env:
+          SHA: ${{ needs.preparer.outputs.sha }}
+        run: |
+          [ "$(git rev-parse HEAD)" = "$SHA" ] || { echo "::error::LE COMMIT CLONE N EST PAS CELUI DE LA PREPARATION"; exit 1; }
+      - name: Lire les certificats partiels a la pointe du depot prive
+        id: partiels
+        run: |
+          git fetch -q origin main
+          git checkout FETCH_HEAD -- rapports/certificats_partiels
       - name: Installer la mesure et les dependances des programmes
         id: installer
         run: python3 -m pip install --quiet "coverage==7.16.2" "numpy==2.2.6" "pyflakes==4.1.0" cryptography pyyaml
       - name: Reunir les tranches
         id: certifier
         continue-on-error: true
-        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir 6
+        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir 12
       - name: Deposer au depot prive
         id: deposer
         if: always()
@@ -232,12 +285,12 @@ jobs:
             || { echo "::error::certificat ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
           git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
-          for i in $(seq 1 9); do
+          for i in $(seq 1 15); do
             git rebase --abort 2>/dev/null || true
-            if git pull -q --rebase --autostash origin main && git push -q; then echo "depose"; exit 0; fi
+            if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
-          echo "::error::POUSSEE REFUSEE 9 FOIS — le certificat reste sur la machine jetable"; exit 1
+          echo "::error::POUSSEE REFUSEE 15 FOIS — le certificat reste sur la machine jetable"; exit 1
       - name: Rougir si la version n'est pas certifiee
         id: verdict
         if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'success' }}

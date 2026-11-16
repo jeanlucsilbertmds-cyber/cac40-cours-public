@@ -250,7 +250,7 @@ def epreuves(racine):
 
     voisinage_moulinette = {l["parametre"]: l for l in P.lire_tableau(os.path.join(racine, GRILLE))}
     import CONTRATS_DES_FICHIERS as CONTRAT
-    fiches = CONTRAT.fiches_des_lignes(P.lire_tableau(os.path.join(racine, "donnees", "cac40_strategies.csv")))
+    fiches = CONTRAT.fiches_des_lignes(P.lire_tableau(os.path.join(racine, CONTRAT.REGISTRE_DES_STRATEGIES)))
 
     def centre_de(ident):
         """Rend les réglages d'une vraie fiche du registre, en pourcents et séances.

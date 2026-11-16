@@ -193,7 +193,9 @@ def fabriquer(source, dossier):
     for nom, texte in (("SIGNAL_J_BON.py", SIGNAL_BON), ("SIGNAL_J_HASARD.py", SIGNAL_HASARD)):
         open(os.path.join(dossier, "programmes", nom), "w", encoding="utf-8").write(texte)
     # LE REGISTRE DES STRATÉGIES : une VRAIE ligne (C5E10-QA-V1) comme modèle, R-732
-    with open(os.path.join(source, "donnees", "cac40_strategies.csv"), encoding="utf-8-sig", newline="") as f:
+    registre = charger(os.path.join(source, "programmes", "CONTRATS_DES_FICHIERS.py"),
+                       "contrat_de_la_source_j").REGISTRE_DES_STRATEGIES  # le chemin du registre se lit au contrat (R-708 ; G1 de l'épreuve du registre des stratégies, enquête du 15-11-2026, C3)
+    with open(os.path.join(source, registre), encoding="utf-8-sig", newline="") as f:
         lecteur = csv.DictReader(f)
         entete = lecteur.fieldnames
         modele = [l for l in lecteur if l["id"] == "C5E10-QA-V1"][-1]
@@ -211,7 +213,7 @@ def fabriquer(source, dossier):
                  periode="%s -> %s" % (DEBUT, FIN), module_signal="programmes/" + module, fonction_signal=fonction,
                  reglages_signal="", tp="+4.0%", sl="-2.5%", horizon="20")
         fiches.append(l)
-    with open(os.path.join(dossier, "donnees", "cac40_strategies.csv"), "w", encoding="utf-8", newline="") as f:
+    with open(os.path.join(dossier, registre), "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=entete)
         w.writeheader()
         w.writerows(fiches)

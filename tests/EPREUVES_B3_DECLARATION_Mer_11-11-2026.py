@@ -455,8 +455,14 @@ def main(argv):
         print("usage : EPREUVES_B3_DECLARATION_Mer_11-11-2026.py <racine> [--saboter | nom]")
         return 2
     racine = os.path.abspath(argv[0])
-    for f in CODE + ("emp.py", "programmes/JUGE_DES_STRATEGIES.py", "donnees/DECLARATIONS_DATEES.csv",
-                     "donnees/cac40_strategies.csv"):
+    if not os.path.exists(os.path.join(racine, "programmes/CONTRATS_DES_FICHIERS.py")):
+        print("DONNÉE MANQUANTE : programmes/CONTRATS_DES_FICHIERS.py")
+        return 2
+    # le chemin du registre des stratégies se lit au contrat, jamais écrit ici (R-708 ; G1 de l'épreuve du registre
+    # des stratégies, enquête du 15-11-2026, C3)
+    registre = charger(os.path.join(racine, "programmes/CONTRATS_DES_FICHIERS.py"),
+                       "CONTRATS_DES_FICHIERS").REGISTRE_DES_STRATEGIES
+    for f in CODE + ("emp.py", "programmes/JUGE_DES_STRATEGIES.py", "donnees/DECLARATIONS_DATEES.csv", registre):
         if not os.path.exists(os.path.join(racine, f)):
             print("DONNÉE MANQUANTE : %s" % f)
             return 2

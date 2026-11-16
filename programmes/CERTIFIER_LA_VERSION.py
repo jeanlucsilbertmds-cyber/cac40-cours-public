@@ -1263,8 +1263,8 @@ _COMMANDES_DE_GITHUB = None
 
 
 def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUREE_MAX_EPREUVE, lectures=None,
-          garder=3):
-    """Joue une épreuve sous la mesure et rend son code, sa durée et ses dernières lignes.
+          garder=None):
+    """Joue une épreuve sous la mesure et rend son code, sa durée et les lignes de sa sortie.
 
     ① RÔLE — Un lancement d'épreuve.
     ② CONTEXTE D'APPEL — `main`, une fois par lancement.
@@ -1274,10 +1274,12 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
       secondes, la coupure rendue par `coupure` (délai déclaré à la table de lancement, « delais », sinon
       `DUREE_MAX_EPREUVE` ; porté à 3 × la durée relevée si c'est plus, ce triple plafonné à
       3 × `DUREE_MAX_EPREUVE`) · `lectures` : un dossier où chaque processus note les fichiers
-      qu'il ouvre en lecture, ou None · `garder` : le nombre de dernières lignes de sortie rendues (None : toutes).
+      qu'il ouvre en lecture, ou None · `garder` : le nombre de dernières lignes de sortie rendues (None, le défaut
+      depuis le 15-11-2026 : toutes ; la coupe d'une épreuve VERTE est faite par `lignes_gardees`).
     ④ CONDITIONS D'ENTRÉE — La mesure est armée.
     ⑤ SORTIE — TROIS valeurs : le code de sortie (124 si l'épreuve a dépassé son délai), la
-      durée en secondes, les trois dernières lignes de sa sortie.
+      durée en secondes, les lignes non vides de sa sortie (toutes, ou les `garder` dernières). Une épreuve coupée
+      rend ce qu'elle a écrit avant la coupure (stdout puis stderr), puis « ARRÊTÉE : plus de N s » en dernière ligne.
       [rend: 3]
     ⑥ TRAITEMENT — lancer `py <épreuve> <arguments>` dans le dossier, avec les variables qui
       arment la mesure et désignent le dossier des empreintes, sans la configuration Git de
@@ -1294,8 +1296,15 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
       écrirait dans GITHUB_ENV ou GITHUB_OUTPUT changerait les pas suivants ; le joueur des séries les retirait
       déjà, la nuit non (aucun programme n'y écrivait le 15-11-2026, recherche du superviseur : un trou fermé avant
       d'être emprunté).
+      Garder la sortie d'une épreuve coupée : superviseur R-759 du 15-11-2026 (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/
+      SUPERVISEUR_CERT3_Dim_15-11-2026.md, §2, A2, « DE FOND ») — une coupure est justement un rouge à diagnostiquer,
+      et la donnée était déjà portée par l'exception ; elle était jetée.
     ⑨ CE QUI CLOCHE — Une épreuve qui écrit dans la copie peut gêner la suivante ; toutes
-      sont écrites pour travailler sur leurs propres copies.
+      sont écrites pour travailler sur leurs propres copies. La sortie entière est tenue en mémoire : une épreuve
+      bavarde (des centaines de milliers de lignes) pèserait d'autant ; aucune n'a été mesurée ainsi. Une épreuve
+      coupée : stdout et stderr sont mis bout à bout, sans leur entrelacement réel ; une épreuve dont des
+      petits-processus tiennent encore les tuyaux après la coupure n'a pas été essayée (THÉORIQUE : sous POSIX,
+      `subprocess.run` ne fait que `wait()` après `kill()`).
     ⑩ EFFET — Lance un processus.
     ⑪ TERMINAISON — Rend la main ; l'épreuve est arrêtée à `delai` secondes.
       [sort: non]
@@ -1312,8 +1321,11 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
         r = subprocess.run([py, os.path.join(copie, chemin)] + args, cwd=os.path.join(copie, dossier), env=env,
                            capture_output=True, text=True, errors="replace", timeout=delai)
         code, sortie = r.returncode, (r.stdout + r.stderr)
-    except subprocess.TimeoutExpired:
-        code, sortie = 124, f"ARRÊTÉE : plus de {delai} s"
+    except subprocess.TimeoutExpired as e:
+        # ce que l'épreuve coupée a écrit : sous text=True, l'exception le rend en OCTETS, et None si rien n'a été
+        # écrit (mesuré, Python 3.13) — décodé ou ignoré, sinon TypeError ici et la tranche tomberait sans partiel
+        lu = "".join(x.decode("utf-8", "replace") if isinstance(x, bytes) else x for x in (e.stdout, e.stderr) if x)
+        code, sortie = 124, lu + f"\nARRÊTÉE : plus de {delai} s"
     lignes = [l for l in sortie.strip().splitlines() if l.strip()]
     return code, round(time.time() - debut), (lignes if garder is None else lignes[-garder:])
 
@@ -1518,8 +1530,9 @@ def jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lance
       [rend: 1]
     ⑥ TRAITEMENT — une série déclarée « series_hors_de_la_nuit » n'est pas rejouée : son relevé est vérifié
       (`verifier_une_serie`), puis des essais refaits (`refaire_des_essais`) ; tout autre lancement est joué
-      (`jouer`) ; chacun est coupé à `coupure` (délai déclaré, ou 3 × la durée relevée plafonné, s'il est plus grand) ; une
-      ligne par lancement à l'écran (`ligne_du_journal`).
+      (`jouer`) ; chacun est coupé à `coupure` (délai déclaré, ou 3 × la durée relevée plafonné, s'il est plus grand) ;
+      sa sortie est gardée par `lignes_gardees` (entière s'il est rouge, depuis le 15-11-2026) ; une ligne par
+      lancement à l'écran (`ligne_du_journal`).
     ⑦ UNITÉ — Des secondes.
     ⑧ POURQUOI — Une seule rédaction de la boucle (R-708) pour les deux modes.
     ⑨ CE QUI CLOCHE — La vérification d'une série lit ce que le lancement normal de la même épreuve a lu : il doit
@@ -1538,7 +1551,7 @@ def jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lance
                 code, duree, autres = refaire_des_essais(copie, py, reglages, manifestes, chemin,
                                                          series[chemin]["releve"], series[chemin]["essais"],
                                                          coupure(cle, delais, durees))
-                lignes = (lignes + autres)[-3:]
+                lignes = lignes + autres
         else:
             lectures = None
             if chemin in series:
@@ -1548,9 +1561,41 @@ def jouer_les_lancements(copie, jetable, racine, py, reglages, manifestes, lance
                                         coupure(cle, delais, durees), lectures)
             if lectures:
                 lus_par_epreuve[chemin] = fichiers_lus(lectures, copie, racine)
-        resultats.append([chemin, dossier, arguments, code, duree, lignes])
+        resultats.append([chemin, dossier, arguments, code, duree, lignes_gardees(code, lignes)])
         print(ligne_du_journal(chemin, arguments, code, duree), flush=True)
     return resultats
+
+
+# Le nombre de dernières lignes gardées de la sortie d'une épreuve VERTE (une épreuve rouge garde tout, `lignes_gardees`).
+LIGNES_D_UNE_EPREUVE_VERTE = 3
+
+
+def lignes_gardees(code, lignes):
+    """Rend ce qui est gardé de la sortie d'un lancement : tout s'il est rouge, les dernières lignes s'il est vert.
+
+    ① RÔLE — La seule règle de coupe de la sortie d'un lancement, pour le certificat partiel et le certificat.
+    ② CONTEXTE D'APPEL — `jouer_les_lancements`, une fois par lancement ;
+      tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py, cas N11.
+    ③ ENTRÉE — `code` : le code de sortie du lancement · `lignes` : les lignes de sa sortie, toutes.
+    ④ CONDITIONS D'ENTRÉE — `lignes` est une liste.
+    ⑤ SORTIE — UNE valeur : `lignes` entière si `code` n'est pas 0 ; ses `LIGNES_D_UNE_EPREUVE_VERTE` dernières sinon.
+      [rend: 1]
+    ⑥ TRAITEMENT — un test sur le code.
+    ⑦ UNITÉ — Des lignes.
+    ⑧ POURQUOI — Enquête du 15-11-2026 (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/ENQUETE_CERTIFICATION_
+      ROUGE_Dim_15-11-2026.md, C6) : VENTE_UNIQUE_A rougit chaque nuit sur GitHub et reste verte sur la machine ; la
+      sortie gardée ne portait que 3 lignes, et le cas fautif est resté inconnu. Le superviseur R-759 du 15-11-2026
+      (même dossier, réparation 8, « DE FOND ») : garder la sortie entière d'une épreuve rouge, préalable au diagnostic
+      de C6, C2 et C12. La sortie va au dépôt privé (certificats partiels, certificat), jamais au journal public, qui ne
+      porte qu'une ligne par lancement (`ligne_du_journal`). Une épreuve verte garde 3 lignes, comme avant : rien à
+      diagnostiquer, et les certificats partiels ne grossissent pas.
+    ⑨ CE QUI CLOCHE — Une épreuve rouge très bavarde grossit d'autant le certificat partiel poussé au privé et le
+      certificat ; aucune borne n'est posée (une borne écrite ici serait un chiffre sans mesure).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return list(lignes) if code != 0 else list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]
 
 
 def conclure(racine, ou, horodatage, resultats, lancements, tableau, reference, empreinte, ecrire, accord,

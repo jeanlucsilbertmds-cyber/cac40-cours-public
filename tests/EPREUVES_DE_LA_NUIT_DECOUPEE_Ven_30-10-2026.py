@@ -12,7 +12,7 @@
 ③ ENTRÉE — La racine du dépôt (le fabricant et le certificateur sont pris dans son programmes/, les journaux des
   nuits dans son rapports/journal_du_circuit/).
 ④ CONDITIONS D'ENTRÉE — PyYAML et coverage installés (le circuit les installe) ; sinon code 2.
-⑤ SORTIE — Le code de sortie : 0 si les cas N1 à N10, D1 et F0 à F9 donnent la réponse attendue et, avec --saboter, si
+⑤ SORTIE — Le code de sortie : 0 si les cas N1 à N13, D1 et F0 à F9 donnent la réponse attendue et, avec --saboter, si
   chaque sabotage en fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus ou si un module manque.
   [rend: 1]
 ⑥ TRAITEMENT — Sur une copie restreinte du dépôt (programmes, tests, fiches de circuit, journaux de certification) :
@@ -41,7 +41,16 @@
   ce triple plafonné à 3 × DUREE_MAX_EPREUVE (relecture 4dcffa32, point 1 ; le délai déclaré n'est jamais raccourci)
   (`coupure`), et la boucle de jeu (`jouer_les_lancements`) la passe à `jouer` comme à `refaire_des_essais`. Et
   (09-11-2026, relecture de Cowork 4dcffa32, B3-9) : N10 `main` passe les durées relevées à cette boucle, en mode
-  entier ET en mode tranche (voir `n10`).
+  entier ET en mode tranche (voir `n10`). Et (15-11-2026, superviseur R-759 du 15-11-2026,
+  etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/SUPERVISEUR_CERTIFICATION_Dim_15-11-2026.md) : N11 la
+  sortie d'une épreuve rouge est gardée entière, celle d'une verte coupée à 3 lignes (`n11`) · N12 aucune épreuve de
+  la nuit ne nomme un programme du dépôt rangé hors des dossiers gardés par le circuit (`n12`) ; et les sabotages Sm
+  (6 tranches : N5 doit rougir), Sn, So, Sq (N11), St et Su (le filet du fabricant refuse une certification sans
+  « ref: » ou sans le pas « meme_depot »), Sp (N12) — chacun doit faire tomber SON cas (ATTENDU). Et (15-11-2026,
+  superviseur R-759, SUPERVISEUR_CERT3_Dim_15-11-2026.md, même dossier) : N13 la charge prévue d'un lancement est sa
+  durée relevée, sinon son délai déclaré, sinon DUREE_MAX_EPREUVE, sur le vrai `repartir` (`n13`) ; N11 éprouve aussi
+  une épreuve COUPÉE (sa sortie gardée, « ARRÊTÉE » en dernier) et les codes 2 et 124 ; sabotages Sh et Sv (N13),
+  Sw et Sx (N11).
 ⑦ UNITÉ — Des minutes (limites des jobs) et des secondes (charges).
 ⑧ POURQUOI — Décision de Jean-Luc du 30-10-2026 à 19h02 (réponse « 1 ») : « Couper la nuit en plusieurs tâches qui
   tournent en même temps, chacune avec ses propres 6 heures, plus une tâche finale qui réunit les résultats et dit
@@ -103,7 +112,9 @@ SABOTAGES = {
     "S6_autre_passage_accepte": [(CERTIF, 'attendu = {"passage": passage, "nombre"', 'attendu = {"nombre"')],
     "S7_doublon_accepte": [(CERTIF, '("joué(s) par plusieurs tranches", doubles)', '("joué(s) par plusieurs tranches", [])')],
     "S8_partiel_impossible_accepte": [(CERTIF, '        elif p.get("impossible"):\n', '        elif False:\n')],
-    "S9_finale_sans_dependance": [(FAB, "    needs: certifier\n", "")],
+    # S9 s'ancre sur l'ÉLÉMENT « - certifier » de la liste des dépendances de « reunir » (unique au fabricant) : depuis
+    # le 15-11-2026, « needs » s'écrit en liste à tirets, et l'ancre « needs: certifier » n'existait plus (B1 de Cowork).
+    "S9_finale_sans_dependance": [(FAB, "      - certifier\n", "")],
     "S10_repartitions_differentes_acceptees": [(CERTIF, "if not fautes and len({p.get(\"repartition\") for p in lus}) != 1:",
                                                 "if False:")],
     "S12_moins_d_essais_que_de_tranches": [(FAB, "ESSAIS_DE_POUSSEE = TRANCHES_DE_LA_NUIT + 3\n",
@@ -136,11 +147,50 @@ SABOTAGES = {
                                    "                                             series, {})\n")],
     "Sj_tranche_sans_les_durees": [(CERTIF, "a_jouer, delais, series,\n                                         durees)\n",
                                     "a_jouer, delais, series,\n                                         {})\n")],
+    # 15-11-2026 (superviseur R-759 du 15-11-2026, etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/
+    # SUPERVISEUR_CERTIFICATION_Dim_15-11-2026.md, §5) — chacun doit faire tomber le cas que dit ATTENDU, pas un autre :
+    # le nombre de tranches revenu à 6, la valeur d'avant : à 12, N5 est vert ; il doit rougir (sinon N5 est une décoration)
+    "Sm_six_tranches_comme_avant": [(FAB, "TRANCHES_DE_LA_NUIT = 12\n", "TRANCHES_DE_LA_NUIT = 6\n")],
+    # réparation 8 : la sortie d'une épreuve rouge gardée entière (N11)
+    "Sn_sortie_rouge_coupee_a_trois": [(CERTIF,
+        "    return list(lignes) if code != 0 else list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]\n",
+        "    return list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]\n")],
+    "So_jouer_coupe_a_trois": [(CERTIF, "          garder=None):\n", "          garder=3):\n")],
+    "Sq_boucle_sans_la_regle_de_coupe": [(CERTIF, "lignes_gardees(code, lignes)])", "lignes])")],
+    # réparation 1b-β : la certification sans « ref: » (propriété ⑦ du filet), puis sans le pas qui vérifie HEAD (⑦ bis)
+    "St_certification_sans_ref": [(FAB, 'ref="${{ needs.preparer.outputs.sha }}", jeton_garde=True)', "jeton_garde=True)")],
+    "Su_certification_sans_meme_depot": [(FAB, "%(depart)s%(meme_depot)s%(logiciels)s", "%(depart)s%(logiciels)s")],
+    # réparation 4 : un programme éprouvé remis hors des dossiers gardés (N12) ; « None » : un fichier créé dans la copie
+    "Sp_programme_eprouve_hors_des_dossiers_gardes": [
+        ("tests/EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS_Mer_11-11-2026.py", 'PROGRAMME = os.path.join("etudes", "outils", "INVENTORIER_LES_VINGT_ANS.py")',
+         'PROGRAMME = os.path.join("etudes", "HORS_DU_CODE", "INVENTORIER_LES_VINGT_ANS.py")'),
+        ("etudes/HORS_DU_CODE/INVENTORIER_LES_VINGT_ANS.py", None, "# un programme éprouvé hors des dossiers gardés\n")],
+    # 15-11-2026 (superviseur R-759, SUPERVISEUR_CERT3_Dim_15-11-2026.md, même dossier) : la charge prévue, priorités
+    # inversées (le délai déclaré avant la durée relevée) — Sh et Sv doivent faire tomber N13 (§1)
+    "Sv_prevue_priorites_inversees": [(CERTIF, "        return durees.get(cle, delais.get(cle, DUREE_MAX_EPREUVE))\n",
+                                       "        return delais.get(cle, durees.get(cle, DUREE_MAX_EPREUVE))\n")],
+    # A2 (§2) : une épreuve coupée perd toute sa sortie ; m1 (§3) : seul le code 1 garde toute la sortie
+    "Sw_coupee_sans_sa_sortie": [(CERTIF, "        code, sortie = 124, lu + f\"\\nARRÊTÉE : plus de {delai} s\"\n",
+                                  "        code, sortie = 124, f\"ARRÊTÉE : plus de {delai} s\"\n")],
+    "Sx_seul_le_code_1_garde_tout": [(CERTIF,
+        "    return list(lignes) if code != 0 else list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]\n",
+        "    return list(lignes) if code == 1 else list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]\n")],
     "S11_epreuve_coupee_en_deux": [(CERTIF, "        groupes.setdefault(l[0], []).append(l)\n",
                                     "        groupes.setdefault(cle_de(l[0], l[2]), []).append(l)\n"),
                                    (CERTIF, "    return [[l for l in lancements if l[0] in choisies[i]] for i in range(nombre)], charges",
                                     "    return [[l for l in lancements if cle_de(l[0], l[2]) in choisies[i]] for i in range(nombre)], charges")],
 }
+# Le texte que doit porter au moins une faute de chacun de ces sabotages : un sabotage qui ne fait tomber qu'un AUTRE cas
+# ne prouve pas que le sien regarde (15-11-2026 : à 6 tranches, seul N5 rougit ; à 1, F1 rougirait aussi).
+ATTENDU = {"Sm_six_tranches_comme_avant": "N5 ", "Sn_sortie_rouge_coupee_a_trois": "N11 ",
+           "So_jouer_coupe_a_trois": "N11 ", "Sq_boucle_sans_la_regle_de_coupe": "N11 ",
+           "St_certification_sans_ref": "sans « ref: »", "Su_certification_sans_meme_depot": "SERIES_MEME_DEPOT",
+           # la faute visée nomme l'épreuve sabotée : la table SABOTAGES de cette épreuve-ci écrit le même chemin, et
+           # N12 la voit aussi dans la copie, où le fichier créé existe (mesuré le 15-11-2026)
+           "Sp_programme_eprouve_hors_des_dossiers_gardes": "N12 tests/EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS",
+           # superviseur R-759 du 15-11-2026 (SUPERVISEUR_CERT3_Dim_15-11-2026.md) : Sh et Sv (§1), Sw (§2), Sx (§3)
+           "Sh_prevue_sans_le_delai_declare": "N13 ", "Sv_prevue_priorites_inversees": "N13 ",
+           "Sw_coupee_sans_sa_sortie": "N11 ", "Sx_seul_le_code_1_garde_tout": "N11 "}
 
 # Le petit dépôt d'essai : un programme à trois fonctions, une épreuve par fonction (chacune exécute sa fonction par un
 # sous-processus, comme les vraies épreuves exécutent leurs programmes).
@@ -425,8 +475,167 @@ def n10(C, faux):
         faux.append(f"N10 coupures reçues de `main` : {recus}, attendu {{'entier': 2100, 'tranche': 2100}} (3 × 700 s)")
 
 
+def n11(C, faux):
+    """N11 — la sortie d'une épreuve rouge est gardée entière, celle d'une verte coupée à ses dernières lignes.
+
+    ① RÔLE — Garder la réparation 8 du superviseur R-759 du 15-11-2026 (« garder à la nuit la sortie entière d'une
+      épreuve rouge ») : sans ce cas, aucune épreuve ne disait si la sortie entière est gardée (même rapport, §5).
+    ② CONTEXTE D'APPEL — `tour`, une fois. ③ ENTRÉE — `C` : le certificateur de la copie, chargé · `faux` : la liste
+      des fautes, complétée. ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Rien ; ajoute à `faux`. [rend: rien]
+    ⑥ TRAITEMENT — ① `jouer`, LE VRAI, sur un script jetable qui écrit dix lignes et rend 1 : il doit rendre les dix
+      lignes · ② `jouer`, LE VRAI, sur un script jetable qui écrit dix lignes sur stdout, « CAS FAUTIF : X » sur
+      stderr, puis dort 60 s, joué avec un délai de 3 s : code 124, les dix lignes et « CAS FAUTIF : X » gardés, et
+      « ARRÊTÉE : plus de 3 s » en DERNIÈRE ligne (A2) · ③ `jouer_les_lancements` avec un `jouer` témoin qui rend dix
+      lignes, code 0 pour « v.py », 1 pour « r1.py », 2 pour « r2.py », 124 pour « r124.py » : chaque rouge doit
+      porter les dix lignes, la verte les trois dernières (m1).
+    ⑦ UNITÉ — Des lignes. ⑧ POURQUOI — Enquête du 15-11-2026, C6 : trois lignes gardées, le cas fautif de
+      VENTE_UNIQUE_A est resté inconnu. Sabotages Sn, So et Sq. Superviseur R-759 du 15-11-2026 (etudes/PLAN_V7_SOUS_
+      L_OUTIL_PLANNING/rapports_du_11-11-2026/SUPERVISEUR_CERT3_Dim_15-11-2026.md) : A2 (§2) — une épreuve COUPÉE
+      perdait toute sa sortie, alors qu'une coupure est justement un rouge à diagnostiquer ; sabotage Sw · m1 (§3) — le
+      seul code 1 éprouvé laissait passer « code == 1 » à la place de « code != 0 », qui ne garde plus qu'un arrêt
+      (code 2, le cas de B1) ou une coupure (124) à 3 lignes ; la propriété est « tout code non nul », éprouvée sur
+      ses trois classes réelles, pas une liste qu'on allongerait ; sabotage Sx.
+    ⑨ CE QUI CLOCHE — Le certificat partiel et le certificat ne sont pas écrits ici : ils recopient les lignes du
+      résultat telles quelles (`ecrire_le_partiel`, `ecrire_le_rapport`). ⑩ EFFET — Un dossier jetable, effacé ;
+      remet `jouer`. ⑪ TERMINAISON — Rend la main ; le premier script jetable est borné à 60 s, le second coupé à
+      3 s par `jouer` (qui le tue, puis l'attend). [sort: non]
+    """
+    dix = [f"ligne {i}" for i in range(1, 11)]
+    d = tempfile.mkdtemp(prefix="nuit_sortie_")
+    garde = C.jouer
+    try:
+        open(os.path.join(d, "r.py"), "w", encoding="utf-8").write(
+            "import sys\nfor i in range(1, 11):\n    print('ligne %d' % i)\nsys.exit(1)\n")
+        code, _, lignes = C.jouer(d, sys.executable, "", "", "r.py", ".", [], 60)
+        if code != 1 or lignes != dix:
+            faux.append(f"N11 `jouer` sur une épreuve rouge de 10 lignes rend code {code} et {len(lignes)} ligne(s), "
+                        "attendu code 1 et les 10")
+        # A2 : une épreuve coupée garde ce qu'elle a écrit, « ARRÊTÉE » en dernière ligne
+        open(os.path.join(d, "c.py"), "w", encoding="utf-8").write(
+            "import sys, time\nfor i in range(1, 11):\n    print('ligne %d' % i)\nsys.stdout.flush()\n"
+            "print('CAS FAUTIF : X', file=sys.stderr)\nsys.stderr.flush()\ntime.sleep(60)\n")
+        code, _, lignes = C.jouer(d, sys.executable, "", "", "c.py", ".", [], 3)
+        if code != 124 or lignes[:10] != dix or "CAS FAUTIF : X" not in lignes or lignes[-1:] != ["ARRÊTÉE : plus de 3 s"]:
+            faux.append(f"N11 `jouer` sur une épreuve coupée rend code {code} et {lignes[-4:]}, attendu code 124, les 10 "
+                        "lignes, « CAS FAUTIF : X », puis « ARRÊTÉE : plus de 3 s » en dernier")
+        # m1 : tout code non nul garde tout — 1 (rouge), 2 (arrêt), 124 (coupure) ; 0 garde 3 lignes
+        codes = {"v.py": 0, "r1.py": 1, "r2.py": 2, "r124.py": 124}
+        C.jouer = lambda copie, py, reg, man, chemin, dossier, arguments, delai, lectures=None: (
+            codes[chemin], 0, list(dix))
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = C.jouer_les_lancements(d, d, d, "py", None, None, [[c, "", []] for c in codes], {}, {}, {})
+        gardees = {r[0]: len(r[5] or []) for r in res}
+        voulu = {c: (3 if n == 0 else 10) for c, n in codes.items()}
+        if gardees != voulu or {r[0]: r[5] for r in res}.get("v.py") != dix[-3:]:
+            faux.append(f"N11 lignes gardées par la boucle de jeu : {gardees}, attendu {voulu}")
+    finally:
+        C.jouer = garde
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def n13(C, faux):
+    """N13 — la charge prévue d'un lancement est sa durée relevée, sinon son délai déclaré, sinon DUREE_MAX_EPREUVE.
+
+    ① RÔLE — Regarder DIRECTEMENT la règle du ⑤ de `prevue` (dans `repartir`), qu'aucun cas ne regardait.
+    ② CONTEXTE D'APPEL — `tour`, une fois. ③ ENTRÉE — `C` : le certificateur de la copie, chargé · `faux` : la liste
+      des fautes, complétée. ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Rien ; ajoute à `faux`. [rend: rien]
+    ⑥ TRAITEMENT — Le VRAI `repartir`, sur trois lancements fabriqués : « a.py » a une durée relevée de 700 s et un
+      délai déclaré de 9 999 s (la relevée doit l'emporter) ; « b.py » n'a que son délai déclaré, 300 s ; « c.py »
+      n'a ni l'un ni l'autre (il compte DUREE_MAX_EPREUVE). Joué à 1 et à 3 tranches, la somme des charges doit valoir
+      700 + 300 + DUREE_MAX_EPREUVE (2 500 s le 15-11-2026). La valeur est LUE sur le certificateur, jamais recopiée.
+    ⑦ UNITÉ — Des secondes. ⑧ POURQUOI — Superviseur R-759 du 15-11-2026 (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/
+      rapports_du_11-11-2026/SUPERVISEUR_CERT3_Dim_15-11-2026.md, §1, « DE FOND ») : le sabotage Sh (« durée relevée,
+      sinon 1 500 s ») ne mordait que par accident, quand N5 était déjà rouge sur les vrais journaux ; à 12 tranches,
+      N5 est vert dans les deux cas, et Sh NE MORDAIT PAS (mesuré par Cowork et par CERT-3). Ce cas ne dépend ni des
+      journaux ni du nombre de tranches, comme N9 qui regarde `coupure`. Mesuré par le superviseur : Sh donne 3 700 s,
+      l'inversion des priorités (délai déclaré avant durée relevée, sabotage Sv) 11 799 s, pour 2 500 attendues.
+    ⑨ CE QUI CLOCHE — L'ORDRE des épreuves dans les tranches n'est pas regardé ici (N4 et N5 le font sur les vrais
+      lancements). ⑩ EFFET — — ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    lanc = [["a.py", ".", []], ["b.py", ".", []], ["c.py", ".", []]]
+    ka, kb, _ = (C.cle_de(l[0], l[2]) for l in lanc)
+    voulu = 700 + 300 + C.DUREE_MAX_EPREUVE
+    for nombre in (1, 3):
+        _, charges = C.repartir(lanc, {ka: 700}, {kb: 300, ka: 9999}, nombre)
+        if sum(charges) != voulu:
+            faux.append(f"N13 charges prévues ({nombre} tranche(s)) : {charges}, somme {sum(charges)}, attendu {voulu}")
+
+
+def litteraux_py(texte):
+    """Rend les chemins de programme (« dossier/…/NOM.py ») qu'un texte de Python écrit en littéraux.
+
+    ① RÔLE — Lire, sans l'exécuter, quels programmes une épreuve nomme, pour N12.
+    ② CONTEXTE D'APPEL — `n12`, une fois par épreuve. ③ ENTRÉE — `texte` : le source d'une épreuve.
+    ④ CONDITIONS D'ENTRÉE — Le texte se lit en Python (sinon SyntaxError, qui remonte : rouge).
+    ⑤ SORTIE — UNE valeur : l'ensemble des chemins, séparés par « / ». [rend: 1]
+    ⑥ TRAITEMENT — l'arbre syntaxique : chaque chaîne littérale hors des textes explicatifs (docstrings), et, pour
+      chaque appel « ….join(…) », la suite de ses derniers arguments littéraux (au moins deux), jointe par « / » ;
+      on garde ce qui a la forme « dossier/…/NOM.py ».
+    ⑦ UNITÉ — — ⑧ POURQUOI — Le 14-11-2026, deux épreuves nommaient leur programme par
+      os.path.join(RACINE, "etudes", "VINGT_ANS_A_PART_Mer_11-11-2026", "….py") : la racine n'est pas un littéral,
+      la suite l'est (mesuré le 15-11-2026 : sans la suite, la numérotation n'était pas vue).
+    ⑨ CE QUI CLOCHE — Un chemin construit autrement (format, concaténation, variable intermédiaire) n'est pas lu.
+    ⑩ EFFET — — ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    import ast
+    arbre = ast.parse(texte)
+    explicatifs = {id(n.body[0].value) for n in ast.walk(arbre)
+                   if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.body
+                   and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+    vus = set()
+    for n in ast.walk(arbre):
+        if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "join":
+            suite = []
+            for a in reversed(n.args):
+                if not (isinstance(a, ast.Constant) and isinstance(a.value, str)):
+                    break
+                suite.insert(0, a.value)
+            if len(suite) >= 2:
+                vus.add("/".join(suite))
+        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in explicatifs:
+            vus.add(n.value)
+    return {c for c in vus if re.fullmatch(r"(?:[\w.-]+/)+[\w.-]+\.py", c)}
+
+
+def n12(C, depot, faux):
+    """N12 — une épreuve de la nuit ne nomme aucun programme du dépôt rangé hors des dossiers que le circuit garde.
+
+    ① RÔLE — Voir AVANT la nuit une épreuve née incompatible avec le circuit (enquête du 15-11-2026, C9 et C10).
+    ② CONTEXTE D'APPEL — `tour`, une fois. ③ ENTRÉE — `C` : le certificateur de la copie · `depot` : la copie ·
+      `faux` : la liste des fautes, complétée. ④ CONDITIONS D'ENTRÉE — DEPOT est un dépôt git (sinon seule la copie
+      dit ce qui existe).
+    ⑤ SORTIE — Rien ; ajoute à `faux`. [rend: rien]
+    ⑥ TRAITEMENT — les dossiers gardés : DOSSIERS_DE_CODE du fabricant de la copie ; ce qui existe : les fichiers
+      suivis par git au DÉPÔT (« git ls-files », qui voit aussi ce que le pas « poser » a effacé de l'arbre sur
+      GitHub) et les fichiers de la copie ; pour chaque épreuve tests/*.py que le certificateur lance
+      (`lister_les_epreuves`), chaque chemin de `litteraux_py` qui existe et dont le dossier n'est pas gardé est une
+      faute.
+    ⑦ UNITÉ — — ⑧ POURQUOI — Le pas « poser le code public » efface tout .py hors des dossiers gardés : le 14-11-2026,
+      INVENTAIRE_DES_VINGT_ANS et NUMEROTATION_DES_SOCIETES_SORTIES ont rougi sur GitHub (FileNotFoundError), vertes
+      sur la machine du Chat. Superviseur R-759 du 15-11-2026, réparation 4 : la propriété plutôt qu'une liste de
+      dossiers de plus. « Existe » : un chemin fabriqué par une épreuve pour ses propres cas (« etudes/x/programmes/
+      A.py ») n'est pas un programme du dépôt (mesuré le 15-11-2026 : 4 épreuves en écrivent). Placée ICI et non dans
+      EPREUVES_DU_DOSSIER_DE_LANCEMENT que nomme le superviseur : celle-là éprouve le dossier d'où le garde-fou est
+      lancé, pas la table des lancements ; celle-ci lit déjà les lancements et DOSSIERS_DE_CODE (N4, N8).
+    ⑨ CE QUI CLOCHE — `litteraux_py` ne lit pas tout chemin (son ⑨). « --saboter seul accepté » n'est pas vérifié
+      ici : une lecture du texte se trompe (mesuré le 15-11-2026 : 2 épreuves sur 3 qui l'acceptent par argparse ou
+      par une liste seraient refusées) ; c'est consigné, pas réparé.
+    ⑩ EFFET — Lance « git ls-files » (lecture). ⑪ TERMINAISON — Rend la main ; git est borné à 120 s. [sort: non]
+    """
+    gardes = set(charger(os.path.join(depot, FAB)).DOSSIERS_DE_CODE)
+    r = subprocess.run(["git", "-C", DEPOT, "ls-files", "-z", "--", "*.py"], capture_output=True, text=True, timeout=120)
+    suivis = set(r.stdout.split("\0")) if r.returncode == 0 else set()
+    lancements, _ = C.lister_les_epreuves(depot)
+    for e in sorted({l[0] for l in lancements if l[0].startswith("tests/") and l[0].endswith(".py")}):
+        for c in sorted(litteraux_py(open(os.path.join(depot, e), encoding="utf-8").read())):
+            if os.path.dirname(c) not in gardes and (c in suivis or os.path.isfile(os.path.join(depot, c))):
+                faux.append(f"N12 {e} nomme {c}, hors des dossiers gardés par le circuit : il y sera effacé")
+
+
 def tour(depot):
-    """Joue N1 à N10, D1, puis F0 à F9 sur une copie de `depot`, et rend la liste des cas faux.
+    """Joue N1 à N13, D1, puis F0 à F9 sur une copie de `depot`, et rend la liste des cas faux.
 
     ① RÔLE — Un tour d'épreuves. ② CONTEXTE D'APPEL — `main`, une fois tel quel puis une fois par sabotage.
     ③ ENTRÉE — `depot` : la copie restreinte à éprouver. ④ CONDITIONS D'ENTRÉE — —
@@ -547,6 +756,9 @@ def tour(depot):
         C.jouer, C.verifier_une_serie, C.refaire_des_essais = garde
     if recus != {"t.py": 1500, "s.py essais": 1200}:
         faux.append(f"N9 coupures reçues par la boucle de jeu : {recus}, attendu {{'t.py': 1500, 's.py essais': 1200}}")
+    n11(C, faux)
+    n12(C, depot, faux)
+    n13(C, faux)
     n10(C, faux)
     essai(depot, y, faux)
     return faux
@@ -558,7 +770,8 @@ def main():
     ① RÔLE — Le programme entier. ② CONTEXTE D'APPEL — La ligne de commande. ③ ENTRÉE — Voir la fiche en tête.
     ④ CONDITIONS D'ENTRÉE — Voir la fiche en tête. ⑤ SORTIE — Le code de sortie (0, 1, 2). [rend: 1]
     ⑥ TRAITEMENT — Pour chaque cas : copie restreinte, sabotage appliqué (chaque texte doit y être une fois), tour.
-      Z0 doit être vert ; chaque sabotage doit faire au moins une faute.
+      Z0 doit être vert ; chaque sabotage doit faire au moins une faute, et, s'il est dans ATTENDU, une faute qui
+      porte le texte attendu (15-11-2026). Un sabotage dont le texte d'origine vaut None CRÉE le fichier dans la copie.
     ⑦ UNITÉ — — ⑧ POURQUOI — Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas une preuve (R-731).
     ⑨ CE QUI CLOCHE — Si la lecture de DOSSIERS_DE_CODE au fabricant échoue, trace Python, code 1 : rouge pour la
       certification, voir le ⑨ de `copier_le_necessaire`.
@@ -572,6 +785,10 @@ def main():
             copier_le_necessaire(DEPOT, d)
             for fichier, avant, apres in SABOTAGES[nom]:
                 p = os.path.join(d, fichier)
+                if avant is None:          # un fichier créé dans la copie (15-11-2026, Sp)
+                    os.makedirs(os.path.dirname(p), exist_ok=True)
+                    open(p, "w", encoding="utf-8").write(apres)
+                    continue
                 texte = open(p, encoding="utf-8").read()
                 if texte.count(avant) != 1:
                     print(f"{nom} NE S'APPLIQUE PLUS : texte trouvé {texte.count(avant)} fois dans {fichier}")
@@ -584,8 +801,11 @@ def main():
                     print("Z0 " + ("vert" if not faux else "ROUGE : " + " | ".join(faux)))
                     code = max(code, 1 if faux else 0)
                 else:
-                    print(f"{nom} " + ("mord : " + str(faux[:2])[:160] if faux else "NE MORD PAS"))
-                    code = max(code, 0 if faux else 1)
+                    vise = [f for f in faux if ATTENDU.get(nom, "") in f]
+                    print(f"{nom} " + ("mord : " + str((vise or faux)[:2])[:160] if vise else
+                                       f"NE MORD PAS{' SUR « ' + ATTENDU[nom].strip() + ' »' if faux else ''} : "
+                                       + str(faux[:2])[:160] if faux else "NE MORD PAS"))
+                    code = max(code, 0 if vise else 1)
         finally:
             shutil.rmtree(d, ignore_errors=True)
     return code

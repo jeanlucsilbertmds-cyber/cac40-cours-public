@@ -34,8 +34,13 @@ rejouable du dépôt ne vérifiait les renvois (relecture du lot G, U1 à U3, R1
 vivaient au scratchpad, hors du dépôt, où ni Cowork ni le circuit ne peuvent les rejouer.
 Avec --saboter, sept registres sabotés doivent rougir (U0 doublon ordinaire, U1 tiret U+2011, U2 puce
 « * », U3 puce en retrait, U4 tiret U+2010, U5 puce numérotée « 1. », R1 R-502bis sans sa note de
-renvoi, R2 R-505 qui cite R-514, qui n'existe pas) et un témoin doit rester vert (T1 une mention de
+renvoi, R2 R-505 qui cite une règle qui n'existe pas) et un témoin doit rester vert (T1 une mention de
 R-505 dans le corps d'une phrase).
+AJOUT DU 15-11-2026 (enquête et superviseur R-759 du 15-11-2026, C8) : R2 citait R-514 écrit en dur, et R-514
+existe depuis le 11-11-2026 ; le numéro cité se calcule désormais au moment de jouer (`numero_absent` : le plus
+grand « R-nnn » ouvert, plus un), la prémisse « il n'ouvre aucune règle » se vérifie avant de juger
+(`premisse_r2` : sinon ARRÊT, code 2), et le cas R2b relance l'épreuve avec un numéro qui existe imposé
+(--numero-cite=R-nnn) et exige ce code 2.
 CE QUI N'EST PAS COUVERT (dit, pas caché) : un doublon écrit dans une citation « > », ou comme puce sous
 un titre de niveau 3 ou plus (là, une puce est une mention : listes « règles touchées ») ; une règle
 remplacée qui n'est déclarée REMPLACÉE dans la liste d'aucune autre règle ; une décision de la SECTION 0
@@ -45,9 +50,12 @@ lue comme une mention (sabotage S6 de la relecture T3 du lot G, 04-11-2026 : VER
 jour : les 180 ouvertures du registre, 140 puces en gras et 40 titres, suivent la convention).
 
 USAGE : python3 tests/EPREUVES_DE_LA_VERSION_DU_REGISTRE_Lun_28-09-2026.py <racine du dépôt> [--saboter] [--registre-seul]
+  [--numero-cite=R-nnn]
   --registre-seul : ne lance que les contrôles U et R (sans refabriquer le pilote, qui copie le dépôt).
+  --numero-cite= : impose le numéro que cite le sabotage R2 (le cas R2b s'en sert ; sans lui, R2b n'est pas joué).
 CODE : 0 si Z0 est vert, si U et R sont verts sur le vrai registre et, avec --saboter, si chaque
-sabotage fait rougir au moins une épreuve et le témoin reste vert ; 1 sinon ; 2 si le registre est absent.
+sabotage fait rougir au moins une épreuve et le témoin reste vert ; 1 sinon ; 2 si le registre est absent ou si la
+prémisse de R2 est fausse.
 """
 import os, re, shutil, subprocess, sys, tempfile, unicodedata
 
@@ -239,6 +247,40 @@ def controler_le_registre(texte):
         vus.setdefault(k, []).append(n)
     fautes = [f"{k} ouvre {len(v)} règles (lignes {v})" for k, v in vus.items() if len(v) > 1]
     return fautes + renvois(texte, ouv)
+def numero_absent(texte):
+    """Rend un numéro de règle qu'aucune règle du registre n'ouvre : le plus grand « R-nnn » ouvert, plus un.
+
+    ① RÔLE — Choisir AU MOMENT DE JOUER le numéro que cite le sabotage R2 (« une règle NON FIGÉE cite une règle qui
+      n'existe pas »), au lieu d'un numéro écrit en dur.
+    ② CONTEXTE D'APPEL — Corps de l'épreuve, avec --saboter, sauf si --numero-cite= l'impose.
+    ③ ENTRÉE — `texte` : le registre. ④ CONDITIONS D'ENTRÉE — Le registre ouvre au moins une règle « R-nnn ».
+    ⑤ SORTIE — UNE valeur : le texte « R-<n> ». [rend: 1]
+    ⑥ TRAITEMENT — `ouvertures` ; le plus grand nombre des ouvertures de la forme « R-nnn » (sans « bis » ni
+      « ter ») ; plus un.
+    ⑦ UNITÉ — — ⑧ POURQUOI — Enquête du 15-11-2026 (C8) : le sabotage R2 citait R-514 écrit en dur ; R-514 a été
+      écrite le 11-11-2026 à 16h17 (REGISTRE v8.12), le sabotage ne fabriquait plus de citation fausse et l'épreuve
+      rougissait « SABOTAGE NON VU ». Superviseur R-759 du 15-11-2026, réparation 5 : la prémisse se calcule au
+      moment de jouer (le plus grand + 1, mesuré à R-904 ce jour-là), plutôt qu'un R-9999 écrit en dur, qui resterait
+      une prémisse non vérifiée.
+    ⑨ CE QUI CLOCHE — Le numéro est absent par construction ; la prémisse est quand même vérifiée par `premisse_r2`,
+      qui garde le cas où l'on impose un numéro (--numero-cite=). ⑩ EFFET — — ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    return "R-%d" % (max(int(k[2:]) for k, _ in ouvertures(texte) if re.fullmatch(r"R-\d+", k)) + 1)
+
+
+def premisse_r2(texte, numero):
+    """Dit si la prémisse du sabotage R2 tient : `numero` n'ouvre aucune règle du registre.
+
+    ① RÔLE — Vérifier une prémisse de donnée AVANT de juger. ② CONTEXTE D'APPEL — Corps de l'épreuve, avec --saboter.
+    ③ ENTRÉE — `texte` : le registre · `numero` : « R-nnn ». ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : True si aucune ouverture ne porte `numero`. [rend: 1]
+    ⑥ TRAITEMENT — `ouvertures`. ⑦ UNITÉ — — ⑧ POURQUOI — Voir `numero_absent`, ⑧ : une prémisse fausse rendait
+      l'épreuve rouge pour une mauvaise raison ; elle doit l'arrêter (code 2, « n'a pas pu juger », R-734).
+    ⑨ CE QUI CLOCHE — — ⑩ EFFET — — ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    return numero not in {k for k, _ in ouvertures(texte)}
+
+
 PIL = "programmes/claude_FABRIQUER_LE_PILOTE.py"
 SABOTAGES = {
     "Z0": [],
@@ -293,6 +335,13 @@ if "--saboter" in sys.argv:
     _ouv505 = "- **R-505** ("
     for _a in (_avant, _note, _ouv505):
         assert _REG.count(_a) == 1, _a
+    # C8 (15-11-2026) : le numéro cité par R2 se calcule ici, et la prémisse se vérifie avant de juger
+    _impose = [a.split("=", 1)[1] for a in sys.argv if a.startswith("--numero-cite=")]
+    _cite = _impose[0] if _impose else numero_absent(_REG)
+    if not premisse_r2(_REG, _cite):
+        print(f"ARRÊT — PRÉMISSE FAUSSE : le sabotage R2 devait citer une règle absente, et {_cite} ouvre une règle "
+              "du registre ; l'épreuve ne juge pas (code 2)")
+        sys.exit(2)
     _cas = [("U0 doublon de R-505, tiret ordinaire", _REG.replace(_avant, "\n- **R-505** DOUBLON" + _avant), True),
             ("U1 doublon de R-505, tiret insécable U+2011", _REG.replace(_avant, "\n- **R‑505** DOUBLON" + _avant), True),
             ("U2 doublon de R-505, puce « * »", _REG.replace(_avant, "\n* **R-505** DOUBLON" + _avant), True),
@@ -300,7 +349,7 @@ if "--saboter" in sys.argv:
             ("U4 doublon de R-505, tiret U+2010", _REG.replace(_avant, "\n- **R‐505** DOUBLON" + _avant), True),
             ("U5 doublon de R-505, puce numérotée « 1. »", _REG.replace(_avant, "\n1. **R-505** DOUBLON" + _avant), True),
             ("R1 R-502bis sans sa note de renvoi", _REG.replace(_note, ""), True),
-            ("R2 R-505 cite R-514, qui n'existe pas", _REG.replace(_ouv505, "- **R-505** (voir R-514 ; "), True),
+            (f"R2 R-505 cite {_cite}, qui n'existe pas", _REG.replace(_ouv505, f"- **R-505** (voir {_cite} ; "), True),
             ("T1 témoin : R-505 mentionnée dans le corps d'une phrase", _REG.replace(_avant, "\n  La règle R-505 est citée ici." + _avant), False)]
     for _nom, _t, _doit in _cas:
         _f = controler_le_registre(_t)
@@ -308,6 +357,16 @@ if "--saboter" in sys.argv:
         _faute = _faute or not _ok
         print(f"== {_nom} : {'ROUGE' if _f else 'VERT'}" + ("" if _ok else "  <-- SABOTAGE NON VU" if _doit else "  <-- ATTENDU : VERT")
               + (f" · {_f[0]}" if _f else ""))
+    # C8 éprouvé contre un numéro qui EXISTE (superviseur R-759 du 15-11-2026, §5) : la même épreuve, relancée avec le
+    # plus grand numéro ouvert imposé, doit refuser de juger — code 2 et « PRÉMISSE FAUSSE » —, pas passer ni rougir
+    if not _impose:
+        _existant = "R-%d" % (int(numero_absent(_REG)[2:]) - 1)
+        _p = subprocess.run([sys.executable, os.path.abspath(__file__), DEPOT, "--registre-seul", "--saboter",
+                             "--numero-cite=" + _existant], capture_output=True, text=True, timeout=300)
+        _ok = _p.returncode == 2 and "PRÉMISSE FAUSSE" in _p.stdout
+        _faute = _faute or not _ok
+        print(f"== R2b prémisse contre {_existant}, qui existe : code {_p.returncode}"
+              + ("" if _ok else "  <-- ATTENDU : code 2 et « PRÉMISSE FAUSSE »"))
 if "--registre-seul" in sys.argv:
     print("VERDICT :", "tout est conforme" if not _faute else "ECHEC — voir ci-dessus")
     sys.exit(1 if _faute else 0)

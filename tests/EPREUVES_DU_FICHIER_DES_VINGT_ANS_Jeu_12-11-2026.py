@@ -32,8 +32,10 @@
 ② CONTEXTE D'APPEL — python3 -I tests/EPREUVES_DU_FICHIER_DES_VINGT_ANS_Jeu_12-11-2026.py <racine> [--saboter].
   Sans --saboter : les dix-sept propriétés. Avec : en plus, chaque sabotage, qui doit faire tomber SA propriété ; S10,
   S11, S16, S17 et S18 font le chemin de bout en bout sur une copie du dépôt (programme saboté → retrait du gel →
-  --ecrire, qui doit refuser, ou épreuve, qui doit rougir) ; S12 garde la tolérance de P9. --saboter refuse de tourner (code 2) si
-  programmes/ ou tests/ ont des changements non commités : S10 et S11 partent du dernier commit, les autres de l'arbre.
+  --ecrire, qui doit refuser, ou épreuve, qui doit rougir) ; S12 garde la tolérance de P9. Depuis le 15-11-2026,
+  --saboter joue TOUT sur une copie du dernier commit (`git clone --local`) : un changement non commité n'y est pas
+  jugé (avant : --saboter refusait un arbre sale, ce que le circuit de GitHub, qui efface les .py hors des dossiers
+  gardés, rendait certain chaque nuit).
 ③ ENTRÉE — La racine d'un dépôt qui porte le témoin, son manifeste et son entrée au contrat.
 ④ CONDITIONS D'ENTRÉE — Exactement un fichier figé du contrat a un manifeste à côté (chemin sans « .csv » +
   « _MANIFESTE.json ») ; sinon code 2.
@@ -770,7 +772,8 @@ def principal(argv):
     ④ CONDITIONS D'ENTRÉE — ④ du fichier.
     ⑤ SORTIE — UNE valeur : 0, 1 ou 2.
       [rend: 1]
-    ⑥ TRAITEMENT — Avec --saboter, d'abord le refus d'un arbre sale (m4). Lectures (DIVISIONS_BNAINS vide ou des
+    ⑥ TRAITEMENT — Avec --saboter, d'abord une copie du dernier commit (`git clone --local`), où tout ce qui suit se
+      joue (15-11-2026 ; avant : le refus d'un arbre sale, m4) ; le corps est `juger`. Lectures (DIVISIONS_BNAINS vide ou des
       opérations vides arrêtent, code 2) ; `verifier` sur le cas sain ;
       avec --saboter : S1 à S6 abîment une entrée et doivent faire tomber leur propriété, et elle seule, EN PLUS de
       celles qui tombent déjà ; S8 (en mémoire) inverse le facteur d'une opération jugée et doit faire tomber P8 seule
@@ -794,8 +797,8 @@ def principal(argv):
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas une preuve.
     ⑨ CE QUI CLOCHE — —
-    ⑩ EFFET — Lit ; affiche.
-    ⑪ TERMINAISON — Rend la main.
+    ⑩ EFFET — Lit ; affiche ; avec --saboter, une copie jetable du dépôt, effacée.
+    ⑪ TERMINAISON — Rend la main ; la copie est bornée à 900 s.
       [sort: non]
     """
     args = [a for a in argv if not a.startswith("--")]
@@ -803,21 +806,48 @@ def principal(argv):
         print("USAGE : EPREUVES_DU_FICHIER_DES_VINGT_ANS_Jeu_12-11-2026.py <racine> [--saboter]")
         return 2
     racine = os.path.abspath(args[0])
-    if "--saboter" in argv:   # relecteur E2b tour 3, m4 : un seul état jugé — l'arbre propre, qui est le dernier commit
-        import subprocess
+    if "--saboter" not in argv:
+        return juger(racine, argv)
+    # --saboter : TOUT se joue sur une copie tirée du dernier commit (superviseur R-759 du 15-11-2026, réparation 4,
+    # volet de fond pour C9) — les chemins complets S10, S11, S16 à S18 partaient déjà du commit ; un seul état est
+    # jugé, et un arbre « sale » n'a plus d'importance. Avant le 15-11-2026, un arbre sale était REFUSÉ (relecteur
+    # E2b tour 3, m4 ; M-3 de Cowork) : sur GitHub, le pas « poser le code public » efface tout .py hors des
+    # dossiers gardés, l'arbre y est donc toujours « sale », et l'épreuve rendait 2 chaque nuit.
+    import shutil
+    import subprocess
+    import tempfile
+    d = tempfile.mkdtemp(prefix="E2b_commit_")
+    try:
         try:
-            # M-3 de Cowork (E2b) : TOUT l'arbre, fichiers non suivis compris — l'état jugé est le commit cloné, et un
-            # contrôle qui nomme des dossiers change d'avis quand on en renomme un
-            sale = subprocess.run(["git", "-C", racine, "status", "--porcelain"],
-                                  capture_output=True, text=True, timeout=120, check=True).stdout.strip()
-        except Exception as x:   # noqa: BLE001
-            print(f"ARRÊT — l'état de l'arbre n'a pas pu être lu : {type(x).__name__} : {x}")
+            subprocess.run(["git", "clone", "-q", "--local", racine, os.path.join(d, "copie")], check=True,
+                           capture_output=True, timeout=900)
+        except Exception as x:   # noqa: BLE001 — R-734 : la copie n'a pas pu se faire, l'épreuve ne juge pas
+            print(f"ARRÊT — la copie du dernier commit n'a pas pu se faire : {type(x).__name__} : {x}")
             return 2
-        if sale:
-            print("ARRÊT — --saboter refuse un arbre avec des changements non commités ou des fichiers non suivis "
-                  "(les chemins complets jugeraient le dernier commit, les autres l'arbre) : "
-                  + " · ".join(sale.splitlines()[:5]))
-            return 2
+        print(f"COPIE DU DERNIER COMMIT : {os.path.join(d, 'copie')} (l'arbre de travail n'est pas jugé)")
+        return juger(os.path.join(d, "copie"), argv)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def juger(racine, argv):
+    """Lit, vérifie, sabote une racine ; rend le code de sortie.
+
+    ① RÔLE — Le corps de l'épreuve, sur la racine que `principal` lui donne.
+    ② CONTEXTE D'APPEL — `principal`, une fois : sur la racine donnée sans --saboter, sur une copie du dernier commit
+      avec --saboter (15-11-2026).
+    ③ ENTRÉE — `racine` : le dépôt à juger · `argv` : les arguments, pour « --saboter ».
+    ④ CONDITIONS D'ENTRÉE — ④ du fichier.
+    ⑤ SORTIE — UNE valeur : 0, 1 ou 2.
+      [rend: 1]
+    ⑥ TRAITEMENT — Le ⑥ de `principal`, refus de l'arbre sale excepté.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Séparé de `principal` le 15-11-2026 pour jouer le même corps sur la copie du commit.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Lit ; affiche.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
     try:
         A = charger(racine, "ASSEMBLER_LES_VINGT_ANS")
         C = charger(racine, "CONTRATS_DES_FICHIERS")

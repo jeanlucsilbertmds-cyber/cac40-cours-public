@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ÉPREUVES DE LA NUMÉROTATION DES SOCIÉTÉS SORTIES — Plan V7, E2a tour 3 (12-11-2026). SIMULATION UNIQUEMENT.
 
-① RÔLE — Éprouver etudes/VINGT_ANS_A_PART_Mer_11-11-2026/NUMEROTER_LES_SOCIETES_SORTIES.py, et, avec --saboter,
+① RÔLE — Éprouver etudes/outils/NUMEROTER_LES_SOCIETES_SORTIES.py, et, avec --saboter,
   vérifier que chaque garde retirée fait tomber au moins un cas.
 ② CONTEXTE D'APPEL — `python3 -I <ce fichier> <racine> [--saboter]`, à la main ou par le relais des séries.
 ③ ENTRÉE — La racine du dépôt (le programme éprouvé, LIRE_LES_COURS et les vraies tables y sont lus, jamais écrits).
@@ -35,7 +35,9 @@ import sys
 import tempfile
 
 RACINE = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else os.getcwd()
-OUTIL = os.path.join(RACINE, "etudes", "VINGT_ANS_A_PART_Mer_11-11-2026", "NUMEROTER_LES_SOCIETES_SORTIES.py")
+# etudes/outils/ depuis le 15-11-2026 (dossier gardé par le circuit ; ses tables restent au dossier daté, que le
+# programme lit dans DOSSIER_DES_TABLES)
+OUTIL = os.path.join(RACINE, "etudes", "outils", "NUMEROTER_LES_SOCIETES_SORTIES.py")
 sys.path.insert(0, os.path.join(RACINE, "programmes"))
 import LIRE_LES_COURS as LECTEUR  # noqa: E402
 
@@ -213,11 +215,16 @@ def main():
                 t = t.replace(cible, rempl)
             d = tempfile.mkdtemp(prefix="E2a_sab_")
             try:
-                copie = os.path.join(d, os.path.basename(OUTIL))
+                # la copie sabotée reprend la disposition du dépôt (15-11-2026) : le programme sous etudes/outils/,
+                # ses tables sous son DOSSIER_DES_TABLES, qu'il retrouve depuis son propre emplacement
+                copie = os.path.join(d, "etudes", "outils", os.path.basename(OUTIL))
+                os.makedirs(os.path.dirname(copie))
                 open(copie, "w", encoding="utf-8").write(t)
+                tables = charger(OUTIL).DOSSIER_DES_TABLES
+                os.makedirs(os.path.join(d, tables))
                 for f in ("MNEMONIQUES_DES_SOCIETES_SORTIES.csv", "ISIN_D_UNE_MEME_SOCIETE.csv",
                           "NOMS_DES_SOCIETES_SORTIES.csv"):
-                    shutil.copy(os.path.join(os.path.dirname(OUTIL), f), os.path.join(d, f))
+                    shutil.copy(os.path.join(RACINE, tables, f), os.path.join(d, tables, f))
                 tombes = tour(copie)
             finally:
                 shutil.rmtree(d, ignore_errors=True)

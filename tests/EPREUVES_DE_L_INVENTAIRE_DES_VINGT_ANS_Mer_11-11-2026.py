@@ -2,11 +2,14 @@
 # -*- coding: utf-8 -*-
 """EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS_Mer_11-11-2026.py — Mer 11-11-2026 (Paris). Simulation uniquement.
 
-① RÔLE — Éprouver (tour 2 : six sabotages internes et deux externes) etudes/VINGT_ANS_A_PART_Mer_11-11-2026/INVENTORIER_LES_VINGT_ANS.py : sans sabotage, ses cinq
+① RÔLE — Éprouver (tour 2 : six sabotages internes et deux externes) etudes/outils/INVENTORIER_LES_VINGT_ANS.py : sans sabotage, ses cinq
   calibrages passent (code 0) ; chacun des six sabotages internes et des deux sabotages externes (texte du programme changé dans une copie) fait échouer LE calibrage qu'il vise (code 1) ; une
   racine absente ou un sabotage inconnu rendent 2 (R-734).
 ② CONTEXTE D'APPEL — À la main, ou par le relais des séries :
-  python3 -I tests/EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS_Mer_11-11-2026.py <racine d'une COPIE du dépôt>
+  python3 -I tests/EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS_Mer_11-11-2026.py <racine d'une COPIE du dépôt> [--saboter]
+  Sans --saboter : le programme tel quel et la racine absente (ce qui doit tenir). Avec --saboter : les sabotages
+  internes et externes (ce qui doit mordre). Depuis le 15-11-2026 : la certification passe « --saboter » SEUL
+  (programmes/CERTIFIER_LA_VERSION.py, `lister_les_epreuves`) et l'épreuve le refusait (USAGE, code 2).
 ③ ENTRÉE — La racine d'une copie du dépôt (le programme éprouvé ne l'écrit pas, mais la règle du cadre V7 veut une
   copie).
 ④ CONDITIONS D'ENTRÉE — La copie porte le programme éprouvé et ses entrées (④ de son en-tête).
@@ -23,7 +26,8 @@
 """
 import os, re, subprocess, sys
 
-PROGRAMME = os.path.join("etudes", "VINGT_ANS_A_PART_Mer_11-11-2026", "INVENTORIER_LES_VINGT_ANS.py")
+# etudes/outils/ depuis le 15-11-2026 (dossier gardé par le circuit ; avant : etudes/VINGT_ANS_A_PART_Mer_11-11-2026/)
+PROGRAMME = os.path.join("etudes", "outils", "INVENTORIER_LES_VINGT_ANS.py")
 # SABOTAGES EXTERNES (relecteur E2a, D1) : le TEXTE du programme est changé dans une copie, sans option prévue par
 # lui ; (nom, texte d'origine, texte saboté, calibrage qui doit tomber). Les deux cas du relecteur, refaits.
 EXTERNES = [
@@ -67,22 +71,27 @@ def principal(argv):
     """Déroule les cas ; rend le code de sortie.
 
     ① RÔLE — Le corps de l'épreuve. ② CONTEXTE D'APPEL — Le bloc final.
-    ③ ENTRÉE — `argv` : la racine. ④ CONDITIONS D'ENTRÉE — Un dossier.
+    ③ ENTRÉE — `argv` : la racine, et « --saboter » (15-11-2026). ④ CONDITIONS D'ENTRÉE — Un dossier.
     ⑤ SORTIE — UNE valeur : 0, 1 ou 2. [rend: 1]
-    ⑥ TRAITEMENT — Pour chaque cas : lancer ; tenu si le code est l'attendu ET, sans sabotage, aucun « ÉCHOUE »,
-      ou, sous sabotage, le calibrage visé échoue et lui seul.
+    ⑥ TRAITEMENT — Les cas : sans --saboter, le programme tel quel et la racine absente ; avec --saboter, S1 à S6, le
+      sabotage inconnu et les sabotages externes X1 et X2. Pour chaque cas : lancer ; tenu si le code est l'attendu
+      ET, sans sabotage, aucun « ÉCHOUE », ou, sous sabotage, le calibrage visé échoue et lui seul.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Un sabotage qui ferait tout échouer ne prouverait pas qu'il vise le bon calibrage.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Affiche.
     ⑪ TERMINAISON — Rend la main. [sort: non]
     """
+    saboter = "--saboter" in argv
+    argv = [a for a in argv if a != "--saboter"]
     if len(argv) != 1 or not os.path.isdir(argv[0]):
-        print("USAGE : EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS_Mer_11-11-2026.py <racine d'une copie>")
+        print("USAGE : EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS_Mer_11-11-2026.py <racine d'une copie> [--saboter]")
         return 2
     racine = os.path.abspath(argv[0])
     tenus = 0
-    cas = CAS + [("racine absente", None, 2, None)]
+    # sans --saboter : ce qui doit tenir ; avec : ce qui doit mordre (le sabotage inconnu, code 2, en fait partie)
+    cas = ([c for c in CAS if c[3] is not None or c[2] == 2] if saboter
+           else [c for c in CAS if c[3] is None and c[2] == 0] + [("racine absente", None, 2, None)])
     for nom, args, attendu, vise in cas:
         if args is None:
             p = subprocess.run([sys.executable, "-I", os.path.join(racine, PROGRAMME), "/nexiste/pas"],
@@ -99,9 +108,10 @@ def principal(argv):
         print(f"  {'TENU ' if ok else 'ÉCHEC'}  {nom} — code {code} (attendu {attendu}) ; calibrages en échec {echecs}"
               + (f" (attendu [{vise}])" if vise else ""))
     import tempfile
+    externes = EXTERNES if saboter else []
     with tempfile.TemporaryDirectory(prefix="E2_externe_") as tmp:
         texte = open(os.path.join(racine, PROGRAMME), encoding="utf-8").read()
-        for nom, avant, apres, vise in EXTERNES:
+        for nom, avant, apres, vise in externes:
             copie = os.path.join(tmp, "INVENTORIER_SABOTE.py")
             present = texte.count(avant) == 1
             open(copie, "w", encoding="utf-8").write(texte.replace(avant, apres))
@@ -111,7 +121,7 @@ def principal(argv):
             tenus += ok
             print(f"  {'TENU ' if ok else 'ÉCHEC'}  {nom} — texte trouvé {present} ; code {p.returncode} (attendu 1) ; "
                   f"calibrages en échec {echecs} (attendu [{vise}])")
-    total = len(cas) + len(EXTERNES)
+    total = len(cas) + len(externes)
     print(f"CAS : {tenus} / {total} tenus")
     return 0 if tenus == total else 1
 
