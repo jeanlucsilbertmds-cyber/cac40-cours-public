@@ -130,6 +130,8 @@ H17 CALIBRAGE sur les vrais fichiers entiers du dépôt : passé sur le fichier 
     27-10-2026), 530 séances manquantes : les 222 de Cowork aux séances où au moins 25 valeurs ont une ligne, 181 aux
     cinq demi-séances des 24 et 31-12-2010, 24 et 31-12-2012 et 31-12-2015, le reste aux séances de 2000 et 2001 où
     Yahoo cote peu de valeurs.
+H76-H79 `main` juge avec l'indice CAC 40 et le fichier d'origine qu'il a LUS (A-864, 16-11-2026) : vides, code 2 en les
+    nommant (H76, H78) ; présents, passés entiers à l'arbitre de l'indice (H77) et à K18 et K20 (H79), vus par espion ;
 LES ÉPREUVES DE LA RÉPARATION :
 H2  sur l'extrait 2005, fenêtre EssilorLuxottica de janvier-février, référence mars-octobre (Yahoo y est juste) :
     code 0 ; chaque clôture reconstruite est à moins de 0,2 % de la clôture Yahoo d'origine, et vient de bnains sauf
@@ -299,6 +301,20 @@ Le 13-11-2026, E2c gel (décision de Jean-Luc A-752 ⑤, 08h57 : « il faut bien
 retirés — des points du domaine aux noms près ; H73 juge désormais 625 × 33 appels du domaine et les deux cas réels.
 Leur trace (entrée, issue attendue, commits, rejeu contre l'oracle) :
 archives/H73_CAS_ECRITS_A_LA_MAIN_RETIRES_CAR_COUVERTS_PAR_L_ORACLE_ET_LE_DOMAINE_Ven_13-11-2026.md.
+
+Le 16-11-2026, A-864 (décision de Jean-Luc, 22h29, « 1 » : « le contrôle s'arrête si l'indice est absent ou vide » ;
+superviseur R-759 du 16-11-2026, verdict « RUSTINE, À REPRENDRE » sur l'ajout d'un seul cas, rapport
+etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/SUPERVISEUR_T54_Lun_16-11-2026.md) : la série HL du 16-11-2026
+(passage 43948482277) était NON CONFORME par T54 — `main` qui remplace l'indice lu par None —, que H38 ne voyait plus
+depuis 1ea641c4 (13-11-2026 : `lire_paris` ouvre l'indice avant `lire_indice`). `main` s'arrête désormais en code 2
+quand l'indice n'a aucune séance où ses deux sources s'accordent, ou quand le fichier d'origine n'a aucune ligne
+lisible. `epreuves_des_lectures_de_main` : H76 (indice réduit à son en-tête, puis à une seule source par séance →
+code 2 en le nommant), H77 (un ESPION sur `arbitre_de_l_indice` : `main` lui passe l'indice lu, entier, non vide —
+une propriété, pas un titre), H78 (origine réduite à son en-tête, une copie de l'extrait contrôlée → code 2 en la
+nommant), H79 (espions sur `rendements_degrades` et `portes` : l'origine lue, entière). Sabotages T190 (garde de
+l'indice retirée, mord par H76), T191 (garde de l'origine retirée, H78), T192 (`controler` reçoit None pour l'indice,
+gardes intactes, H77), T193 (idem pour l'origine, H79), T194 (`main` ne lit plus l'origine). Rejoué seul le 16-11-2026
+AVANT la garde : T54 NE MORD PAS ; après : il mord.
 
 USAGE : python3 tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py <racine du dépôt> [--saboter | --saboter=S1,S2… | --cibles]
 CODE : 0 si tout est vert et, avec --saboter, si chaque sabotage fait rougir au moins une épreuve ; 1 sinon ; 2 si
@@ -672,6 +688,16 @@ SABOTAGES = {
              '        if not any(j in avant and vrai in avant for j, vrai in journees.items()):'),
     "T189": (CONTROLE, '            if j in avant:\n                s[vrai] = avant[j]',
              '            if j in avant and vrai in avant:\n                s[vrai] = avant[j]'),
+    # 16-11-2026, A-864 (décision de Jean-Luc, 22h29, « 1 » ; superviseur R-759 du 16-11-2026, (d) et (e)) : les gardes de
+    # `main` sur l'indice et l'origine VIDES retirées — H76, H78 ; `controler` appelé sans l'indice ou sans l'origine que
+    # `main` a lus, gardes intactes — les espions H77, H79 ; `main` qui ne lit plus l'origine (point 6 du superviseur :
+    # aucun sabotage ne visait cette ligne)
+    "T190": (CONTROLE, "        if not indice:      # A-864", "        if False:      # A-864"),
+    "T191": (CONTROLE, "        if not origine:     # A-864", "        if False:     # A-864"),
+    "T192": (CONTROLE, "francfort, indice, origine, a_defaire,", "francfort, None, origine, a_defaire,"),
+    "T193": (CONTROLE, "francfort, indice, origine, a_defaire,", "francfort, indice, None, a_defaire,"),
+    "T194": (CONTROLE, "        origine, defauts_o, _ = lire_cours(os.path.join(racine, ORIGINE))",
+             "        origine, defauts_o, _ = None, [], []"),
 }
 
 
@@ -2591,6 +2617,130 @@ def epreuves(K, R):
     finally:
         R.SEANCES_DECIDEES_SANS_ABC = decisions_vraies
     res.update(epreuves_des_journees(K))
+    res.update(epreuves_des_lectures_de_main(K))
+    return res
+
+
+def epreuves_des_lectures_de_main(K):
+    """Les épreuves H76 à H79 (A-864) : `main` du contrôle juge avec l'indice CAC 40 et le fichier d'origine qu'il a LUS.
+
+    ① RÔLE — Garder deux lectures de `K.main` : l'indice CAC 40 (`lire_indice`), qui nourrit l'arbitre de l'indice (K19,
+      K19b), et le fichier d'origine des cours (`lire_cours` de `ORIGINE`), qui nourrit K18 et K20. Pour chacune : vide,
+      `main` S'ARRÊTE en code 2 en nommant le fichier (H76, H78) ; présente, `main` la passe ENTIÈRE à la fonction qui
+      juge (H77, H79).
+    ② CONTEXTE D'APPEL — `epreuves`, pour les programmes tels quels et pour chaque sabotage.
+    ③ ENTRÉE — `K` : le module du contrôle chargé par `charger` (tel quel ou saboté).
+    ④ CONDITIONS D'ENTRÉE — Les témoins de l'extrait 2005 et les fichiers que copie `racine_d_essai` existent ; une
+      absence rend l'épreuve rouge (l'exception est rattrapée et imprimée), jamais verte.
+    ⑤ SORTIE — UNE valeur : {« H76 » … « H79 » : booléen}.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① H77 et H79 ensemble, sur une racine d'essai intacte : des espions remplacent, le temps d'UN passage
+      de `K.main`, `K.arbitre_de_l_indice`, `K.rendements_degrades` et `K.portes` ; ils notent l'argument indice (4e) ou
+      origine (2e) de chaque appel, puis appellent la vraie fonction ; les vraies sont remises dans un `finally`. H77 :
+      code 0 ou 1, au moins un appel de l'arbitre, et chaque indice reçu non vide et ÉGAL à `K.lire_indice` du fichier.
+      H79 : même chose pour l'origine, reçue par K18 et K20, égale à `K.lire_cours(ORIGINE)[0]` · ② H76 : sur deux
+      racines neuves, l'indice réécrit (i) avec son seul en-tête, (ii) avec une seule source par séance (bnains effacé
+      là où Yahoo a un cours) → chaque fois code 2, « INDICE_CAC40 » et « aucune séance » dans la sortie ; une exception
+      qui sort de `main` compte comme un échec · ③ H78 : l'extrait Yahoo recopié sous un autre nom et contrôlé sous ce nom ; le
+      fichier d'origine réécrit avec son seul en-tête → code 2, « yahoo_ohlcv_propre » et « aucune ligne » dans la sortie.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Série HL du 16-11-2026 (passage 43948482277) NON CONFORME par T54 (`main` remplace l'indice lu par
+      None) : depuis 1ea641c4 (13-11-2026), `lire_paris` ouvre l'indice avant `lire_indice`, et H38 ne voyait plus
+      T54 ; `controler` saute l'arbitre SANS LE DIRE quand l'indice vaut None (un `main` qui oublie l'indice passait
+      toutes les épreuves). Superviseur R-759 du 16-11-2026 (rapport SUPERVISEUR_T54_Lun_16-11-2026.md, verdict
+      « RUSTINE, À REPRENDRE » sur l'ajout d'un seul cas) : la garde va dans `main`, l'épreuve couvre (b) indice sans
+      séance d'accord → code 2, (c) un espion sur l'arbitre (propriété, pas de texte), (e) même schéma pour l'origine.
+      Décision de Jean-Luc A-864, 16-11-2026 à 22h29, « 1 » : le contrôle s'arrête si l'indice est absent ou vide.
+      Les espions jugent une PROPRIÉTÉ (la valeur reçue), jamais un titre de contrôle ni un texte de sortie : renommer
+      K19 ou reformuler ses lignes ne change pas leur avis.
+    ⑨ CE QUI CLOCHE — Les espions remplacent les fonctions par leur NOM dans le module : un `controler` qui les
+      appellerait par un autre chemin (alias local, copie) échapperait à l'espion, et H77 ou H79 rougirait (aucun
+      appel), jamais ne verdirait à tort. · H76 (i), l'en-tête seul : AVANT la garde d'A-864, le calendrier des séances
+      (`CAL.lire_les_seances`, appelé HORS du `try` de `main`) levait déjà « indice : aucune séance » ; en ligne de
+      commande, le bloc final en faisait un code 2 « erreur imprévue » ; appelé directement, `main` levait (mesuré le
+      16-11-2026). La forme (ii) est celle que rien n'arrêtait : K19 restait vert. · H78 contrôle une COPIE de l'extrait
+      sous un autre nom, pour que le fichier contrôlé ne soit pas vide lui aussi.
+    ⑩ EFFET — Des dossiers jetables sous le dossier temporaire (effacé par `__main__`). Remplace trois fonctions de `K`
+      le temps d'un passage, et les remet.
+    ⑪ TERMINAISON — Rend la main. Quatre passages de `K.main` sur l'extrait 2005.
+      [sort: non]
+    """
+    res = {}
+    yahoo = os.path.join("donnees", "sources_yahoo", "yahoo_ohlcv_propre.csv")
+    # H77 et H79 : les espions, sur une racine intacte
+    try:
+        r = racine_d_essai()
+        recus = {"indice": [], "origine": []}
+        vraies = {n: getattr(K, n) for n in ("arbitre_de_l_indice", "rendements_degrades", "portes")}
+
+        def espion(nom, rang, cle):
+            def f(*a, **kw):
+                recus[cle].append(a[rang] if len(a) > rang else kw.get(cle))
+                return vraies[nom](*a, **kw)
+            return f
+        K.arbitre_de_l_indice = espion("arbitre_de_l_indice", 3, "indice")
+        K.rendements_degrades = espion("rendements_degrades", 1, "origine")
+        K.portes = espion("portes", 1, "origine")
+        try:
+            code, out = lancer(K.main, [r, yahoo])
+        finally:
+            for n, f in vraies.items():
+                setattr(K, n, f)
+        lu_indice = K.lire_indice(os.path.join(r, K.INDICE))
+        lu_origine = K.lire_cours(os.path.join(r, K.ORIGINE))[0]
+        res["H77"] = code in (0, 1) and len(lu_indice) > 0 and len(recus["indice"]) >= 1 \
+            and all(x == lu_indice for x in recus["indice"])
+        res["H79"] = code in (0, 1) and len(lu_origine) > 0 and len(recus["origine"]) >= 2 \
+            and all(x == lu_origine for x in recus["origine"])
+        if not (res["H77"] and res["H79"]):
+            print(f"      H77/H79 : code {code} ; indice lu {len(lu_indice)} séances, reçu par l'arbitre "
+                  f"{[None if x is None else len(x) for x in recus['indice']]} ; origine lue {len(lu_origine)} valeurs, "
+                  f"reçue {[None if x is None else len(x) for x in recus['origine']]}")
+    except Exception as ex:
+        print(f"      H77/H79 : {type(ex).__name__} : {ex}")
+        res["H77"] = res["H79"] = False
+    # H76 : un indice au bon en-tête dont aucune séance n'a l'accord des deux sources → code 2 en le nommant. Deux
+    # formes : (i) l'en-tête seul ; (ii) le vrai indice, la colonne bnains effacée partout où Yahoo a un cours — chaque
+    # ligne garde un cours, le calendrier des séances l'accepte, `lire_indice` rend un dictionnaire vide
+    try:
+        issues = []
+        for forme in ("en-tête seul", "une seule source par séance"):
+            r = racine_d_essai()
+            chemin = os.path.join(r, K.INDICE)
+            lignes = list(csv.reader(open(chemin, encoding="utf-8", newline="")))
+            if forme == "en-tête seul":
+                lignes = lignes[:1]
+            else:
+                lignes = [lignes[0]] + [[d, "" if y.strip() else b, y] for d, b, y in lignes[1:]]
+            with open(chemin, "w", encoding="utf-8", newline="") as f:
+                csv.writer(f, lineterminator="\n").writerows(lignes)
+            try:
+                code, out = lancer(K.main, [r, yahoo])
+            except Exception as ex:      # `main` doit s'arrêter en code 2, jamais lever (R-734)
+                code, out = f"levée {type(ex).__name__}", str(ex)
+            issues.append((forme, code, code == 2 and "INDICE_CAC40" in out and "aucune séance" in out,
+                           out.splitlines()[-1] if out else ""))
+        res["H76"] = all(x[2] for x in issues)
+        if not res["H76"]:
+            print(f"      H76 : {[(f, c, d) for f, c, ok, d in issues if not ok]}")
+    except Exception as ex:
+        print(f"      H76 : {type(ex).__name__} : {ex}")
+        res["H76"] = False
+    # H78 : le fichier d'origine au bon en-tête, sans aucune ligne → code 2 en le nommant
+    try:
+        r = racine_d_essai()
+        copie = os.path.join("donnees", "sources_yahoo", "copie_controlee.csv")
+        shutil.copy(os.path.join(r, yahoo), os.path.join(r, copie))
+        entete = next(csv.reader(open(os.path.join(r, yahoo), encoding="utf-8", newline="")))
+        with open(os.path.join(r, K.ORIGINE), "w", encoding="utf-8", newline="") as f:
+            csv.writer(f, lineterminator="\n").writerow(entete)
+        code, out = lancer(K.main, [r, copie])
+        res["H78"] = code == 2 and "yahoo_ohlcv_propre" in out and "aucune ligne" in out
+        if not res["H78"]:
+            print(f"      H78 : code {code} ; {out.splitlines()[-1] if out else ''}")
+    except Exception as ex:
+        print(f"      H78 : {type(ex).__name__} : {ex}")
+        res["H78"] = False
     return res
 
 
