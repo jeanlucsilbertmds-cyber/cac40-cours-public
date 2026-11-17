@@ -142,10 +142,13 @@ jobs:
       # (les .doc). Absents de la machine de GitHub, ils ont fait rougir trois epreuves au premier
       # certificat public (16-10-2026, f5aac6b). continue-on-error : si l'installation tombe, la
       # certification tourne quand meme, et les epreuves qui en ont besoin rougissent en le disant.
+      # du et git : cherches par shutil.which dans le cas P4 de l epreuve du releve du perimetre ;
+      # presents sur la machine de GitHub, verifies ici pour que l epreuve E6 du circuit public le voie (C2).
       - name: Installer les logiciels que lisent les programmes
         id: logiciels
         continue-on-error: true
         run: |
+          command -v du && command -v git
           command -v pdftotext >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils; }
           command -v soffice >/dev/null || command -v libreoffice >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-writer-nogui; }
           pdftotext -v

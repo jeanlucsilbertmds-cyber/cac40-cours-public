@@ -37,6 +37,9 @@ jobs:
       run:
         shell: python3 programmes/ETAPE_MUETTE.py {0}
     steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - uses: actions/checkout@v5
         with:
           repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-
@@ -115,6 +118,14 @@ jobs:
       run:
         shell: python3 programmes/ETAPE_MUETTE.py {0}
     steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Installer le chiffrement de la page du cockpit
+        id: chiffrement
+        shell: bash
+        continue-on-error: true
+        run: python3 -m pip install --quiet cryptography
       - uses: actions/checkout@v5
         with:
           repository: jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude-

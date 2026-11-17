@@ -755,6 +755,34 @@ TRANCHES_DE_LA_NUIT = 12
 # fabriqué fait moins d'essais qu'il n'y a de tranches.
 ESSAIS_DE_POUSSEE = TRANCHES_DE_LA_NUIT + 3
 
+# LA VERSION DE PYTHON DE TOUS LES CIRCUITS PUBLICS, ÉCRITE ICI ET NULLE PART AILLEURS (R-708 : deux écritures d'une même
+# chose divergent toujours). Décision de Jean-Luc A-874 du 17-11-2026 à 07h48 (« 1 ») : fixer la version des circuits qui
+# n'en imposaient aucune — le circuit du soir prenait le Python de la machine GitHub du moment —, comme le fait déjà la
+# certification (.github/workflows/certifier.yml du dépôt privé : python-version "3.11"). Le code est certifié sous cette
+# version ; un circuit qui le joue sous une autre joue du code non certifié. « 3.11 » : la version mineure, comme la
+# certification, sans numéro de correctif (actions/setup-python prend le dernier correctif de la 3.11). La fiche privée
+# ne peut pas lire cette constante : tests/EPREUVES_DE_LA_VERSION_DE_PYTHON_Mar_17-11-2026.py (P1) rougit si les deux
+# divergent, et (V2, V3) si un job d'un circuit fabriqué lance Python sans la poser, ou en pose une autre.
+VERSION_DE_PYTHON = "3.11"
+POSE_DE_PYTHON = """      - uses: actions/setup-python@v5
+        with:
+          python-version: "%s"
+""" % VERSION_DE_PYTHON
+# LE MODULE DE CHIFFREMENT DU CIRCUIT DU SOIR (A-874, conséquence de la pose) : programmes/PUBLIER_LE_SITE.py fait
+# chiffrer la page du cockpit par programmes/PROTEGER_LA_PAGE.py, qui exige `cryptography` (code 2 sans lui). Le Python
+# de la machine GitHub l'a (journal du passage du 16-11-2026 à 23h45 : « page protegee : 45728 caracteres chiffres ») ;
+# celui que pose actions/setup-python n'a que pip : il faut l'installer, comme la certification l'installe
+# (INSTALLER_LA_MESURE). En bash et AVANT la pose du code : le shell par défaut des pas (programmes/ETAPE_MUETTE.py)
+# n'existe pas encore, et le garde du code n'est pas encore en place. continue-on-error : une installation tombée
+# n'empêche pas la collecte (une séance non lue le jour même perd ses signaux) ; le pas du cockpit rougit alors
+# en le disant (« CODE 2 — le module cryptography est requis »).
+CHIFFREMENT_DU_SOIR = """      - name: Installer le chiffrement de la page du cockpit
+        id: chiffrement
+        shell: bash
+        continue-on-error: true
+        run: python3 -m pip install --quiet cryptography
+"""
+
 # LES PAS DU DÉBUT, LES MÊMES POUR CHAQUE TRANCHE ET POUR LA TÂCHE FINALE : les deux clonages, la pose du code public
 # s'il est celui du dépôt privé, la vérification que ce circuit est celui que fabrique le dépôt privé, Python.
 DEPART_DE_LA_CERTIFICATION = """      - uses: actions/checkout@v5
@@ -813,19 +841,19 @@ DEPART_DE_LA_CERTIFICATION = """      - uses: actions/checkout@v5
           python3 programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py . "$RUNNER_TEMP/refait"
           cmp "$RUNNER_TEMP/refait/.github/workflows/certifier_la_version.yml" "$RUNNER_TEMP/circuit_public/certifier_la_version.yml" \\
             || { echo "::error::LE CIRCUIT DE CERTIFICATION N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-"""
+""" + POSE_DE_PYTHON
 
 LOGICIELS_DE_LA_CERTIFICATION = """      # Les logiciels que les programmes cherchent par shutil.which : pdftotext (les PDF) et soffice
       # (les .doc). Absents de la machine de GitHub, ils ont fait rougir trois epreuves au premier
       # certificat public (16-10-2026, f5aac6b). continue-on-error : si l'installation tombe, la
       # certification tourne quand meme, et les epreuves qui en ont besoin rougissent en le disant.
+      # du et git : cherches par shutil.which dans le cas P4 de l epreuve du releve du perimetre ;
+      # presents sur la machine de GitHub, verifies ici pour que l epreuve E6 du circuit public le voie (C2).
       - name: Installer les logiciels que lisent les programmes
         id: logiciels
         continue-on-error: true
         run: |
+          command -v du && command -v git
           command -v pdftotext >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils; }
           command -v soffice >/dev/null || command -v libreoffice >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-writer-nogui; }
           pdftotext -v
@@ -3677,12 +3705,12 @@ def fabriquer_le_circuit(texte_prive):
     # E3), sur le corps privé, avant tout ajout du fabricant : JOB_CONDITION porte son propre « !cancelled() ».
     corps = proteger_les_pas(corps)
     corps = corps.replace(JOB_PRIVE, JOB_CONDITION, 1).replace(RATTRAPAGE_PRIVE, RATTRAPAGE_PUBLIC)
-    corps = CHECKOUT_PRIVE.sub(lambda m: CLONAGES, corps)
+    corps = CHECKOUT_PRIVE.sub(lambda m: POSE_DE_PYTHON + CHIFFREMENT_DU_SOIR + CLONAGES, corps)
     corps = corps.replace("    runs-on: ubuntu-latest\n", "    runs-on: ubuntu-latest\n" + DEFAULTS, 1)
     corps = corps.replace("${{ secrets.TOKEN_PUBLIC }}", "${{ secrets.JETON_DEPOTS }}")
     lignes = [l for l in corps.split("\n") if not l.lstrip().startswith("#")]
     verifier_les_pas("\n".join(lignes))
-    texte = (ENTETE + DECISION_ENTETE + CLONAGES + DECISION_PAS + JOURNAL
+    texte = (ENTETE + DECISION_ENTETE + POSE_DE_PYTHON + CLONAGES + DECISION_PAS + JOURNAL
              + "\n".join(lignes).rstrip("\n") + "\n" + JOURNAL)
     for interdit in ("secrets.TOKEN_PUBLIC",):
         if interdit in texte:
