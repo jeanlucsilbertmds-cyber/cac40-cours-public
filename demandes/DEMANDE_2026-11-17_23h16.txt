@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=toutes
+pointe=
