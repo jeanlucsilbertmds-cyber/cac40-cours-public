@@ -23,7 +23,11 @@ rapatriement rend, pour chaque épreuve, le code de sortie et la sortie capturé
   enregistre, les fichiers des épreuves de la table.
 ④ CONDITIONS D'ENTRÉE — bash, git et jq installés ; aucun réseau (dépôts nus locaux).
 ⑤ SORTIE — Le code de sortie : 0 si chaque cas ci-dessous donne la réponse attendue et, avec --saboter, si chaque
-  sabotage en fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus.
+  sabotage en fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus ; 3 (CODE_D_OUTILLAGE) sur
+  une erreur d'outillage (ErreurDOutillage : place insuffisante pour la copie de P3, copie ou git en échec dans
+  celle-ci, JOUENT_P3 incohérente, écart du contrôle d'après P3 dans un tour de sabotage, liste des variables
+  locales de git illisible) — l'épreuve n'a pas pu se jouer, aucun verdict n'est rendu. Un P3 non joué (clone
+  superficiel) ne change pas le code : la ligne Z0 dit « P1, P2 conformes · P3 NON JOUÉ ».
   [rend: 1]
 ⑥ TRAITEMENT —
   T (la table, `epreuves_du_circuit`) : T0 le TÉMOIN — les six épreuves exigées par la consigne de l'étape (circuit des
@@ -54,9 +58,15 @@ rapatriement rend, pour chaque épreuve, le code de sortie et la sortie capturé
   P (la provenance) : P1 sur le VRAI registre de la racine (R-732) : la copie octet pour octet d'un vrai fichier
   enregistré, sous un autre nom, est refusée ; un fichier sous donnees/ aussi ; un lien aussi ; un programme ordinaire
   et un fichier vide passent ; P2 registre absent avec un dossier donnees/ → OSError ; sans l'un ni l'autre → aucun
-  refus ; P3 le fabricant en ligne de commande sur la racine, vers un clone public neuf de la même branche : code 0 et
-  « 0 refus » (joué seulement si la racine est un clone git qui porte tout le dépôt : la certification, qui joue
-  une copie sans .git, ne le joue pas).
+  refus ; P3 le fabricant en ligne de commande sur une COPIE de la racine que P3 place lui-même sur la branche
+  « epreuve-p3 » (`copie_sur_une_branche` : copie ordinaire des fichiers, historique en miroir sans origine), vers
+  un clone public neuf de la même branche : code 0 et « 0 refus », et la racine inchangée (tête, références,
+  inventaire du disque hors .git). P3 ne dépend donc plus de la branche de la racine : sur la tête détachée de la
+  machine de certification (17-11-2026, cause C6), il rougissait sans que rien ne soit cassé. Joué seulement si la
+  racine est un clone git non superficiel qui porte tout le dépôt ; avec --saboter, joué aussi dans le tour de
+  SE40, qui fait refuser toute branche par le fabricant — SE40 ne mord que si la ligne « P3 fabricant » porte
+  « garde sabotée », le texte qu'il injecte (JOUENT_P3). Avant tout git, les variables locales de git (GIT_DIR…)
+  sont retirées de l'environnement : P3 n'écrit jamais dans un autre dépôt que sa copie.
   A (l'étage A, `etage_a`) : détaillé dans la fiche de `etage_a` ; depuis le 16-11-2026, A8 (A-857) : le refus
   nomme le blob entier et le remède unique « changer une ligne du fichier publié (comme 32aa88d0) », sans jamais
   proposer de retirer la copie (superviseur R-759 SUPERVISEUR_COPIE_CTL_Lun_16-11-2026.md, M1).
@@ -212,7 +222,248 @@ def plus_petit_enregistre(racine):
     return min(presents, key=lambda c: os.path.getsize(os.path.join(racine, c))) if presents else None
 
 
+# La branche nommée sur laquelle P3 place SA copie de la racine, et celle du clone public neuf qu'il fabrique : le
+# fabricant n'écrit que dans un clone public de la branche du dépôt privé (`refus_de_branche`). Un nom fixe, propre à
+# l'épreuve : il ne doit rien à la branche de la racine, qui peut ne pas en avoir (tête détachée).
+BRANCHE_DE_P3 = "epreuve-p3"
+# Les sabotages dont le tour joue AUSSI P3 (sur une copie de la vraie racine, `copie_sur_une_branche`), chacun avec
+# son FRAGMENT ATTENDU. P3 coûte une fabrication entière (9 s mesurées le 17-11-2026) ; le jouer dans chaque tour de
+# sabotage ajouterait cette durée autant de fois qu'il y a de sabotages. Il n'est donc joué que là où un sabotage le
+# vise. Un tel sabotage ne « mord » que si une ligne « P3 fabricant » de son tour porte son fragment, cherché dans la
+# sortie ENTIÈRE du fabricant : c'est le texte que le sabotage injecte lui-même (pour SE40, « garde sabotée », que le
+# fabricant affiche dans « ARRÊT — garde sabotée ; RIEN n'est écrit au dépôt public »). Raison : relecture du
+# 17-11-2026, tour 3, MAJEUR 1 — SE40 mordait sur n'importe quel cas faux de son tour, y compris un écart du contrôle
+# d'après causé par un autre programme qui écrivait dans la racine ; superviseur R-759, R1. Liste DÉCLARÉE : `main`
+# vérifie, avant tout tour, que chaque nom existe dans SABOTAGES, que chaque fichier qu'il vise fait partie de LUS
+# (seuls les fichiers LUS passent dans la copie de P3) et que le fragment est un texte non vide, injecté par le
+# sabotage et absent du fichier visé tel quel ; sinon, erreur d'outillage.
+JOUENT_P3 = {"SE40_garde_d_entree_refuse_tout": "garde sabotée"}
+# La garde de place de `copie_sur_une_branche` : la place libre exigée, en multiple de la taille de la source hors .git.
+FACTEUR_DE_PLACE = 2
+# Le code de sortie de `main` sur une erreur d'outillage : distinct de 0 (conforme), 1 (non conforme), 2 (sabotage
+# qui ne s'applique plus).
+CODE_D_OUTILLAGE = 3
+
+
+class ErreurDOutillage(Exception):
+    """L'épreuve n'a pas pu se jouer : son outillage a échoué, rien n'est jugé.
+
+    ① RÔLE — Distinguer un échec de l'outillage de l'épreuve (copie de P3, git dans cette copie, place, liste
+    JOUENT_P3 incohérente) d'un cas faux du programme éprouvé. ② CONTEXTE D'APPEL — Levée par `copie_sur_une_branche`,
+    par le cas P3 de `tour` et par `main` ; relancée par `tour` avant son rangement des erreurs imprévues ; attrapée
+    par `main`. ③ ENTRÉE — Le message. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — — ⑥ TRAITEMENT — —
+    ⑦ UNITÉ — — ⑧ POURQUOI — Relecture de travail-c2-p3 (RELU du 17-11-2026, m4) : une copie de P3 en échec tombait
+    dans « erreur imprévue », donc parmi les cas faux, et faisait « mordre » SE40 sans que la garde sabotée ait été
+    jugée ; superviseur R-759 du 17-11-2026, Q5. ⑨ CE QUI CLOCHE — — ⑩ EFFET — `main` sort avec CODE_D_OUTILLAGE et
+    le message, jamais avec un verdict. ⑪ TERMINAISON — —
+    """
+
+
+def retirer_les_variables_locales_de_git():
+    """Retire de os.environ et de GIT_ENV les variables qui désignent un dépôt à git ; rend la liste des noms retirés.
+
+    ① RÔLE — Qu'aucun git de l'épreuve, P3 compris, ne vise un autre dépôt que celui que nomme sa ligne de commande.
+    ② CONTEXTE D'APPEL — `main`, une fois, en tête, avant tout git (donc avant tout git de P3).
+    ③ ENTRÉE — — (lit os.environ et la liste que donne git lui-même).
+    ④ CONDITIONS D'ENTRÉE — git installé.
+    ⑤ SORTIE — UNE valeur : la liste des noms effectivement présents et retirés (vide le plus souvent). [rend: 1]
+    ⑥ TRAITEMENT — « git rev-parse --local-env-vars » lancé hors de tout dépôt (dossier « / ») et avec un
+      environnement qui ne porte que PATH et les deux réglages qui écartent la configuration de la machine (donc déjà
+      sans GIT_DIR) : git y nomme LUI-MÊME les variables propres à un dépôt (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE,
+      GIT_COMMON_DIR, GIT_OBJECT_DIRECTORY…, quinze avec git 2.43.0, compté le 17-11-2026) ; chacune est retirée de os.environ (lu par les
+      fonctions du fabricant appelées ici même) et de GIT_ENV (environnement par défaut de `lancer`). C'est une
+      PROPRIÉTÉ demandée à git, pas une liste recopiée ni un motif « GIT_ » : GIT_CONFIG_GLOBAL, posé par GIT_ENV,
+      n'en fait pas partie et reste.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relecture du 17-11-2026, tour 3, MINEUR 3 : avec GIT_DIR hérité (crochet git, « rebase -x »), P3
+      écrivait dans la racine — tête sur epreuve-p3, « core.bare=false », section « remote.origin » retirée,
+      « user.name » posé, « refs/heads/autre » créé ; le contrôle d'après ne le voyait qu'après coup. Superviseur
+      R-759, R4 : retirer, avant tout git de P3, les variables que donne « git rev-parse --local-env-vars ». Fait en
+      tête de `main` et pour toute l'épreuve, pas pour P3 seul : les autres cas (étage A, G5, R) lancent aussi git,
+      et l'épreuve exigée — même verdict avec et sans GIT_DIR — ne tient que si aucun git n'hérite de GIT_DIR.
+    ⑨ CE QUI CLOCHE — Si la commande échoue ou ne nomme aucune variable, l'épreuve s'arrête (ErreurDOutillage) au
+      lieu de jouer avec un environnement non nettoyé. Une variable qu'une version future de git ajouterait à cette
+      liste est retirée sans changer ce code ; une variable qui viserait un dépôt sans figurer dans la liste ne l'est
+      pas.
+    ⑩ EFFET — Modifie os.environ et GIT_ENV du processus de l'épreuve (jamais l'environnement de l'appelant).
+    ⑪ TERMINAISON — Rend la main, ou lève ErreurDOutillage ; le git est borné à 300 s. [sort: non]
+    """
+    try:
+        p = subprocess.run(["git", "rev-parse", "--local-env-vars"], capture_output=True, text=True, cwd="/",
+                           timeout=300, env={"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_NOSYSTEM": "1",
+                                             "GIT_CONFIG_GLOBAL": os.devnull})
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ErreurDOutillage(f"git rev-parse --local-env-vars : {type(e).__name__} : {e}")
+    noms = p.stdout.split()
+    if p.returncode != 0 or not noms:
+        raise ErreurDOutillage(f"git rev-parse --local-env-vars : code {p.returncode}, {len(noms)} nom(s) : "
+                               f"{(p.stdout + p.stderr)[-200:]}")
+    retires = [n for n in noms if n in os.environ or n in GIT_ENV]
+    for n in noms:
+        os.environ.pop(n, None)
+        GIT_ENV.pop(n, None)
+    return retires
+
+
+def inventaire_hors_git(source):
+    """Rend l'inventaire du disque de `source`, son « .git » de tête exclu : chemin, taille, date de modification.
+
+    ① RÔLE — Photographier le disque de la racine sans en lire le contenu. ② CONTEXTE D'APPEL — `copie_sur_une_branche`
+    (taille, pour la garde de place) ; `tour`, cas P3, avant et après (la racine inchangée).
+    ③ ENTRÉE — `source` : le dossier d'un dépôt. ④ CONDITIONS D'ENTRÉE — `source` existe.
+    ⑤ SORTIE — UNE valeur : la liste triée des triplets (chemin relatif, taille, mtime_ns), un par dossier, fichier ou
+      lien, lus par lstat (un lien n'est pas suivi). [rend: 1]
+    ⑥ TRAITEMENT — os.walk de `source` ; le « .git » de tête retiré du parcours (dossier, ou fichier d'une copie de
+      travail liée) ; lstat de chaque entrée. ⑦ UNITÉ — octets ; nanosecondes.
+    ⑧ POURQUOI — Superviseur R-759 du 17-11-2026, Q3 : le contrôle d'après P3 ne relisait que HEAD ; une écriture dans
+      la racine ne se voyait pas (RELU du 17-11-2026, m1). Pas d'empreinte de contenu (lire ~630 Mo à chaque tour), pas
+      de « git status » (il réécrit l'index de la racine).
+    ⑨ CE QUI CLOCHE — Une écriture qui garde la taille et remet la date de modification ne se voit pas ; un autre
+      programme qui écrit dans la racine PENDANT l'épreuve la fait rougir à tort. La taille d'un dossier compte dans
+      la somme de la garde de place (quelques Ko par dossier : la garde est un peu plus exigeante).
+    ⑩ EFFET — Lit les métadonnées, jamais le contenu. ⑪ TERMINAISON — Rend la main ; une erreur de lecture d'un
+      dossier lève OSError (`onerror`). [sort: non]
+    """
+    entrees = []
+
+    def remonter(e):
+        """Relève l'erreur d'un dossier illisible. ① RÔLE — Ne pas taire un dossier que os.walk ne peut pas lire.
+        ② CONTEXTE D'APPEL — `os.walk`, `onerror`, dans `inventaire_hors_git`. ③ ENTRÉE — `e`, l'OSError de os.walk.
+        ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — AUCUNE valeur : elle lève. [rend: 0] ⑥ TRAITEMENT — raise.
+        ⑦ UNITÉ — — ⑧ POURQUOI — Par défaut os.walk saute un dossier illisible en silence : l'inventaire serait
+        incomplet sans le dire. ⑨ CE QUI CLOCHE — — ⑩ EFFET — Lève `e`. ⑪ TERMINAISON — Lève toujours. [sort: non]"""
+        raise e
+
+    for d, dossiers, fichiers in os.walk(source, onerror=remonter):
+        if os.path.abspath(d) == os.path.abspath(source):
+            dossiers[:] = [x for x in dossiers if x != ".git"]
+            fichiers = [x for x in fichiers if x != ".git"]
+        for nom in dossiers + fichiers:
+            chemin = os.path.join(d, nom)
+            s = os.lstat(chemin)
+            entrees.append((os.path.relpath(chemin, source), s.st_size, s.st_mtime_ns))
+    return sorted(entrees)
+
+
+def etat_de_la_source(source):
+    """Rend l'état de la racine que P3 doit laisser intact : tête, branche de la tête, références, disque hors .git.
+
+    ① RÔLE — Le contrôle d'avant et d'après P3. ② CONTEXTE D'APPEL — `tour`, cas P3, avant la copie et après le
+    fabricant. ③ ENTRÉE — `source` : le dépôt copié par P3. ④ CONDITIONS D'ENTRÉE — `source` est un dépôt Git.
+    ⑤ SORTIE — UNE valeur : un quadruplet — (code, sortie) de « git rev-parse HEAD », (code, sortie) de « git
+      symbolic-ref -q HEAD », (code, sortie) de « git for-each-ref », la liste de `inventaire_hors_git`. [rend: 1]
+    ⑥ TRAITEMENT — Trois git en lecture, un inventaire. ⑦ UNITÉ — octets et nanosecondes (inventaire).
+    ⑧ POURQUOI — Superviseur R-759 du 17-11-2026, Q3 : comparer HEAD, les références et l'inventaire du disque ; pas
+      d'empreinte de contenu (coût), pas de « git status » (il réécrit l'index de la racine).
+    ⑨ CE QUI CLOCHE — Voir `inventaire_hors_git`, ⑨. Ni l'index ni la configuration de la racine ne sont comparés.
+    ⑩ EFFET — Lit, n'écrit rien. ⑪ TERMINAISON — Rend la main ; chaque git est borné à 300 s (`lancer`). [sort: non]
+    """
+    return (lancer(["git", "-C", source, "rev-parse", "HEAD"]),
+            lancer(["git", "-C", source, "symbolic-ref", "-q", "HEAD"]),
+            lancer(["git", "-C", source, "for-each-ref"]),
+            inventaire_hors_git(source))
+
+
+def copie_sur_une_branche(source, racine, dossier):
+    """Fabrique la copie de travail de P3, placée sur la branche BRANCHE_DE_P3 ; rend son chemin.
+
+    ① RÔLE — Donner à P3 un dépôt privé complet, SUR UNE BRANCHE NOMMÉE, quelle que soit la branche de la racine.
+    ② CONTEXTE D'APPEL — `tour`, cas P3, une fois par tour où P3 est joué.
+    ③ ENTRÉE — `source` : le dépôt Git copié (historique, données, disque) · `racine` : où lire les programmes
+      éprouvés ; si elle diffère de `source` (tour de sabotage), ses fichiers LUS remplacent ceux de la copie ·
+      `dossier` : le dossier jetable du tour.
+    ④ CONDITIONS D'ENTRÉE — `source` est un dépôt Git non superficiel (vérifié par `tour` avant l'appel) ; `dossier`
+      existe et n'a pas de sous-dossier « prive3 ».
+    ⑤ SORTIE — UNE valeur : le chemin de la copie, `dossier`/prive3. [rend: 1]
+    ⑥ TRAITEMENT — ① LA GARDE DE PLACE : si la place libre sous `dossier` est inférieure à FACTEUR_DE_PLACE fois la
+      taille du disque de `source` hors .git (`inventaire_hors_git`), ErreurDOutillage « place insuffisante » ·
+      ② les fichiers de `source`, sauf son « .git », COPIÉS sous `dossier`/prive3 (octets recopiés, chaque fichier a
+      son propre inode ; les liens symboliques restent des liens) · ③ son historique cloné dans prive3/.git par
+      « git clone --mirror --shared » (toutes les références, branches distantes comprises, puisque l'étage A lit
+      l'historique entier par « git log --all » ; les objets lus chez la source, rien de recopié), rendu non nu, puis
+      la section « remote.origin » retirée de sa configuration (« git config --remove-section », qui garde les
+      références) ; « git remote » doit alors rendre vide · ④ la branche BRANCHE_DE_P3 créée sur le commit de la tête
+      de `source`, et HEAD placé dessus · ⑤ si `racine` n'est pas `source` : chaque fichier LUS de la racine remplace
+      celui de la copie (l'ancien retiré d'abord : un lien symbolique ne mène pas l'écriture hors de la copie).
+    ⑦ UNITÉ — octets (place, taille).
+    ⑧ POURQUOI — Certification de la nuit du 17-11-2026 (passage 44009228039), cause C6 : P3 lisait la branche de la
+      racine par « git rev-parse --abbrev-ref HEAD », qui rend « HEAD » sur la tête détachée de la machine de
+      certification ; le fabricant refusait alors (« le clone public est sur la branche « HEAD », le dépôt privé sur
+      « aucune branche » »), et P3 rougissait sans que rien ne soit cassé. Réparation jugée DE FOND par le superviseur
+      R-759 le 17-11-2026 : P3 crée et se place sur une branche nommée dans SA PROPRE copie, au lieu de dépendre de
+      la branche du dépôt où il tourne. « Ne pas jouer P3 et le dire dans une NOTE » a été écarté : une rustine.
+      Le clone en miroir sert aussi une racine dont le « .git » est un fichier (copie de travail liée) : rien de la
+      racine n'est écrit, alors qu'une copie de ce fichier pointerait sur l'historique de la racine elle-même.
+      COPIE ORDINAIRE et non plus liens physiques (relecture du 17-11-2026, M1 et m1 ; superviseur R-759, Q1) : avec
+      des liens, chaque fichier de la copie avait deux noms, le fabricant refusait les fichiers « lien dur » (un
+      sabotage qui publie le disque mordait à cause de la copie, et ne mordait plus sur un autre disque où le lien
+      est refusé), et une écriture sur place dans la copie écrivait dans la racine. SECTION « remote.origin » RETIRÉE
+      (m2, Q2) : la copie en miroir avait la racine pour origine, et un « git push » nu y aurait créé epreuve-p3 et
+      supprimé les références de la racine absentes de la copie ; « git remote remove » n'est pas employé, il
+      efface refs/remotes/origin/*, que l'étage A lit. GARDE DE PLACE (Q1) : une copie qui manque de place échoue au
+      milieu ; elle s'arrête avant, en le disant, jamais par un saut silencieux de P3.
+    ⑨ CE QUI CLOCHE — « --shared » : la copie lit les objets de la racine ; un « git gc » ou « git prune » de la racine
+      PENDANT P3 pourrait retirer un objet qu'elle lit et la corrompre — l'effet est bruyant (git en échec, P3 rouge),
+      jamais muet ; non éprouvé (gc et prune interdits ici). Une racine en copie de travail liée (« .git » fichier)
+      n'a pas été éprouvée après cette correction (le relecteur l'a éprouvée sur la version à liens physiques). La
+      copie ordinaire coûte une recopie du disque (~630 Mo) à chaque tour où P3 est joué : Z0 et SE40, soit quelques
+      secondes de plus dans la tranche 10 de la certification, qui portait déjà ~40 s de plus pour le tour de SE40.
+      Une racine portant un FIFO ou une socket ferait échouer la copie (erreur d'outillage). Les modifications non
+      commitées de la source sont sur le disque de la copie (comme sur la racine), mais ne sont pas dans son
+      historique (comme sur la racine). La copie n'a pas d'index : le fabricant n'en lit pas (il lit HEAD,
+      l'historique et le disque). La copie prend le disque ENTIER de `source`, non suivi et ignoré compris, et
+      l'étage A du fabricant parcourt volontairement ce disque (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, fiche de
+      `refus_selon_l_historique`, l. 3064-3083 : « dans l'historique entier, toutes branches, ou sur le disque » ;
+      le parcours lui-même, `os.walk`, l. 3153) : une copie de travail ou un fichier non suivi IMBRIQUÉ dans la racine,
+      qui reprend le contenu d'un fichier publié, fait donc rougir P3, comme il ferait rougir le fabricant en
+      production sur ce disque (relecture du 17-11-2026, tour 3, MINEUR 2 : « git worktree add --detach » dans la
+      racine → « FAUX P3 fabricant … étage A »). Ce n'est pas un défaut du code éprouvé ; remède : jouer l'épreuve
+      depuis un clone neuf. Copie inchangée (superviseur R-759, R3). À VALIDER PAR JEAN-LUC : sur une machine qui manque de place (celle du Chat en
+      particulier), la suite s'arrête en erreur d'outillage au lieu de jouer P3 sans place.
+    ⑩ EFFET — Écrit sous `dossier` ; lance git (clone en lecture de la source, puis écritures dans la copie seule) ;
+      lit les fichiers de la source sans les modifier.
+    ⑪ TERMINAISON — Rend la main, ou lève ErreurDOutillage si la place manque, si la copie des fichiers échoue ou si
+      un git échoue (`tour` la relance, `main` sort avec CODE_D_OUTILLAGE) ; chaque git est borné à 300 s (`lancer`).
+      [sort: non]
+    """
+    copie = os.path.join(dossier, "prive3")
+    taille = sum(e[1] for e in inventaire_hors_git(source))
+    libre = shutil.disk_usage(dossier).free
+    if libre < FACTEUR_DE_PLACE * taille:
+        raise ErreurDOutillage(f"place insuffisante pour la copie de P3 : {libre} octets libres sous {dossier}, "
+                               f"il en faut au moins {FACTEUR_DE_PLACE} × {taille} (le disque de {source} hors .git)")
+    try:
+        shutil.copytree(source, copie, symlinks=True,
+                        ignore=lambda d, noms: [".git"] if os.path.abspath(d) == os.path.abspath(source) else [])
+    except (OSError, shutil.Error) as e:
+        raise ErreurDOutillage(f"copie des fichiers de {source} vers {copie} : {type(e).__name__} : {str(e)[:300]}")
+    for args in (["clone", "-q", "--mirror", "--shared", source, os.path.join(copie, ".git")],
+                 ["-C", copie, "config", "core.bare", "false"],
+                 ["-C", copie, "config", "--remove-section", "remote.origin"]):
+        c, o = lancer(["git"] + args)
+        if c != 0:
+            raise ErreurDOutillage(f"git {' '.join(args[:3])} : code {c} : {o[-200:]}")
+    c, o = lancer(["git", "-C", copie, "remote"])
+    if c != 0 or o.strip():
+        raise ErreurDOutillage(f"la copie de P3 garde une origine (git remote : code {c} : {o[-200:]})")
+    c, tete = lancer(["git", "-C", source, "rev-parse", "--verify", "HEAD"])
+    for args in (["update-ref", "refs/heads/" + BRANCHE_DE_P3, tete.strip()],
+                 ["symbolic-ref", "HEAD", "refs/heads/" + BRANCHE_DE_P3]):
+        c2, o = lancer(["git", "-C", copie] + args)
+        if c != 0 or c2 != 0:
+            raise ErreurDOutillage(f"git {args[0]} : code {c}/{c2} : {(tete + o)[-200:]}")
+    if os.path.abspath(racine) != os.path.abspath(source):
+        for rel in LUS:
+            if os.path.isfile(os.path.join(racine, rel)):
+                cible = os.path.join(copie, rel)
+                if os.path.lexists(cible):
+                    os.remove(cible)
+                shutil.copyfile(os.path.join(racine, rel), cible)
+    return copie
+
+
 NOTES = []
+P3_JOUES = []   # une entrée par tour où P3 a été joué (lu par `main` pour les sabotages de JOUENT_P3)
 
 
 def etage_a(F, d):
@@ -419,14 +670,37 @@ def etage_a(F, d):
     return faux
 
 
-def tour(racine):
+def tour(racine, source_git=None, fragment_p3=None):
     """Joue tous les cas sur une racine ; rend la liste des cas faux (vide : tout est conforme).
 
     ① RÔLE — Le corps de l'épreuve (fiche en tête, ⑥). ② CONTEXTE D'APPEL — `main`, sur la racine puis sur chaque
-    copie sabotée. ③ ENTRÉE — `racine`. ④ CONDITIONS D'ENTRÉE — Fiche en tête, ④.
-    ⑤ SORTIE — UNE valeur : la liste des cas faux. [rend: 1] ⑥ TRAITEMENT — Fiche en tête, ⑥. ⑦ UNITÉ — —
-    ⑧ POURQUOI — Fiche en tête. ⑨ CE QUI CLOCHE — Une erreur imprévue d'un cas est rangée parmi les cas faux.
-    ⑩ EFFET — Écrit dans un dossier jetable, effacé à la fin. ⑪ TERMINAISON — Rend la main. [sort: non]
+    copie sabotée. ③ ENTRÉE — `racine` : où lire les programmes éprouvés · `source_git` : le dépôt Git dont P3 fait
+    sa copie (None : la racine elle-même ; `main` donne la vraie racine aux seuls sabotages de JOUENT_P3, car une
+    copie sabotée n'a pas de .git) · `fragment_p3` : None hors des tours de sabotage de JOUENT_P3 ; sinon le
+    fragment attendu de ce sabotage (JOUENT_P3[nom]) — sa présence fait de ce tour un tour de sabotage de P3.
+    ④ CONDITIONS D'ENTRÉE — Fiche en tête, ④.
+    ⑤ SORTIE — UNE valeur : la liste des cas faux. [rend: 1] ⑥ TRAITEMENT — Fiche en tête, ⑥. P3 : une copie de
+    `source_git` (ou de la racine) sur la branche BRANCHE_DE_P3, où les fichiers LUS de la racine remplacent les siens
+    (`copie_sur_une_branche`) ; la source est relue avant et après : sa tête (HEAD et sa branche), ses références
+    (« git for-each-ref ») et l'inventaire de son disque hors .git (`inventaire_hors_git` : chemin, taille, mtime_ns) ;
+    un écart est un cas faux au tour tel quel (Z0), et une ErreurDOutillage dans un tour de sabotage (`fragment_p3`
+    donné). Avec `fragment_p3`, la ligne « P3 fabricant » d'un fabricant en échec porte en plus l'extrait de sa sortie
+    ENTIÈRE autour du fragment s'il y est, ou « fragment attendu ABSENT » (sans le citer) ; `main` n'y voit une
+    morsure que si le fragment est dans cette ligne. ⑦ UNITÉ — —
+    ⑧ POURQUOI — Fiche en tête. Contrôle d'après élargi aux références et au disque (relecture du 17-11-2026, m1 et
+    m2 ; superviseur R-759, Q3) : HEAD seul ne voyait ni une écriture dans la racine ni une référence poussée.
+    Fragment cherché dans la sortie entière et écart du contrôle d'après rangé en erreur d'outillage dans un tour de
+    sabotage : relecture du 17-11-2026, tour 3, MAJEUR 1 — avec la garde neutralisée et un écrivain dans la racine,
+    SE40 « mordait » par le seul écart du contrôle d'après, et le verdict sortait vert ; superviseur R-759, R1.
+    ⑨ CE QUI CLOCHE — Une erreur imprévue d'un cas est rangée parmi les cas faux (au tour d'un sabotage de JOUENT_P3,
+    elle n'est pas une morsure : seule la ligne « P3 fabricant » portant le fragment l'est) ; une ErreurDOutillage
+    (copie de P3, git dans cette copie, création du clone public de P3, écart du contrôle d'après dans un tour de
+    sabotage) est RELANCÉE avant ce rangement : elle n'est jamais un cas faux, donc jamais une morsure. Le contrôle
+    d'après ne lit pas le contenu (voir `inventaire_hors_git`, ⑨) ; au tour tel quel, une écriture concurrente dans la
+    racine le fait rougir à tort (code 1).
+    ⑩ EFFET — Écrit dans un dossier jetable, effacé à la fin ; P3 y COPIE les fichiers de la source (lus, jamais
+    modifiés). ⑪ TERMINAISON — Rend la main, ou lève ErreurDOutillage.
+    [sort: non]
     """
     faux = []
     d = tempfile.mkdtemp(prefix="epreuves_longues_")
@@ -753,19 +1027,48 @@ def tour(racine):
         except OSError as e:
             faux.append(f"P2 dépôt sans registre ni données : {e}")
         faux += etage_a(F, d)
-        # P3 : le fabricant en ligne de commande sur la VRAIE racine (seulement si elle porte tout le dépôt, historique
-        # entier : sur un clone superficiel, l'étage A s'arrête, voulu)
-        cb, branche = lancer(["git", "-C", racine, "rev-parse", "--abbrev-ref", "HEAD"])
-        superficiel = lancer(["git", "-C", racine, "rev-parse", "--is-shallow-repository"])[1].strip() == "true"
+        # P3 : le fabricant en ligne de commande sur une COPIE de la VRAIE racine, placée sur la branche BRANCHE_DE_P3
+        # (`copie_sur_une_branche`), vers un clone public neuf de la même branche. La copie porte sa propre branche :
+        # P3 ne dépend plus de la branche de la racine (certification du 17-11-2026, cause C6 : sur la tête détachée
+        # de la machine de certification, la racine n'a pas de branche et le fabricant refusait). Joué seulement si
+        # la source porte tout le dépôt, historique entier : sur un clone superficiel, l'étage A s'arrête, voulu.
+        source = source_git or racine
+        cb = lancer(["git", "-C", source, "rev-parse", "--verify", "HEAD"])[0]
+        superficiel = lancer(["git", "-C", source, "rev-parse", "--is-shallow-repository"])[1].strip() == "true"
         if superficiel:
             NOTES.append("P3 non joué : la racine est un clone superficiel (shallow)")
-        if os.path.isfile(os.path.join(racine, ".github", "workflows", "collecte_abc.yml")) and cb == 0 and not superficiel:
+        if os.path.isfile(os.path.join(source, ".github", "workflows", "collecte_abc.yml")) and cb == 0 and not superficiel:
+            etat_avant = etat_de_la_source(source)
+            prive3 = copie_sur_une_branche(source, racine, d)
+            P3_JOUES.append(source)
             pub3 = os.path.join(d, "public3")
-            lancer(["git", "init", "-q", "-b", branche.strip(), pub3])
-            c, o = lancer([sys.executable, "-B", os.path.join(racine, FABRICANT), racine, pub3])
+            ci, oi = lancer(["git", "init", "-q", "-b", BRANCHE_DE_P3, pub3])
+            if ci != 0:
+                raise ErreurDOutillage(f"git init du clone public de P3 : code {ci} : {oi[-200:]}")
+            c, o = lancer([sys.executable, "-B", os.path.join(prive3, FABRICANT), prive3, pub3])
             if c != 0 or not re.search(r"provenance : \d+ fichier\(s\) écrit\(s\) .* ; 0 refus", o) \
                     or not re.search(r"étage A : \d+ fichier\(s\) .* ; 0 refus · témoin : les \d+ chemins", o):
-                faux.append(f"P3 fabricant sur la racine : code {c} : {o[-300:]}")
+                ligne = f"P3 fabricant sur la copie de la racine : code {c} : {o[-300:]}"
+                if fragment_p3 is not None:
+                    # le fragment cherché dans la sortie ENTIÈRE (R1) : il peut être avant les 300 derniers caractères
+                    i = o.find(fragment_p3)
+                    ligne += (f" · fragment attendu vu dans la sortie entière : …{o[max(0, i - 80):i + len(fragment_p3) + 80]}…"
+                              if i >= 0 else " · fragment attendu ABSENT de la sortie entière du fabricant")
+                faux.append(ligne)
+            etat_apres = etat_de_la_source(source)
+            ecarts = []
+            for i, quoi in enumerate(("la tête", "la branche de la tête", "les références", "le disque hors .git")):
+                if etat_apres[i] != etat_avant[i]:
+                    ecart = (sorted(set(etat_avant[i]) ^ set(etat_apres[i]))[:3] if i == 3
+                             else (etat_avant[i], etat_apres[i]))
+                    ecarts.append(f"P3 a changé {quoi} de la racine : {str(ecart)[:300]}")
+            if ecarts and fragment_p3 is not None:
+                # dans un tour de sabotage, un écart du contrôle d'après n'est jamais une morsure (R1)
+                raise ErreurDOutillage("contrôle d'après P3 dans un tour de sabotage (un autre programme écrit-il dans "
+                                       "la racine ?) : " + " | ".join(ecarts))
+            faux += ecarts
+    except ErreurDOutillage:
+        raise
     except Exception as e:   # noqa: BLE001 — une erreur imprévue est un cas faux, jamais un passage
         faux.append(f"erreur imprévue : {type(e).__name__} : {e}")
     finally:
@@ -842,6 +1145,13 @@ SABOTAGES = {
                                               "        if prives:\n")],
     "SE16_jouer_sans_couper_le_reseau": [(FABRICANT, '          unshare -rn python3 -B -u tests/outils/jouer_une_epreuve_longue.py',
                                           '          python3 -B -u tests/outils/jouer_une_epreuve_longue.py')],
+    # SE40 (cause C6 du 17-11-2026) : la garde d'entrée du fabricant en ligne de commande (`fabriquer_et_publier`)
+    # refuse tout clone public, quelle que soit la branche. Seul P3 lance le fabricant en ligne de commande sur un vrai
+    # dépôt et un clone public qui a un .git : il doit rougir, et ce tour le joue (JOUENT_P3). La garde de `publier`
+    # n'est pas touchée : A5 la juge, et SE40 ne doit mordre que par P3 — par la ligne « P3 fabricant » qui porte
+    # « garde sabotée », le fragment attendu que JOUENT_P3 lui associe.
+    "SE40_garde_d_entree_refuse_tout": [(FABRICANT, "        refus = refus_de_branche(prive, public)\n",
+                                         "        refus = refus_de_branche(prive, public) or \"garde sabotée\"\n")],
 }
 
 
@@ -849,41 +1159,100 @@ def main():
     """Le programme entier (voir la fiche en tête).
 
     ① RÔLE — Fiche en tête. ② CONTEXTE D'APPEL — La ligne de commande. ③ ENTRÉE — Fiche en tête.
-    ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : 0, 1 ou 2. [rend: 1]
-    ⑥ TRAITEMENT — un tour tel quel ; avec --saboter (ou --saboter=SE01,…), une copie de la racine par sabotage
-      (les fichiers que l'épreuve lit, LUS, la plus petite donnée enregistrée, les épreuves de la table), le fichier
-      visé écrit saboté, un tour par copie.
-    ⑦ UNITÉ — — ⑧ POURQUOI — Fiche en tête. ⑨ CE QUI CLOCHE — La copie sabotée n'a pas le dépôt entier : P3 n'y est
-      pas joué (il exige .github/workflows/collecte_abc.yml). ⑩ EFFET — Fiche en tête.
+    ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : 0, 1, 2 ou CODE_D_OUTILLAGE (3). [rend: 1]
+    ⑥ TRAITEMENT — ⓪ les variables locales de git retirées de l'environnement (`retirer_les_variables_locales_de_git`),
+      avant tout git ; celles qui étaient posées sont dites dans une NOTE · ① la cohérence de JOUENT_P3 : chaque nom
+      existe dans SABOTAGES, chaque fichier que ce sabotage vise fait partie de LUS, et son fragment attendu est un
+      texte non vide, présent dans un texte que le sabotage injecte et absent du fichier visé de la racine tel quel ;
+      sinon ErreurDOutillage · ② un tour tel quel ; si P3 n'y a pas été joué (clone superficiel, sans .git, sans
+      .github/workflows/collecte_abc.yml), la ligne Z0 dit « P1, P2 conformes · P3 NON JOUÉ » au lieu de compter P3
+      parmi les conformes (code de sortie inchangé) ; avec --saboter (ou --saboter=SE01,…),
+      une copie de la racine par sabotage (les fichiers que l'épreuve lit, LUS, la plus petite donnée enregistrée,
+      les épreuves de la table), le fichier visé écrit saboté, un tour par copie · ③ une ErreurDOutillage, d'où
+      qu'elle vienne, arrête tout : « ERREUR D'OUTILLAGE : <message> » est affiché et le code est CODE_D_OUTILLAGE,
+      sans verdict.
+      Les sabotages de JOUENT_P3 donnent aussi la vraie racine à `tour` (`source_git`) : P3 y est joué sur une copie
+      de la racine où les fichiers sabotés remplacent les vrais ; si P3 ne peut pas s'y jouer (racine superficielle,
+      sans .git), le sabotage est dit NON JOUÉ et ne compte pas, comme P3 lui-même dans Z0. Un sabotage de JOUENT_P3
+      ne « mord » que si une ligne de son tour commence par « P3 fabricant » et porte son fragment attendu (`tour`
+      l'y recopie depuis la sortie ENTIÈRE du fabricant) ; tout autre cas faux de ce tour ne compte pas, et un écart
+      du contrôle d'après y est une ErreurDOutillage (levée par `tour`). Les autres sabotages mordent dès qu'un cas
+      est faux.
+    ⑦ UNITÉ — — ⑧ POURQUOI — Fiche en tête. L'assertion ① : superviseur R-759 du 17-11-2026, Q4 (relecture m3 :
+      JOUENT_P3 est une énumération à tenir à la main, et un sabotage de JOUENT_P3 qui viserait un fichier hors de LUS
+      jouerait P3 sur des fichiers non sabotés). Le code distinct ③ : Q5 (relecture m4). Le fragment attendu, la
+      morsure par la seule ligne « P3 fabricant » : relecture du 17-11-2026, tour 3, MAJEUR 1 ; superviseur R-759, R1.
+      « P3 NON JOUÉ » dans Z0 : même relecture, MINEUR 1 ; R2. L'étape ⓪ : MINEUR 3 ; R4.
+    ⑨ CE QUI CLOCHE — La copie sabotée n'a pas le dépôt entier : hors des sabotages de JOUENT_P3, P3 n'y est pas joué
+      (il exige .github/workflows/collecte_abc.yml et un .git). JOUENT_P3 reste une liste déclarée, vérifiée par ①, et
+      non une propriété calculée du sabotage — À VALIDER PAR JEAN-LUC (simplification acceptée par le superviseur).
+      ⑩ EFFET — Fiche en tête.
     ⑪ TERMINAISON — Rend la main. [sort: non]
     """
-    faux = tour(DEPOT)
-    print("Z0 programmes tels quels : " + ("T0 à T2, G1 à G5, J1 à J6, E3a, E7, E10a, R1 à R7, P1 à P3, A1 à A8, X2 à X4 conformes"
-                                            if not faux else "FAUX " + " | ".join(faux)))
-    for n in dict.fromkeys(NOTES):
-        print("NOTE " + n)
-    code = 1 if faux else 0
-    choix = [a.split("=", 1)[1].split(",") for a in sys.argv[1:] if a.startswith("--saboter=")]
-    if "--saboter" in sys.argv or choix:
-        table = json.load(open(os.path.join(DEPOT, TABLE), encoding="utf-8"))
-        a_copier = list(LUS) + [plus_petit_enregistre(DEPOT)] + [e["chemin"] for e in table["epreuves_longues"].values()]
-        for nom in [n for n in SABOTAGES if not choix or n in choix[0] or n.split("_")[0] in choix[0]]:
-            d = tempfile.mkdtemp(prefix="epreuves_longues_sab_")
+    try:
+        retires = retirer_les_variables_locales_de_git()
+        if retires:
+            NOTES.append("variables locales de git retirées de l'environnement de l'épreuve : " + ", ".join(retires))
+        for nom, fragment in JOUENT_P3.items():
+            if nom not in SABOTAGES:
+                raise ErreurDOutillage(f"JOUENT_P3 nomme {nom}, absent de SABOTAGES")
+            hors = [fichier for fichier, _, _ in SABOTAGES[nom] if fichier not in LUS]
+            if hors:
+                raise ErreurDOutillage(f"JOUENT_P3 : {nom} vise {hors}, hors de LUS (P3 ne les reporte pas dans sa copie)")
+            if not isinstance(fragment, str) or not fragment or not any(fragment in b for _, _, b in SABOTAGES[nom]):
+                raise ErreurDOutillage(f"JOUENT_P3 : le fragment attendu de {nom} ({fragment!r}) est vide ou n'est pas "
+                                       "dans le texte que ce sabotage injecte")
             try:
-                for f in a_copier:
-                    os.makedirs(os.path.dirname(os.path.join(d, f)), exist_ok=True)
-                    shutil.copyfile(os.path.join(DEPOT, f), os.path.join(d, f))
-                for fichier, a, b in SABOTAGES[nom]:
-                    t = open(os.path.join(d, fichier), encoding="utf-8").read()
-                    if t.count(a) != 1:
-                        print(f"{nom} NE S'APPLIQUE PLUS : texte cible trouvé {t.count(a)} fois dans {fichier}")
-                        return 2
-                    open(os.path.join(d, fichier), "w", encoding="utf-8").write(t.replace(a, b))
-                f = tour(d)
-            finally:
-                shutil.rmtree(d, ignore_errors=True)
-            print(f"{nom} {'mord' if f else 'NE MORD PAS'} : {f[:3]}")
-            code |= 0 if f else 1
+                tels_quels = [open(os.path.join(DEPOT, fichier), encoding="utf-8").read() for fichier, _, _ in SABOTAGES[nom]]
+            except OSError as e:
+                raise ErreurDOutillage(f"JOUENT_P3 : fichier visé par {nom} illisible : {e}")
+            if any(fragment in x for x in tels_quels):
+                raise ErreurDOutillage(f"JOUENT_P3 : le fragment attendu de {nom} est déjà dans le fichier visé tel quel")
+        joues_avant_z0 = len(P3_JOUES)
+        faux = tour(DEPOT)
+        p3 = "P1 à P3, " if len(P3_JOUES) > joues_avant_z0 else ""
+        print("Z0 programmes tels quels : " + (f"T0 à T2, G1 à G5, J1 à J6, E3a, E7, E10a, R1 à R7, {p3}A1 à A8, X2 à X4"
+                                                + (" conformes" if p3 else ", P1, P2 conformes · P3 NON JOUÉ")
+                                                if not faux else "FAUX " + " | ".join(faux)))
+        for n in dict.fromkeys(NOTES):
+            print("NOTE " + n)
+        code = 1 if faux else 0
+        choix = [a.split("=", 1)[1].split(",") for a in sys.argv[1:] if a.startswith("--saboter=")]
+        if "--saboter" in sys.argv or choix:
+            table = json.load(open(os.path.join(DEPOT, TABLE), encoding="utf-8"))
+            a_copier = list(LUS) + [plus_petit_enregistre(DEPOT)] + [e["chemin"] for e in table["epreuves_longues"].values()]
+            for nom in [n for n in SABOTAGES if not choix or n in choix[0] or n.split("_")[0] in choix[0]]:
+                d = tempfile.mkdtemp(prefix="epreuves_longues_sab_")
+                try:
+                    for f in a_copier:
+                        os.makedirs(os.path.dirname(os.path.join(d, f)), exist_ok=True)
+                        shutil.copyfile(os.path.join(DEPOT, f), os.path.join(d, f))
+                    for fichier, a, b in SABOTAGES[nom]:
+                        t = open(os.path.join(d, fichier), encoding="utf-8").read()
+                        if t.count(a) != 1:
+                            print(f"{nom} NE S'APPLIQUE PLUS : texte cible trouvé {t.count(a)} fois dans {fichier}")
+                            return 2
+                        open(os.path.join(d, fichier), "w", encoding="utf-8").write(t.replace(a, b))
+                    joues_avant = len(P3_JOUES)
+                    f = tour(d, source_git=DEPOT if nom in JOUENT_P3 else None, fragment_p3=JOUENT_P3.get(nom))
+                finally:
+                    shutil.rmtree(d, ignore_errors=True)
+                if nom in JOUENT_P3 and len(P3_JOUES) == joues_avant:
+                    print(f"{nom} NON JOUÉ : P3 ne se joue pas sur cette racine (voir la NOTE de Z0, ou : sans .git, "
+                          "sans .github/workflows/collecte_abc.yml)")
+                    continue
+                if nom in JOUENT_P3:
+                    # R1 : seule la ligne « P3 fabricant » qui porte le fragment attendu est une morsure
+                    morsures = [l for l in f if l.startswith("P3 fabricant") and JOUENT_P3[nom] in l]
+                    print(f"{nom} {'mord' if morsures else 'NE MORD PAS'} : {(morsures or f)[:3]}")
+                    code |= 0 if morsures else 1
+                    continue
+                print(f"{nom} {'mord' if f else 'NE MORD PAS'} : {f[:3]}")
+                code |= 0 if f else 1
+    except ErreurDOutillage as e:
+        print(f"ERREUR D'OUTILLAGE : {e}")
+        print(f"VERDICT : aucun — l'épreuve n'a pas pu se jouer (code {CODE_D_OUTILLAGE})")
+        return CODE_D_OUTILLAGE
     print("VERDICT : tout est conforme" if code == 0 else "VERDICT : NON CONFORME")
     return code
 

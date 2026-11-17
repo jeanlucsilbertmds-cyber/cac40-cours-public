@@ -477,6 +477,22 @@ def empreinte_git(depot):
 
 
 def epreuves(prog, racine, seulement=None):
+    """Joue les cas P1 à P15 sur un programme ; rend la liste (nom, vert ?, détail).
+
+    ① RÔLE — Le corps de l'épreuve (fiche en tête, LES ÉPREUVES). ② CONTEXTE D'APPEL — `main` : une fois sur le
+    programme de la racine, puis une fois par sabotage, sur la copie sabotée, avec le seul cas visé.
+    ③ ENTRÉE — `prog` : le programme éprouvé · `racine` : le dépôt dont P12 fait un clone · `seulement` : un nom de cas,
+    ou None pour tous. ④ CONDITIONS D'ENTRÉE — `du` et `git` installés (P4, P12).
+    ⑤ SORTIE — UNE valeur : la liste des cas joués, chacun (nom, vert ?, détail). [rend: 1]
+    ⑥ TRAITEMENT — Chaque cas dans son dossier temporaire (`cas`), sur un banc fabriqué (`Banc`).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Fiche en tête. Depuis le 17-11-2026 (cause C2), P4 cherche `du` et `git` par des noms écrits en
+      clair : voir la fiche de `p4`.
+    ⑨ CE QUI CLOCHE — Une exception d'un cas le rend rouge, avec son type et son message.
+    ⑩ EFFET — Écrit dans des dossiers temporaires, effacés à la fin de chaque cas.
+    ⑪ TERMINAISON — Rend la main ; chaque relevé est borné par `Banc.lancer`.
+      [sort: non]
+    """
     res = []
 
     def cas(nom, f):
@@ -528,10 +544,31 @@ def epreuves(prog, racine, seulement=None):
     cas("P3", p3)
 
     def p4(b, d):
+        """Le cas P4, ressources absentes : rend (vert ?, détail).
+
+        ① RÔLE — Prouver qu'une ressource absente rend INCONNU, jamais un chiffre inventé (fiche en tête, P4).
+        ② CONTEXTE D'APPEL — `cas("P4", p4)`, dans `epreuves`, sur la racine puis sur chaque copie sabotée.
+        ③ ENTRÉE — `b` : le banc (`Banc`) ; `d` : son dossier temporaire.
+        ④ CONDITIONS D'ENTRÉE — `du` et `git` installés sur la machine (le relevé les lance).
+        ⑤ SORTIE — DEUX valeurs : vert ou rouge, et le détail (code, nombre de lignes, lignes fausses). [rend: 2]
+        ⑥ TRAITEMENT — Un PATH réduit à `du` et `git` (donc sans `nproc`), /proc, /tmp et disque inexistants ; un
+          relevé ; sept lignes INCONNU sans chiffre, la ligne des circuits sans chiffre inventé, code 0, 9 lignes.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — `du` et `git` sont cherchés par `shutil.which("du")` et `shutil.which("git")`, chacun écrit EN
+          CLAIR, et non par une boucle sur une variable : l'épreuve E6 du circuit public
+          (tests/EPREUVES_DU_CIRCUIT_PUBLIC_Jeu_15-10-2026.py) lit dans le code chaque logiciel cherché par `which`
+          pour vérifier qu'il est installé avant la certification, et refuse un nom qu'elle ne peut pas lire
+          (certification de la nuit du 17-11-2026, cause C2, réparation jugée DE FOND par le superviseur R-759).
+        ⑨ CE QUI CLOCHE — Un `which` qui rend None (logiciel absent) fait lever `os.symlink` : le cas est rouge par
+          exception, sans dire lequel manque.
+        ⑩ EFFET — Écrit dans `d` (liens, faux dossiers).
+        ⑪ TERMINAISON — Rend la main ; le relevé est borné par `Banc.lancer`.
+          [sort: non]
+        """
         nu = os.path.join(d, "bin_sans_nproc")
         os.makedirs(nu)
-        for c in ("du", "git"):
-            os.symlink(shutil.which(c), os.path.join(nu, c))
+        os.symlink(shutil.which("du"), os.path.join(nu, "du"))
+        os.symlink(shutil.which("git"), os.path.join(nu, "git"))
         b.path = nu
         b.proc = os.path.join(d, "proc_inexistant")
         b.tmp = os.path.join(d, "tmp_inexistant")
