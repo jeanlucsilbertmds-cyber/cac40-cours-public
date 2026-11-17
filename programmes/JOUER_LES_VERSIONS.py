@@ -15,6 +15,14 @@ USAGE
     fichier maître, par exemple l'historique des 20 ans (plan V7, bloc 5l ⑤) ; la même
     option que le juge des stratégies, lue et refusée de la même façon, et passée au
     juge pour son calibrage. Sans l'option, le fichier maître, comme avant.
+    --essai-sans-regard : un ESSAI DÉCLARÉ (A-863, décision de Jean-Luc du 16-11-2026 à
+    20h46), sans regard unique consommé ni inscription : refusé en 2 si la racine porte
+    .git, si la combinatoire porte plus d'une version, si la fiche n'est identique à aucune
+    fiche de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE (`jeton_d_essai` du juge),
+    si la version jouée n'a pas l'empreinte des réglages de la fiche (avant tout jeu), ou
+    si elle ne retrouve pas la fiche (mineur M5 du relecteur neuf du 16-11-2026) ;
+    chaque ligne écrite commence par « ESSAI — NI RÉSULTAT NI SÉLECTION », et le fichier
+    de résultats porte la colonne `statut_d_essai`, que le tri refuse.
 
 CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
     ⓪ PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES propose les réglages ;
@@ -31,8 +39,9 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   des stratégies, fichier maître des cours, référentiel, modules de signal et de
   positions, témoin du golden) ; une combinatoire écrite par DECLINER ; le chemin
   du fichier de résultats, qui ne doit pas exister. Une option facultative,
-  `--cours=<fichier>` : le fichier de cours à jouer, relatif à la racine ; toute
-  autre option, ou celle-ci mal écrite, arrête tout (comme le juge, 27-10-2026).
+  `--cours=<fichier>` : le fichier de cours à jouer, relatif à la racine ; et
+  `--essai-sans-regard` (voir l'usage) ; toute autre option, ou celle-ci mal écrite,
+  arrête tout (comme le juge, 27-10-2026).
 ④ CONDITIONS D'ENTRÉE — ① la combinatoire n'est pas vide, toutes ses lignes
   portent la même stratégie et le même essai, ses identifiants sont uniques, et
   son nombre de lignes égale la colonne `versions_dans_l_essai`, aucun univers
@@ -136,6 +145,9 @@ sys.dont_write_bytecode = True
 
 REGLAGES = ("tp", "sl", "horizon", "univers")
 OPTION_COURS = "--cours="
+# L'option de l'essai déclaré (A-863) ; son texte vit au contrat (CONTRATS.OPTION_D_ESSAI_SANS_REGARD), et `main` les
+# confronte dès que l'option est lue : sans elle, ce programme n'importe rien de plus qu'avant.
+OPTION_ESSAI = "--essai-sans-regard"
 RECUL_MAXIMUM = "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv"
 
 
@@ -528,14 +540,16 @@ def controler_fusion(J, fusion, version):
     return ecarts
 
 
-def calibrer_par_le_juge(base, ident, cours=None):
+def calibrer_par_le_juge(base, ident, cours=None, essai=False):
     """Lance le juge seul sur la fiche et lit son verdict.
 
     ① RÔLE — Prouver que l'instrument retrouve les chiffres de référence avant de
       jouer quoi que ce soit.
     ② CONTEXTE D'APPEL — `main`, une fois.
     ③ ENTRÉE — `base` : la racine du dépôt · `ident` : l'identifiant de la fiche · `cours` : le
-      fichier de cours de `--cours=`, relatif à la racine, ou None pour le fichier maître.
+      fichier de cours de `--cours=`, relatif à la racine, ou None pour le fichier maître · `essai` : vrai sous
+      l'option « --essai-sans-regard » (A-863), qui est alors passée au juge ; ses lignes, toutes marquées, sont
+      lues privées de la marque.
     ④ CONDITIONS D'ENTRÉE — Le juge est dans `programmes/` sous la racine.
     ⑤ SORTIE — DEUX valeurs : vrai si le juge est calibré et rend 0 ; la ligne de
       résultat qu'il affiche pour la fiche, ou None.
@@ -562,8 +576,14 @@ def calibrer_par_le_juge(base, ident, cours=None):
     commande = [sys.executable, "-B", os.path.join(base, "programmes", "JUGE_DES_STRATEGIES.py"), base, ident]
     if cours:
         commande.append(OPTION_COURS + cours)
+    if essai:
+        import CONTRATS_DES_FICHIERS as _CE
+        commande.append(_CE.OPTION_D_ESSAI_SANS_REGARD)
     p = subprocess.run(commande, capture_output=True, text=True)
     sortie = p.stdout + p.stderr
+    if essai:   # la marque de chaque ligne du juge (A-863) ôtée pour lire sa ligne de résultat comme d'habitude
+        sortie = "".join(l[len(_CE.STATUT_D_ESSAI + " · "):] if l.startswith(_CE.STATUT_D_ESSAI + " · ") else l
+                         for l in sortie.splitlines(True))
     ok = (p.returncode == 0 and "OK, l'instrument est calibre" in sortie
           and "calibrage sur le TEMOIN du golden" in sortie)
     ligne = next((l.strip() for l in sortie.splitlines()
@@ -666,7 +686,7 @@ def main():
     ② CONTEXTE D'APPEL — Le lancement, et lui seul.
     ③ ENTRÉE — La ligne de commande (voir l'en-tête).
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête, ④.
-    ⑤ SORTIE — UNE valeur : 0 ou 1, passée à la sortie du processus.
+    ⑤ SORTIE — UNE valeur : 0 ou 1, passée à la sortie du processus ; 2 quand un essai déclaré est refusé (A-863).
       [rend: 1]
     ⑥ TRAITEMENT — Voir l'en-tête, ⑥.
     ⑦ UNITÉ — Voir l'en-tête, ⑦.
@@ -677,7 +697,22 @@ def main():
       provisoire puis remonte.
       [sort: non]
     """
-    positions, autre_cours, refus = lire_la_ligne_de_commande(sys.argv[1:])
+    # L'ESSAI DÉCLARÉ (A-863, décision de Jean-Luc du 16-11-2026 à 20h46) : l'option est ôtée de la ligne AVANT sa
+    # lecture habituelle, et la sortie marquée AVANT toute écriture, par la fonction du juge de ce dossier (R-708).
+    # SANS L'OPTION, RIEN NE CHANGE : aucun import de plus (ce programme se lance aussi seul, copié hors du dépôt, par
+    # les épreuves du tri) ; le texte de l'option est confronté au contrat dès qu'elle est lue.
+    essai_declare = OPTION_ESSAI in sys.argv[1:]
+    jeton = None
+    if essai_declare:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import CONTRATS_DES_FICHIERS as _CE
+        import JUGE_DES_STRATEGIES as _JE
+        _JE.marquer_la_sortie()
+        if _CE.OPTION_D_ESSAI_SANS_REGARD != OPTION_ESSAI or sys.argv[1:].count(OPTION_ESSAI) > 1:
+            print("ARRÊT (essai refusé) : option %s écrite deux fois, ou différente du contrat (%s). Rien n'est joué."
+                  % (OPTION_ESSAI, _CE.OPTION_D_ESSAI_SANS_REGARD))
+            return 2
+    positions, autre_cours, refus = lire_la_ligne_de_commande([a for a in sys.argv[1:] if a != OPTION_ESSAI])
     if refus:
         return arreter(refus + ". Rien n'est joué.")
     if len(positions) != 3:
@@ -720,8 +755,37 @@ def main():
     if len(ident_v) != 1:
         return arreter("%d versions marquées identiques à la fiche" % len(ident_v))
     sid, essai = strats.pop(), essais.pop()
+    if essai_declare:
+        # L'IDENTITÉ DE L'ESSAI, AVANT LE CALIBRAGE (A-863) : la règle vit dans `jeton_d_essai` du juge, la seule ;
+        # elle refuse en 2 un dépôt, plus d'une version, une fiche qui n'est identique à aucune fiche autorisée.
+        if os.path.dirname(os.path.abspath(_JE.__file__)) != os.path.join(base, "programmes"):
+            print("ARRÊT (essai refusé) : un essai se joue avec la moulinette de la copie jouée (%s), pas %s"
+                  % (os.path.join(base, "programmes"), _JE.__file__))
+            return 2
+        _fe = _CE.fiches_du_registre(_JE.trouver(base, _CE.NOM_DU_REGISTRE_DES_STRATEGIES)).get(sid)
+        if _fe is None:
+            print("ARRÊT (essai refusé) : fiche %s absente du registre. Rien n'est joué." % sid)
+            return 2
+        jeton, motif = _JE.jeton_d_essai(base, _fe, len(versions))
+        if jeton is None:
+            print("ARRÊT (essai refusé) : %s. Rien n'est joué." % motif)
+            return 2
+        # LA VERSION JOUÉE A LES RÉGLAGES DE LA FICHE D'ESSAI, AVANT TOUT JEU (mineur M5 du relecteur neuf du
+        # 16-11-2026) : le jeton couvre la FICHE ; une version marquée identique mais d'un autre réglage (tp 0,06 au lieu
+        # de 0,04) jouerait, avec le jeton, des réglages non autorisés dans la fenêtre du regard unique. Même mesure
+        # que la colonne des résultats (`empreinte_de_la_version`, R-708). Refus en 2, comme les autres refus d'essai.
+        _lire = _JE.lire_module_du_jour(base)
+        _emp_v = empreinte_de_la_version(_JE, _fe, versions[0], _lire)
+        _emp_f = _JE.empreinte_des_reglages(_fe, _lire)[0]
+        if _emp_v != _emp_f:
+            print("ARRÊT (essai refusé) : la version %s n'a pas les réglages de la fiche %s (empreinte %s, fiche %s)."
+                  " Rien n'est joué." % (versions[0]["id_version"], sid, _emp_v, _emp_f))
+            return 2
+        print("ESSAI DÉCLARÉ (A-863) : %s, une version ; rien n'est inscrit ni compté, le fichier écrit porte la colonne"
+              " %s et le tri le refuse" % (sid, _CE.COLONNE_DU_STATUT_D_ESSAI))
 
-    ok, ligne_juge = calibrer_par_le_juge(base, sid, autre_cours)
+    ok, ligne_juge = (calibrer_par_le_juge(base, sid, autre_cours) if jeton is None
+                      else calibrer_par_le_juge(base, sid, autre_cours, essai=True))
     print("CALIBRAGE PAR LE JUGE SEUL : %s" % ("OK" if ok else "ÉCHEC"))
     if not ok or not ligne_juge:
         return arreter("le juge des stratégies ne se calibre pas, ou n'a pas joué la fiche")
@@ -794,11 +858,13 @@ def main():
         a_jouer = periode if periode is not None else bornes
         # REGARD UNIQUE (R-505 ③, mission REGARD du 12-11-2026) : aucune inscription ici, donc aucun reçu — une version
         # jouée dans la fenêtre du regard unique est REFUSÉE par `jouer` (RegardNonInscrit). Pas 7 (GitHub), hors mission.
+        # ESSAI DÉCLARÉ (A-863) : le jeton tient lieu de reçu ; None hors essai, comme avant.
+        _recu = {} if jeton is None else {"recu": jeton}   # sans essai, l'appel d'avant, à l'identique
         if bareme is None:
-            ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=a_jouer, lecture=lecture)
+            ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=a_jouer, lecture=lecture, **_recu)
         else:
             ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=a_jouer, lecture=lecture,
-                                    bareme=bareme)
+                                    bareme=bareme, **_recu)
         if ops_rendues is not None:
             ops_rendues.extend(ops)
         if inconnus:
@@ -814,6 +880,10 @@ def main():
         return arreter("ce programme et le juge seul ne rendent pas la même chose pour la fiche")
     r_id, _ = jouer_une(fusionner(fiche, ident_v[0]))
     if (r_id["n"], r_id.get("wr_exact"), r_id.get("net")) != (ref["n"], ref["wr_exact"], ref["net"]):
+        if jeton is not None:   # sous l'option d'essai, refus en 2 comme les autres refus d'essai (M5)
+            print("ARRÊT (essai refusé) : la version %s, identique à la fiche, ne retrouve pas la fiche"
+                  % ident_v[0]["id_version"])
+            return 2
         return arreter("la version %s, identique à la fiche, ne retrouve pas la fiche"
                        % ident_v[0]["id_version"])
     print("  version identique %s : même résultat" % ident_v[0]["id_version"])
@@ -892,6 +962,9 @@ def main():
     # LES CHAMPS DU FICHIER DE RÉSULTATS VIVENT AU CONTRAT : le tri les lit aussi (programmes/TRIER_LES_VARIANTES.py,
     # 11-11-2026) ; un fichier lu par deux programmes se déclare une fois (instructions du projet, §7).
     champs = list(contrat.RESULTATS_DES_VERSIONS)
+    if jeton is not None:   # A-863 : la colonne d'essai, hors contrat ; le tri refuse le fichier qui la porte
+        champs.append(contrat.COLONNE_DU_STATUT_D_ESSAI)
+    colonne_d_essai = {contrat.COLONNE_DU_STATUT_D_ESSAI: contrat.STATUT_D_ESSAI} if jeton is not None else {}
     # L'EMPREINTE DES SEULES SÉANCES JUSQU'À LA FIN DE LA FICHE (M2, 12-11-2026) : le maître grandit chaque soir.
     empreinte_cours = empreinte_des_cours_jusqu_a(os.path.join(base, f_cours_rel), bornes[1])
     # LE TÉMOIN SE COMPARE SOUS SON PROPRE BARÈME (C15, 29-10-2026) : chaque version est jouée deux fois quand le
@@ -962,7 +1035,7 @@ def main():
                     ecart = sum(o["net"] for o in ops_t) - sum(o["net"] for o in ops_r)
                     if [cle_op(o) for o in ops_t] != [cle_op(o) for o in ops_r] or abs(ecart - taxes) > 0.01:
                         invariant_faux.append("%s : écart %.2f € pour %.2f € de taxe" % (v["id_version"], ecart, taxes))
-                w.writerow({"id_version": v["id_version"], "strategie": sid, "essai": essai,
+                w.writerow(dict({"id_version": v["id_version"], "strategie": sid, "essai": essai,
                             "versions_dans_l_essai": len(versions), "tp": v["tp"], "sl": v["sl"],
                             "horizon": v["horizon"], "univers": v["univers"],
                             "empreinte_des_reglages": empreinte_de_la_version(J, fiche, v, lire_module),
@@ -983,7 +1056,7 @@ def main():
                             # restent ouvertes ne s'écrit plus « 0 opération, 0,00 € » sans trace.
                             "operations_a_part_fin_des_donnees": r.get("fin_des_donnees", {}).get("n", 0),
                             "gain_net_euros_a_part_fin_des_donnees": "%.2f" % r.get("fin_des_donnees", {}).get(
-                                "net", 0.0)})
+                                "net", 0.0)}, **colonne_d_essai))
                 if i % 250 == 0:
                     print("  %d / %d" % (i, len(versions)), flush=True)
         if invariant_faux:

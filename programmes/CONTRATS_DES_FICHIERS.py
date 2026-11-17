@@ -662,6 +662,40 @@ FICHIERS_DE_COURS_FIGES = {
 # R-759 du 14-11-2026 ②), sauf si elle est ici. Vide au 14-11-2026 : aucune décision.
 UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE = {}
 
+# LES FICHES DÉJÀ VUES SUR LE REGARD UNIQUE, DONT UN ESSAI PEUT RECOPIER LES RÉGLAGES — écrit À LA MAIN, sur décision écrite
+# de Jean-Luc seulement : {identifiant de la fiche : (« qui, quand, la réponse », EMPREINTE FIGÉE)}. Sens : la famille de
+# ces fiches a déjà été jouée sur 2000-2023 (A-777), donc un ESSAI qui la rejoue À L'IDENTIQUE ne consomme aucun regard
+# unique. « À l'identique » veut dire : l'empreinte des réglages de la fiche d'essai (`empreinte_des_reglages` du juge, la
+# seule définition de « ce qui change un calcul » : réglages, CODE du module de signal sans ses commentaires, univers,
+# période) est ÉGALE à la valeur figée ici. Cette valeur est celle de la fiche C5E10-QA-V1 de main (dernière ligne),
+# alignée sur l'identifiant, la période et le statut de ESSAI-C5-2000-2026 (période calculée sur le témoin figé des
+# 20 ans, module lu sur main), mesurée le 16-11-2026. Décision de Jean-Luc du 16-11-2026 à 23h03 (A-865, « 1 », pour
+# « J'accepte de figer l'empreinte : tout changement du code de la C5 me sera soumis ») : l'option d'essai compare à
+# cette valeur, JAMAIS à une référence lue dans la copie, que l'essai modifie lui-même (défaut B1 du relecteur neuf du
+# 16-11-2026). Figer n'est pas une recopie fautive (R-708 : deux implémentations d'une même chose divergent toujours),
+# car l'épreuve E-ancre (tests/EPREUVES_DE_L_ESSAI_SANS_REGARD_Lun_16-11-2026.py) la recalcule sur la version éprouvée
+# et rougit au moindre écart — même modèle que les sha256 des témoins figés ci-dessus. Si C5 change légitimement,
+# l'essai refuse en 2 et E-ancre rougit : c'est voulu (A-754), la suite est une décision de Jean-Luc. Lue par le juge
+# des stratégies (`jeton_d_essai`) sous la seule option déclarée « --essai-sans-regard » (A-863 : une OPTION, jamais
+# un préfixe de nom), refusée dans un dépôt (racine portant .git) et pour plus d'une version.
+# RECALCULÉE LE 17-11-2026 avec la nouvelle définition de l'empreinte du code (emp.py, format « emp-v2 », stable entre
+# versions de Python ; A-872), SANS AUCUN CHANGEMENT du code de la C5 ni du registre (0 ligne de différence avec main,
+# c8c22f9d). Décision de Jean-Luc du 17-11-2026 à 07h47 (A-873, « 1 », pour « J'accepte le recalcul » : « le code de la
+# C5 ne change pas : seule la façon de le mesurer change »). Mesurée identique sous Python 3.11, 3.12 et 3.13. L'ancienne
+# valeur, e78ed2599b6c9cd2, n'était juste que sous Python 3.13 (3.11, le Python du circuit, rendait 3454ff4942063e7d).
+FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE = {
+    "C5E10-QA-V1": ("Jean-Luc, A-853 16-11-2026 15h18 « 1 » ; A-863 16-11-2026 20h46 « 1 » ; A-865 16-11-2026 23h03 « 1 » ; "
+                    "A-873 17-11-2026 07h47 « 1 » (recalcul emp-v2)",
+                    "813e12bed9ff8410"),
+}
+# LA MARQUE D'UN ESSAI (A-863) : chaque ligne écrite par le juge ou la moulinette sous l'option d'essai commence par ce
+# texte, et le fichier de résultats d'un essai porte la colonne COLONNE_DU_STATUT_D_ESSAI, remplie de ce texte, HORS du
+# contrat RESULTATS_DES_VERSIONS : le tri (TRIER_LES_VARIANTES) refuse tout fichier qui la porte. Un essai n'est ni un
+# résultat ni une sélection.
+OPTION_D_ESSAI_SANS_REGARD = "--essai-sans-regard"
+STATUT_D_ESSAI = "ESSAI — NI RÉSULTAT NI SÉLECTION"
+COLONNE_DU_STATUT_D_ESSAI = "statut_d_essai"
+
 # LES FICHIERS DE COURS QUI PORTENT LES SOCIÉTÉS SORTIES DE L'INDICE (14-11-2026, QE2 tour 2, superviseur R-759 ①) : pour
 # eux, le lecteur unique attend chaque société sortie à chaque séance de sa présence dans l'indice, même sans aucune barre
 # d'elle, et compte à part celles qu'il ne sait pas lire (sans mnémonique). Les autres (le maître, la référence Google,
