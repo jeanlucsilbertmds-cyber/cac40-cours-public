@@ -1799,18 +1799,20 @@ def composition_hors_univers(base, fiche, debut, fin):
     return m_total, m_regard, n
 
 
-def garde_composition(base, fiche, periode):
+def garde_composition(base, fiche, periode, jeton=None):
     """La garde M, en un seul endroit : la ligne BORNÉ, et le refus dans la fenêtre du regard unique.
 
     ① RÔLE — Une seule écriture de la garde M pour `main` et pour `jouer` (R-708 : deux implémentations divergent).
     ② CONTEXTE D'APPEL — `main` (chaque fiche, avant `jouer`) ; `jouer` (quand un reçu est passé : la porte qui
       consomme le regard unique, `JUGER_UNE_FICHE`).
-    ③ ENTRÉE — `base` : la racine · `fiche` · `periode` : (début, fin) AAAA-MM-JJ jugés, ou None.
+    ③ ENTRÉE — `base` : la racine · `fiche` · `periode` : (début, fin) AAAA-MM-JJ jugés, ou None · `jeton` : le jeton
+      d'un essai déclaré (`jeton_d_essai`, A-863), ou n'importe quoi d'autre (un reçu, None), sans effet alors.
     ④ CONDITIONS D'ENTRÉE — Celles de `composition_hors_univers`.
     ⑤ SORTIE — DEUX valeurs : la ligne « UNIVERS BORNE … » (vide si M = 0) ; le texte du refus (vide s'il n'y en a pas).
       [rend: 2]
     ⑥ TRAITEMENT — ① M par `composition_hors_univers` sur la période · ② refus si M dans la fenêtre > 0 et que la fiche
-      n'est pas dans CONTRATS.UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE.
+      n'est pas dans CONTRATS.UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE · ③ pas de refus pour un essai déclaré
+      dont le jeton vaut pour cette fiche (`_jeton_valable`, A-863) ; la ligne BORNÉ est rendue quand même.
     ⑦ UNITÉ — Des séances × sociétés.
     ⑧ POURQUOI — Superviseur R-759 du 14-11-2026 ② ; Q-1 de Cowork : la garde n'était que dans `main`, où la garde du
       regard refuse de toute façon ; la porte à reçu (`JUGER_UNE_FICHE`) jugeait sans elle.
@@ -1827,6 +1829,9 @@ def garde_composition(base, fiche, periode):
     ligne = ("    UNIVERS BORNE (garde M) : M = %d seances x societes sorties de la composition historique (PASSAGES) "
              "absentes de l'univers de la fiche, %d societe(s), dont %d dans la fenetre du regard unique — le "
              "verdict ne vaut que pour l'univers ecrit" % (m_total, n, m_regard)) if m_total else ""
+    # L'ESSAI DÉCLARÉ (A-863) : un jeton valable pour CETTE fiche lève le refus, jamais la ligne BORNÉ
+    if m_regard and _jeton_valable(jeton, fiche.get("id") or "")[0]:
+        return ligne, ""
     if m_regard and (fiche.get("id") or "") not in getattr(_CM, "UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE", {}):
         return ligne, ("    REFUSEE (garde M, regard unique) : %d seance(s) x societe(s) sortie(s) invisibles a l'univers "
                        "dans la fenetre du regard unique, sans decision ecrite de Jean-Luc (CONTRATS.UNIVERS_BORNES_"
@@ -2892,8 +2897,9 @@ def empreinte_d_un_module(source, chemin):
       veut dire « introuvable » (`forme_du_module`), ce serait confondre deux cas.
     ⑨ CE QUI CLOCHE — ① Le code que le module CHARGE par chemin n'est pas couvert (MODULE_SIGNAL_RSI_REBOND exécute
       MODULE_SIGNAL_RSI2_CONNORS.py) : le changer change le calcul sans changer l'empreinte (sens non prudent ; au
-      BACKLOG, N7). ② `ast.dump` dépend de la version de Python : une montée de version change toutes les empreintes
-      (sens prudent). ③ Un message d'erreur ou une constante changés dans le module changent l'empreinte (c'est du
+      BACKLOG, N7). ② Depuis le 17-11-2026 (A-872), `emp.empreinte` a une forme stable entre Python 3.11, 3.12 et
+      3.13 (format « emp-v2 ») ; avant, le hachage de `ast.dump` changeait avec la version. Une version FUTURE de
+      Python peut encore la changer (`emp.py`, ⑨ ①) ; sens prudent. ③ Un message d'erreur ou une constante changés dans le module changent l'empreinte (c'est du
       code ; sens prudent).
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main, ou lève ValueError.
@@ -3216,6 +3222,282 @@ def touche_la_fenetre_du_regard_unique(premiere, derniere):
     return bool(premiere) and not (str(premiere) > fin or str(derniere) < debut)
 
 
+# LE SCEAU DES JETONS D'ESSAI : un objet propre à ce processus ; seul `jeton_d_essai` le pose. Filet contre l'erreur
+# d'agent, pas contre un faussaire (même limite que la garde du regard, A-708).
+_SCEAU_D_ESSAI = object()
+# L'option de l'essai déclaré (A-863) ; son texte vit au contrat (CONTRATS.OPTION_D_ESSAI_SANS_REGARD), et `main` les
+# confronte dès que l'option est lue.
+OPTION_ESSAI = "--essai-sans-regard"
+
+
+class JetonDEssai(object):
+    """Le jeton d'un ESSAI DÉCLARÉ (A-863) : il voyage à la place du reçu, de bout en bout, jusqu'aux deux gardes.
+
+    ① RÔLE — Porter, de `main` (ou de la moulinette) jusqu'à la garde M et à la garde du regard unique, la preuve qu'un
+      essai a été déclaré par l'option « --essai-sans-regard » et accepté par `jeton_d_essai`.
+    ② CONTEXTE D'APPEL — Créé par `jeton_d_essai` seulement ; passé comme `recu` à `jouer`, `jouer_une_entree`,
+      `MODULE_C5_ETENDU_10.backtest_c5etendu10`, et comme `jeton` à `juger` et à `garde_composition`.
+    ③ ENTRÉE — `racine` : le dossier joué · `fiche_id` : l'identifiant de la fiche d'essai · `module` : le nom de
+      fichier du module de signal qu'elle nomme · `sceau` : `_SCEAU_D_ESSAI`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — —
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 16-11-2026 (« RUSTINE, À REPRENDRE » sur le préfixe ESSAI-) : un préfixe de nom
+      laisse passer une vraie fiche renommée et ne couvre pas les appels où l'identifiant vaut None (JUGE
+      `jouer_une_entree`, MODULE_C5_ETENDU_10 `backtest_c5etendu10`) ; le jeton, lui, voyage là où le reçu voyage déjà.
+    ⑨ CE QUI CLOCHE — Un programme qui recopie le sceau en fabrique un faux : filet contre l'erreur, pas contre un
+      faussaire.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — —
+    """
+    __slots__ = ("racine", "fiche_id", "module", "sceau")
+
+    def __init__(self, racine, fiche_id, module, sceau):
+        """Range les quatre cases du jeton.
+
+        ① RÔLE — Construire le jeton.
+        ② CONTEXTE D'APPEL — `jeton_d_essai`, seulement.
+        ③ ENTRÉE — `self` : le jeton · `racine`, `fiche_id`, `module`, `sceau` : voir la classe.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — Aucune valeur.
+          [rend: rien]
+        ⑥ TRAITEMENT — Recopier les quatre valeurs.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Voir la classe.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Remplit l'objet.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        self.racine, self.fiche_id, self.module, self.sceau = racine, fiche_id, module, sceau
+
+
+def jeton_d_essai(racine, fiche, versions):
+    """Accepte ou refuse un essai déclaré par « --essai-sans-regard », et rend son jeton.
+
+    ① RÔLE — LE SEUL ENDROIT où l'exemption du regard unique d'un essai se décide (A-863, décision de Jean-Luc du
+      16-11-2026 à 20h46, « 1 » : « Option d'essai déclarée, avec contrôle de l'identité des réglages »).
+    ② CONTEXTE D'APPEL — `main` du juge sous l'option ; `JOUER_LES_VERSIONS.main` sous la même option.
+    ③ ENTRÉE — `racine` : le dossier joué · `fiche` : la fiche d'essai, une ligne du registre (dictionnaire ; les cases
+      dont le nom commence par « _ », posées par `main`, sont ignorées) · `versions` : le nombre de versions jouées.
+    ④ CONDITIONS D'ENTRÉE — Le module de signal que la fiche nomme est sous `racine`.
+    ⑤ SORTIE — DEUX valeurs : le jeton (`JetonDEssai`) et None ; ou None et le motif du refus, en français.
+      [rend: 2]
+    ⑥ TRAITEMENT — Refuser, dans cet ordre : ① une racine qui porte « .git » (dossier, fichier ou lien : c'est un
+      dépôt, pas une copie jetable) · ② plus d'une version · ③ une fiche d'identifiant vide ou blanc (un essai porte
+      son propre identifiant ; mineur M3 du relecteur neuf du 16-11-2026) · ④ une fiche dont l'identifiant EST celui
+      d'une fiche autorisée · ⑤ une fiche que la porte 0 refuse · ⑥ une fiche dont l'EMPREINTE DES RÉGLAGES
+      (`empreinte_des_reglages`, module de signal lu sous `racine` par `lire_module_du_jour`) n'est égale à AUCUNE
+      valeur figée de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE. Sinon rendre le jeton. LA RÉFÉRENCE N'EST JAMAIS
+      LUE DANS `racine` : ni registre, ni module de la fiche autorisée.
+    ⑦ UNITÉ — Une empreinte : seize caractères hexadécimaux, comparés par l'égalité seule.
+    ⑧ POURQUOI — Superviseur R-759 du 16-11-2026, forme recommandée : une vraie stratégie ne doit pas pouvoir passer
+      pour un essai. Défaut B1 du relecteur neuf du 16-11-2026 : la référence (fiche C5E10-QA-V1 et son module) était
+      lue dans la copie, que l'essai modifie lui-même — IND-001 recopiée sous C5E10-QA-V1 dans la copie passait (code 0).
+      Décision de Jean-Luc du 16-11-2026 à 23h03 (A-865, « 1 ») : l'empreinte est FIGÉE au contrat ; superviseur
+      R-759 (3e tour) : UNE seule valeur suffit, car `empreinte_des_reglages` contient déjà le code du module (sans ses
+      commentaires), l'univers et la période ; pas de sha256 brut du module, qui casserait à chaque commentaire et
+      ferait une seconde définition de « même module » (R-708). Exemple réel : ESSAI-C5-2000-2026 (C5E10-QA-V1 de main
+      recopiée, période 2000-01-03 -> 2026-10-29) a l'empreinte 813e12bed9ff8410 (format emp-v2, recalculée le
+      17-11-2026, A-873 ; identique sous Python 3.11, 3.12 et 3.13) — acceptée ; la même avec tp +4.4 % — refusée.
+      Le motif d'un refus pour écart d'empreinte nomme la version de Python qui l'a calculée (superviseur R-759 du
+      17-11-2026, point 5) : un écart venu d'une autre machine se lit dans le message.
+    ⑨ CE QUI CLOCHE — ① L'OPTION PROTÈGE CONTRE L'ACCIDENT, PAS CONTRE UNE MODIFICATION VOLONTAIRE DE LA COPIE :
+      la copie fait tourner son propre juge, et qui la modifie exprès peut aussi modifier cette garde, la valeur figée
+      ou le sceau (décision de Jean-Luc du 16-11-2026 à 23h17, A-867, « 1 », pour « J'accepte cette limite : on répare
+      et on l'écrit dans le code »). Pour la même raison, une copie posée DANS un sous-dossier d'un dépôt, ou un .git
+      ailleurs qu'à la racine, ou GIT_DIR, ne sont pas refusés : seule la racine est regardée (mineur M2, non étendu).
+      ② Le code que le module de signal CHARGE par chemin n'est pas dans l'empreinte (N7, BACKLOG ;
+      `empreinte_d_un_module`, ⑨ ①) : le changer dans la copie change le calcul sans refus. ③ Deux fiches de même
+      lecture (`lecture_de_jeu`) sont la même version : un univers écrit dans un autre ordre, ou un module recopié à
+      l'identique sous un autre nom, ont la même empreinte et sont acceptés ; les cases que le juge ne lit pas pour
+      jouer (`filtres`, `nom`, `note`…) ne sont pas comparées. ④ Un changement LÉGITIME du code de C5 ou d'un réglage
+      de C5E10-QA-V1 refuse l'essai en 2 jusqu'à une nouvelle décision de Jean-Luc (voulu, A-754 et A-865) ; l'épreuve
+      E-ancre le signale. ⑤ Depuis le 17-11-2026 (A-872), l'empreinte du code a une forme stable entre Python 3.11,
+      3.12 et 3.13 (emp.py, « emp-v2 ») ; une version FUTURE de Python pourrait encore la changer (`emp.py`, ⑨ ①) :
+      même effet que ④, et le motif du refus nomme la version. ⑥ LES DONNÉES SONT HORS DE L'EMPREINTE (MIN-3 du
+      relecteur du 17-11-2026, E4 du superviseur R-759) : l'empreinte des réglages porte le CODE du module, les
+      réglages, l'univers et la période, jamais les fichiers LUS — le barème des frais (donnees/BAREME_FRAIS.csv), les
+      cours, le fichier passé par `--cours=`. Les changer dans la copie change le calcul sans refus : mesuré par le
+      relecteur, courtage REEL 0.0015 ramené à 0.0000 dans la copie, jeton toujours ACCORDÉ. Même limite que ① (la
+      copie se modifie exprès, A-867 accepté par Jean-Luc), sans effet sur les comptes : un essai n'est ni un résultat
+      ni une sélection, et le tri refuse son fichier.
+    ⑩ EFFET — Lit le module de signal que la fiche nomme.
+    ⑪ TERMINAISON — Rend la main ; lève ce que lève `empreinte_des_reglages` (module non analysable).
+      [sort: non]
+    """
+    import CONTRATS_DES_FICHIERS as _C
+    if os.path.lexists(os.path.join(racine, ".git")):
+        return None, "%s porte .git : c'est un dépôt, pas une copie jetable ; un essai ne s'y joue jamais" % racine
+    if versions != 1:
+        return None, "%d versions : un essai sans regard n'en joue qu'une" % versions
+    ident = fiche.get("id") or ""
+    if not ident.strip():
+        return None, "la fiche d'essai n'a pas d'identifiant : un essai porte son propre identifiant"
+    autorisees = getattr(_C, "FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE", {})
+    if ident in autorisees:
+        return None, "la fiche %s est elle-même une fiche autorisée : un essai porte son propre identifiant" % ident
+    lire_module = lire_module_du_jour(racine)
+    propre = {k: v for k, v in fiche.items() if not str(k).startswith("_")}
+    empreinte, jouable = empreinte_des_reglages(propre, lire_module)
+    if not jouable:
+        return None, "la fiche %s est refusée par la porte 0 : rien à essayer" % ident
+    ecarts_par_fiche = []
+    for aut in sorted(autorisees):
+        valeurs = autorisees[aut]
+        if not (isinstance(valeurs, tuple) and len(valeurs) == 2):
+            ecarts_par_fiche.append("%s sans empreinte figée au contrat" % aut)
+            continue
+        reference = valeurs[1]   # LA VALEUR FIGÉE AU CONTRAT (A-865), jamais une lecture de `racine`
+        if empreinte == reference:
+            return JetonDEssai(racine, ident, os.path.basename(declaration_du_signal(propre)[0]), _SCEAU_D_ESSAI), None
+        ecarts_par_fiche.append("%s : empreinte des réglages %s, figée %s" % (aut, empreinte, reference))
+    # LA VERSION DE PYTHON DANS LE MOTIF (superviseur R-759 du 17-11-2026, point 5) : un écart d'empreinte venu d'une
+    # autre version se reconnaît à la lecture du message.
+    return None, "la fiche %s n'est identique à aucune fiche autorisée (%s) — empreinte calculée sous Python %s" % (
+        ident, " ; ".join(ecarts_par_fiche) or "aucune fiche autorisée", "%d.%d.%d" % sys.version_info[:3])
+
+
+def _jeton_valable(jeton, qui, nom_du_module=None):
+    """Dit si `jeton` est un jeton d'essai valable pour la fiche `qui` et le module `nom_du_module`.
+
+    ① RÔLE — La seule vérification d'un jeton aux deux gardes (garde M et garde du regard unique), R-708.
+    ② CONTEXTE D'APPEL — `garde_composition` ; `_garde_du_regard_unique`.
+    ③ ENTRÉE — `jeton` : ce qui a été passé comme reçu ou comme jeton (n'importe quoi) · `qui` : l'identifiant de la
+      fiche jouée, ou None quand l'appelant ne la connaît pas (`jouer_une_entree`, `backtest_c5etendu10`) ·
+      `nom_du_module` : le nom de fichier du module appelant, ou None.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : vrai ou faux ; le motif d'un refus, ou None.
+      [rend: 2]
+    ⑥ TRAITEMENT — Faux si ce n'est pas un `JetonDEssai` · si son sceau n'est pas `_SCEAU_D_ESSAI` · si sa racine
+      porte .git (revu à chaque appel : un .git posé après la déclaration refuse) · si `qui` n'est ni None ni
+      l'identifiant du jeton · si `nom_du_module` n'est ni None ni le module du jeton. Sinon vrai.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 16-11-2026 : le jeton doit couvrir aussi les appels où l'identifiant vaut None.
+    ⑨ CE QUI CLOCHE — Avec `qui` à None, seule la racine et le module se confrontent (comme le reçu, limite ③ de la
+      garde du regard).
+    ⑩ EFFET — Un test d'existence de fichier.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    if not isinstance(jeton, JetonDEssai):
+        return False, "ce n'est pas un jeton d'essai"
+    if jeton.sceau is not _SCEAU_D_ESSAI:
+        return False, "jeton d'essai sans sceau : il n'a pas été rendu par jeton_d_essai"
+    if os.path.lexists(os.path.join(jeton.racine, ".git")):
+        return False, "%s porte .git : un essai ne se joue jamais dans un dépôt" % jeton.racine
+    if qui is not None and qui != jeton.fiche_id:
+        return False, "jeton d'essai de la fiche %s, pas de %r" % (jeton.fiche_id, qui)
+    if nom_du_module is not None and nom_du_module != jeton.module:
+        return False, "jeton d'essai du module %s, pas de %s" % (jeton.module, nom_du_module)
+    return True, None
+
+
+class _SortieMarquee(object):
+    """Un flux de sortie dont chaque ligne commence par la marque d'un essai.
+
+    ① RÔLE — Tenir la règle d'A-863 : toute ligne écrite sous l'option d'essai commence par
+      CONTRATS.STATUT_D_ESSAI (« ESSAI — NI RÉSULTAT NI SÉLECTION »).
+    ② CONTEXTE D'APPEL — `marquer_la_sortie`, qui remplace `sys.stdout` et `sys.stderr`.
+    ③ ENTRÉE — `flux` : le flux d'origine · `marque` : le texte à poser en tête de ligne.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — `write` pose la marque devant le premier caractère de chaque ligne.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une ligne recopiée seule (sur un téléphone, dans SORTIE.txt) garde sa nature d'essai.
+    ⑨ CE QUI CLOCHE — Ce qu'un sous-processus écrit directement sur le descripteur n'est pas marqué.
+    ⑩ EFFET — Écrit sur le flux d'origine.
+    ⑪ TERMINAISON — —
+    """
+
+    def __init__(self, flux, marque):
+        """Range le flux et la marque.
+
+        ① RÔLE — Construire le flux marqué.
+        ② CONTEXTE D'APPEL — `marquer_la_sortie`.
+        ③ ENTRÉE — `self` : le flux marqué · `flux` : le flux d'origine · `marque` : le texte à poser en tête de ligne.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — Aucune valeur.
+          [rend: rien]
+        ⑥ TRAITEMENT — Recopier ; la prochaine écriture commence une ligne.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Voir la classe.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Remplit l'objet.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        self.flux, self.marque, self.debut = flux, marque, True
+
+    def write(self, texte):
+        """Écrit `texte`, la marque devant chaque début de ligne.
+
+        ① RÔLE — Marquer chaque ligne écrite.
+        ② CONTEXTE D'APPEL — `print` et toute écriture sur `sys.stdout` ou `sys.stderr` du processus.
+        ③ ENTRÉE — `self` : le flux marqué · `texte` : ce qui est écrit, un morceau de ligne ou plusieurs lignes.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : le nombre de caractères reçus.
+          [rend: 1]
+        ⑥ TRAITEMENT — Couper aux fins de ligne, poser la marque devant chaque début de ligne.
+        ⑦ UNITÉ — Des caractères.
+        ⑧ POURQUOI — Voir la classe.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Écrit sur le flux d'origine.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        for morceau in str(texte).splitlines(True):
+            if self.debut:
+                self.flux.write(self.marque + " · ")
+            self.flux.write(morceau)
+            self.debut = morceau.endswith("\n")
+        return len(texte)
+
+    def flush(self):
+        """Vide le flux d'origine.
+
+        ① RÔLE — Vider le flux d'origine.
+        ② CONTEXTE D'APPEL — `print(..., flush=True)`, la fin du processus.
+        ③ ENTRÉE — `self` : le flux marqué.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — Aucune valeur.
+          [rend: rien]
+        ⑥ TRAITEMENT — Déléguer au flux d'origine.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Voir la classe.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Vide le flux.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        self.flux.flush()
+
+
+def marquer_la_sortie():
+    """Marque toutes les lignes de la sortie standard et de la sortie d'erreur d'un essai.
+
+    ① RÔLE — Poser la marque d'A-863 sur tout ce qu'écrit un processus lancé sous l'option d'essai.
+    ② CONTEXTE D'APPEL — `main` du juge et `JOUER_LES_VERSIONS.main`, dès que l'option est lue, avant toute écriture.
+    ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Aucune valeur.
+      [rend: rien]
+    ⑥ TRAITEMENT — Remplacer `sys.stdout` et `sys.stderr` par des `_SortieMarquee`, une seule fois.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — A-863 : « sorties marquées ESSAI — NI RÉSULTAT NI SÉLECTION ».
+    ⑨ CE QUI CLOCHE — Voir `_SortieMarquee`, ⑨.
+    ⑩ EFFET — Change les flux du processus.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import CONTRATS_DES_FICHIERS as _C
+    if not isinstance(sys.stdout, _SortieMarquee):
+        sys.stdout = _SortieMarquee(sys.stdout, _C.STATUT_D_ESSAI)
+    if not isinstance(sys.stderr, _SortieMarquee):
+        sys.stderr = _SortieMarquee(sys.stderr, _C.STATUT_D_ESSAI)
+
+
 def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_module=None):
     """Exige le reçu d'une inscription au registre des essais dès que des séances jouées touchent la fenêtre du regard
     unique ; sinon lève, avant toute opération.
@@ -3229,13 +3511,14 @@ def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_modul
     ③ ENTRÉE — `qui` : l'identifiant de la fiche jouée, ou None quand l'appelant ne la connaît pas · `premiere`,
       `derniere` : la première et la dernière séance jouée, textes AAAA-MM-JJ · `periode` : (début, fin) que le reçu
       doit couvrir, ou None · `recu` : (racine, nom d'entrée) rendu par `TENIR_LE_REGISTRE_DES_ESSAIS.preenregistrer`,
-      ou None · `nom_du_module` : le nom du fichier du module, ou None — si donné, la fiche du reçu doit nommer ce
-      module (`backtest_c5etendu10`, qui ne connaît pas sa fiche).
+      ou None, ou le jeton d'un essai déclaré (`jeton_d_essai`, A-863) · `nom_du_module` : le nom du fichier du module,
+      ou None — si donné, la fiche du reçu doit nommer ce module (`backtest_c5etendu10`, qui ne connaît pas sa fiche).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — Aucune valeur : rend la main si la garde passe.
       [rend: rien]
     ⑥ TRAITEMENT — ① la fenêtre au contrat (`CONTRATS_DES_FICHIERS.fenetre_du_regard_unique`) · ② [premiere,
-      derniere] ne touche pas la fenêtre → rendre la main sans rien lire · ③ pas de reçu → lever · ④ reçu déjà lu
+      derniere] ne touche pas la fenêtre → rendre la main sans rien lire · ②bis un jeton d'essai → rendre la main s'il
+      vaut pour `qui` et `nom_du_module` (`_jeton_valable`), lever sinon (A-863) · ③ pas de reçu → lever · ④ reçu déjà lu
       dans ce processus → son entrée en mémoire, sans relire · ⑤ sinon le registre lu sur la branche des regards (`lire_le_registre`, après
       fetch ; il signale aussi un dépôt distant qui n'est pas le dépôt commun), sans défaut ; l'entrée nommée est un
       PREENREGISTREMENT ; aucun RESULTAT ne la clôt ; sa fiche est `qui` (forme canonique) si `qui` est donné ; sa
@@ -3260,6 +3543,13 @@ def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_modul
         return
     cause = "fiche %s : séances jouées de %s à %s, dans la fenêtre du regard unique %s..%s" % (
         qui or "(non nommée)", premiere, derniere, debut, fin)
+    # L'ESSAI DÉCLARÉ (A-863) : un jeton rendu par `jeton_d_essai` tient lieu de reçu, y compris quand `qui` vaut None ;
+    # un jeton qui ne vaut pas pour cette fiche, ce module ou ce lieu refuse, sans jamais se rabattre sur un reçu.
+    if isinstance(recu, JetonDEssai):
+        _ok, _motif = _jeton_valable(recu, qui, nom_du_module)
+        if not _ok:
+            raise RegardNonInscrit(cause + " : jeton d'essai refusé : " + _motif)
+        return
     if recu is None:
         raise RegardNonInscrit(cause + " sans reçu d'inscription au registre des essais (R-505 ③)")
     import TENIR_LE_REGISTRE_DES_ESSAIS as _TR
@@ -3322,7 +3612,8 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       jouer la série entière sans composition, comme avant le 26-10-2026 (A-577, étape 1). · `bareme` : le
       nom d'un barème de frais, None pour le barème réel (A-550, voir `jouer_une_entree`). · `recu` : (racine, nom)
       d'un préenregistrement poussé au registre des essais, ou None — EXIGÉ dès qu'une séance jouée tombe dans la
-      fenêtre du regard unique (`_garde_du_regard_unique`, mission REGARD du 12-11-2026).
+      fenêtre du regard unique (`_garde_du_regard_unique`, mission REGARD du 12-11-2026) ; ou le jeton d'un essai
+      déclaré (`jeton_d_essai`, A-863), qui tient lieu de reçu aux deux gardes.
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0 : l'objectif de
       gain, la perte acceptée et l'horizon doivent être lisibles, faute de quoi la
       fonction lève (un horizon illisible : ValueError depuis le 11-11-2026 ; « aucune »
@@ -3505,7 +3796,8 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
     # LA GARDE M SUR LA PORTE QUI CONSOMME LE REGARD (Q-1 de Cowork, 14-11-2026) : avec un reçu et des séances jouées
     # dans la fenêtre du regard unique, la même fonction que `main`, AVANT la vérification du reçu
     if recu and touche_la_fenetre_du_regard_unique(_premiere, max(_fins, default="")):
-        _l_m, _refus_m = garde_composition(recu[0], fiche, (_premiere, max(_fins, default="")))
+        _l_m, _refus_m = garde_composition(recu.racine if isinstance(recu, JetonDEssai) else recu[0], fiche,
+                                           (_premiere, max(_fins, default="")), recu)
         if _refus_m:
             raise UniversBorneSurLeRegard(_refus_m.strip())
     # une fiche SANS identifiant n'est jamais la fiche d'un reçu : « » ne se ramène à aucune fiche (T2-D4)
@@ -3714,7 +4006,7 @@ def duree_d_embargo_sans_horizon(ops, seances, frontiere):
 
 
 def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
-          _bornes=None, mod_pos_sig=None, lecture=None, bareme=None, racine=None):
+          _bornes=None, mod_pos_sig=None, lecture=None, bareme=None, racine=None, jeton=None):
     """Rend les mesures qui disent si le gain veut dire quelque chose.
 
     AUCUN SEUIL N'EST ECRIT EN DUR : le point mort se calcule depuis les
@@ -3745,6 +4037,8 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
       jouent comme la fiche (27-10-2026). L'étalon de hasard, lui, ne le reçoit pas (BACKLOG
       A-577, en attente de Jean-Luc).
       `bareme` : le nom d'un barème de `donnees/BAREME_FRAIS.csv`, ou None pour le barème des verdicts (`MODULE_POSITIONS.BAREME_DES_VERDICTS`) ; il chiffre le point mort et l'étalon de hasard (A-550, 29-10-2026).
+      `jeton` : le jeton d'un essai déclaré (`jeton_d_essai`, A-863), passé comme reçu au voisinage et à l'étalon de
+      hasard, ou None (aucun reçu, comme avant) ·
       `racine` : le dossier du dépôt, où le voisinage lit `donnees/combinatoires/VOISINAGE_DU_JUGE.csv` (ses
       réglages : depuis le 12-11-2026 ceux de R-505 ⑩ ; le 11-11-2026 il lisait aussi la grille de la moulinette,
       `VOISINAGE.csv`) ; None : le voisinage ne peut pas tourner, le rapport écrit « EN ÉCHEC » et la fonction lève
@@ -4082,171 +4376,181 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
     # ATTENTION AU COMPTAGE DES ESSAIS (A-226) : ces variantes sont des essais,
     # et elles doivent etre comptees comme tels.
     _echec_du_voisinage = None
-    try:
-        def _rejouer(p):
-            """Rejoue la stratégie avec des réglages modifiés et rend son résultat.
+    if jeton is not None:
+        # A-866 — SOUS L'OPTION D'ESSAI, LE VOISINAGE N'EST PAS JOUÉ (décision de Jean-Luc du 16-11-2026 à 23h15, « 2 »,
+        # pour « Non, l'essai joue seulement la C5 elle-même : c'est suffisant pour vérifier la lecture des 20 ans, et
+        # ça ne touche pas à la protection »). Raison : les 26 voisins (±10 % de tp, sl, horizon) ne sont PAS les
+        # réglages de la fiche autorisée ; joués avec le jeton, ils regarderaient la fenêtre 2000-2023 sans reçu
+        # (mineur M4 du relecteur neuf du 16-11-2026). Seule la fiche d'essai la regarde. Ce n'est pas un échec.
+        print("    VOISINAGE            NON JOUÉ sous l'option d'essai (A-866) : seule la fiche d'essai regarde"
+              " 2000-2023")
+    else:
+        try:
+            def _rejouer(p):
+                """Rejoue la stratégie avec des réglages modifiés et rend son résultat.
 
-            ① RÔLE — Répondre à une seule question, posée par le module de statistiques :
-              que devient le résultat si l'on bouge un peu les réglages ? Une stratégie
-              posée sur une colline tient encore quand on décale ses seuils — le gain
-              baisse sans disparaître. Une stratégie posée sur une aiguille s'effondre au
-              premier pas de côté : elle ne décrivait pas le marché, elle collait à un jeu
-              de données précis.
-            ② CONTEXTE D'APPEL — Elle n'est jamais appelée par son nom. Elle est REMISE au
-              module de statistiques (`calculer_voisinage_sur_grille`), qui l'appelle une
-              fois pour le centre et une fois par voisin (`grille_du_voisinage` : depuis le
-              12-11-2026, chaque réglage à −10 %, 0, +10 %, croisés, R-505 ⑩ ; le 11-11-2026, la
-              grille de la moulinette ; avant : cinq variations tirées au hasard à plus ou moins 10 %).
-            ③ ENTRÉE — `p` : un dictionnaire de réglages fabriqué par `juger` à partir de la
-              grille, portant `tp`, `sl` et, sauf durée « aucune », `horizon`.
-            ④ CONDITIONS D'ENTRÉE — Les trois réglages doivent être présents et lisibles en
-              nombre. La fonction vit à l'intérieur de `juger` et réemploie la fiche, les
-              cours, la table des mnémoniques, les deux modules et les bornes de période de
-              l'appel en cours.
-            ⑤ SORTIE — UNE valeur : un dictionnaire de deux cases, le gain total en euros
-              et le taux de réussite, tous deux à zéro si la variante n'a produit aucune
-              opération.
-              [rend: 1]
-            ⑥ TRAITEMENT — ① copier la fiche en cours · ② y écrire les trois réglages de la
-              variante, l'horizon étant arrondi à la séance entière · ③ rejouer la stratégie
-              sur la même période · ④ résumer et rendre le gain et le taux.
-            ⑦ UNITÉ — Les seuils reçus sont des FRACTIONS du prix d'entrée. L'horizon est
-              un NOMBRE DE SÉANCES, reçu en nombre à virgule et arrondi à l'entier. Le gain
-              est en EUROS, le taux en POURCENT entre 0 et 100.
-            ⑧ POURQUOI — La fiche est COPIÉE avant d'être modifiée : la fiche d'origine est
-              celle que `main` affiche et que le jugement relit, et la modifier ferait
-              paraître, dans le rapport, les réglages de la dernière variante au lieu de
-              ceux de la stratégie. Mesuré le 20-09-2026 sur `C5E10-QA-V1` : le rapport
-              affiche bien « TP +4.0% . SL -2.5% . horizon 20 seances » après les cinq
-              variantes.
-            ⑨ CE QUI CLOCHE —
-              ① LES VARIANTES SONT DES ESSAIS ET NE SONT PAS ENCORE INSCRITES. Chaque appel
-              rejoue une stratégie complète ; `juger` affiche leur nombre comme « NON
-              INSCRITS », le registre des essais (A-226) n'existant pas au dépôt.
-              ② UN HORIZON ARRONDI À ZÉRO PASSERAIT. L'arrondi porte sur le nombre reçu,
-              sans borne basse : une variation qui ferait descendre l'horizon au-dessous
-              d'une demi-séance donnerait zéro, et `jouer` ne produirait alors aucune
-              opération, ce que la fonction rendrait comme un gain de zéro euro. La grille
-              du voisinage (`COMMUN.grille_du_voisinage`, depuis le 12-11-2026 à ±10 %) ne garde
-              aucune durée sous 1 séance, et rend des séances entières.
-              ③ Elle réemploie le module de signal à travers un tuple d'un seul élément
-              passé à `juger` sous le nom `mod_pos_sig`, dont le nom laisse croire qu'il
-              porte les positions.
-            ⑩ EFFET — Aucun sur le disque : ni lecture ni écriture de fichier, aucun accès
-              réseau. Elle APPELLE `jouer`, donc le module de signal et le module de
-              positions. Elle ne modifie pas la fiche d'origine, qu'elle copie.
-            ⑪ TERMINAISON — Rend la main dans le cas normal. PEUT LEVER si `jouer` lève ;
-              l'erreur est alors rattrapée par le enveloppe de secours du voisinage dans `juger`,
-              qui affiche « VOISINAGE non mesure ». Et un de ses appels peut ne pas
-              revenir : `jouer` appelle du code tiers dont le temps n'est pas borné.
-              [sort: non]
-            ⑫ DÉFINITIONS
-              l'horizon : le nombre de séances pendant lesquelles une position est
-                tenue si ni l'objectif de gain ni la perte acceptée ne sont atteints
-              la fiche : la ligne d'une stratégie au registre des stratégies
-                `donnees/cac40_strategies.csv`, avec son objectif de gain, sa perte
-                acceptée, son horizon et son univers
-              le juge des stratégies : `programmes/JUGE_DES_STRATEGIES.py`, le programme qui rejoue une
-                stratégie sur l'historique des cours et rend la liste de ses
-                opérations
-              le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
-                barème des frais et des règles de sortie d'une position.
-              le module de signal : le programme qui décide quelles valeurs acheter
-              le module de statistiques : le programme qui porte le voisinage des
-                réglages et le pire creux,
-                `programmes/MODULE_STATISTIQUES_Lun_24-08-2026_22h00.py`.
-              le registre des stratégies : le fichier `cac40_strategies.csv`, une
-                ligne par stratégie, qui porte leur état civil — identifiant,
-                réglages, résultats connus
-              le SL : la perte acceptée qui ferme la position, une fraction du prix
-                d'entrée — 0,025 vaut −2,5 %.
-              le taux de réussite : la part des opérations qui se sont refermées sur
-                un gain, écrite en pourcent
-              le TP : l'objectif de gain qui ferme la position, une fraction du prix
-                d'entrée — 0,040 vaut +4 %.
-              un mnémonique : le code court d'une valeur de bourse, `TTE` pour
-                TotalEnergies ; c'est la clé d'identité des valeurs, jamais leur nom.
-              une fiche : la ligne qui décrit une stratégie dans le registre des stratégies, `donnees/cac40_strategies.csv` — son identifiant, ses réglages et ce qu'elle déclare.
-              une opération : un achat simulé suivi de sa revente, avec son gain net en euros ; aucun ordre réel n'est jamais passé
-              une séance : une journée de bourse pour une valeur, avec son ouverture,
-                son plus haut, son plus bas, sa clôture et son volume.
-              une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée
-                dans les fichiers du projet
+                ① RÔLE — Répondre à une seule question, posée par le module de statistiques :
+                  que devient le résultat si l'on bouge un peu les réglages ? Une stratégie
+                  posée sur une colline tient encore quand on décale ses seuils — le gain
+                  baisse sans disparaître. Une stratégie posée sur une aiguille s'effondre au
+                  premier pas de côté : elle ne décrivait pas le marché, elle collait à un jeu
+                  de données précis.
+                ② CONTEXTE D'APPEL — Elle n'est jamais appelée par son nom. Elle est REMISE au
+                  module de statistiques (`calculer_voisinage_sur_grille`), qui l'appelle une
+                  fois pour le centre et une fois par voisin (`grille_du_voisinage` : depuis le
+                  12-11-2026, chaque réglage à −10 %, 0, +10 %, croisés, R-505 ⑩ ; le 11-11-2026, la
+                  grille de la moulinette ; avant : cinq variations tirées au hasard à plus ou moins 10 %).
+                ③ ENTRÉE — `p` : un dictionnaire de réglages fabriqué par `juger` à partir de la
+                  grille, portant `tp`, `sl` et, sauf durée « aucune », `horizon`.
+                ④ CONDITIONS D'ENTRÉE — Les trois réglages doivent être présents et lisibles en
+                  nombre. La fonction vit à l'intérieur de `juger` et réemploie la fiche, les
+                  cours, la table des mnémoniques, les deux modules et les bornes de période de
+                  l'appel en cours.
+                ⑤ SORTIE — UNE valeur : un dictionnaire de deux cases, le gain total en euros
+                  et le taux de réussite, tous deux à zéro si la variante n'a produit aucune
+                  opération.
+                  [rend: 1]
+                ⑥ TRAITEMENT — ① copier la fiche en cours · ② y écrire les trois réglages de la
+                  variante, l'horizon étant arrondi à la séance entière · ③ rejouer la stratégie
+                  sur la même période · ④ résumer et rendre le gain et le taux.
+                ⑦ UNITÉ — Les seuils reçus sont des FRACTIONS du prix d'entrée. L'horizon est
+                  un NOMBRE DE SÉANCES, reçu en nombre à virgule et arrondi à l'entier. Le gain
+                  est en EUROS, le taux en POURCENT entre 0 et 100.
+                ⑧ POURQUOI — La fiche est COPIÉE avant d'être modifiée : la fiche d'origine est
+                  celle que `main` affiche et que le jugement relit, et la modifier ferait
+                  paraître, dans le rapport, les réglages de la dernière variante au lieu de
+                  ceux de la stratégie. Mesuré le 20-09-2026 sur `C5E10-QA-V1` : le rapport
+                  affiche bien « TP +4.0% . SL -2.5% . horizon 20 seances » après les cinq
+                  variantes.
+                ⑨ CE QUI CLOCHE —
+                  ① LES VARIANTES SONT DES ESSAIS ET NE SONT PAS ENCORE INSCRITES. Chaque appel
+                  rejoue une stratégie complète ; `juger` affiche leur nombre comme « NON
+                  INSCRITS », le registre des essais (A-226) n'existant pas au dépôt.
+                  ② UN HORIZON ARRONDI À ZÉRO PASSERAIT. L'arrondi porte sur le nombre reçu,
+                  sans borne basse : une variation qui ferait descendre l'horizon au-dessous
+                  d'une demi-séance donnerait zéro, et `jouer` ne produirait alors aucune
+                  opération, ce que la fonction rendrait comme un gain de zéro euro. La grille
+                  du voisinage (`COMMUN.grille_du_voisinage`, depuis le 12-11-2026 à ±10 %) ne garde
+                  aucune durée sous 1 séance, et rend des séances entières.
+                  ③ Elle réemploie le module de signal à travers un tuple d'un seul élément
+                  passé à `juger` sous le nom `mod_pos_sig`, dont le nom laisse croire qu'il
+                  porte les positions.
+                ⑩ EFFET — Aucun sur le disque : ni lecture ni écriture de fichier, aucun accès
+                  réseau. Elle APPELLE `jouer`, donc le module de signal et le module de
+                  positions. Elle ne modifie pas la fiche d'origine, qu'elle copie.
+                ⑪ TERMINAISON — Rend la main dans le cas normal. PEUT LEVER si `jouer` lève ;
+                  l'erreur est alors rattrapée par le enveloppe de secours du voisinage dans `juger`,
+                  qui affiche « VOISINAGE non mesure ». Et un de ses appels peut ne pas
+                  revenir : `jouer` appelle du code tiers dont le temps n'est pas borné.
+                  [sort: non]
+                ⑫ DÉFINITIONS
+                  l'horizon : le nombre de séances pendant lesquelles une position est
+                    tenue si ni l'objectif de gain ni la perte acceptée ne sont atteints
+                  la fiche : la ligne d'une stratégie au registre des stratégies
+                    `donnees/cac40_strategies.csv`, avec son objectif de gain, sa perte
+                    acceptée, son horizon et son univers
+                  le juge des stratégies : `programmes/JUGE_DES_STRATEGIES.py`, le programme qui rejoue une
+                    stratégie sur l'historique des cours et rend la liste de ses
+                    opérations
+                  le module de positions : `programmes/MODULE_POSITIONS.py`, propriétaire du
+                    barème des frais et des règles de sortie d'une position.
+                  le module de signal : le programme qui décide quelles valeurs acheter
+                  le module de statistiques : le programme qui porte le voisinage des
+                    réglages et le pire creux,
+                    `programmes/MODULE_STATISTIQUES_Lun_24-08-2026_22h00.py`.
+                  le registre des stratégies : le fichier `cac40_strategies.csv`, une
+                    ligne par stratégie, qui porte leur état civil — identifiant,
+                    réglages, résultats connus
+                  le SL : la perte acceptée qui ferme la position, une fraction du prix
+                    d'entrée — 0,025 vaut −2,5 %.
+                  le taux de réussite : la part des opérations qui se sont refermées sur
+                    un gain, écrite en pourcent
+                  le TP : l'objectif de gain qui ferme la position, une fraction du prix
+                    d'entrée — 0,040 vaut +4 %.
+                  un mnémonique : le code court d'une valeur de bourse, `TTE` pour
+                    TotalEnergies ; c'est la clé d'identité des valeurs, jamais leur nom.
+                  une fiche : la ligne qui décrit une stratégie dans le registre des stratégies, `donnees/cac40_strategies.csv` — son identifiant, ses réglages et ce qu'elle déclare.
+                  une opération : un achat simulé suivi de sa revente, avec son gain net en euros ; aucun ordre réel n'est jamais passé
+                  une séance : une journée de bourse pour une valeur, avec son ouverture,
+                    son plus haut, son plus bas, sa clôture et son volume.
+                  une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée
+                    dans les fichiers du projet
             
-              la table : `CRITERES_VALIDATION_EXPERTS`, lignes 1730 à 1740, qui porte les neuf seuils et le sens de comparaison de chacun
-"""
-            f2 = dict(fiche)
-            f2["tp"] = str(p["tp"])
-            f2["sl"] = str(p["sl"])
-            # « aucune » ne varie pas : le voisinage ne bouge alors que l'objectif et la perte acceptée.
-            f2["horizon"] = str(int(round(p["horizon"]))) if "horizon" in p else fiche["horizon"]
-            # REGARD UNIQUE (R-505 ③) : le voisinage ne passe aucun reçu — refus dans la fenêtre.
-            o2, _ = jouer(f2, cours, mnemo, mod_pos_sig[0], mod_pos,
-                          periode=_bornes, lecture=lecture)
-            r2 = resumer(o2)
-            return {"net": r2.get("net", 0.0), "wr": r2.get("wr", 0.0)}
-        # LE DRAPEAU « VOISINAGE » DE R-505 ⑩, PAR PAS RÉGULIERS, JAMAIS AU HASARD (décision de Jean-Luc du 11-11-2026 à
-        # 19h08 ; BACKLOG A-220). R-505 ⑩ [CHOIX DÉLÉGUÉ DÉL-D13, DÉL-D36] : « les 26 voisins à ±10 % de chaque réglage
-        # doivent tous gagner » ; un drapeau arrête la stratégie et la soumet à Jean-Luc, ce n'est pas un échec du juge.
-        # Les valeurs voisines viennent de `voisins` (COMMUN.py, la même que la moulinette, R-708) ; les réglages, de
-        # VOISINAGE_DU_JUGE.csv.
-        if racine is None:
-            raise RuntimeError("racine du dépôt non transmise : réglages du voisinage introuvables")
-        import COMMUN as GRILLE
-        _rv = GRILLE.lire_reglages_du_voisinage_du_juge(
-            os.path.join(racine, "donnees", "combinatoires", "VOISINAGE_DU_JUGE.csv"))
-        # Les voisins se calculent en POURCENTS ; `_rejouer` reçoit des FRACTIONS, comme la fiche lue.
-        _centre = {"tp": round(tp * 100, 4), "sl": round(sl * 100, 4)}
-        if h is not HORIZON_AUCUNE:
-            _centre["horizon"] = float(h)
-        _g = GRILLE.grille_du_voisinage(_centre, _rv["bougent"], _rv["amplitude_relative"],
-                                        _rv["pas_de_part_et_d_autre"], _rv["croisement"], _rv["arrondi_de_la_duree"])
-        _en_fractions = lambda j: dict(j, tp=round(j["tp"] / 100, 6), sl=round(j["sl"] / 100, 6))
-        st = S.calculer_voisinage_sur_grille(
-            _rejouer, _en_fractions(_centre), [_en_fractions(j) for j in _g["jeux"]],
-            _rv["gain_net_de_chaque_voisin_doit_depasser"], inscrire=None)
-        _bougent = [p for p in _rv["bougent"] if p in _centre]
-        print("    VOISINAGE            {} voisin(s) a +-{:g} % de chaque reglage ({} ; {} pas de part et d'autre ; {} ; R-505 ⑩)"
-              .format(st["n_voisins"], _rv["amplitude_relative"], " ".join(_bougent) or "aucun reglage",
-                      _rv["pas_de_part_et_d_autre"], _rv["croisement"]))
-        for _p in _rv["bougent"]:
-            if _p not in _centre:
-                print("      ne bouge pas       %s : duree « aucune »" % _p)
-        for _c in _g["confondus"]:
-            print("      CONFONDUS          %s" % _c)
-        _seuil = _rv["gain_net_de_chaque_voisin_doit_depasser"]
-        if st["verdict"] is None:
-            print("      verdict            NON MESURE — %s" % st["motif_non_mesure"])
-        else:
-            print("      gain des voisins   de {:+,.0f} a {:+,.0f} EUR · centre {:+,.0f} EUR"
-                  .format(st["net_min_voisins"], st["net_max_voisins"], st["net_base"]).replace(",", " "))
-            print("      ecart relatif      %s (information, ne decide pas)"
-                  % ("%.0f %%, centre compris" % (100 * st["ecart_relatif"]) if st["ecart_relatif"] is not None
-                     else "indefini (gain moyen nul)"))
-            if st["verdict"] == "PASSE":
-                print("      verdict            PASSE — les {} voisins gagnent (chacun au-dessus de {:+,.0f} EUR)"
-                      .format(st["n_voisins"], _seuil).replace(",", " "))
+                  la table : `CRITERES_VALIDATION_EXPERTS`, lignes 1730 à 1740, qui porte les neuf seuils et le sens de comparaison de chacun
+    """
+                f2 = dict(fiche)
+                f2["tp"] = str(p["tp"])
+                f2["sl"] = str(p["sl"])
+                # « aucune » ne varie pas : le voisinage ne bouge alors que l'objectif et la perte acceptée.
+                f2["horizon"] = str(int(round(p["horizon"]))) if "horizon" in p else fiche["horizon"]
+                # REGARD UNIQUE (R-505 ③) : le voisinage ne passe aucun reçu — refus dans la fenêtre.
+                # ESSAI DÉCLARÉ (A-863) : le jeton voyage jusqu'aux voisins ; None sinon, comme avant.
+                o2, _ = jouer(f2, cours, mnemo, mod_pos_sig[0], mod_pos,
+                              periode=_bornes, lecture=lecture, **({} if jeton is None else {"recu": jeton}))
+                r2 = resumer(o2)
+                return {"net": r2.get("net", 0.0), "wr": r2.get("wr", 0.0)}
+            # LE DRAPEAU « VOISINAGE » DE R-505 ⑩, PAR PAS RÉGULIERS, JAMAIS AU HASARD (décision de Jean-Luc du 11-11-2026 à
+            # 19h08 ; BACKLOG A-220). R-505 ⑩ [CHOIX DÉLÉGUÉ DÉL-D13, DÉL-D36] : « les 26 voisins à ±10 % de chaque réglage
+            # doivent tous gagner » ; un drapeau arrête la stratégie et la soumet à Jean-Luc, ce n'est pas un échec du juge.
+            # Les valeurs voisines viennent de `voisins` (COMMUN.py, la même que la moulinette, R-708) ; les réglages, de
+            # VOISINAGE_DU_JUGE.csv.
+            if racine is None:
+                raise RuntimeError("racine du dépôt non transmise : réglages du voisinage introuvables")
+            import COMMUN as GRILLE
+            _rv = GRILLE.lire_reglages_du_voisinage_du_juge(
+                os.path.join(racine, "donnees", "combinatoires", "VOISINAGE_DU_JUGE.csv"))
+            # Les voisins se calculent en POURCENTS ; `_rejouer` reçoit des FRACTIONS, comme la fiche lue.
+            _centre = {"tp": round(tp * 100, 4), "sl": round(sl * 100, 4)}
+            if h is not HORIZON_AUCUNE:
+                _centre["horizon"] = float(h)
+            _g = GRILLE.grille_du_voisinage(_centre, _rv["bougent"], _rv["amplitude_relative"],
+                                            _rv["pas_de_part_et_d_autre"], _rv["croisement"], _rv["arrondi_de_la_duree"])
+            _en_fractions = lambda j: dict(j, tp=round(j["tp"] / 100, 6), sl=round(j["sl"] / 100, 6))
+            st = S.calculer_voisinage_sur_grille(
+                _rejouer, _en_fractions(_centre), [_en_fractions(j) for j in _g["jeux"]],
+                _rv["gain_net_de_chaque_voisin_doit_depasser"], inscrire=None)
+            _bougent = [p for p in _rv["bougent"] if p in _centre]
+            print("    VOISINAGE            {} voisin(s) a +-{:g} % de chaque reglage ({} ; {} pas de part et d'autre ; {} ; R-505 ⑩)"
+                  .format(st["n_voisins"], _rv["amplitude_relative"], " ".join(_bougent) or "aucun reglage",
+                          _rv["pas_de_part_et_d_autre"], _rv["croisement"]))
+            for _p in _rv["bougent"]:
+                if _p not in _centre:
+                    print("      ne bouge pas       %s : duree « aucune »" % _p)
+            for _c in _g["confondus"]:
+                print("      CONFONDUS          %s" % _c)
+            _seuil = _rv["gain_net_de_chaque_voisin_doit_depasser"]
+            if st["verdict"] is None:
+                print("      verdict            NON MESURE — %s" % st["motif_non_mesure"])
             else:
-                print("      verdict            DRAPEAU « voisinage » — {} voisin(s) sur {} ne depasse(nt) pas {:+,.0f} EUR ;"
-                      " la strategie est soumise a Jean-Luc : forcage trace ou archive (R-505 ⑩)"
-                      .format(len(st["perdants"]), st["n_voisins"], _seuil).replace(",", " "))
-                for _d in st["perdants"]:
-                    _q = _d["params"]
-                    print("        perdant          TP {:+.2f}% . SL -{:.2f}% . horizon {} : {:+,.0f} EUR"
-                          .format(100 * _q["tp"], 100 * _q["sl"],
-                                  "%d seances" % int(_q["horizon"]) if "horizon" in _q else "aucune",
-                                  _d["net"]).replace(",", " "))
-        if _rv["provisoires"]:
-            print("      reglages PROVISOIRES, A DECIDER PAR JEAN-LUC : %s (VOISINAGE_DU_JUGE.csv, colonne question)"
-                  % ", ".join(_rv["provisoires"]))
-        print("      essais             %d joue(s), %d NON INSCRIT(S) : le registre des essais n'existe pas au depot (A-226)"
-              % (st["n_voisins"], st["essais_non_inscrits"]))
-    except Exception as ex:
-        # UN VOISINAGE QUI N'A PAS PU TOURNER N'EST PAS « NON MESURÉ » (R-734 ; relecteur du 11-11-2026, D1) : rejeu en
-        # panne, fichier de réglages absent, racine non transmise. Le rapport continue, puis `juger` lève à la fin :
-        # `main` met la fiche EN ÉCHEC et sort en 1. « Aucun voisin » ou « gain moyen nul », eux, restent NON MESURÉ.
-        _echec_du_voisinage = "%s : %s" % (type(ex).__name__, ex)
-        print("    VOISINAGE            EN ÉCHEC — n'a pas pu tourner : %s" % _echec_du_voisinage)
+                print("      gain des voisins   de {:+,.0f} a {:+,.0f} EUR · centre {:+,.0f} EUR"
+                      .format(st["net_min_voisins"], st["net_max_voisins"], st["net_base"]).replace(",", " "))
+                print("      ecart relatif      %s (information, ne decide pas)"
+                      % ("%.0f %%, centre compris" % (100 * st["ecart_relatif"]) if st["ecart_relatif"] is not None
+                         else "indefini (gain moyen nul)"))
+                if st["verdict"] == "PASSE":
+                    print("      verdict            PASSE — les {} voisins gagnent (chacun au-dessus de {:+,.0f} EUR)"
+                          .format(st["n_voisins"], _seuil).replace(",", " "))
+                else:
+                    print("      verdict            DRAPEAU « voisinage » — {} voisin(s) sur {} ne depasse(nt) pas {:+,.0f} EUR ;"
+                          " la strategie est soumise a Jean-Luc : forcage trace ou archive (R-505 ⑩)"
+                          .format(len(st["perdants"]), st["n_voisins"], _seuil).replace(",", " "))
+                    for _d in st["perdants"]:
+                        _q = _d["params"]
+                        print("        perdant          TP {:+.2f}% . SL -{:.2f}% . horizon {} : {:+,.0f} EUR"
+                              .format(100 * _q["tp"], 100 * _q["sl"],
+                                      "%d seances" % int(_q["horizon"]) if "horizon" in _q else "aucune",
+                                      _d["net"]).replace(",", " "))
+            if _rv["provisoires"]:
+                print("      reglages PROVISOIRES, A DECIDER PAR JEAN-LUC : %s (VOISINAGE_DU_JUGE.csv, colonne question)"
+                      % ", ".join(_rv["provisoires"]))
+            print("      essais             %d joue(s), %d NON INSCRIT(S) : le registre des essais n'existe pas au depot (A-226)"
+                  % (st["n_voisins"], st["essais_non_inscrits"]))
+        except Exception as ex:
+            # UN VOISINAGE QUI N'A PAS PU TOURNER N'EST PAS « NON MESURÉ » (R-734 ; relecteur du 11-11-2026, D1) : rejeu en
+            # panne, fichier de réglages absent, racine non transmise. Le rapport continue, puis `juger` lève à la fin :
+            # `main` met la fiche EN ÉCHEC et sort en 1. « Aucun voisin » ou « gain moyen nul », eux, restent NON MESURÉ.
+            _echec_du_voisinage = "%s : %s" % (type(ex).__name__, ex)
+            print("    VOISINAGE            EN ÉCHEC — n'a pas pu tourner : %s" % _echec_du_voisinage)
 
     try:
         g = J.borne_basse_gain(ops)
@@ -4291,7 +4595,8 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
             hz = J.etalon_hasard(ops, cours, univ, tp, sl, h, mod_pos,
                                  mode=mode, n_tirages=120,
                                  entree=lambda v, j: jouer_une_entree(v, cours[v], j, tp, sl, h, mod_pos, lecture,
-                                                                      bareme),
+                                                                      bareme, **({} if jeton is None else
+                                                                                 {"recu": jeton})),
                                  admis=lambda v, j: achat_admis(v, cours[v], j, lecture),
                                  periode=_bornes)
             if hz.get("n_tirages"):
@@ -4784,6 +5089,10 @@ def main():
       argument est le dossier racine, `/mnt/project` s'il est absent ; le second est
       l'identifiant d'une seule fiche à juger, toutes les fiches recevables étant
       jouées s'il est absent.
+      Option « --essai-sans-regard » (A-863, 16-11-2026) : un ESSAI DÉCLARÉ, sans regard
+      unique consommé ; chaque ligne écrite commence par « ESSAI — NI RÉSULTAT NI SÉLECTION » ;
+      refus en 2 si la racine porte .git, sans fiche visée, ou si la fiche visée n'est
+      identique à aucune fiche de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE (`jeton_d_essai`).
     ④ CONDITIONS D'ENTRÉE — Trois fichiers doivent exister sous la racine : le
       registre des stratégies, les cours et le module de positions. Depuis le
       30-10-2026 (A-542), le module de signal n'est plus cherché ici : chaque fiche
@@ -4800,7 +5109,7 @@ def main():
       ce qui n'est pas un échec mais la porte 0 qui fait son travail. 1 quand un
       fichier indispensable manque, 1 quand le calibrage échoue, et 1 quand une
       fiche au moins est « EN ÉCHEC » : un contrôle qui n'a pas pu tourner ne rend
-      pas 0 (R-734).
+      pas 0 (R-734). 2 quand un essai déclaré (« --essai-sans-regard ») est refusé.
       [rend: 1]
     ⑥ TRAITEMENT — ① afficher la version et l'heure de Paris · ② relever les sept
       fichiers par leur nom réel · ③ alerter si l'un des trois noms surveillés
@@ -4988,15 +5297,36 @@ def main():
     _args = [a for a in sys.argv[1:] if not a.startswith("--")]
     base = _args[0] if _args else "/mnt/project"
     cible = _args[1] if len(_args) > 1 else None
+    # L'ESSAI DÉCLARÉ (A-863, décision de Jean-Luc du 16-11-2026 à 20h46) : « --essai-sans-regard » marque chaque ligne
+    # écrite, AVANT la première, et refuse en 2 un dépôt ou un jugement sans fiche visée ; l'identité de la fiche se
+    # juge plus bas, au registre (`jeton_d_essai`). Sans l'option, rien ne change.
+    # Sans l'option, rien de plus n'est importé ni lu qu'avant ; son texte est confronté au contrat dès qu'elle est lue.
+    _essai = OPTION_ESSAI in sys.argv[1:]
+    jeton = None
+    if _essai:
+        marquer_la_sortie()
+        import CONTRATS_DES_FICHIERS as _CE
+        if _CE.OPTION_D_ESSAI_SANS_REGARD != OPTION_ESSAI or sys.argv[1:].count(OPTION_ESSAI) > 1:
+            print("ARRET (essai refusé) : option %s écrite deux fois, ou différente du contrat (%s). Rien n'est juge."
+                  % (OPTION_ESSAI, _CE.OPTION_D_ESSAI_SANS_REGARD))
+            return 2
+        if os.path.lexists(os.path.join(base, ".git")):
+            print("ARRET (essai refusé) : %s porte .git : c'est un dépôt, pas une copie jetable ; un essai ne s'y joue "
+                  "jamais. Rien n'est juge." % base)
+            return 2
+        if not cible:
+            print("ARRET (essai refusé) : un essai sans regard vise UNE fiche, nommée. Rien n'est juge.")
+            return 2
     # --cours=<fichier, relatif à la racine> : juger sur un autre fichier de cours que le maître, par exemple
     # l'historique des 20 ans (A-577, étape 1). Sans l'option, le maître, comme avant.
     _autre = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--cours=")), None)
     print("JUGE DES STRATÉGIES . %s . %s\n" % (VERSION, horodatage()))
     # UNE OPTION INCONNUE OU MAL ÉCRITE ARRÊTE TOUT (relecture et superviseur du 27-10-2026) : « --cours fichier »,
     # sans « = », était ignoré, et « fichier » devenait la fiche visée — aucune fiche jugée, code 0.
-    _mal = [a for a in sys.argv[1:] if a.startswith("--") and not (a.startswith("--cours=") and len(a) > len("--cours="))]
+    _mal = [a for a in sys.argv[1:] if a.startswith("--") and not (a.startswith("--cours=") and len(a) > len("--cours="))
+            and a != OPTION_ESSAI]
     if _mal:
-        print("ARRET : option inconnue ou mal ecrite : %s (seule « --cours=<fichier> » existe). Rien n'est juge." % _mal)
+        print("ARRET : option inconnue ou mal ecrite : %s (seules « --cours=<fichier> » et « --essai-sans-regard » existent). Rien n'est juge." % _mal)
         return 1
 
     # LE JUGE DES STRATÉGIES LIT LE REGISTRE DES STRATEGIES, PLUS LE SAS.
@@ -5013,6 +5343,19 @@ def main():
     # une bibliothèque (le soir, la moulinette, les épreuves) n'en dépendent pas.
     from CONTRATS_DES_FICHIERS import NOM_DU_REGISTRE_DES_STRATEGIES, fiches_du_registre
     f_sas = trouver(base, NOM_DU_REGISTRE_DES_STRATEGIES)
+    if _essai:
+        # L'IDENTITÉ DE LA FICHE D'ESSAI, AVANT TOUTE LECTURE DES COURS (A-863) : refus en 2, sans rien jouer ;
+        # la dernière ligne de l'identifiant fait foi (n°83), comme pour le jugement.
+        _fe = fiches_du_registre(f_sas).get(cible) if f_sas else None
+        if _fe is None:
+            print("ARRET (essai refusé) : la fiche %s est absente du registre. Rien n'est juge." % cible)
+            return 2
+        jeton, _motif_essai = jeton_d_essai(base, _fe, 1)
+        if jeton is None:
+            print("ARRET (essai refusé) : %s. Rien n'est juge." % _motif_essai)
+            return 2
+        print("ESSAI DÉCLARÉ (A-863) : %s, identique à une fiche déjà vue sur le regard unique "
+              "(CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE) ; rien n'est inscrit ni compté.\n" % cible)
     # LES COURS VIENNENT DU SEUL FICHIER MAITRE, designe par `fichiers_de_cours` :
     # une seule facon de le trouver dans tout le systeme (A-442, R-708).
     try:
@@ -5232,7 +5575,7 @@ def main():
         # 1), sauf décision écrite de Jean-Luc au contrat (UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE).
         _s_lues = lecture.get("seances") if lecture else []
         _per = (max(str(_bornes[0]), _s_lues[0]), min(str(_bornes[1]), _s_lues[-1])) if _s_lues else None
-        _ligne_m, _refus_m = garde_composition(base, f, _per)
+        _ligne_m, _refus_m = garde_composition(base, f, _per, jeton)
         if _refus_m:
             en_echec.append(f["id"])
             print(_ligne_m)
@@ -5240,7 +5583,9 @@ def main():
             continue
         try:
             # REGARD UNIQUE (R-505 ③) : `main` n'inscrit rien, donc ne passe aucun reçu — refus dans la fenêtre.
-            ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture)
+            ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture) \
+                if jeton is None else jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture,
+                                            recu=jeton)   # l'essai déclaré : le jeton tient lieu de reçu (A-863)
         except SignalRefuse as _refus_au_jeu:
             # UN REFUS NOMMÉ, PAS UNE PANNE (point 8 du plan du juge, 31-10-2026) : sortie du signal mal formée. La fiche
             # n'est pas jugée ; ce n'est pas « EN ÉCHEC », le code ne change pas.
@@ -5295,7 +5640,7 @@ def main():
         if mod_jug:
             try:
                 juger(f, ops, cours, seances, mod_jug, mod_stats, mod_pos, mnemo,
-                      _bornes, (mod_sig,), lecture=lecture, racine=base)
+                      _bornes, (mod_sig,), lecture=lecture, racine=base, jeton=jeton)
             except (Exception, SystemExit) as _ex_jugement:
                 en_echec.append(f["id"])
                 print("    EN ÉCHEC (ce n'est pas un refus) : %s : %s\n"

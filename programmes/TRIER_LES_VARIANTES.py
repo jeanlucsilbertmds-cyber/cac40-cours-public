@@ -274,7 +274,9 @@ def lire_les_resultats(chemin, contrat):
     ④ CONDITIONS D'ENTRÉE — Le fichier existe.
     ⑤ SORTIE — UNE valeur : la liste des lignes, chacune un dictionnaire.
       [rend: 1]
-    ⑥ TRAITEMENT — ① exiger exactement les champs du contrat (un fichier d'avant le 11-11-2026, sans partie de
+    ⑥ TRAITEMENT — ⓪ refuser un fichier d'ESSAI (A-863) : il porte la colonne CONTRATS.COLONNE_DU_STATUT_D_ESSAI, ou
+      une case qui contient CONTRATS.STATUT_D_ESSAI (« ESSAI — NI RÉSULTAT NI SÉLECTION ») ; un essai n'est ni un
+      résultat ni une sélection · ① exiger exactement les champs du contrat (un fichier d'avant le 11-11-2026, sans partie de
       réglage, est refusé) · ② exiger au moins une ligne, une seule stratégie, un seul essai, des identifiants
       uniques, et `versions_dans_l_essai` égal au nombre de lignes · ③ pour la période entière ET pour la partie de
       réglage : un nombre entier positif ou nul d'opérations, un gain fini, et, à zéro opération, un gain nul et une
@@ -297,6 +299,13 @@ def lire_les_resultats(chemin, contrat):
     nom = os.path.basename(chemin)
     lecteur = csv.DictReader(open(chemin, encoding="utf-8-sig"))
     champs = lecteur.fieldnames or []
+    # UN ESSAI N'EST NI UN RÉSULTAT NI UNE SÉLECTION (A-863, décision de Jean-Luc du 16-11-2026 à 20h46) : refusé avant
+    # toute autre lecture, par sa colonne ou par sa marque dans une case quelconque.
+    _marque = contrat.STATUT_D_ESSAI
+    if contrat.COLONNE_DU_STATUT_D_ESSAI in champs or any(
+            _marque in (c or "") for c in champs) or any(
+            _marque in (x or "") for l in csv.reader(open(chemin, encoding="utf-8-sig")) for x in l):
+        raise ValueError("%s : fichier d'ESSAI (%s) : %s, jamais trié" % (nom, contrat.COLONNE_DU_STATUT_D_ESSAI, _marque))
     exiges = list(contrat.RESULTATS_DES_VERSIONS)
     manquants = [c for c in exiges if c not in champs]
     hors = [c for c in champs if c not in contrat.RESULTATS_DES_VERSIONS]
