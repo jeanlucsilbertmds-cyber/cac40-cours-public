@@ -1,2 +1,0 @@
-circuit=epreuve
-epreuves=toutes
