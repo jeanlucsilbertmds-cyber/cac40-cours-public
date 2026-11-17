@@ -316,6 +316,19 @@ l'indice retirée, mord par H76), T191 (garde de l'origine retirée, H78), T192 
 gardes intactes, H77), T193 (idem pour l'origine, H79), T194 (`main` ne lit plus l'origine). Rejoué seul le 16-11-2026
 AVANT la garde : T54 NE MORD PAS ; après : il mord.
 
+Le 17-11-2026 (superviseur R-759 du 17-11-2026, réparation de fond) : la série HL du 16-11-2026 (passage 43964968424)
+classait 7 lots sur 40 ([1, 3, 4, 5, 11, 22, 38]) « en erreur système », et leurs sabotages ne comptaient pas. Cause :
+l'épreuve elle-même. Quand un sabotage fait échouer la réparation, elle n'écrit rien ; H21/H63 et H32/H64 ouvraient
+pourtant ses sorties (le fichier réparé, le journal), et leur `except` imprimait « FileNotFoundError : [Errno 2] … »,
+texte que le joueur de séries (tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py, TRACE_SYSTEME, motif « [Errno n] »)
+prend, à raison, pour une panne de machine — il protège du disque plein, il n'est pas assoupli. Désormais H21/H63 et
+H32/H64 testent le code de la réparation, et la présence de ses deux sorties, AVANT de les ouvrir : sinon le cas est
+ROUGE (verdict inchangé : ces épreuves exigeaient déjà le code 0) et le message le dit sans texte d'erreur système.
+Reproduit le 17-11-2026 avec --saboter=T1 : « H32/H64 : FileNotFoundError : [Errno 2] … journal_des_reparations.csv »
+avant, plus aucun « [Errno » après, T1 mord par les mêmes épreuves. Aucun sabotage ajouté au dictionnaire (une
+épreuve ne peut pas saboter sa propre copie chargée) : le témoin qui retire le test et refait apparaître la trace est
+joué hors de l'épreuve, sur une copie, et sa sortie est dans la note de livraison.
+
 USAGE : python3 tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py <racine du dépôt> [--saboter | --saboter=S1,S2… | --cibles]
 CODE : 0 si tout est vert et, avec --saboter, si chaque sabotage fait rougir au moins une épreuve ; 1 sinon ; 2 si
 un sabotage ne s'applique plus (son texte cible a disparu du programme) — vu par le pré-contrôle, AVANT Z0. Avec
@@ -805,6 +818,44 @@ def synthese(K, regimes, trou):
 
 
 def epreuves(K, R):
+    """Joue toutes les épreuves H du contrôle et de la réparation de l'historique long, et rend leur verdict.
+
+    ① RÔLE — Dire, épreuve par épreuve (H1 à H79), si le contrôle `K` et la réparation `R` font ce que l'en-tête de ce
+      fichier décrit ; une épreuve qui ne peut pas aller au bout est ROUGE, jamais verte.
+    ② CONTEXTE D'APPEL — `main` : une fois sur les programmes tels quels (Z0), puis une fois par sabotage, sur les
+      modules chargés par `charger` depuis une copie sabotée.
+    ③ ENTRÉE — `K` : le module du contrôle ; `R` : le module de la réparation (tels quels ou sabotés).
+    ④ CONDITIONS D'ENTRÉE — Les témoins de l'extrait 2005 et les vrais fichiers du dépôt que les épreuves copient
+      existent ; une absence rend les épreuves concernées rouges (l'exception est rattrapée), jamais vertes.
+    ⑤ SORTIE — UNE valeur : le dictionnaire {« Hnn » : booléen}, y compris ceux de `epreuves_des_journees` et de
+      `epreuves_des_lectures_de_main`.
+      [rend: 1]
+    ⑥ TRAITEMENT — Chaque épreuve dans son `try` : fabriquer une racine jetable ou une copie des vrais fichiers, lancer
+      le contrôle ou la réparation, juger la sortie. H21/H63 et H32/H64 (17-11-2026) TESTENT LE CODE DE LA RÉPARATION
+      ET LA PRÉSENCE DE SES DEUX SORTIES (`R.SORTIE`, `R.JOURNAL`) AVANT DE LES OUVRIR : sinon ces épreuves sont rouges
+      et le message dit « la réparation a rendu le code n, sorties absentes […] — ses sorties ne sont pas lues ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une réparation fausse ne se voit pas : un cours reconstruit avec le mauvais facteur reste plausible ;
+      seules des épreuves sur de vraies données le prouvent. Le test du code avant l'ouverture (superviseur R-759 du
+      17-11-2026, réparation de fond) : sans lui, une réparation sabotée qui échoue faisait lever FileNotFoundError à
+      l'ouverture de ses sorties, le `except` l'imprimait avec « [Errno 2] », et le joueur de séries
+      (tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py, TRACE_SYSTEME) classait le lot « erreur système » : 7 lots sur 40
+      de la série HL du 16-11-2026 (passage 43964968424), sabotages perdus. Le verdict ne change pas : ces épreuves
+      exigeaient déjà le code 0.
+    ⑨ CE QUI CLOCHE — Les `except` qui impriment l'exception (18 relevés le 17-11-2026) laissent passer tout autre
+      « [Errno n] » : voulu, c'est ainsi qu'un disque plein se voit au joueur de séries ; mais une épreuve future qui
+      ouvrirait la sortie d'un programme sans tester son code referait le faux « erreur système » (motif relevé le
+      17-11-2026 : ces deux blocs seulement). · La réparation attrape elle-même les OSError de LECTURE et rend le code 2 en
+      l'écrivant dans sa sortie capturée, non imprimée : une lecture ne remplit pas un disque ; les écritures de la
+      réparation ne sont pas attrapées et ressortent par le `except` qui imprime. · Une cinquantaine d'`except` muets
+      (relecture du 05-11-2026, M1) rendent une épreuve rouge sans dire pourquoi.
+    ⑩ EFFET — Des dossiers jetables sous le dossier temporaire (effacé par `__main__`) ; réaffecte `R.RECONSTRUCTIONS`
+      et `R.RETRAITS` avant les épreuves qui en dépendent, sans les remettre (chaque épreuve pose les siennes ; H32 les
+      vraies, gardées au départ) ; imprime des lignes de diagnostic.
+    ⑪ TERMINAISON — Rend la main ; un appel de `K` ou `R` saboté en boucle ne reviendrait pas (aucun délai ici, le joueur
+      de séries n'en met pas non plus).
+      [sort: non]
+    """
     res = {}
     axa_fenetre = [x for x in R.RECONSTRUCTIONS if x[0] == "AXA"]     # la vraie, avant que les épreuves la changent
     reconstructions_vraies, retraits_vrais = R.RECONSTRUCTIONS, R.RETRAITS
@@ -1164,22 +1215,33 @@ def epreuves(K, R):
         b, _, _ = K.lire_cours(os.path.join(r, "donnees/sources_bnains/bnains_cac40.csv"), K.COURS_BNAINS)
         R.RECONSTRUCTIONS, R.RETRAITS = (), ()
         code, out = lancer(R.reparer, r)
-        rep = {(l["valeur"], l["date"]): l["source"] for l in lire(r, R.SORTIE)}
-        journal = lire(r, R.JOURNAL)
-        attendues = {v for v in s if jour in b.get(v, {})}
-        comblees = {v for v in attendues if rep.get((v, jour)) == "bnains"}
-        non = {l["valeur"] for l in journal if l["geste"] == "non comblé" and l["date"] == jour}
-        print(f"      H21 : {len(attendues)} valeurs attendues le {jour}, {len(comblees)} comblées, {len(non)} non comblées")
-        res["H21"] = code == 0 and not any(jour in x for x in s.values()) and jour in K.calendrier(s, SEANCES) \
-            and len(comblees) >= 20 and attendues - comblees <= non and not comblees & non
-        apres, _, _ = K.lire_cours(os.path.join(r, R.SORTIE))
-        manquantes = set(K.trous(apres, K.calendrier(apres, SEANCES)))
-        tracees = {(l["valeur"], l["date"]) for l in journal if l["geste"] == "non comblé"}
-        carnet = {l["fichier"]: l for l in lire(r, os.path.join("donnees", "PROVENANCE_DES_FICHIERS.csv"))}
-        empreinte = lambda c: hashlib.sha256(open(os.path.join(r, c), "rb").read()).hexdigest()
-        print(f"      H63 : {len(manquantes)} séances manquantes après la réparation, {len(tracees)} au journal")
-        res["H63"] = code == 0 and manquantes == tracees and all(
-            carnet[c.replace(os.sep, "/")]["sha256"] == empreinte(c) for c in (R.SORTIE, R.JOURNAL))
+        # LE CODE DE LA RÉPARATION EST TESTÉ AVANT D'OUVRIR SES SORTIES (superviseur R-759 du 17-11-2026, réparation de
+        # fond) : une réparation sabotée qui échoue n'écrit rien ; ouvrir ensuite son fichier réparé levait
+        # FileNotFoundError, que le `except` ci-dessous imprimait avec son « [Errno 2] », et le joueur de séries
+        # (TRACE_SYSTEME) classait le lot « erreur système » — 7 lots sur 40 de la série HL du 16-11-2026. Le cas est
+        # ROUGE, et le message le dit sans aucun texte d'erreur système.
+        absentes = [c for c in (R.SORTIE, R.JOURNAL) if not os.path.exists(os.path.join(r, c))]
+        if code != 0 or absentes:
+            print(f"      H21/H63 ROUGES : la réparation a rendu le code {code}, sorties absentes {absentes} — "
+                  f"ses sorties ne sont pas lues")
+            res["H21"] = res["H63"] = False
+        else:
+            rep = {(l["valeur"], l["date"]): l["source"] for l in lire(r, R.SORTIE)}
+            journal = lire(r, R.JOURNAL)
+            attendues = {v for v in s if jour in b.get(v, {})}
+            comblees = {v for v in attendues if rep.get((v, jour)) == "bnains"}
+            non = {l["valeur"] for l in journal if l["geste"] == "non comblé" and l["date"] == jour}
+            print(f"      H21 : {len(attendues)} valeurs attendues le {jour}, {len(comblees)} comblées, {len(non)} non comblées")
+            res["H21"] = code == 0 and not any(jour in x for x in s.values()) and jour in K.calendrier(s, SEANCES) \
+                and len(comblees) >= 20 and attendues - comblees <= non and not comblees & non
+            apres, _, _ = K.lire_cours(os.path.join(r, R.SORTIE))
+            manquantes = set(K.trous(apres, K.calendrier(apres, SEANCES)))
+            tracees = {(l["valeur"], l["date"]) for l in journal if l["geste"] == "non comblé"}
+            carnet = {l["fichier"]: l for l in lire(r, os.path.join("donnees", "PROVENANCE_DES_FICHIERS.csv"))}
+            empreinte = lambda c: hashlib.sha256(open(os.path.join(r, c), "rb").read()).hexdigest()
+            print(f"      H63 : {len(manquantes)} séances manquantes après la réparation, {len(tracees)} au journal")
+            res["H63"] = code == 0 and manquantes == tracees and all(
+                carnet[c.replace(os.sep, "/")]["sha256"] == empreinte(c) for c in (R.SORTIE, R.JOURNAL))
     except Exception as ex:
         print(f"      H21/H63 : {type(ex).__name__} : {ex}")
         res["H21"] = res["H63"] = False
@@ -1440,26 +1502,39 @@ def epreuves(K, R):
             shutil.copytree(os.path.join(RACINE, dossier), os.path.join(r, dossier))
         R.RECONSTRUCTIONS, R.RETRAITS = reconstructions_vraies, retraits_vrais
         code_r, out_r = lancer(R.reparer, r)
-        code_k, out_k = lancer(K.main, [r])
-        empreinte = lambda c: hashlib.sha256(open(c, "rb").read()).hexdigest()
-        res["H32"] = code_r == 0 and code_k == 1 and "VERDICT : REFUSÉ par K23\n" in out_k \
-            and "programmes/REPARER_L_HISTORIQUE_LONG.py, qui n'est pas un programme du dépôt" in out_k and "ajustés : 14" in out_r and "défaits : 3," in out_r \
-            and empreinte(os.path.join(r, R.SORTIE)) == empreinte(REPARE) \
-            and empreinte(os.path.join(r, R.JOURNAL)) == empreinte(os.path.join(RACINE, R.JOURNAL))
-        # H64, cas réel (05-11-2026, superviseur R-759 de VINGT, D1) : sur la copie que la réparation vient d'écrire,
-        # K24 se tait ; puis le « non comblé » d'AXA 2006-09-27 remis À SA PLACE d'avant la réparation du 05-11-2026,
-        # avant le « comblé » (le rejeu de K23 l'accepte là, la séance n'existe pas encore) : K24 refuse, et le nomme
-        k24 = lambda out: [l.split()[1:3] for l in out.splitlines() if l.split()[:1] == ["K24"]]
-        jr = os.path.join(r, R.JOURNAL)
-        lignes_j = open(jr, encoding="utf-8", newline="").read().split("\n")
-        i = [k for k, l in enumerate(lignes_j) if l.startswith("AXA,2006-09-27,comblé,")]
-        lignes_j[i[0]:i[0]] = ['AXA,2006-09-27,non comblé,,,,"séance manquante chez Yahoo ; remis par H64",,']
-        open(jr, "w", encoding="utf-8", newline="").write("\n".join(lignes_j))
-        code_i, out_i = lancer(K.main, [r])
-        reel_h64 = len(i) == 1 and k24(out_k) == [["ok", "0"]] and k24(out_i) == [["REFUS", "1"]] and code_i == 1 \
-            and "AXA 2006-09-27 : « non comblé » au journal, la séance est dans le fichier" in out_i
-        if not reel_h64:
-            print(f"      H64 (réel) : {len(i)} ligne « comblé », K24 sans ajout {k24(out_k)}, avec {k24(out_i)}")
+        # LE CODE DE LA RÉPARATION EST TESTÉ AVANT D'OUVRIR SES SORTIES (superviseur R-759 du 17-11-2026, réparation de
+        # fond) : une réparation sabotée qui échoue n'écrit pas son journal ; H64 l'ouvrait quand même, levait
+        # FileNotFoundError, que le `except` ci-dessous imprimait avec son « [Errno 2] », et le joueur de séries
+        # (TRACE_SYSTEME) classait le lot « erreur système » — 7 lots sur 40 de la série HL du 16-11-2026, première
+        # trace : « H32/H64 : FileNotFoundError : [Errno 2] … journal_des_reparations.csv ». H32 et H64 (cas réel) sont
+        # ROUGES, et le message le dit sans aucun texte d'erreur système.
+        absentes = [c for c in (R.SORTIE, R.JOURNAL) if not os.path.exists(os.path.join(r, c))]
+        if code_r != 0 or absentes:
+            print(f"      H32/H64 ROUGES : la réparation a rendu le code {code_r}, sorties absentes {absentes} — "
+                  f"ses sorties ne sont pas lues")
+            res["H32"] = False
+            reel_h64 = False
+        else:
+            code_k, out_k = lancer(K.main, [r])
+            empreinte = lambda c: hashlib.sha256(open(c, "rb").read()).hexdigest()
+            res["H32"] = code_r == 0 and code_k == 1 and "VERDICT : REFUSÉ par K23\n" in out_k \
+                and "programmes/REPARER_L_HISTORIQUE_LONG.py, qui n'est pas un programme du dépôt" in out_k and "ajustés : 14" in out_r and "défaits : 3," in out_r \
+                and empreinte(os.path.join(r, R.SORTIE)) == empreinte(REPARE) \
+                and empreinte(os.path.join(r, R.JOURNAL)) == empreinte(os.path.join(RACINE, R.JOURNAL))
+            # H64, cas réel (05-11-2026, superviseur R-759 de VINGT, D1) : sur la copie que la réparation vient d'écrire,
+            # K24 se tait ; puis le « non comblé » d'AXA 2006-09-27 remis À SA PLACE d'avant la réparation du 05-11-2026,
+            # avant le « comblé » (le rejeu de K23 l'accepte là, la séance n'existe pas encore) : K24 refuse, et le nomme
+            k24 = lambda out: [l.split()[1:3] for l in out.splitlines() if l.split()[:1] == ["K24"]]
+            jr = os.path.join(r, R.JOURNAL)
+            lignes_j = open(jr, encoding="utf-8", newline="").read().split("\n")
+            i = [k for k, l in enumerate(lignes_j) if l.startswith("AXA,2006-09-27,comblé,")]
+            lignes_j[i[0]:i[0]] = ['AXA,2006-09-27,non comblé,,,,"séance manquante chez Yahoo ; remis par H64",,']
+            open(jr, "w", encoding="utf-8", newline="").write("\n".join(lignes_j))
+            code_i, out_i = lancer(K.main, [r])
+            reel_h64 = len(i) == 1 and k24(out_k) == [["ok", "0"]] and k24(out_i) == [["REFUS", "1"]] and code_i == 1 \
+                and "AXA 2006-09-27 : « non comblé » au journal, la séance est dans le fichier" in out_i
+            if not reel_h64:
+                print(f"      H64 (réel) : {len(i)} ligne « comblé », K24 sans ajout {k24(out_k)}, avec {k24(out_i)}")
     except Exception as ex:
         print(f"      H32/H64 : {type(ex).__name__} : {ex}")
         res["H32"] = False
