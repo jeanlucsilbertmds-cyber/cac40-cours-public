@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
   push:
     branches: [essai-queue-refs-18-11-2026]
-    paths: ['jamais-aucun-fichier/**']
 concurrency:
   group: essai-queue-refs
   cancel-in-progress: false
