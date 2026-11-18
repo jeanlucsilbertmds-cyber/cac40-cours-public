@@ -1,0 +1,3 @@
+circuit=series
+serie=HL
+pointe=182d44099845872cbc53646cba4d2c49257b4f47
