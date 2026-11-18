@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Carnet,UnIdentifiant,CockpitRadar,BaremeFrais,JeuRadar,RegistreStrategies
+pointe=63186e44ab88eab2607f1bf0f9d2cecc63afb20e
