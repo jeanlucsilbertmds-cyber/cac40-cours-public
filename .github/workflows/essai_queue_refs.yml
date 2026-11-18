@@ -1,0 +1,20 @@
+# ESSAI A-896 (CONTRE-ÉPREUVE, SANS queue: max) du 18-11-2026 (simulation uniquement) : queue: max avec des lancements au bouton depuis des refs
+# différentes dans un même groupe. Branche d'essai, jamais fusionnée ; à supprimer sur décision de Jean-Luc.
+name: Essai queue refs
+run-name: Essai queue refs ${{ github.ref_name }}
+on:
+  workflow_dispatch:
+concurrency:
+  group: essai-queue-refs
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  attendre:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "ref ${{ github.ref_name }} passage ${{ github.run_id }}"
+          date -u
+          sleep 120
+          date -u
