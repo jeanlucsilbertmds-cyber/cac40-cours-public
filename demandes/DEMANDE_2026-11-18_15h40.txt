@@ -1,0 +1,3 @@
+circuit=series
+serie=Signal
+pointe=cba9ef176b3c6b762ede6814015f13a2d9d20d5e
