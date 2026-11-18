@@ -76,8 +76,8 @@ SOI = os.path.join("tests", os.path.basename(__file__))
 MESURER = os.path.join("programmes", "MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py")
 CONTRAT = os.path.join("programmes", "CONTRATS_DES_FICHIERS.py")
 COCKPIT = os.path.join("programmes", "GENERATEUR_COCKPIT_Sam_15-08-2026_21h50.py")
+SITE = os.path.join("programmes", "PUBLIER_LE_SITE.py")
 HISTO = os.path.join("donnees", "historique_mesures.csv")
-FICHE = os.path.join("donnees", "cac40_strategies.csv")
 DELAI = 900
 NOMBRE_DE_CAS = 7
 # Les 27 colonnes de l'historique avant le carnet (en-tête du fichier au 16-11-2026, relu ce jour-là).
@@ -124,6 +124,44 @@ SABOTAGES = {
     "K12_empreinte_d_une_autre_fiche": [(MESURER, "        _empreintes[sid] = empreinte_de_la_carte(carte)\n",
                                          "        _empreintes[sid] = empreinte_de_la_carte(dict(carte, tp='+1.0%'))\n")],
 }
+
+
+def le_contrat(racine):
+    """Charge le contrat des fichiers d'une racine, pour y lire le chemin du registre des stratégies et sa lecture.
+    ① RÔLE — ne jamais écrire ici le nom du registre ni la règle n°83 (la dernière ligne fait foi) : ils vivent au
+    contrat, une fois (`REGISTRE_DES_STRATEGIES`, `fiches_du_registre`). ② CONTEXTE D'APPEL — C2 et C4, avec la
+    racine d'un scénario ; C7 passe par `les_entrees_du_site`. ③ ENTRÉE — `racine` : une copie du dépôt. ④ CONDITIONS D'ENTRÉE — la
+    racine porte le fichier du contrat (`CONTRAT`). ⑤ SORTIE — UNE valeur : le module du contrat de cette racine.
+    [rend: 1] ⑥ TRAITEMENT — import par chemin, sous un nom propre à l'épreuve. ⑦ UNITÉ — —. ⑧ POURQUOI — deux
+    écritures d'une même chose divergent toujours (R-708) ; le contrat porte `REGISTRE_DES_STRATEGIES` et
+    `NOM_DU_REGISTRE_DES_STRATEGIES` (décision n°83), et l'épreuve du registre des stratégies (G1) rougit dès qu'une
+    constante du code les recopie : relecture du tour 3 (D1, 18-11-2026), superviseur R-759 « DE FOND ».
+    ⑨ CE QUI CLOCHE — —. ⑩ EFFET — exécute le module du contrat. ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]"""
+    import importlib.util as iu
+    sp = iu.spec_from_file_location("CONTRAT_DE_L_EPREUVE_DU_CARNET", os.path.join(racine, CONTRAT))
+    module = iu.module_from_spec(sp)
+    sp.loader.exec_module(module)
+    return module
+
+
+def les_entrees_du_site(racine):
+    """Rend la table « fichier du dépôt → nom attendu par le générateur du cockpit » de la publication de la racine.
+    ① RÔLE — nourrir le cockpit en C7 avec les MÊMES fichiers que la publication du soir, sans les recopier ici.
+    ② CONTEXTE D'APPEL — `page` de C7, une fois par page. ③ ENTRÉE — `racine` : une copie du dépôt.
+    ④ CONDITIONS D'ENTRÉE — la racine porte `SITE` et le contrat des fichiers sous `programmes/`.
+    ⑤ SORTIE — UNE valeur : la liste `ENTREES` de PUBLIER_LE_SITE, couples (chemin sous la racine, nom à plat).
+    [rend: 1] ⑥ TRAITEMENT — import par chemin, sous un nom propre à l'épreuve ; le haut du module ne fait qu'importer
+    et poser des constantes (son travail est sous `if __name__ == "__main__"`). ⑦ UNITÉ — —. ⑧ POURQUOI — deux
+    écritures d'une même chose divergent toujours (R-708) : `ENTREES` (PUBLIER_LE_SITE l.94-100) est la seule source de
+    ces couples ; recopiés ici, un fichier ajouté ou renommé à la publication laissait C7 vert sur l'ancien jeu
+    (relecture du tour 4, N2, 18-11-2026 ; superviseur R-759 « DE FOND »). ⑨ CE QUI CLOCHE — la table porte aussi
+    l'historique des mesures, que C7 remplace ensuite par ses propres octets. ⑩ EFFET — exécute le haut du module
+    (ajoute son dossier au chemin d'import). ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]"""
+    import importlib.util as iu
+    sp = iu.spec_from_file_location("SITE_DE_L_EPREUVE_DU_CARNET", os.path.join(racine, SITE))
+    module = iu.module_from_spec(sp)
+    sp.loader.exec_module(module)
+    return list(module.ENTREES)
 
 
 def copier_la_base(depot, cible):
@@ -281,9 +319,8 @@ def cas(copie):
         neuves = [l for l in lignes if l["date_mesure"] == seance]
         if len(neuves) != 4:
             fautes.append("%d lignes de la séance %s au lieu de 4" % (len(neuves), seance))
-        fiche = {}
-        for l in csv.DictReader(open(os.path.join(r, FICHE), encoding="utf-8")):
-            fiche[l["id"]] = l
+        ct = le_contrat(r)   # n°83 (la dernière ligne fait foi) lue au contrat, pas réécrite ici (N3, 18-11-2026)
+        fiche = ct.fiches_du_registre(os.path.join(r, ct.REGISTRE_DES_STRATEGIES))
         journal = list(csv.DictReader(open(os.path.join(r, "donnees", "claude_journal_trades.csv"), encoding="utf-8")))
         par_strat = {}
         for l in neuves:
@@ -344,11 +381,12 @@ def cas(copie):
         ⑪ TERMINAISON — Rend la main. [sort: non]"""
         r = os.path.join(tempfile.mkdtemp(prefix="carnet_c4_"), "r")
         shutil.copytree(etat["r"], r)
-        f = os.path.join(r, FICHE)
-        lignes = list(csv.DictReader(open(f, encoding="utf-8")))
-        entete = list(lignes[0].keys())
-        qa = [l for l in lignes if l["id"] == "C5E10-QA-V1"][-1]
-        obs = [l for l in lignes if l["id"] == "C5E10-OBS-V1"][-1]
+        ct = le_contrat(r)   # n°83 lue au contrat (N3, 18-11-2026)
+        f = os.path.join(r, ct.REGISTRE_DES_STRATEGIES)
+        fiches = ct.fiches_du_registre(f)
+        entete = list(next(iter(fiches.values())).keys())
+        qa = fiches["C5E10-QA-V1"]
+        obs = fiches["C5E10-OBS-V1"]
         assert qa["tp"].strip() == "+4.0%", "tp de C5E10-QA-V1 : %r (attendu +4.0%%, le cas E5)" % qa["tp"]
         buf = io.StringIO()
         w = csv.DictWriter(buf, fieldnames=entete, lineterminator="\r\n")
@@ -404,11 +442,10 @@ def cas(copie):
             ⑩ EFFET — écrit. ⑪ TERMINAISON — Rend la main. [sort: non]"""
             plat = tempfile.mkdtemp(prefix="carnet_plat_")
             sortie = tempfile.mkdtemp(prefix="carnet_page_")
-            for src, nom in (("donnees/cours_maitre.csv", "cours_maitre.csv"), (FICHE, "cac40_strategies.csv"),
-                             ("donnees/claude_journal_trades.csv", "journal_trades.csv"),
-                             ("donnees/claude_positions_ouvertes.csv", "positions_ouvertes.csv")):
+            for src, nom in les_entrees_du_site(racine):   # R-708 : la table de la publication (N2, 18-11-2026)
                 shutil.copy2(os.path.join(racine, src), os.path.join(plat, nom))
-            open(os.path.join(plat, "historique_mesures.csv"), "wb").write(histo_octets)
+            # l'historique copié par la table est REMPLACÉ par les octets du cas (après la copie, jamais avant)
+            open(os.path.join(plat, os.path.basename(HISTO)), "wb").write(histo_octets)
             p = subprocess.run([sys.executable, "-B", os.path.join(racine, COCKPIT), plat, sortie], cwd=plat,
                                capture_output=True, text=True, timeout=DELAI)
             pages = glob.glob(os.path.join(sortie, "*.html"))

@@ -527,6 +527,30 @@
     "--jouer"
    ],
    "pourquoi": "décisions de Jean-Luc A-853 (16-11-2026 à 15h18) et A-861 (16-11-2026 à 20h05) : la moulinette des 20 ans s'éprouve sur une fiche d'essai C5 2000-2026 qui ne vit que dans une copie jetable du registre ; programmes/PREPARER_LA_MOULINETTE_D_ESSAI.py prépare la copie du circuit (sans .git) puis, avec --jouer, lance programmes/JOUER_LES_VERSIONS.py sur UNE version (la fiche elle-même) avec --cours= le fichier des 20 ans ; résultats sur la sortie standard, donc au privé seulement (SORTIE.txt, A-835). Durée estimée, non mesurée sur 26 ans : environ 45 s fixes plus environ 13 s par jeu de la fiche, 5 jeux, soit environ 2 min (mesure locale du 16-11-2026 : 1,2 s par version sur 644 séances, × 6864/644 séances) ; 2695 versions en demanderaient environ 574 min, au-delà des 330 d'une machine. ATTENTION, mesuré le 16-11-2026 : sur 2000-2023 le juge refuse la fiche (garde M puis RegardNonInscrit, fenêtre du regard unique) ; l'épreuve rend 1 tant que Jean-Luc n'a pas tranché"
+  },
+  "Carnet": {
+   "chemin": "tests/EPREUVES_DU_CARNET_DE_LA_VRAIE_VIE_Lun_16-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "ajoutée le 18-11-2026 sur la branche travail-carnet2 : relecture du tour 3 du carnet (D2 : épreuve absente de cette table, donc jouée nulle part depuis que la certification du dépôt privé est coupée, 11-10-2026, A-543) ; superviseur R-759 du 18-11-2026 : « geste immédiat, acceptable seulement avec ce trou consigné » ; 659 s mesurées le 18-11-2026 à 14h20 sur la machine du Chat (2 processeurs, autres travaux en cours, sans couverture), 15 sabotages sur 15 mordent ; aucun délai propre : l'épreuve est coupée au plafond du job, DELAI = 320*60 (tests/outils/jouer_une_epreuve_longue.py l.68), le joueur ne lit pas la table « delais »"
+  },
+  "UnIdentifiant": {
+   "chemin": "tests/EPREUVES_UN_IDENTIFIANT_UNE_EMPREINTE_Sam_14-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "ajoutée le 18-11-2026 sur la branche travail-carnet2 : relecture du tour 3 du carnet (D2 : épreuve absente de cette table, donc jouée nulle part depuis que la certification du dépôt privé est coupée, 11-10-2026, A-543) ; superviseur R-759 du 18-11-2026 : « geste immédiat, acceptable seulement avec ce trou consigné » ; 96 s mesurées le 18-11-2026 à 14h34 sur la machine du Chat (2 processeurs, autres travaux en cours, sans couverture), verdict conforme ; aucun délai propre : l'épreuve est coupée au plafond du job, DELAI = 320*60 (tests/outils/jouer_une_epreuve_longue.py l.68), le joueur ne lit pas la table « delais »"
+  },
+  "CockpitRadar": {
+   "chemin": "tests/EPREUVES_DU_COCKPIT_AU_RADAR_Mer_30-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "ajoutée le 18-11-2026 sur la branche travail-carnet2 : relecture du tour 3 du carnet (D2 : épreuve absente de cette table, donc jouée nulle part depuis que la certification du dépôt privé est coupée, 11-10-2026, A-543) ; superviseur R-759 du 18-11-2026 : « geste immédiat, acceptable seulement avec ce trou consigné » ; 192 s mesurées le 18-11-2026 à 14h42 sur la machine du Chat (2 processeurs, autres travaux en cours, sans couverture), 16 sabotages sur 16 rougissent ; aucun délai propre : l'épreuve est coupée au plafond du job, DELAI = 320*60 (tests/outils/jouer_une_epreuve_longue.py l.68), le joueur ne lit pas la table « delais »"
   }
  }
 }
