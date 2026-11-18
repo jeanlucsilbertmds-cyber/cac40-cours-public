@@ -1694,9 +1694,12 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
     ⑩ EFFET — Lit des fichiers (pour tout fichier autre que le maître, aussi ceux des opérations sur
       titre, par ASSEMBLER_LES_VINGT_ANS et RECONSTRUIRE_L_HISTORIQUE_LONG). N'écrit rien.
     ⑪ TERMINAISON — Rend la main, ou lève ValueError (courbe impossible, nature contredite ou
-      opérations illisibles : message commençant par « la courbe des calculs », depuis le tour 3
-      de LU2 pour TOUS les refus de la courbe ; AttributeError seulement si le contrat ne déclare
-      pas FICHIERS_DE_COURS_AU_COURS_BRUT ; lecture refusée, voir ⑥ ②, message
+      source des opérations illisible ou absente : message commençant par « la courbe des
+      calculs », depuis le tour 3 de LU2 pour TOUS les refus de la courbe ; une source des
+      opérations lisible mais d'une forme inattendue laisse passer l'erreur brute, sans ce début —
+      AttributeError ou TypeError, mesurés par Cowork le 15-11-2026, E-1 ; voir le ⑪ de
+      `COURBE_DES_CALCULS.courbe_si_le_fichier_est_brut` ; AttributeError aussi si le contrat ne
+      déclare pas FICHIERS_DE_COURS_AU_COURS_BRUT ; lecture refusée, voir ⑥ ②, message
       commençant par « le lecteur unique ») ou l'erreur du lecteur (OSError, ValueError) ou de la
       traduction (ValueError, « le lecteur unique rend … sous la même clé », pour deux mnémoniques
       d'une même clé). Aucun de mes appels ne peut ne pas revenir.

@@ -94,6 +94,10 @@ VER = "programmes/TENIR_L_HISTORIQUE.py"
 # Les gros dossiers de sources que ni le détecteur ni le teneur ne lisent (le lecteur lit le maître) : hors de la copie.
 # Tout cas qui fait lire au juge un fichier AUTRE que le maître a besoin d'eux (garde de nature de la courbe, LU2,
 # 15-11-2026) : un tel cas écrit donc dans le maître de la copie et le rend à ses octets d'origine (C3b).
+# CE QUI CLOCHE (Cowork, RELU du 15-11-2026 20h18, F-7) : la restauration du maître dans le « finally » de C3b n'est
+# gardée par AUCUN cas. La retirer laisse Z0 inchangé, parce que les cas suivants réécrivent le maître par
+# `ecrire_maitre` juste après (dès « ecrire_maitre(lambda x: x["date"] <= "2026-10-22") », au cas suivant). Elle est
+# vraie (mesurée par empreinte à la première relecture du 15-11-2026), mais non gardée — BACKLOG.
 SANS = ("sources_yahoo", "sources_bnains", "sources_francfort")
 SABOTAGES = {
     "Z0": [],

@@ -58,7 +58,16 @@ PROPOSÉ, non validé. Simulation uniquement.
   les GRANDES opérations (|facteur − 1| au-delà du seuil de R-104) : un fichier sans aucune dans ses dates
   (INDÉCIDABLE : le maître, la référence Google, une copie partielle du témoin) passe sous les deux règles, et ses
   petites opérations (droits, actions gratuites) ne sont pas corrigées, sans que rien le voie ; un krach de plus que le
-  seuil le jour d'une grande opération ferait lire « vue » sur un fichier corrigé. · Le maître est exempté de la
+  seuil le jour d'une grande opération ferait lire « vue » sur un fichier corrigé. · UNE ZONE DE FACTEURS OÙ LA GARDE
+  NE DISTINGUE PAS CORRIGÉ ET BRUT (Cowork, RELU du 15-11-2026 20h41 sur da2e0f23, M-4) : une opération est « vue »
+  quand |r ÷ f − 1| ≤ s (r : quotient des clôtures autour de la date ; s : le seuil de R-104, 0,25 le 18-11-2026), et
+  « grande » quand |f − 1| > s. Sur une courbe CORRIGÉE, r ≈ 1 : pour f dans ]1 + s ; 1 ÷ (1 − s)], soit ]1,25 ;
+  1,333…] (un regroupement de 3 actions en 4, par exemple), l'opération est vue aussi bien au brut que corrigée. Effets :
+  la mesure de sortie arrêterait une courbe juste ; un fichier DÉJÀ corrigé et déclaré au brut passerait la règle 1
+  sans bruit, puis serait corrigé une seconde fois ; un fichier corrigé non déclaré serait refusé à tort. Mesuré le
+  18-11-2026 sur les 88 opérations, aucun facteur dans cette zone (les seuls au-dessus de 1, par mnémonique : AI
+  2012-05-31 ×1,0023 ; MT 2017-05-18 ×3 ; AC 2010-07-02 ×1,0040). À borner, ou à refuser le jour où un tel facteur
+  entre (BACKLOG). · Le maître est exempté de la
   garde (le fichier par défaut du lecteur, LIRE_LES_COURS.FICHIER_DES_COURS) : quand il manque,
   `fichiers_de_cours` du juge se rabat sur la référence Google, qui est alors mesurée (INDÉCIDABLE, elle passe). ·
   La garde ne répond pas à une division FUTURE d'une valeur du CAC 40 : ABC donne des cours bruts, et la fausse chute
@@ -281,7 +290,14 @@ def operations_par_mnemonique(table, norm, connus, ops):
       que `assembler`). Jusqu'au tour 3, un nom sans mnémonique était LAISSÉ : ses opérations disparaissaient en silence
       (Cowork, RELU de 4be799c3, N-1 : CARREFOUR renommé, sa courbe gardait le brut) ; superviseur R-759 de LU2, tour 3,
       § 2 ① : « la totalité ». Mesuré le 15-11-2026 : 39 noms d'univers et 34 noms d'opérations, 0 sans mnémonique.
-    ⑨ CE QUI CLOCHE — Le rangement est écrit aussi, en ligne, dans `assembler` (R-708) — BACKLOG.
+      LA TOTALITÉ DONNE LE MESSAGE, L'INDEXATION DONNE L'ARRÊT (Cowork, RELU du 15-11-2026 20h41, M-3) : sans la
+      totalité, un nom d'opération sans mnémonique lèverait déjà KeyError à `m = table[norm(v)]`, et un nom de
+      l'univers à `{table[norm(v)] for v in connus}` ; la totalité ajoute le message lisible. Un retour futur à
+      `table.get(...)` suivi de `continue` retirerait l'arrêt : seule la mesure de sortie de
+      `courbe_si_le_fichier_est_brut` le garderait, et pour les seules GRANDES opérations.
+    ⑨ CE QUI CLOCHE — Le rangement est écrit aussi, en ligne, dans `assembler` (R-708) — BACKLOG. · La moitié
+      « univers » de la totalité (`set(connus)`) n'est gardée par aucun cas : la retirer laisse le jeu d'essais vert, parce que
+      l'indexation lève encore (Cowork, M-3, son sabotage SY3) — BACKLOG.
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main ou lève ValueError.
       [sort: non]
@@ -390,9 +406,20 @@ def courbe_si_le_fichier_est_brut(racine, lecteur, cours):
     ⑨ CE QUI CLOCHE — Voir le ⑨ du programme (INDÉCIDABLE ; repli sur la référence Google quand le maître manque ;
       sociétés sorties). · Le contrôle de sortie ⑤ ne voit que les GRANDES opérations : une valeur qui perdrait
       seulement ses droits ou ses actions gratuites (moins de 25 %) passerait (le cas INDÉCIDABLE ; BACKLOG N-2 / LU2-8).
+      · LE MESSAGE DE LA MESURE DE SORTIE DIT L'INVERSE DE LA CAUSE (Cowork, RELU du 15-11-2026 20h41, M-2) : elle
+      emprunte la règle 2 de `garder_la_nature`, dont le texte dit « … n'est pas déclaré au cours brut … (le fichier
+      est au brut) » ; or le fichier EST déclaré, et c'est la COURBE qui n'a pas corrigé l'opération. Un lecteur qui
+      suit le message ira vérifier la déclaration, qui n'est pas en cause. Un texte propre est au BACKLOG (réparation
+      d'un contrôle : superviseur R-759 d'abord). · L'emballage de l'erreur de lecture des opérations (« les opérations
+      ne se lisent pas ») n'est gardé par aucun cas au dépôt : le retirer laisse le jeu d'essais vert (Cowork, M-1,
+      sabotage SY1 ; relecture du 15-11-2026 20h18, F-8 : un jeu écrit hors dépôt le garde) — BACKLOG.
     ⑩ EFFET — Celui de `lire_les_operations` pour tout fichier autre que le maître ; aucun pour le maître.
-    ⑪ TERMINAISON — Rend la main, ou lève ValueError dont le message commence par « la courbe des calculs », ou
-      AttributeError si le contrat ne déclare pas FICHIERS_DE_COURS_AU_COURS_BRUT.
+    ⑪ TERMINAISON — Rend la main ; ou lève ValueError dont le message commence par « la courbe des calculs » — pour
+      tout refus de la courbe et pour une source des opérations ILLISIBLE OU ABSENTE (OSError ou ValueError de la
+      lecture) ; ou AttributeError si le contrat ne déclare pas FICHIERS_DE_COURS_AU_COURS_BRUT. Une source abîmée
+      autrement (lisible, mais d'une forme inattendue) laisse passer l'erreur brute, sans ce début de message —
+      mesuré par Cowork le 15-11-2026 (E-1) : `evenements.json` enveloppé dans une liste rend AttributeError, une
+      liste « divisions » à null rend TypeError. L'emballage n'est pas élargi par une liste de types (même relecture).
       [sort: non]
     """
     if chemin_declare(racine, cours["fichier"]) == chemin_declare(racine, lecteur.FICHIER_DES_COURS):
