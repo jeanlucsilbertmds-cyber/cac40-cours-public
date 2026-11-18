@@ -560,8 +560,9 @@ def bout_en_bout(d):
     attente = dict(strategie="C5E10-OBS-V1", valeur="VINCI", date_signal="2024-06-06", date_entree="",
                    prix_entree="EN_ATTENTE", tp="EN_ATTENTE", sl="EN_ATTENTE", horizon_fin="EN_ATTENTE",
                    statut="EN_ATTENTE_ENTREE", comptabilite="jetons_illimites", regles_pre_trade="", explication="epreuve")
-    # (a) AUCUNE FICHE VIVANTE
-    lignes = [dict(l, statut=(l.get("statut") or "").replace("VIVANTE", "FERMEE_EPREUVE")) for l in origine]
+    # (a) AUCUNE FICHE VIVANTE — fermées par leur ÉTAT DE VIE depuis le 18-11-2026 (étape E8, A-644 ; R-513 ① : le soir
+    # choisit ses fiches sur `etat_vie` par `suivie_par_le_soir` du contrat ; `statut` n'est plus qu'un affichage)
+    lignes = [dict(l, etat_vie="VECUE-PUIS-ARCHIVEE") if _K.suivie_par_le_soir(l) else l for l in origine]
     ecrire(lignes, {"seance": "2024-06-07", "signaux": []}, [attente])
     c, o = run(d, TEN, d)
     j = lire("claude_journal_trades.csv")
@@ -600,7 +601,7 @@ def bout_en_bout(d):
     # que le détecteur affiche, « ⛔ GARDE DU SOIR — la fiche X n'est PAS suivie ».
     import re
     refusees = set(re.findall(r"⛔ GARDE DU SOIR — la fiche (\S+) n'est PAS suivie", od))
-    vivantes = {l["id"] for l in lignes if "VIVANTE" in (l.get("statut") or "")}
+    vivantes = {l["id"] for l in lignes if _K.suivie_par_le_soir(l)}
     suivies = vivantes - refusees
     recoivent = {p["strategie"] for p in pos}
     ok = (cd == 0 and c == 0 and "C5E10-QA-V1" in refusees and bool(recoivent) and recoivent <= suivies

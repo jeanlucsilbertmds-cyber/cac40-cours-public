@@ -1543,6 +1543,48 @@ CONTRATS_PAR_FICHIER = {
 }
 
 
+# LES ÉTATS DE VIE QUE LE CIRCUIT DU SOIR SUIT (étape E8 du planning, plan V7 bloc 9, BACKLOG A-644 ; R-513 ①, loi
+# préparée par le Chat sous la délégation de Jean-Luc du 01-11-2026, non figée : « Lire l'état d'une fiche dans la seule
+# colonne `etat_vie` »). Ce sont les deux états de la station EN VIE que la table de R-513 affiche « ⭐ VIVANTE » :
+# `QA` (l'épreuve du vivant) et `PRODUCTION` (jouable en vrai). `SUSPENDUE`, aussi à la station EN VIE, n'y est PAS :
+# la même table ne lui donne aucun affichage « VIVANTE », et le soir ne la suivait donc pas avant le 18-11-2026. Jusqu'au
+# 18-11-2026, le détecteur et le teneur des positions lisaient chacun, par une copie du même critère, la colonne
+# d'affichage `statut` (« contient VIVANTE ») ; mesuré le 18-11-2026 sur la dernière ligne des 68 fiches : les deux
+# critères désignent les mêmes fiches (C5E10-QA-V1 et C5E10-OBS-V1), le changement ne change donc rien ce soir-là.
+ETATS_SUIVIS_PAR_LE_SOIR = ("QA", "PRODUCTION")
+
+
+def suivie_par_le_soir(fiche):
+    """Dit si le circuit du soir doit suivre une fiche : son état de vie le demande, et elle déclare ses valeurs.
+
+    ① RÔLE — LE critère « cette fiche est une stratégie décidée, que le soir fait tourner », une fois pour le détecteur
+      des signaux et pour le teneur des positions. Il ne juge pas la fiche : la garde du soir (`fiche_suivie` du juge)
+      dit ensuite si elle est jouable, et la met à part avec son motif sinon.
+    ② CONTEXTE D'APPEL — `fiches_du_soir` de programmes/DETECTER_LES_SIGNAUX_GITHUB.py ; `tenir_pour_de_vrai` de
+      programmes/TENIR_LES_POSITIONS.py ; les épreuves du soir.
+    ③ ENTRÉE — `fiche` : une ligne du registre des stratégies, la DERNIÈRE de son identifiant (n°83, `fiches_du_registre`).
+    ④ CONDITIONS D'ENTRÉE — Aucune : une case absente vaut vide.
+    ⑤ SORTIE — UNE valeur : vrai si `etat_vie`, sans blancs de bord et en majuscules, est dans ETATS_SUIVIS_PAR_LE_SOIR
+      et si `univers` n'est pas vide. Exemple réel : C5E10-QA-V1 (`etat_vie` « QA », univers « EN,BVI,FGR,RNO,URW,VIE »)
+      → vrai ; IND-001-RETEST (`LABO`) → faux.
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire `etat_vie` et `univers`, comparer.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Jean-Luc décide, et sa décision s'écrit dans l'état de la fiche (plan V7, bloc 5m ⑥ : « son état passe à
+      celui que la règle prévoit ; le circuit du soir applique alors la durée et les réglages de cette fiche ») ; R-513 :
+      l'état se lit à un seul endroit, `statut` n'est qu'un affichage. Le critère était écrit deux fois (détecteur,
+      teneur) : deux écritures d'une même chose divergent toujours (R-708).
+    ⑨ CE QUI CLOCHE — Une fiche à `statut` « ⭐ VIVANTE » mais `etat_vie` hors de ces deux états n'est plus suivie, sans
+      un mot ici : c'est la fiche « à deux stations » que `tests/EPREUVE_UNE_STATION_PAR_FICHE_Mer_04-11-2026.py` fait
+      rougir (R-513 ③), pas ce critère.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    etat = (fiche.get("etat_vie") or "").strip().upper()
+    return etat in ETATS_SUIVIS_PAR_LE_SOIR and bool((fiche.get("univers") or "").strip())
+
+
 def noms_d_une_strategie(ligne_du_registre):
     """Rend les noms sous lesquels le journal des trades peut écrire une stratégie.
 
