@@ -1,0 +1,4 @@
+circuit=series
+serie=Yahoo
+pointe=182d44099845872cbc53646cba4d2c49257b4f47
+apres=DEMANDE_2026-11-18_13h04@essai-file-demandes-18-11-2026
