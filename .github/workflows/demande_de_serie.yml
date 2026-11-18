@@ -1,4 +1,4 @@
-# ESSAI DU 18-11-2026 SUR UNE BRANCHE D'ESSAI (jamais main) : copie du relais fabriqué, trois écarts — la branche d'essai admise comme version et comme cible de apres=, et AUCUN lancement (écho seulement).
+# ESSAI DU 18-11-2026 SUR UNE BRANCHE D'ESSAI (jamais main) : copie du relais fabriqué (commit 6eb0f13c du privé), trois écarts — la branche d'essai admise comme version et comme cible de apres=, et AUCUN lancement (écho seulement).
 # DEMANDE DE SERIE — LE RELAIS ET LA FILE DES DEMANDES — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
 # Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement.
 # À QUOI IL SERT. Lancer le circuit des séries longues (series_longues.yml), les épreuves longues d'un tenant
@@ -17,7 +17,7 @@
 # motifs tirés de la table des séries (tests/LANCEMENT_DES_EPREUVES.json) : une demande refusée rougit ce passage ;
 # ② il lit les passages des trois circuits ; ③ il donne un état à chaque demande : PERIMEE (son nom a plus de 24 h),
 # INVALIDE (dit pourquoi), ANTERIEURE (déposée avant le relais en service : servie par un relais d'avant), HERITEE
-# (trouvée sur une version en attente, mais déposée sur main), SERVIE, A BLANC (« a_blanc=oui » : jamais lancée),
+# (trouvée sur une version en attente mais déposée sur main, ou arrivée sur sa branche par une fusion), SERVIE, A BLANC (« a_blanc=oui » : jamais lancée),
 # BLOQUEE (« apres=<identifiant> » nomme une demande dont le passage a échoué, ou qui ne sera jamais lancée),
 # EN ATTENTE ; ④ il lance la plus ancienne EN ATTENTE dont le circuit est libre (aucun passage en cours ou en attente :
 # GitHub n'en garde qu'un en attente par groupe ; les séries et les épreuves partagent un groupe) et dont la demande
@@ -266,11 +266,15 @@ jobs:
               if grep -qi "could not find" "$D/erreur_gh"; then echo "::error::DEMANDE REFUSEE : le circuit $F est inconnu de GitHub au depot public (le relais et $F s installent dans la meme publication, puis une demande a_blanc=oui)"; else echo "::error::DEMANDE REFUSEE : passages de $F illisibles"; fi
               exit 1; }
           done
-          # 4. les demandes de chaque version, la plus ancienne d'abord (heure du nom, puis branche)
+          # 4. les demandes de chaque version, la plus ancienne d'abord (heure du nom, puis branche) ; et, par version,
+          # les commits de sa ligne propre (premier parent) : une demande appartient à la version où elle a été
+          # déposée, pas à celle qui l'a reçue de main ou par une fusion (HERITEE)
           : > "$D/file"
+          : > "$D/premiers_main"
           while IFS= read -r ref; do
             b="${ref#refs/remotes/origin/}"
             [[ "$b" =~ ^(main|travail-[A-Za-z0-9._-]+|essai-file-demandes-18-11-2026)$ ]] || continue
+            git rev-list --first-parent "$ref" > "$D/premiers_$b" || { echo "::error::historique de la version $b illisible"; exit 1; }
             while IFS= read -r f; do
               if [[ "$f" =~ ^demandes/DEMANDE_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}[.]txt$ ]]; then
                 h="${f#demandes/DEMANDE_}"
@@ -301,8 +305,10 @@ jobs:
                 etat="INVALIDE : commit d'ajout introuvable"
               elif [ "$(git log -1 --format=%ct "$commit")" -lt "$RELAIS_DEPUIS" ]; then
                 etat="ANTERIEURE"
-              elif [ "$b" != "main" ] && git merge-base --is-ancestor "$commit" refs/remotes/origin/main 2>/dev/null; then
+              elif [ "$b" != "main" ] && grep -qx "$commit" "$D/premiers_main"; then
                 etat="HERITEE (deposee sur main)"
+              elif ! grep -qx "$commit" "$D/premiers_$b"; then
+                etat="HERITEE (arrivee par une fusion)"
               elif [ "$(git rev-parse "refs/remotes/origin/$b:$f")" != "$(git rev-parse "$commit:$f")" ]; then
                 etat="INVALIDE : modifiee apres son depot"
               elif ! parent=$(git rev-parse -q --verify "$commit^1"); then
