@@ -1,0 +1,26 @@
+# ESSAI A-896 (18-11-2026) : comportement reel de concurrency.queue sur ce compte. Branche d'essai, jamais main.
+# Simulation uniquement. A supprimer apres mesure.
+name: Essai queue max
+on:
+  push:
+    branches: [essai-queue-max-18-11-2026]
+concurrency:
+  group: essai-queue-max
+  cancel-in-progress: false
+  queue: max
+permissions:
+  contents: read
+jobs:
+  attendre:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      max-parallel: 2
+      matrix:
+        n: [1, 2]
+    steps:
+      - name: occuper une place 90 s
+        run: |
+          echo "debut $(date -u +%H:%M:%S) run=${{ github.run_id }} n=${{ matrix.n }} sha=${{ github.sha }} runner=$RUNNER_NAME"
+          sleep 90
+          echo "fin $(date -u +%H:%M:%S)"
