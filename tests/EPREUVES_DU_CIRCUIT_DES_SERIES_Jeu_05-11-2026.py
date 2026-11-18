@@ -36,8 +36,9 @@
   retiré du privé → 0, retiré du public · X2 un crochet « post-receive » du public remet la branche à son ancienne
   pointe après la poussée → 1, « n'est pas le commit poussé ». N1 le filet des gabarits accepte le gabarit
   des séries, et refuse ce gabarit privé de « persist-credentials: false », puis d'un « shell: bash » d'un pas qui
-  reçoit le jeton ; « max-parallel » du gabarit vaut PARTS_EN_MEME_TEMPS, et PARTS_EN_MEME_TEMPS plus la marge des
-  autres circuits ne dépasse pas les tâches simultanées du compte (15-11-2026) ; le joueur des parts et le rassembleur sont lancés sous
+  reçoit le jeton ; « max-parallel » du gabarit vaut PARTS_EN_MEME_TEMPS, et la largeur CALCULÉE des circuits
+  fabriqués tient dans les tâches simultanées du compte (`refus_de_la_largeur`, A-884, 17-11-2026 ; avant : la
+  part plus une marge écrite à la main, 15-11-2026), celle du circuit des séries valant PARTS_EN_MEME_TEMPS ; le joueur des parts et le rassembleur sont lancés sous
   « unshare -rn » · N2 (tour 3, M-2) le filet accepte le gabarit (T0) et refuse F1 à F7 : jeton dans l'env du job,
   du circuit, toJSON(secrets), secrets['…'], un pas bash à jeton qui lance un programme de la version, qui écrit ou
   copie vers $GITHUB_ENV, qui écrit une variable dans un fichier (F5 à F7 ajoutés AVANT le code de la version, pour
@@ -281,8 +282,8 @@ SABOTAGES = {
     "SGP7_branches_du_prive_au_journal": [(FABRICANT, '''          [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }''',
                                            '''          echo "$tetes" | cut -f2 | grep travail- || true
           [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }''')],
-    "SN1_parts_au_dela_du_budget": [(FABRICANT, "PARTS_EN_MEME_TEMPS = TACHES_EN_MEME_TEMPS_DU_COMPTE - MARGE_DES_AUTRES_CIRCUITS\n",
-                                     "PARTS_EN_MEME_TEMPS = 16\n")],
+    "SN1_parts_au_dela_du_budget": [(FABRICANT, "\nPARTS_EN_MEME_TEMPS = ",
+                                     "\nPARTS_EN_MEME_TEMPS = TACHES_EN_MEME_TEMPS_DU_COMPTE - 1  # ")],
     "SG3_pointe_non_comparee": [(FABRICANT, '''          [ -n "$pointe" ] && [ "$(git -C "$GITHUB_WORKSPACE" -c core.hooksPath=/dev/null rev-parse HEAD)" = "$pointe" ] ||''',
                                  '''          true ||''')],
     "SG4_meme_depot_non_compare": [(FABRICANT, '''          [ "$(git rev-parse HEAD)" = "$SHA" ] ||''', '''          true ||''')],
@@ -974,11 +975,20 @@ def tour(racine):
             finally:
                 serveur.shutdown()
                 serveur.server_close()
-        # N1 (15-11-2026, superviseur R-759 2.6) : une propriété, pas un nombre recopié — le budget des parts plus la
-        # marge des autres circuits tient dans les tâches simultanées du compte, et le gabarit écrit ce budget
-        if F.PARTS_EN_MEME_TEMPS + F.MARGE_DES_AUTRES_CIRCUITS > F.TACHES_EN_MEME_TEMPS_DU_COMPTE:
-            faux.append(f"N1 (max-parallel {F.PARTS_EN_MEME_TEMPS} + marge {F.MARGE_DES_AUTRES_CIRCUITS} > "
-                        f"{F.TACHES_EN_MEME_TEMPS_DU_COMPTE} tâches du compte)")
+        # N1 (15-11-2026, superviseur R-759 2.6 ; A-884, 17-11-2026) : une propriété, pas un nombre recopié — la largeur
+        # de chaque circuit fabriqué se CALCULE sur sa fiche (`largeur_d_une_fiche`), et les circuits qui ne doivent
+        # jamais attendre plus les circuits longs tiennent dans les tâches simultanées du compte (`refus_de_la_largeur`) ;
+        # avant le 17-11, N1 comparait la part à une marge écrite à la main (10), restée verte à 16 + 10 = 26 > 20
+        soir_n1 = F.fabriquer_le_circuit(open(os.path.join(racine, ".github", "workflows", "collecte_abc.yml"),
+                                              encoding="utf-8").read())
+        fiches_n1 = {c.split("/")[-1]: o.decode("utf-8") for c, o in F.ce_que_la_publication_ecrit(racine, [], [], soir_n1)
+                     if c.startswith(".github/workflows/")}
+        refus_n1, _ = F.refus_de_la_largeur(fiches_n1)
+        if refus_n1:
+            faux.append(f"N1 (largeur calculée des circuits fabriqués : {refus_n1})")
+        if F.largeur_d_une_fiche(F.SERIES) != (F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS):
+            faux.append(f"N1 (largeur calculée du circuit des séries {F.largeur_d_une_fiche(F.SERIES)} au lieu de "
+                        f"{(F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS)})")
         if F.SERIES.count("max-parallel: %d\n" % F.PARTS_EN_MEME_TEMPS) != 1:
             faux.append("N1 (le gabarit n'écrit pas max-parallel = PARTS_EN_MEME_TEMPS)")
         lances = [l.strip() for l in F.SERIES.split("\n") if '.py "$RUNNER_TEMP/depot"' in l]

@@ -737,13 +737,33 @@ RATTRAPAGE_PUBLIC = "${{ needs.faut_il_tourner.outputs.rattrapage }}"
 # de 6 600 s : 12 est le premier nombre vert. La décision du 30-10-2026 « 8 tranches » (A-711) est dépassée par
 # cette mesure. N5 reste l'ALARME : la nuit grossit d'environ 35 lancements par semaine (126 le 10-11, 161 le
 # 14-11, 170 sur main), et elle rougira de nouveau. LE MUR : GitHub n'accepte que 20 tâches simultanées sur un
-# compte gratuit ; la certification en prend 12 (plus « preparer » et « reunir », qui ne tournent pas en même temps
-# que les tranches) et le circuit des séries jusqu'à 16 (PARTS_EN_MEME_TEMPS) : lancés ensemble, l'un attend l'autre
-# (file d'attente supposée, non mesurée). Augmenter encore ce nombre approche ce mur. Les charges ne sont pas
+# compte gratuit. Jusqu'au 18-11-2026, la certification en prenait 12 à côté des circuits longs (18) : lancés
+# ensemble, l'un attendait, et une tranche en file pouvait prendre une place du soir. Depuis A-896 (plus bas, avant
+# TRANCHES_DE_LA_NUIT), la certification est dans la file unique des circuits longs : elle n'ajoute plus de places,
+# elle attend son tour ; au-delà de PARTS_EN_MEME_TEMPS tranches, les tranches de trop attendent dans le passage même
+# (« max-parallel »). Les charges ne sont pas
 # recopiées ici (R-728 : ce qui se calcule ne s'écrit pas à la main) : `repartir` les calcule à chaque nuit, chaque
 # certificat partiel les porte (« charges_prevues_secondes »), et tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py
 # (N5) les recalcule et rougit quand une tranche dépasse ce tiers : il faut alors augmenter ce nombre.
-TRANCHES_DE_LA_NUIT = 12
+TACHES_EN_MEME_TEMPS_DU_COMPTE = 20     # « 20 total concurrent jobs », offre gratuite, docs.github.com lu le 15-11-2026
+PARTS_EN_MEME_TEMPS = 18  # décision de Jean-Luc A-888 du 17-11-2026 22h30 : 2 places toujours libres pour le soir et le relais
+# LE GROUPE DE CONCURRENCE COMMUN (son commentaire complet est plus bas, avant SERIES_BRANCHES) : depuis A-896, la
+# certification le porte aussi. Écrit ici parce que le gabarit de la certification, plus haut que ce commentaire, le lit.
+GROUPE_DES_MACHINES_LONGUES = "series-longues"
+# 15 TRANCHES ET UNE FILE UNIQUE (A-896, décision de Jean-Luc du 18-11-2026 à 12h25, « si c'est la meilleure solution
+# possible, la plus optimum, ben à ce moment-là, prends le 1, la file unique », pour l'option « Une file unique : 18
+# places au maximum et 2 laissées libres, 15 tranches, après un essai de 10 min de queue: max »). Pourquoi 15 : la mesure
+# par les fonctions de la certification sur les journaux (etudes/C3_C4_TRANCHES_DE_LA_CERTIFICATION_Mer_18-11-2026.md,
+# § 2) ; les charges ne sont pas recopiées ici : N5 de tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py les RECALCULE
+# chaque nuit (superviseur R-759 du 18-11-2026, E5/E6). Pourquoi la file unique : GitHub ne RÉSERVE aucune place
+# (relecture D1 de A-884) ; la certification porte donc le même groupe que les séries et les épreuves longues
+# (GROUPE_DES_MACHINES_LONGUES) avec « queue: max » : un seul passage du groupe tourne, au plus PARTS_EN_MEME_TEMPS tâches.
+# Parmi les circuits COMPTÉS du dépôt public (`refus_de_la_largeur`), les deux places du soir et du relais restent libres ;
+# ni les fiches « peut attendre » du dépôt public, ni les circuits du dépôt privé ne sont comptés. Essai réel du 18-11-2026 (dépôt public, branche essai-queue-max-18-11-2026, passages
+# 44295116680, 44295145189, 44295170760 contre 44295116696, 44295145099, 44295170796) : trois poussées en 20 s ; avec
+# « queue: max », trois passages réussis l'un après l'autre, dans l'ordre, ceux en attente sans aucune tâche (aucune
+# place prise) ; sans elle, le deuxième « cancelled ».
+TRANCHES_DE_LA_NUIT = 15
 # LES ESSAIS DE POUSSÉE D'UNE TÂCHE DE LA CERTIFICATION : le nombre de tranches PLUS TROIS. Choix technique du Chat
 # (31-10-2026), pas une décision de Jean-Luc. Sa raison est une loi, mesurée par le superviseur R-759 du 31-10-2026
 # (simulation `sup_N/course.sh` : six clones poussent vers un même dépôt à la même seconde) : un essai d'une tranche ne
@@ -1184,8 +1204,9 @@ on:
   schedule:
     - cron: "0 21 * * 1-5"
 concurrency:
-  group: certifier-la-version
+  group: %(groupe)s
   cancel-in-progress: false
+  queue: max
 permissions:
   contents: read
 jobs:
@@ -1214,6 +1235,8 @@ jobs:
     strategy:
       # une tranche rouge n'arrête pas les autres : la tâche finale doit voir chacune
       fail-fast: false
+      # la file unique (A-896) : jamais plus de tranches en même temps que les circuits longs
+      max-parallel: %(en_meme_temps)d
       matrix:
         tranche:
 %(tranches)s%(defaults)s    steps:
@@ -1250,6 +1273,7 @@ jobs:
     # séries (`depart_pour`, SERIES_MEME_DEPOT), sans en écrire un second (R-708) ; le jeton reste au clonage, comme
     # avant, pour la poussée de `pas_de_depot`
     "prive": DEPOT_PRIVE, "meme_depot": SERIES_MEME_DEPOT,
+    "groupe": GROUPE_DES_MACHINES_LONGUES, "en_meme_temps": PARTS_EN_MEME_TEMPS,
     "depart": depart_pour(os.path.basename(CIRCUIT_CERTIFICATION), "de certification",
                           ref="${{ needs.preparer.outputs.sha }}", jeton_garde=True),
     # A-891 (17-11-2026) : le SEUL job « certifier » pose en plus les versions comparées de l'empreinte, en une pose, la
@@ -1289,14 +1313,24 @@ jobs:
 # dans la file. Mesure du gain gardé : les 28 lancements longs passent de 776 min un à un à 83,5 min sur 10 machines
 # (le plancher, la lecture des cours `--saboter`, 5 007 s), comme sur 16. Le budget est la différence de deux nombres
 # écrits UNE fois ici ; le calcul de la marge à partir des fiches elles-mêmes reste à faire (BACKLOG, étape GHUB ②).
-TACHES_EN_MEME_TEMPS_DU_COMPTE = 20     # « 20 total concurrent jobs », offre gratuite, docs.github.com lu le 15-11-2026
-MARGE_DES_AUTRES_CIRCUITS = 10          # largeur simultanée des autres fiches publiques, relevée le 15-11-2026
-PARTS_EN_MEME_TEMPS = TACHES_EN_MEME_TEMPS_DU_COMPTE - MARGE_DES_AUTRES_CIRCUITS
+# LA MARGE N'EST PLUS ÉCRITE, ELLE SE CALCULE (A-884, 17-11-2026) : la constante MARGE_DES_AUTRES_CIRCUITS (10) a divergé
+# le jour même de son écriture — la certification est passée de 6 à 12 tranches — et 16 + 10 = 26 > 20 n'a été vu par
+# aucune épreuve (étude etudes/A-884_GITHUB_AU_MAXIMUM_Mar_17-11-2026.md, § 0). Elle est retirée : la largeur de chaque
+# circuit public se calcule sur sa fiche (`largeur_d_une_fiche`), et `refus_de_la_largeur` exige que les circuits qui ne
+# doivent jamais attendre (le soir, le relais) plus les circuits longs (séries et épreuves, un seul groupe) tiennent dans
+# TACHES_EN_MEME_TEMPS_DU_COMPTE ; la publication refuse sinon (`fabriquer_et_publier`).
+# (TACHES_EN_MEME_TEMPS_DU_COMPTE est écrite plus haut, avant TRANCHES_DE_LA_NUIT : A-896, la certification la lit.)
+# LA LARGEUR CIBLE DES CIRCUITS LONGS (« max-parallel » des séries et des épreuves longues) : 18, décision de Jean-Luc
+# A-888 du 17-11-2026 22h30 (« 1 », pour l'option « 18 en parallèle (recommandé) ») : 2 places toujours libres pour le
+# circuit du soir et le relais. Changer la décision = changer ce seul nombre. 18 = 20 − les deux circuits qui ne doivent
+# jamais attendre (soir 1, relais 1, largeurs CALCULÉES) : à 20, l'épreuve de la largeur et la publication refusent, car
+# le soir pourrait attendre une machine ; choisir 20 demanderait donc aussi de reclasser le soir.
+# (PARTS_EN_MEME_TEMPS est écrite plus haut, avant TRANCHES_DE_LA_NUIT : A-896, la certification la lit.)
 SERIES_IDENTITE = "series-longues-publiques"
 # LE GROUPE DE CONCURRENCE DES MACHINES LONGUES (étape GHUB ②, 15-11-2026) : le circuit des séries ET celui des
 # épreuves longues portent CE groupe. GitHub ne fait tourner qu'un passage d'un groupe à la fois ; les deux circuits se
 # partagent donc le même budget de PARTS_EN_MEME_TEMPS machines, et la marge des autres circuits reste entière.
-GROUPE_DES_MACHINES_LONGUES = "series-longues"
+# (GROUPE_DES_MACHINES_LONGUES est écrit plus haut, avant TRANCHES_DE_LA_NUIT : A-896, la certification le porte.)
 # LES BRANCHES DES SÉRIES (superviseur R-759 du 04-11-2026, R1, « RUSTINE, À REPRENDRE » de l'archive jointe et de la
 # garde d'horaire). Chaque job pousse UNE fois sur SA branche neuve du dépôt privé, jamais sur main :
 #   series-longues/<passage>/<série>/part_<n>  (une part)   et   series-longues/<passage>/<série>/releve  (le relevé).
@@ -1500,9 +1534,36 @@ SERIES_LIRE_LES_PARTS = """      - name: Lire les parts sur leurs branches
 # demande « HL » pouvait jouer l'épreuve Yahoo sans qu'aucune épreuve ne rougisse, relevé n°298).
 TOUTES = "toutes"                   # le choix du bouton et d'une demande qui joue chaque série de la table
 CODE_DE_SERIE = r"[A-Za-z][A-Za-z0-9]{0,19}"
-SERIES_AU_PLUS = 4                  # 3 + 2 × 4 = 11 entrées du bouton (version, pointe, serie, puis parts et lot par
-                                    # série) : la limite de GitHub est 25 depuis le 04-12-2025 (« You can now use up to
-                                    # 25 inputs », github.blog/changelog, lu le 15-11-2026 ; le 05-11-2026 on avait lu 10)
+# LE NOMBRE DE SÉRIES DU BOUTON SE CALCULE SUR LA LIMITE DE GITHUB ET SUR LES ENTRÉES QUI ÉCRIVENT LE BOUTON (A-896,
+# 18-11-2026 : deux séries entrent au circuit, celles des débuts de série et du signal nommé, sorties de la nuit ; le 4
+# écrit le 08-11-2026 était le nombre de séries du jour, pas une limite). Superviseur R-759 du 18-11-2026 (E4, « DE FOND
+# si les entrées fixes sont un seul tuple, qui sert à la fois à écrire le bouton et à le compter ») : les entrées fixes
+# du bouton des séries vivent dans ENTREES_FIXES_DES_SERIES, et chaque série en ajoute une par nom de
+# ENTREES_PAR_SERIE ; SERIES_ENTREES écrit le bouton depuis ces deux tuples, et SERIES_AU_PLUS les compte. Une entrée
+# fixe ajoutée ailleurs que dans le tuple est vue par l'épreuve de la largeur (L6 : les entrées de la fiche fabriquée
+# comptées, ENTREES_DU_BOUTON_AU_PLUS au plus).
+ENTREES_DU_BOUTON_AU_PLUS = 25      # « You can now use up to 25 inputs », github.blog/changelog du 04-12-2025, lu le
+                                    # 15-11-2026 (le 05-11-2026 on avait lu 10) ; non mesuré par un passage
+ENTREES_FIXES_DES_SERIES = (
+    ("version", """        description: "Version du depot prive a eprouver : main, ou la version en attente travail-... (lancer ce circuit depuis la branche publique du meme nom)"
+        required: true
+        type: string
+        default: "main"
+"""),
+    ("pointe", """        description: "Pointe exacte de la version au depot prive, 40 caracteres hexadecimaux (obligatoire pour travail-... ; vide sur main : la pointe actuelle)"
+        required: false
+        type: string
+        default: ""
+"""),
+    # %(options)s : les choix du bouton, remplis par SERIES_ENTREES quand la table est lue
+    ("serie", """        description: "Serie a jouer (%(toutes)s : chaque serie de la table)"
+        required: true
+        type: choice
+        options: [%(options)s]
+        default: "%(toutes)s"
+"""))
+ENTREES_PAR_SERIE = ("parts", "lot")   # les entrées de chaque série (machines, taille de lot), écrites par SERIES_ENTREES
+SERIES_AU_PLUS = (ENTREES_DU_BOUTON_AU_PLUS - len(ENTREES_FIXES_DES_SERIES)) // len(ENTREES_PAR_SERIE)
 
 
 def series_du_circuit(racine=None):
@@ -1526,8 +1587,8 @@ def series_du_circuit(racine=None):
     ⑧ POURQUOI — Décision n°309 ; un réglage écrit à deux endroits finit par différer (R-708). Les formes sont
       vérifiées ICI parce que les valeurs deviennent du texte du circuit (noms d'entrées, de variables, choix du
       bouton) : un code avec une espace ou un guillemet casserait le fichier fabriqué.
-    ⑨ CE QUI CLOCHE — La limite de 10 entrées du bouton est celle lue dans la documentation de GitHub le 05-11-2026
-      (relevé du 05-11-2026), pas mesurée par un passage. L'existence du fichier de l'épreuve n'est pas vérifiée ici :
+    ⑨ CE QUI CLOCHE — La limite de ENTREES_DU_BOUTON_AU_PLUS entrées du bouton est celle lue sur github.blog le
+      15-11-2026, pas mesurée par un passage. L'existence du fichier de l'épreuve n'est pas vérifiée ici :
       le pas « Fabriquer la matrice » la vérifie sur la version jouée.
     ⑩ EFFET — Lit la table.
     ⑪ TERMINAISON — Rend la main, ou lève.
@@ -1651,21 +1712,21 @@ except (OSError, ValueError) as _e:
     ERREUR_DE_LA_TABLE = ERREUR_DE_LA_TABLE or f"{type(_e).__name__} : {_e}"
 # Les morceaux du circuit des séries tirés de la table (une boucle chacun, sur la même liste) :
 # les entrées du bouton, et l'environnement du pas « Fabriquer la matrice ».
-SERIES_ENTREES = ("""      serie:
-        description: "Serie a jouer (""" + TOUTES + """ : chaque serie de la table)"
-        required: true
-        type: choice
-        options: [""" + ", ".join('"%s"' % c for c in [TOUTES] + [s[0] for s in SERIES_DU_CIRCUIT]) + """]
-        default: \"""" + TOUTES + """\"
-""" + "".join("""      parts_%s:
-        description: "Nombre de machines pour la serie %s (1 a 99)"
+# les entrées par série, une par nom de ENTREES_PAR_SERIE (même ordre) : %(c)s le code, %(m)s en minuscules
+_ENTREE_D_UNE_SERIE = {"parts": """      parts_%(m)s:
+        description: "Nombre de machines pour la serie %(c)s (1 a 99)"
         type: number
-        default: %d
-      lot_%s:
-        description: "Sabotages par lot pour la serie %s (1 a 99 ; le changer change les lignes lot k du releve)"
+        default: %(n)d
+""", "lot": """      lot_%(m)s:
+        description: "Sabotages par lot pour la serie %(c)s (1 a 99 ; le changer change les lignes lot k du releve)"
         type: number
-        default: %d
-""" % (c.lower(), c, n, c.lower(), c, l) for c, _, n, l in SERIES_DU_CIRCUIT))
+        default: %(l)d
+"""}
+SERIES_ENTREES = ("".join("      %s:\n" % nom + texte % {"toutes": TOUTES, "options": ", ".join(
+                      '"%s"' % c for c in [TOUTES] + [s[0] for s in SERIES_DU_CIRCUIT])}
+                          for nom, texte in ENTREES_FIXES_DES_SERIES)
+                  + "".join(_ENTREE_D_UNE_SERIE[e] % {"c": c, "m": c.lower(), "n": n, "l": l}
+                            for c, _, n, l in SERIES_DU_CIRCUIT for e in ENTREES_PAR_SERIE))
 SERIES_ENV_MATRICE = "".join("          PARTS_%s: ${{ inputs.parts_%s }}\n          LOT_%s: ${{ inputs.lot_%s }}\n"
                              % (c.upper(), c.lower(), c.upper(), c.lower()) for c, _, _, _ in SERIES_DU_CIRCUIT)
 
@@ -1725,19 +1786,10 @@ name: Series longues de sabotages
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version du depot prive a eprouver : main, ou la version en attente travail-... (lancer ce circuit depuis la branche publique du meme nom)"
-        required: true
-        type: string
-        default: "main"
-      pointe:
-        description: "Pointe exacte de la version au depot prive, 40 caracteres hexadecimaux (obligatoire pour travail-... ; vide sur main : la pointe actuelle)"
-        required: false
-        type: string
-        default: ""
 %(entrees)sconcurrency:
   group: %(groupe)s
   cancel-in-progress: false
+  queue: max
 permissions:
   contents: read
 jobs:
@@ -1824,6 +1876,9 @@ jobs:
     timeout-minutes: 90
     strategy:
       fail-fast: false
+      # borne écrite pour que la largeur du circuit se CALCULE sur sa fiche (A-884) : une série au plus par machine, et
+      # « preparer » ne rend que des séries de la table, chacune une fois ; elle ne retient aucune série
+      max-parallel: %(series_au_plus)d
       matrix:
         include: ${{ fromJSON(needs.preparer.outputs.series) }}
     name: rassembler ${{ matrix.serie }}
@@ -1856,6 +1911,7 @@ jobs:
           exit "$code"
 %(deposer_final)s""" % {
     "defaults": DEFAULTS, "installer": INSTALLER_LA_MESURE, "en_meme_temps": PARTS_EN_MEME_TEMPS,
+    "series_au_plus": max(1, len(SERIES_DU_CIRCUIT)),
     "branches": SERIES_BRANCHES, "groupe": GROUPE_DES_MACHINES_LONGUES,
     "entrees": SERIES_ENTREES, "env_matrice": SERIES_ENV_MATRICE, "toutes": TOUTES,
     "codes": " ".join(s[0] for s in SERIES_DU_CIRCUIT),
@@ -1926,8 +1982,8 @@ EPREUVES = ("""# EPREUVES LONGUES D'UN TENANT, EN PARALLELE — FICHIER FABRIQU�
 # « epreuves_longues » de tests/LANCEMENT_DES_EPREUVES.json de la version éprouvée (lue par
 # tests/outils/jouer_une_epreuve_longue.py) ; aucun argument ne vient de la demande.
 # LE GROUPE : le même que le circuit des séries (%(groupe)s) : GitHub ne fait tourner qu'un passage du groupe à la fois,
-# les deux circuits ne dépassent donc jamais ensemble %(en_meme_temps)d machines, et la marge des autres circuits
-# (MARGE_DES_AUTRES_CIRCUITS du fabricant) reste entière.
+# les deux circuits ne dépassent donc jamais ensemble %(en_meme_temps)d machines ; la place des autres circuits se
+# CALCULE sur leurs fiches (`refus_de_la_largeur` du fabricant, A-884).
 # CE QU'IL FAIT. ① « preparer » clone la version demandée, vérifie aussitôt, avant tout code de la version, qu'elle est
 # la branche publique lancée, qu'elle existe au privé et que la pointe demandée est exactement sa pointe (A-811 ; la
 # porte est celle du circuit des séries) ; puis il valide la liste contre la table de la version et fabrique la
@@ -1960,6 +2016,7 @@ on:
 %(entrees)sconcurrency:
   group: %(groupe)s
   cancel-in-progress: false
+  queue: max
 permissions:
   contents: read
 jobs:
@@ -2071,6 +2128,11 @@ CIRCUITS_DU_RELAIS = (("series", os.path.basename(CIRCUIT_SERIES), MOTIF_DE_VERS
 # Les circuits qui partagent GROUPE_DES_MACHINES_LONGUES : avant de lancer l'un, le relais compte les passages en cours
 # ou en attente de TOUS (GitHub ne garde qu'un passage en attente par groupe, quel que soit le circuit : une demande
 # d'épreuves ferait disparaître sans message une série en attente, et l'inverse).
+# A-896 (18-11-2026) : la certification porte aussi ce groupe, mais N'EST PAS comptée ici. Raison : chaque fiche du
+# groupe porte désormais « queue: max » (`refus_de_la_file`), une demande en attente n'est plus remplacée ; ne pas la
+# compter laisse une série demandée pendant la certification de nuit attendre son tour au lieu d'être refusée. Le garde
+# reste aussi strict qu'avant pour les séries et les épreuves (un seul de leurs passages en cours ou en attente) ; son
+# affinage (étape ③ de l'étude A-884) n'est pas fait.
 CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_SERIES), os.path.basename(CIRCUIT_EPREUVES))
 TAILLE_DE_DEMANDE = 1000          # octets au plus
 
@@ -3663,6 +3725,474 @@ def conditions_du_circuit(texte):
     return rendu
 
 
+# LA LARGEUR DES CIRCUITS PUBLICS, CALCULÉE SUR LEURS FICHES ET JAMAIS RECOPIÉE (A-884, étape ① de l'étude
+# etudes/A-884_GITHUB_AU_MAXIMUM_Mar_17-11-2026.md ; décision de Jean-Luc A-884 du 17-11-2026 à 22h00, « 1 »).
+# GitHub n'accepte que TACHES_EN_MEME_TEMPS_DU_COMPTE tâches simultanées sur un compte gratuit. La largeur d'un circuit
+# est le plus grand nombre de ses tâches qui tournent ensemble dans UN passage : une matrice compte sa taille, bornée par
+# son « max-parallel » ; deux jobs liés par « needs » ne tournent jamais ensemble ; deux jobs sans lien, si. Un groupe de
+# concurrence au premier niveau ne fait tourner qu'un passage à la fois : les fiches d'un même groupe comptent pour la
+# plus large d'entre elles. Pourquoi : la marge écrite à la main le 15-11-2026 (10) avait divergé le jour même — la
+# certification passée de 6 à 12 tranches — et aucune épreuve ne l'a vu (16 + 10 = 26 > 20, mesuré par l'étude) :
+# « un chiffre qui existe ailleurs ne se recopie pas » (R-708) ; « ce qui se calcule ne s'écrit jamais à la main » (R-728).
+# LE LECTEUR est celui des conditions (`conditions_du_circuit`) : même sous-ensemble YAML (CLE_YAML, SCALAIRE_DE_LISTE,
+# BLOC, CATEGORIES_REFUSEES), plus deux formes qu'il refusait et que les fiches portent (« [a, b] » en valeur, une
+# chaîne entre guillemets fermée sur sa ligne) ; toute ligne hors de ce sous-ensemble est REFUSÉE, jamais sautée.
+JAMAIS_ATTENDRE, PEUT_ATTENDRE, LONGS = "jamais attendre", "peut attendre", "longs"
+# LES FAMILLES DES CIRCUITS PUBLICS, par nom de fichier. Une fiche publique absente de cette table est REFUSÉE et comptée
+# comme « jamais attendre » (la règle la plus stricte). Le nom des cinq circuits fabriqués vient de leur constante :
+# renommer un circuit fabriqué renomme son entrée.
+# Conception de l'étude A-884 (§ 3.1, point 2), reprise par la décision de Jean-Luc A-888 du 17-11-2026 22h30 (« 1 » ;
+# son EN BREF : « 2 places restent toujours libres pour les circuits qui ne doivent jamais attendre (le circuit du soir
+# […] ; le relais des demandes) ; la certification de nuit peut attendre son tour ») :
+#   jamais attendre — le circuit du soir (une séance non lue le jour même perd ses signaux pour toujours) et le relais
+#     (il ne fait que lire une demande et appuyer sur un bouton) ;
+#   peut attendre — le consensus et l'essai des archives (posés à la main au dépôt public, aucun passage depuis le 10-10-2026) : ils N'ENTRENT PAS
+#     dans la somme, et l'on SUPPOSE que GitHub les met en file au-delà de 20 (THÉORIQUE, jamais mesuré) ;
+#   longs — les séries, les épreuves longues et, depuis A-896 (décision de Jean-Luc du 18-11-2026 à 12h25, la file
+#     unique), la certification : un seul groupe (GROUPE_DES_MACHINES_LONGUES), une file (« queue: max »,
+#     `refus_de_la_file`). Avant A-896 la certification était « peut attendre », hors de la somme : sa tranche en file
+#     pouvait prendre une des deux places du soir (défaut D1 de la relecture de A-884, superviseur : RUSTINE).
+FAMILLES_DES_CIRCUITS_PUBLICS = {
+    os.path.basename(CIRCUIT_PUBLIC): JAMAIS_ATTENDRE,
+    os.path.basename(CIRCUIT_RELAIS): JAMAIS_ATTENDRE,
+    os.path.basename(CIRCUIT_CERTIFICATION): LONGS,     # A-896 : la file unique
+    "telecharger_consensus_archive.yml": PEUT_ATTENDRE,     # posée à la main au dépôt public (ÉTUDE 19 § 10, A-534)
+    "essai_archives_web.yml": PEUT_ATTENDRE,                # posée à la main au dépôt public (ÉTUDE 19 § 10, A-534)
+    os.path.basename(CIRCUIT_SERIES): LONGS,
+    os.path.basename(CIRCUIT_EPREUVES): LONGS,
+}
+LISTE_EN_LIGNE = re.compile(r"^\[([A-Za-z0-9_, -]*)\]$")
+CLES_DE_LA_LARGEUR = ("needs", "strategy", "uses", "concurrency")   # les clés d'un job que lit `structure_d_une_fiche`
+
+
+def structure_d_une_fiche(texte):
+    """Rend ce qui fixe la largeur d'une fiche de circuit : son groupe de concurrence et, pour chaque job, ses « needs »,
+    son « max-parallel » et les tailles de sa matrice.
+
+    ① RÔLE — Lire, sans yaml, les seules clés qui décident combien de tâches d'un circuit tournent ensemble.
+    ② CONTEXTE D'APPEL — `largeur_d_une_fiche` ; l'épreuve tests/EPREUVES_DE_LA_LARGEUR_DES_CIRCUITS_Mar_17-11-2026.py
+      (L2, comparaison avec PyYAML).
+    ③ ENTRÉE — `texte` : le texte entier d'une fiche `.github/workflows/*.yml`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — TROIS valeurs : le groupe (texte, sans guillemets ; None si la fiche n'a pas de « concurrency » au premier
+      niveau), le dictionnaire {job : {"needs": [noms], "max_parallel": entier ou None, "matrice": None (pas de
+      matrice) ou liste des tailles, None pour une taille calculée par GitHub (« ${{ … }} »)}}, et la file du groupe
+      {"queue": texte ou None, "cancel-in-progress": texte ou None} (valeurs écrites sous « concurrency: », sans
+      guillemets ; ajoutée par A-896, lue par `refus_de_la_file`). Lève ValueError :
+      caractère d'une catégorie refusée · ligne hors du sous-ensemble · chaîne non fermée sur sa ligne · « jobs: »
+      absent ou vide · job qui appelle un autre circuit (« uses: ») ou porte son propre groupe (« concurrency: ») ·
+      « needs » ou « max-parallel » d'une forme non lue · « max-parallel » qui n'est pas un entier positif écrit ·
+      élément de matrice qui n'est pas un scalaire · « include »/« exclude » écrits en clair · clé de matrice vide.
+      [rend: 3]
+    ⑥ TRAITEMENT — parcourir les lignes ; sauter le contenu des blocs « | » et « > », les lignes vides et les
+      commentaires ; tenir la pile des clés par colonne (un « - clé: » ouvre un élément, noté « [] ») ; selon le chemin
+      de la clé, retenir le groupe, « queue » et « cancel-in-progress » du groupe, les jobs, leurs « needs »,
+      « max-parallel » et clés de matrice, et compter les
+      « - scalaire » rangés sous une clé de matrice ou sous « needs ».
+    ⑦ UNITÉ — Des tâches (tailles de matrice, « max-parallel »).
+    ⑧ POURQUOI — Commentaire en tête de FAMILLES_DES_CIRCUITS_PUBLICS. Sans yaml : le fabricant tourne au soir public
+      avant toute installation (fiche de `conditions_du_circuit`, ⑧).
+    ⑨ CE QUI CLOCHE — Ce lecteur n'est pas celui de GitHub ; il refuse toute forme qu'un auteur écrirait par mégarde
+      sans prétendre lire un texte fabriqué exprès (même limite que `conditions_du_circuit`). Une ancre, un alias, une
+      clé entre guillemets sont refusés. Un groupe de concurrence qui porte « ${{ » est rendu tel quel : c'est
+      `largeur_d_une_fiche` qui le traite comme absent. Le « if: » d'un job n'est pas lu : un job conditionnel compte
+      comme s'il tournait (la règle la plus stricte).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    for n, car in enumerate(texte):
+        if car != "\n" and unicodedata.category(car) in CATEGORIES_REFUSEES:
+            raise ValueError(f"{HORS_DU_SOUS_ENSEMBLE} : caractère U+{ord(car):04X}, ligne {texte.count(chr(10), 0, n) + 1}")
+    pile, bloc, groupe, jobs, vu_jobs = [], None, None, {}, False
+    file = {"queue": None, "cancel-in-progress": None}
+    lignes = texte.split("\n")
+    for i, l in enumerate(lignes):
+        indent = len(l) - len(l.lstrip(" "))
+        if bloc is not None:
+            if not l.strip() or indent > bloc:
+                continue
+            bloc = None
+        if not l.strip() or l.lstrip(" ").startswith("#"):
+            continue
+        ou = f"ligne {i + 1}, « {l.strip()[:80]} »"
+        m = CLE_YAML.match(l)
+        s = None if m else SCALAIRE_DE_LISTE.match(l)
+        if not m and not s:
+            raise ValueError(f"{HORS_DU_SOUS_ENSEMBLE} : ligne ni « clé: valeur » ni « - scalaire » ({ou})")
+        if m:
+            colonne, valeur = len(m.group(1)) + len(m.group(2) or ""), (m.group(4) or "").strip()
+            tiret = len(m.group(1)) if m.group(2) else None
+        else:
+            colonne, valeur = len(s.group(1)), s.group(2).strip()
+            tiret = len(s.group(1)) - len(s.group(1).lstrip(" "))
+        if valeur[:1] in ('"', "'"):
+            if not CHAINE_SUR_SA_LIGNE.match(valeur):
+                raise ValueError(f"{HORS_DU_SOUS_ENSEMBLE} : chaîne entre guillemets non fermée sur sa ligne ({ou})")
+        elif valeur[:1] in INDICATEURS and valeur[:1] != "[":
+            raise ValueError(f"{HORS_DU_SOUS_ENSEMBLE} : valeur qui commence par un indicateur YAML ({ou})")
+        if valeur and valeur[:1] not in ("|", ">"):
+            suite = next((x for x in lignes[i + 1:] if x.strip() and not x.lstrip(" ").startswith("#")), "")
+            if len(suite) - len(suite.lstrip(" ")) > (colonne if m else len(l) - len(l.lstrip(" "))):
+                raise ValueError(f"{HORS_DU_SOUS_ENSEMBLE} : valeur continuée sur la ligne suivante ({ou})")
+        if tiret is not None:
+            while pile and pile[-1][0] >= tiret:
+                pile.pop()
+            parent = tuple(c for _, c in pile)
+            if m and parent[:1] == ("jobs",) and (parent[2:3] == ("needs",) or parent[2:4] == ("strategy", "matrix")):
+                raise ValueError(f"élément de « needs » ou de matrice qui n'est pas un scalaire ({ou})")
+            if m:
+                pile.append((tiret, "[]"))
+        else:
+            while pile and pile[-1][0] >= colonne:
+                pile.pop()
+        chemin = tuple(c for _, c in pile)
+        if not m:   # « - scalaire » : un élément rangé sous la dernière clé ouverte
+            if len(chemin) == 3 and chemin[0] == "jobs" and chemin[2] == "needs":
+                jobs[chemin[1]]["needs"].append(valeur)
+            elif len(chemin) == 5 and chemin[0] == "jobs" and chemin[2:4] == ("strategy", "matrix"):
+                jobs[chemin[1]]["_cles"][chemin[4]] += 1
+            elif chemin[:1] == ("jobs",) and len(chemin) <= 5:
+                raise ValueError(f"élément de liste inattendu sous {'.'.join(chemin)} ({ou})")
+            continue
+        cle = m.group(3)
+        chemin = chemin + (cle,)
+        if valeur[:1] in ("|", ">"):
+            if not BLOC.match(valeur):
+                raise ValueError(f"{HORS_DU_SOUS_ENSEMBLE} : en-tête de bloc non lu ({ou})")
+            if chemin[0] == "concurrency" or (chemin[0] == "jobs" and (len(chemin) <= 2 or chemin[2] in CLES_DE_LA_LARGEUR)):
+                raise ValueError(f"bloc « | » ou « > » à une clé qui fixe la largeur ({ou})")
+            bloc = colonne
+            continue
+        pile.append((colonne, cle))
+        sans_guillemets = valeur[1:-1] if valeur[:1] in ('"', "'") else valeur
+        if chemin == ("concurrency",) and valeur:
+            groupe = sans_guillemets
+        elif chemin == ("concurrency", "group"):
+            groupe = sans_guillemets
+        elif chemin[:1] == ("concurrency",) and len(chemin) == 2 and chemin[1] in file:
+            file[chemin[1]] = sans_guillemets
+        elif chemin == ("jobs",):
+            if valeur:
+                raise ValueError(f"« jobs: » porte une valeur sur sa ligne ({ou})")
+            vu_jobs = True
+        elif len(chemin) == 2 and chemin[0] == "jobs":
+            if m.group(2) or valeur:
+                raise ValueError(f"job d'une forme non lue ({ou})")
+            jobs[cle] = {"needs": [], "max_parallel": None, "matrice": None, "_cles": {}, "_dynamique": False}
+        elif len(chemin) == 3 and chemin[0] == "jobs":
+            if cle in ("uses", "concurrency"):
+                raise ValueError(f"le job « {chemin[1]} » porte « {cle}: » : sa largeur n'est pas lue par ce programme ({ou})")
+            if cle == "needs":
+                liste = LISTE_EN_LIGNE.match(valeur)
+                if liste:
+                    jobs[chemin[1]]["needs"] = [x.strip() for x in liste.group(1).split(",") if x.strip()]
+                elif valeur[:1] in ("[", '"', "'") or not re.fullmatch(r"[A-Za-z_][\w-]*|", valeur):
+                    raise ValueError(f"« needs » d'une forme non lue ({ou})")
+                elif valeur:
+                    jobs[chemin[1]]["needs"] = [valeur]
+            if cle == "strategy" and valeur:
+                raise ValueError(f"« strategy » écrite sur sa ligne ({ou})")
+        elif len(chemin) == 4 and chemin[0] == "jobs" and chemin[2] == "strategy":
+            if cle == "max-parallel":
+                if not re.fullmatch(r"[1-9][0-9]*", valeur):
+                    raise ValueError(f"« max-parallel » n'est pas un entier positif écrit ({ou})")
+                jobs[chemin[1]]["max_parallel"] = int(valeur)
+            elif cle == "matrix":
+                jobs[chemin[1]]["matrice"] = []
+                if valeur.startswith("${{"):
+                    jobs[chemin[1]]["_dynamique"] = True
+                elif valeur:
+                    raise ValueError(f"« matrix » d'une forme non lue ({ou})")
+        elif len(chemin) == 5 and chemin[0] == "jobs" and chemin[2:4] == ("strategy", "matrix"):
+            if m.group(2):
+                raise ValueError(f"élément de matrice qui n'est pas un scalaire ({ou})")
+            liste = LISTE_EN_LIGNE.match(valeur)
+            if valeur.startswith("${{"):
+                jobs[chemin[1]]["_dynamique"] = True
+            elif cle in ("include", "exclude"):
+                raise ValueError(f"« {cle} » écrit en clair : forme non lue par ce programme ({ou})")
+            elif liste:
+                jobs[chemin[1]]["_cles"][cle] = len([x for x in liste.group(1).split(",") if x.strip()])
+            elif valeur:
+                raise ValueError(f"clé de matrice qui n'est pas une liste ({ou})")
+            else:
+                jobs[chemin[1]]["_cles"][cle] = 0
+        elif len(chemin) > 5 and chemin[0] == "jobs" and chemin[2:4] == ("strategy", "matrix"):
+            raise ValueError(f"élément de matrice qui n'est pas un scalaire ({ou})")
+    if not vu_jobs or not jobs:
+        raise ValueError("aucun job lu (« jobs: » absent ou vide)")
+    for nom, j in jobs.items():
+        if j["matrice"] is not None:
+            for cle, n in j["_cles"].items():
+                if n == 0:
+                    raise ValueError(f"job « {nom} » : clé de matrice « {cle} » vide")
+            j["matrice"] = list(j["_cles"].values()) + ([None] if j["_dynamique"] else [])
+            if not j["matrice"]:
+                raise ValueError(f"job « {nom} » : matrice sans clé")
+        del j["_cles"], j["_dynamique"]
+    return groupe, jobs, file
+
+
+def largeur_d_une_fiche(texte):
+    """Rend le groupe de concurrence d'une fiche et sa largeur : le plus grand nombre de ses tâches qui tournent ensemble
+    dans un passage.
+
+    ① RÔLE — Calculer la largeur d'un circuit à partir de sa fiche, au lieu de la recopier.
+    ② CONTEXTE D'APPEL — `refus_de_la_largeur` ; l'épreuve de la largeur (L1, L2).
+    ③ ENTRÉE — `texte` : le texte d'une fiche de circuit.
+    ④ CONDITIONS D'ENTRÉE — Celles de `structure_d_une_fiche`.
+    ⑤ SORTIE — DEUX valeurs : le groupe (None si la fiche n'en a pas, ou si son nom porte « ${{ », c'est-à-dire change
+      d'un passage à l'autre et ne borne donc rien) et la largeur (entier ≥ 1). Lève ValueError : celles de
+      `structure_d_une_fiche` · une matrice dont GitHub calcule la taille sans « max-parallel » (sans borne) · un
+      « needs » qui nomme un job absent · un cycle de « needs » · plus de 16 jobs.
+      [rend: 2]
+    ⑥ TRAITEMENT — largeur d'un job : 1 sans matrice ; sinon le produit des tailles, borné par « max-parallel », ou
+      « max-parallel » seul si une taille est calculée par GitHub · les ancêtres de chaque job par « needs » · la
+      largeur de la fiche : la plus grande somme des largeurs d'un ensemble de jobs dont aucun n'est l'ancêtre d'un
+      autre (ils peuvent tourner ensemble), cherchée parmi tous les sous-ensembles.
+    ⑦ UNITÉ — Des tâches de GitHub (une machine chacune).
+    ⑧ POURQUOI — Commentaire en tête de FAMILLES_DES_CIRCUITS_PUBLICS. Le superviseur R-759 du 15-11-2026 (§ 2.6) avait
+      tranché cette propriété (« jobs liés par needs : le plus large ; matrice : sa taille ; un groupe de concurrence
+      n'en fait tourner qu'un ») sans qu'elle soit écrite.
+    ⑨ CE QUI CLOCHE — Un job conditionnel (« if: ») ou une matrice qui rendrait moins que sa borne comptent pour leur
+      plus grande largeur possible : la largeur rendue est un PLAFOND, jamais une mesure. Une tâche lancée à part par un
+      pas (« gh workflow run », comme le relais) n'est pas comptée ici : elle appartient à la fiche qu'elle lance.
+      Au-delà de 16 jobs, la recherche (2^n sous-ensembles) est refusée.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    groupe, jobs, _ = structure_d_une_fiche(texte)
+    if groupe is not None and "${{" in groupe:
+        groupe = None
+    if len(jobs) > 16:
+        raise ValueError(f"{len(jobs)} jobs : plus de 16, la recherche de la largeur n'est pas faite")
+    largeurs = {}
+    for nom, j in jobs.items():
+        if j["matrice"] is None:
+            largeurs[nom] = 1
+        elif None in j["matrice"]:
+            if j["max_parallel"] is None:
+                raise ValueError(f"job « {nom} » : matrice dont GitHub calcule la taille, sans « max-parallel » : "
+                                 "largeur sans borne")
+            largeurs[nom] = j["max_parallel"]
+        else:
+            taille = 1
+            for n in j["matrice"]:
+                taille *= n
+            largeurs[nom] = min(taille, j["max_parallel"]) if j["max_parallel"] is not None else taille
+    ancetres = {}
+
+    def remonter(nom, chemin):
+        """Rend les ancêtres d'un job par « needs ».
+
+        ① RÔLE — Savoir quels jobs ne tournent jamais en même temps que `nom`.
+        ② CONTEXTE D'APPEL — `largeur_d_une_fiche`, une fois par job, puis par elle-même.
+        ③ ENTRÉE — `nom` : un job ; `chemin` : les jobs en cours de remontée (pour voir un cycle).
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : l'ensemble des ancêtres. Lève ValueError sur un cycle ou un job absent.
+          [rend: 1]
+        ⑥ TRAITEMENT — union, pour chaque job de « needs », de lui-même et de ses ancêtres ; retenus dans `ancetres`.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Deux jobs dont l'un attend l'autre ne tournent jamais ensemble.
+        ⑨ CE QUI CLOCHE — Récursif : au plus 16 niveaux (borne de la fonction appelante).
+        ⑩ EFFET — Remplit `ancetres` de la fonction appelante.
+        ⑪ TERMINAISON — Rend la main, ou lève.
+          [sort: non]
+        """
+        if nom in ancetres:
+            return ancetres[nom]
+        if nom in chemin:
+            raise ValueError(f"cycle de « needs » : {' → '.join(chemin + (nom,))}")
+        rendu = set()
+        for parent in jobs[nom]["needs"]:
+            if parent not in jobs:
+                raise ValueError(f"job « {nom} » : « needs » nomme « {parent} », absent de la fiche")
+            rendu |= {parent} | remonter(parent, chemin + (nom,))
+        ancetres[nom] = rendu
+        return rendu
+
+    for nom in jobs:
+        remonter(nom, ())
+    noms, meilleure = list(jobs), 0
+    for masque in range(1, 1 << len(noms)):
+        choisis = [noms[k] for k in range(len(noms)) if masque >> k & 1]
+        if any(a in ancetres[b] for a in choisis for b in choisis):
+            continue
+        meilleure = max(meilleure, sum(largeurs[n] for n in choisis))
+    return groupe, meilleure
+
+
+def refus_de_la_largeur(fiches):
+    """Rend les refus de la largeur du compte et le détail du calcul, pour un ensemble de fiches publiques.
+
+    ① RÔLE — Dire si les circuits qui peuvent tourner ensemble sans jamais attendre tiennent dans les tâches simultanées
+      du compte, la largeur de chacun étant CALCULÉE sur sa fiche.
+    ② CONTEXTE D'APPEL — `fabriquer_et_publier`, sur toutes les fiches du clone public après l'écriture des circuits
+      (`fiches_du_clone_public`) ; les épreuves de la largeur (L0, L3), des séries (N1) et des épreuves longues (G1).
+    ③ ENTRÉE — `fiches` : {nom de fichier : texte de la fiche}.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : la liste des refus (textes ; vide si tout va) et la liste des lignes du détail (une par
+      fiche, puis le total compté, puis, s'il y en a, les circuits qui peuvent attendre et le total de tous), à
+      afficher.
+      [rend: 2]
+    ⑥ TRAITEMENT — pour chaque fiche, dans l'ordre des noms : sa famille dans FAMILLES_DES_CIRCUITS_PUBLICS (absente :
+      refus, et comptée « jamais attendre ») ; sa largeur (`largeur_d_une_fiche` ; illisible : refus) ; une fiche
+      « peut attendre » n'entre pas dans la somme ; une fiche comptée sans groupe de concurrence : refus (plusieurs de
+      ses passages peuvent tourner ensemble), comptée pour un passage ; les fiches comptées d'un même groupe comptent
+      pour la plus large ; la somme des groupes ne dépasse pas TACHES_EN_MEME_TEMPS_DU_COMPTE, sinon refus ; puis les
+      refus de `refus_de_la_file` (groupe partagé sans file, « peut attendre » dans un groupe compté, « jamais attendre »
+      qui partage son groupe avec une autre fiche).
+    ⑦ UNITÉ — Des tâches de GitHub.
+    ⑧ POURQUOI — Commentaire en tête de FAMILLES_DES_CIRCUITS_PUBLICS.
+    ⑨ CE QUI CLOCHE — La famille « peut attendre » suppose que GitHub met en file une tâche au-delà des 20, sans
+      l'annuler : THÉORIQUE, jamais mesuré (étude A-884, § 3.1, point 4). La limite de 20 vient de la documentation de
+      GitHub ; si elle couvre le compte entier (dépôts privé et public), on ne le sait pas.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    refus, lignes, groupes, membres, attente = [], [], {}, {}, {}
+    for nom in sorted(fiches):
+        famille = FAMILLES_DES_CIRCUITS_PUBLICS.get(nom)
+        if famille not in (None, JAMAIS_ATTENDRE, PEUT_ATTENDRE, LONGS):
+            refus.append(f"{nom} : famille « {famille} » inconnue")
+            famille = None
+        if famille is None:
+            refus.append(f"{nom} : fiche publique sans famille dans FAMILLES_DES_CIRCUITS_PUBLICS (comptée « "
+                         f"{JAMAIS_ATTENDRE} », la règle la plus stricte)")
+        try:
+            groupe, largeur = largeur_d_une_fiche(fiches[nom])
+        except ValueError as e:
+            refus.append(f"{nom} : largeur illisible : {e}")
+            continue
+        lignes.append(f"{nom} : famille {famille or 'AUCUNE'} · groupe {groupe or 'AUCUN'} · largeur {largeur}")
+        if famille == PEUT_ATTENDRE:
+            cle = groupe or "(aucun groupe : " + nom + ")"
+            attente[cle] = max(attente.get(cle, 0), largeur)
+            continue
+        if groupe is None:
+            refus.append(f"{nom} : comptée parmi les circuits qui n'attendent pas, sans groupe de concurrence fixe : "
+                         "plusieurs de ses passages peuvent tourner ensemble, largeur sans borne (un passage compté)")
+            groupe = "(aucun groupe : " + nom + ")"
+        groupes[groupe] = max(groupes.get(groupe, 0), largeur)
+        membres.setdefault(groupe, []).append(nom)
+    total = sum(groupes.values())
+    detail = " + ".join(f"{g} {groupes[g]}" for g in sorted(groupes)) or "rien"
+    lignes.append(f"circuits qui peuvent tourner ensemble sans attendre : {detail} = {total} "
+                  f"(limite du compte : {TACHES_EN_MEME_TEMPS_DU_COMPTE})")
+    if attente:
+        lignes.append(f"circuits qui peuvent attendre (hors de la somme ; supposés mis en file par GitHub au-delà de la "
+                      f"limite, THÉORIQUE) : {' + '.join(f'{g} {attente[g]}' for g in sorted(attente))} ; tous ensemble : "
+                      f"{total + sum(attente.values())}")
+    if total > TACHES_EN_MEME_TEMPS_DU_COMPTE:
+        refus.append(f"largeur du compte dépassée : {detail} = {total} > {TACHES_EN_MEME_TEMPS_DU_COMPTE} tâches "
+                     "simultanées du compte")
+    refus += refus_de_la_file(fiches, membres)
+    return refus, lignes
+
+
+def refus_de_la_file(fiches, membres):
+    """Rend les refus de la file unique : un groupe de concurrence partagé par plusieurs fiches comptées doit être une
+    FILE (« queue: max », jamais « cancel-in-progress: true ») ; aucune fiche « peut attendre » ne doit porter le
+    groupe d'une fiche comptée ; une fiche « jamais attendre » ne partage son groupe avec AUCUNE autre fiche.
+
+    ① RÔLE — Tenir la propriété qui rend sûre la file unique de A-896 : dans un groupe partagé, une demande en attente
+      n'est jamais remplacée par la suivante, et rien n'échappe à la somme en se glissant dans un groupe compté.
+    ② CONTEXTE D'APPEL — `refus_de_la_largeur`, une fois, à la fin, avec les fiches et les membres qu'elle a comptés.
+    ③ ENTRÉE — `fiches` : {nom de fichier : texte} · `membres` : {groupe : [noms des fiches comptées de ce groupe]}.
+    ④ CONDITIONS D'ENTRÉE — Les fiches de `membres` se lisent par `structure_d_une_fiche` (déjà vérifié par l'appelant).
+    ⑤ SORTIE — UNE valeur : la liste des refus (textes ; vide si tout va).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① pour chaque groupe qui a au moins deux fiches comptées, chacune doit porter « queue: max » et ne pas
+      porter « cancel-in-progress: true » · ② pour chaque fiche « peut attendre » lisible, son groupe ne doit être celui
+      d'aucune fiche comptée · ③ pour chaque fiche de la famille JAMAIS_ATTENDRE lisible et qui a un groupe, aucune
+      autre fiche lisible de `fiches` (comptée ou non, classée ou non) ne doit porter ce groupe.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — GitHub ne garde par défaut qu'UN passage en attente par groupe : un troisième annule le deuxième. Essai
+      réel du 18-11-2026 (dépôt public, branche essai-queue-max-18-11-2026, commentaire de TRANCHES_DE_LA_NUIT) : sans
+      « queue: max », le deuxième de trois passages « cancelled » ; avec, les trois réussis dans l'ordre. Documentation
+      (syntaxe des circuits, lue le 18-11-2026) : « queue: max » et « cancel-in-progress: true » ensemble sont une
+      erreur de validation. Une fiche « peut attendre » qui porterait un groupe compté y prendrait la place d'un passage
+      compté sans entrer dans la somme (défaut D1 de la relecture de A-884 : une place libre n'est pas réservée).
+      ③ : relecture de A-896 (E1) et superviseur R-759 du 18-11-2026 (« DE FOND, à une condition : le refus porte sur
+      la famille JAMAIS_ATTENDRE […], jamais sur les noms « soir » ou « relais » ; il vise tout partage de groupe, avec
+      n'importe quelle fiche, comptée ou non ») : un circuit qui ne doit jamais attendre, placé dans une file,
+      attendrait derrière elle (une séance non lue le jour même perd ses signaux pour toujours), et le compte par groupe
+      le ferait disparaître de la somme (mesuré par la relecture : 19 au lieu de 20, aucun refus).
+    ⑨ CE QUI CLOCHE — Un groupe qui ne compte qu'une fiche n'est pas obligé d'être une file : deux passages rapprochés
+      d'un même circuit peuvent encore s'annuler (le relais des demandes, `demande-de-serie`, A-884 étape ③, non
+      traité ici). Au-delà de 100 passages en attente, GitHub annule aussi (documentation) : rien ne le compte ici.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    refus = []
+    for groupe in sorted(membres):
+        if len(membres[groupe]) < 2:
+            continue
+        for nom in sorted(membres[groupe]):
+            _, _, file = structure_d_une_fiche(fiches[nom])
+            if file["queue"] != "max":
+                refus.append(f"{nom} : groupe « {groupe} » partagé par {len(membres[groupe])} fiches sans « queue: max » : "
+                             "un troisième passage annulerait celui qui attend")
+            if file["cancel-in-progress"] == "true":
+                refus.append(f"{nom} : groupe « {groupe} » partagé avec « cancel-in-progress: true »")
+    groupes_comptes = set(membres)
+    for nom in sorted(fiches):
+        if FAMILLES_DES_CIRCUITS_PUBLICS.get(nom) != PEUT_ATTENDRE:
+            continue
+        try:
+            groupe, _, _ = structure_d_une_fiche(fiches[nom])
+        except ValueError:
+            continue   # déjà refusée par `refus_de_la_largeur`
+        if groupe in groupes_comptes:
+            refus.append(f"{nom} : classée « {PEUT_ATTENDRE} » mais porte le groupe compté « {groupe} » : elle y prendrait "
+                         "une place sans entrer dans la somme")
+    groupes_lus = {}
+    for nom in sorted(fiches):
+        try:
+            groupes_lus[nom] = structure_d_une_fiche(fiches[nom])[0]
+        except ValueError:
+            continue   # déjà refusée par `refus_de_la_largeur`
+    for nom in sorted(groupes_lus):
+        if FAMILLES_DES_CIRCUITS_PUBLICS.get(nom) != JAMAIS_ATTENDRE or groupes_lus[nom] is None:
+            continue
+        autres = [n for n, g in sorted(groupes_lus.items()) if n != nom and g == groupes_lus[nom]]
+        if autres:
+            refus.append(f"{nom} : classée « {JAMAIS_ATTENDRE} » mais partage son groupe « {groupes_lus[nom]} » avec "
+                         f"{', '.join(autres)} : elle attendrait derrière")
+    return refus
+
+
+def fiches_du_clone_public(public):
+    """Rend {nom : texte} des fiches de circuit du clone public (`.github/workflows/*.yml` et `*.yaml`).
+
+    ① RÔLE — Donner à `refus_de_la_largeur` TOUTES les fiches que GitHub fera tourner, fabriquées ou posées à la main.
+    ② CONTEXTE D'APPEL — `fabriquer_et_publier`, après l'écriture des circuits ; l'épreuve de la largeur (L4).
+    ③ ENTRÉE — `public` : le clone public.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le dictionnaire (vide si le dossier manque). Lève OSError sur une lecture refusée.
+      [rend: 1]
+    ⑥ TRAITEMENT — lister le dossier, garder les fichiers `.yml` et `.yaml`, les lire en UTF-8 ; un octet illisible
+      devient U+FFFD, lu comme un caractère ordinaire (comme `refus_des_circuits_publies`).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Les deux fiches posées à la main au dépôt public (telecharger_consensus_archive.yml,
+      essai_archives_web.yml) ne vivent pas au dépôt privé : seul le clone public les voit.
+    ⑨ CE QUI CLOCHE — Ne voit que le clone donné : une fiche ajoutée au public après le clonage n'est pas lue.
+    ⑩ EFFET — Lit des fichiers.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    dossier = os.path.join(public, ".github", "workflows")
+    if not os.path.isdir(dossier):
+        return {}
+    return {f: open(os.path.join(dossier, f), encoding="utf-8", errors="replace").read()
+            for f in sorted(os.listdir(dossier))
+            if f.endswith((".yml", ".yaml")) and os.path.isfile(os.path.join(dossier, f))}
+
+
 def proteger_les_pas(corps):
     """Applique la propriété aux pas du circuit privé : toute condition qui appelle une fonction d'état exige « Poser ».
 
@@ -4136,7 +4666,9 @@ def fabriquer_et_publier(prive, public, source, sha):
       [rend: 1]
     ⑥ TRAITEMENT — Voir l'en-tête. Après l'écriture : le registre de provenance (`refus_selon_la_provenance`), l'étage A
       et le témoin du parcours (`refus_selon_l_historique`), les circuits que le relais compte écrits dans la même
-      publication (R-D3), les permissions des circuits.
+      publication (R-D3), la largeur calculée de TOUTES les fiches du clone public, fabriquées ou posées à la main
+      (`refus_de_la_largeur` sur `fiches_du_clone_public`, A-884 ; refus → ARRÊT, rien n'est publié), les permissions
+      des circuits.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Livraison 1 du superviseur R-759 du 15-11-2026 (commentaire de `est_un_chemin_publie`).
     ⑨ CE QUI CLOCHE — Voir l'en-tête et `extraire_le_commit`, ⑨.
@@ -4245,6 +4777,19 @@ def fabriquer_et_publier(prive, public, source, sha):
     if absents:
         print("ARRÊT — le relais compte ou lance des circuits que cette publication n'écrit pas ; RIEN n'est publié :",
               " ".join(absents))
+        return 1
+    # A-884 : la largeur se calcule sur TOUTES les fiches que GitHub fera tourner, fabriquées ou posées à la main
+    try:
+        refus, lignes = refus_de_la_largeur(fiches_du_clone_public(public))
+    except OSError as e:
+        print("ARRÊT — la largeur des circuits publics n'a pas pu être calculée ; RIEN n'est publié :", e)
+        return 1
+    for ligne in lignes:
+        print("largeur : " + ligne)
+    if refus:
+        print(f"ARRÊT — {len(refus)} refus de la largeur des circuits publics ; RIEN n'est publié :")
+        for r in refus:
+            print("  " + r)
         return 1
     refus = refus_des_circuits_publies(public)
     if refus:

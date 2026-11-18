@@ -149,8 +149,9 @@ SABOTAGES = {
                                     "a_jouer, delais, series,\n                                         {})\n")],
     # 15-11-2026 (superviseur R-759 du 15-11-2026, etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/
     # SUPERVISEUR_CERTIFICATION_Dim_15-11-2026.md, §5) — chacun doit faire tomber le cas que dit ATTENDU, pas un autre :
-    # le nombre de tranches revenu à 6, la valeur d'avant : à 12, N5 est vert ; il doit rougir (sinon N5 est une décoration)
-    "Sm_six_tranches_comme_avant": [(FAB, "TRANCHES_DE_LA_NUIT = 12\n", "TRANCHES_DE_LA_NUIT = 6\n")],
+    # le nombre de tranches revenu à 6, la valeur d'avant : au nombre écrit, N5 est vert ; il doit rougir (sinon N5 est une
+    # décoration). L'ancre ne lit pas la valeur (A-896, 15 tranches : l'ancre « = 12 » ne s'appliquait plus)
+    "Sm_six_tranches_comme_avant": [(FAB, "\nTRANCHES_DE_LA_NUIT = ", "\nTRANCHES_DE_LA_NUIT = 6  # ")],
     # réparation 8 : la sortie d'une épreuve rouge gardée entière (N11)
     "Sn_sortie_rouge_coupee_a_trois": [(CERTIF,
         "    return list(lignes) if code != 0 else list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]\n",
@@ -158,8 +159,14 @@ SABOTAGES = {
     "So_jouer_coupe_a_trois": [(CERTIF, "          garder=None):\n", "          garder=3):\n")],
     "Sq_boucle_sans_la_regle_de_coupe": [(CERTIF, "lignes_gardees(code, lignes)])", "lignes])")],
     # réparation 1b-β : la certification sans « ref: » (propriété ⑦ du filet), puis sans le pas qui vérifie HEAD (⑦ bis)
-    "St_certification_sans_ref": [(FAB, 'ref="${{ needs.preparer.outputs.sha }}", jeton_garde=True)', "jeton_garde=True)")],
-    "Su_certification_sans_meme_depot": [(FAB, "%(depart)s%(meme_depot)s%(logiciels)s", "%(depart)s%(logiciels)s")],
+    # 18-11-2026 (A-896) : depuis A-891 (installé le 18-11-2026 à 02h44), les pas de départ du job « certifier » sont
+    # « depart_certifier » : le texte de St s'y trouvait deux fois et celui de Su nulle part — les deux rendaient « NE
+    # S'APPLIQUE PLUS » (code 2 au certificat du 18-11-2026 05h58). St retire « ref: » des DEUX appels, Su vise le job
+    # « certifier » sous son nouveau nom.
+    "St_certification_sans_ref": [(FAB, 'ref="${{ needs.preparer.outputs.sha }}", jeton_garde=True),\n', "jeton_garde=True),\n"),
+                                  (FAB, 'ref="${{ needs.preparer.outputs.sha }}", jeton_garde=True)),\n', "jeton_garde=True)),\n")],
+    "Su_certification_sans_meme_depot": [(FAB, "%(depart_certifier)s%(meme_depot)s%(logiciels)s",
+                                          "%(depart_certifier)s%(logiciels)s")],
     # réparation 4 : un programme éprouvé remis hors des dossiers gardés (N12) ; « None » : un fichier créé dans la copie
     "Sp_programme_eprouve_hors_des_dossiers_gardes": [
         ("tests/EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS_Mer_11-11-2026.py", 'PROGRAMME = os.path.join("etudes", "outils", "INVENTORIER_LES_VINGT_ANS.py")',

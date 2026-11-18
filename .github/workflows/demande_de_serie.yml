@@ -82,6 +82,10 @@ jobs:
           LOT_BOUCLE=6
           PARTS_SIGNAUX=2
           LOT_SIGNAUX=21
+          PARTS_DEBUTS=4
+          LOT_DEBUTS=6
+          PARTS_SIGNAL=4
+          LOT_SIGNAL=6
           while IFS= read -r ligne || [ -n "$ligne" ]; do
             [ -n "$ligne" ] && [[ "$ligne" != "#"* ]] || continue
             if [[ "$ligne" == pointe=* ]]; then
@@ -100,7 +104,7 @@ jobs:
               if [ "$valeur" != "toutes" ]; then
                 deja=" "
                 for c in ${valeur//,/ }; do
-                  [[ " CircuitSeries CircuitPublic Relais NuitDecoupee Certification VenteUnique MessageDuSoir VingtAns RegistreEssais Bloc5A DossierLancement RegistreStrategies CircuitLecteur JugeLecteur Tri Moulinette ArriveeSignaux LectureCours SignalNomme PorteEntree Comblement VeriteJuge SeanceAchat VenteReglable DebutsSerie Comptabilites BaremeFrais LectureFiche GardeFou Confrontation JeuRadar RsiRebond SoirFiche TroisElements CopieBoucles MoulinetteEssai " == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue : $c"; exit 1; }
+                  [[ " CircuitSeries CircuitPublic Relais NuitDecoupee Certification VenteUnique MessageDuSoir VingtAns RegistreEssais Bloc5A DossierLancement RegistreStrategies CircuitLecteur JugeLecteur Tri Moulinette ArriveeSignaux LectureCours PorteEntree Comblement VeriteJuge SeanceAchat VenteReglable Comptabilites BaremeFrais LectureFiche GardeFou Confrontation JeuRadar RsiRebond SoirFiche TroisElements CopieBoucles MoulinetteEssai " == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue : $c"; exit 1; }
                   [[ "$deja" != *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve demandee deux fois : $c"; exit 1; }
                   deja="$deja$c "
                 done
@@ -117,7 +121,7 @@ jobs:
               [[ "$valeur" =~ ^(series|examen|epreuve)$ ]] || { echo "::error::DEMANDE REFUSEE : circuit inconnu (series ou examen ou epreuve)"; exit 1; }
               CIRCUIT="$valeur"
             elif [ "$cle" = "serie" ]; then
-              [[ "$valeur" =~ ^(toutes|Yahoo|HL|Boucle|Signaux)$ ]] || { echo "::error::DEMANDE REFUSEE : serie inconnue de la table"; exit 1; }
+              [[ "$valeur" =~ ^(toutes|Yahoo|HL|Boucle|Signaux|Debuts|Signal)$ ]] || { echo "::error::DEMANDE REFUSEE : serie inconnue de la table"; exit 1; }
               SERIE="$valeur"
             elif [ "$cle" = "a_blanc" ]; then
               [[ "$valeur" =~ ^(oui|non)$ ]] || { echo "::error::DEMANDE REFUSEE : a_blanc vaut oui ou non"; exit 1; }
@@ -146,6 +150,18 @@ jobs:
             elif [ "$cle" = "lot_signaux" ]; then
               [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_signaux de 1 a 99"; exit 1; }
               LOT_SIGNAUX="$valeur"
+            elif [ "$cle" = "parts_debuts" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : parts_debuts de 1 a 99"; exit 1; }
+              PARTS_DEBUTS="$valeur"
+            elif [ "$cle" = "lot_debuts" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_debuts de 1 a 99"; exit 1; }
+              LOT_DEBUTS="$valeur"
+            elif [ "$cle" = "parts_signal" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : parts_signal de 1 a 99"; exit 1; }
+              PARTS_SIGNAL="$valeur"
+            elif [ "$cle" = "lot_signal" ]; then
+              [[ "$valeur" =~ ^[1-9][0-9]?$ ]] || { echo "::error::DEMANDE REFUSEE : lot_signal de 1 a 99"; exit 1; }
+              LOT_SIGNAL="$valeur"
             else
               echo "::error::DEMANDE REFUSEE : cle inconnue : $cle"
               exit 1
@@ -195,6 +211,14 @@ jobs:
             echo "::error::DEMANDE REFUSEE : elle regle la serie Signaux, qu'elle ne joue pas (serie $SERIE)"
             exit 1
           fi
+          if [[ "$vus" == *" parts_debuts "* || "$vus" == *" lot_debuts "* ]] && [ "$SERIE" != "toutes" ] && [ "$SERIE" != "Debuts" ]; then
+            echo "::error::DEMANDE REFUSEE : elle regle la serie Debuts, qu'elle ne joue pas (serie $SERIE)"
+            exit 1
+          fi
+          if [[ "$vus" == *" parts_signal "* || "$vus" == *" lot_signal "* ]] && [ "$SERIE" != "toutes" ] && [ "$SERIE" != "Signal" ]; then
+            echo "::error::DEMANDE REFUSEE : elle regle la serie Signal, qu'elle ne joue pas (serie $SERIE)"
+            exit 1
+          fi
           COMPTES="$FICHIER"
           if [[ " series_longues.yml epreuves_longues.yml " == *" $FICHIER "* ]]; then COMPTES="series_longues.yml epreuves_longues.yml"; fi
           for F in $COMPTES; do
@@ -203,7 +227,7 @@ jobs:
               exit 1; }
             [ "$en_cours" = "0" ] || { echo "::error::DEMANDE REFUSEE : $en_cours passage(s) de $F en cours ou en attente ; redeposer la demande quand ils sont finis"; exit 1; }
           done
-          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE ; parts_yahoo $PARTS_YAHOO ; lot_yahoo $LOT_YAHOO ; parts_hl $PARTS_HL ; lot_hl $LOT_HL ; parts_boucle $PARTS_BOUCLE ; lot_boucle $LOT_BOUCLE ; parts_signaux $PARTS_SIGNAUX ; lot_signaux $LOT_SIGNAUX ; epreuves $EPREUVES ; a blanc $A_BLANC"
+          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE ; parts_yahoo $PARTS_YAHOO ; lot_yahoo $LOT_YAHOO ; parts_hl $PARTS_HL ; lot_hl $LOT_HL ; parts_boucle $PARTS_BOUCLE ; lot_boucle $LOT_BOUCLE ; parts_signaux $PARTS_SIGNAUX ; lot_signaux $LOT_SIGNAUX ; parts_debuts $PARTS_DEBUTS ; lot_debuts $LOT_DEBUTS ; parts_signal $PARTS_SIGNAL ; lot_signal $LOT_SIGNAL ; epreuves $EPREUVES ; a blanc $A_BLANC"
           if [ "$A_BLANC" = "oui" ]; then
             echo "A BLANC : rien n'est lance"
             exit 0
@@ -218,5 +242,5 @@ jobs:
             echo "LANCE : $FICHIER sur $BRANCHE"
             exit 0
           fi
-          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE" -f "parts_yahoo=$PARTS_YAHOO" -f "lot_yahoo=$LOT_YAHOO" -f "parts_hl=$PARTS_HL" -f "lot_hl=$LOT_HL" -f "parts_boucle=$PARTS_BOUCLE" -f "lot_boucle=$LOT_BOUCLE" -f "parts_signaux=$PARTS_SIGNAUX" -f "lot_signaux=$LOT_SIGNAUX" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
+          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE" -f "parts_yahoo=$PARTS_YAHOO" -f "lot_yahoo=$LOT_YAHOO" -f "parts_hl=$PARTS_HL" -f "lot_hl=$LOT_HL" -f "parts_boucle=$PARTS_BOUCLE" -f "lot_boucle=$LOT_BOUCLE" -f "parts_signaux=$PARTS_SIGNAUX" -f "lot_signaux=$LOT_SIGNAUX" -f "parts_debuts=$PARTS_DEBUTS" -f "lot_debuts=$LOT_DEBUTS" -f "parts_signal=$PARTS_SIGNAL" -f "lot_signal=$LOT_SIGNAL" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
           echo "LANCE : $FICHIER sur $BRANCHE"

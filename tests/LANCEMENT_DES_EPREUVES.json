@@ -195,6 +195,14 @@
   "tests/EPREUVES_DE_LA_VERSION_DE_PYTHON_Mar_17-11-2026.py --saboter": {
    "secondes": 420,
    "pourquoi": "Lancement nouveau de la décision A-874 de Jean-Luc (17-11-2026, version de Python des circuits), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat (2 cœurs, sans couverture) le 17-11-2026 : 3 s, puis 88 s après la propriété ④ (relecteur neuf du 17-11-2026, D1 et D2 : relevé des modules qu'exécute le soir, quatre sabotages de plus, chaque copie sabotée porte tous les programmes), puis 92 s et 59 s (deux mesures, la plus lente retenue) après les six sabotages SV11 à SV16 du superviseur R-759 du 17-11-2026 (N1 à N4) ; délai = 4 fois cette durée (4 × 92 = 368 s ; la mesure de couverture ralentit jusqu'à quatre fois, relecture du 16-10-2026), arrondi à la minute supérieure (420 s), 300 s au moins — même règle que les lancements nouveaux du bloc 3. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVES_DE_LA_LARGEUR_DES_CIRCUITS_Mar_17-11-2026.py": {
+   "secondes": 300,
+   "pourquoi": "Lancement nouveau de la décision A-884 de Jean-Luc (17-11-2026, largeur calculée des circuits publics), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat (2 cœurs, sans couverture) le 17-11-2026 : 1 s ; 4 fois cette durée reste sous 300 s : le plancher de 300 s des lancements nouveaux s'applique. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVES_DE_LA_LARGEUR_DES_CIRCUITS_Mar_17-11-2026.py --saboter": {
+   "secondes": 300,
+   "pourquoi": "Lancement nouveau de la décision A-884 de Jean-Luc (17-11-2026, largeur calculée des circuits publics), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat (2 cœurs, sans couverture) le 17-11-2026 : 5 s (13 sabotages) ; 4 fois cette durée reste sous 300 s : le plancher de 300 s des lancements nouveaux s'applique. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
   }
  },
  "series_hors_de_la_nuit": {
@@ -241,6 +249,29 @@
     "machines": 2,
     "lot": 21,
     "pourquoi": "Ajoutée le 11-11-2026 (plan V7, bloc 2bis « Toutes les séries longues sur GitHub », agent E) : chaque série longue du dépôt doit pouvoir partir sur GitHub par le relais. Lot de 21 : le découpage du dernier relevé de la machine du Chat (tests/resultats/SERIE_DE_SABOTAGES_DE_L_ARRIVEE_DES_SIGNAUX_Dim_08-11-2026_21h58.txt : « 2 lots de 21 au plus, 2 à la fois », 30 sabotages, 34 minutes), pour que les lignes « lot k » du relevé restent comparables. 2 machines : un lot chacune (lots_de_la_part de tests/outils/jouer_une_part.py), l'épreuve copiant le dépôt sans .git ni etudes/ une fois par sabotage joué (sa fonction preparer) — deux machines séparent les disques. Durée attendue par machine : celle d'un lot, environ 34 minutes sur la machine du Chat, loin sous la limite de 330 minutes du job « jouer ». Disque d'un lot non mesuré sur GitHub : THÉORIQUE, le premier passage le dira (place libre minimale écrite au relevé ; 9 998 Mo libres au minimum sur la machine du Chat le 08-11-2026)."
+   }
+  },
+  "tests/EPREUVES_DES_DEBUTS_DE_SERIE_Sam_31-10-2026.py": {
+   "releve": "tests/resultats/SERIE_DE_SABOTAGES_DES_DEBUTS_DE_SERIE_*.txt",
+   "pourquoi": "A-896 (décision de Jean-Luc du 18-11-2026 à 12h25, « prends le 1, la file unique », pour l'option « Une file unique : 18 places au maximum et 2 laissées libres, 15 tranches, après un essai de 10 min de queue: max ») ; conception etudes/C3_C4_TRANCHES_DE_LA_CERTIFICATION_Mer_18-11-2026.md § 3.2 : la série sort de la nuit par la voie existante des séries, comme celles des 20 ans et de l'arrivée des signaux. Raison mesurée : le lancement --saboter (41 sabotages) a été coupé à 4 500 s (code 124) à chacune de ses quatre nuits (1 500, 4 500, 4 500, 4 500 s : aucune nuit finie) ; il dure 2 593 s sur GitHub SANS la mesure de couverture (passage 44189028692 du 17-11-2026) et environ 6 690 s estimées avec elle (rapport médian 2,58 nuit/circuit long, estimation de l'étude, jamais mesurée) : au-delà, seul, du tiers d'une tranche (6 600 s). La nuit ne joue plus que son lancement normal et vérifie le relevé de la série (empreintes des fichiers lus, programmes/SERIES_DE_SABOTAGES.py) ; 3 sabotages refaits chaque nuit, comme les séries de l'historique long et de la boucle de check. Tant qu'aucun relevé n'est au dépôt, la nuit le dit rouge : il se fabrique par tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py ou par le circuit public des séries (code Debuts). Portée du relevé : celle d'origine, « lectures » (la règle la plus stricte) : son code ne nomme pas le fichier maître des cours (recherche de « cours_maitre » dans l'épreuve, 18-11-2026 ; les programmes qu'elle lance n'ont pas été examinés) ; si un fichier qu'elle lit change chaque soir, le relevé le dira périmé et il faudra passer à « code_execute ».",
+   "essais_refaits_chaque_nuit": 3,
+   "serie_du_circuit": {
+    "code": "Debuts",
+    "machines": 4,
+    "lot": 6,
+    "pourquoi": "A-896, 18-11-2026 : 41 sabotages en lots de 6 (7 lots), répartis sur 4 machines (2, 2, 2 et 1 lots ; lots_de_la_part de tests/outils/jouer_une_part.py). Durée attendue : environ 63 s par sabotage sur GitHub sans couverture (2 593 s ÷ 41, passage 44189028692), soit de l'ordre de 13 minutes par machine, loin sous les 330 minutes du job « jouer ». Disque d'un lot non mesuré sur GitHub : THÉORIQUE, le premier passage le dira."
+   }
+  },
+  "tests/EPREUVES_DU_SIGNAL_NOMME_Ven_30-10-2026.py": {
+   "releve": "tests/resultats/SERIE_DE_SABOTAGES_DU_SIGNAL_NOMME_*.txt",
+   "pourquoi": "A-896 (décision de Jean-Luc du 18-11-2026 à 12h25, « prends le 1, la file unique », pour l'option « Une file unique : 18 places au maximum et 2 laissées libres, 15 tranches, après un essai de 10 min de queue: max ») ; conception etudes/C3_C4_TRANCHES_DE_LA_CERTIFICATION_Mer_18-11-2026.md § 3.2 : la série sort de la nuit par la voie existante des séries, comme celles des 20 ans et de l'arrivée des signaux. Raison mesurée : le lancement --saboter a été coupé à 4 500 s (code 124) la nuit du 16 au 17-11-2026 sous la mesure de couverture ; il dure 1 391 s sur GitHub SANS elle (passage 44189028692). Préalable fait le 18-11-2026 : l'épreuve accepte « --saboter=S1,S2 » (plusieurs s'additionnent, un nom inconnu rend 2) et écrit ses lignes dans la forme que lit le joueur des séries (« <nom> mord : [...] », « Z0 … ») ; « Z0 » n'est plus une clé de son dictionnaire SABOTAGES. 3 sabotages refaits chaque nuit. Tant qu'aucun relevé n'est au dépôt, la nuit le dit rouge. Portée du relevé « code_execute » (le choix D43 du Chat du 05-11-2026, À CONFIRMER PAR JEAN-LUC, déjà pris par la série de l'arrivée des signaux) : l'épreuve lit le fichier maître des cours, qui grandit chaque soir ; avec la portée d'origine « lectures », le relevé serait périmé chaque nuit et la série rouge chaque nuit.",
+   "essais_refaits_chaque_nuit": 3,
+   "portee_du_releve": "code_execute",
+   "serie_du_circuit": {
+    "code": "Signal",
+    "machines": 4,
+    "lot": 6,
+    "pourquoi": "A-896, 18-11-2026 : lots de 6, répartis sur 4 machines (le nombre de sabotages se lit au dictionnaire SABOTAGES de l'épreuve, il n'est pas recopié ici). Durée attendue : le lancement --saboter entier dure 1 391 s sur GitHub sans couverture (passage 44189028692), réparti sur 4 machines. Disque d'un lot non mesuré sur GitHub : THÉORIQUE."
    }
   }
  },
@@ -386,14 +417,6 @@
    ],
    "pourquoi": "bilan GHUB du 15-11-2026, §2 (« Lecture des cours, jeu entier », 57 min sur la machine du Chat) ; 5 007 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
   },
-  "SignalNomme": {
-   "chemin": "tests/EPREUVES_DU_SIGNAL_NOMME_Ven_30-10-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "3 951 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
-  },
   "PorteEntree": {
    "chemin": "tests/EPREUVES_J_PORTE_D_ENTREE_Mer_11-11-2026.py",
    "arguments": [
@@ -427,14 +450,6 @@
   },
   "VenteReglable": {
    "chemin": "tests/EPREUVES_DE_LA_VENTE_REGLABLE_Mer_11-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "1 500 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
-  },
-  "DebutsSerie": {
-   "chemin": "tests/EPREUVES_DES_DEBUTS_DE_SERIE_Sam_31-10-2026.py",
    "arguments": [
     "{copie}",
     "--saboter"

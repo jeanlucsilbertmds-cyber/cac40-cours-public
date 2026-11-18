@@ -39,11 +39,16 @@ fonction, `declaration_du_signal` du juge (depuis le 05-11-2026), et traduites e
      deux fonctions avaient le droit de lire (`signal_de_la_fiche`, `manques_du_signal`), et le compte de k en ajoutait
      deux autres ; les quatre appellent désormais `declaration_du_signal` (sabotages S11, S12).
 
-USAGE : python3 -B tests/EPREUVES_DU_SIGNAL_NOMME_Ven_30-10-2026.py <racine du dépôt> [--saboter | nom]
-  sans option : Z0, le dépôt tel quel (environ une minute) ; --saboter : Z0 puis chaque sabotage (environ dix minutes) ;
-  un nom de sabotage : celui-là seul.
+USAGE : python3 -B tests/EPREUVES_DU_SIGNAL_NOMME_Ven_30-10-2026.py <racine du dépôt> [--saboter | --saboter=S1,S2… | nom]
+  sans option : Z0, le dépôt tel quel (environ une minute) ; --saboter : Z0 puis chaque sabotage (1 391 s mesurées
+  sur GitHub sans la mesure de couverture, passage 44189028692 ; coupé à 4 500 s sous la couverture de la nuit) ;
+  --saboter=S1,S2 (plusieurs « --saboter= » s'additionnent) : Z0 puis ceux-là, la forme qu'emploie le joueur des
+  séries (A-896, 18-11-2026 : la série sort de la nuit) ; un nom de sabotage seul : celui-là seul, sans Z0.
 CODE : 0 si Z0 est tout vert et que chaque sabotage joué fait rougir au moins une épreuve ; 1 sinon ; 2 si une cible
-de sabotage est introuvable (R-734 : un contrôle qui n'a pas pu tourner ne rend pas 0).
+de sabotage est introuvable, si un nom demandé par « --saboter= » ne désigne aucun sabotage, ou si une option inconnue
+est donnée (R-734 : un contrôle qui n'a pas pu tourner ne rend pas 0).
+LIGNES : « Z0 dépôt tel quel : … », puis une par sabotage « <nom> mord : [<épreuves tombées>] », « <nom> NE MORD PAS … »
+ou « <nom> NE S'APPLIQUE PLUS … » — la forme que lit programmes/SERIES_DE_SABOTAGES.py (LIGNE).
 
 ① RÔLE — Voir « À QUOI ÇA SERT ».
 ② CONTEXTE D'APPEL — À la main ; et par la certification (`programmes/CERTIFIER_LA_VERSION.py`), qui lance chaque
@@ -102,8 +107,9 @@ RSI_REGLAGES = '{"periode": 2, "seuil": 10, "tendance": 200}'
 NOMBRE_DE_CAS = 8
 MODULE_DU_C5_AVANT = "programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py"
 
+# Z0 (le dépôt tel quel) n'est PAS une clé de ce dictionnaire depuis le 18-11-2026 (A-896) : le joueur des séries
+# (tests/outils/JOUER_UNE_SERIE_DE_SABOTAGES.py) prend chaque clé pour un sabotage qui doit mordre.
 SABOTAGES = {
-    "Z0": [],
     # le repli vers C5 remis dans le programme principal du juge, avant la porte 0
     "S1_repli_C5_dans_le_juge": [(JUGE, "        ok, manq, _b0 = porte_0(f)\n",
                                   "        f[\"module_signal\"] = f.get(\"module_signal\") or %r\n"
@@ -657,7 +663,7 @@ def preparer(depot, sab):
     d = tempfile.mkdtemp(prefix="signal_nomme_")
     r = os.path.join(d, "r")
     shutil.copytree(depot, r, ignore=shutil.ignore_patterns(".git", "etudes", "__pycache__", "_site_travail"))
-    for f, a, b in SABOTAGES[sab]:
+    for f, a, b in ([] if sab == "Z0" else SABOTAGES[sab]):
         p = os.path.join(r, f)
         t = open(p, encoding="utf-8").read()
         assert t.count(a) == 1, "%s : cible trouvée %d fois dans %s : %r" % (sab, t.count(a), f, a[:60])
@@ -678,13 +684,29 @@ if not _args:
     print(__doc__.split("① RÔLE")[0])
     sys.exit(2)
 DEPOT = os.path.abspath(_args[0])
-_choix = list(SABOTAGES) if "--saboter" in sys.argv else [_args[1]] if len(_args) > 1 else ["Z0"]
+# A-896 (18-11-2026) : « --saboter=S1,S2 », la forme du joueur des séries ; TOUS les « --saboter= » sont lus (le défaut
+# R-3 du relecteur M1 du 13-11-2026 sur l'épreuve des débuts de série : le premier seul était lu)
+_demandes = [x for a in sys.argv[1:] if a.startswith("--saboter=") for x in a.split("=", 1)[1].split(",") if x]
+_inconnues = [a for a in sys.argv[1:] if a.startswith("--") and a != "--saboter" and not a.startswith("--saboter=")]
+_absents = [x for x in _demandes if x not in SABOTAGES]
+if _inconnues or _absents:
+    print("OPTION(S) INCONNUE(S) : %s · SABOTAGE(S) INCONNU(S) : %s — rien n'est joué" % (_inconnues, _absents))
+    sys.exit(2)
+if "--saboter" in sys.argv:
+    _choix = ["Z0"] + list(SABOTAGES)
+elif _demandes:
+    _choix = ["Z0"] + list(dict.fromkeys(_demandes))
+else:
+    _choix = [_args[1]] if len(_args) > 1 else ["Z0"]
 _faute = False
 for sab in _choix:
+    if sab != "Z0" and sab not in SABOTAGES:
+        print("%s NE S'APPLIQUE PLUS : aucun sabotage de ce nom" % sab)
+        sys.exit(2)
     try:
         d, r = preparer(DEPOT, sab)
     except AssertionError as e:
-        print("== %s : CIBLE INTROUVABLE — %s" % (sab, e))
+        print("%s NE S'APPLIQUE PLUS : CIBLE INTROUVABLE — %s" % (sab, e))
         sys.exit(2)
     try:
         code, out = lancer(r, os.path.abspath(__file__), "--cas", r, delai=1800)
@@ -693,12 +715,12 @@ for sab in _choix:
     echecs = [l.strip()[len("ÉCHEC "):].split(" — ")[0] for l in out.splitlines() if l.strip().startswith("ÉCHEC")]
     if sab == "Z0":
         bon = code == 0 and not echecs and "FIN DES CAS : %d" % NOMBRE_DE_CAS in out
-        print("== Z0 dépôt tel quel : %s" % ("tout vert" if bon else "ROUGE (code %d)" % code))
+        print("Z0 dépôt tel quel : %s" % ("tout vert" if bon else "ROUGE (code %d)" % code))
         print("\n".join(l for l in out.splitlines() if l.strip()))
     else:
         bon = code == 1 and bool(echecs) and "FIN DES CAS : %d" % NOMBRE_DE_CAS in out
-        print("== %s : %s" % (sab, ("mord (" + " · ".join(echecs) + ")") if bon else
-                                    "NE MORD PAS (code %d) %s" % (code, out.strip()[-300:])))
+        print("%s %s" % (sab, ("mord : %s" % sorted(echecs)) if bon else
+                               "NE MORD PAS (code %d) %s" % (code, out.strip()[-300:].replace("\n", " | "))))
     _faute = _faute or not bon
 print("VERDICT :", "tout est conforme" if not _faute else "ECHEC — voir ci-dessus")
 sys.exit(1 if _faute else 0)

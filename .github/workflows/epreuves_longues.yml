@@ -3,13 +3,13 @@
 # ou par le relais .github/workflows/demande_de_serie.yml (demande « circuit=epreuve »), qui appuie sur ce même bouton.
 # À QUOI IL SERT (étape GHUB ②, décisions de Jean-Luc A-809, A-811, A-816 du 15-11-2026) : jouer sur les machines de ce
 # dépôt les épreuves trop longues pour la machine du Chat (plus de 10 minutes), une machine par épreuve, au plus
-# 10 à la fois, et rendre au DÉPÔT PRIVÉ, pour chacune, sa sortie entière et son code de sortie.
+# 18 à la fois, et rendre au DÉPÔT PRIVÉ, pour chacune, sa sortie entière et son code de sortie.
 # LA TABLE : l'entrée « epreuves » ne porte que des CODES ; la commande de chaque code est FIGÉE dans la table
 # « epreuves_longues » de tests/LANCEMENT_DES_EPREUVES.json de la version éprouvée (lue par
 # tests/outils/jouer_une_epreuve_longue.py) ; aucun argument ne vient de la demande.
 # LE GROUPE : le même que le circuit des séries (series-longues) : GitHub ne fait tourner qu'un passage du groupe à la fois,
-# les deux circuits ne dépassent donc jamais ensemble 10 machines, et la marge des autres circuits
-# (MARGE_DES_AUTRES_CIRCUITS du fabricant) reste entière.
+# les deux circuits ne dépassent donc jamais ensemble 18 machines ; la place des autres circuits se
+# CALCULE sur leurs fiches (`refus_de_la_largeur` du fabricant, A-884).
 # CE QU'IL FAIT. ① « preparer » clone la version demandée, vérifie aussitôt, avant tout code de la version, qu'elle est
 # la branche publique lancée, qu'elle existe au privé et que la pointe demandée est exactement sa pointe (A-811 ; la
 # porte est celle du circuit des séries) ; puis il valide la liste contre la table de la version et fabrique la
@@ -46,6 +46,7 @@ on:
 concurrency:
   group: series-longues
   cancel-in-progress: false
+  queue: max
 permissions:
   contents: read
 jobs:
@@ -170,7 +171,7 @@ jobs:
     strategy:
       # une épreuve rouge n'arrête pas les autres
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 18
       matrix:
         include: ${{ fromJSON(needs.preparer.outputs.matrice) }}
     name: jouer ${{ matrix.code }}

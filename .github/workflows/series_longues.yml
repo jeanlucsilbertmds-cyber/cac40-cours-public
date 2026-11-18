@@ -67,7 +67,7 @@ on:
         description: "Serie a jouer (toutes : chaque serie de la table)"
         required: true
         type: choice
-        options: ["toutes", "Yahoo", "HL", "Boucle", "Signaux"]
+        options: ["toutes", "Yahoo", "HL", "Boucle", "Signaux", "Debuts", "Signal"]
         default: "toutes"
       parts_yahoo:
         description: "Nombre de machines pour la serie Yahoo (1 a 99)"
@@ -101,9 +101,26 @@ on:
         description: "Sabotages par lot pour la serie Signaux (1 a 99 ; le changer change les lignes lot k du releve)"
         type: number
         default: 21
+      parts_debuts:
+        description: "Nombre de machines pour la serie Debuts (1 a 99)"
+        type: number
+        default: 4
+      lot_debuts:
+        description: "Sabotages par lot pour la serie Debuts (1 a 99 ; le changer change les lignes lot k du releve)"
+        type: number
+        default: 6
+      parts_signal:
+        description: "Nombre de machines pour la serie Signal (1 a 99)"
+        type: number
+        default: 4
+      lot_signal:
+        description: "Sabotages par lot pour la serie Signal (1 a 99 ; le changer change les lignes lot k du releve)"
+        type: number
+        default: 6
 concurrency:
   group: series-longues
   cancel-in-progress: false
+  queue: max
 permissions:
   contents: read
 jobs:
@@ -220,10 +237,14 @@ jobs:
           LOT_BOUCLE: ${{ inputs.lot_boucle }}
           PARTS_SIGNAUX: ${{ inputs.parts_signaux }}
           LOT_SIGNAUX: ${{ inputs.lot_signaux }}
+          PARTS_DEBUTS: ${{ inputs.parts_debuts }}
+          LOT_DEBUTS: ${{ inputs.lot_debuts }}
+          PARTS_SIGNAL: ${{ inputs.parts_signal }}
+          LOT_SIGNAL: ${{ inputs.lot_signal }}
         run: |
           set -u -o pipefail
           echec () { echo "::error::$1"; exit 1; }
-          codes="Yahoo HL Boucle Signaux"
+          codes="Yahoo HL Boucle Signaux Debuts Signal"
           choix=""
           for c in $codes; do
             if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "$c" ]; then choix="$choix $c"; fi
@@ -267,7 +288,7 @@ jobs:
     strategy:
       # une part rouge n'arrête pas les autres ; le rassemblement, lui, refuse dès qu'une seule n'est pas verte
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 18
       matrix:
         include: ${{ fromJSON(needs.preparer.outputs.matrice) }}
     name: jouer ${{ matrix.serie }} ${{ matrix.part }}/${{ matrix.nb_parts }}
@@ -422,6 +443,9 @@ jobs:
     timeout-minutes: 90
     strategy:
       fail-fast: false
+      # borne écrite pour que la largeur du circuit se CALCULE sur sa fiche (A-884) : une série au plus par machine, et
+      # « preparer » ne rend que des séries de la table, chacune une fois ; elle ne retient aucune série
+      max-parallel: 6
       matrix:
         include: ${{ fromJSON(needs.preparer.outputs.series) }}
     name: rassembler ${{ matrix.serie }}

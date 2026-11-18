@@ -37,8 +37,9 @@ rapatriement rend, pour chaque épreuve, le code de sortie et la sortie capturé
   un point-virgule, arguments sans « {copie} », le « --saboter » d'une série, deux codes égaux à la casse près, un
   chemin qui remonte (« .. »).
   G (le gabarit fabriqué) : G1 EPREUVES est fabriqué sans repère de format non rempli (« %( »), porte le MÊME groupe de
-  concurrence que SERIES (GROUPE_DES_MACHINES_LONGUES) et « max-parallel » = PARTS_EN_MEME_TEMPS, et PARTS_EN_MEME_TEMPS
-  + MARGE_DES_AUTRES_CIRCUITS ne dépasse pas TACHES_EN_MEME_TEMPS_DU_COMPTE ; G2 le filet des gabarits l'accepte, et
+  concurrence que SERIES (GROUPE_DES_MACHINES_LONGUES) et « max-parallel » = PARTS_EN_MEME_TEMPS, sa largeur CALCULÉE
+  vaut PARTS_EN_MEME_TEMPS, et la largeur calculée des circuits fabriqués tient dans TACHES_EN_MEME_TEMPS_DU_COMPTE
+  (`refus_de_la_largeur`, A-884, 17-11-2026 ; avant : la part plus une marge écrite à la main) ; G2 le filet des gabarits l'accepte, et
   le refuse privé de « persist-credentials: false », poussant vers main, ou signant de l'identité des séries ; G3 le pas
   « Fabriquer la matrice », extrait du gabarit et joué par bash sur une version minuscule, rend la matrice des codes
   demandés, et refuse un code inconnu ; G4 le pas « Jouer l epreuve », joué avec un faux « unshare » qui note sa ligne
@@ -102,7 +103,8 @@ JOUEUR = "tests/outils/jouer_une_epreuve_longue.py"
 RAPATRIEUR = "tests/outils/rapatrier_les_epreuves_longues.py"
 REGISTRE = "donnees/PROVENANCE_DES_FICHIERS.csv"
 JETON = "programmes/FORME_D_UN_JETON.py"     # chargé par `refus_avant_publication` (cas A4), à côté du fabricant
-LUS = (FABRICANT, CERTIFICATEUR, TABLE, JOUEUR_DES_PARTS, JOUEUR, RAPATRIEUR, REGISTRE, JETON)
+CIRCUIT_PRIVE = ".github/workflows/collecte_abc.yml"   # G1 (A-884) : le circuit du soir est fabriqué de lui
+LUS = (FABRICANT, CERTIFICATEUR, TABLE, JOUEUR_DES_PARTS, JOUEUR, RAPATRIEUR, REGISTRE, JETON, CIRCUIT_PRIVE)
 GIT_ENV = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="essai",
                GIT_AUTHOR_EMAIL="essai@essai", GIT_COMMITTER_NAME="essai", GIT_COMMITTER_EMAIL="essai@essai",
                GIT_TERMINAL_PROMPT="0")
@@ -760,8 +762,17 @@ def tour(racine, source_git=None, fragment_p3=None):
             faux.append(f"G1 groupes de concurrence épreuves / séries : {groupes}")
         if E.count("max-parallel: %d\n" % F.PARTS_EN_MEME_TEMPS) != 1 or len(re.findall("max-parallel", E)) != 1:
             faux.append("G1 « max-parallel » du gabarit des épreuves n'est pas PARTS_EN_MEME_TEMPS")
-        if F.PARTS_EN_MEME_TEMPS + F.MARGE_DES_AUTRES_CIRCUITS > F.TACHES_EN_MEME_TEMPS_DU_COMPTE:
-            faux.append("G1 le budget des machines dépasse les tâches du compte")
+        # A-884 (17-11-2026) : la largeur se CALCULE sur les fiches fabriquées ; avant, G1 comparait la part à une marge
+        # écrite à la main (10), restée verte à 16 + 10 = 26 > 20
+        soir_g1 = F.fabriquer_le_circuit(open(os.path.join(racine, CIRCUIT_PRIVE), encoding="utf-8").read())
+        fiches_g1 = {c.split("/")[-1]: o.decode("utf-8") for c, o in F.ce_que_la_publication_ecrit(racine, [], [], soir_g1)
+                     if c.startswith(".github/workflows/")}
+        refus_g1, _ = F.refus_de_la_largeur(fiches_g1)
+        if refus_g1:
+            faux.append(f"G1 la largeur calculée des circuits fabriqués dépasse les tâches du compte : {refus_g1}")
+        if F.largeur_d_une_fiche(E) != (F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS):
+            faux.append(f"G1 largeur calculée du gabarit des épreuves {F.largeur_d_une_fiche(E)} au lieu de "
+                        f"{(F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS)}")
 
         def filet(nom, texte, fragment):
             """Juge un cas G2 (fragment None : accepté). ① RÔLE — Un cas du filet. ② CONTEXTE D'APPEL — `tour`.
