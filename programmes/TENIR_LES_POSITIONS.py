@@ -1608,6 +1608,38 @@ def mettre_a_part_les_cci_fautifs(signaux):
     return gardes, a_part
 
 
+def table_nom_vers_mnemonique(chemin):
+    """Rend la table nom de valeur (majuscules) → mnémonique, lue dans le référentiel des valeurs.
+
+    ① RÔLE — LA SEULE construction de la table qui traduit le nom porté par un signal en mnémonique d'univers (R-708 :
+      deux implémentations d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `tenir_pour_de_vrai` (le circuit du soir) ; `programmes/CORRIGER_LES_COMPTES_UN_JETON.py`
+      (`rejouer_la_decision`), depuis le 18-11-2026.
+    ③ ENTRÉE — `chemin` : le fichier du référentiel des valeurs.
+    ④ CONDITIONS D'ENTRÉE — Le fichier porte les colonnes `onglet_google` et `mnemonique`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire ; vide si le fichier n'existe pas (comme `_lire_csv`).
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque ligne : `onglet_google` en majuscules → `mnemonique` en majuscules, lignes complètes
+      seules.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Sortie le 18-11-2026 de `tenir_pour_de_vrai`, où elle était écrite en ligne, parce que la correction
+      des comptes un jeton (A-801) la recopiait (relecture du 18-11-2026, D4 ; superviseur R-759).
+    ⑨ CE QUI CLOCHE — `tenir_pour_de_vrai` lui passe un nom de référentiel écrit en dur (v3), quand le lecteur du
+      soir le trouve par `trouver(base, "REFERENTIEL_VALEURS")` : au premier référentiel v4, les deux divergeraient
+      (non changé ici, BACKLOG).
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    mnemo = {}
+    for ligne in _lire_csv(chemin):
+        nom = (ligne.get("onglet_google") or "").strip().upper()
+        code = (ligne.get("mnemonique") or "").strip().upper()
+        if nom and code:
+            mnemo[nom] = code
+    return mnemo
+
+
 def attribuer_aux_strategies(signaux, strategies, mnemo):
     """Attribue chaque signal du détecteur aux stratégies vivantes dont l'univers porte sa valeur, CCI compris.
 
@@ -3237,13 +3269,8 @@ def tenir_pour_de_vrai(base):
                 continue
             strategies.append((ligne["id"], {m.strip().upper()
                                              for m in ligne["univers"].split(",") if m.strip()}))
-    mnemo = {}
-    for ligne in _lire_csv(os.path.join(base, "donnees",
-                                        "REFERENTIEL_VALEURS_v3_Lun_17-08-2026_10h54.csv")):
-        nom = (ligne.get("onglet_google") or "").strip().upper()
-        code = (ligne.get("mnemonique") or "").strip().upper()
-        if nom and code:
-            mnemo[nom] = code
+    mnemo = table_nom_vers_mnemonique(os.path.join(base, "donnees",
+                                                   "REFERENTIEL_VALEURS_v3_Lun_17-08-2026_10h54.csv"))
 
     # ═══ LE LECTEUR SE CONFRONTE AU CONTRAT, LUI AUSSI ═══
     # CC1 de Cowork, 13-09-2026 : j avais ecrit « chaque bout se confronte AU

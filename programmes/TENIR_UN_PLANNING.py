@@ -17,10 +17,7 @@
   doubles copies, un journal, un filtre sur les repères. La surveillance tient la
   machine du Chat éveillée et réveille le Chat à chaque ligne affichée ; elle
   s'arrête au bout de 30 minutes et le Chat la relance (MODE_EMPLOI_DEPOT.md §12).
-  Aucune tâche automatique ne l'appelle. Depuis le 18-11-2026, il n'est plus le
-  moteur du planning : la fin de chaque traitement lance le suivant, et un réveil
-  programmé, à 10 minutes au plus tant qu'une étape tourne ou est prête,
-  rattrape ce qui est tombé (R-763, MODE_EMPLOI_DEPOT.md §13.1bis).
+  Aucune tâche automatique ne l'appelle.
 
 ③ ENTRÉE — Un seul argument : le chemin d'un fichier CSV séparé par « ; », avec
   l'en-tête « jalon;echeance;preuve;libelle ». echeance au format
@@ -68,10 +65,7 @@
   est écrite par le Chat : sa date repose sur sa parole. La qualité reste aux
   relecteurs. Il meurt pendant qu'une question de l'interface attend une réponse
   (arrêt de 15h09 à 18h15 le 28-10-2026). Il ne tourne que si la
-  surveillance tourne : un redémarrage de la machine le tue sans prévenir
-  personne ; seuls le réveil de R-763, s'il a été programmé, ou un message de
-  Jean-Luc le font relancer. Si la conversation elle-même s'arrête, rien ne
-  prévient personne.
+  surveillance tourne : une session arrêtée arrête tout, sans prévenir personne.
   Tenue prouvée le 25-10-2026 au soir seulement ; une nuit entière : THÉORIQUE.
 
 ⑩ EFFET — Écrit, APRÈS avoir affiché les lignes du passage (fonction `poser`),
