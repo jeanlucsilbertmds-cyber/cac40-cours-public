@@ -192,12 +192,12 @@ CAPITAL = 100000.0          # capital engage par position (carte d'identite)
 # migration vers GitHub. Les cours, eux, sont complets.**
 FICHIER_MESURES = os.path.join('donnees', 'historique_mesures.csv')
 
-COLONNES = ['date_mesure','strategie','comptabilite','etat','n_operations','gagnantes',
-            'taux_reussite','borne_basse_wilson','point_mort','verdict_c7','cumul_net_eur',
-            'esperance_eur','facteur_profit','serie_en_cours','pertes_consecutives',
-            'pire_chute_pct','pire_chute_eur','compteur','seuil','conformite_promis',
-            'voyant_c7','voyant_pertes','voyant_chute','temoin_permanent','temoin_miroir',
-            'rapport_gain_secousses','source_calibrage']
+# LES COLONNES DE L'HISTORIQUE SE LISENT AU CONTRAT, JAMAIS RECOPIÉES (R-708) — depuis le 16-11-2026 (étape CARNET
+# partie 2) : elles étaient écrites ici une seconde fois, et le carnet de la vraie vie (A-845) les allonge ; deux
+# listes auraient divergé au premier ajout.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from CONTRATS_DES_FICHIERS import MESURE as _MESURE, CARNET_DE_LA_VRAIE_VIE as _CARNET
+COLONNES = list(_MESURE)
 
 # ---------------------------------------------------------------- lecture
 def _p(base, *noms):
@@ -1866,10 +1866,18 @@ def mesurer_une_strategie(operations, carte):
     ⑪ TERMINAISON — Rend toujours la main.
       [sort: non]
     """
-    from CONTRATS_DES_FICHIERS import UN_JETON, JETONS_ILLIMITES
     return [(libelle, compta, stats(operations_de(operations, carte, compta), cle))
-            for libelle, cle, compta in (('un jeton', 'pnl_net_eur', UN_JETON),
-                                         ('jetons illimites', 'pnl_net_convention_eur', JETONS_ILLIMITES))]
+            for libelle, cle, compta in LECTURES_DES_COMPTABILITES]
+
+
+# LA COLONNE DE RÉSULTAT DE CHAQUE COMPTABILITÉ, ÉCRITE UNE FOIS (R-708) : `mesurer_une_strategie` et le carnet de la
+# vraie vie (`cases_du_carnet`, 16-11-2026) la lisent ici. (libellé écrit dans l'historique, colonne du journal,
+# nom de la comptabilité au contrat.) Le réel en un jeton, la convention en jetons illimités (A-330, encore à faire).
+from CONTRATS_DES_FICHIERS import UN_JETON as _UN_JETON, JETONS_ILLIMITES as _JETONS_ILLIMITES
+LECTURES_DES_COMPTABILITES = (('un jeton', 'pnl_net_eur', _UN_JETON),
+                              ('jetons illimites', 'pnl_net_convention_eur', _JETONS_ILLIMITES))
+# Le nom que `MESURER_LES_INDICATEURS.operations_du_journal` donne à chacune de ces deux colonnes.
+PRIX_DE_LA_COLONNE = {'pnl_net_eur': 'reel', 'pnl_net_convention_eur': 'convention'}
 
 
 # LE TEMOIN DES COMPTABILITES : les cinq VRAIES lignes du journal au 27-09-2026
@@ -2224,6 +2232,293 @@ def ligne(date_mesure, strat_id, comptabilite, etat, s, carte, golden, temoin_p,
         'source_calibrage': source_cal,
     }
 
+# ---------------------------------------------------------------- le carnet de la vraie vie (A-788, A-845)
+# Décision de Jean-Luc du 16-11-2026 à 10h16 (A-845, « 1 ») : le carnet de la vraie vie VIT dans cet historique,
+# par des colonnes AJOUTÉES (contrat `CARNET_DE_LA_VRAIE_VIE`), jamais dans un fichier neuf.
+
+ETAT_DU_CARNET_CALCULE = "CALCULÉ"
+ETAT_DU_CARNET_INCONNU = "INCONNU : "
+
+
+def racine_du_code():
+    """Rend la racine du dépôt où vit CE programme.
+
+    ① RÔLE — Trouver les briques du carnet (le juge, le module des indicateurs) à côté du code qui tourne.
+    ② CONTEXTE D'APPEL — `cases_du_carnet`, `empreinte_de_la_carte`.
+    ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — Ce fichier vit dans `programmes/` d'un dépôt.
+    ⑤ SORTIE — UNE valeur : le chemin du dossier parent de `programmes/`.
+      [rend: 1]
+    ⑥ TRAITEMENT — Le dossier du dossier de ce fichier.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — `main` reçoit la racine des DONNÉES (`base`), qui peut être un dossier d'épreuve sans programmes ;
+      le code qui calcule doit être celui qui tourne, jamais une autre copie trouvée sous `base`.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _indicateurs():
+    """Charge `programmes/MESURER_LES_INDICATEURS.py`, le seul calcul des indicateurs d'A-788.
+
+    ① RÔLE — Donner au carnet LE calcul des indicateurs, celui que le juge appellera pour les blocs 70 % et 30 %.
+    ② CONTEXTE D'APPEL — `cases_du_carnet`, `empreinte_de_la_carte`.
+    ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — Le module est à côté de ce programme.
+    ⑤ SORTIE — UNE valeur : le module chargé.
+      [rend: 1]
+    ⑥ TRAITEMENT — Import par son nom, le dossier de ce programme étant au chemin d'import (en tête du fichier).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — « Mêmes indicateurs » (A-788) n'est vrai que si le carnet et les blocs appellent la même fonction
+      (deux implémentations d'une même chose divergent toujours, R-708). Chargé à la demande : la mesure garde sa
+      dépendance au seul contrat tant qu'aucun carnet n'est écrit.
+    ⑨ CE QUI CLOCHE — Le module charge à son tour le juge, le module de jugement, les statistiques, ce programme-ci
+      (sous un autre nom) et les positions : une brique absente lève, et `cases_du_carnet` le dit en INCONNU.
+    ⑩ EFFET — Exécute le code de chargement du module.
+    ⑪ TERMINAISON — Rend la main ; lève ImportError si le module manque.
+      [sort: non]
+    """
+    import MESURER_LES_INDICATEURS
+    return MESURER_LES_INDICATEURS
+
+
+def periode_du_carnet(carte, operations, jour):
+    """Rend la période sur laquelle le carnet compte les opérations vécues d'une stratégie.
+
+    ① RÔLE — Donner aux indicateurs « par mois », « par an » et « un gain tous les X jours » leur dénominateur.
+    ② CONTEXTE D'APPEL — `main`, une fois par stratégie vivante ; la période passe ensuite à `cases_du_carnet`.
+    ③ ENTRÉE — `carte` : la dernière ligne de la fiche · `operations` : les lignes du journal comptées pour la
+      stratégie, TOUTES COMPTABILITÉS (une seule période par stratégie : sinon « par mois » et « par an » ne se
+      compareraient pas d'une comptabilité à l'autre — mesuré le 16-11-2026, C5E10-OBS-V1 aurait eu deux débuts,
+      le 2026-08-11 en un jeton et le 2026-07-27 en jetons illimités) · `jour` : la séance mesurée, AAAA-MM-JJ.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : le début et la fin, AAAA-MM-JJ.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① la fin est `jour` · ② le début est la plus ancienne des dates connues parmi `date_entree_etat`
+      de la fiche et la `date_entree` de chaque opération ; aucune → `jour`.
+    ⑦ UNITÉ — Dates.
+    ⑧ POURQUOI — A-788 dit « depuis la mise en service » sans dater la mise en service. `date_entree_etat` seule ne
+      suffit pas : mesuré le 16-11-2026, C5E10-OBS-V1 est en QA depuis le 2026-08-11, mais la mesure du soir lui
+      attribue (par `operations_de`, appariement décidé le 27-09-2026) l'opération Bureau Veritas entrée le
+      2026-07-27 ; `mesurer_les_indicateurs` refuse une opération hors période. Prendre la plus ancienne garde toutes
+      les opérations déjà comptées, et compte le temps passé sans opération depuis l'entrée dans l'état.
+      CHOIX DE L'AGENT DU 16-11-2026, NON DÉCIDÉ : à valider par Jean-Luc (note de livraison).
+    ⑨ CE QUI CLOCHE — Une date mal écrite dans la fiche ou le journal est ignorée sans le dire (seules les dates
+      AAAA-MM-JJ comptent) ; une date postérieure à `jour` est ignorée aussi.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import re
+    dates = [(carte or {}).get('date_entree_etat') or ''] + [o.get('date_entree') or '' for o in operations]
+    dates = [d.strip() for d in dates if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d.strip()) and d.strip() <= jour]
+    return (min(dates) if dates else jour), jour
+
+
+def ecrire_la_case(nom, valeur):
+    """Écrit une valeur du carnet sous UNE forme, selon l'unité que porte son nom.
+
+    ① RÔLE — Mettre en texte les indicateurs avant l'écriture du carnet.
+    ② CONTEXTE D'APPEL — `cases_du_carnet`.
+    ③ ENTRÉE — `nom` : le nom de la colonne · `valeur` : None, un booléen, un entier ou un nombre à virgule.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un texte ; vide pour None.
+      [rend: 1]
+    ⑥ TRAITEMENT — None → « » · booléen → « oui » / « non » · entier → tel quel · nombre à virgule : deux décimales si
+      le nom finit par `_eur` ou `_pct`, une pour un nombre de jours ou d'opérations par mois, quatre sinon (ratios) ;
+      un nombre non fini → « ».
+    ⑦ UNITÉ — Celle du nom.
+    ⑧ POURQUOI — Les colonnes plus anciennes de l'historique écrivent les euros à deux décimales : même forme ici.
+    ⑨ CE QUI CLOCHE — Un nombre non fini devient une case vide, comme une valeur absente : `carnet_etat` reste
+      « CALCULÉ » (aucun n'est possible avec les fonctions du 16-11-2026).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if valeur is None:
+        return ''
+    if isinstance(valeur, bool):
+        return 'oui' if valeur else 'non'
+    if isinstance(valeur, int):
+        return str(valeur)
+    x = float(valeur)
+    if not math.isfinite(x):
+        return ''
+    if nom.endswith('_eur') or nom.endswith('_pct'):
+        return f"{x:.2f}"
+    if nom.startswith('carnet_jours') or nom.endswith('_par_mois'):
+        return f"{x:.1f}"
+    return f"{x:.4f}"
+
+
+def cases_du_carnet(operations, comptabilite, cle, periode):
+    """Rend les cases `carnet_` d'une ligne de l'historique : les indicateurs d'A-788 sur les opérations vécues.
+
+    ① RÔLE — Écrire le carnet de la vraie vie (A-788, A-845) : chaque soir, pour chaque stratégie vivante et chaque
+      comptabilité, les mêmes indicateurs que les blocs figés de la fiche, sur les trades vécus.
+    ② CONTEXTE D'APPEL — `main`, une fois par ligne de l'historique écrite ce soir ; l'épreuve du carnet
+      (tests/EPREUVES_DU_CARNET_DE_LA_VRAIE_VIE_Lun_16-11-2026.py).
+    ③ ENTRÉE — `operations` : les lignes du journal comptées pour la stratégie dans cette comptabilité (rendues par
+      `operations_de`) · `comptabilite` : son nom au contrat · `cle` : sa colonne de résultat
+      (`LECTURES_DES_COMPTABILITES`) · `periode` : (début, fin) rendue par `periode_du_carnet` pour la STRATÉGIE,
+      la même pour ses deux comptabilités.
+    ④ CONDITIONS D'ENTRÉE — `cle` est une clé de `PRIX_DE_LA_COLONNE`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire colonne → texte, sur toutes les colonnes `carnet_` du contrat
+      (`empreinte_des_reglages` exceptée, écrite par `main`).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① la période reçue · ② opérations par `operations_du_journal` du module des
+      indicateurs, avec le prix de la colonne · ③ `mesurer_les_indicateurs` · ④ chaque colonne `carnet_X` reçoit la
+      clé X du résultat, par `ecrire_la_case` · ⑤ toute erreur → `carnet_etat` « INCONNU : <raison> », les autres
+      cases vides.
+    ⑦ UNITÉ — Celle de chaque nom (`_eur` euros, `_pct` pourcents, `jours_` jours calendaires ; ratios sans unité).
+    ⑧ POURQUOI — Décisions de Jean-Luc : A-788 (14-11-2026, 17h36-17h39, « je peux voir dans le carnet la réalité »)
+      et A-845 (16-11-2026, 10h16, le carnet vit dans cet historique). Une erreur ne fait pas tomber la mesure du
+      soir : les colonnes plus anciennes restent écrites, et l'INCONNU se voit (R-734 : `main` rend 1).
+    ⑨ CE QUI CLOCHE — ① Le cas défavorable du gain moyen dépend de la graine du module de jugement (⑨ ② de
+      `mesurer_les_indicateurs`) ; la graine est fixe, le chiffre est donc stable d'un soir à l'autre à opérations
+      égales. ② Les seuils « 1 fois sur 20 sur 5 ans » sont calculés par le module mais NE SONT PAS écrits : ce sont
+      des seuils d'alarme du bloc 30 %, pas des indicateurs du vécu (question 5 de l'analyse d'impact, à Jean-Luc).
+      ③ La plus longue série de pertes suit l'ordre des signaux, le creux l'ordre des sorties (module, ⑨ ①).
+    ⑩ EFFET — Aucun (le module des indicateurs ne fait que lire).
+    ⑪ TERMINAISON — Rend la main ; ne lève pas (toute erreur devient INCONNU) ; le calcul du seuil de creux par
+      tirages peut prendre quelques secondes.
+      [sort: non]
+    """
+    cases = {c: '' for c in _CARNET if c.startswith('carnet_')}
+    try:
+        MI = _indicateurs()
+        debut, fin = periode
+        ops = MI.operations_du_journal(operations, comptabilite, PRIX_DE_LA_COLONNE[cle])
+        r = MI.mesurer_les_indicateurs(ops, comptabilite, (debut, fin), racine_du_code())
+        for c in cases:
+            cle_du_module = c[len('carnet_'):]
+            if cle_du_module in r:
+                cases[c] = ecrire_la_case(c, r[cle_du_module])
+        cases['carnet_periode_debut'] = debut
+        cases['carnet_etat'] = ETAT_DU_CARNET_CALCULE
+    except Exception as e:
+        cases = {c: '' for c in cases}
+        cases['carnet_etat'] = (ETAT_DU_CARNET_INCONNU + f"{type(e).__name__}: {e}")[:300]
+    return cases
+
+
+def empreinte_de_la_carte(carte):
+    """Rend l'empreinte des réglages de la dernière ligne d'une fiche, avec le module de signal du jour.
+
+    ① RÔLE — Le carrefour « même id ⇒ même empreinte » (A-768 ②, N5 d'A-779) : la mesure du soir l'écrit dans
+      chaque ligne du carnet et la confronte à celles déjà écrites (`empreintes_qui_divergent`).
+    ② CONTEXTE D'APPEL — `main`, une fois par stratégie vivante ; l'épreuve du carnet.
+    ③ ENTRÉE — `carte` : la dernière ligne de la fiche (un dictionnaire).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : l'empreinte (16 caractères hexadécimaux) ou « » si elle n'a pas pu être calculée, et
+      la raison de l'échec (« » si calculée).
+      [rend: 2]
+    ⑥ TRAITEMENT — `JUGE_DES_STRATEGIES.empreinte_des_reglages(carte, lire_module_du_jour(racine du code))`, le juge
+      étant pris dans les briques du module des indicateurs (`charger_les_briques`) ; toute erreur → (« », raison).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — La seule définition de l'empreinte est celle du juge (R-708) ; elle ne dépend plus de la version de
+      Python depuis le 17-11-2026 (emp.py, format « emp-v2 », décision de Jean-Luc A-872, 07h46, « 1 ») : sinon le
+      circuit GitHub (3.11) et le poste (3.13) auraient écrit deux empreintes pour la même fiche.
+    ⑨ CE QUI CLOCHE — ① Le module de signal est lu AU JOUR : corriger son code change l'empreinte de chaque fiche qui le
+      nomme, et le carnet rougit. C'est voulu : un signal corrigé fait une NOUVELLE version, sous un nouvel identifiant
+      (décision de Jean-Luc du 15-11-2026 à 13h59, A-808, « 1 »). ② Le code que le module charge par chemin n'y est pas
+      (N7, BACKLOG A-779). ③ Un changement FUTUR du format d'emp.py (étiquette « emp-v2 » hachée avec le code) change
+      toutes les empreintes à la fois : chaque stratégie vivante rougirait pour toujours sans qu'aucun réglage ait
+      bougé (M1 ② du relecteur du 16-11-2026) — consigné, non corrigé.
+    ⑩ EFFET — Lit le module de signal.
+    ⑪ TERMINAISON — Rend la main ; ne lève pas.
+      [sort: non]
+    """
+    try:
+        racine = racine_du_code()
+        JS = _indicateurs().charger_les_briques(racine)["JS"]
+        emp, _jouable = JS.empreinte_des_reglages(carte, JS.lire_module_du_jour(racine))
+        return emp, ''
+    except Exception as e:
+        return '', f"{type(e).__name__}: {e}"[:300]
+
+
+def empreintes_qui_divergent(deja_ecrites, strategie, empreinte):
+    """Rend les empreintes déjà écrites au carnet pour une stratégie qui diffèrent de celle de ce soir.
+
+    ① RÔLE — Le contrôle « même identifiant ⇒ même empreinte, sinon rouge » (décision de Jean-Luc du 14-11-2026 à
+      11h48, A-768 ②), fait sur une colonne STOCKÉE : un réglage changé sous le même identifiant se voit le soir même.
+    ② CONTEXTE D'APPEL — `main`, une fois par stratégie vivante ; l'épreuve du carnet.
+    ③ ENTRÉE — `deja_ecrites` : les lignes de l'historique déjà présentes (dictionnaires) · `strategie` : l'identifiant
+      · `empreinte` : celle de ce soir.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste triée des empreintes écrites pour cet identifiant et différentes de `empreinte`
+      (vide : rien ne diverge). Les lignes sans empreinte (toutes celles d'avant le 16-11-2026) ne comptent pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — Garder les lignes de cet identifiant qui portent une empreinte ; rendre celles qui diffèrent.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un identifiant = un jeu de réglages (A-754, A-768) : le carnet d'un identifiant qui a changé de
+      réglages mêlerait deux stratégies. L'histoire du registre est déjà confrontée par l'épreuve « un identifiant,
+      une empreinte » ; ici, la confrontation se fait chaque soir, au carrefour (N5 d'A-779), sans git.
+    ⑨ CE QUI CLOCHE — ① Le rouge ne s'éteint pas tout seul : les lignes écrites restent (le fichier ne se réécrit
+      jamais) ; seule une nouvelle stratégie sous un nouvel identifiant le fait taire pour l'avenir. C'est voulu
+      (A-808). ② Les empreintes écrites ne portent pas le format d'emp.py qui les a calculées : un changement de
+      format se lirait comme un réglage changé (voir `empreinte_de_la_carte`, ⑨ ③) — consigné, non corrigé.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    ecrites = {(r.get('empreinte_des_reglages') or '').strip() for r in deja_ecrites
+               if (r.get('strategie') or '') == strategie}
+    ecrites.discard('')
+    return sorted(e for e in ecrites if e != empreinte)
+
+
+def etendre_l_en_tete(chemin, colonnes):
+    """Allonge l'en-tête de l'historique jusqu'aux colonnes du contrat, sans toucher un octet des lignes écrites.
+
+    ① RÔLE — Faire grandir le fichier par des colonnes ajoutées (A-845) sans réécrire une ligne passée.
+    ② CONTEXTE D'APPEL — `main`, avant l'écriture ; l'épreuve du carnet ; à la main, une fois, pour que l'en-tête du
+      dépôt suive le contrat dans le même commit (sinon la confrontation aux contrats du soir rougit).
+    ③ ENTRÉE — `chemin` : le fichier de l'historique · `colonnes` : les colonnes du contrat, dans l'ordre.
+    ④ CONDITIONS D'ENTRÉE — Le fichier existe.
+    ⑤ SORTIE — DEUX valeurs : l'état (« IDENTIQUE », « ÉTENDU » ou « REFUS ») et une phrase.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① lire les octets ; l'en-tête est la première ligne · ② ses champs = `colonnes` → IDENTIQUE · ③ ses
+      champs forment le DÉBUT de `colonnes` → écrire, dans un fichier voisin puis par remplacement atomique, le nouvel
+      en-tête suivi des octets d'après l'en-tête, inchangés, avec la même fin de ligne → ÉTENDU · ④ sinon REFUS, rien
+      n'est écrit.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Les lignes écrites avant ne portent pas les colonnes neuves : un lecteur par en-tête (`csv.DictReader`)
+      les lit vides, ce qui est leur vrai sens (pas de carnet avant le 16-11-2026). Réécrire les lignes pour leur
+      ajouter des virgules les aurait toutes changées. Un en-tête qui n'est pas un début du contrat (colonne
+      renommée, ordre changé) est un désaccord à trancher, jamais une chose à réparer ici.
+    ⑨ CE QUI CLOCHE — ① Un en-tête entre guillemets ou portant une marque d'ordre des octets serait REFUSÉ (aucun ne
+      l'est). ② Les lignes anciennes ont moins de champs que l'en-tête : un lecteur qui compte les champs les dirait
+      courtes (aucun programme du dépôt ne le fait au 16-11-2026, mesuré par `git grep historique_mesures`).
+    ⑩ EFFET — Peut remplacer le fichier (seul l'en-tête change).
+    ⑪ TERMINAISON — Rend la main ; lève OSError si le fichier ne se lit ou ne s'écrit pas.
+      [sort: non]
+    """
+    with open(chemin, 'rb') as f:
+        octets = f.read()
+    fin = octets.find(b'\n')
+    tete = octets if fin < 0 else octets[:fin + 1]
+    reste = b'' if fin < 0 else octets[fin + 1:]
+    eol = b'\r\n' if tete.endswith(b'\r\n') else b'\n'
+    champs = tete.rstrip(b'\r\n').decode('utf-8').split(',')
+    if champs == list(colonnes):
+        return 'IDENTIQUE', f"{chemin} : en-tête déjà conforme ({len(champs)} colonnes)"
+    if len(champs) < len(colonnes) and champs == list(colonnes)[:len(champs)]:
+        neuf = ','.join(colonnes).encode('utf-8') + eol + reste
+        provisoire = chemin + '.en_tete_provisoire'
+        with open(provisoire, 'wb') as f:
+            f.write(neuf)
+        os.replace(provisoire, chemin)
+        return 'ÉTENDU', (f"{chemin} : en-tête allongé de {len(champs)} à {len(colonnes)} colonnes ; "
+                          f"{len(reste)} octets des lignes écrites inchangés")
+    return 'REFUS', (f"{chemin} : l'en-tête ({len(champs)} colonnes) n'est pas le début du contrat "
+                     f"({len(colonnes)} colonnes) — rien n'est écrit")
+
+
 # LE DEBUT DU VERDICT C7 QUAND LE POINT MORT NE SE CHIFFRE PAS : `ligne` l'ecrit, `main` le
 # cherche pour rendre 1 apres l'ecriture (un seul texte, ecrit une fois, R-708).
 PREFIXE_NON_CHIFFRABLE = "point mort non chiffrable : "
@@ -2278,9 +2573,17 @@ def main():
       comptabilité, par `mesurer_une_strategie` · ⑧bis vérifier, sur ce qui va
       être écrit, que chaque stratégie compte autant d'opérations que de lignes
       au journal, et s'arrêter sinon · ⑧ter signaler les opérations comptées dans
-      aucune stratégie vivante · ⑨ relire l'historique pour savoir ce qui y
-      est déjà, et n'ajouter que les lignes nouvelles · ⑩ afficher le bilan, une
-      ligne par mesure, et le chemin du fichier écrit.
+      aucune stratégie vivante · ⑧quater (CARNET, 16-11-2026, A-845) pour chaque
+      stratégie, l'empreinte des réglages de sa fiche (`empreinte_de_la_carte`), et
+      pour chaque ligne les indicateurs d'A-788 sur les opérations vécues
+      (`cases_du_carnet`) · ⑨ allonger l'en-tête jusqu'au contrat sans toucher les
+      lignes écrites (`etendre_l_en_tete` ; un en-tête qui n'est pas le début du
+      contrat arrête tout), relire l'historique pour savoir ce qui y est déjà,
+      confronter l'empreinte du soir à celles déjà écrites pour le même
+      identifiant (`empreintes_qui_divergent`), et n'ajouter que les lignes
+      nouvelles · ⑩ afficher le bilan, une ligne par mesure et une par ligne du
+      carnet, et le chemin du fichier écrit ; rendre 1 si une empreinte diverge
+      ou manque, ou si un carnet est INCONNU, APRÈS avoir écrit (R-734).
     ⑦ UNITÉ — Les cumuls en EUROS · les taux et les verdicts en POURCENTS · les
       compteurs en NOMBRES D'OPÉRATIONS TERMINÉES · la date de mesure en
       année-mois-jour : celle de la SÉANCE mesurée.
@@ -2387,7 +2690,10 @@ def main():
     ⑩ EFFET — AJOUTE des lignes à la fin de `donnees/historique_mesures.csv` sous
       le dossier de sortie, ou le crée avec son en-tête s'il n'existe pas. Il ne
       réécrit jamais une ligne déjà présente. Mesuré le 19-09-2026 sur une copie :
-      le fichier passe de 85 à 89 lignes et son empreinte change. LIT le journal
+      le fichier passe de 85 à 89 lignes et son empreinte change. Depuis le
+      16-11-2026 (A-845), il peut aussi REMPLACER LA PREMIÈRE LIGNE, l'en-tête, par
+      un en-tête plus long (`etendre_l_en_tete`) ; les lignes écrites gardent leurs
+      octets. LIT aussi le module de signal de chaque fiche vivante. LIT le journal
       des opérations, le registre des stratégies, les chiffres figés, le
       référentiel, les fichiers de cours et l'historique lui-même, et parcourt
       l'arborescence du dossier de sources pour les trouver. Affiche une dizaine
@@ -2512,6 +2818,7 @@ def main():
     lignes = []
     apparies = set()
     _lignes_au_journal = {}
+    _empreintes = {}
     for sid, carte in cartes.items():
         # les operations de cette strategie. On ALERTE si aucune operation n'est
         # appariee — jamais de zero silencieux. `cle_carte` ne sert plus qu'aux
@@ -2559,13 +2866,21 @@ def main():
         # UNE OPERATION NE COMPTE QUE DANS SA COMPTABILITE (defaut 3 de A-491), et
         # par le SEUL chemin que le calibrage eprouve chaque soir.
         _lignes_au_journal[sid] = len(ops)
+        # LE CARNET DE LA VRAIE VIE (A-788, A-845, 16-11-2026) : l'empreinte des réglages de la fiche, une fois par
+        # stratégie, puis les indicateurs d'A-788 sur les opérations vécues de chaque comptabilité.
+        _empreintes[sid] = empreinte_de_la_carte(carte)
+        _colonne_de = {compta: cle for _libelle, cle, compta in LECTURES_DES_COMPTABILITES}
+        _periode = periode_du_carnet(carte, ops, jour)
         for comptabilite, gref, s in mesurer_une_strategie(operations, carte):
             # le point mort se calcule sur les MEMES operations que `s` : celles de cette
             # comptabilite, lues par `operations_de` (methode A, decision du 29-10-2026)
-            lignes.append(ligne(jour, sid, comptabilite, etats[sid], s, carte,
-                                (ref or {}).get(gref), tp_, tm_, gs,
-                                'Bureau Veritas +6884.75 / +3694.00 : OK',
-                                operations_de(operations, carte, gref)))
+            _l = ligne(jour, sid, comptabilite, etats[sid], s, carte,
+                       (ref or {}).get(gref), tp_, tm_, gs,
+                       'Bureau Veritas +6884.75 / +3694.00 : OK',
+                       operations_de(operations, carte, gref))
+            _l.update(cases_du_carnet(operations_de(operations, carte, gref), gref, _colonne_de[gref], _periode))
+            _l['empreinte_des_reglages'] = _empreintes[sid][0]
+            lignes.append(_l)
 
     # LA PROPRIETE SE VERIFIE SUR CE QUI VA ETRE ECRIT, CHAQUE SOIR, SUR LE VRAI JOURNAL :
     # chaque ligne d'une strategie compte dans UNE comptabilite, donc les operations
@@ -2589,9 +2904,31 @@ def main():
     dest = os.path.join(sortie, FICHIER_MESURES)
     existe = os.path.exists(dest)
     deja = set()
+    _deja_lignes = []
     if existe:
-        for r in lire_csv(dest):
+        # LE CARNET S'AJOUTE PAR DES COLONNES (A-845) : l'en-tête s'allonge, les lignes écrites ne changent pas d'un
+        # octet ; un en-tête qui n'est pas le début du contrat arrête tout, rien n'est écrit.
+        _etat_tete, _phrase_tete = etendre_l_en_tete(dest, COLONNES)
+        print(f"EN-TETE : {_etat_tete} — {_phrase_tete}")
+        if _etat_tete == 'REFUS':
+            print("ARRET : l'en-tete de l'historique ne suit pas le contrat — aucune mesure n'est ecrite.")
+            return 1
+        _deja_lignes = lire_csv(dest)
+        for r in _deja_lignes:
             deja.add((r.get('date_mesure'), r.get('strategie'), r.get('comptabilite')))
+    # MÊME IDENTIFIANT ⇒ MÊME EMPREINTE (A-768 ②, N5 d'A-779), sur la colonne écrite : constaté AVANT d'écrire, dit
+    # APRÈS (les lignes du soir s'écrivent quand même, l'écart y reste visible), code 1.
+    _rouges_du_carnet = []
+    for _sid, (_emp, _raison) in sorted(_empreintes.items()):
+        if not _emp:
+            _rouges_du_carnet.append(f"{_sid} : empreinte des reglages INCONNUE ({_raison})")
+            continue
+        _autres = empreintes_qui_divergent(_deja_lignes, _sid, _emp)
+        if _autres:
+            _rouges_du_carnet.append(f"{_sid} : MEME IDENTIFIANT, AUTRE EMPREINTE — ce soir {_emp}, deja ecrite(s) "
+                                     f"{', '.join(_autres)} : un reglage a change sous le meme identifiant (A-768)")
+    _rouges_du_carnet += [f"{l['strategie']} · {l['comptabilite']} : carnet {l['carnet_etat']}" for l in lignes
+                          if l.get('carnet_etat') != ETAT_DU_CARNET_CALCULE]
     neuves = [l for l in lignes if (l['date_mesure'], l['strategie'], l['comptabilite']) not in deja]
     with open(dest, 'a' if existe else 'w', encoding='utf-8', newline='') as f:
         w = csv.DictWriter(f, fieldnames=COLONNES)
@@ -2606,13 +2943,23 @@ def main():
         print(f"   {l['strategie']} · {l['comptabilite']} : {l['n_operations']} operation(s) · "
               f"cumul {l['cumul_net_eur']} EUR · C7 {l['verdict_c7']} · compteur {l['compteur']}/{l['seuil']}")
     print(f"ECRIT   : {dest} (empile, jamais ecrase)")
+    for l in lignes:
+        print(f"   CARNET {l['strategie']} · {l['comptabilite']} : {l.get('carnet_etat')} · empreinte "
+              f"{l.get('empreinte_des_reglages') or '?'} · {l.get('carnet_operations') or 0} operation(s) · "
+              f"Wilson {l.get('carnet_taux_reussite_borne_basse_pct') or '-'} % · "
+              f"creux {l.get('carnet_pire_creux_eur') or '-'} EUR")
+    _code = 0
+    if _rouges_du_carnet:
+        print(f"ROUGE CARNET : {len(_rouges_du_carnet)} ecart(s) — " + " | ".join(_rouges_du_carnet))
+        print("        Le reste est ecrit ; CODE 1 (R-734).")
+        _code = 1
     _nc = [l for l in lignes if str(l['verdict_c7']).startswith(PREFIXE_NON_CHIFFRABLE)]
     if _nc:
         print(f"ALERTE : {len(_nc)} ligne(s) SANS POINT MORT, faute de frais chiffrables — "
               + " | ".join(f"{l['strategie']} · {l['comptabilite']} : {l['verdict_c7']}" for l in _nc[:4]))
         print("        Le reste est ecrit ; CODE 1 : la mesure n'a pas tourne pour ces strategies (R-734).")
-        return 1
-    return 0
+        _code = 1
+    return _code
 
 if __name__ == '__main__':
     sys.exit(main())

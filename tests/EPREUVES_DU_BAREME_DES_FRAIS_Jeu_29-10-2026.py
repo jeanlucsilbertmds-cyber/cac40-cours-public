@@ -169,7 +169,8 @@ SABOTAGES = {
                             '    pnl  = brut - 300.0 + 0 * _p.frais_aller_retour(')],
     # la mesure avale l'absence de liste et rend 0 (C7)
     "S17_mesure_muette": [("programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py",
-                           "        return 1\n    return 0\n\nif __name__", "        return 0\n    return 0\n\nif __name__")],
+                           # cible déplacée le 16-11-2026 : la mesure rend désormais `_code` (carnet de la vraie vie)
+                           "        _code = 1\n    return _code\n\nif __name__", "        _code = 0\n    return _code\n\nif __name__")],
     # un morceau de suppression emporte une définition encore lue (C1)
     "S18_grille_effacee": [("programmes/JUGER_SUR_8_CRITERES.py", "GRILLE = ", "_GRILLE_EFFACEE = ")],
     # --- relecteur T2 et superviseur T2 (29-10-2026) : une protection retirée, une épreuve qui rougit ---
@@ -226,10 +227,12 @@ SABOTAGES = {
 
     # --- relecture de la barre A, I1 (29-10-2026) : les deux mutations du relecteur ---
     # X1 : la mesure passe TOUT le journal au point mort de chaque ligne — vu par E20
-    "S34_point_mort_sur_tout_le_journal": [(MES, "operations_de(operations, carte, gref)))", "operations))")],
+    # (cibles déplacées le 16-11-2026 : l'appel de `ligne` ne ferme plus `lignes.append(`, carnet de la vraie vie)
+    "S34_point_mort_sur_tout_le_journal": [(MES, "                       operations_de(operations, carte, gref))\n",
+                                            "                       operations)\n")],
     # X2 : la mesure mélange les deux comptabilités — vu par E20
-    "S35_point_mort_comptabilites_melangees": [(MES, "operations_de(operations, carte, gref)))",
-                                                "operations_de(operations, carte)))")],
+    "S35_point_mort_comptabilites_melangees": [(MES, "                       operations_de(operations, carte, gref))\n",
+                                                "                       operations_de(operations, carte))\n")],
     # --- relecture de Cowork du commit 11ebf39 et superviseur R-759, T4 (29-10-2026) ---
     # M1 de Cowork : l'étiquette du barème n'est plus posée que sur « echantillon insuffisant » — vu par E21
     "S36_etiquette_seulement_branche_insuffisante": [(MES, "    if pm is not None:\n        verdict = f\"{verdict} (bareme",
@@ -922,7 +925,9 @@ def epreuves(sab):
                         "carte = next(r for r in C.lire_les_fiches('.').values() "
                         "if (r.get('etat_vie') or '').strip().upper() in ('QA', 'PRODUCTION'))\n"
                         "l = m.ligne('2026-10-28', carte['id'], 'un jeton', 'QA', st, carte, None, '', '', gs, '', ops)\n"
-                        "eur = {k: l.get(k) for k in m.COLONNES if k.endswith('_eur')}\n"
+                        # les colonnes du carnet de la vraie vie (16-11-2026, A-845) ne sont pas écrites par `ligne` :
+                        # elles ont leur propre épreuve (EPREUVES_DU_CARNET_DE_LA_VRAIE_VIE) ; liste lue au contrat
+                        "eur = {k: l.get(k) for k in m.COLONNES if k.endswith('_eur') and k not in C.CARNET_DE_LA_VRAIE_VIE}\n"
                         "non_nulles = {k: v for k, v in eur.items() if v in (None, '') or abs(float(v)) > 1e-9}\n"
                         "print('OPS', len(ops), 'SEANCES', len(seances), 'HORS_CAPITAL', len(ecarts), "
                         "'PREMIER', ecarts[0] if ecarts else '-', 'CUMUL', st['cumul'], 'CHUTE', st['chute_eur'], "
@@ -984,16 +989,19 @@ def epreuves(sab):
     lu20 = list(csv.DictReader(open(fj20, encoding="utf-8")))
     champs20 = list(lu20[0].keys()) if lu20 else []
     bv20 = [o for o in lu20 if "BUREAU" in (o.get("valeur") or "").upper()][:1]
-    def _op(strat, val, compta, pnl):
+    def _op(strat, val, compta, pnl, entree="2026-09-01", sortie="2026-09-03"):
         o = dict(bv20[0]) if bv20 else {}
-        o.update(strategie=strat, valeur=val, date_entree="2026-09-01", prix_entree="100", date_sortie="2026-09-03",
+        o.update(strategie=strat, valeur=val, date_entree=entree, prix_entree="100", date_sortie=sortie,
                  prix_sortie="104", motif_sortie="TP", pnl_net_eur=pnl, prix_sortie_convention="104",
                  pnl_net_convention_eur=pnl, comptabilite=compta, regles_pre_trade="",
                  explication="ligne FABRIQUÉE par l'épreuve E20 (copie)", bareme_reel="REEL", bareme_convention="REEL")
         return o
     fab20 = bv20 + [_op("C5E10-QA-V1", "AIRBUS", "un_jeton", "3694.00"),
                     _op("C5E10-OBS-V1", "AIRBUS", "un_jeton", "3694.00"),
-                    _op("C5E10-OBS-V1", "BOUYGUES", "un_jeton", "3294.00"),
+                    # EN UN JETON, UNE POSITION À LA FOIS (carnet de la vraie vie, 16-11-2026) : Bouygues entre après
+                    # la sortie d'Airbus ; aux mêmes dates, le carnet refusait ce journal impossible (« deux positions
+                    # à la fois ») et la mesure rendait 1. Le point mort ne lit que la valeur et l'année : inchangé.
+                    _op("C5E10-OBS-V1", "BOUYGUES", "un_jeton", "3294.00", "2026-09-04", "2026-09-08"),
                     _op("C5E10-OBS-V1", "AIRBUS", "jetons_illimites", "3694.00"),
                     _op("C5E10-OBS-V1", "AIRBUS", "jetons_illimites", "3694.00")]
     with open(fj20, "w", encoding="utf-8", newline="") as g20:

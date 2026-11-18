@@ -564,6 +564,88 @@ MESURE = [
     "temoin_miroir", "rapport_gain_secousses", "source_calibrage",
 ]
 
+# LE CARNET DE LA VRAIE VIE (A-788, A-845) — décision de Jean-Luc du 16-11-2026 à 10h16 (« 1 », à l'option « Dans le
+# fichier qui existe déjà, celui des mesures du soir … On lui ajoute simplement quelques colonnes ») : le carnet n'est
+# pas un fichier neuf, ce sont les colonnes ci-dessous AJOUTÉES À LA FIN de `MESURE`. Une ligne par soir, par stratégie
+# et par comptabilité, écrite par la mesure du soir ; les lignes d'avant le 16-11-2026 ne les portent pas et ne sont
+# JAMAIS réécrites (le fichier ne fait que grandir ; seul l'en-tête s'allonge, une fois, par `etendre_l_en_tete` de
+# programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py). Les indicateurs sont ceux de
+# `MESURER_LES_INDICATEURS.mesurer_les_indicateurs` (la liste décidée par Jean-Luc le 14-11-2026 à 17h36-17h39, A-788),
+# calculés sur les opérations VÉCUES de la stratégie dans la comptabilité de la ligne ; chaque colonne porte le préfixe
+# `carnet_` pour ne pas se confondre avec les colonnes plus anciennes, gardées (rien ne se supprime sans accord).
+# Deux d'entre elles, `taux_reussite` et `borne_basse_wilson`, ont le MÊME SENS que `carnet_taux_reussite_pct` et
+# `carnet_taux_reussite_borne_basse_pct` et peuvent différer : ce sont deux calculs d'une même chose (deux
+# implémentations d'une même chose divergent toujours, R-708 ; consigné). Deux autres N'ONT PAS le même sens que leur
+# voisine du carnet, et `SENS_DES_COLONNES_VOISINES` ci-dessous le dit (relecture du 16-11-2026, défaut F1) :
+# `pertes_consecutives` compte la série de pertes EN COURS, `carnet_plus_longue_serie_de_pertes` la plus LONGUE de la
+# période ; `pire_chute_eur` est NÉGATIVE ou nulle, `carnet_pire_creux_eur` POSITIF ou nul. Soir simulé du 16-11-2026,
+# C5E10-OBS-V1 un jeton : 0 et 2 pertes, −5592.50 et 5592.50 euros. Les noms ne changent pas : renommer une colonne
+# ancienne changerait le sens de l'en-tête des lignes passées et de ses lecteurs (cockpit, voyants), sans accord.
+# `empreinte_des_reglages` : le carrefour « même id ⇒ même empreinte » (A-768 ②, N5 d'A-779) ; la mesure du soir la
+# recalcule chaque soir et rougit si elle diffère de celles déjà écrites pour le même identifiant.
+# Les SEUILS D'ALARME « 1 fois sur 20 » n'y sont pas : ils se calculent sur le bloc 30 % de la fiche (R-505 en direct
+# ② et ③), qui n'existe pas encore, et leur place est une question ouverte à Jean-Luc (question 5 de l'analyse
+# d'impact du 14-11-2026, §8) ; d'ici là, les voyants fixes `voyant_pertes` et `voyant_chute` restent les alarmes.
+# L'UNITÉ VOYAGE AVEC LE NOM (R-708) ; DEFINITIONS_DU_CARNET dit le sens de chaque colonne, une fois.
+CARNET_DE_LA_VRAIE_VIE = [
+    "empreinte_des_reglages", "carnet_etat", "carnet_periode_debut",
+    "carnet_operations", "carnet_operations_par_mois", "carnet_jours_entre_deux_gains",
+    "carnet_taux_reussite_pct", "carnet_taux_reussite_borne_basse_pct",
+    "carnet_gain_moyen_eur", "carnet_gain_moyen_borne_basse_eur",
+    "carnet_gagnante_moyenne_eur", "carnet_perdante_moyenne_eur",
+    "carnet_gain_net_par_an_eur", "carnet_gain_net_par_an_borne_basse_eur",
+    "carnet_pire_creux_eur", "carnet_jours_plus_long_creux_rattrape",
+    "carnet_creux_en_cours_sorti", "carnet_jours_du_creux_en_cours", "carnet_creux_en_cours_eur",
+    "carnet_plus_longue_serie_de_pertes", "carnet_kelly", "carnet_sortino", "carnet_calmar",
+]
+DEFINITIONS_DU_CARNET = {
+    "empreinte_des_reglages": "empreinte des réglages de la DERNIÈRE ligne de la fiche ce soir-là "
+                              "(`JUGE_DES_STRATEGIES.empreinte_des_reglages`, module de signal du jour) ; 16 caractères "
+                              "hexadécimaux, sans unité ; vide si elle n'a pas pu être calculée",
+    "carnet_etat": "« CALCULÉ », ou « INCONNU : <raison> » quand les indicateurs n'ont pas pu être calculés : les cases "
+                   "carnet_ sont alors vides et la mesure rend 1 (R-734)",
+    "carnet_periode_debut": "début de la période du carnet, AAAA-MM-JJ : la plus ancienne de deux dates, l'entrée de la "
+                            "stratégie dans son état (`date_entree_etat` de la fiche) et l'entrée de sa première "
+                            "opération comptée ; la fin est `date_mesure` (choix de l'agent du 16-11-2026, À VALIDER "
+                            "par Jean-Luc)",
+    "carnet_operations": "opérations terminées comptées (nombre d'opérations)",
+    "carnet_operations_par_mois": "opérations par mois, un mois valant 365,25/12 jours calendaires (opérations par mois)",
+    "carnet_jours_entre_deux_gains": "fréquence : un gain tous les X jours calendaires (jours)",
+    "carnet_taux_reussite_pct": "part des opérations gagnantes (pourcents)",
+    "carnet_taux_reussite_borne_basse_pct": "borne basse de Wilson à 95 % du taux de réussite (pourcents)",
+    "carnet_gain_moyen_eur": "gain net moyen par opération, frais compris (euros)",
+    "carnet_gain_moyen_borne_basse_eur": "cas défavorable du gain moyen (`MODULE_JUGEMENT.borne_basse_gain`), vide sous "
+                                         "5 opérations (euros)",
+    "carnet_gagnante_moyenne_eur": "gain moyen des opérations gagnantes (euros)",
+    "carnet_perdante_moyenne_eur": "résultat moyen des opérations perdantes, négatif (euros)",
+    "carnet_gain_net_par_an_eur": "gain moyen × opérations par an (euros par an)",
+    "carnet_gain_net_par_an_borne_basse_eur": "cas défavorable du gain moyen × opérations par an (euros par an)",
+    "carnet_pire_creux_eur": "pire baisse du cumul des gains, d'un sommet au plus bas qui suit, POSITIVE ou nulle "
+                             "(euros) ; `pire_chute_eur`, plus ancienne, la dit en NÉGATIF, par un autre calcul",
+    "carnet_jours_plus_long_creux_rattrape": "plus longue durée passée sous le meilleur niveau, creux rattrapés "
+                                             "(jours calendaires, A-798)",
+    "carnet_creux_en_cours_sorti": "« oui » si le compte est revenu à son meilleur niveau, « non » sinon (A-798)",
+    "carnet_jours_du_creux_en_cours": "durée du creux pas encore rattrapé, à la date de mesure (jours calendaires)",
+    "carnet_creux_en_cours_eur": "profondeur du creux pas encore rattrapé (euros)",
+    "carnet_plus_longue_serie_de_pertes": "plus longue série de pertes d'affilée sur toute la période du carnet, "
+                                          "même close (nombre d'opérations) ; ce n'est PAS `pertes_consecutives`, "
+                                          "qui compte la série en cours",
+    "carnet_kelly": "fraction de Kelly (ratio sans unité, affiché, ne décide rien)",
+    "carnet_sortino": "ratio de Sortino par opération (ratio sans unité, affiché, ne décide rien)",
+    "carnet_calmar": "gain net par an ÷ pire creux (ratio sans unité, affiché, ne décide rien)",
+}
+# LE SENS DES DEUX COLONNES ANCIENNES QUI N'ONT PAS CELUI DE LEUR VOISINE DU CARNET (défaut F1 du 16-11-2026) — lu
+# par tests/EPREUVES_DU_CARNET_DE_LA_VRAIE_VIE_Lun_16-11-2026.py, qui vérifie les deux signes sur de vraies lignes.
+SENS_DES_COLONNES_VOISINES = {
+    "pertes_consecutives": "pertes d'affilée EN COURS : celles qui terminent la liste des opérations, zéro si la "
+                           "dernière est un gain (nombre d'opérations ; `pertes_consecutives` de la mesure) ; ce "
+                           "n'est PAS `carnet_plus_longue_serie_de_pertes`, la plus longue de la période",
+    "pire_chute_eur": "pire baisse du cumul des gains, d'un sommet au plus bas qui suit, NÉGATIVE ou nulle (euros ; "
+                      "`pire_chute` de la mesure, opérations dans l'ordre du journal) ; `carnet_pire_creux_eur` dit "
+                      "la même sorte de baisse en POSITIF, par un autre calcul",
+}
+MESURE = MESURE + CARNET_DE_LA_VRAIE_VIE
+
 # l historique des cours qui grandit — TENIR_L_HISTORIQUE écrit, tout le reste lit ;
 # le même contrat pour l'historique long réparé (A-539) : REPARER_L_HISTORIQUE_LONG écrit,
 # CONTROLER_L_HISTORIQUE_LONG lit — rien n'en est versé au maître sans décision de Jean-Luc
