@@ -39,8 +39,20 @@ Simulation uniquement.
   droit de 2009 est CALCULÉ depuis DETACHEMENTS_OFFICIELS.csv. · Un fichier INDÉCIDABLE autre que le maître (aucune
   grande opération dans ses dates) n'a pas de cas : il passe, comme le maître. · Le refus
   d'une opération au facteur inconnu (C3) est joué sur une opération fabriquée : aucune n'existe dans les vraies
-  données (mesuré le 15-11-2026). · Les sociétés sorties (facteur 1, nommées aux opérations inconnues, ⑨ de
-  COURBE_DES_CALCULS) n'ont pas de cas sur main, où le lecteur ne les connaît pas : MT (C11) tient leur place.
+  données (mesuré le 15-11-2026). · C11 n'éprouve que la COURBE : que les sociétés sorties soient exactement les
+  sociétés sans ligne d'identité ouverte n'a pas de cas direct ici (il relève de l'épreuve de la lecture) — BACKLOG.
+  · AUCUN programme ne lit encore « valeurs_aux_operations_inconnues » (⑨ de COURBE_DES_CALCULS) : les 18 sociétés
+  sorties gardent leurs barres au facteur 1, donc leurs divisions restent des chutes (ALO ×0,51 en 2008, UG ×0,17 en
+  2001, NOKIA ×0,23, VK ×0,19) ; C11 le constate sans le corriger — BACKLOG. · La cible de S7 est le suffixe de la
+  déclaration (le témoin juste avant « FICHIERS_DE_COURS_FIGES ») : une déclaration nouvelle qui listerait le témoin
+  avant une autre constante la ferait introuvable (code 2, R-734) — BACKLOG. · Le harnais compte « mord » sur tout
+  code de sortie non nul : un sabotage ne déclare pas les cas qu'il doit faire rougir, et un cas qui lève — même une
+  NameError dans un sabotage mal écrit — le fait compter « mord » (J2 doit faire rougir C11 seul ; SZ5, C6 et C11 :
+  vérifié en lisant la sortie, pas par le harnais) — BACKLOG. · L'attendu de C11 n'est indépendant de la courbe
+  que pour la lecture des noms : même `table_des_ecritures`, même règle « univers = noms de l'historique long »,
+  et aucun sabotage de `table_des_ecritures` — BACKLOG. · « MT » (C11) et VIV, UG, AC, LR (SZ6, SZ5, SZ5b) sont
+  écrits en dur : un renommage de mnémonique rend C11 rouge ou le sabotage SANS EFFET, deux issues visibles —
+  BACKLOG.
 ⑩ EFFET — Écrit des racines jetables dans le dossier temporaire du système, chacune effacée après son tour ; n'écrit
   rien sous la racine. Affiche.
 ⑪ TERMINAISON — Un lancement « --un » pour Z0 et un par sabotage, chacun borné à 900 secondes ; sort par sys.exit avec
@@ -56,23 +68,56 @@ import tempfile
 
 TEMOIN = "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv"
 DETACHEMENTS = "donnees/sources_bnains/DETACHEMENTS_OFFICIELS.csv"
-HISTORIQUE_LONG = "donnees/sources_yahoo/historique_long_repare.csv"
+
+
+def fichier_de_l_historique_long(racine):
+    """Rend le chemin de l'historique long réparé tel que le déclare CONTROLER_L_HISTORIQUE_LONG, relatif à la racine.
+
+    ① RÔLE — Donner aux essais le chemin de l'historique long sans le recopier : le fichier que lit la courbe.
+    ② CONTEXTE D'APPEL — `extraire`, pour l'extrait MICHELIN_CORRIGE, dans le processus qui prépare les racines
+      jetables (une fois par lancement, `extraire` met le texte en cache).
+    ③ ENTRÉE — `racine` : la racine du dépôt (str).
+    ④ CONDITIONS D'ENTRÉE — programmes/CONTROLER_L_HISTORIQUE_LONG.py existe sous `racine` et se charge (il insère son
+      dossier en tête de `sys.path` et importe CONTRATS_DES_FICHIERS et CALENDRIER_DE_LA_BOURSE sous leurs noms).
+    ⑤ SORTIE — UNE valeur : `FICHIER` du module chargé, tel quel. Exemple mesuré le 18-11-2026 :
+      « donnees/sources_yahoo/historique_long_repare.csv ».
+      [rend: 1]
+    ⑥ TRAITEMENT — `charger` le programme sous le nom « historique_long_essai_courbe », distinct de celui sous lequel
+      l'assemblage l'importe ; rendre son `FICHIER`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — R-708 : deux implémentations d'une même chose divergent toujours. Jusqu'au 18-11-2026, l'épreuve
+      recopiait ce chemin (constante HISTORIQUE_LONG) : renommé chez le contrôleur, l'ancien fichier resté en place,
+      l'épreuve aurait lu l'ancien et la courbe le nouveau (relecteur neuf de travail-c1, R3 ; superviseur R-759).
+    ⑨ CE QUI CLOCHE — Le contrôleur est chargé ici depuis la racine du DÉPÔT, et la courbe le lit dans la racine
+      jetable (copie de programmes/) : les deux fichiers sont les mêmes octets tant qu'aucun sabotage ne touche le
+      contrôleur (aucun ne le touche). C11, lui, prend le chemin dans le module même que lit la courbe.
+    ⑩ EFFET — Exécute les déclarations du contrôleur (son `main` n'est pas appelé) ; ajoute un dossier à `sys.path`.
+    ⑪ TERMINAISON — Rend la main ou lève l'erreur de chargement, que `main` transforme en code 2 (OSError) ou laisse
+      remonter.
+      [sort: non]
+    """
+    return charger(os.path.join(racine, "programmes", "CONTROLER_L_HISTORIQUE_LONG.py"),
+                   "historique_long_essai_courbe").FICHIER
+
+
 # LES PETITS FICHIERS D'ESSAI, faits de VRAIES lignes (R-732 : un jeu d'épreuves ouvre le vrai fichier). Aucune
 # barre n'est écrite ici (A-555, A-543 : les données du dépôt privé ne se publient pas, et ce fichier est publié) :
 # seules les CLÉS le sont — le fichier d'origine, la valeur, les dates — avec l'EMPREINTE SHA-256 des lignes
 # retenues, prise le 15-11-2026 sur les lignes qui étaient écrites ici jusque-là (mêmes octets). Les lignes sont
 # LUES à chaque lancement (`extraire`) ; un fichier absent, une ligne manquante ou une empreinte différente arrête
 # l'épreuve (code 2, R-734). Brut : le témoin des 20 ans. Corrigé : l'historique long réparé (convention de
-# Yahoo), mêmes dates.
+# Yahoo), mêmes dates — son chemin n'est PAS écrit ici : il est lu dans CONTROLER_L_HISTORIQUE_LONG.FICHIER, celui que
+# lit la courbe (`fichier_de_l_historique_long` ; R-708 : deux implémentations d'une même chose divergent toujours).
 ENTETE = "valeur,date,open,high,low,close,volume,source\n"
 DATES_MICHELIN = ("2022-06-08", "2022-06-09", "2022-06-10", "2022-06-13", "2022-06-14", "2022-06-15", "2022-06-16",
                   "2022-06-17", "2022-06-20", "2022-06-21", "2022-06-22")
 DATES_SAINT_GOBAIN = ("2002-06-25", "2002-06-26", "2002-06-27", "2002-06-28", "2009-02-20", "2009-02-23")
-# nom → (fichier d'origine, valeur, dates, empreinte SHA-256 des lignes retenues, chacune suivie d'un saut de ligne)
+# nom → (fichier d'origine — un chemin, ou la fonction qui le rend depuis la racine —, valeur, dates, empreinte SHA-256
+# des lignes retenues, chacune suivie d'un saut de ligne)
 EXTRAITS = {
     "MICHELIN_BRUT": (TEMOIN, "MICHELIN", DATES_MICHELIN,
                       "07e822d09d94df2ed4047a4c92c83f06ccb5c9e33cb7a18fbdae6fba8573223d"),
-    "MICHELIN_CORRIGE": (HISTORIQUE_LONG, "MICHELIN", DATES_MICHELIN,
+    "MICHELIN_CORRIGE": (fichier_de_l_historique_long, "MICHELIN", DATES_MICHELIN,
                          "86ffba4101c32dd31b0bbb93affaa6936c19da30b5c5ed941544066e73835228"),
     "SAINT_GOBAIN_BRUT": (TEMOIN, "SAINT-GOBAIN", DATES_SAINT_GOBAIN,
                           "15259f0f293937fba1ae30d466b9958a462a893b5873a115f36276ceb0e4cca7"),
@@ -93,11 +138,13 @@ def extraire(depot, nom):
 
     ① RÔLE — Fournir les VRAIES lignes des essais sans qu'aucune soit écrite dans ce programme publié.
     ② CONTEXTE D'APPEL — `preparer`, une fois par petit fichier ; mis en cache par nom pour le lancement.
-    ③ ENTRÉE — `depot` : la racine du dépôt · `nom` : une clé d'`EXTRAITS`.
+    ③ ENTRÉE — `depot` : la racine du dépôt · `nom` : une clé d'`EXTRAITS`, dont le fichier d'origine est un chemin
+      relatif à `depot` ou une fonction de `depot` qui le rend (`fichier_de_l_historique_long`).
     ④ CONDITIONS D'ENTRÉE — Le fichier d'origine existe sous `depot` et porte, pour la valeur, chaque date une fois.
     ⑤ SORTIE — UNE valeur : le texte du fichier d'essai (`ENTETE` puis les lignes retenues, dans l'ordre du fichier).
       [rend: 1]
-    ⑥ TRAITEMENT — Lire le fichier d'origine ligne à ligne ; garder celles dont les deux premiers champs sont la valeur
+    ⑥ TRAITEMENT — Rendre le chemin du fichier d'origine (appeler la fonction s'il en est une) ; le lire ligne à
+      ligne ; garder celles dont les deux premiers champs sont la valeur
       et une des dates ; exiger une ligne par date et l'empreinte SHA-256 d'`EXTRAITS`.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — A-555 et A-543 : une barre du dépôt privé ne se publie pas ; R-732 : les cas viennent de vraies
@@ -112,6 +159,8 @@ def extraire(depot, nom):
     import hashlib
     if nom not in _LUS:
         fichier, valeur, dates, empreinte = EXTRAITS[nom]
+        if callable(fichier):   # le chemin déclaré par son programme, jamais recopié ici (R-708)
+            fichier = fichier(depot)
         retenues = []
         with open(os.path.join(depot, fichier), encoding="utf-8", newline="") as f:
             for ligne in f:
@@ -172,9 +221,13 @@ SAB = {
     "S5 deux noms sous un même mnémonique admis": ("COURBE_DES_CALCULS.py", "        if m in de:\n", "        if False:\n"),
     "S6 volume multiplié au lieu de divisé": ("COURBE_DES_CALCULS.py", 'repr(float(ligne["volume"]) / p)',
                                               'repr(float(ligne["volume"]) * p)'),
+    # S7 : la cible porte le suffixe « ,\n)\n\nFICHIERS_DE_COURS_FIGES = {\n » — le chemin seul est écrit deux fois
+    # dans le contrat (la déclaration et FICHIERS_DE_COURS_FIGES) ; avec ce suffixe, une seule fois, copie comprise
     "S7 témoin mal écrit dans la déclaration": ("CONTRATS_DES_FICHIERS.py",
-                                                '    "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv",\n)',
-                                                '    "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h58.csv",\n)'),
+                                                '    "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv"'
+                                                ',\n)\n\nFICHIERS_DE_COURS_FIGES = {\n',
+                                                '    "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h58.csv"'
+                                                ',\n)\n\nFICHIERS_DE_COURS_FIGES = {\n'),
     "S8 barres corrigées retirées": ("COURBE_DES_CALCULS.py", "            c[d] = x\n",
                                      "            if p == 1.0:\n                c[d] = x\n"),
     "S9 la règle 2 de la garde retirée (non déclaré, vue)": ("COURBE_DES_CALCULS.py",
@@ -203,6 +256,32 @@ SAB = {
                                                      "    par_m, connus_m = operations_par_mnemonique(table, norm, connus, ops)\n",
                                                      "    par_m, connus_m = operations_par_mnemonique(table, norm, connus, ops)\n"
                                                      "    par_m = {m: o for m, o in par_m.items() if m in (\"ML\", \"AI\")}\n"),
+    # superviseur R-759 de C1 (17-11-2026, SZ6 et SZ5) : l'univers des opérations connues, élargi puis rétréci, dans
+    # la courbe seulement — l'attendu de C11, calculé par l'épreuve depuis l'historique long, ne bouge pas
+    "SZ6 univers élargi (VIV et UG prises pour connues)": ("COURBE_DES_CALCULS.py",
+                                                         "    par_m, connus_m = operations_par_mnemonique(table, norm, connus, ops)\n",
+                                                         "    par_m, connus_m = operations_par_mnemonique(table, norm, connus, ops)\n"
+                                                         "    connus_m = connus_m | {\"VIV\", \"UG\"}\n"),
+    "SZ5 univers rétréci d'une valeur à grande opération : la garde mesurée refuse": ("COURBE_DES_CALCULS.py",
+                                          "    par_m, connus_m = operations_par_mnemonique(table, norm, connus, ops)\n",
+                                          "    par_m, connus_m = operations_par_mnemonique(table, norm, connus, ops)\n"
+                                          "    connus_m = connus_m - {\"AC\"}\n"),
+    # SZ5 (ACCOR retirée) mord par la garde de la courbe mesurée corrigée (ACCOR a une grande opération : C6 et C11
+    # rougissent par « la courbe corrigée de … »), pas par l'égalité de C11 ; SZ5b retire une valeur
+    # SANS opération connue (LEGRAND, mesuré le 17-11-2026) : ses barres ne changent pas, seul C11 peut le voir
+    "SZ5b univers rétréci (LEGRAND, sans opération, retirée)": ("COURBE_DES_CALCULS.py",
+                                                               "    par_m, connus_m = operations_par_mnemonique(table, norm, connus, ops)\n",
+                                                               "    par_m, connus_m = operations_par_mnemonique(table, norm, connus, ops)\n"
+                                                               "    connus_m = connus_m - {\"LR\"}\n"),
+    # J2 (relecteur neuf de travail-c1, R1 ; superviseur R-759) : la moitié « barres intactes » de C11 n'avait aucun
+    # sabotage au catalogue. La clôture des SEULES valeurs aux opérations inconnues (`sans_operations_connues` de
+    # `corriger`) prend 0,01 € : aucun autre cas ne lit ces valeurs, seul C11 doit rougir
+    "J2 barres des valeurs aux opérations inconnues : clôture + 0,01": ("COURBE_DES_CALCULS.py",
+                                                                       "    if inconnus:\n        inconnus.sort()\n",
+                                                                       "    for m in sans_operations_connues:\n"
+                                                                       "        for d in out[m]:\n"
+                                                                       "            out[m][d] = dict(out[m][d], close=repr(float(out[m][d][\"close\"]) + 0.01))\n"
+                                                                       "    if inconnus:\n        inconnus.sort()\n"),
 }
 
 
@@ -248,8 +327,12 @@ def cas(racine):
       DETACHEMENTS_OFFICIELS.csv (prix théorique après détachement ÷ cours de la veille), jamais recopié du code,
       comparé à 1e-12 près · C8 : le petit fichier Michelin BRUT non déclaré est REFUSÉ (garde, règle 2) · C9 : le
       petit fichier Michelin CORRIGÉ déclaré est REFUSÉ (garde, règle 1) · C10 : sur le maître, la porte rend la
-      lecture elle-même (exempté) · C11 : sur le témoin, MT (ArcelorMittal, hors de l'univers de RECONSTRUIRE) est
-      nommé aux opérations inconnues, ses barres gardées, intactes · C12 : L'OREAL privée de ses opérations entre la lecture
+      lecture elle-même (exempté) · C11 : sur le témoin, les valeurs hors de l'univers de RECONSTRUIRE — l'attendu,
+      CALCULÉ ici : les mnémoniques du témoin moins ceux des noms de l'historique long réparé (son chemin pris dans le
+      module même où la courbe le lit, `C._assembler().R.K.FICHIER`, jamais recopié), rangés par la table du
+      lecteur ; mesuré le 17-11-2026 : MT (ArcelorMittal) et les 18 sociétés sorties — sont exactement celles nommées
+      aux opérations inconnues ; l'attendu n'est pas vide et porte MT (vraie ligne connue, R-732) ; pour chacune, le
+      nombre de barres et les cinq champs sont ceux du lecteur (facteur 1) · C12 : L'OREAL privée de ses opérations entre la lecture
       et la courbe (le rangement est filtré dans le processus du cas) : la courbe, mesurée corrigée, refuse (« la courbe corrigée de … ») · C13 :
       CARREFOUR privé de son mnémonique dans la table que lit la courbe : la totalité refuse (« sans mnémonique »).
     ⑦ UNITÉ — Euros par titre, titres, rapports.
@@ -412,12 +495,24 @@ def cas(racine):
         return False, "aucun refus : CARREFOUR sans mnémonique est passé"
 
     def c11():
+        # L'attendu est CALCULÉ par l'épreuve elle-même, jamais par COURBE : l'univers de RECONSTRUIRE est l'ensemble
+        # des noms de l'historique long réparé, rangés sous leur mnémonique par la table du lecteur ; toute valeur du
+        # témoin hors de cet univers doit être nommée aux opérations inconnues, ses barres gardées au facteur 1
         lu, x = courbe_du_temoin()
+        table, _ = L.table_des_ecritures(racine)
+        historique = C._assembler().R.K.FICHIER   # le chemin que lit la courbe (R.lire_les_entrees), jamais recopié
+        with open(os.path.join(racine, historique), encoding="utf-8", newline="") as f:
+            univers = {table[L.COMMUN.norm_valeur(r["valeur"])] for r in csv.DictReader(f)}
+        attendu = sorted(set(lu["barres"]) - univers)
         inconnues = x.get("valeurs_aux_operations_inconnues")
-        intactes = all(float(x["barres"]["MT"][d][k]) == float(lu["barres"]["MT"][d][k])
-                       for d in lu["barres"]["MT"] for k in ("open", "high", "low", "close", "volume"))
-        return (inconnues == ["MT"] and intactes and len(x["barres"]["MT"]) == len(lu["barres"]["MT"]),
-                f"inconnues : {inconnues} · barres de MT intactes : {intactes}")
+        abimees = [m for m in attendu
+                   if len(x["barres"].get(m, {})) != len(lu["barres"][m])
+                   or not all(float(x["barres"][m][d][k]) == float(lu["barres"][m][d][k])
+                              for d in lu["barres"][m] for k in ("open", "high", "low", "close", "volume"))]
+        intactes = not abimees
+        return (bool(attendu) and "MT" in attendu and inconnues == attendu and intactes,
+                f"inconnues : {inconnues} · attendu (témoin hors de l'univers de l'historique long) : {attendu} · "
+                f"barres intactes : {intactes}" + (f", abîmées : {abimees}" if abimees else ""))
 
     for nom, f in (("C1 le juge lit la courbe d'un fichier déclaré au cours brut, cinq champs", c1),
                    ("C2 un fichier corrigé non déclaré est lu tel quel", c2),
@@ -429,7 +524,7 @@ def cas(racine):
                    ("C8 un fichier brut non déclaré est refusé", c8),
                    ("C9 un fichier corrigé déclaré au cours brut est refusé", c9),
                    ("C10 le maître est rendu tel quel", c10),
-                   ("C11 une valeur hors de l'univers de RECONSTRUIRE est nommée, ses barres intactes", c11),
+                   ("C11 les valeurs hors de l'univers de RECONSTRUIRE sont nommées, leurs barres intactes", c11),
                    ("C12 une valeur privée de ses opérations : la courbe mesurée corrigée refuse", c12),
                    ("C13 un nom de RECONSTRUIRE sans mnémonique : la totalité refuse", c13)):
         juge(nom, f)
