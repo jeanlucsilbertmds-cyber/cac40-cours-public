@@ -131,7 +131,14 @@ jobs:
             || { echo "::error::LE CIRCUIT DE CERTIFICATION N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: |
+            3.13
+            3.11
+      - name: Les Python que compare l'epreuve de l'empreinte sont-ils poses ?
+        id: python_de_l_empreinte
+        shell: bash
+        continue-on-error: true
+        run: command -v python3.11 && command -v python3.13
       - name: Le depot prive est-il celui de la preparation ?
         id: meme_depot
         env:
@@ -159,7 +166,9 @@ jobs:
       - name: Certifier une tranche
         id: certifier
         continue-on-error: true
-        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/12
+        run: |
+          python3 -c "import sys; sys.exit(0 if sys.version_info[:2] == (3, 11) else 3)"
+          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/12
       - name: Deposer au depot prive
         id: deposer
         if: always()

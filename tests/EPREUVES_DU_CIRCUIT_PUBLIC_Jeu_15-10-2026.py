@@ -321,6 +321,10 @@ SABOTAGES = {
     "S120_controles_admis": [(FAB, "            if controle is not None:\n", "            if False:\n")],
     "S121_borne_gh_remise_a_b": [(MOD, '(?<![A-Za-z0-9])gh[pousr]_', '\\bgh[pousr]_')],
     # Ancre sans le paquet qui suit coverage : numpy y a été inséré le 08-11-2026 (bloc 3, cas E7 de la lecture de la fiche).
+    # A-891 (17-11-2026) : le pas qui vérifie les Python de l'empreinte n'écrit plus « command -v python3.13 » ;
+    # l'épreuve de l'empreinte cherche python3.13 par shutil.which, E6 doit le voir.
+    "S150_python_compare_non_verifie": [(FAB, 'for v in (VERSION_DE_PYTHON,) + VERSIONS_COMPAREES)',
+                                         'for v in (VERSION_DE_PYTHON,))')],
     "S95_installation_en_echo": [(FAB, "        run: python3 -m pip install --quiet \"coverage==7.16.2\"", "        run: echo pip install --quiet \"coverage==7.16.2\"")],
     # LE FILET DES GABARITS PUBLICS (circuit des séries, 04-11-2026, superviseur R-759, R3 ; tour 4, R2 : les poussées
     # hors de la forme permise) : chaque propriété de `verifier_les_gabarits_publics` sabotée SÉPARÉMENT ; la variante
@@ -419,6 +423,7 @@ MOTIFS_ATTENDUS = {
     "S119_module_non_appele": "E8 non refusé : JETON_M5_LOIN.py",
     "S120_controles_admis": "E8 non refusé : tests/outils/U16NB_M5.py",
     "S121_borne_gh_remise_a_b": "E8 motif : « jeton ghp_ collé derrière « _ » » non reconnu",
+    "S150_python_compare_non_verifie": "E6 logiciel non vérifié avant la certification : python3.13",
     "S95_installation_en_echo": "E6 bis paquet de la certification privée non installé au public : coverage==7.16.2",
     'S122_series_sans_garde_des_parts': 'sans lire needs.jouer.result',
     'S123_series_identite_de_la_certification': 'identité partagée',
@@ -868,7 +873,7 @@ def ligne_reelle_de_donnees(r):
     return None
 
 
-def cas_m5(r, d):
+def cas_m5(r, d, sab):
     """E8 ③ à ⑤ — joue le fabricant DE LA COPIE sur les cas du défaut M5 ; rend les fautes.
 
     ① RÔLE — Prouver que le fabricant refuse, avant d'écrire quoi que ce soit au public, tout lien symbolique, tout
@@ -879,13 +884,17 @@ def cas_m5(r, d):
       l'apparence (le mot « github_pat_ » seul, le filtre sed du dépôt, une valeur « Basic » écrite par variable).
     ② CONTEXTE D'APPEL — `epreuve`, une fois par sabotage, avant la fabrication principale.
     ③ ENTRÉE — `r` : la copie (sabotée ou non) du dépôt privé · `d` : son dossier jetable, qui contient `r` ; ce qui
-      est posé dans `d` hors de `r` est HORS du dépôt.
+      est posé dans `d` hors de `r` est HORS du dépôt · `sab` : le nom du sabotage en cours (Z0 : aucun), lu pour le
+      seul libellé du cas qui doit passer.
     ④ CONDITIONS D'ENTRÉE — La copie porte les emplacements de code du fabricant de l'épreuve (PROPRIETE), son
       fichier de lancement, .github/workflows/ et tests/outils/.
     ⑤ SORTIE — UNE valeur : la liste des fautes (vide si tout est conforme), dans l'ordre : course groupée
       (« E8 groupe à refuser : publié, fabricant au code 0 », puis « E8 non refusé : <fichier> (<nature>) » ou
       « E8 refusé pour une autre raison : … » dans l'ordre de pose, puis les fichiers écrits), dossier lié, cas qui
-      doit passer.
+      doit passer (« refusé à tort, code N », ou, sous un sabotage qui doit rougir et si le fabricant s'arrête sans
+      nommer le fichier, « fabricant arrêté avant l'examen du fichier (voulu par le sabotage), code N » — D3 du
+      18-11-2026 : 41 sabotages arrêtaient le fabricant par eux-mêmes et le message disait « refusé à tort » ; B2 de
+      la relecture neuve du 18-11-2026 à 02h22 : le fichier n'a alors pas été jugé, le libellé le dit).
       [rend: 1]
     ⑥ TRAITEMENT — ③ UNE course où tout ce qui doit être refusé est posé ensemble : dans chaque emplacement de
       DOSSIERS_DE_CODE lu au fabricant de l'épreuve, LIEN_M5_HORS.py (lien vers un fichier hors du dépôt) et
@@ -1055,9 +1064,26 @@ def cas_m5(r, d):
     finally:
         os.remove(os.path.join(r, rel))
     if x.returncode != 0 or not os.path.isfile(os.path.join(pub, rel)):
-        fautes.append(f"E8 « le mot github_pat_ seul » : refusé à tort, code {x.returncode} ({x.stdout.strip()[-120:]})")
+        # D3 du 18-11-2026 : sous un sabotage qui doit rougir, un fabricant arrêté SANS nommer ce fichier l'est par
+        # le sabotage lui-même (ex. S46, « if: » suivi d'un commentaire) ; un refus qui le nomme reste « refusé à tort »
+        arret = (not vert_attendu(sab) and x.returncode != 0 and rel not in x.stdout + x.stderr)
+        fautes.append(f"E8 « le mot github" "_pat_ seul » : "     # coupé : garde-fou des jetons du dépôt
+                      + (f"fabricant arrêté avant l'examen du fichier (voulu par le sabotage), code {x.returncode}" if arret
+                         else f"refusé à tort, code {x.returncode}") + f" ({x.stdout.strip()[-120:]})")
     shutil.rmtree(pub, ignore_errors=True)
     return fautes
+
+
+def vert_attendu(sab):
+    """Dit si un passage doit être vert. ① RÔLE — Écrire une seule fois quels passages doivent rester verts.
+    ② CONTEXTE D'APPEL — `main` (le jugement de chaque passage) et `cas_m5` (le libellé du cas qui doit passer).
+    ③ ENTRÉE — `sab` : le nom du passage (Z0, ou la clé d'un sabotage). ④ CONDITIONS D'ENTRÉE — —.
+    ⑤ SORTIE — UNE valeur : vrai pour Z0 et pour les passages dont le nom commence par « V ». [rend: 1]
+    ⑥ TRAITEMENT — compare le nom. ⑦ UNITÉ — —. ⑧ POURQUOI — Deux écritures d'une même chose divergent (R-708) :
+    la condition vivait en ligne dans `main`, D3 du 18-11-2026 la lit aussi dans `cas_m5`. ⑨ CE QUI CLOCHE — Le
+    sens repose sur le nom du sabotage (préfixe « V »), pas sur une déclaration. ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main. [sort: non]"""
+    return sab == "Z0" or sab.startswith("V")
 
 
 def jouer_soir(poser, mord, prep, garde):
@@ -1185,7 +1211,7 @@ def epreuve(sab):
         # refuser le vrai dépôt, et le détail doit alors nommer le cas (superviseur R-759 du 05-11-2026, D2). Le motif
         # et la propriété (`epreuve_du_motif`), puis les cas du fabricant (`cas_m5`) ; ses fautes viennent en tête.
         fautes += epreuve_du_motif(r)
-        fautes += cas_m5(r, d)
+        fautes += cas_m5(r, d, sab)
         fautes += cas_de_branche(r, d)
         pub = os.path.join(d, "public")
         for x in ("programmes", "tests"):
@@ -1476,12 +1502,11 @@ def main():
             print(f"== {sab} : INAPPLICABLE · {det}")
             code = 2
             continue
-        vert_attendu = sab == "Z0" or sab.startswith("V")
-        bon = ok if vert_attendu else not ok
+        bon = ok if vert_attendu(sab) else not ok
         if bon and not ok and sab in MOTIFS_ATTENDUS and MOTIFS_ATTENDUS[sab] not in det:
             bon = False
             det = f"ROUGE POUR UNE AUTRE RAISON (attendu : « {MOTIFS_ATTENDUS[sab]} ») · {det}"
-        print(f"== {sab} : {'vert' if ok else 'rouge'} {'(attendu)' if bon else '<-- ' + ('ATTENDU VERT' if vert_attendu else 'SABOTAGE SANS EFFET')} · {det}")
+        print(f"== {sab} : {'vert' if ok else 'rouge'} {'(attendu)' if bon else '<-- ' + ('ATTENDU VERT' if vert_attendu(sab) else 'SABOTAGE SANS EFFET')} · {det}")
         if not bon:
             code = max(code, 1)
     print("VERDICT : " + ("tout est conforme" if code == 0 else f"NON CONFORME (code {code})"))

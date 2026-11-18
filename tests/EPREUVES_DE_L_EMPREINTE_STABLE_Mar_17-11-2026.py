@@ -23,11 +23,12 @@ la fasse rougir, sous un seul Python, la mutation arrêtée au premier champ ave
   [racine]`.
 ③ ENTRÉE — La ligne de commande : la racine du dépôt (facultative ; par défaut, le dossier parent de tests/) ;
   « --saboter » facultatif.
-④ CONDITIONS D'ENTRÉE — La racine porte emp.py, programmes/ et tests/. Au moins DEUX versions de Python installées parmi
-  celles que `pythons_installes` cherche.
+④ CONDITIONS D'ENTRÉE — La racine porte emp.py, programmes/ (dont le fabricant, qui porte VERSION_DE_PYTHON et
+  VERSIONS_COMPAREES) et tests/. python3.11 et python3.13 dans le PATH : EXIGÉS (A-891), cherchés sous leur nom en
+  clair ; d'autres versions, facultatives, sont comparées en plus (`pythons_installes`).
 ⑤ SORTIE — Le code de sortie : 0 si tout concorde, toutes les propriétés tiennent sous chaque Python, aucun autre
   endroit ne calcule d'empreinte de code et, avec --saboter, chaque sabotage mord ; 1 sinon ; 2 si l'épreuve n'a pas
-  pu tourner — moins de deux versions de Python, un sous-processus sans réponse lisible, le motif de recherche qui
+  pu tourner — un Python exigé absent ou des noms exigés qui divergent des constantes du fabricant, un sous-processus sans réponse lisible, le motif de recherche qui
   échoue à son calibrage, ou un sabotage dont le texte n'est pas trouvé (R-734 : un contrôle qui n'a pas pu tourner
   ne rend jamais 0).
   [rend: 1]
@@ -46,8 +47,9 @@ la fasse rougir, sous un seul Python, la mutation arrêtée au premier champ ave
 ⑧ POURQUOI — A-871 : GitHub (3.11) et la machine du Chat (3.13) ne reconnaissaient pas le même code ; jeton_d_essai,
   le tri, le registre des essais et les déclarations comparent des empreintes calculées sur des machines différentes.
   Une seule mesure le prouve : calculer partout et comparer.
-⑨ CE QUI CLOCHE — ① Seules les versions INSTALLÉES sont éprouvées : Python 3.14 N'EST PAS ÉPROUVÉ (absent de la
-  machine au 17-11-2026) et peut changer l'arbre ; l'épreuve la prendra dès qu'elle sera installée. ② Les propriétés sont jouées sur de petits textes écrits ici, pas
+⑨ CE QUI CLOCHE — ① Seules les versions INSTALLÉES sont éprouvées : Python 3.14 N'A JAMAIS ÉTÉ ÉPROUVÉ sur la machine
+  du Chat (absent au 17-11-2026) et peut changer l'arbre ; sur GitHub, où elle est le Python du système (A-893), elle
+  est prise EN PLUS et comparée : voir `pythons_installes`, ⑨. ② Les propriétés sont jouées sur de petits textes écrits ici, pas
   sur tous les programmes. Les propriétés de SENSIBILITÉ (is/==, ordre des arguments, 4/4.0, ajoutées après M1 du
   relecteur neuf du 17-11-2026) ne couvrent pas tout changement de code : « return » contre « return None », « x[a:] »
   contre « x[:a] » ne sont pas des propriétés (le relecteur les a mesurés DIFFÉRENTS à la main, 3.11/3.12/3.13).
@@ -290,34 +292,99 @@ print(json.dumps({"version": "%d.%d.%d" % sys.version_info[:3], "format": fmt, "
 '''
 
 
-def pythons_installes():
-    """Rend les Python installés, un par version mineure. ① RÔLE — Trouver de quoi comparer. ② CONTEXTE D'APPEL —
-    `main`. ③ ENTRÉE — Aucune. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur : la liste triée de couples
-    (version « 3.N », chemin). [rend: 1] ⑥ TRAITEMENT — Cherche python3.N dans le PATH (N de 8 à 20), dans /usr/bin et
-    /usr/local/bin, plus l'interpréteur courant ; garde le premier chemin trouvé par version, qu'il demande lui-même
-    (`-c`). ⑦ UNITÉ — —. ⑧ POURQUOI — Éprouver toutes les versions présentes, sans liste écrite à la main.
-    ⑨ CE QUI CLOCHE — Un Python installé ailleurs (pyenv, /opt) n'est vu que s'il est dans le PATH. ⑩ EFFET — Lance
-    de courts processus. ⑪ TERMINAISON — Rend la main ; chaque appel est borné à 30 s. [sort: non]"""
-    candidats = [sys.executable]
-    for n in range(8, 21):
-        w = shutil.which("python3.%d" % n)
-        if w:
-            candidats.append(w)
-    for d in ("/usr/bin", "/usr/local/bin"):
-        candidats += sorted(glob.glob(os.path.join(d, "python3.[0-9]*")))
-    trouves = {}
-    for c in candidats:
+# LES PYTHON EXIGÉS, ÉCRITS EN CLAIR (A-891, décision de Jean-Luc du 17-11-2026 à 23h09) : l'épreuve E6 du circuit public
+# (tests/EPREUVES_DU_CIRCUIT_PUBLIC_Jeu_15-10-2026.py) exige que tout logiciel cherché par shutil.which soit nommé en
+# clair, pour vérifier que la certification le pose (« command -v »). 3.11 : la version qui exécute le code dans chaque
+# circuit (VERSION_DE_PYTHON du fabricant) ; 3.13 : la version de la machine du Chat (VERSIONS_COMPAREES du fabricant).
+# `pythons_installes` confronte ces deux noms aux constantes du fabricant (R-708 : deux écritures divergent toujours).
+FABRICANT = os.path.join("programmes", "FABRIQUER_LE_CIRCUIT_PUBLIC.py")
+
+
+def constantes_du_fabricant(racine):
+    """Rend les versions que le fabricant pose. ① RÔLE — Lire VERSION_DE_PYTHON et VERSIONS_COMPAREES sans importer le
+    fabricant. ② CONTEXTE D'APPEL — `pythons_installes`. ③ ENTRÉE — la racine. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE —
+    DEUX valeurs : la version exécutante (texte « 3.N ») et les versions comparées (tuple), ou None et None si le
+    fabricant est absent, illisible, ou si une constante n'est pas un littéral de la forme attendue. [rend: 2]
+    ⑥ TRAITEMENT — Analyse l'arbre du fabricant ; prend la première affectation de niveau module de chaque nom, par
+    `ast.literal_eval`. ⑦ UNITÉ — —. ⑧ POURQUOI — Importer le fabricant exécuterait son code de tête (lecture de la
+    table des épreuves) dans une épreuve qui ne le demande pas ; la constante est un littéral, l'arbre suffit.
+    ⑨ CE QUI CLOCHE — Une constante calculée (non littérale) rend None : l'épreuve rend alors 2, elle ne devine pas.
+    ⑩ EFFET — Lit un fichier. ⑪ TERMINAISON — Rend la main. [sort: non]"""
+    try:
+        arbre = ast.parse(open(os.path.join(racine, FABRICANT), encoding="utf-8").read())
+    except (OSError, SyntaxError, ValueError):
+        return None, None
+    lues = {}
+    for n in arbre.body:
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            nom = n.targets[0].id
+            if nom in ("VERSION_DE_PYTHON", "VERSIONS_COMPAREES") and nom not in lues:
+                try:
+                    lues[nom] = ast.literal_eval(n.value)
+                except ValueError:
+                    lues[nom] = None
+    v, c = lues.get("VERSION_DE_PYTHON"), lues.get("VERSIONS_COMPAREES")
+    if not (isinstance(v, str) and re.fullmatch(r"3\.\d+", v)):
+        return None, None
+    if not (isinstance(c, tuple) and c and all(isinstance(x, str) and re.fullmatch(r"3\.\d+", x) for x in c)):
+        return None, None
+    return v, c
+
+
+def pythons_installes(racine):
+    """Rend les Python à comparer, un par version mineure, ou un motif d'arrêt. ① RÔLE — Trouver de quoi comparer.
+    ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — la racine (pour lire les constantes du fabricant). ④ CONDITIONS D'ENTRÉE —
+    —. ⑤ SORTIE — DEUX valeurs : la liste triée de triplets (version « 3.N », chemin, « exigée » ou « en plus »), et le
+    motif d'arrêt (texte) ou None. [rend: 2] ⑥ TRAITEMENT — ① EXIGÉS : python3.11 et python3.13, cherchés par
+    shutil.which sous leur nom EN CLAIR ; chacun doit être trouvé et répondre la version de son nom ; l'ensemble
+    {3.11, 3.13} doit être celui des constantes du fabricant (VERSION_DE_PYTHON plus VERSIONS_COMPAREES) ; sinon motif
+    d'arrêt (l'épreuve rend 2, R-734). ② EN PLUS, FACULTATIFS : l'interpréteur courant, puis python3.N trouvés dans
+    /usr/bin et /usr/local/bin ; une version non encore vue est ajoutée et comparée COMME les exigées (un écart rougit).
+    Chaque chemin demande lui-même sa version (`-c`). ⑦ UNITÉ — —. ⑧ POURQUOI — E6 (épreuve du circuit public) : un nom
+    composé (« python3.%d » % n) ne dit pas quoi installer, la certification ne pouvait donc pas le garantir ; le
+    17-11-2026 elle ne posait que 3.11 et l'épreuve, sur GitHub, comparait 3.11 au Python du système (3.14) au lieu de
+    3.13 (m2). Les versions EN PLUS restent comparées : A-872 veut la même empreinte sous TOUTES les versions, un écart
+    sous l'une est une instabilité réelle d'emp.py. ⑨ CE QUI CLOCHE — ① Sur GitHub (image ubuntu-26.04, mesuré le
+    17-11-2026, A-893), le glob trouve /usr/bin/python3.14, le Python du système : 3.14 est alors comparée sans avoir
+    jamais été éprouvée (la machine du Chat n'a que 3.11, 3.12, 3.13) ; un écart ou une propriété fausse sous 3.14
+    rougira la certification — un rouge VRAI (emp.py instable sous une version que GitHub fournit), à trancher par
+    Jean-Luc (emp.py est gelé, A-890) ; un ENFANT qui ne tourne pas sous 3.14 rendrait 2. Un passage d'essai sur GitHub
+    est proposé avant la nuit. ② Les versions EN PLUS ne sont cherchées que là (glob), sans « command -v » : E6 ne
+    les voit pas (faille annexe d'E6, BACKLOG). ③ Si la machine du Chat passe à une autre version, les exigés ne la
+    suivent pas tant que VERSIONS_COMPAREES et ces deux noms ne changent pas ensemble. ⑩ EFFET — Lance de courts
+    processus. ⑪ TERMINAISON — Rend la main ; chaque appel est borné à 30 s. [sort: non]"""
+    def version_de(c):
         if not re.search(r"python3(\.\d+)?$", c) or not os.access(c, os.X_OK):
-            continue
+            return None
         try:
             r = subprocess.run([c, "-I", "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
                                capture_output=True, text=True, timeout=30)
         except (OSError, subprocess.TimeoutExpired):
-            continue
+            return None
         v = r.stdout.strip()
-        if r.returncode == 0 and re.fullmatch(r"3\.\d+", v) and v not in trouves:
-            trouves[v] = c
-    return sorted(trouves.items(), key=lambda kv: int(kv[0].split(".")[1]))
+        return v if r.returncode == 0 and re.fullmatch(r"3\.\d+", v) else None
+    exiges = {"3.11": shutil.which("python3.11"), "3.13": shutil.which("python3.13")}
+    executante, comparees = constantes_du_fabricant(racine)
+    if executante is None:
+        return [], "constantes VERSION_DE_PYTHON / VERSIONS_COMPAREES illisibles dans %s" % FABRICANT
+    if set(exiges) != {executante} | set(comparees):
+        return [], ("Python exigés ici %s, le fabricant pose %s : les noms écrits en clair et les constantes du "
+                    "fabricant divergent" % (sorted(exiges), sorted({executante} | set(comparees))))
+    trouves = {}
+    for v, c in sorted(exiges.items()):
+        if not c:
+            return [], "python%s absent du PATH (exigé)" % v
+        if version_de(c) != v:
+            return [], "python%s (%s) ne répond pas la version %s" % (v, c, v)
+        trouves[v] = (c, "exigée")
+    candidats = [sys.executable]
+    for d in ("/usr/bin", "/usr/local/bin"):
+        candidats += sorted(glob.glob(os.path.join(d, "python3.[0-9]*")))
+    for c in candidats:
+        v = version_de(c)
+        if v and v not in trouves:
+            trouves[v] = (c, "en plus")
+    return sorted(((v, c, s) for v, (c, s) in trouves.items()), key=lambda x: int(x[0].split(".")[1])), None
 
 
 def mesurer(python, racine, premier=False):
@@ -553,11 +620,12 @@ def main():
     if not os.path.isfile(os.path.join(racine, "emp.py")):
         print("NE PEUT PAS TOURNER : pas d'emp.py dans %s" % racine)
         sys.exit(2)
-    pythons = pythons_installes()
-    print("Python trouvés : %s" % ", ".join("%s (%s)" % p for p in pythons))
-    if len(pythons) < 2:
-        print("NE PEUT PAS TOURNER : moins de deux versions de Python — rien à comparer (R-734)")
+    trouves, motif = pythons_installes(racine)
+    if motif:
+        print("NE PEUT PAS TOURNER : %s (R-734)" % motif)
         sys.exit(2)
+    print("Python trouvés : %s" % ", ".join("%s (%s, %s)" % p for p in trouves))
+    pythons = [(v, c) for v, c, _s in trouves]
     code, defauts = juger(racine, pythons)
     if code == 2:
         print("NE PEUT PAS TOURNER : %s" % defauts[0])

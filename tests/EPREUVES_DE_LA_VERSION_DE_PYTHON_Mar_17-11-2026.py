@@ -47,9 +47,19 @@ cryptography) : un `import yaml` neuf dans un programme du soir serait certifié
   lancent Python, le job « bash echo python » non.
   V (les circuits fabriqués) : V0 le TÉMOIN — les cinq circuits que la publication écrit sont relevés (sinon le
   relevé ne prouverait rien) ; V1 la constante VERSION_DE_PYTHON existe et a la forme « 3.N » (version mineure,
-  sans numéro de correctif) ; V2 chaque job qui lance Python pose actions/setup-python ; V3 chaque pose porte la
-  version de la constante ; V4 la pose précède, dans le circuit du soir, tout pas du job (le circuit du soir est tout
-  entier joué sous la version : ses jobs passent chaque pas par python3).
+  sans numéro de correctif), et la constante VERSIONS_COMPAREES (A-891, 17-11-2026) est un tuple non vide de « 3.N »
+  qui ne contient pas VERSION_DE_PYTHON ; V2 chaque job qui lance Python pose actions/setup-python ; V3 (adapté par
+  A-891, décision de Jean-Luc du 17-11-2026 à 23h09) chaque job pose UNE fois au plus, la DERNIÈRE version de chaque
+  pose (une par ligne, `versions_d_une_pose`) est la constante, et une version en plus n'est admise QUE dans le job
+  « certifier » de la certification et QUE si elle vient de VERSIONS_COMPAREES, ce job les posant toutes ; V4 la pose
+  précède, dans le circuit du soir, tout pas du job (le circuit du soir est tout entier joué sous la version : ses
+  jobs passent chaque pas par python3) ; V5 (condition C2 du superviseur R-759 du 17-11-2026) la première ligne du
+  pas « certifier » du job « certifier », espaces de bord retirés, est ÉGALE à la constante PREUVE_DE_LA_VERSION du
+  fabricant (lue, jamais recopiée : R-708, deux écritures d'une même chose divergent ; D1 de la relecture neuve du
+  18-11-2026 : un « match » de début de ligne laissait passer « … || true »), cette constante répond au motif strict
+  MOTIF_DE_LA_PREUVE (un seul « python3 -c "…" » au contenu inerte pour bash, rien après : F1 du 18-11-2026), et
+  le code qu'il en extrait, JOUÉ
+  (`rendu_de_la_preuve`), rend 0 sous la constante et un code non nul sous chaque version comparée et sous « 3.99 ».
   P (la certification du privé) : P1 .github/workflows/certifier.yml pose actions/setup-python, à la version de la
   constante.
   M (les modules qu'exécute le soir, propriété ④ ; `besoins_d_un_pas`) : M0 le relevé, calibré sur un dépôt d'essai
@@ -80,6 +90,19 @@ cryptography) : un `import yaml` neuf dans un programme du soir serait certifié
   coupe disparaît, M2 avec coverage (N1) ; SV13 le relevé privé de « python3 -m » → M0 (black, N4) ; SV14
   `if: ${{ false }}` sur le pas qui installe cryptography → M2 (N2) ; SV15 ce pas déplacé dans le job de décision →
   M2 au job collecte (« même job », N3) ; SV16 ce pas placé juste après le pas du cockpit → M2 (« plus tôt », N3).
+  A-891 : SV17 3.13 en dernière position → V3 ; SV18 la pose élargie aussi dans le job « reunir » → V3 ; SV19
+  VERSIONS_COMPAREES retirée → V0 (le fabricant ne s'importe plus) ; SV20 VERSIONS_COMPAREES vide → V1 ; SV21 une
+  version en plus hors de VERSIONS_COMPAREES (3.12) → V3 ; SV22 la preuve inversée (codes échangés : 3 si la version est la constante, 0 sinon) → V5 ; SV23 la preuve
+  écrite avec la version comparée au lieu de la constante → V5 ; SV24 la preuve retirée → V5 ; SV25 une seconde pose
+  dans le job « certifier » → V3. D1 du 18-11-2026 : SV26 « || true », SV27 « | cat », SV28 « ; true » après la
+  preuve, SV29 la preuve suivie de « \\ » puis d'une ligne « true » → V5, chacun pour le motif « preuve différente de
+  la constante » (une liste d'opérateurs shell interdits serait une énumération qui laisse passer la forme oubliée ;
+  l'égalité à la constante est une propriété). SV29 ne neutralise pas la preuve sous bash (la ligne suivante devient
+  un argument de python3 -c, mesuré : code 3) ; il prouve que TOUTE forme différente rougit. F1 du 18-11-2026 (la
+  CONSTANTE sabotée dans le fabricant, le circuit rendu l'égale donc) : SV30 `…3);" || true ";"`, SV31
+  `…3);"||true${IFS}";"`, SV32 `…3)  # $(true)"` → V5, chacun pour le motif « n'est pas un seul » (MOTIF_DE_LA_PREUVE :
+  une seule chaîne entre guillemets doubles, au contenu inerte pour bash, rien après).
+  Le retrait de « command -v python3.13 » est un sabotage de l'épreuve du circuit public (E6), pas de celle-ci.
   Quand un sabotage déclare des textes attendus, ils doivent figurer dans la sortie de la copie : il mord alors
   POUR SA RAISON, pas seulement par le bon cas.
 ⑦ UNITÉ — Des codes de sortie ; une version de Python, « majeure.mineure » (texte).
@@ -125,6 +148,10 @@ cryptography) : un `import yaml` neuf dans un programme du soir serait certifié
   installés là où l'épreuve tourne (`importlib.metadata.packages_distributions`) : un module absent d'ici n'est
   reconnu que si son nom pip est le sien. Ce qui est installé n'est pas épinglé (m1 du relecteur, consigné, pas
   corrigé ici).
+  A-891 : V3 et V5 lisent le texte FABRIQUÉ ; que setup-python prenne bien la dernière ligne pour python3 est MESURÉ
+  sur GitHub une fois (A-893, 17-11-2026), pas à chaque nuit — c'est la preuve V5, jouée sur la machine même, qui le
+  garde. V5 joue la preuve dans ce processus avec une version SIMULÉE (sys remplacé un instant) : une preuve qui lirait
+  la version autrement que par sys.version_info échapperait à la simulation.
 ⑩ EFFET — Écrit dans des dossiers jetables (sabotages), effacés à la fin.
 ⑪ TERMINAISON — Rend la main ; sort par sys.exit.
   [sort: oui]
@@ -151,6 +178,11 @@ LUS = (FABRICANT, JETON, TABLE, SOURCE_DU_SOIR, CERTIFICATION_PRIVEE, COPIEUR, E
 NOM_DE_PROGRAMME = re.compile(r"[A-Za-z0-9_\-]+\.py\b")
 # « python3 -c "code" » (ou 'code') dans un texte de pas : le code en ligne, relevé comme un programme.
 CODE_EN_LIGNE = re.compile(r"""(?:^|[\s;&|(`])python3?(?:\.\d+)?\s+(?:-[A-Za-z]+\s+)*-c\s+(["'])(.*?)\1""", re.S)
+# LA FORME STRICTE DE LA PREUVE (F1 de la relecture neuve du 18-11-2026 à 02h22, superviseur R-759 : la vérification
+# par CODE_EN_LIGNE.fullmatch était une rustine, son « .*? » traverse les guillemets internes) : « python3 -c " »,
+# UNE chaîne entre guillemets doubles au contenu inerte pour bash (ni ", ni \, ni $, ni accent grave, ni !), « " »,
+# et rien après. bash ne peut alors lancer qu'UNE commande : propriété par construction, pas une liste d'opérateurs.
+MOTIF_DE_LA_PREUVE = r'python3 -c "([^"\\$`!]*)"'
 ACTION = "actions/setup-python@"
 # « python » ou « python3 » (ou « python3.11 ») EN TÊTE DE MOT de commande : début de ligne, après une espace, « ; »,
 # « & », « | », « ( », « $( » ou « ` » ; suivi d'une espace ou de la fin. « setup-python » ne répond pas (« - » devant).
@@ -525,6 +557,99 @@ def normaliser(paquet):
     return re.sub(r"[-_.]+", "-", re.split(r"[<>=!~\[;@\s]", paquet.strip(), maxsplit=1)[0]).lower()
 
 
+def versions_d_une_pose(valeur):
+    """Rend les versions d'une pose, dans l'ordre. ① RÔLE — Lire « python-version » écrit sur une ou plusieurs lignes.
+    ② CONTEXTE D'APPEL — `tour`, V3. ③ ENTRÉE — la valeur relevée (texte, ou None). ④ CONDITIONS D'ENTRÉE — —.
+    ⑤ SORTIE — UNE valeur : la liste des lignes non vides, sans espaces autour ([] pour None). [rend: 1]
+    ⑥ TRAITEMENT — couper aux fins de ligne. ⑦ UNITÉ — —. ⑧ POURQUOI — actions/setup-python pose chaque ligne et
+    prend la DERNIÈRE pour python3 (A-891 ; mesuré sur GitHub le 17-11-2026, A-893). ⑨ CE QUI CLOCHE — Une liste YAML
+    (« python-version: [a, b] ») ou une virgule ne sont pas lues comme plusieurs versions : la valeur entière est
+    alors comparée à la constante, et rougit. ⑩ EFFET — Aucun. ⑪ TERMINAISON — Rend la main. [sort: non]"""
+    return [] if valeur is None else [x.strip() for x in str(valeur).splitlines() if x.strip()]
+
+
+def rendu_de_la_preuve(code, version):
+    """Rend le code de sortie de la preuve à l'exécution, jouée comme sous une version donnée. ① RÔLE — Éprouver la
+    preuve sans disposer de chaque Python. ② CONTEXTE D'APPEL — `preuve_de_la_version`. ③ ENTRÉE — le code en ligne
+    (texte Python) ; la version simulée « 3.N ». ④ CONDITIONS D'ENTRÉE — Le code lit la version par `import sys` et sort
+    par `sys.exit`. ⑤ SORTIE — UNE valeur : le code de sortie (entier ; 0 si le code finit sans sortir ; « ERREUR … »
+    si le code lève autre chose). [rend: 1] ⑥ TRAITEMENT — remplace un instant le module sys de sys.modules par un objet
+    qui porte la version simulée et la vraie fonction exit, exécute le code, rétablit sys. ⑦ UNITÉ — —.
+    ⑧ POURQUOI — La preuve (condition C2 du superviseur R-759 du 17-11-2026) doit rendre 0 sous la constante et un
+    code non nul sous toute autre version ; comparer son TEXTE à celui du fabricant ne prouverait rien (le fabricant
+    l'écrit, une inversion serait recopiée). ⑨ CE QUI CLOCHE — Le code est exécuté dans ce processus : c'est celui que
+    le fabricant de la racine éprouvée écrit, déjà exécuté par `charger`. Une preuve qui lirait la version autrement
+    (platform, sys.version) ne verrait pas la version simulée et rendrait le résultat de la vraie version.
+    ⑩ EFFET — Aucun hors du processus. ⑪ TERMINAISON — Rend la main. [sort: non]"""
+    import types
+    vrai = sys.modules["sys"]
+    simule = types.SimpleNamespace(version_info=tuple(int(x) for x in version.split(".")) + (0, "final", 0),
+                                   exit=vrai.exit)
+    sys.modules["sys"] = simule
+    try:
+        exec(code, {})      # noqa: S102 — le code du circuit fabriqué, voir ⑨
+        return 0
+    except SystemExit as e:
+        return e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+    except Exception as e:      # noqa: BLE001 — une preuve qui lève est un cas faux, jamais un silence
+        return f"ERREUR {type(e).__name__}"
+    finally:
+        sys.modules["sys"] = vrai
+
+
+def preuve_de_la_version(texte, version, comparees, preuve):
+    """Rend les cas faux de V5. ① RÔLE — Vérifier la preuve à l'exécution du job « certifier » (A-891, C2).
+    ② CONTEXTE D'APPEL — `tour`, sur la vraie fiche de certification fabriquée. ③ ENTRÉE — le texte du circuit ; la
+    constante ; les versions comparées ; la constante PREUVE_DE_LA_VERSION LUE dans le fabricant (None si absente).
+    ④ CONDITIONS D'ENTRÉE — Le texte se lit en YAML. ⑤ SORTIE — UNE valeur : la liste des cas faux « V5 … » (vide si
+    conforme). [rend: 1] ⑥ TRAITEMENT — La première ligne non vide de « run » du pas d'id « certifier » du job
+    « certifier », espaces de bord retirés, doit être ÉGALE à PREUVE_DE_LA_VERSION (sinon « preuve différente de la
+    constante ») ; la constante doit répondre au motif strict MOTIF_DE_LA_PREUVE (sinon « n'est pas un seul
+    python3 -c "…" ») : « python3 -c " », UNE chaîne entre guillemets doubles au contenu inerte pour bash (ni ", ni \\,
+    ni $, ni accent grave, ni !), « " », rien après — bash ne peut lancer qu'une commande, propriété par construction
+    et non liste d'opérateurs (F1 du 18-11-2026 : `CODE_EN_LIGNE.fullmatch` laissait passer `…3);" || true ";"`, son
+    « .*? » traversant les guillemets internes ; « shlex : 3 éléments » était une rustine, `…3);"||true${IFS}";"` la
+    contournait, superviseur R-759) ; le groupe du motif, le code, doit rendre 0 sous la constante et un code non nul
+    sous chaque version comparée et sous « 3.99 » (une version qui n'existe pas).
+    ⑦ UNITÉ — —. ⑧ POURQUOI — Si une pose mettait une version comparée en dernier, python3 ne serait plus la version
+    certifiée ; V3 le voit dans le texte, la preuve le voit sur la machine même. En PREMIÈRE ligne : sous « bash -e »
+    (programmes/ETAPE_MUETTE.py), elle arrête le pas avant toute certification. ⑨ CE QUI CLOCHE — Que le shell du pas
+    soit bien « bash -e » n'est pas vérifié ici (shell par défaut du job, DEFAULTS du fabricant) : V5 ne contrôle pas le
+    shell effectif. L'égalité porte sur la constante telle que le fabricant l'écrit : une constante fausse mais BIEN
+    FORMÉE (codes échangés, version comparée) n'est vue que par le jeu simulé (SV22, SV23) ; une constante MAL FORMÉE
+    (une seconde commande après un guillemet fabriqué, « $( ) », « ! » — dont « != ») est refusée par le motif strict
+    (SV30, SV31, SV32). Le motif refuse aussi des codes Python inoffensifs (une chaîne entre guillemets doubles, un
+    « != ») : voulu, la preuve s'écrit sans eux. LIMITE CONNUE (N1, relecteur du 18-11-2026, superviseur R-759 :
+    « arrêter et simplifier ») : V5 découpe la première ligne en Python (splitlines), bash seulement sur « \n » ;
+    un pas réécrit entre guillemets doubles avec \x0b \x0c \x1c-\x1e \x85 U+2028 U+2029 ou \r échappés trompe
+    V5 et désarme la preuve sous bash. Le gabarit déployé (« run: | ») ne le permet pas. Réparation de fond au
+    BACKLOG : la preuve dans programmes/CERTIFIER_LA_VERSION.py lui-même. ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main. [sort: non]"""
+    import yaml
+    job = (yaml.safe_load(texte).get("jobs") or {}).get("certifier") or {}
+    pas = next((p for p in job.get("steps") or [] if p.get("id") == "certifier"), None)
+    if pas is None:
+        return ["V5 pas « certifier » du job « certifier » introuvable"]
+    premiere = next((l for l in str(pas.get("run") or "").splitlines() if l.strip()), "")
+    if not isinstance(preuve, str) or not preuve.strip():
+        return [f"V5 constante PREUVE_DE_LA_VERSION absente ou vide dans le fabricant : {preuve!r}"]
+    if premiere.strip() != preuve.strip():
+        return [f"V5 la première ligne du pas « certifier » n'est pas la preuve : preuve différente de la constante "
+                f"PREUVE_DE_LA_VERSION : {premiere.strip()!r} au lieu de {preuve.strip()!r}"]
+    m = re.fullmatch(MOTIF_DE_LA_PREUVE, premiere.strip())
+    if not m:
+        return [f"V5 la constante PREUVE_DE_LA_VERSION n'est pas un seul « python3 -c \"…\" » : {premiere.strip()!r}"]
+    faux = []
+    r = rendu_de_la_preuve(m.group(1), version)
+    if r != 0:
+        faux.append(f"V5 la preuve rend {r!r} sous la constante {version!r} (0 attendu)")
+    for x in tuple(comparees) + ("3.99",):
+        r = rendu_de_la_preuve(m.group(1), x)
+        if r == 0 or not isinstance(r, int):
+            faux.append(f"V5 la preuve rend {r!r} sous {x!r} (un code non nul attendu)")
+    return faux
+
+
 def tour(racine):
     """Joue les cas C, V et P sur une racine ; rend la liste des cas faux, et le relevé.
 
@@ -559,6 +684,14 @@ def tour(racine):
     version = getattr(F, "VERSION_DE_PYTHON", None)
     if not isinstance(version, str) or not FORME_DE_VERSION.fullmatch(version):
         faux.append(f"V1 constante VERSION_DE_PYTHON absente ou mal formée : {version!r}")
+    # A-891 : les versions comparées de l'empreinte, posées EN PLUS dans le seul job « certifier » de la certification
+    comparees = getattr(F, "VERSIONS_COMPAREES", None)
+    if not (isinstance(comparees, tuple) and comparees
+            and all(isinstance(x, str) and FORME_DE_VERSION.fullmatch(x) for x in comparees)
+            and version not in comparees):
+        faux.append(f"V1 constante VERSIONS_COMPAREES absente, vide, mal formée ou contenant la constante : {comparees!r}")
+        comparees = ()
+    certification = F.CIRCUIT_CERTIFICATION.replace(os.sep, "/")
     for chemin, octets in circuits:
         releve = relever(octets.decode("utf-8"))
         for job, (lance, poses, premiere) in releve.items():
@@ -566,11 +699,29 @@ def tour(racine):
                           + " · pose : " + (", ".join(repr(p) for p in poses) if poses else "aucune"))
             if lance and not poses:
                 faux.append(f"V2 {chemin} job {job} lance Python sans poser actions/setup-python")
+            if len(poses) > 1:
+                faux.append(f"V3 {chemin} job {job} : {len(poses)} poses de Python, une seule permise (A-891, C1)")
+            comparatrice = chemin == certification and job == "certifier"
             for p in poses:
-                if p != version:
-                    faux.append(f"V3 {chemin} job {job} pose {p!r} au lieu de la constante {version!r}")
+                lues = versions_d_une_pose(p)
+                if not lues or lues[-1] != version:
+                    faux.append(f"V3 {chemin} job {job} pose {p!r} : la dernière version n'est pas la constante "
+                                f"{version!r}")
+                for x in lues[:-1]:
+                    if not comparatrice:
+                        faux.append(f"V3 {chemin} job {job} pose {x!r} en plus hors du job « certifier » de la "
+                                    "certification")
+                    elif x not in comparees:
+                        faux.append(f"V3 {chemin} job {job} pose {x!r} en plus, hors de VERSIONS_COMPAREES {comparees!r}")
+            if comparatrice and comparees:
+                posees = [x for p in poses for x in versions_d_une_pose(p)[:-1]]
+                if sorted(posees) != sorted(comparees):
+                    faux.append(f"V3 {chemin} job {job} pose en plus {posees}, VERSIONS_COMPAREES vaut {comparees!r}")
             if chemin == F.CIRCUIT_PUBLIC.replace(os.sep, "/") and lance and premiere not in (0, None):
                 faux.append(f"V4 {chemin} job {job} : la pose est au pas {premiere}, pas en tête")
+        if chemin == certification:
+            faux += preuve_de_la_version(octets.decode("utf-8"), version, comparees,
+                                         getattr(F, "PREUVE_DE_LA_VERSION", None))
         if chemin == F.CIRCUIT_CERTIFICATION.replace(os.sep, "/"):
             c = releve.get("certifier")
             if not c or not c[1] or (releve.get("preparer") or (True,))[0]:
@@ -714,6 +865,51 @@ SABOTAGES = {
                                             'le cockpit en page web")) + 1\n'
                                             '    corps = corps[:_i] + CHIFFREMENT_DU_SOIR + corps[_i:]\n')],
                                           "M2", ("job collecte", "cryptography")),
+    # A-891 (17-11-2026) : les versions comparées de l'empreinte, admises SEULEMENT dans le job « certifier » de la
+    # certification, SEULEMENT si elles viennent de VERSIONS_COMPAREES, la constante TOUJOURS en dernier ; la preuve à
+    # l'exécution (C2 du superviseur R-759 du 17-11-2026) rend 0 sous la constante, autre chose sinon.
+    "SV17_comparee_en_derniere_position": ([(FABRICANT, 'for v in VERSIONS_COMPAREES + (m.group(2),))',
+                                             'for v in (m.group(2),) + VERSIONS_COMPAREES)')], "V3",
+                                           ("la dernière version n'est pas la constante",)),
+    "SV18_comparee_dans_un_autre_job": ([(FABRICANT, "%(depart)s%(meme_depot)s      - name: Lire les certificats partiels",
+                                          "%(depart_certifier)s%(meme_depot)s      - name: Lire les certificats partiels")],
+                                        "V3", ("job reunir pose '3.13' en plus hors du job",)),
+    "SV19_constante_absente": ([(FABRICANT, 'VERSIONS_COMPAREES = ("3.13",)\n', '')], "V0", ("VERSIONS_COMPAREES",)),
+    "SV20_constante_vide": ([(FABRICANT, 'VERSIONS_COMPAREES = ("3.13",)\n', 'VERSIONS_COMPAREES = ()\n')], "V1",
+                            ("VERSIONS_COMPAREES absente, vide",)),
+    "SV21_version_hors_des_comparees": ([(FABRICANT, 'for v in VERSIONS_COMPAREES + (m.group(2),))',
+                                          'for v in ("3.12",) + (m.group(2),))')], "V3", ("hors de VERSIONS_COMPAREES",)),
+    # F1 (18-11-2026) : « != » porte un « ! », refusé désormais par le motif strict ; l'inversion bien formée (codes
+    # échangés) garde ce que SV22 montre — une constante fausse mais bien formée n'est vue que du jeu simulé.
+    "SV22_preuve_inversee": ([(FABRICANT, "sys.exit(0 if sys.version_info[:2] == (%s) else 3)",
+                               "sys.exit(3 if sys.version_info[:2] == (%s) else 0)")], "V5", ("sous la constante",)),
+    "SV23_preuve_a_la_version_comparee": ([(FABRICANT, '% ", ".join(VERSION_DE_PYTHON.split(".")))',
+                                            '% ", ".join(VERSIONS_COMPAREES[0].split(".")))')], "V5",
+                                          ("sous la constante",)),
+    "SV24_preuve_retiree": ([(FABRICANT, "          %(preuve)s\n", "")], "V5", ("n'est pas la preuve",)),
+    "SV25_deux_poses_dans_certifier": ([(FABRICANT, "%(depart_certifier)s%(meme_depot)s%(logiciels)s",
+                                         "%(depart_certifier)s      - uses: actions/setup-python@v5\n        with:\n"
+                                         "          python-version: \"3.11\"\n%(meme_depot)s%(logiciels)s")], "V3",
+                                       ("2 poses de Python",)),
+    # D1 de la relecture neuve du 18-11-2026 (superviseur R-759 : « DE FOND ») : la première ligne doit ÉGALER la
+    # constante ; chacune de ces quatre formes commençait par la preuve et passait le « match » de début de ligne.
+    "SV26_preuve_suivie_de_ou_vrai": ([(FABRICANT, "          %(preuve)s\n", "          %(preuve)s || true\n")], "V5",
+                                      ("preuve différente de la constante",)),
+    "SV27_preuve_dans_un_tuyau": ([(FABRICANT, "          %(preuve)s\n", "          %(preuve)s | cat\n")], "V5",
+                                  ("preuve différente de la constante",)),
+    "SV28_preuve_suivie_de_point_virgule_vrai": ([(FABRICANT, "          %(preuve)s\n", "          %(preuve)s; true\n")],
+                                                 "V5", ("preuve différente de la constante",)),
+    "SV29_preuve_continuee_par_une_ligne_vrai": ([(FABRICANT, "          %(preuve)s\n",
+                                                   "          %(preuve)s \\\\\n          true\n")], "V5",
+                                                 ("preuve différente de la constante",)),
+    # F1 de la relecture neuve du 18-11-2026 à 02h22 (superviseur R-759 : « shlex 3 éléments » est une rustine) : la
+    # CONSTANTE elle-même sabotée dans le fabricant — le circuit rendu l'égale donc, seul le motif strict la refuse.
+    "SV30_constante_suivie_de_ou_vrai_entre_guillemets": ([(FABRICANT, 'else 3)"\'', 'else 3);" || true ";"\'')], "V5",
+                                                          ("n'est pas un seul",)),
+    "SV31_constante_ou_vrai_colle_par_ifs": ([(FABRICANT, 'else 3)"\'', 'else 3);"||true${IFS}";"\'')], "V5",
+                                             ("n'est pas un seul",)),
+    "SV32_constante_avec_substitution_de_commande": ([(FABRICANT, 'else 3)"\'', 'else 3)  # $(true)"\'')], "V5",
+                                                     ("n'est pas un seul",)),
     "SV5_releve_qui_lit_le_texte": ([("@SOI", '            if str(pas.get("uses") or "").startswith(ACTION):\n',
                                       '            if ACTION in str(pas):\n')], "C2"),
 }
@@ -742,7 +938,7 @@ def main():
     faux, lignes = tour(DEPOT)
     for ligne in lignes:
         print("RELEVÉ " + ligne)
-    print("Z0 fichiers tels quels : " + ("C1 à C3, V0 à V4, P1, M0 à M2 conformes" if not faux else "FAUX " + " | ".join(faux)))
+    print("Z0 fichiers tels quels : " + ("C1 à C3, V0 à V5, P1, M0 à M2 conformes" if not faux else "FAUX " + " | ".join(faux)))
     code = 1 if faux else 0
     choix = [a.split("=", 1)[1].split(",") for a in sys.argv[1:] if a.startswith("--saboter=")]
     if "--saboter" in sys.argv or choix:

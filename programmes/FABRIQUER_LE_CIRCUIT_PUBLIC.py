@@ -768,6 +768,67 @@ POSE_DE_PYTHON = """      - uses: actions/setup-python@v5
         with:
           python-version: "%s"
 """ % VERSION_DE_PYTHON
+# LES VERSIONS COMPARÉES DE L'EMPREINTE, ÉCRITES ICI ET NULLE PART AILLEURS. Décision de Jean-Luc A-891 du 17-11-2026 à
+# 23h09 (« 1 ») : UNE SEULE version exécute le code dans chaque circuit (VERSION_DE_PYTHON) ; la certification installe
+# EN PLUS ces versions, UNIQUEMENT pour que l'épreuve de l'empreinte stable (tests/EPREUVES_DE_L_EMPREINTE_STABLE_Mar_17-
+# 11-2026.py, A-872) compare l'empreinte calculée sous chacune. « 3.13 » : la version de la machine du Chat, mesurée le
+# 17-11-2026 (m2 du relecteur de travail-e3c : la certification ne posait que 3.11, la comparaison 3.11/3.13 y était
+# impossible). Si la machine du Chat change de version, cette constante doit suivre : rien ne le vérifie (BACKLOG).
+# Le circuit de certification les pose en UNE pose sur plusieurs lignes, VERSION_DE_PYTHON en DERNIER — documentation
+# d'actions/setup-python : « The last specified version will be used as a default one » ; mesuré sur GitHub le
+# 17-11-2026 (A-893, passage d'essai 44187780427 : « 3.13 » puis « 3.11 » → python3 = 3.11.18, python3.13 présent).
+# tests/EPREUVES_DE_LA_VERSION_DE_PYTHON_Mar_17-11-2026.py (V1, V3, V5) rougit si cette forme tombe.
+VERSIONS_COMPAREES = ("3.13",)
+# LE PAS QUI VÉRIFIE LES PYTHON DE L'EMPREINTE, juste après la pose du job « certifier » : l'épreuve E6 du circuit
+# public exige que tout logiciel cherché par shutil.which soit vérifié par « command -v » avant le pas « certifier »
+# (l'épreuve de l'empreinte cherche python3.11 et python3.13). Les noms sont écrits EN CLAIR dans le circuit fabriqué.
+# continue-on-error : un Python absent ne bloque pas les autres épreuves ; l'épreuve de l'empreinte rend alors 2 en le
+# disant (R-734), et la certification rougit.
+PYTHON_DE_L_EMPREINTE = """      - name: Les Python que compare l'epreuve de l'empreinte sont-ils poses ?
+        id: python_de_l_empreinte
+        shell: bash
+        continue-on-error: true
+        run: %s
+""" % " && ".join("command -v python%s" % v for v in (VERSION_DE_PYTHON,) + VERSIONS_COMPAREES)
+# LA PREUVE À L'EXÉCUTION (condition C2 du superviseur R-759 du 17-11-2026, A-891) : première ligne du pas « certifier »,
+# sous « bash -e » (programmes/ETAPE_MUETTE.py) : si python3 n'est pas VERSION_DE_PYTHON — une pose qui mettrait une
+# version comparée en dernier —, la ligne rend 3 et le pas tombe AVANT de certifier quoi que ce soit.
+PREUVE_DE_LA_VERSION = ('python3 -c "import sys; sys.exit(0 if sys.version_info[:2] == (%s) else 3)"'
+                        % ", ".join(VERSION_DE_PYTHON.split(".")))
+
+
+def pose_des_comparees(depart):
+    """Rend les pas de départ du job « certifier », la pose de Python élargie aux versions comparées.
+
+    ① RÔLE — Faire poser au seul job « certifier » de la certification VERSIONS_COMPAREES puis la version des pas de
+      départ, en UNE pose (A-891), suivie du pas PYTHON_DE_L_EMPREINTE.
+    ② CONTEXTE D'APPEL — Le gabarit CERTIFICATION, une fois, sur le texte rendu par `depart_pour`.
+    ③ ENTRÉE — `depart` : le texte des pas de départ (format du fichier de circuit), qui porte UNE pose de Python.
+    ④ CONDITIONS D'ENTRÉE — `depart` porte exactement une ligne « python-version: "X" ».
+    ⑤ SORTIE — UNE valeur : le texte des pas, la ligne remplacée par un bloc « python-version: | » (VERSIONS_COMPAREES
+      puis X, une par ligne), le pas PYTHON_DE_L_EMPREINTE inséré juste après. Lève ValueError sinon.
+      [rend: 1]
+    ⑥ TRAITEMENT — Une substitution comptée de la ligne de version (la version X est GARDÉE telle qu'elle est écrite
+      dans `depart`, en dernier), puis l'insertion du pas juste après cette ligne, dernière clé de la pose.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une seule pose (condition C1 du superviseur R-759 du 17-11-2026) : deux poses successives laisseraient
+      la question « laquelle est python3 ? » à l'ordre des pas. X est repris de `depart` et non de VERSION_DE_PYTHON :
+      si les pas de départ posent une autre version, le contrôle V3 de l'épreuve de la version de Python le voit au
+      lieu de le masquer (sabotage SV4).
+    ⑨ CE QUI CLOCHE — Dépend de la forme « python-version: "X" » de POSE_DE_PYTHON, dernière clé de la pose : si la
+      ligne n'est pas trouvée une fois, lève à l'import (aucun circuit fabriqué) au lieu de produire un circuit faux ;
+      si une clé était ajoutée APRÈS elle dans la pose, le pas inséré la couperait de sa pose (non éprouvé).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    motif = re.compile(r'^(          python-version: )"([^"\n]+)"\n', re.M)
+    trouves = motif.findall(depart)
+    if len(trouves) != 1:
+        raise ValueError(f"pas de départ de la certification : {len(trouves)} ligne(s) de version, une attendue")
+    m = motif.search(depart)
+    bloc = m.group(1) + "|\n" + "".join("            %s\n" % v for v in VERSIONS_COMPAREES + (m.group(2),))
+    return depart[:m.start()] + bloc + PYTHON_DE_L_EMPREINTE + depart[m.end():]
 # LE MODULE DE CHIFFREMENT DU CIRCUIT DU SOIR (A-874, conséquence de la pose) : programmes/PUBLIER_LE_SITE.py fait
 # chiffrer la page du cockpit par programmes/PROTEGER_LA_PAGE.py, qui exige `cryptography` (code 2 sans lui). Le Python
 # de la machine GitHub l'a (journal du passage du 16-11-2026 à 23h45 : « page protegee : 45728 caracteres chiffres ») ;
@@ -1156,10 +1217,12 @@ jobs:
       matrix:
         tranche:
 %(tranches)s%(defaults)s    steps:
-%(depart)s%(meme_depot)s%(logiciels)s%(installer)s      - name: Certifier une tranche
+%(depart_certifier)s%(meme_depot)s%(logiciels)s%(installer)s      - name: Certifier une tranche
         id: certifier
         continue-on-error: true
-        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/%(nombre)d
+        run: |
+          %(preuve)s
+          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/%(nombre)d
 %(deposer_tranche)s%(verdict)s  reunir:
     # LA TÂCHE FINALE : après toutes les tranches, MÊME si l'une a échoué, a été coupée ou annulée.
     # la liste « à tirets », comme la matrice : le sous-ensemble YAML lu par ce fabricant refuse « [ … ] »
@@ -1189,6 +1252,11 @@ jobs:
     "prive": DEPOT_PRIVE, "meme_depot": SERIES_MEME_DEPOT,
     "depart": depart_pour(os.path.basename(CIRCUIT_CERTIFICATION), "de certification",
                           ref="${{ needs.preparer.outputs.sha }}", jeton_garde=True),
+    # A-891 (17-11-2026) : le SEUL job « certifier » pose en plus les versions comparées de l'empreinte, en une pose, la
+    # version des pas de départ en dernier ; son pas « certifier » commence par la preuve que python3 est bien elle
+    "depart_certifier": pose_des_comparees(depart_pour(os.path.basename(CIRCUIT_CERTIFICATION), "de certification",
+                                                       ref="${{ needs.preparer.outputs.sha }}", jeton_garde=True)),
+    "preuve": PREUVE_DE_LA_VERSION,
     "defaults": DEFAULTS, "logiciels": LOGICIELS_DE_LA_CERTIFICATION,
     "installer": INSTALLER_LA_MESURE, "verdict": VERDICT_DE_LA_CERTIFICATION,
     # chaque tranche renomme son journal (ETAPE_MUETTE le nomme par le job, le même pour toutes) et pousse son partiel
