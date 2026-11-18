@@ -1,22 +1,29 @@
-# DEMANDE DE SERIE — LE RELAIS — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
+# ESSAI DU 18-11-2026 SUR UNE BRANCHE D'ESSAI (jamais main) : copie du relais fabriqué, deux écarts — la branche d'essai admise comme version, et AUCUN lancement (écho seulement).
+# DEMANDE DE SERIE — LE RELAIS ET LA FILE DES DEMANDES — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
 # Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement.
-# À QUOI IL SERT. Lancer le circuit des séries longues (series_longues.yml), ou l'examen de certification
-# (certifier_la_version.yml, depuis main, ajout du 08-11-2026 décidé par Jean-Luc à 18h06), sans que Jean-Luc clique
-# sur « Run workflow » : le Chat dépose un fichier de demande (« circuit=series » ou « circuit=examen »), ce relais le
-# lit, le valide et appuie sur le bouton du circuit demandé à sa place (table CIRCUITS_DU_RELAIS du fabricant).
-# CE QU'IL FAIT, DANS L'ORDRE : ① la poussée doit porter UN commit, dont le parent est la pointe d'avant, qui AJOUTE UN
-# seul fichier, demandes/DEMANDE_<AAAA-MM-JJ_HHhMM>.txt (une publication de code ne lance donc jamais rien) ; ② le fichier
-# est lu en ASCII strict, une clé par ligne, clés connues seulement, valeurs validées par des motifs tirés de la table
-# des séries (tests/LANCEMENT_DES_EPREUVES.json) ; ③ aucun passage du circuit des séries ne doit être en cours ou en
-# attente (GitHub n'en garde qu'un en attente par groupe : un troisième ferait disparaître le deuxième sans message) ;
-# ④ « a_blanc=oui » : il écrit au journal ce qu'il aurait lancé et s'arrête ; sinon il lance le circuit des séries
-# sur CETTE branche, version = nom de la branche, pointe = la pointe demandée (obligatoire depuis travail-…, A-811),
-# chaque valeur passée explicitement (celles absentes de la demande prennent la valeur de la table).
-# « circuit=epreuve » (étape GHUB ②, 15-11-2026) : « epreuves=<code>,<code>… » ou « epreuves=toutes » (codes
-# de la table epreuves_longues), « pointe » obligatoire depuis travail-… ; il lance epreuves_longues.yml. Les séries et
-# les épreuves partagent un groupe de concurrence : le compte des passages en cours porte sur les DEUX circuits.
+# À QUOI IL SERT. Lancer le circuit des séries longues (series_longues.yml), les épreuves longues d'un tenant
+# (epreuves_longues.yml) ou l'examen de certification (certifier_la_version.yml, depuis main), sans que Jean-Luc clique
+# sur « Run workflow » : le Chat dépose un fichier de demande, ce relais le valide, le met en FILE, et appuie sur le
+# bouton du circuit demandé quand son tour vient (table CIRCUITS_DU_RELAIS du fabricant).
+# LA FILE (A-897/A-898, 18-11-2026 ; superviseur R-759 du 18-11-2026, « DE FOND ») : le relais n'a AUCUNE mémoire.
+# À chaque passage, quel que soit ce qui l'a réveillé — une demande poussée, la fin d'un passage des séries, des
+# épreuves ou de l'examen (workflow_run), le bouton ou « gh workflow run demande_de_serie.yml » (le réveil du Chat),
+# ou le réveil planifié de secours toutes les 30 minutes —, il relit TOUTES les demandes des branches main et
+# travail-… et lance la plus ancienne qui attend, si son circuit est libre ; une seule par passage. Une demande est
+# SERVIE quand un passage du circuit visé porte son identifiant (DEMANDE_<AAAA-MM-JJ_HHhMM>@<branche>) dans son titre.
+# CE QU'IL FAIT, DANS L'ORDRE : ① sur une poussée, la poussée doit porter UN commit, dont le parent est la pointe
+# d'avant, qui AJOUTE UN seul fichier, demandes/DEMANDE_<AAAA-MM-JJ_HHhMM>.txt (une publication de code ne lance donc
+# jamais rien) ; le fichier est lu en ASCII strict, une clé par ligne, clés connues seulement, valeurs validées par des
+# motifs tirés de la table des séries (tests/LANCEMENT_DES_EPREUVES.json) : une demande refusée rougit ce passage ;
+# ② il lit les passages des trois circuits ; ③ il donne un état à chaque demande : PERIMEE (son nom a plus de 24 h),
+# INVALIDE (dit pourquoi), ANTERIEURE (déposée avant le relais en service : servie par un relais d'avant), HERITEE
+# (trouvée sur une version en attente, mais déposée sur main), SERVIE, A BLANC (« a_blanc=oui » : jamais lancée),
+# BLOQUEE (« apres=<identifiant> » nomme une demande dont le passage a échoué, ou qui ne sera jamais lancée),
+# EN ATTENTE ; ④ il lance la plus ancienne EN ATTENTE dont le circuit est libre (aucun passage en cours ou en attente :
+# GitHub n'en garde qu'un en attente par groupe ; les séries et les épreuves partagent un groupe) et dont la demande
+# nommée par « apres= » a RÉUSSI ; ⑤ il attend que le passage lancé apparaisse sous son nom, 60 s au plus.
 # CE QU'IL N'A PAS : aucune clé du dépôt privé, aucun clonage du privé, aucun programme de la version lancé (seulement
-# des commandes du système et gh) ; permissions : lire le dépôt, lancer un circuit. Ce texte a été relu ; le
+# des commandes du système, jq et gh) ; permissions : lire le dépôt, lancer un circuit. Ce texte a été relu ; le
 # fabricant refuse de publier un relais qui n'est pas ce texte, octet pour octet (empreinte), et tout autre circuit
 # qui porterait la permission de lancer.
 name: Demande de serie (relais)
@@ -24,6 +31,16 @@ on:
   push:
     paths:
       - "demandes/**"
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - "Series longues de sabotages"
+      - "Certifier la version"
+      - "Epreuves longues d'un tenant"
+    types:
+      - completed
+  schedule:
+    - cron: "*/30 * * * *"
 concurrency:
   group: demande-de-serie
   cancel-in-progress: false
@@ -37,12 +54,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
-      - name: Lire la demande, la valider, appuyer sur le bouton
+      - name: Lire les demandes, les valider, depiler la plus ancienne
         id: relayer
         shell: bash
         env:
+          EVENEMENT: ${{ github.event_name }}
           AVANT: ${{ github.event.before }}
           APRES: ${{ github.sha }}
           BRANCHE: ${{ github.ref_name }}
@@ -51,7 +70,18 @@ jobs:
         run: |
           set -u -o pipefail
           export LC_ALL=C
-          [[ "$BRANCHE" =~ ^(main|travail-[A-Za-z0-9._-]+)$ ]] || { echo "::error::DEMANDE REFUSEE : branche hors de la forme permise (main, ou une version en attente travail-...)"; exit 1; }
+          D=$(mktemp -d)
+          # EXAMINER UNE DEMANDE (la forme du commit qui l'ajoute, puis son contenu), toujours en sous-shell : un refus
+          # sort par « exit 1 » avec son message ; une demande valide écrit dans $S les arguments de « gh workflow run »
+          # (un par ligne), le fichier, le circuit, les circuits dont elle attend la fin, a_blanc et apres. Le même
+          # texte est joué par programmes/DEPOSER_UNE_DEMANDE.py avant tout dépôt (EXAMEN_D_UNE_DEMANDE du fabricant).
+          examiner() {
+          AVANT="$1"
+          APRES="$2"
+          BRANCHE="$3"
+          S="$4"
+          mkdir -p "$S" || { echo "::error::DEMANDE REFUSEE : dossier de travail impossible"; exit 1; }
+          [[ "$BRANCHE" =~ ^(main|travail-[A-Za-z0-9._-]+|essai-file-demandes-18-11-2026)$ ]] || { echo "::error::DEMANDE REFUSEE : branche hors de la forme permise (main, ou une version en attente travail-...)"; exit 1; }
           [[ "$AVANT" =~ ^[0-9a-f]{40}$ ]] && [[ "$AVANT" =~ [1-9a-f] ]] || { echo "::error::DEMANDE REFUSEE : pas de pointe d'avant (branche creee par cette poussee ?) : publier le code d'abord, puis la demande seule"; exit 1; }
           parent=$(git rev-parse -q --verify "$APRES^1") || { echo "::error::DEMANDE REFUSEE : commit sans parent lisible"; exit 1; }
           [ "$parent" = "$AVANT" ] || { echo "::error::DEMANDE REFUSEE : la poussee porte plus d'un commit ; la demande se depose seule, dans un commit a elle"; exit 1; }
@@ -64,9 +94,8 @@ jobs:
           [[ "$fichier" =~ ^demandes/DEMANDE_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}[.]txt$ ]] || { echo "::error::DEMANDE REFUSEE : nom refuse (demandes/DEMANDE_AAAA-MM-JJ_HHhMM.txt)"; exit 1; }
           taille=$(git cat-file -s "$APRES:$fichier") || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
           [[ "$taille" =~ ^[0-9]{1,4}$ ]] && [ "$taille" -le 1000 ] || { echo "::error::DEMANDE REFUSEE : plus de 1000 octets"; exit 1; }
-          D=$(mktemp -d)
-          git cat-file blob "$APRES:$fichier" > "$D/demande.txt" || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
-          hors=$(tr -d ' -~\n' < "$D/demande.txt" | wc -c)
+          git cat-file blob "$APRES:$fichier" > "$S/demande.txt" || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
+          hors=$(tr -d ' -~\n' < "$S/demande.txt" | wc -c)
           [ "$hors" = "0" ] || { echo "::error::DEMANDE REFUSEE : $hors octet(s) hors de l'ASCII imprimable (accent, tabulation, retour chariot, caractere de controle)"; exit 1; }
           vus=" "
           CIRCUIT=""
@@ -74,6 +103,7 @@ jobs:
           POINTE=""
           EPREUVES=""
           A_BLANC="non"
+          APRES_ID=""
           PARTS_YAHOO=2
           LOT_YAHOO=21
           PARTS_HL=18
@@ -84,6 +114,14 @@ jobs:
           LOT_SIGNAUX=21
           while IFS= read -r ligne || [ -n "$ligne" ]; do
             [ -n "$ligne" ] && [[ "$ligne" != "#"* ]] || continue
+            if [[ "$ligne" == apres=* ]]; then
+              valeur="${ligne#apres=}"
+              [[ "$valeur" =~ ^DEMANDE_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}@(main|travail-[A-Za-z0-9._-]+)$ ]] || { echo "::error::DEMANDE REFUSEE : apres = DEMANDE_AAAA-MM-JJ_HHhMM@<branche> (${#valeur} caractere(s) recus)"; exit 1; }
+              [[ "$vus" != *" apres "* ]] || { echo "::error::DEMANDE REFUSEE : cle donnee deux fois : apres"; exit 1; }
+              vus="${vus}apres "
+              APRES_ID="$valeur"
+              continue
+            fi
             if [[ "$ligne" == pointe=* ]]; then
               valeur="${ligne#pointe=}"
               [[ "$valeur" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::DEMANDE REFUSEE : pointe de 40 caracteres hexadecimaux en minuscules (${#valeur} caractere(s) recus)"; exit 1; }
@@ -150,12 +188,12 @@ jobs:
               echo "::error::DEMANDE REFUSEE : cle inconnue : $cle"
               exit 1
             fi
-          done < "$D/demande.txt"
+          done < "$S/demande.txt"
           [ -n "$CIRCUIT" ] || { echo "::error::DEMANDE REFUSEE : la cle circuit manque (series ou examen ou epreuve)"; exit 1; }
           FICHIER=""
           if [ "$CIRCUIT" = "series" ]; then
             FICHIER="series_longues.yml"
-            [[ "$BRANCHE" =~ ^(main|travail-[A-Za-z0-9._-]+)$ ]] || { echo "::error::DEMANDE REFUSEE : le circuit series ne se lance pas depuis cette branche"; exit 1; }
+            [[ "$BRANCHE" =~ ^(main|travail-[A-Za-z0-9._-]+|essai-file-demandes-18-11-2026)$ ]] || { echo "::error::DEMANDE REFUSEE : le circuit series ne se lance pas depuis cette branche"; exit 1; }
           fi
           if [ "$CIRCUIT" = "examen" ]; then
             FICHIER="certifier_la_version.yml"
@@ -163,15 +201,17 @@ jobs:
           fi
           if [ "$CIRCUIT" = "epreuve" ]; then
             FICHIER="epreuves_longues.yml"
-            [[ "$BRANCHE" =~ ^(main|travail-[A-Za-z0-9._-]+)$ ]] || { echo "::error::DEMANDE REFUSEE : le circuit epreuve ne se lance pas depuis cette branche"; exit 1; }
+            [[ "$BRANCHE" =~ ^(main|travail-[A-Za-z0-9._-]+|essai-file-demandes-18-11-2026)$ ]] || { echo "::error::DEMANDE REFUSEE : le circuit epreuve ne se lance pas depuis cette branche"; exit 1; }
           fi
           [ -n "$FICHIER" ] || { echo "::error::DEMANDE REFUSEE : circuit sans fichier : $CIRCUIT"; exit 1; }
           if [ "$CIRCUIT" = "examen" ]; then
-            [ "$vus" = " circuit " ] || [ "$vus" = " circuit a_blanc " ] || [ "$vus" = " a_blanc circuit " ] || { echo "::error::DEMANDE REFUSEE : le circuit $CIRCUIT ne prend aucun reglage (seulement circuit et a_blanc) :$vus"; exit 1; }
+            for k in $vus; do
+              [[ " circuit a_blanc apres " == *" $k "* ]] || { echo "::error::DEMANDE REFUSEE : le circuit $CIRCUIT ne prend aucun reglage (seulement circuit, a_blanc et apres) :$vus"; exit 1; }
+            done
           fi
           if [ "$CIRCUIT" = "epreuve" ]; then
             for k in $vus; do
-              [[ " circuit epreuves pointe a_blanc " == *" $k "* ]] || { echo "::error::DEMANDE REFUSEE : le circuit epreuve ne prend que circuit, epreuves, pointe et a_blanc : $k"; exit 1; }
+              [[ " circuit epreuves pointe a_blanc apres " == *" $k "* ]] || { echo "::error::DEMANDE REFUSEE : le circuit epreuve ne prend que circuit, epreuves, pointe, a_blanc et apres : $k"; exit 1; }
             done
             [ -n "$EPREUVES" ] || { echo "::error::DEMANDE REFUSEE : la cle epreuves manque"; exit 1; }
             [ "$BRANCHE" = "main" ] || [ -n "$POINTE" ] || { echo "::error::DEMANDE REFUSEE : la cle pointe manque (obligatoire depuis une version en attente, A-811)"; exit 1; }
@@ -197,26 +237,142 @@ jobs:
           fi
           COMPTES="$FICHIER"
           if [[ " series_longues.yml epreuves_longues.yml " == *" $FICHIER "* ]]; then COMPTES="series_longues.yml epreuves_longues.yml"; fi
-          for F in $COMPTES; do
-            en_cours=$(gh run list --workflow "$F" --limit 100 --json status --jq '[.[] | select(.status != "completed")] | length' 2>"$D/erreur_gh") || {
+          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE ; parts_yahoo $PARTS_YAHOO ; lot_yahoo $LOT_YAHOO ; parts_hl $PARTS_HL ; lot_hl $LOT_HL ; parts_boucle $PARTS_BOUCLE ; lot_boucle $LOT_BOUCLE ; parts_signaux $PARTS_SIGNAUX ; lot_signaux $LOT_SIGNAUX ; epreuves $EPREUVES ; a blanc $A_BLANC ; apres ${APRES_ID:-aucune}"
+          printf '%s\n' "$fichier" > "$S/fichier"
+          printf '%s\n' "$FICHIER" > "$S/circuit"
+          printf '%s\n' "$COMPTES" > "$S/comptes"
+          printf '%s\n' "$A_BLANC" > "$S/a_blanc"
+          printf '%s\n' "$APRES_ID" > "$S/apres"
+          if [ "$CIRCUIT" = "epreuve" ]; then
+            printf '%s\n' "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "epreuves=$EPREUVES" > "$S/args"
+          elif [ "$CIRCUIT" != "series" ]; then
+            printf '%s\n' "$FICHIER" --ref "$BRANCHE" > "$S/args"
+          else
+            printf '%s\n' "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE" -f "parts_yahoo=$PARTS_YAHOO" -f "lot_yahoo=$LOT_YAHOO" -f "parts_hl=$PARTS_HL" -f "lot_hl=$LOT_HL" -f "parts_boucle=$PARTS_BOUCLE" -f "lot_boucle=$LOT_BOUCLE" -f "parts_signaux=$PARTS_SIGNAUX" -f "lot_signaux=$LOT_SIGNAUX" > "$S/args"
+          fi
+          }
+          # 1. une demande poussée est examinée tout de suite : refusée, ce passage rougit
+          if [ "$EVENEMENT" = "push" ]; then
+            ( examiner "$AVANT" "$APRES" "$BRANCHE" "$D/poussee" ) || exit 1
+            echo "DEMANDE ACCEPTEE : $(cat "$D/poussee/fichier") sur $BRANCHE, mise en file"
+          fi
+          # 2. le relais en service : une demande déposée avant lui a été servie par un relais d'avant (ANTERIEURE)
+          RELAIS_DEPUIS=$(git log -1 --format=%ct HEAD -- .github/workflows/demande_de_serie.yml) || RELAIS_DEPUIS=""
+          [[ "$RELAIS_DEPUIS" =~ ^[0-9]+$ ]] || { echo "::error::le relais en service est introuvable dans l'historique de cette branche"; exit 1; }
+          MAINTENANT=$(date +%s)
+          # 3. les passages des circuits du relais, lus une fois (les 100 derniers de chacun)
+          for F in series_longues.yml certifier_la_version.yml epreuves_longues.yml; do
+            gh run list --workflow "$F" --limit 100 --json displayTitle,status,conclusion > "$D/passages_$F" 2>"$D/erreur_gh" || {
               if grep -qi "could not find" "$D/erreur_gh"; then echo "::error::DEMANDE REFUSEE : le circuit $F est inconnu de GitHub au depot public (le relais et $F s installent dans la meme publication, puis une demande a_blanc=oui)"; else echo "::error::DEMANDE REFUSEE : passages de $F illisibles"; fi
               exit 1; }
-            [ "$en_cours" = "0" ] || { echo "::error::DEMANDE REFUSEE : $en_cours passage(s) de $F en cours ou en attente ; redeposer la demande quand ils sont finis"; exit 1; }
           done
-          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE ; parts_yahoo $PARTS_YAHOO ; lot_yahoo $LOT_YAHOO ; parts_hl $PARTS_HL ; lot_hl $LOT_HL ; parts_boucle $PARTS_BOUCLE ; lot_boucle $LOT_BOUCLE ; parts_signaux $PARTS_SIGNAUX ; lot_signaux $LOT_SIGNAUX ; epreuves $EPREUVES ; a blanc $A_BLANC"
-          if [ "$A_BLANC" = "oui" ]; then
-            echo "A BLANC : rien n'est lance"
-            exit 0
-          fi
-          if [ "$CIRCUIT" = "epreuve" ]; then
-            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "epreuves=$EPREUVES" || { echo "::error::le circuit des epreuves n'a pas pu etre lance"; exit 1; }
-            echo "LANCE : $FICHIER sur $BRANCHE"
-            exit 0
-          fi
-          if [ "$CIRCUIT" != "series" ]; then
-            gh workflow run "$FICHIER" --ref "$BRANCHE" || { echo "::error::le circuit $FICHIER n'a pas pu etre lance"; exit 1; }
-            echo "LANCE : $FICHIER sur $BRANCHE"
-            exit 0
-          fi
-          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE" -f "parts_yahoo=$PARTS_YAHOO" -f "lot_yahoo=$LOT_YAHOO" -f "parts_hl=$PARTS_HL" -f "lot_hl=$LOT_HL" -f "parts_boucle=$PARTS_BOUCLE" -f "lot_boucle=$LOT_BOUCLE" -f "parts_signaux=$PARTS_SIGNAUX" -f "lot_signaux=$LOT_SIGNAUX" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
-          echo "LANCE : $FICHIER sur $BRANCHE"
+          # 4. les demandes de chaque version, la plus ancienne d'abord (heure du nom, puis branche)
+          : > "$D/file"
+          while IFS= read -r ref; do
+            b="${ref#refs/remotes/origin/}"
+            [[ "$b" =~ ^(main|travail-[A-Za-z0-9._-]+|essai-file-demandes-18-11-2026)$ ]] || continue
+            while IFS= read -r f; do
+              if [[ "$f" =~ ^demandes/DEMANDE_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}[.]txt$ ]]; then
+                h="${f#demandes/DEMANDE_}"
+                printf '%s %s %s\n' "${h%.txt}" "$b" "$f" >> "$D/file"
+              fi
+            done < <(git ls-tree -r --name-only "$ref" -- demandes/)
+          done < <(git for-each-ref --format='%(refname)' refs/remotes/origin/)
+          sort -o "$D/file" "$D/file"
+          # 5. l'état propre de chaque demande
+          declare -A ETAT
+          n=0
+          while read -r h b f <&3; do
+            n=$((n + 1))
+            id="DEMANDE_${h}@${b}"
+            S="$D/d$n"
+            mkdir -p "$S"
+            printf '%s\n' "$id" > "$S/id"
+            quand=$(TZ=Europe/Paris date -d "${h:0:10} ${h:11:2}:${h:14:2}" +%s 2>/dev/null) || quand=""
+            if ! [[ "$quand" =~ ^[0-9]+$ ]]; then
+              etat="INVALIDE : heure du nom illisible"
+            elif [ $((MAINTENANT - quand)) -gt 86400 ]; then
+              etat="PERIMEE"
+            elif [ $((quand - MAINTENANT)) -gt 600 ]; then
+              etat="INVALIDE : heure du nom dans le futur"
+            else
+              commit=$(git log -1 --format=%H --diff-filter=A "refs/remotes/origin/$b" -- "$f") || commit=""
+              if ! [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+                etat="INVALIDE : commit d'ajout introuvable"
+              elif [ "$(git log -1 --format=%ct "$commit")" -lt "$RELAIS_DEPUIS" ]; then
+                etat="ANTERIEURE"
+              elif [ "$b" != "main" ] && git merge-base --is-ancestor "$commit" refs/remotes/origin/main 2>/dev/null; then
+                etat="HERITEE (deposee sur main)"
+              elif [ "$(git rev-parse "refs/remotes/origin/$b:$f")" != "$(git rev-parse "$commit:$f")" ]; then
+                etat="INVALIDE : modifiee apres son depot"
+              elif ! parent=$(git rev-parse -q --verify "$commit^1"); then
+                etat="INVALIDE : commit d'ajout sans parent"
+              elif ! ( examiner "$parent" "$commit" "$b" "$S" ) > "$S/journal" 2>&1; then
+                etat="INVALIDE : $(grep -m1 -o 'DEMANDE REFUSEE : .*' "$S/journal" || echo 'examen illisible')"
+              elif [ "$(cat "$S/apres")" = "$id" ]; then
+                etat="INVALIDE : elle s'attend elle-meme"
+              elif jq -e --arg id "$id" 'any(.[]; any((.displayTitle // "") | split(" ")[]; . == $id))' "$D/passages_$(cat "$S/circuit")" > /dev/null; then
+                etat="SERVIE"
+              elif [ "$(cat "$S/a_blanc")" = "oui" ]; then
+                etat="A BLANC"
+              else
+                etat="EN ATTENTE"
+              fi
+            fi
+            ETAT[$id]="$etat"
+            printf '%s\n' "$etat" > "$S/etat"
+          done 3< "$D/file"
+          # 6. la dépendance (apres=), le circuit libre, et la plus ancienne qui peut partir
+          LANCE=""
+          n=0
+          while read -r h b f <&3; do
+            n=$((n + 1))
+            S="$D/d$n"
+            id=$(cat "$S/id")
+            etat=$(cat "$S/etat")
+            if [ "$etat" = "EN ATTENTE" ] && [ -n "$(cat "$S/apres")" ]; then
+              dep=$(cat "$S/apres")
+              vu=$(jq -rs --arg id "$dep" 'add | [.[] | select(any((.displayTitle // "") | split(" ")[]; . == $id))] | if length == 0 then "aucun" elif any(.[]; .status != "completed") then "en_cours" elif any(.[]; .conclusion == "success") then "reussi" else "echoue" end' "$D"/passages_*) || vu="illisible"
+              avant_elle="${ETAT[$dep]:-introuvable}"
+              if [ "$vu" = "echoue" ]; then
+                etat="BLOQUEE : $dep a echoue"
+              elif [ "$vu" = "en_cours" ]; then
+                etat="EN ATTENTE de $dep (en cours)"
+              elif [ "$vu" = "aucun" ] && [ "$avant_elle" = "EN ATTENTE" ]; then
+                etat="EN ATTENTE de $dep (pas encore lancee)"
+              elif [ "$vu" = "aucun" ]; then
+                etat="BLOQUEE : $dep est $avant_elle"
+              elif [ "$vu" != "reussi" ]; then
+                etat="EN ATTENTE de $dep (passages illisibles)"
+              fi
+            fi
+            if [ "$etat" = "EN ATTENTE" ]; then
+              for F in $(cat "$S/comptes"); do
+                k=$(jq '[.[] | select(.status != "completed")] | length' "$D/passages_$F") || k="illisible"
+                [ "$k" = "0" ] || { etat="EN ATTENTE ($k passage(s) de $F en cours ou en attente)"; break; }
+              done
+            fi
+            if [ "$etat" = "EN ATTENTE" ] && [ -n "$LANCE" ]; then
+              etat="EN ATTENTE (une seule demande lancee par passage du relais)"
+            elif [ "$etat" = "EN ATTENTE" ]; then
+              LANCE="$n"
+              etat="A LANCER"
+            fi
+            echo "$etat : $id"
+          done 3< "$D/file"
+          [ -n "$LANCE" ] || { echo "RIEN A LANCER"; exit 0; }
+          S="$D/d$LANCE"
+          id=$(cat "$S/id")
+          F=$(cat "$S/circuit")
+          mapfile -t ARGS < "$S/args"
+          echo "ESSAI : RIEN N EST LANCE ; le relais aurait lance : gh workflow run ${ARGS[*]} -f demande=$id"
+          exit 0
+          for essai in $(seq 1 12); do
+            if gh run list --workflow "$F" --limit 20 --json displayTitle | jq -e --arg id "$id" 'any(.[]; any((.displayTitle // "") | split(" ")[]; . == $id))' > /dev/null; then
+              echo "LANCE : $F sur ${id#*@} ($id)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::$id lancee, mais aucun passage de $F ne porte son nom apres 60 s : un passage suivant du relais pourrait la relancer"
+          exit 1
