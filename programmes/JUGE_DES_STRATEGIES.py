@@ -1319,14 +1319,22 @@ def cle_valeur(nom):
       fichiers qui parlent de la même société semblent parler de deux sociétés
       différentes, et l'une des deux est ignorée sans qu'aucune erreur ne
       s'affiche.
-    ② CONTEXTE D'APPEL — Quatre appelants dans le juge des stratégies, et deux au-dehors.
-      · `charger_cours`, sur la colonne `valeur` de chaque ligne de cours lue.
-      · `table_mnemoniques`, sur le nom usuel de chaque valeur du référentiel.
-      · `jouer`, sur chaque valeur de l'univers demandé par la fiche.
-      · `juger`, sur l'univers passé à l'étalon de hasard.
-      · `programmes/DETECTER_LES_SIGNAUX_GITHUB.py`, lignes 203 et 281, qui tourne
-      chaque soir.
-      · `programmes/JUGER_SUR_8_CRITERES.py`, ligne 1193.
+    ② CONTEXTE D'APPEL — LA PROPRIÉTÉ : tout endroit où un mnémonique, ou un nom de
+      valeur lu dans un fichier, devient une clé de cours. Dans ce fichier, un
+      mnémonique y passe par `cle_du_cours`, la traduction unique, dont elle est le
+      repli ; un nom lu (cours, référentiel) y passe directement. Les autres
+      programmes l'appellent par le nom sous lequel ils ont chargé ce module. La
+      liste des appelants ne s'écrit pas ici, elle se relève (relecture et
+      superviseur R-759 du 18-11-2026, D8 : la liste écrite à la main était fausse) :
+        { grep -nE '^[^`]*[^A-Za-z_.`]cle_valeur[(]' programmes/JUGE_DES_STRATEGIES.py |
+          grep -v 'def cle_valeur' ;
+          grep -rnE '[A-Za-z_][.]cle_valeur[(]' --include=*.py programmes ; } | wc -l
+      Calibrage : la commande TROUVE le corps de `cle_du_cours` (cas connu) ; elle
+      ne trouve PAS `programmes/TENIR_L_HISTORIQUE.py`, qui porte sa propre copie de
+      cette règle et l'appelle sans nom de module (ce n'est pas un appelant d'ici :
+      le cas qui doit échouer), ni les mentions écrites entre accents graves dans les
+      fiches. Compte mesuré le 18-11-2026 : 16 lignes, 5 dans ce fichier et 11 dans
+      cinq autres programmes.
     ③ ENTRÉE — `nom` : le nom d'une valeur tel qu'un fichier l'a écrit, par
       exemple `Bureau Veritas`, `BUREAU-VERITAS` ou
       `UNIBAIL-RODAMCO-WESTFIELD`.
@@ -1392,6 +1400,40 @@ def cle_valeur(nom):
 """
     n = "_".join(nom.strip().upper().replace("-", " ").replace("_", " ").split())
     return n.replace("UNIBAIL_RODAMCO_WESTFIELD", "UNIBAIL_RODAMCO")
+
+
+def cle_du_cours(m, mnemo):
+    """La clé sous laquelle les cours d'une valeur sont rangés — LA SEULE TRADUCTION d'un mnémonique en clé de cours.
+
+    ① RÔLE — Dire, pour un mnémonique écrit dans une fiche ou rendu par le lecteur unique, sous quelle clé le juge
+      range et cherche ses cours.
+    ② CONTEXTE D'APPEL — Quatre appelants, tous dans ce fichier : `lire_par_le_lecteur` (chaque mnémonique lu, pour
+      ranger ses séries, ses passages, ses trous et, depuis le 18-11-2026, sa place parmi les valeurs aux opérations
+      sur titres inconnues) ; `trous_non_expliques` ; `jouer` (l'univers demandé par la fiche) ; `juger` (l'univers
+      passé à l'étalon de hasard).
+    ③ ENTRÉE — `m` : un mnémonique, en majuscules (`ARCELORMITTAL` ou `MT`) · `mnemo` : la table de
+      `table_mnemoniques`, du mnémonique en majuscules au nom rapproché de la valeur.
+    ④ CONDITIONS D'ENTRÉE — `m` est en majuscules : les clés de `mnemo` le sont (`table_mnemoniques`), et un
+      mnémonique en minuscules n'y serait pas trouvé. Les trois appelants de la case `univers` passent par
+      `mnemoniques_de_l_univers`, qui met en majuscules ; `lire_par_le_lecteur` met en majuscules le mnémonique du
+      lecteur avant l'appel.
+    ⑤ SORTIE — UNE valeur : la clé. Exemples mesurés le 18-11-2026 sur le référentiel : `MT` → `ARCELORMITTAL` ;
+      `ARCELORMITTAL` → `ARCELORMITTAL` (repli) ; `UG` (Peugeot S.A., sortie, absente du référentiel) → `UG`.
+      [rend: 1]
+    ⑥ TRAITEMENT — La valeur de `m` dans `mnemo` ; à défaut, le rapprochement de `m` lui-même (`cle_valeur`).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Deux implémentations d'une même chose divergent toujours (R-708) : la même expression était écrite
+      quatre fois, et le refus des opérations sur titres inconnues comparait le texte de la case au lieu de cette
+      clé — une fiche qui écrivait `ARCELORMITTAL` au lieu de `MT` jouait ArcelorMittal sans être refusée (D1 du
+      relecteur du 18-11-2026, superviseur R-759 : « une seule traduction »).
+    ⑨ CE QUI CLOCHE — Le repli rend une clé pour TOUT texte : un nom (`ARCELORMITTAL`) et un mnémonique (`MT`)
+      désignent alors la même série, et une faute de frappe devient une valeur « absente des cours » (`jouer`), pas un
+      refus. · `cle_valeur` épelle encore un nom (son ⑨ ①).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    return mnemo.get(m, cle_valeur(m))
 
 
 def fichiers_de_cours(base):
@@ -1631,7 +1673,7 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       laquelle les séances doivent avoir leurs cours, passée telle quelle au lecteur.
     ④ CONDITIONS D'ENTRÉE — Celles de `LIRE_LES_COURS.lire`. Un mnémonique lu hors de `mnemo` (une
       société sortie de l'indice, que le lecteur reconnaît depuis le 14-11-2026, QE) prend la clé
-      `cle_valeur(mnémonique)`, la traduction de repli de `jouer` ; deux mnémoniques qui tombent sur
+      `cle_valeur(mnémonique)`, le repli de `cle_du_cours`, la traduction de `jouer` ; deux mnémoniques qui tombent sur
       la même clé sont refusés (ValueError).
     ⑤ SORTIE — DEUX valeurs : les séries, au format de `charger_cours` (clé de la valeur →
       séances triées, prix en nombres) ; et la lecture, un dictionnaire : « passages »
@@ -1642,8 +1684,13 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       liste d'Euronext `donnees/CALENDRIER_EURONEXT.csv` pour l'avenir, R-110 — de la première
       à la dernière date du fichier ; vide pour un fichier sans barre), « trous_non_decides »
       (depuis le 14-11-2026, QE2 : clé → les trous dont la nature n'est pas écrite dans
-      donnees/NATURE_DES_TROUS.csv, R-111 ⑤ — ni suspension, ni donnée perdue décidée). Exemple
-      mesuré le 29-10-2026 sur le maître : 722 séances, du 2024-01-02 au 2026-10-28.
+      donnees/NATURE_DES_TROUS.csv, R-111 ⑤ — ni suspension, ni donnée perdue décidée),
+      « valeurs_aux_operations_inconnues » (depuis le 18-11-2026, D4 de LU2 : clé du cours, `cle_du_cours`, celle
+      des séries → (première barre, dernière barre), AAAA-MM-JJ, des valeurs que la courbe des calculs garde au facteur 1 faute d'opérations
+      connues ; vide pour le maître et pour tout fichier non déclaré au cours brut). Exemple
+      mesuré le 29-10-2026 sur le maître : 722 séances, du 2024-01-02 au 2026-10-28. Mesuré le 18-11-2026 sur le témoin
+      des 20 ans : 19 valeurs aux opérations inconnues (les 18 sociétés sorties qui ont des barres, et MT, rangée
+      sous ARCELORMITTAL).
       [rend: 2]
     ⑥ TRAITEMENT — ① lire par le lecteur unique ; pour un fichier déclaré au cours brut de Paris
       (CONTRATS.FICHIERS_DE_COURS_AU_COURS_BRUT : le témoin des 20 ans), remplacer ses barres par la
@@ -1655,8 +1702,8 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       lecteur a mis des lignes à part (`LIRE_LES_COURS.lignes_mises_a_part`, une propriété de
       conservation, pas une liste de sortes), quand le fichier est un fichier figé modifié ou
       allongé, ou quand une valeur lue n'a aucun passage dans l'indice · ③ pour chaque
-      mnémonique, traduire en clé, convertir chaque barre en nombres, trier · ④ relever ses
-      passages dans l'indice et ses trous · ⑤ relever les séances du calendrier officiel entre
+      mnémonique, traduire en clé (`cle_du_cours`), convertir chaque barre en nombres, trier · ④ relever ses
+      passages dans l'indice et ses trous, et, si la courbe la nomme, sa première et sa dernière barre · ⑤ relever les séances du calendrier officiel entre
       la première et la dernière date du fichier (`CALENDRIER_DE_LA_BOURSE.seances_entre`, que
       le lecteur a chargé : aucune seconde lecture du calendrier).
       La borne de fin est la dernière date LUE, pas la date demandée : le teneur de positions
@@ -1673,7 +1720,7 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
       d'en refaire une partie.
     ⑨ CE QUI CLOCHE — Une barre que le lecteur rend mais dont un prix ne se lit pas lève une
       ValueError : `charger_cours` la sautait sans le dire. · Le repli `cle_valeur(mnémonique)` (QE,
-      14-11-2026) est celui de `jouer` et de `juger` (`mnemo.get(m, cle_valeur(m))`) : une fiche qui
+      14-11-2026) est celui de `jouer` et de `juger` (`cle_du_cours`, une seule écriture) : une fiche qui
       demande ALO (Alstom, sortie) le retrouve sous la même clé ; sur le maître, aucune société sortie
       n'a de barre et rien ne change. · `programmes/JUGER_SUR_8_CRITERES.py`
       lit encore autrement (`charger_cours`, relevé le 27-10-2026). · Dans le circuit du soir,
@@ -1721,11 +1768,13 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
         raise ValueError("le lecteur unique ne connaît aucun passage dans le CAC 40 pour %s : rien n'est jugé"
                          % ", ".join(sans))
     iso = lambda d: d.isoformat() if hasattr(d, "isoformat") else str(d)
-    cours, passages, trous, non_decides = {}, {}, {}, {}
+    cours, passages, trous, non_decides, inconnues = {}, {}, {}, {}, {}
+    nommees = set(c.get("valeurs_aux_operations_inconnues", []))
     for m, barres in c["barres"].items():
         # QE (A-713 ①, superviseur R-759 du 14-11-2026) : `mnemo[m.upper()]` levait KeyError pour une société sortie,
-        # absente du référentiel. Repli de `jouer` (R-708) ; une clé prise deux fois écraserait une série sans un mot.
-        v = mnemo.get(m.upper(), cle_valeur(m))
+        # absente du référentiel. La traduction de `jouer`, une seule (`cle_du_cours`, R-708) ; le mnémonique du lecteur
+        # est mis en majuscules (④ de `cle_du_cours`). Une clé prise deux fois écraserait une série sans un mot.
+        v = cle_du_cours(m.upper(), mnemo)
         if v in cours:
             raise ValueError("le lecteur unique rend deux mnémoniques sous la même clé %s (dont %s) : rien n'est jugé"
                              % (v, m))
@@ -1735,12 +1784,18 @@ def lire_par_le_lecteur(base, fichier, mnemo, jusqu_au=None):
         passages[v] = [(iso(a), iso(b) if b else None) for a, b in c["dans_l_indice"].get(m, [])]
         trous[v] = sorted(iso(d) for d, _ in lecteur.trous(c, m))
         non_decides[v] = sorted(iso(d) for d, n in lecteur.trous(c, m) if n == lecteur.NON_DECIDEE)
+        # LES VALEURS AUX OPÉRATIONS SUR TITRES INCONNUES (A-713 ③, D4 de LU2, 18-11-2026) : nommées par la courbe,
+        # gardées au facteur 1 ; rangées sous la CLÉ DU COURS `v`, celle que `jouer` joue (superviseur R-759 du
+        # 18-11-2026, D1 : sous le mnémonique, « ARCELORMITTAL » échappait au refus), avec leur première et leur
+        # dernière barre. Absente pour le maître : aucune.
+        if m in nommees and barres:
+            inconnues[v] = (iso(min(barres)), iso(max(barres)))
     # LES SÉANCES DU CALENDRIER OFFICIEL (A-577, étape 7, 29-10-2026) : celles que le lecteur a lues, bornées aux
     # dates du fichier ; le teneur de positions les prend au lieu de les tirer des cours (R-708).
     lues = [d for b in c["barres"].values() for d in b]
     seances = [iso(d) for d, _ in lecteur.CAL.seances_entre(min(lues), max(lues), c["seances"])] if lues else []
     return cours, {"passages": passages, "trous": trous, "composition": True, "seances": seances,
-                   "trous_non_decides": non_decides}
+                   "trous_non_decides": non_decides, "valeurs_aux_operations_inconnues": inconnues}
 
 
 def composition_hors_univers(base, fiche, debut, fin):
@@ -1839,6 +1894,80 @@ def garde_composition(base, fiche, periode, jeton=None):
     return ligne, ""
 
 
+class OperationsSurTitresInconnues(ValueError):
+    """Refus d'une fiche dont l'univers contient une valeur aux opérations sur titres inconnues, levé par `jouer`.
+
+    ① RÔLE — Arrêter AVANT toute opération un jeu dont le verdict verrait de fausses chutes (D4 de LU2).
+    ② CONTEXTE D'APPEL — Levée par `jouer`, seule porte du refus, quand `refus_des_operations_inconnues` rend un texte ;
+      `main` la rattrape à part et en fait une fiche EN ÉCHEC avec le refus nommé.
+    ③ ENTRÉE — Le texte du refus.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — —
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une sous-classe de ValueError : les appelants qui rattrapent déjà les refus de fiche (« non jouable »)
+      le rattrapent aussi ; son nom dit lequel.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — —
+    """
+
+
+def refus_des_operations_inconnues(univers, lecture, periode):
+    """Le refus FICHE PAR FICHE d'un univers qui contient une valeur aux opérations sur titres inconnues.
+
+    ① RÔLE — Dire si la fiche peut être jugée sans fausses chutes : une valeur de son univers dont la courbe des calculs
+      ne connaît pas les opérations sur titres (divisions, regroupements) garde ses barres au facteur 1, et une division
+      y devient une chute qui n'a pas eu lieu (UG, Peugeot, 2001-07-02 : ×0,1678 ; ALO, Alstom, 2008-07-07 : ×0,5127).
+    ② CONTEXTE D'APPEL — `jouer` seul, pour tous ses appelants (`main`, JOUER_LES_VERSIONS, JUGER_UNE_FICHE…), avant la
+      garde du regard unique, sur l'univers qu'il a déjà traduit et la période qu'il joue (superviseur R-759 du
+      18-11-2026 : « le refus ne vit plus que dans `jouer` »). `main` ne l'appelle plus : il rattrape
+      `OperationsSurTitresInconnues`.
+    ③ ENTRÉE — `univers` : les CLÉS DU COURS de l'univers (`cle_du_cours`), celles que `jouer` joue · `lecture` : le
+      second rendu de `lire_par_le_lecteur`, ou None · `periode` : (début, fin) AAAA-MM-JJ, la période réellement
+      jouée, ou None.
+    ④ CONDITIONS D'ENTRÉE — Les clés de « valeurs_aux_operations_inconnues » de la lecture sont des clés du cours
+      (`lire_par_le_lecteur`, depuis le 18-11-2026) : la comparaison se fait sur la même traduction des deux côtés.
+    ⑤ SORTIE — UNE valeur : le texte du refus, vide s'il n'y en a pas. Exemples mesurés le 18-11-2026 sur le témoin
+      des 20 ans : ["ML", "UG"] sur 2010-01-04 → 2015-12-31 est refusé et nomme UG (barres du 2000-01-03 au
+      2017-02-28) ; ["ML", "ARCELORMITTAL"] (une fiche qui écrit MT, ARCELORMITTAL ou ArcelorMittal) sur
+      2026-01-02 → 2026-11-11 est refusé ; ["ML", "AI"] rend « ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① sans lecture, sans période ou période vide : « » · ② les clés de l'univers qui sont dans
+      « valeurs_aux_operations_inconnues » de la lecture ET dont les barres (première, dernière) touchent la période,
+      bords compris · ③ s'il y en a : le refus, qui les nomme avec leurs barres.
+    ⑦ UNITÉ — Des clés de cours et des dates.
+    ⑧ POURQUOI — BACKLOG A-802 B6 (« aucun verdict sur 20 ans pour un univers qui contient ou aurait dû contenir des
+      sociétés sorties tant que leurs séances ne sont pas sourcées ») et D4, partie 2, de la proposition de réparation
+      LU2 du 15-11-2026 : « le juge refuse une FICHE dont l'univers contient une valeur aux opérations inconnues, sur la
+      période jugée ». Un refus pour tout le fichier serait faux : IND-001-RETEST, dont l'univers ne compte que les
+      valeurs d'aujourd'hui, serait bloquée par Alstom, qu'elle ne lit pas. Décidé : A-895 ⑮. Sur les CLÉS DU COURS et
+      la période JOUÉE (superviseur R-759 du 18-11-2026, D1 et D3 du relecteur) : comparé au texte de la case, une
+      fiche qui écrivait ARCELORMITTAL échappait ; comparé jusqu'à la dernière barre au lieu de la fin de la période,
+      une fiche qui finissait avant la première barre de MT était refusée à tort.
+    ⑨ CE QUI CLOCHE — LE MAÎTRE EST HORS DU CHAMP : aucune courbe n'y est appliquée, aucune valeur n'y est nommée ; MT
+      est exclu de l'univers par décision (A-410), ses 30 barres du maître (2026-07-31 → 2026-09-10) ne portent aucun
+      saut de division (écarts de −2,62 % à +4,24 %). · Dans `main`, une fiche que la garde M refuse déjà ne voit pas
+      ce refus-ci (la garde M parle d'abord) ; un univers « composition du jour » (A-829 B3) n'existe pas encore : quand
+      il viendra, il devra passer ici ses sociétés sorties. · Le refus porte sur les barres, pas sur la présence dans
+      l'indice : une valeur dont les barres touchent la période est refusée même si aucune division ne tombe dans la
+      période (règle la plus stricte : les opérations sont INCONNUES, on ne sait pas qu'il n'y en a pas).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main. Aucun de mes appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    if not lecture or not periode or not periode[0] or not periode[1] or str(periode[0]) > str(periode[1]):
+        return ""
+    debut, fin = str(periode[0]), str(periode[1])
+    inconnues = lecture.get("valeurs_aux_operations_inconnues") or {}
+    dedans = sorted(v for v in set(univers) if v in inconnues and inconnues[v][0] <= fin and inconnues[v][1] >= debut)
+    if not dedans:
+        return ""
+    return ("    REFUSEE (opérations sur titres inconnues) : %s dans l'univers de la fiche, sur la période jouée %s -> %s — "
+            "opérations sur titres inconnues : verdict impossible sans fausses chutes, A-802 B6"
+            % (", ".join("%s (barres du %s au %s)" % (v, inconnues[v][0], inconnues[v][1]) for v in dedans), debut, fin))
+
+
 def trous_non_expliques(fiche, lecture, mnemo, bornes):
     """Rend, pour l'univers d'une fiche et sa période, les trous dont la nature n'est pas décidée.
 
@@ -1865,7 +1994,7 @@ def trous_non_expliques(fiche, lecture, mnemo, bornes):
         return []
     out = []
     for m in mnemoniques_de_l_univers(fiche["univers"]):
-        v = mnemo.get(m, cle_valeur(m))
+        v = cle_du_cours(m, mnemo)
         jours = [d for d in lecture.get("trous_non_decides", {}).get(v, []) if bornes[0] <= d <= bornes[1]]
         if jours:
             out.append((v, len(jours), jours[0], jours[-1]))
@@ -3635,7 +3764,11 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       31-10-2026 · ① lire l'objectif de gain, la perte acceptée (par
       `seuil_de_la_fiche`, la lecture unique, depuis le 31-10-2026) et l'horizon dans
       la fiche · ② traduire l'univers demandé, en séparant les valeurs connues des
-      inconnues · ②bis avec une lecture, couper chaque série à ses trous
+      inconnues (`cle_du_cours`) · ②ter refuser (OperationsSurTitresInconnues, depuis le 18-11-2026) une fiche dont
+      l'univers traduit contient une valeur aux opérations sur titres inconnues sur la période jouée — de la première
+      séance jouée à la plus petite de la dernière barre de l'univers et de la fin de la période donnée
+      (`refus_des_operations_inconnues`, seule porte de ce refus) ·
+      ②bis avec une lecture, couper chaque série à ses trous
       (`couper_aux_trous`) et demander les signaux morceau par morceau ; l'achat et les
       sorties, eux, se jouent sur la série entière, à travers les trous (décision de Jean-Luc
       du 27-10-2026, 13h30) ; refuser un signal dont la séance d'achat est hors de l'indice
@@ -3704,7 +3837,9 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       ce que ces modules font, elle le fait. Elle ne modifie pas les cours reçus.
     ⑪ TERMINAISON — Rend la main dans le cas normal. PEUT LEVER, non rattrapées ici :
       RegardNonInscrit quand une séance jouée tombe dans la fenêtre du regard unique sans reçu valable (avant toute
-      opération) ; ValueError quand la fiche n'est pas jouable (`manques_du_jeu`) ou qu'un seuil
+      opération) ; OperationsSurTitresInconnues (une ValueError, depuis le 18-11-2026) quand l'univers contient
+      une valeur aux opérations sur titres inconnues sur les séances jouées (avant toute opération) ;
+      ValueError quand la fiche n'est pas jouable (`manques_du_jeu`) ou qu'un seuil
       est illisible ou mal signé (`seuil_de_la_fiche`) ; `SignalRefuse` quand la
       sortie du signal est mal formée (contrôle de `SignalNomme`, 31-10-2026) —
       `main` en fait une fiche « REFUSÉE AU JEU » ;
@@ -3782,7 +3917,7 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
     demandes = mnemoniques_de_l_univers(fiche["univers"])
     univers, inconnus = [], []
     for m in demandes:
-        v = mnemo.get(m, cle_valeur(m))
+        v = cle_du_cours(m, mnemo)
         if v in cours:
             univers.append(v)
         else:
@@ -3800,6 +3935,13 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
                                            (_premiere, max(_fins, default="")), recu)
         if _refus_m:
             raise UniversBorneSurLeRegard(_refus_m.strip())
+    # LES OPÉRATIONS SUR TITRES INCONNUES (D4 de LU2, 18-11-2026) : la SEULE porte du refus (superviseur R-759 du
+    # 18-11-2026), pour TOUS les appelants, avant la garde du regard unique ; sur l'univers déjà traduit (D1) et la période
+    # réellement jouée, bornée par la fin de la période donnée (D3) ; sans lecture (ou sans la clé, le maître), aucun effet.
+    _fin_jouee = min(max(_fins, default=""), str(periode[1])) if periode else max(_fins, default="")
+    _refus_oi = refus_des_operations_inconnues(univers, lecture, (_premiere, _fin_jouee))
+    if _refus_oi:
+        raise OperationsSurTitresInconnues(_refus_oi.strip())
     # une fiche SANS identifiant n'est jamais la fiche d'un reçu : « » ne se ramène à aucune fiche (T2-D4)
     _garde_du_regard_unique(fiche.get("id") or "", _premiere, max(_fins, default=""), periode, recu)
 
@@ -4585,7 +4727,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
         # +22 153 EUR avec les 9 de la fiche. Il paraissait SEPT FOIS ET DEMIE
         # plus mauvais qu'il ne l'est, et le rapport concluait donc dans le sens
         # flatteur. La strategie reste devant, l'ecart reel est bien plus mince.
-        univ = [mnemo.get(m, cle_valeur(m)) for m in mnemoniques_de_l_univers(fiche["univers"])]
+        univ = [cle_du_cours(m, mnemo) for m in mnemoniques_de_l_univers(fiche["univers"])]
         univ = [v for v in univ if v in cours]
         for mode, lib in (("valeur", "l'ACTION au hasard"),
                           ("date", "les DATES au hasard")):
@@ -5135,7 +5277,9 @@ def main():
       AU JEU », ce qui n'est pas une panne et ne change pas le code ; et chaque
       fiche jouée affiche, sous la ligne de son signal, « filtres non joués : »
       suivi du texte de sa colonne `filtres` quand elle n'est pas vide (décision de
-      Jean-Luc du 31-10-2026 à 17h15, QJ-17) · ⑫ rappeler que le juge des stratégies ne conclut pas, lister les fiches
+      Jean-Luc du 31-10-2026 à 17h15, QJ-17) ; avant de jouer, la garde M (`garde_composition`) ; depuis le
+      18-11-2026, le refus des opérations sur titres inconnues, levé par `jouer` (`OperationsSurTitresInconnues`, D4 de
+      LU2), est rattrapé à part : la fiche est mise EN ÉCHEC, avec le refus nommé · ⑫ rappeler que le juge des stratégies ne conclut pas, lister les fiches
       EN ÉCHEC et rendre 1 s'il y en a.
       la table : `CRITERES_VALIDATION_EXPERTS`, lignes 1730 à 1740, qui porte les neuf seuils et le sens de comparaison de chacun
     ⑦ UNITÉ — Les fiches se comptent en LIGNES DE REGISTRE. Les opérations se
@@ -5590,6 +5734,13 @@ def main():
             # UN REFUS NOMMÉ, PAS UNE PANNE (point 8 du plan du juge, 31-10-2026) : sortie du signal mal formée. La fiche
             # n'est pas jugée ; ce n'est pas « EN ÉCHEC », le code ne change pas.
             print("    REFUSÉE AU JEU (ce n'est pas une panne) : %s\n" % _refus_au_jeu)
+            continue
+        except OperationsSurTitresInconnues as _refus_oi:
+            # LES OPÉRATIONS SUR TITRES INCONNUES (D4 de LU2, A-802 B6, A-895 ⑮ ; superviseur R-759 du 18-11-2026) : le
+            # refus vit dans `jouer` seul, sur la période qu'il joue ; ici, il est NOMMÉ, la fiche EN ÉCHEC, code 1
+            # (R-734) — jamais « EN ÉCHEC (ce n'est pas un refus) », qui suit et le rattraperait.
+            en_echec.append(f["id"])
+            print("    %s\n" % _refus_oi)
             continue
         except (Exception, SystemExit) as _ex_jeu:
             en_echec.append(f["id"])

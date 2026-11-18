@@ -44,8 +44,9 @@ PROPOSÉ, non validé. Simulation uniquement.
 ⑨ CE QUI CLOCHE — Les opérations des sociétés sorties de l'indice, et celles d'ArcelorMittal (MT), ne sont pas
   connues de RECONSTRUIRE (son univers : les 39 valeurs de l'historique long réparé) : depuis le tour 2 (15-11-2026),
   ces valeurs sont NOMMÉES dans la lecture (« valeurs_aux_operations_inconnues »), leurs barres gardées au facteur 1 ;
-  AUCUN programme ne lit encore cette clé — le refus d'une fiche dont l'univers en contient une est au lot QE2, après
-  sa fusion (BACKLOG). Une division d'une société sortie reste donc une fausse chute pour le juge. Mesuré par `main` le 15-11-2026 sur l'essai de fusion avec la
+  depuis le 18-11-2026, le juge lit cette clé et REFUSE une fiche dont l'univers en contient une sur la période jugée
+  (`JUGE_DES_STRATEGIES.refus_des_operations_inconnues`, D4 de LU2, A-895 ⑮). Une division d'une société sortie reste
+  une fausse chute de la courbe : seul le refus empêche le juge de la voir. Mesuré par `main` le 15-11-2026 sur l'essai de fusion avec la
   branche travail-QE2 (qui fait connaître les sociétés sorties au lecteur) : 22 sauts de plus de 25 % restent sur les
   valeurs sans opération connue, dont des divisions évidentes (ALO 2008-07-07 ×0,5127 ; UG 2001-07-02 ×0,1678, la
   division de Peugeot rangée sous STELLANTIS, A-713 ⑤ ; NOKIA 2000-04-11 ×0,2324 ; VK 2006-07-17 ×0,1917) ; aucune
@@ -329,7 +330,8 @@ def corriger(barres, ops, connus, facteur_apres):
       là où l'univers de la fiche est lu (superviseur R-759 de LU2, D4 : IND-001-RETEST, qui ne lit aucune société
       sortie, serait bloqué à tort), au lot QE2 après sa fusion ; ici, elle est NOMMÉE, ses barres gardées (même
       superviseur, première lecture de l'ambiguïté « gardées ou retirées »).
-    ⑨ CE QUI CLOCHE — Le second rendu n'a aucun lecteur avant QE2 (voir le ⑨ du programme). · Le texte d'un nombre
+    ⑨ CE QUI CLOCHE — Le second rendu est lu par le juge depuis le 18-11-2026 (`lire_par_le_lecteur`, puis
+      `refus_des_operations_inconnues` ; voir le ⑨ du programme). · Le texte d'un nombre
       corrigé est `repr(float)` : il n'est relu qu'en nombre par le juge.
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main ou lève ValueError.

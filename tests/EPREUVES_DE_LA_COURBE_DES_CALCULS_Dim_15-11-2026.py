@@ -41,9 +41,11 @@ Simulation uniquement.
   d'une opération au facteur inconnu (C3) est joué sur une opération fabriquée : aucune n'existe dans les vraies
   données (mesuré le 15-11-2026). · C11 n'éprouve que la COURBE : que les sociétés sorties soient exactement les
   sociétés sans ligne d'identité ouverte n'a pas de cas direct ici (il relève de l'épreuve de la lecture) — BACKLOG.
-  · AUCUN programme ne lit encore « valeurs_aux_operations_inconnues » (⑨ de COURBE_DES_CALCULS) : les 18 sociétés
-  sorties gardent leurs barres au facteur 1, donc leurs divisions restent des chutes (ALO ×0,51 en 2008, UG ×0,17 en
-  2001, NOKIA ×0,23, VK ×0,19) ; C11 le constate sans le corriger — BACKLOG. · La cible de S7 est le suffixe de la
+  · Les 18 sociétés sorties gardent leurs barres au facteur 1, donc leurs divisions restent des chutes (ALO ×0,51 en
+  2008, UG ×0,17 en 2001, NOKIA ×0,23, VK ×0,19) ; C11 le constate sans le corriger. Depuis le 18-11-2026, le juge lit
+  « valeurs_aux_operations_inconnues » et refuse une fiche dont l'univers en contient une sur la période jugée
+  (`JUGE_DES_STRATEGIES.refus_des_operations_inconnues`, D4 de LU2 ; épreuves R13, R14, M10 de
+  tests/EPREUVES_DU_JUGE_PAR_LE_LECTEUR_Mar_27-10-2026.py). · La cible de S7 est le suffixe de la
   déclaration (le témoin juste avant « FICHIERS_DE_COURS_FIGES ») : une déclaration nouvelle qui listerait le témoin
   avant une autre constante la ferait introuvable (code 2, R-734) — BACKLOG. · Le harnais compte « mord » sur tout
   code de sortie non nul : un sabotage ne déclare pas les cas qu'il doit faire rougir, et un cas qui lève — même une

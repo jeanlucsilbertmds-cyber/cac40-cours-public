@@ -34,11 +34,17 @@
   ne fait échouer aucun cas d'ici. · Le refus d'un fichier figé modifié ou allongé n'a pas de
   cas. · L'argument `jusqu_au` de `lire_par_le_lecteur` n'est pas éprouvé : aucun
   appelant ne le donne. · Le cas M2 dépend de l'historique des 20 ans, dont il ne garde que les séances APRÈS la fenêtre du regard
-  unique (mission REGARD, 12-11-2026) : s'il disparaît, le cas échoue (et le dit).
+  unique (mission REGARD, 12-11-2026) : s'il disparaît, le cas échoue (et le dit). · R13, R14 et M10 lisent le
+  témoin des 20 ans déclaré au cours brut (CONTRATS.FICHIERS_DE_COURS_AU_COURS_BRUT) : chaque mode « --un » dure
+  le double (mesuré le 18-11-2026 : 54 s avant, 105 s après). M10 choisit la valeur ajoutée par propriété, sous sa
+  clé du cours : ce jour-là, ARCELORMITTAL (MT, barres du 2026-07-31 au 2026-09-10 dans le témoin). · R15, R16 et M11
+  (relecture et superviseur R-759 du 18-11-2026) tiennent D1 (une seule traduction), D4 (bords, dernière barre) et D3
+  (la fin jouée) ; ils lisent aussi le témoin. R16 (e) tient D6 (la borne basse : +MT sur une période qui finit le
+  jour de sa première barre, relue dans la série ; sabotage S44).
 ⑩ EFFET — Écrit le relevé ; écrit des copies du juge et un fichier de cours dans des dossiers temporaires, effacés.
   N'écrit rien sous la racine.
 ⑪ TERMINAISON — Un lancement de ce programme en mode « --un » pour le juge tel quel et un par sabotage de `SAB`,
-  chacun borné à 900 secondes ; chacun lance le juge sept fois (M1 à M7), chaque fois borné à 300 secondes. Sort par sys.exit avec le code dit en ⑤.
+  chacun borné à 900 secondes ; chacun lance le juge douze fois (M1 à M11, M10 deux fois), chaque fois borné à 300 secondes. Sort par sys.exit avec le code dit en ⑤.
   [sort: oui]
 """
 import datetime, importlib.util, os, re, shutil, subprocess, sys, tempfile, zoneinfo
@@ -89,7 +95,8 @@ SAB = {
                                          'trous[v] = sorted(iso(d) for d, _ in lecteur.trous(c, "VIE"))'),
     # QE (A-713 ①, 14-11-2026) : la traduction d'un mnémonique de société sortie (R8) et le refus d'une clé prise
     # deux fois (R9).
-    "S23 le mnémonique d'une société sortie exigé au référentiel": ("        v = mnemo.get(m.upper(), cle_valeur(m))\n",
+    # (18-11-2026, superviseur R-759 : la traduction unique `cle_du_cours` ; même visée)
+    "S23 le mnémonique d'une société sortie exigé au référentiel": ("        v = cle_du_cours(m.upper(), mnemo)\n",
                                                                     "        v = mnemo[m.upper()]\n"),
     # QE2 (14-11-2026) : les trous non expliqués de l'univers d'une fiche, signalés sur sa période (R10)
     "S25 les trous non expliqués comptés hors de la période": ("if bornes[0] <= d <= bornes[1]]", "]"),
@@ -110,6 +117,42 @@ SAB = {
                                                 "    return False"),
     "S28 la garde M compte les sociétés écrites dans l'univers": ("        if mnemos[numero] & univers:\n            continue\n", ""),
     "S29 la ligne de la garde M non affichée": ("            _ligne_signal += \"\\n\" + _ligne_m\n", "            pass\n"),
+    # D4 de LU2 (A-802 B6, A-895 ⑮ ; 18-11-2026) : le refus fiche par fiche des opérations sur titres inconnues (R13,
+    # R14, M10). S34 est le refus « pour tout le fichier », que D4 écarte : la fiche sans société sortie doit rougir.
+    "S33 le refus des opérations inconnues retiré": ('    if not dedans:\n        return ""\n    return ("    REFUSEE (opérations',
+                                                     '    if True:\n        return ""\n    return ("    REFUSEE (opérations'),
+    # S34, S35, S36 recalés le 18-11-2026 (superviseur R-759 : le refus ne vit plus que dans `jouer`, sur les clés du
+    # cours ; `main` rattrape l'exception à part) : même visée qu'avant, à la nouvelle place.
+    "S34 le refus pour tout le fichier": (
+        '    dedans = sorted(v for v in set(univers) if v in inconnues and inconnues[v][0] <= fin and inconnues[v][1] >= debut)',
+        '    dedans = sorted(inconnues)'),
+    "S35 la période jugée ignorée": ("if v in inconnues and inconnues[v][0] <= fin and inconnues[v][1] >= debut)",
+                                     "if v in inconnues)"),
+    "S36 le refus absent de main": ('        except OperationsSurTitresInconnues as _refus_oi:\n',
+                                    '        except ZeroDivisionError as _refus_oi:\n'),
+    "S37 le refus absent de jouer": ("    if _refus_oi:\n        raise OperationsSurTitresInconnues",
+                                     "    if False:\n        raise OperationsSurTitresInconnues"),
+    "S38 les valeurs aux opérations inconnues non rendues par la lecture": (
+        '"valeurs_aux_operations_inconnues": inconnues}', '"valeurs_aux_operations_inconnues": {}}'),
+    # Relecture du 18-11-2026 et superviseur R-759 (D1, D3, D4) : S39 et S40 sont SR1 et SR2 du relecteur, qui ne
+    # mordaient pas (R15, R16) ; S41 est le défaut D1 lui-même, la comparaison au texte écrit de la case (R15) ; S42
+    # range la lecture sous le mnémonique au lieu de la clé du cours (R15) ; S43 est le défaut D3, la fin jouée prise à
+    # la dernière barre au lieu de la fin de la période (M11).
+    "S39 les bords de la période exclus (SR1)": ("inconnues[v][0] <= fin and inconnues[v][1] >= debut",
+                                                  "inconnues[v][0] < fin and inconnues[v][1] > debut"),
+    "S40 la dernière barre remplacée par la première (SR2)": (
+        "inconnues[v] = (iso(min(barres)), iso(max(barres)))", "inconnues[v] = (iso(min(barres)), iso(min(barres)))"),
+    "S41 le refus compare le texte écrit de la case": ("_refus_oi = refus_des_operations_inconnues(univers, lecture",
+                                                       "_refus_oi = refus_des_operations_inconnues(demandes, lecture"),
+    "S42 la lecture range sous le mnémonique, pas sous la clé du cours": (
+        "            inconnues[v] = (iso(min(barres))", "            inconnues[m] = (iso(min(barres))"),
+    "S43 la fin jouée prise à la dernière barre": (
+        '_fin_jouee = min(max(_fins, default=""), str(periode[1])) if periode else',
+        '_fin_jouee = max(_fins, default="") if periode else'),
+    # Relecture du 18-11-2026, D6, et superviseur R-759 (« DE FOND ») : S39 ne mordait que par la borne HAUTE (R16 (c)).
+    # S44 exclut la seule borne BASSE ; il doit mordre par R16 (e), +MT sur une période qui finit le jour de sa première
+    # barre, et par lui seul.
+    "S44 la borne basse de la période exclue": ("inconnues[v][0] <= fin and", "inconnues[v][0] < fin and"),
     "S24 une clé prise deux fois admise": ("        if v in cours:\n            raise ValueError(\"le lecteur unique rend deux",
                                            "        if False:\n            raise ValueError(\"le lecteur unique rend deux"),
 }
@@ -280,13 +323,18 @@ def cas(copie, racine):
     ⑤ SORTIE — UNE valeur : la liste des (nom du cas, réussi ou non, détail).
       [rend: 1]
     ⑥ TRAITEMENT — Cas fabriqués T1 à T8 ; cas réels R1 à R9 (R8 et R9 depuis le 14-11-2026, QE : une vraie ligne
-      de Peugeot S.A., sortie, sous UG ; R10 depuis QE2 : ses trous non expliqués, sur la période) ; lancements M1 à M7. Un cas qui lève une erreur
+      de Peugeot S.A., sortie, sous UG ; R10 depuis QE2 : ses trous non expliqués, sur la période ; R13 et R14 depuis le
+      18-11-2026, D4 de LU2 : le refus fiche par fiche des opérations sur titres inconnues, sur le témoin des 20 ans ;
+      R15 et R16 le même jour, relecture D1 et D4 : une seule traduction, les bords et la dernière barre ; R16 (e),
+      relecture D6 : la borne basse, +MT le jour de sa première barre) ;
+      lancements M1 à M11 (M10 et M11 sur une racine jetable à deux fiches, `racine_a_deux_fiches` ; M11, relecture D3 :
+      une période qui finit avant la première barre de MT n'est pas refusée). Un cas qui lève une erreur
       compte comme échoué, avec l'erreur en détail.
     ⑦ UNITÉ — Des dates, des motifs, des nombres d'opérations.
     ⑧ POURQUOI — Voir ⑧ de l'en-tête.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Écrit un fichier de cours dans un dossier temporaire, effacé.
-    ⑪ TERMINAISON — Rend la main ; trois lancements du juge, bornés.
+    ⑪ TERMINAISON — Rend la main ; douze lancements du juge (M1 à M11, M10 deux fois), bornés.
       [sort: non]
     """
     B = charger(copie, racine)
@@ -576,6 +624,133 @@ def cas(copie, racine):
                     "%s : %s" % (type(e).__name__, str(e)[:110])
 
         un("R12 la garde M arrête `jouer` quand un reçu est passé (porte JUGER_UNE_FICHE)", r12)
+
+        # D4 de LU2 (A-802 B6, A-895 ⑮ ; 18-11-2026) : LE REFUS FICHE PAR FICHE DES OPÉRATIONS SUR TITRES INCONNUES. Le
+        # témoin des 20 ans (le fichier que le contrat déclare au cours brut, lu au contrat, jamais recopié) passe par la
+        # courbe des calculs, qui nomme les valeurs gardées au facteur 1. La fiche réelle IND-001-RETEST (R-732) ne
+        # contient aucune d'elles ; la même avec UG (Peugeot S.A., sortie) en contient une.
+        temoin = contrat.FICHIERS_DE_COURS_AU_COURS_BRUT[0]
+        lu_t = []
+
+        def lecture_du_temoin():
+            if not lu_t:
+                lu_t.append(B.lire_par_le_lecteur(racine, temoin, mnemo))
+            return lu_t[0]
+
+        f13 = contrat.fiches_du_registre(B.trouver(racine, contrat.NOM_DU_REGISTRE_DES_STRATEGIES))["IND-001-RETEST"]
+        fin_t = contrat.FICHIERS_DE_COURS_FIGES[temoin]["fin"]
+
+        def r13():
+            _, lt = lecture_du_temoin()
+            inc = lt.get("valeurs_aux_operations_inconnues") or {}
+            if "UG" not in inc:
+                return False, "UG absente des valeurs aux opérations inconnues de la lecture du témoin : %s" % sorted(inc)
+            # depuis le 18-11-2026 (superviseur R-759), la fonction reçoit les CLÉS DU COURS, traduites par `cle_du_cours`
+            u13 = [B.cle_du_cours(m, mnemo) for m in B.mnemoniques_de_l_univers(f13["univers"])]
+            avec_ug = B.refus_des_operations_inconnues(u13 + [B.cle_du_cours("UG", mnemo)], lt, ("2000-01-03", fin_t))
+            sans = B.refus_des_operations_inconnues(u13, lt, ("2000-01-03", fin_t))
+            # la période : UG n'a plus de barre après sa dernière ; une période qui commence après n'est pas refusée
+            apres = B.refus_des_operations_inconnues(u13 + [B.cle_du_cours("UG", mnemo)], lt,
+                                                     (inc["UG"][1][:4] + "-12-31", fin_t))
+            _, lm = B.lire_par_le_lecteur(racine, os.path.relpath(f_maitre, racine), mnemo)
+            ok = ("REFUSEE (opérations sur titres inconnues) : UG " in avec_ug and "A-802 B6" in avec_ug
+                  and sans == "" and apres == "" and lm.get("valeurs_aux_operations_inconnues") == {})
+            return ok, ("%d valeurs aux opérations inconnues ; IND-001-RETEST + UG : %r ; IND-001-RETEST : %r ; + UG après "
+                        "sa dernière barre (%s) : %r ; maître : %r" % (len(inc), avec_ug[:70], sans, inc["UG"][1], apres,
+                                                                       lm.get("valeurs_aux_operations_inconnues")))
+
+        un("R13 le refus fiche par fiche des opérations sur titres inconnues (UG sur le témoin des 20 ans)", r13)
+
+        def r14():
+            # `jouer`, porte de tous les appelants : UG dans l'univers → refus AVANT la garde du regard unique (sans reçu,
+            # c'est RegardNonInscrit qui viendrait sinon) ; sans société sortie, après la fenêtre du regard unique, les
+            # opérations sont celles d'une lecture qui ne nomme aucune valeur aux opérations inconnues : inchangées.
+            ct, lt = lecture_du_temoin()
+            sig14 = B.signal_de_la_fiche(racine, f13)
+            try:
+                B.jouer(dict(f13, univers=f13["univers"] + ",UG"), ct, mnemo, sig14, pos,
+                        periode=("2000-01-03", fin_t), lecture=lt)
+                return False, "jouer a rendu la main avec UG dans l'univers"
+            except Exception as e:
+                refus = (type(e).__name__, str(e)[:90])
+            debut = (datetime.date.fromisoformat(contrat.fenetre_du_regard_unique()[1]) + datetime.timedelta(1)).isoformat()
+            o1, i1 = B.jouer(f13, ct, mnemo, sig14, pos, periode=(debut, fin_t), lecture=lt)
+            o0, i0 = B.jouer(f13, ct, mnemo, sig14, pos, periode=(debut, fin_t),
+                             lecture=dict(lt, valeurs_aux_operations_inconnues={}))
+            ok = refus[0] == "OperationsSurTitresInconnues" and "UG" in refus[1] and o1 == o0 and i1 == i0 and len(o1) > 0
+            return ok, "avec UG : %s : %s ; sans société sortie, de %s à %s : %d opérations, %d sans la clé, égales : %s" % (
+                refus[0], refus[1], debut, fin_t, len(o1), len(o0), o1 == o0)
+
+        un("R14 `jouer` refuse un univers aux opérations inconnues, et ne change rien sans elles", r14)
+
+        # RELECTURE DU 18-11-2026, D1 (superviseur R-759 : « une seule traduction ») : MT, ARCELORMITTAL, ArcelorMittal
+        # désignent la même série pour `jouer` (`cle_du_cours`) ; les trois doivent être refusées. La période suit la
+        # fenêtre du regard unique (lue au contrat) : sans refus, `jouer` jouerait et rendrait la main.
+        def jouer_et_dire(fiche_x, periode):
+            ct, lt = lecture_du_temoin()
+            try:
+                o, _ = B.jouer(fiche_x, ct, mnemo, B.signal_de_la_fiche(racine, f13), pos, periode=periode, lecture=lt)
+                return "rendu", "%d opérations" % len(o)
+            except Exception as e:
+                return type(e).__name__, str(e)
+
+        def r15():
+            ct, lt = lecture_du_temoin()
+            inc = lt.get("valeurs_aux_operations_inconnues") or {}
+            cle_mt = B.cle_du_cours("MT", mnemo)
+            if cle_mt == "MT" or cle_mt not in inc:
+                return False, ("PRÉMISSE FAUSSE : MT doit avoir une clé du cours différente de son mnémonique, nommée par "
+                               "la courbe : clé %s, valeurs nommées %s" % (cle_mt, sorted(inc)))
+            debut = (datetime.date.fromisoformat(contrat.fenetre_du_regard_unique()[1]) + datetime.timedelta(1)).isoformat()
+            vus = [(ecrit,) + jouer_et_dire(dict(f13, univers=f13["univers"] + "," + ecrit), (debut, fin_t))
+                   for ecrit in ("MT", cle_mt, "ArcelorMittal")]
+            ok = (all(t == "OperationsSurTitresInconnues" and ("REFUSEE (opérations sur titres inconnues) : %s " % cle_mt) in x
+                      for _, t, x in vus) and "MT" not in inc)
+            return ok, "clé du cours de MT : %s ; %s" % (cle_mt, " ; ".join("+%s : %s %s" % (e, t, x[:60]) for e, t, x in vus))
+
+        un("R15 MT, ARCELORMITTAL et ArcelorMittal refusées : une seule traduction (D1)", r15)
+
+        # RELECTURE DU 18-11-2026, D4 : les bords et la dernière barre. UG (Peugeot S.A., sortie) a des barres de 2000 à
+        # 2017 dans le témoin : (b) une période STRICTEMENT à l'intérieur (2010 → 2015) doit être refusée — sans la
+        # dernière barre lue, elle ne l'est pas (S40) ; (c) une période qui COMMENCE LE JOUR de sa dernière barre aussi —
+        # bords exclus, elle ne l'est pas (S39). La dernière barre est relue dans la SÉRIE, pas dans la clé éprouvée.
+        # (e) la borne basse (D6) : voir plus bas, juste avant le calcul de `ok`.
+        def r16():
+            ct, lt = lecture_du_temoin()
+            inc = lt.get("valeurs_aux_operations_inconnues") or {}
+            cle_ug = B.cle_du_cours("UG", mnemo)
+            derniere = ct[cle_ug][-1]["date"]
+            premiere = ct[cle_ug][0]["date"]
+            if not (premiere < "2010-01-04" and derniere > "2015-12-31"):
+                return False, "PRÉMISSE FAUSSE : les barres d'UG (%s → %s) ne couvrent pas 2010 → 2015" % (premiere, derniere)
+            fiche_ug = dict(f13, univers=f13["univers"] + ",UG")
+            b = jouer_et_dire(fiche_ug, ("2010-01-04", "2015-12-31"))
+            c = jouer_et_dire(fiche_ug, (derniere, fin_t))
+            att = "REFUSEE (opérations sur titres inconnues) : UG (barres du %s au %s)" % (premiere, derniere)
+            # (e) RELECTURE DU 18-11-2026, D6 (superviseur R-759 : « DE FOND ») : la borne BASSE. +MT sur une période qui
+            # FINIT LE JOUR de la première barre de MT (clé du cours ARCELORMITTAL), relue dans la SÉRIE : la fiche doit
+            # être refusée PAR CETTE EXCEPTION PRÉCISÉMENT. Une autre (RegardNonInscrit) ou un rendu ne suffit pas : borne
+            # basse exclue, `jouer` ne refuse plus et va plus loin (S44). M11 s'arrête la VEILLE de ce jour : il ne voit
+            # pas ce bord.
+            cle_mt = B.cle_du_cours("MT", mnemo)
+            if cle_mt not in ct:
+                return False, "PRÉMISSE FAUSSE : MT (%s) n'a pas de barre dans le témoin" % cle_mt
+            premiere_mt = ct[cle_mt][0]["date"]
+            debut_e = (datetime.date.fromisoformat(contrat.fenetre_du_regard_unique()[1])
+                       + datetime.timedelta(1)).isoformat()
+            if not debut_e < premiere_mt:
+                return False, "PRÉMISSE FAUSSE : la première barre de MT (%s) ne tombe pas après %s" % (premiere_mt, debut_e)
+            e = jouer_et_dire(dict(f13, univers=f13["univers"] + ",MT"), (debut_e, premiere_mt))
+            att_e = "REFUSEE (opérations sur titres inconnues) : %s (barres du %s au " % (cle_mt, premiere_mt)
+            ok = (inc.get(cle_ug) == (premiere, derniere) and b[0] == c[0] == "OperationsSurTitresInconnues"
+                  and att in b[1] and att in c[1] and e[0] == "OperationsSurTitresInconnues" and att_e in e[1])
+            return ok, ("barres d'UG %s → %s, lues %s ; (b) 2010-01-04 → 2015-12-31 : %s %s ; (c) %s → %s : %s %s ; "
+                        "(e) +MT %s → %s (première barre de %s, lue dans la série) : %s %s") % (
+                premiere, derniere, inc.get(cle_ug), b[0], b[1][:50], derniere, fin_t, c[0], c[1][:50],
+                debut_e, premiere_mt, cle_mt, e[0], e[1][:70])
+
+        un("R16 les bords et la dernière barre : UG dedans (2010 → 2015), le jour de sa dernière barre (D4), "
+           "et +MT le jour de sa première barre (D6)", r16)
     finally:
         shutil.rmtree(d_qe, ignore_errors=True)
 
@@ -705,9 +880,121 @@ def cas(copie, racine):
 
         un("M8 la garde M refuse sur le regard unique, avant RegardNonInscrit", m8)
         un("M9 la garde M dit un verdict BORNÉ, M lu dans la sortie", m9)
+
+        # D4 de LU2 (18-11-2026) : LE REFUS DANS `main`, lu dans la sortie. Une racine jetable (`racine_a_deux_fiches`)
+        # porte au registre deux copies de la fiche réelle IND-001-RETEST, sur une période APRÈS la fenêtre du regard
+        # unique (la garde M n'y refuse pas) : l'une avec son univers, l'autre avec, en plus, une valeur aux opérations
+        # inconnues dont les barres touchent la période — choisie par cette propriété, jamais écrite ici.
+        def m10():
+            ct, lt = B.lire_par_le_lecteur(racine, contrat.FICHIERS_DE_COURS_AU_COURS_BRUT[0], mnemo)
+            temoin = contrat.FICHIERS_DE_COURS_AU_COURS_BRUT[0]
+            fin = contrat.FICHIERS_DE_COURS_FIGES[temoin]["fin"]
+            debut = (datetime.date.fromisoformat(contrat.fenetre_du_regard_unique()[1]) + datetime.timedelta(1)).isoformat()
+            inc = lt.get("valeurs_aux_operations_inconnues") or {}
+            x = next((m for m in sorted(inc) if inc[m][0] <= fin and inc[m][1] >= debut), None)
+            if x is None:
+                return False, "PRÉMISSE FAUSSE : aucune valeur aux opérations inconnues n'a de barre de %s à %s" % (debut, fin)
+            r = racine_a_deux_fiches(racine, contrat, x, debut, fin)
+            try:
+                c_x, o_x = lancer_le_juge(copie, r, "EPREUVE-OI-AVEC", "--cours=" + temoin)
+                c_s, o_s = lancer_le_juge(copie, r, "EPREUVE-OI-SANS", "--cours=" + temoin)
+            finally:
+                shutil.rmtree(r, ignore_errors=True)
+            n = re.search(r"=== EPREUVE-OI-SANS .*?\n(?:.*\n){0,3}?\s+(\d+) operations", o_s)
+            ok = (c_x == 1 and ("REFUSEE (opérations sur titres inconnues) : %s " % x) in o_x and "A-802 B6" in o_x
+                  and "EN ÉCHEC (ce n'est pas un refus)" not in o_x
+                  and c_s == 0 and n is not None and "REFUSEE" not in o_s)
+            return ok, "avec %s : code %d, refus dit %s ; sans : code %d, %s opérations, refus dit %s" % (
+                x, c_x, "REFUSEE (opérations sur titres inconnues)" in o_x, c_s, n.group(1) if n else "non dites",
+                "REFUSEE" in o_s)
+
+        un("M10 main refuse la fiche aux opérations inconnues et juge l'autre (témoin des 20 ans)", m10)
+
+        # RELECTURE DU 18-11-2026, D3 : MT sur une période qui FINIT AVANT SA PREMIÈRE BARRE. Aucune position ne peut s'y
+        # ouvrir : `main` ne refuse pas et ne dit pas « EN ÉCHEC » (la fin jouée est bornée par la fin de la période).
+        def m11():
+            ct, lt = B.lire_par_le_lecteur(racine, contrat.FICHIERS_DE_COURS_AU_COURS_BRUT[0], mnemo)
+            temoin = contrat.FICHIERS_DE_COURS_AU_COURS_BRUT[0]
+            debut = (datetime.date.fromisoformat(contrat.fenetre_du_regard_unique()[1]) + datetime.timedelta(1)).isoformat()
+            cle_mt = B.cle_du_cours("MT", mnemo)
+            if cle_mt not in ct:
+                return False, "PRÉMISSE FAUSSE : MT (%s) n'a pas de barre dans le témoin" % cle_mt
+            fin = (datetime.date.fromisoformat(ct[cle_mt][0]["date"]) - datetime.timedelta(1)).isoformat()
+            if fin <= debut:
+                return False, "PRÉMISSE FAUSSE : la première barre de MT (%s) tombe avant %s" % (ct[cle_mt][0]["date"], debut)
+            r = racine_a_deux_fiches(racine, contrat, "MT", debut, fin)
+            try:
+                c_x, o_x = lancer_le_juge(copie, r, "EPREUVE-OI-AVEC", "--cours=" + temoin)
+            finally:
+                shutil.rmtree(r, ignore_errors=True)
+            n = re.search(r"=== EPREUVE-OI-AVEC .*?\n(?:.*\n){0,3}?\s+(\d+) operations", o_x)
+            ok = c_x == 0 and n is not None and "REFUSEE" not in o_x and "EN ÉCHEC" not in o_x
+            return ok, "+MT sur %s → %s (première barre de MT : %s) : code %d, %s opérations, refus dit %s, EN ÉCHEC dit %s" % (
+                debut, fin, ct[cle_mt][0]["date"], c_x, n.group(1) if n else "non dites", "REFUSEE" in o_x,
+                "EN ÉCHEC" in o_x)
+
+        un("M11 main ne refuse pas une fiche dont la période finit avant la première barre de MT (D3)", m11)
     finally:
         shutil.rmtree(d, ignore_errors=True)
     return res
+
+
+def racine_a_deux_fiches(racine, contrat, x, debut, fin):
+    """Fabrique une racine jetable dont le registre des stratégies porte deux fiches d'épreuve ; rend son chemin.
+
+    ① RÔLE — Donner à `main` deux fiches à juger sans toucher au registre du dépôt (cas M10 et M11).
+    ② CONTEXTE D'APPEL — `cas`, M10 et M11.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `contrat` : CONTRATS_DES_FICHIERS · `x` : le mnémonique ajouté à la
+      fiche « EPREUVE-OI-AVEC » · `debut`, `fin` : la période des deux fiches, AAAA-MM-JJ.
+    ④ CONDITIONS D'ENTRÉE — Le registre porte la fiche IND-001-RETEST, avec les colonnes id, univers et periode.
+    ⑤ SORTIE — UNE valeur : le chemin de la racine jetable.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① programmes/ COPIÉ (le juge refuse un module de signal qui sort de la racine) · ② donnees/ refait en
+      dossiers, chaque fichier RELIÉ (le juge cherche ses fichiers en parcourant les dossiers, sans suivre les liens de
+      dossier) · ③ le reste relié, sauf .git et prompts_taches/ · ④ le registre RÉÉCRIT : ses lignes, plus deux copies
+      de la ligne IND-001-RETEST, « EPREUVE-OI-SANS » (univers inchangé) et « EPREUVE-OI-AVEC » (univers + `x`), sur la
+      période donnée.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une vraie ligne (R-732) : seuls l'identifiant, l'univers et la période changent ; le cas éprouve
+      `main` tel qu'il tourne.
+    ⑨ CE QUI CLOCHE — Un programme qui écrirait sous donnees/ écrirait dans le dépôt, à travers le lien : le juge
+      n'écrit rien (sa fiche, ⑩). · Le registre est relu en CSV ici, et non par le contrat (la ligne doit être recopiée
+      telle quelle, toutes colonnes).
+    ⑩ EFFET — Écrit dans le dossier temporaire du système.
+    ⑪ TERMINAISON — Rend la main, ou lève (StopIteration si la fiche IND-001-RETEST manque) ; efface la racine jetable
+      si elle lève.
+      [sort: non]
+    """
+    import csv
+    r = tempfile.mkdtemp(prefix="juge_deux_fiches_")
+    try:
+        shutil.copytree(os.path.join(racine, "programmes"), os.path.join(r, "programmes"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        for n in os.listdir(racine):
+            if n not in ("programmes", "donnees", ".git", "prompts_taches"):
+                os.symlink(os.path.join(os.path.abspath(racine), n), os.path.join(r, n))
+        src = os.path.join(os.path.abspath(racine), "donnees")
+        for d, _, fs in os.walk(src):
+            os.makedirs(os.path.join(r, "donnees", os.path.relpath(d, src)), exist_ok=True)
+            for f in fs:
+                os.symlink(os.path.join(d, f), os.path.join(r, "donnees", os.path.relpath(d, src), f))
+        reg = os.path.join(r, contrat.REGISTRE_DES_STRATEGIES)   # le chemin du registre, lu au contrat
+        lignes = list(csv.reader(open(os.path.join(racine, contrat.REGISTRE_DES_STRATEGIES), encoding="utf-8",
+                                      newline="")))
+        h = lignes[0]
+        base = next(l for l in lignes if l and l[h.index("id")] == "IND-001-RETEST")
+        for ident, univers in (("EPREUVE-OI-SANS", base[h.index("univers")]),
+                               ("EPREUVE-OI-AVEC", base[h.index("univers")] + "," + x)):
+            l = list(base)
+            l[h.index("id")], l[h.index("univers")], l[h.index("periode")] = ident, univers, "%s -> %s" % (debut, fin)
+            lignes.append(l)
+        os.remove(reg)
+        with open(reg, "w", encoding="utf-8", newline="") as hdl:
+            csv.writer(hdl).writerows(lignes)
+    except BaseException:
+        shutil.rmtree(r, ignore_errors=True)
+        raise
+    return r
 
 
 def copier(src, racine, a, b):
