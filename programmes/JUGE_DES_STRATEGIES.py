@@ -1320,21 +1320,30 @@ def cle_valeur(nom):
       différentes, et l'une des deux est ignorée sans qu'aucune erreur ne
       s'affiche.
     ② CONTEXTE D'APPEL — LA PROPRIÉTÉ : tout endroit où un mnémonique, ou un nom de
-      valeur lu dans un fichier, devient une clé de cours. Dans ce fichier, un
-      mnémonique y passe par `cle_du_cours`, la traduction unique, dont elle est le
-      repli ; un nom lu (cours, référentiel) y passe directement. Les autres
-      programmes l'appellent par le nom sous lequel ils ont chargé ce module. La
-      liste des appelants ne s'écrit pas ici, elle se relève (relecture et
-      superviseur R-759 du 18-11-2026, D8 : la liste écrite à la main était fausse) :
-        { grep -nE '^[^`]*[^A-Za-z_.`]cle_valeur[(]' programmes/JUGE_DES_STRATEGIES.py |
+      valeur lu dans un fichier, devient une clé de cours, que la fonction y soit
+      APPELÉE ou PASSÉE EN VALEUR pour être appelée plus loin sous un autre nom. Dans
+      ce fichier, un mnémonique y passe par `cle_du_cours`, la traduction unique,
+      dont elle est le repli ; un nom lu (cours, référentiel) y passe directement.
+      Les autres programmes la prennent par le nom sous lequel ils ont chargé ce
+      module, pour l'appeler ou pour la passer à un autre (les positions la
+      reçoivent ainsi). La liste ne s'écrit pas ici, elle se relève (relecture et
+      superviseur R-759 du 18-11-2026, D8 puis D9 : la liste écrite à la main était
+      fausse, puis la commande ne voyait que les appels) :
+        { grep -nE '^[^`]*(^|[^A-Za-z_.`])cle_valeu[r]([^A-Za-z0-9_]|$)' programmes/JUGE_DES_STRATEGIES.py |
           grep -v 'def cle_valeur' ;
-          grep -rnE '[A-Za-z_][.]cle_valeur[(]' --include=*.py programmes ; } | wc -l
-      Calibrage : la commande TROUVE le corps de `cle_du_cours` (cas connu) ; elle
-      ne trouve PAS `programmes/TENIR_L_HISTORIQUE.py`, qui porte sa propre copie de
-      cette règle et l'appelle sans nom de module (ce n'est pas un appelant d'ici :
-      le cas qui doit échouer), ni les mentions écrites entre accents graves dans les
-      fiches. Compte mesuré le 18-11-2026 : 16 lignes, 5 dans ce fichier et 11 dans
-      cinq autres programmes.
+          grep -rnE '^[^`]*([A-Za-z_][.]cle_valeu[r]([^A-Za-z0-9_]|$)|(hasattr|getattr)[(][^)]*cle_valeu[r])' --include=*.py programmes ; } | wc -l
+      Le motif s'écrit `cle_valeu[r]` pour ne pas se trouver lui-même dans ce texte.
+      Calibrage : la commande TROUVE le corps de `cle_du_cours`, et la fonction
+      passée en valeur par `TENIR_LES_POSITIONS.cle_valeur_du_banc` (son `hasattr`
+      et l'attribut rendu) et par `MESURER_LES_INDICATEURS` à `tenir` (cas connus) ;
+      elle ne trouve PAS la définition de `cle_valeur_du_banc` (un autre nom, qui
+      contient celui-ci), ni `programmes/TENIR_L_HISTORIQUE.py`, qui porte sa propre
+      copie de cette règle et l'appelle sans nom de module, ni les mentions écrites
+      entre accents graves dans les fiches (cas qui doivent échouer). Compte mesuré
+      le 18-11-2026 : 21 lignes, 5 dans ce fichier et 16 dans sept autres programmes. Hors du dossier `programmes`, les épreuves de `tests/`
+      la prennent aussi : le même second motif sur `tests` y rend 18 lignes, dont
+      une épreuve qui la REMPLACE par une autre fonction (la moulinette) et des
+      textes de sabotage ; elles ne sont pas comptées ici.
     ③ ENTRÉE — `nom` : le nom d'une valeur tel qu'un fichier l'a écrit, par
       exemple `Bureau Veritas`, `BUREAU-VERITAS` ou
       `UNIBAIL-RODAMCO-WESTFIELD`.
