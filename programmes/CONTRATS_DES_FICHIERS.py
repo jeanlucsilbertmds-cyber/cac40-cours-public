@@ -158,8 +158,13 @@ Quand l'appeler : par tout programme qui écrit ou lit un fichier de liaison. Ja
 # `strategie` N'EST PAS un champ du signal : le détecteur calcule une règle,
 # il ne sait pas quelles stratégies la suivent. C'est l'adaptateur de TENIR qui
 # l'ajoute, en lisant l'univers de chaque stratégie AU REGISTRE.
+# `fiches` (A-925, 19-11-2026, décision de Jean-Luc du 19-11-2026 à 19h23 : le soir fait tourner PLUSIEURS modules de
+# signal) : les identifiants des fiches du registre qui reçoivent ce signal — celles qui déclarent le signal qui l'a
+# donné ET dont l'univers porte la valeur. Le teneur n'attribue un signal qu'à elles : sans ce champ, un signal du
+# module RSI aurait été attribué à une fiche C5 dont l'univers porte la même valeur. Exemple réel (copie du
+# 19-11-2026) : un signal C5 sur VEOLIA porte ["C5E10-OBS-V1", "C5E10-QA-V1"].
 
-SIGNAL = ["valeur", "date_signal", "cmf", "cci", "close"]
+SIGNAL = ["valeur", "date_signal", "cmf", "cci", "close", "fiches"]
 
 # L'ENVELOPPE du fichier, autour de la liste des signaux.
 SIGNAUX_DU_JOUR = ["seance", "strategie", "calcule_le", "signaux",
@@ -172,6 +177,15 @@ SIGNAUX_DU_JOUR = ["seance", "strategie", "calcule_le", "signaux",
                    "garde_du_soir"]
 # Les champs de l'enveloppe que l'écrivain peut omettre : garde_du_soir n'est écrit que si la garde mord.
 CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR = ("garde_du_soir",)
+# A-925 (19-11-2026) : deux champs FACULTATIFS de plus, écrits par programmes/DETECTER_LES_SIGNAUX_GITHUB.py —
+# `calibrages` (le calibrage de chaque module, seulement s'il y en a plus d'un) et `fiches_mises_a_part` (les fiches
+# suivies que le détecteur n'a pas pu servir ce soir, chacune {fiche, motif}), lu par programmes/TENIR_LES_POSITIONS.py,
+# qui les compte dans sa sortie du pas `fiches_mises_a_part`. Ajoutés à part, sans toucher le bloc d'A-706 ci-dessus,
+# que tests/EPREUVES_C_LE_SOIR_LIT_LA_FICHE_Mar_10-11-2026.py retire au mot près pour rejouer le contrat d'avant (ce
+# contrat d'avant n'a pas CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR : d'où `globals().get`, qui le prend vide).
+SIGNAUX_DU_JOUR = SIGNAUX_DU_JOUR + ["calibrages", "fiches_mises_a_part"]
+CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR = (tuple(globals().get("CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR", ()))
+                                         + ("calibrages", "fiches_mises_a_part"))
 
 # LES FICHIERS FABRIQUÉS CHAQUE SOIR ET LE MOTIF DE LEUR DATE, écrits une fois (R-708 :
 # deux implémentations d'une même chose divergent toujours). Lus par programmes/
@@ -418,7 +432,7 @@ def _epreuves():
     ok = any("date_signal" in x and "NON ÉCRIT" in x for x in e)
     print(f"  {'✅' if ok else '❌'} et « date_signal » manquant : vu aussi")
     bons += ok
-    e2 = verifier("SIGNAL", ["valeur", "date_signal", "cmf", "cci", "close"], "ECRIT")
+    e2 = verifier("SIGNAL", ["valeur", "date_signal", "cmf", "cci", "close", "fiches"], "ECRIT")
     print(f"  {'✅' if not e2 else '❌'} le détecteur corrigé : aucun écart")
     bons += (not e2)
     e3 = verifier("SIGNAL", ["valeur", "date_signal"], "LU")
@@ -552,6 +566,259 @@ COMPTABILITES = (UN_JETON, JETONS_ILLIMITES)
 # l'ordre de la liste ne doit rien changer (relecteur du Chat, 27-09-2026 : avec
 # `UN_JETON, JETONS_ILLIMITES = COMPTABILITES`, inverser la liste appliquait la
 # règle « une position à la fois » aux jetons illimités, calibrage toujours vert).
+
+# LES CORRECTIONS DES COMPTES « UN JETON » (BACKLOG A-801, étape CORR du planning, 18-11-2026).
+# SENS : un achat fait en un jeton contre la règle du départage (R-207bis : quand plusieurs valeurs signalent le
+# même soir pour une stratégie, le jeton va à la plus survendue, le CCI le plus bas) est RETIRÉ des comptes un jeton
+# et REMPLACÉ par l'achat que la règle donnait. Le journal des trades n'est JAMAIS réécrit : la ligne fautive y
+# reste à l'octet ; elle est « marquée » par une ligne du fichier des corrections qui la recopie à l'identique, et la
+# mesure de la performance la met de côté au lieu de la compter. Les jetons illimités ne sont jamais corrigés (tout
+# signal y est suivi : les deux achats y sont déjà).
+# DEUX FICHIERS, DEUX AUTEURS :
+#  · CE QUI EST DÉCIDÉ s'écrit ICI, à la main, une entrée par décision de Jean-Luc : la stratégie, la séance du
+#    signal, la valeur retirée, la valeur que sa décision nomme, la trace des signaux du soir (commit du dépôt et
+#    chemin), et la décision avec ses mots. Rien n'y est chiffré.
+#  · CE QUI SE CALCULE est ÉCRIT PAR UN PROGRAMME, `programmes/CORRIGER_LES_COMPTES_UN_JETON.py`, dans
+#    `donnees/corrections_des_comptes_un_jeton.csv` : la copie à l'octet de la ligne retirée, et la ligne de
+#    remplacement rejouée par la tenue des positions du soir (`TENIR_LES_POSITIONS.tenir` : départage, achat à
+#    l'ouverture de la séance qui suit le signal, objectif, stop et échéance de la fiche, frais du barème daté lus
+#    par `MODULE_POSITIONS`). R-728 : ce qui se calcule ne s'écrit jamais à la main.
+# Le cas fondateur, A-801 : le soir du 20-10-2026, la stratégie C5E10-OBS-V1 a signalé ENGIE (CCI −57,03) et EIFFAGE
+# (CCI −166,47) ; le circuit, qui ne départageait pas encore, a donné le jeton à ENGIE (2e de l'univers) au lieu
+# d'EIFFAGE (5e, la plus survendue). La réparation R-207bis est installée sur main depuis le 16-11-2026 (8313ee33).
+CORRECTIONS_UN_JETON_DECIDEES = [
+    {"action": "A-801",
+     "strategie": "C5E10-OBS-V1",
+     "seance_du_signal": "2026-10-20",
+     # la trace des signaux de ce soir-là : le fichier des signaux tel que le circuit l'a écrit et poussé le
+     # 20-10-2026 à 21h59 (Paris), relu au dépôt par `git show` ; le programme refuse s'il ne le retrouve pas
+     "signaux_du_soir": "553c2fd26aaf9be3e12e3e3347a46a791fbd84d3:donnees/signaux_du_jour.json",
+     "valeur_retiree": "ENGIE",
+     # la valeur que la décision NOMME ; le programme la RETROUVE par le rejeu, et refuse si la règle en donne une autre
+     "valeur_nommee_par_la_decision": "EIFFAGE",
+     # les champs sur lesquels la ligne du journal doit égaler la ligne retirée (superviseur R-759 du 18-11-2026,
+     # D2 : « prix, dates, motif, pnl ») ; `explication`, `regles_pre_trade` et les colonnes de barème n'y sont pas :
+     # une note ajoutée à la ligne ENGIE ne doit pas faire sauter la correction
+     "champs_compares": ("date_entree", "prix_entree", "date_sortie", "prix_sortie", "motif_sortie", "pnl_net_eur",
+                         "prix_sortie_convention", "pnl_net_convention_eur"),
+     "decision": "Jean-Luc, 15-11-2026 à 12h29, à « 1 on la garde, marquée · 2 on la retire des comptes » : « on le "
+                 "retire des comptes, mais du coup tu fais bien l'achat d'Eiffage » (dictée : « phages » = Eiffage)"},
+]
+CORRECTIONS_UN_JETON = "donnees/corrections_des_comptes_un_jeton.csv"
+NOM_DES_CORRECTIONS_UN_JETON = CORRECTIONS_UN_JETON.rsplit("/", 1)[-1]
+GESTE_RETIREE = "RETIREE_DES_COMPTES_UN_JETON"
+GESTE_AJOUTEE = "AJOUTEE_PAR_LA_REGLE"
+# les colonnes : l'action du BACKLOG, le geste, les colonnes du journal des trades TELLES QUELLES (contrat TRADE,
+# même ordre), et la cause en une phrase.
+CORRECTION_UN_JETON = ["action", "geste"] + TRADE + ["cause"]
+# L'IDENTITÉ D'UNE LIGNE DU JOURNAL, clé de la correction ET du cockpit (superviseur R-759 du 18-11-2026, D2) : la ligne
+# visée est (stratégie, comptabilité « un jeton », valeur, jour d'achat) ; son JUMEAU est la même identité en jetons
+# illimités — le circuit écrit les deux ensemble, une par comptabilité.
+IDENTITE_D_UNE_LIGNE_DU_JOURNAL = ("strategie", "comptabilite", "valeur", "date_entree")
+
+
+class CorrectionUnJetonImpossible(ValueError):
+    """Une correction des comptes un jeton ne peut pas s'appliquer telle qu'elle est déclarée.
+
+    ① RÔLE — Nommer la seule panne que lève `appliquer_les_corrections_un_jeton`, pour que la mesure l'attrape seule.
+    ② CONTEXTE D'APPEL — Levée par `appliquer_les_corrections_un_jeton` ; attrapée par la mesure de la performance.
+    ③ ENTRÉE — Le message, qui dit quelle ligne ou quelle déclaration ne tient pas.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — —
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une correction qui ne retrouve pas sa ligne ne doit jamais être sautée en silence : la mesure
+      compterait alors l'achat retiré ET son remplacement, ou aucun des deux.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — —
+    """
+
+
+def journal_couvre(operations, date_de_reference):
+    """Dit si un journal couvre un jour : au moins une ligne achetée ou vendue ce jour-là ou après.
+
+    ① RÔLE — Distinguer un journal ARRÊTÉ AVANT le trade corrigé (un témoin figé, par exemple) d'un journal qui
+      devrait le porter.
+    ② CONTEXTE D'APPEL — `appliquer_les_corrections_un_jeton`, quand ni la ligne visée ni son jumeau ne sont au journal.
+    ③ ENTRÉE — `operations` : les lignes du journal (dictionnaires, colonnes `date_entree` et `date_sortie`) ·
+      `date_de_reference` : un jour AAAA-MM-JJ, le jour d'achat de la ligne retirée lu dans le fichier des corrections.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : vrai si au moins une date d'achat ou de vente est ≥ `date_de_reference`.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① refuser une date de référence illisible · ② lire TOUTES les dates d'achat et de vente ; une date
+      vide ou illisible lève · ③ comparer leur maximum à la référence (dates ISO : l'ordre du texte est celui des
+      jours ; le résultat ne dépend pas de l'ordre des lignes).
+    ⑦ UNITÉ — Jours calendaires, textes AAAA-MM-JJ.
+    ⑧ POURQUOI — Superviseur R-759 du 18-11-2026, verdict sur le témoin du 27-09-2026 de
+      `tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py` (qui n'a aucune ligne ENGIE et que la mesure arrêtait) :
+      « la correction est « sans objet » si le journal ne couvre pas la date du trade corrigé […] au moins une ligne
+      a une date_entree ou une date_sortie ≥ 2026-10-21, calculé sur toutes les lignes […] ; une date illisible ou
+      vide fait ARRÊTER ; la date de référence se lit dans donnees/corrections_des_comptes_un_jeton.csv ».
+    ⑨ CE QUI CLOCHE — LIMITE ADMISE (superviseur R-759 du 18-11-2026 à 16h22, sur N1 du relecteur du tour 5) : la
+      couverture se juge sur les SEULES dates du journal, et AVANT de regarder si c'est le vrai journal. Un VRAI journal
+      (`donnees/claude_journal_trades.csv` de la racine mesurée) TRONQUÉ avant la date de la ligne retirée (le
+      2026-10-21 pour A-801), ou VIDÉ jusqu'à son en-tête (aucune date : `bool(dates)` rend faux), rend donc la
+      correction SANS OBJET : la mesure finit en code 0, avec une simple ALERTE. Cas mesuré par le relecteur le
+      18-11-2026 : le vrai journal réduit à ses 7 lignes d'avant le 21-10 (les 9 autres retirées) → code 0, ALERTE « SANS
+      OBJET » (le journal vidé n'a pas été rejoué par la mesure entière). Cas particulier, celui du superviseur au tour
+      5 : un journal arrêté entre le 29-10 et le 01-11-2026 n'a que les deux lignes ENGIE comme lignes ≥ 21-10 ; en les
+      effaçant, on le ferait passer pour « non couvrant ». Aucune garde générale ne protège aujourd'hui le journal des
+      trades contre une perte de lignes — `programmes/TENIR_LES_POSITIONS.py` l'avoue à son ⑨ : « une interruption
+      laisse un journal tronque, et rien ne le detecterait au passage suivant ». Le remède n'est pas ici : action
+      BACKLOG « garde : le journal des trades ne perd aucune ligne » (A-908, consignée le 18-11-2026).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève `CorrectionUnJetonImpossible` sur une date vide ou illisible.
+      [sort: non]
+    """
+    import datetime as _dt
+
+    def _jour(x, ou):
+        """Rend un jour AAAA-MM-JJ lisible tel quel, ou lève.
+
+        ① RÔLE — Lire une date du journal ou la date de référence.
+        ② CONTEXTE D'APPEL — `journal_couvre`.
+        ③ ENTRÉE — `x` : le texte · `ou` : d'où il vient, pour le message.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : le texte AAAA-MM-JJ.
+          [rend: 1]
+        ⑥ TRAITEMENT — Dix caractères, et `date.fromisoformat` accepte.
+        ⑦ UNITÉ — Jours.
+        ⑧ POURQUOI — « une date illisible ou vide fait ARRÊTER » (superviseur R-759, 18-11-2026).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main ; lève `CorrectionUnJetonImpossible`.
+          [sort: non]
+        """
+        try:
+            if len(x) != 10:
+                raise ValueError
+            return _dt.date.fromisoformat(x).isoformat()
+        except ValueError:
+            raise CorrectionUnJetonImpossible("date %r illisible (%s) : la couverture du journal ne se calcule pas"
+                                              % (x, ou))
+    ref = _jour(date_de_reference, "date de référence du fichier des corrections")
+    dates = [_jour((o.get(c) or "").strip(), "%s d'une ligne du journal" % c)
+             for o in operations for c in ("date_entree", "date_sortie")]
+    return bool(dates) and max(dates) >= ref
+
+
+def appliquer_les_corrections_un_jeton(operations, chemin, vrai_journal):
+    """Rend les opérations du journal corrigées en un jeton : la ligne retirée mise de côté, son remplacement à sa place.
+
+    ① RÔLE — LE SEUL ENDROIT où les corrections décidées des comptes un jeton s'appliquent aux opérations lues au
+      journal des trades, avant tout comptage.
+    ② CONTEXTE D'APPEL — `main` de `programmes/MESURER_LA_PERFORMANCE_Lun_17-08-2026_19h30.py`, une fois, juste après
+      son calibrage ; l'épreuve `tests/EPREUVES_DE_LA_CORRECTION_UN_JETON_Mer_18-11-2026.py`.
+    ③ ENTRÉE — `operations` : les lignes du journal, lues en dictionnaires (clés du contrat TRADE) · `chemin` : le
+      chemin du fichier des corrections (`CORRECTIONS_UN_JETON`), ou None s'il est introuvable · `vrai_journal` : vrai
+      si les opérations viennent de `donnees/claude_journal_trades.csv` de la racine mesurée.
+    ④ CONDITIONS D'ENTRÉE — Le fichier, s'il est donné, porte exactement les colonnes CORRECTION_UN_JETON.
+    ⑤ SORTIE — QUATRE valeurs : la NOUVELLE liste des opérations (la liste reçue n'est pas modifiée) ; la liste des
+      lignes retirées, chacune un dictionnaire de la ligne du fichier ; la liste des lignes ajoutées, de même forme ;
+      la liste des actions SANS OBJET (ni la ligne visée ni son jumeau, dans un journal qui ne couvre pas leur jour
+      ou qui n'est pas le vrai).
+      [rend: 4]
+    ⑥ TRAITEMENT — ① aucune décision déclarée et aucun fichier : rendre les opérations telles quelles · ② une
+      décision déclarée sans fichier : lever · ③ lire le fichier et confronter son en-tête au contrat · ④ chaque ligne :
+      action déclarée, geste connu, comptabilité « un_jeton », stratégie celle de la décision · ⑤ chaque décision
+      déclarée a EXACTEMENT une ligne retirée et une ligne ajoutée · ⑥ chercher au journal la ligne VISÉE (identité
+      `IDENTITE_D_UNE_LIGNE_DU_JOURNAL` de la ligne retirée) et son JUMEAU (même identité, jetons illimités) ; une clé
+      en double → lever · ⑦ visée présente : elle doit égaler la ligne retirée sur les `champs_compares` de la
+      décision, sinon lever ; la remplacer, à son rang, par la ligne ajoutée (ses colonnes TRADE) · ⑧ visée absente
+      et jumeau présent → lever (ligne effacée) · ⑨ les deux absentes : si le journal couvre le jour d'achat de la
+      ligne retirée (`journal_couvre`, date lue dans le fichier) → lever sur le vrai journal, SANS OBJET sinon ; s'il ne
+      le couvre pas (journal antérieur, témoin figé) → SANS OBJET ; une date illisible → lever.
+    ⑦ UNITÉ — Des lignes du journal ; les montants restent les textes écrits (euros), sans conversion.
+    ⑧ POURQUOI — Décision de Jean-Luc du 15-11-2026 à 12h29 (BACKLOG A-801) : l'achat ENGIE du 21-10-2026, fait en un
+      jeton contre R-207bis, est « retiré des comptes », « mais du coup tu fais bien l'achat d'Eiffage ». Le journal ne
+      se réécrit jamais : la correction vit à côté, la mesure la lit. Superviseur R-759 du 18-11-2026 (D2, verdict
+      appliqué tel quel) : « Reconnaître la ligne à son identité […] ; cible là → correction ; cible absente et jumeau
+      là → ARRÊT ; « les deux manquent » ne vaut « sans objet » que pour un journal qui n'est PAS
+      donnees/claude_journal_trades.csv de la racine mesurée ; sur le vrai journal, ARRÊT ; la comparaison ne porte que
+      sur les champs déclarés par la décision (prix, dates, motif, pnl) ; une clé en double ARRÊTE. » Cas réel qui l'a
+      motivé : la première forme hachait les 8 premières lignes du journal ; une note ajoutée à la ligne 8 la rendait
+      « sans objet » et ENGIE était recomptée.
+    ⑨ CE QUI CLOCHE — Une épreuve qui fabrique son journal À LA PLACE du vrai, dans une copie du dépôt (E20 de
+      `tests/EPREUVES_DU_BAREME_DES_FRAIS_Jeu_29-10-2026.py`), est un « vrai journal » pour cette règle : la mesure s'y
+      arrête. Seule la mesure de la performance compte avec les corrections : le radar et le message du soir lisent
+      le journal brut ; le cockpit dit la ligne retirée sans recompter.
+    ⑩ EFFET — Lit le fichier des corrections ; n'écrit rien.
+    ⑪ TERMINAISON — Rend la main ; lève `CorrectionUnJetonImpossible` pour toute correction qui ne tient pas, et
+      OSError si le fichier ne se lit pas. Aucun appel qui ne revienne pas.
+      [sort: non]
+    """
+    import csv as _csv
+    decisions = {d["action"]: d for d in CORRECTIONS_UN_JETON_DECIDEES}
+    if chemin is None:
+        if decisions:
+            raise CorrectionUnJetonImpossible(
+                "%s introuvable alors que %d correction(s) sont décidées (%s) : sans lui, l'achat retiré serait compté"
+                % (NOM_DES_CORRECTIONS_UN_JETON, len(decisions), ", ".join(sorted(decisions))))
+        return list(operations), [], [], []
+    with open(chemin, encoding="utf-8", newline="") as f:
+        lecteur = _csv.DictReader(f)
+        entete = list(lecteur.fieldnames or [])
+        lignes = list(lecteur)
+    if entete != CORRECTION_UN_JETON:
+        raise CorrectionUnJetonImpossible("%s : en-tête %r, attendu le contrat CORRECTION_UN_JETON %r"
+                                          % (NOM_DES_CORRECTIONS_UN_JETON, entete, CORRECTION_UN_JETON))
+    par_action = {}
+    for n, l in enumerate(lignes, start=2):
+        a, g = l.get("action"), l.get("geste")
+        if a not in decisions:
+            raise CorrectionUnJetonImpossible("ligne %d : action %r non déclarée dans CORRECTIONS_UN_JETON_DECIDEES" % (n, a))
+        if g not in (GESTE_RETIREE, GESTE_AJOUTEE):
+            raise CorrectionUnJetonImpossible("ligne %d : geste %r inconnu" % (n, g))
+        if l.get("comptabilite") != UN_JETON:
+            raise CorrectionUnJetonImpossible("ligne %d : comptabilité %r ; seule %r se corrige"
+                                              % (n, l.get("comptabilite"), UN_JETON))
+        if l.get("strategie") != decisions[a]["strategie"]:
+            raise CorrectionUnJetonImpossible("ligne %d : stratégie %r, la décision %s porte sur %r"
+                                              % (n, l.get("strategie"), a, decisions[a]["strategie"]))
+        par_action.setdefault(a, {}).setdefault(g, []).append(l)
+    for a in decisions:
+        gestes = par_action.get(a, {})
+        if len(gestes.get(GESTE_RETIREE, [])) != 1 or len(gestes.get(GESTE_AJOUTEE, [])) != 1:
+            raise CorrectionUnJetonImpossible(
+                "%s : %d ligne(s) retirée(s) et %d ajoutée(s) dans %s ; attendu exactement une de chaque"
+                % (a, len(gestes.get(GESTE_RETIREE, [])), len(gestes.get(GESTE_AJOUTEE, [])), NOM_DES_CORRECTIONS_UN_JETON))
+    corrigees = list(operations)
+    retirees, ajoutees, sans_objet = [], [], []
+    for a, dec in decisions.items():
+        r = par_action[a][GESTE_RETIREE][0]
+        aj = par_action[a][GESTE_AJOUTEE][0]
+        cle = tuple((r.get(c) or "") for c in IDENTITE_D_UNE_LIGNE_DU_JOURNAL)
+        jumeau = tuple(JETONS_ILLIMITES if c == "comptabilite" else (r.get(c) or "")
+                       for c in IDENTITE_D_UNE_LIGNE_DU_JOURNAL)
+        cles = [tuple((o.get(c) or "") for c in IDENTITE_D_UNE_LIGNE_DU_JOURNAL) for o in corrigees]
+        vises = [i for i, k in enumerate(cles) if k == cle]
+        jumeaux = [i for i, k in enumerate(cles) if k == jumeau]
+        quoi = "%s · %s · entrée %s" % (r.get("strategie"), r.get("valeur"), r.get("date_entree"))
+        if len(vises) > 1 or len(jumeaux) > 1:
+            raise CorrectionUnJetonImpossible("%s : clé en double au journal (%s : %d ligne(s) un jeton, %d en jetons "
+                                              "illimités)" % (a, quoi, len(vises), len(jumeaux)))
+        if not vises:
+            if jumeaux:
+                raise CorrectionUnJetonImpossible("%s : la ligne un jeton %s est absente du journal alors que son "
+                                                  "jumeau en jetons illimités y est — ligne effacée" % (a, quoi))
+            # LE JOURNAL COUVRE-T-IL LE JOUR DU TRADE CORRIGÉ ? (superviseur R-759 du 18-11-2026, témoin du 27-09) : la
+            # date de référence est celle de la ligne retirée, LUE dans le fichier des corrections, jamais écrite ici
+            if journal_couvre(corrigees, r.get("date_entree") or ""):
+                if vrai_journal:
+                    raise CorrectionUnJetonImpossible("%s : ni la ligne un jeton %s ni son jumeau ne sont au vrai "
+                                                      "journal des trades, qui couvre pourtant le %s"
+                                                      % (a, quoi, r.get("date_entree")))
+            sans_objet.append(a)          # journal antérieur au trade, ou AUTRE journal : la correction ne le concerne pas
+            continue
+        ecarts = [c for c in dec["champs_compares"] if (corrigees[vises[0]].get(c) or "") != (r.get(c) or "")]
+        if ecarts:
+            raise CorrectionUnJetonImpossible("%s : la ligne un jeton %s diffère au journal sur %s — le journal a changé "
+                                              "sous la correction" % (a, quoi, ", ".join(ecarts)))
+        corrigees[vises[0]] = {c: aj.get(c, "") for c in TRADE}
+        retirees.append(r)
+        ajoutees.append(aj)
+    return corrigees, retirees, ajoutees, sans_objet
 
 # historique des mesures, empilé jamais écrasé — MESURER écrit, le cockpit lit
 MESURE = [
@@ -1528,6 +1795,8 @@ CONTRATS_PAR_FICHIER = {
     "EVENEMENTS_YAHOO.csv": EVENEMENTS_YAHOO,
     "claude_positions_ouvertes.csv": POSITION,
     "claude_journal_trades.csv": TRADE,
+    # écrit par CORRIGER_LES_COMPTES_UN_JETON, lu par la mesure (A-801, 18-11-2026)
+    NOM_DES_CORRECTIONS_UN_JETON: CORRECTION_UN_JETON,
     "BAREME_FRAIS.csv": BAREME_FRAIS,
     "VALEURS_TTF.csv": VALEURS_TTF,
     "historique_mesures.csv": MESURE,
@@ -1541,6 +1810,48 @@ CONTRATS_PAR_FICHIER = {
     "CALENDRIER_EURONEXT.csv": CALENDRIER,
     "signaux_du_jour.json": SIGNAL,
 }
+
+
+# LES ÉTATS DE VIE QUE LE CIRCUIT DU SOIR SUIT (étape E8 du planning, plan V7 bloc 9, BACKLOG A-644 ; R-513 ①, loi
+# préparée par le Chat sous la délégation de Jean-Luc du 01-11-2026, non figée : « Lire l'état d'une fiche dans la seule
+# colonne `etat_vie` »). Ce sont les deux états de la station EN VIE que la table de R-513 affiche « ⭐ VIVANTE » :
+# `QA` (l'épreuve du vivant) et `PRODUCTION` (jouable en vrai). `SUSPENDUE`, aussi à la station EN VIE, n'y est PAS :
+# la même table ne lui donne aucun affichage « VIVANTE », et le soir ne la suivait donc pas avant le 18-11-2026. Jusqu'au
+# 18-11-2026, le détecteur et le teneur des positions lisaient chacun, par une copie du même critère, la colonne
+# d'affichage `statut` (« contient VIVANTE ») ; mesuré le 18-11-2026 sur la dernière ligne des 68 fiches : les deux
+# critères désignent les mêmes fiches (C5E10-QA-V1 et C5E10-OBS-V1), le changement ne change donc rien ce soir-là.
+ETATS_SUIVIS_PAR_LE_SOIR = ("QA", "PRODUCTION")
+
+
+def suivie_par_le_soir(fiche):
+    """Dit si le circuit du soir doit suivre une fiche : son état de vie le demande, et elle déclare ses valeurs.
+
+    ① RÔLE — LE critère « cette fiche est une stratégie décidée, que le soir fait tourner », une fois pour le détecteur
+      des signaux et pour le teneur des positions. Il ne juge pas la fiche : la garde du soir (`fiche_suivie` du juge)
+      dit ensuite si elle est jouable, et la met à part avec son motif sinon.
+    ② CONTEXTE D'APPEL — `fiches_du_soir` de programmes/DETECTER_LES_SIGNAUX_GITHUB.py ; `tenir_pour_de_vrai` de
+      programmes/TENIR_LES_POSITIONS.py ; les épreuves du soir.
+    ③ ENTRÉE — `fiche` : une ligne du registre des stratégies, la DERNIÈRE de son identifiant (n°83, `fiches_du_registre`).
+    ④ CONDITIONS D'ENTRÉE — Aucune : une case absente vaut vide.
+    ⑤ SORTIE — UNE valeur : vrai si `etat_vie`, sans blancs de bord et en majuscules, est dans ETATS_SUIVIS_PAR_LE_SOIR
+      et si `univers` n'est pas vide. Exemple réel : C5E10-QA-V1 (`etat_vie` « QA », univers « EN,BVI,FGR,RNO,URW,VIE »)
+      → vrai ; IND-001-RETEST (`LABO`) → faux.
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire `etat_vie` et `univers`, comparer.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Jean-Luc décide, et sa décision s'écrit dans l'état de la fiche (plan V7, bloc 5m ⑥ : « son état passe à
+      celui que la règle prévoit ; le circuit du soir applique alors la durée et les réglages de cette fiche ») ; R-513 :
+      l'état se lit à un seul endroit, `statut` n'est qu'un affichage. Le critère était écrit deux fois (détecteur,
+      teneur) : deux écritures d'une même chose divergent toujours (R-708).
+    ⑨ CE QUI CLOCHE — Une fiche à `statut` « ⭐ VIVANTE » mais `etat_vie` hors de ces deux états n'est plus suivie, sans
+      un mot ici : c'est la fiche « à deux stations » que `tests/EPREUVE_UNE_STATION_PAR_FICHE_Mer_04-11-2026.py` fait
+      rougir (R-513 ③), pas ce critère.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    etat = (fiche.get("etat_vie") or "").strip().upper()
+    return etat in ETATS_SUIVIS_PAR_LE_SOIR and bool((fiche.get("univers") or "").strip())
 
 
 def noms_d_une_strategie(ligne_du_registre):

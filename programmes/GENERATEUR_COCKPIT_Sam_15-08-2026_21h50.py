@@ -356,6 +356,7 @@ class Sources:
         self.trace = []      # (nom affiche, statut, detail)
         self.ohlcv = {}      # valeur -> [(date, close, high, low, open)]
         self.trades = []     # journal des operations cloturees
+        self.corrections = []  # corrections decidees des comptes un jeton (A-801), lues, jamais calculees
         self.positions = []  # positions ouvertes
         self.strategies = [] # registre d'etat civil
         self.candidates = [] # file d'idees
@@ -612,6 +613,15 @@ class Sources:
             self.trace.append((os.path.basename(ch), 'LU', f'{len(self.trades)} operations cloturees'))
         else:
             self.trace.append(('journal_trades.csv', 'ABSENT', 'journal vide affiche'))
+
+        # --- corrections decidees des comptes un jeton (A-801, 18-11-2026) : LUES pour etre DITES sous la ligne
+        # retiree ; le cockpit ne recompte rien, le cumul corrige vient de la mesure (superviseur R-759, point 1)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from CONTRATS_DES_FICHIERS import NOM_DES_CORRECTIONS_UN_JETON as _nom_corr
+        ch = self._p(_nom_corr)
+        if ch:
+            self.corrections = self._lire_csv(ch)
+            self.trace.append((os.path.basename(ch), 'LU', f'{len(self.corrections)} ligne(s) de correction un jeton'))
 
         # --- positions ouvertes ---
         ch = self._p('positions_ouvertes.csv')
@@ -2569,8 +2579,10 @@ def bloc_journal(S):
       verifier, la synthese a juger.
     ② CONTEXTE D APPEL — Un seul appelant : `construire`, une fois, pour la
       cinquieme des six sections de la page.
-    ③ ENTREE — `S` : l objet des sources, deja charge. La section y lit deux
-      choses : le journal des operations cloturees et l historique des mesures.
+    ③ ENTREE — `S` : l objet des sources, deja charge. La section y lit trois
+      choses : le journal des operations cloturees, les corrections decidees des
+      comptes un jeton (`S.corrections`, depuis le 18-11-2026) et l historique des
+      mesures.
     ④ CONDITIONS D ENTREE — Chaque ligne du journal doit porter un resultat net
       CONVERTIBLE EN NOMBRE : c est la seule condition dure de tout le programme,
       et elle n est pas rattrapee.
@@ -2581,7 +2593,10 @@ def bloc_journal(S):
     ⑥ TRAITEMENT — ① pour chaque operation, composer une ligne : date de sortie,
       titre avec, dessous en petit, strategie et comptabilite (« NON DITE » si
       la case est vide), prix d entree, prix de sortie, motif, et resultat net en vert s il
-      est positif, en rouge sinon · ② chercher la mesure la plus recente en
+      est positif, en rouge sinon ; sous une operation retiree des comptes un jeton
+      (meme strategie, valeur, jour d achat et comptabilite qu une ligne « retiree »
+      du fichier des corrections), dire qu elle est retiree et ce qui est compte a
+      sa place, lu dans la ligne « ajoutee » de la meme action · ② chercher la mesure la plus recente en
       comptabilite un jeton, toutes strategies confondues · ③ si elle existe,
       composer la synthese — gagnantes sur total, serie en cours, pire chute,
       cumul net — et la mention de sa date · ④ sinon composer un message disant
@@ -2656,6 +2671,14 @@ def bloc_journal(S):
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
     lignes = []
+    # LA LIGNE RETIREE DES COMPTES UN JETON LE DIT, ET DIT CE QUI EST COMPTE A SA PLACE (A-801, superviseur R-759 du
+    # 18-11-2026, point 1) : sans cela, la synthese (lue dans la mesure, corrigee) contredisait la liste. Rien n'est
+    # recompte : les deux lignes sont LUES dans le fichier des corrections, rapprochees par l'identite du trade.
+    from CONTRATS_DES_FICHIERS import GESTE_RETIREE as _gr, GESTE_AJOUTEE as _ga
+    from CONTRATS_DES_FICHIERS import IDENTITE_D_UNE_LIGNE_DU_JOURNAL as _id_ligne
+    _ident = ('action',) + tuple(_id_ligne)   # la cle de la correction elle-meme (R-708)
+    _ajoutees = {c.get('action'): c for c in S.corrections if c.get('geste') == _ga}
+    _retirees = {tuple(c.get(k) for k in _ident[1:]): c for c in S.corrections if c.get('geste') == _gr}
     # CHAQUE LIGNE DIT SA STRATEGIE ET SA COMPTABILITE (defaut 3 de A-491, 27-09-2026).
     # Avant, le tableau affichait quatre fois UNIBAIL_RODAMCO au 27-08 a -2 796,25 EUR
     # sans dire que c etaient deux strategies fois deux comptabilites : un lecteur
@@ -2671,6 +2694,13 @@ def bloc_journal(S):
                        esc(t.get('motif_sortie', '')),
                        f'<b style="color:{C["grn"] if float(t.get("pnl_net_eur") or 0) > 0 else C["red"]}">'
                        f'{f_eur(t.get("pnl_net_eur"))}</b>'])
+        _r = _retirees.get(tuple(t.get(k) for k in _ident[1:]))
+        if _r:
+            _a = _ajoutees.get(_r.get('action'), {})
+            lignes[-1][1] += (f'<div style="font-size:9px;color:{C["gld"]}">RETIREE DES COMPTES UN JETON '
+                              f'({esc(_r.get("action", ""))}), ligne gardee au journal — comptee a sa place : '
+                              f'{esc(_a.get("valeur", "?"))} achetee le {esc(_a.get("date_entree", "?"))}, '
+                              f'{f_eur(_a.get("pnl_net_eur"))}</div>')
     # SYNTHESE : valeurs LUES dans l historique des mesures, jamais recalculees ici (A-208)
     m = derniere_mesure(S.mesures, None, 'un jeton')
     if m:

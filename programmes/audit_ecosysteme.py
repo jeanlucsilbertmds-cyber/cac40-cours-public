@@ -188,7 +188,8 @@ d'une soixantaine de lignes, et n'en corrige jamais aucun.
   complètes, valeurs jouées dans l'univers déclaré · ⑬ maillon 12, le prix
   d'entrée est-il l'ouverture de la séance · ⑭ maillon 13, creux en cours et
   pertes consécutives · ⑮ maillon 11, un seul jeton par stratégie et objectif de
-  gain et perte acceptée conformes au module · ⑯ maillon 14, fraîcheur des cours,
+  gain et perte acceptée conformes aux seuils de la fiche de chaque position (depuis le
+  18-11-2026, étape E8 ; avant : au module de C5) · ⑯ maillon 14, fraîcheur des cours,
   séances complètes, poids du projet · ⑰ maillon 18, chaque tâche a-t-elle laissé
   sa trace datée · ⑱ maillon 15, chaque stratégie a-t-elle sa ligne au REGISTRE,
   son document et son module · ⑲ maillon 16, le backlog, confié à
@@ -2307,23 +2308,70 @@ else:
 _s3, _f_s3, _e3 = _lire_le_registre()   # la dernière ligne d'un identifiant fait foi (n°83)
 _serv3 = [s for s in _s3
           if (s.get("etat_vie") or "").strip().upper() in ("QA", "PRODUCTION")]
-# LE LIEN FICHE -> CODE PASSE PAR LA COLONNE `chemin`, PAS PAR LE NOM.
-# Premiere version : on cherchait la racine de l'identifiant dans les noms de
-# fichiers — « C5E10 » ne se trouve nulle part, le module s'appelant
-# MODULE_C5_ETENDU_10. Le maillon denoncait alors DEUX strategies qui ont
-# pourtant leur code. Chercher un code par ressemblance de nom est exactement
-# ce que le chapitre IDENTITE interdit ; tant que la fiche ne DESIGNE pas son
-# module, ce controle ne peut rien affirmer.
-_MODULES = {"C5E10-QA-V1": "MODULE_C5_ETENDU",
-            "C5E10-OBS-V1": "MODULE_C5_ETENDU"}
-_sans_code, _sans_lien = [], []
-for s in _serv3:
-    _id = (s.get("id") or "").strip()
-    _mot = _MODULES.get(_id)
-    if not _mot:
-        _sans_lien.append(_id)
-    elif not existe(_mot):
-        _sans_code.append("%s (%s)" % (_id, _mot))
+# LE LIEN FICHE -> CODE PASSE PAR LA FICHE ELLE-MÊME (A-925, 19-11-2026) : ses cases `module_signal`,
+# `fonction_signal` et `reglages_signal`, lues et chargées par le juge des stratégies, comme le soir les charge.
+# Avant le 19-11-2026, deux identifiants étaient écrits ici en dur (C5E10-QA-V1, C5E10-OBS-V1 → « MODULE_C5_ETENDU ») :
+# toute autre fiche en service était dite « AUCUN MODULE CONNU », même quand elle déclarait son module (inventaire du
+# 19-11-2026 : IND-001-RETEST et C5-EI-PARAMS).
+
+
+def _modules_des_fiches_en_service(serv):
+    """Dit, pour chaque fiche en service, si elle déclare un module de signal et si ce module se charge.
+
+    ① RÔLE — Le contrôle du maillon 3 : toute stratégie en service désigne son module de signal (sinon ⚠), et ce
+      module se charge comme le soir le charge (sinon ❌ critique : elle prend des positions sans calcul).
+    ② CONTEXTE D'APPEL — Le maillon 3, une fois par passage du radar.
+    ③ ENTRÉE — `serv` : les fiches du registre dont `etat_vie` vaut QA ou PRODUCTION (dernière ligne d'un
+      identifiant, n°83).
+    ④ CONDITIONS D'ENTRÉE — `programmes/JUGE_DES_STRATEGIES.py` à côté de ce fichier ; `PROJ` est la racine du dépôt
+      (le circuit lance le radar avec « $GITHUB_WORKSPACE »).
+    ⑤ SORTIE — TROIS valeurs : ① les identifiants sans module déclaré (case `module_signal` vide) · ② les « identifiant
+      (motif) » dont le module déclaré ne se charge pas · ③ None, ou le motif pour lequel le juge ne s'est pas chargé
+      (rien n'est alors jugé). Exemple réel (copie du 19-11-2026, IND-001-RETEST passée en QA) : C5E10-QA-V1,
+      C5E10-OBS-V1 et IND-001-RETEST → ([], [], None).
+      [rend: 3]
+    ⑥ TRAITEMENT — ① charger le juge à côté de ce fichier · ② pour chaque fiche : lire ses cases par
+      `declaration_du_signal` (la seule lecture des colonnes du signal) ; case vide → sans lien ; sinon
+      `signal_de_la_fiche(PROJ, fiche)`, la fonction qui charge le module pour le juge, le détecteur et le teneur
+      (R-708) ; une ValueError → sans code, avec son motif.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — R-708 : deux lectures d'une même chose divergent toujours ; le radar lit le module comme le soir.
+      Réparer par une propriété, jamais par une énumération : le radar ne change plus d'avis quand une fiche change
+      de nom.
+    ⑨ CE QUI CLOCHE — ① `signal_de_la_fiche` EXÉCUTE le module (comme le juge) : un module qui écrirait au chargement
+      écrirait aussi ici — la porte `declaration_de_signal` du juge filtre avant. ② Lancé sur un dossier à plat (sans
+      `programmes/`), chaque module serait dit introuvable, en critique.
+    ⑩ EFFET — Charge et exécute le juge et les modules de signal déclarés ; n'écrit rien.
+    ⑪ TERMINAISON — Rend la main ; le chargement du juge est rattrapé. Un module de signal chargé peut ne pas revenir :
+      du code de module, non borné.
+      [sort: non]
+    """
+    import importlib.util as _u
+    try:
+        _sp = _u.spec_from_file_location("juge_modules_radar", os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "JUGE_DES_STRATEGIES.py"))
+        J = _u.module_from_spec(_sp); _sp.loader.exec_module(J)
+    except Exception as e:
+        return [], [], "%s : %s" % (type(e).__name__, e)
+    sans_lien, sans_code = [], []
+    for s in serv:
+        _id = (s.get("id") or "").strip()
+        module = J.declaration_du_signal(s)[0]
+        if module.lower() in J.VIDE:
+            sans_lien.append(_id)
+            continue
+        try:
+            J.signal_de_la_fiche(PROJ, s)
+        except ValueError as e:
+            sans_code.append("%s (%s)" % (_id, e))
+    return sans_lien, sans_code, None
+
+
+_sans_lien, _sans_code, _juge_illisible = _modules_des_fiches_en_service(_serv3)
+if _juge_illisible:
+    rapport.append((WARN, "3-Calcul", "MODULES DE SIGNAL NON VÉRIFIABLES — juge des stratégies illisible ("
+                    + _juge_illisible + ")"))
+    score["warn"] += 1
 check("3-Calcul", not _sans_lien,
       "Toute stratégie en service désigne son module de signal",
       "AUCUN MODULE CONNU POUR : %s — la fiche ne dit pas quel code produit "
@@ -2828,6 +2876,87 @@ def _maillon_des_frais():
 
 _maillon_des_frais()
 
+
+def _maillon_des_seuils_par_fiche(ouvertes):
+    """Confronte l'objectif et le stop de chaque position ouverte aux seuils de SA fiche, au registre des stratégies.
+
+    ① RÔLE — Le radar par fiche (étape E8 du planning, plan V7 bloc 9, BACKLOG A-644 ③) : une position se juge sur les
+      seuils de la stratégie qui l'a achetée, jamais sur ceux de C5.
+    ② CONTEXTE D'APPEL — Le maillon 11 (positions ouvertes), une fois par passage, quand le fichier des positions se lit.
+    ③ ENTRÉE — `ouvertes` : les lignes du fichier des positions au statut OUVERTE (`prix_entree`, `tp`, `sl` en euros,
+      `strategie`, `valeur`).
+    ④ CONDITIONS D'ENTRÉE — `programmes/JUGE_DES_STRATEGIES.py` à côté de ce fichier (il porte `lecture_du_soir`, la
+      lecture des seuils que le soir exécute) ; le registre des stratégies lisible par `_lire_le_registre`.
+    ⑤ SORTIE — Aucune valeur rendue. Ajoute au rapport UNE ligne du constat (✅, ou ❌ critique nommant chaque position
+      dont l'objectif ou le stop s'écarte de plus de 0,01 € du prix d'entrée × (1 + objectif) ou × (1 − stop) de sa
+      fiche), et, s'il y en a, UNE ligne ⚠ des positions non vérifiables (fiche absente, refusée par `lecture_du_soir`,
+      prix illisibles). Exemple réel : une position C5E10-OBS-V1 entrée à 100,00 € doit porter 104,00 et 97,50.
+      [rend: rien]
+    ⑥ TRAITEMENT — ① charger le juge à côté de ce fichier (s'il ne se charge pas : ⚠ NON VÉRIFIABLE, comme avant sans
+      le module de C5) · ② lire les fiches (dernière ligne d'un identifiant, n°83) · ③ pour chaque position, trouver
+      sa fiche par `noms_d_une_strategie` du contrat (identifiant ou nom court), lire ses seuils par `lecture_du_soir`,
+      comparer à 0,01 € près · ④ écrire le constat.
+    ⑦ UNITÉ — Prix en euros ; seuils de la fiche en FRACTIONS (0,04 pour « +4.0% »), rendus par `lecture_du_soir`.
+    ⑧ POURQUOI — Jusqu'au 18-11-2026, ce contrôle comparait TOUTE position aux constantes du module de C5
+      (`C5E10_TP`, `C5E10_SL`) et rougissait en CRITIQUE sur la position de toute autre stratégie (A-644, défaut ③,
+      trouvé par l'audit du code du 31-10-2026) : aucune stratégie autre que C5 ne pouvait vivre sans fausse alerte.
+      Les seuils se lisent au juge, une fois (A-548) ; la formule « prix × (1 ± seuil) » reste celle du contrôle
+      d'avant, à la même tolérance. Le juge se charge À CÔTÉ DE CE FICHIER, comme le fait le teneur des positions
+      (`_juge_d_a_cote`) : au circuit public, c'est la copie publique du code.
+    ⑨ CE QUI CLOCHE — ① Un nom court partagé par deux fiches (A-493) rattache la position à la PREMIÈRE trouvée. ② Une
+      fiche modifiée sur place pendant la position (erreur de manipulation, décision de Jean-Luc du 13-11-2026 à
+      16h30) rougit ici en CRITIQUE si ses nouveaux seuils se lisent, en ⚠ sinon ; le teneur la signale aussi. ③ Le
+      recalcul indépendant des trades clôturés (maillon 7) rejoue encore chaque trade par le module de C5, quelle que
+      soit sa fiche : non réglé ici (BACKLOG, étape E8).
+    ⑩ EFFET — AJOUTE des lignes à `rapport`, augmente `score` ; exécute le juge des stratégies en le chargeant ; lit le
+      registre. N'écrit aucun fichier.
+    ⑪ TERMINAISON — Rend la main ; le chargement du juge et chaque lecture sont rattrapés. Aucun appel qui puisse ne pas
+      revenir.
+      [sort: non]
+    """
+    import importlib.util as _u
+    try:
+        _sp = _u.spec_from_file_location("juge_seuils_radar", os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "JUGE_DES_STRATEGIES.py"))
+        J = _u.module_from_spec(_sp); _sp.loader.exec_module(J)
+        import CONTRATS_DES_FICHIERS as _C
+    except Exception as e:
+        rapport.append((WARN, "11-Positions", "TP/SL des positions NON VÉRIFIABLE — juge des stratégies ou contrat "
+                        f"illisible ({type(e).__name__} : {e})"))
+        score["warn"] += 1
+        return
+    fiches, _f, _e = _lire_le_registre()   # la dernière ligne d'un identifiant fait foi (n°83)
+    faux, non_verifiables, vues = [], [], []
+    for p in ouvertes:
+        v, sid = p.get("valeur", "?"), (p.get("strategie") or "").strip()
+        fiche = next((x for x in (fiches or []) if sid in _C.noms_d_une_strategie(x)), None)
+        if fiche is None:
+            non_verifiables.append(f"{v} ({sid or 'sans stratégie'}) : fiche absente du registre")
+            continue
+        try:
+            tp_f, sl_f, _h = J.lecture_du_soir(PROJ, fiche)
+        except ValueError as e:
+            non_verifiables.append(f"{v} ({sid}) : fiche refusée par la lecture du soir — {e}")
+            continue
+        try:
+            pe, tp, sl = float(p["prix_entree"]), float(p["tp"]), float(p["sl"])
+        except (KeyError, TypeError, ValueError):
+            non_verifiables.append(f"{v} ({sid}) : prix d'entrée, objectif ou stop illisible")
+            continue
+        regle = f"{sid} +{100*tp_f:.1f} % / -{100*sl_f:.1f} %"
+        if abs(tp - pe*(1+tp_f)) > 0.01 or abs(sl - pe*(1-sl_f)) > 0.01:
+            faux.append(f"{v} (fiche {regle} : objectif {tp:.2f}, stop {sl:.2f} pour une entrée à {pe:.2f})")
+        elif regle not in vues:
+            vues.append(regle)
+    check("11-Positions", not faux,
+          "TP/SL des positions ouvertes conformes aux seuils de leur fiche"
+          + (f" ({' · '.join(vues)})" if vues else " (aucune position vérifiée)"),
+          f"TP/SL INCOHÉRENTS AVEC LA FICHE sur : {' | '.join(faux)}", critique=True)
+    if non_verifiables:
+        rapport.append((WARN, "11-Positions", "TP/SL NON VÉRIFIABLE pour : " + " | ".join(non_verifiables)))
+        score["warn"] += 1
+
+
 # ═══ MAILLON 11 — POSITIONS OUVERTES (cohérence) ═══
 pos, f_pos = _lire_csv(["positions_ouvertes"])
 if f_pos is None:
@@ -2856,25 +2985,7 @@ else:
           "règle 1 jeton par stratégie respectée",
           f"RÈGLE VIOLÉE : plusieurs positions un jeton sur la même stratégie — {' | '.join(_violations)}",
           critique=True)
-    # cohérence TP/SL — vérifiable UNIQUEMENT si le module de référence est
-    # importable (R-708 interdit de réimplémenter la formule). Sans lui on dit
-    # NON VÉRIFIABLE : on ne conclut jamais à la conformité, ni à l'absence.
-    if MOD is None:
-        rapport.append((WARN, "11-Positions",
-            "TP/SL des positions NON VÉRIFIABLE — module C5-ETENDU-10 absent"))
-        score["warn"] += 1
-    else:
-        faux = []
-        for p in ouvertes:
-            try:
-                pe, tp, sl = float(p["prix_entree"]), float(p["tp"]), float(p["sl"])
-                if abs(tp - pe*(1+MOD.C5E10_TP)) > 0.01 or abs(sl - pe*(1-MOD.C5E10_SL)) > 0.01:
-                    faux.append(p.get("valeur","?"))
-            except Exception:
-                pass
-        check("11-Positions", not faux,
-              f"TP/SL des positions ouvertes conformes au module (+{100*MOD.C5E10_TP:.1f} % / -{100*MOD.C5E10_SL:.1f} %)",
-              f"TP/SL INCOHÉRENTS sur : {', '.join(faux)}", critique=True)
+    _maillon_des_seuils_par_fiche(ouvertes)
 
 # ═══ MAILLON 14 — A-41 : FRAÎCHEUR DES DONNÉES ET TAILLE DU PROJET ═══
 from datetime import timedelta as _td
