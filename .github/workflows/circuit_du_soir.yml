@@ -247,7 +247,29 @@ jobs:
           git -c user.email=actions@github.com -c user.name=actions \
             diff --cached --quiet || git -c user.email=actions@github.com \
             -c user.name=actions commit -m "seance du jour versee dans le fichier maitre [skip ci]"
-          git push || { echo "::error::poussee du maitre refusee"; exit 1; }
+          RESTE=$(git diff --name-only)
+          if [ -n "$RESTE" ]; then
+            echo "::error::FICHIER(S) SUIVI(S) MODIFIE(S) SANS ETRE ENREGISTRE(S) — la poussee serait refusee : $RESTE"
+            exit 1
+          fi
+          VERSE_ICI=$(git rev-parse HEAD:donnees/cours_maitre.csv)
+          PARTI=0
+          for i in 1 2 3; do
+            if git pull --rebase origin main; then
+              if [ "$(git rev-parse HEAD:donnees/cours_maitre.csv)" != "$VERSE_ICI" ]; then
+                echo "::error::LE FICHIER MAITRE A CHANGE AU DEPOT PENDANT LE PASSAGE — le rebase l aurait melange au versement du soir : rien n est pousse, decision de Jean-Luc"
+                exit 1
+              fi
+              if git push; then PARTI=1; break; fi
+            else
+              git rebase --abort || true
+            fi
+            echo "essai $i refuse, nouvelle tentative"; sleep 5
+          done
+          if [ "$PARTI" -ne 1 ]; then
+            echo "::error::POUSSEE DU MAITRE REFUSEE 3 FOIS — le detecteur calculerait sur un maitre que le depot n a pas"
+            exit 1
+          fi
 
       - name: Controler les valeurs attendues
         id: valeurs

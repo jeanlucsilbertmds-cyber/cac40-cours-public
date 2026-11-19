@@ -1501,6 +1501,33 @@ FICHIERS_A_VENIR = {
     "donnees/sources_dividendes/DISTRIBUTIONS_DECIDEES.csv": ("DISTRIBUTIONS_DECIDEES", "ÉCRIT À LA MAIN", "DIV"),
 }
 
+# LA FILE DE RELECTURE — Jeu 19-11-2026 (BACKLOG A-920 : décision de Jean-Luc à 12h29, « 1 » : « la boucle lit une
+# liste des livraisons à relire au lieu de compter les branches ; elle remplace A-448 »). Refaite le même jour sur le
+# verdict du superviseur (R-759, « simplifier ») après la relecture de 13h20, qui avait cassé la première forme (un
+# seul fichier en colonnes, quatre états, deux écrivains : lignes perdues en silence, conflits entre Chat et Cowork).
+# LA FILE EST UN DOSSIER SUR main : UN FICHIER PAR LIVRAISON, ÉCRIT PAR LE CHAT SEUL. `programmes/BOUCLE_DE_CHECK.py
+# --deposer` le crée au dépôt d'une livraison, `--retirer` le retire à la fusion ; chacun part de origin/main
+# fraîchement tiré, commite ce seul fichier et pousse lui-même. Cowork ne l'écrit jamais. LUE sur origin/main par
+# `programmes/BOUCLE_DE_CHECK.py` (les deux côtés de la boucle de check) : la livraison guettée est la première dans
+# l'ordre de `deposee_le`. Aucun état dans le fichier : l'état du tour se lit dans les notes echanges/A_RELIRE.md et
+# echanges/RELU.md de la branche. Nom du fichier : « <branche>__<12 premiers caractères de la pointe>.txt » (la
+# longueur vit dans programmes/BOUCLE_DE_CHECK.py, POINTE_DU_NOM : aucun nombre dans ce fichier, R-743 ②) ; un
+# fichier du dossier dont le nom n'a pas cette forme (README, .gitkeep) n'est pas une livraison : il est nommé à chaque
+# regard et ne bloque rien (superviseur R-759, 3e tour, R5). Contenu : une ligne par
+# champ, dans l'ordre ci-dessous, « champ=valeur » ; `pointe` : l'identifiant complet du commit livré, en hexadécimal
+# minuscule, propre à la branche (dans `git rev-list origin/main..origin/<branche>`) ; `deposee_le` : heure de Paris
+# À LA SECONDE, dans la forme FORME_DE_DEPOSEE_LE_EN_FILE, par exemple « 2026-11-19 20h01m50s » (secondes ajoutées
+# le 19-11-2026 sur le verdict du superviseur, R6 : deux dépôts de la même minute étaient relus dans l'ordre de leur
+# nom, pas de leur dépôt) ; `objet` : une ligne qui dit ce qui est livré. Un dossier vide (absent de git) est une
+# file vide. Pas dans CONTRATS_PAR_FICHIER : ce n'est pas un fichier en colonnes, et un dossier vide y serait un
+# « INTROUVABLE » qui ferait rougir le circuit du soir ; la forme est contrôlée par le lecteur à chaque regard.
+DOSSIER_DE_LA_FILE_DE_RELECTURE = "echanges/file/"
+CHAMPS_D_UNE_LIVRAISON_EN_FILE = ["branche", "pointe", "deposee_le", "objet"]
+SEPARATEUR_D_UNE_LIVRAISON_EN_FILE = "="
+SEPARATEUR_DU_NOM_D_UNE_LIVRAISON_EN_FILE = "__"
+EXTENSION_D_UNE_LIVRAISON_EN_FILE = ".txt"
+FORME_DE_DEPOSEE_LE_EN_FILE = "%Y-%m-%d %Hh%Mm%Ss"  # strftime, heure de Paris : « 2026-11-19 20h01m50s »
+
 # La table qui relie un fichier à son contrat — un seul endroit.
 CONTRATS_PAR_FICHIER = {
     # la déclaration datée, née avec son seul en-tête le 05-11-2026 (lot C) : confrontée dès le premier jour

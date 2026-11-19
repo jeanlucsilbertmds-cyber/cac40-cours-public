@@ -159,7 +159,41 @@ jobs:
           git -c user.email=actions@github.com -c user.name=actions \
             diff --cached --quiet || git -c user.email=actions@github.com \
             -c user.name=actions commit -m "seance du jour versee dans le fichier maitre [skip ci]"
-          git push || { echo "::error::poussee du maitre refusee"; exit 1; }
+          # DEBUT DE LA POUSSEE DU MAITRE — l epreuve B73 de tests/EPREUVES_DE_LA_BOUCLE_DE_CHECK_Ven_16-10-2026.py
+          # joue les lignes d ici jusqu a la marque de fin, telles quelles, dans des depots jetables.
+          # TROIS ESSAIS, COMME LES AUTRES POUSSEES DU PASSAGE (superviseur R-759, 19-11-2026, 3e tour de la file de
+          # relecture A-920) : la poussee du maitre etait la seule poussee nue du circuit. Une poussee du Chat sur main
+          # entre la collecte et ce pas (chaque depot ou retrait de la file en est une) la faisait refuser, le passage
+          # rougissait et le pas des signaux ne tournait pas — or une seance non lue le jour meme perd ses signaux
+          # pour toujours.
+          # LE REBASE NE REECRIT JAMAIS LE FICHIER MAITRE : TENIR_L_HISTORIQUE.py a controle le maitre de cette
+          # machine ; si, apres le rebase, le maitre n est plus octet pour octet celui-la (le Chat l a change au depot
+          # pendant le passage, et git a fusionne les deux), rien n est pousse et le pas s arrete en le disant.
+          # Un rebase en conflit est abandonne avant l essai suivant (sinon les essais suivants refusent de partir).
+          RESTE=$(git diff --name-only)
+          if [ -n "$RESTE" ]; then
+            echo "::error::FICHIER(S) SUIVI(S) MODIFIE(S) SANS ETRE ENREGISTRE(S) — la poussee serait refusee : $RESTE"
+            exit 1
+          fi
+          VERSE_ICI=$(git rev-parse HEAD:donnees/cours_maitre.csv)
+          PARTI=0
+          for i in 1 2 3; do
+            if git pull --rebase origin main; then
+              if [ "$(git rev-parse HEAD:donnees/cours_maitre.csv)" != "$VERSE_ICI" ]; then
+                echo "::error::LE FICHIER MAITRE A CHANGE AU DEPOT PENDANT LE PASSAGE — le rebase l aurait melange au versement du soir : rien n est pousse, decision de Jean-Luc"
+                exit 1
+              fi
+              if git push; then PARTI=1; break; fi
+            else
+              git rebase --abort || true
+            fi
+            echo "essai $i refuse, nouvelle tentative"; sleep 5
+          done
+          if [ "$PARTI" -ne 1 ]; then
+            echo "::error::POUSSEE DU MAITRE REFUSEE 3 FOIS — le detecteur calculerait sur un maitre que le depot n a pas"
+            exit 1
+          fi
+          # FIN DE LA POUSSEE DU MAITRE
 
       - name: Controler les valeurs attendues
         id: valeurs

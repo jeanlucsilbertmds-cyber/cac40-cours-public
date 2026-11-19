@@ -7,24 +7,37 @@
   ligne du journal dans une forme fixe. Il ne relit rien, ne répare rien, ne décide rien : il dit à la conversation qui
   le lance s'il y a quelque chose à faire, en UNE ligne qui commence par un mot fixe — « GUETTE », « TOUR À FAIRE »,
   « NOTE REFUSÉE », « MA NOTE REFUSÉE », « ARRÊT », « ERREUR » —, par exemple
-  « TOUR À FAIRE · travail-filet · a714f09 · la note de l'autre côté passe le garde-fou · 3 allers-retours sur 10 ».
+  « TOUR À FAIRE · travail-filet · a714f09 · la note de l'autre côté passe le garde-fou · 3 allers-retours sur 10 »,
+  suivie, le cas échéant, de lignes « AVIS · … » redites à chaque regard (livraison close à retirer, fichier étranger).
+  La livraison à guetter est la première NON CLOSE, dans l'ordre des dépôts, de la FILE DE RELECTURE : le dossier
+  echanges/file/ sur origin/main, un fichier par livraison. Le Chat seul écrit cette file, par ce programme :
+  « --deposer » y ajoute un fichier, « --retirer » l'enlève à la fusion ; chacun commite et pousse lui-même.
 ② CONTEXTE D'APPEL — Lancé à la main par chacune des deux conversations, dans son outil de surveillance (Monitor), qui
   réveille la conversation à chaque ligne écrite :
   python3 programmes/BOUCLE_DE_CHECK.py <clone> --cote chat|cowork
   et, à la fin de chaque tour, pour la ligne du journal :
   python3 programmes/BOUCLE_DE_CHECK.py <clone> --noter --cote chat|cowork --commit <commit> --texte "<texte>"
+  et, pour la file (le Chat seul : au dépôt d'une livraison, puis à sa fusion ; le programme pousse sur main) :
+  python3 programmes/BOUCLE_DE_CHECK.py <clone> --cote chat --deposer --branche <b> --objet "<objet>" [--pointe <h>]
+  python3 programmes/BOUCLE_DE_CHECK.py <clone> --cote chat --retirer --branche <b> [--pointe <h>]
   Aucune tâche planifiée ne l'appelle. tests/EPREUVES_DE_LA_BOUCLE_DE_CHECK_Ven_16-10-2026.py l'éprouve.
 ③ ENTRÉE — Le chemin d'un clone du dépôt privé dont le distant s'appelle « origin » ; le côté qui lance ; pour guetter,
   l'intervalle entre deux regards (60 secondes par défaut) et le dossier de sa propre copie (par défaut sous le dossier
-  temporaire du système, un par clone guetté) ; pour noter, le commit et le texte. L'accès au dépôt privé vient de la
+  temporaire du système, un par clone guetté) ; pour noter, le commit et le texte ; pour la file, la branche, l'objet
+  et, au besoin, la pointe. La file elle-même est lue sur origin/main ; son dossier, ses champs et la forme de ses
+  noms sont ceux de programmes/CONTRATS_DES_FICHIERS.py (DOSSIER_DE_LA_FILE_DE_RELECTURE et ses voisins), qui doit
+  être dans le même dossier que ce programme. L'accès au dépôt privé vient de la
   configuration du clone (http.extraheader, credential.helper, recopiés dans la copie à chaque démarrage) ou de
   l'environnement du programme (GIT_CONFIG_COUNT, GIT_CONFIG_KEY_0, GIT_CONFIG_VALUE_0), que chaque git lancé hérite.
 ④ CONDITIONS D'ENTRÉE — git sur la machine ; le clone sait joindre « origin ». Le programme ne travaille JAMAIS dans ce
   clone pour guetter : il s'en fait une copie à lui, qu'il met à jour seul ; la note est lue dans une copie de travail
   jetable de cette copie. Une seule surveillance à la fois par copie : un verrou de fichier l'impose.
 ⑤ SORTIE — Pour guetter : des lignes, la dernière dit l'événement ; code 0 sur un événement, code 2 si le programme n'a
-  pas pu faire son travail (R-734). Pour noter : la ligne écrite ; code 0, ou 2 sur un argument manquant.
-⑥ TRAITEMENT — Voir `un_regard`, `guetter` et `noter`.
+  pas pu faire son travail (R-734) — dont un fichier de file mal formé, une branche absente, une livraison déjà
+  fusionnée ou une pointe qui n'est pas propre à sa branche. Pour noter : la ligne écrite, code 0. Pour déposer ou
+  retirer : « DÉPOSÉE · <fichier> » ou « RETIRÉE · <fichier> », code 0 ; sinon « ERREUR · <motif> », code 2 (argument
+  manquant, Cowork, livraison refusée, poussée refusée trois fois).
+⑥ TRAITEMENT — Voir `un_regard`, `livraisons_a_relire`, `regard_d_une_livraison`, `guetter`, `noter`, `deposer`, `retirer` et `pousser_la_file`.
 ⑦ UNITÉ — Les heures sont celles de Paris ; les durées en secondes ; un aller-retour = un commit qui touche
   echanges/RELU.md après la dernière ligne de lancement du journal.
 ⑧ POURQUOI — Décision de Jean-Luc du 16-10-2026 à 19h28 (« 1 » : « fais-en un programme ») : la boucle de check, décidée
@@ -34,6 +47,14 @@
   16-10-2026 vers 20h, puis vers 20h40, par un relecteur indépendant, qui a cassé les deux premières versions (relance
   muette, branche supprimée encore vue, journal hérité, notes concurrentes muettes, accès non transmis, refus qui
   tournaient en rond, faux arrêts, surveillances qui se cassaient l'une l'autre) : cette version les répare.
+  La file de relecture : décision de Jean-Luc du 19-11-2026 à 12h29 (BACKLOG A-920), réponse « 1 » à la question
+  « File d'attente écrite (recommandé) : la boucle lit une liste des livraisons à relire au lieu de compter les
+  branches ; elle remplace A-448 ». A-448 (23-09-2026) voulait une seule version en attente travail- à la fois ;
+  le 19-11-2026, 60 branches travail- arrêtaient la boucle (« plusieurs versions en attente … — Jean-Luc tranche »),
+  et GitHub refusait leur suppression (HTTP 403). Le nombre de branches n'a plus d'effet. Sa première forme (un
+  fichier en colonnes, quatre états, écrit par les deux côtés) a été cassée par la relecture du 19-11-2026 vers 13h20
+  (lignes perdues en silence, conflits entre écrivains, boucle muette) ; le superviseur (R-759) a jugé « simplifier » :
+  un fichier par livraison, le Chat seul écrit, l'état du tour se lit dans les notes comme avant A-920.
 ⑨ CE QUI CLOCHE — « Tourne en rond » n'est pas reconnu par le programme : il faut juger que deux réparations se
   contredisent ; c'est le relecteur qui l'écrit en tête de sa note (« ARRÊT — TOURNE EN ROND »), et le programme lit
   cette ligne. · La note est vérifiée par le garde-fou de la version relue : une version qui affaiblit le garde-fou
@@ -41,10 +62,17 @@
   sur cette version ») quand le garde-fou, un module qu'il importe ou nomme dans son code, ou une des deux sections du
   registre qu'il lit, a changé ; un fichier qu'il lirait par un nom construit morceau par morceau n'est pas vu. · Les
   arrêts et les refus ne sont annoncés qu'une fois chacun (mémoire dans la copie) ; « TOUR À FAIRE » est redit à
-  chaque relance tant que le tour n'est pas joué.
+  chaque relance tant que le tour n'est pas joué. · Après un rebase poussé de force, la pointe déposée sort de
+  l'histoire de la branche : la boucle s'arrête en erreur jusqu'à ce que la livraison soit redéposée. · Une file vide
+  ne s'annonce pas : la boucle guette sans rien écrire ; la fin d'une relecture s'annonce par les arrêts lus dans les
+  notes (« RIEN DE NEUF », budget, silence…). · Une livraison close (arrêt écrit en tête de sa dernière note, ou
+  budget atteint) mais non retirée est sautée : la suivante est guettée, et « AVIS · CLOSE, À RETIRER » est redit à
+  chaque regard tant que son fichier est là.
 ⑩ EFFET — Crée et met à jour sa propre copie du dépôt (git fetch --prune) et y garde un petit fichier de mémoire ; y
   crée puis retire des copies de travail jetables ; pour noter, ajoute une ligne à echanges/JOURNAL_DE_LA_BOUCLE.md du
-  clone (sans commit : la conversation pousse). Le clone guetté n'est jamais écrit pour guetter.
+  clone (sans commit : la conversation pousse) ; pour déposer ou retirer, fait un fetch dans le clone, y écrit des
+  objets git, et pousse sur main au distant un commit d'un seul fichier de echanges/file/ — sans toucher la copie de
+  travail ni les branches du clone. Le clone guetté n'est jamais écrit pour guetter.
 ⑪ TERMINAISON — Guetter boucle jusqu'à un événement ; l'outil de surveillance l'arrête au bout de 30 minutes (SIGTERM
   passe par le nettoyage ; une copie laissée par un autre signal est retirée au regard suivant), et la conversation le
   relance. Chaque appel à git ou au garde-fou est borné par une limite de temps.
@@ -52,8 +80,11 @@
 """
 import argparse
 import ast
+import csv
 import fcntl
 import hashlib
+import importlib.util
+import io
 import json
 import os
 import re
@@ -86,32 +117,51 @@ ATTENDU = {NOTE_DU_CHAT: "livraison", NOTE_DE_COWORK: "relecture"}   # le rôle 
 ARRET_MARQUE = re.compile(r"(RIEN DE (NEUF|NOUVEAU)(\s*[-:.,!»].*)?|ARRET\s*[-:.]?\s*(DECISION( DE JEAN[- ]?LUC)?|TOURNE EN ROND|SILENCE)\b.*)$")
 RESERVE = re.compile(r"\b(SAUF|MAIS|EXCEPTE|HORMIS)\b")   # « RIEN DE NEUF » suivi d'une réserve n'arrête pas la boucle
 RECU_DU_ROLE = "rôle attendu : "   # le début de la ligne par laquelle le garde-fou prouve qu'il a contrôlé le rôle
+# la forme des champs de la file de relecture (A-920) ; son dossier, ses champs et la forme de ses noms vivent dans
+# programmes/CONTRATS_DES_FICHIERS.py (`contrat_de_la_file`)
+NOM_DE_BRANCHE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")   # jamais un « - » en tête : git le lirait comme une option
+POINTE = re.compile(r"[0-9a-f]{40}")
+POINTE_DU_NOM = 12              # caractères de la pointe dans le nom d'un fichier de file, ni plus ni moins (écrit et lu)
+POINTE_DU_RETRAIT = re.compile(r"[0-9a-f]{7,40}")   # « --retirer --pointe » : 7 caractères au moins (superviseur, 3e tour, R6)
+CLOSE = "close"                 # premier élément rendu par `regard_d_une_livraison` pour une livraison close, à sauter
+COURSE = re.compile(r"\((fetch first|non-fast-forward)\)")   # le refus de git push quand main a bougé entre-temps
+ESSAIS_DE_POUSSEE = 3           # poussées de la file tentées avant de rendre le code 2 (verdict du superviseur, 19-11-2026)
 
 
-def git(depot, *args, limite=120):
+def git(depot, *args, limite=120, brut=False, env=None, erreurs=False):
     """Lance une commande git sur un dépôt et rend son code et sa sortie.
 
     ① RÔLE — Un seul endroit pour appeler git, avec une limite de temps.
-    ② CONTEXTE D'APPEL — Toutes les fonctions de ce programme qui lisent un dépôt.
-    ③ ENTRÉE — `depot` : le dossier · `args` : les mots de la commande après « git » · `limite` : secondes.
+    ② CONTEXTE D'APPEL — Toutes les fonctions de ce programme qui lisent ou écrivent un dépôt.
+    ③ ENTRÉE — `depot` : le dossier · `args` : les mots de la commande après « git » · `limite` : secondes ·
+      `brut` : vrai pour rendre la sortie telle quelle (le contenu d'un fichier de la file, dont la fin compte) ·
+      `env` : des variables ajoutées à l'environnement (l'index jetable de `pousser_la_file`), ou None ·
+      `erreurs` : vrai pour rendre la sortie d'ERREUR à la place de la sortie standard (le motif d'un refus de
+      poussée, lu par `pousser_la_file`).
     ④ CONDITIONS D'ENTRÉE — git installé.
     ⑤ SORTIE — DEUX valeurs : le code de sortie (124 si la limite est dépassée), puis la sortie standard sans le saut de
-      ligne final.
+      ligne final (entière si `brut`, et ses fins de ligne « \r\n » gardées telles quelles).
       [rend: 2]
     ⑥ TRAITEMENT — subprocess.run avec capture ; le dépassement de limite devient le code 124. L'environnement du
-      programme passe à git tel quel : c'est par là qu'arrive l'accès au dépôt privé quand le clone ne le garde pas.
+      programme passe à git tel quel, complété par `env` : c'est par là qu'arrive l'accès au dépôt privé quand le clone
+      ne le garde pas.
     ⑦ UNITÉ — Secondes pour la limite.
     ⑧ POURQUOI — Un fetch qui pend ne doit pas bloquer la surveillance sans rien dire (R-734).
-    ⑨ CE QUI CLOCHE — La sortie d'erreur est jetée : l'appelant ne voit que le code.
+    ⑨ CE QUI CLOCHE — Sans `erreurs`, la sortie d'erreur est jetée : l'appelant ne voit que le code.
     ⑩ EFFET — Celui de la commande git lancée.
     ⑪ TERMINAISON — Rend la main au plus tard après `limite` secondes.
       [sort: non]
     """
     try:
-        r = subprocess.run(["git", "-C", depot, *args], capture_output=True, text=True, errors="replace",
-                           timeout=limite)
+        texte = {} if brut else {"text": True, "errors": "replace"}   # « errors » seul passerait en mode texte
+        r = subprocess.run(["git", "-C", depot, *args], capture_output=True, timeout=limite,
+                           env=dict(os.environ, **env) if env else None, **texte)
     except subprocess.TimeoutExpired:
         return 124, ""
+    if brut:                                            # octets décodés sans traduire les fins de ligne
+        return r.returncode, r.stdout.decode("utf-8", "replace")
+    if erreurs:
+        return r.returncode, r.stderr.rstrip("\n")
     return r.returncode, r.stdout.rstrip("\n")
 
 
@@ -200,25 +250,510 @@ def memoire(depot, cote, ecrire=None):
         return {"annonces": [], "verifiees": {}}
 
 
-def versions_en_attente(depot):
-    """Rend les noms des versions en attente connues du distant, sans le préfixe « origin/ ».
+def contrat_de_la_file():
+    """Charge le contrat de la file de relecture depuis programmes/CONTRATS_DES_FICHIERS.py, voisin de ce programme.
 
-    ① RÔLE — Trouver où vit le travail relu, sans qu'on le nomme (règle de nom du 23-09-2026, A-448).
-    ② CONTEXTE D'APPEL — `un_regard`, après le fetch.
-    ③ ENTRÉE — `depot` : la copie du programme.
-    ④ CONDITIONS D'ENTRÉE — Un fetch avec --prune juste avant : sinon une branche supprimée au distant reste vue.
-    ⑤ SORTIE — UNE valeur : la liste triée des noms qui commencent par « travail- », par exemple ["travail-filet"].
-      [rend: 1]
-    ⑥ TRAITEMENT — git branch -r --list 'origin/travail-*'.
+    ① RÔLE — Lire le dossier de la file, les champs d'une livraison et la forme de son nom là où ils sont déclarés, une
+      fois, sans les recopier ici (R-708 : deux écritures d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `livraisons_a_relire`, `deposer`, `retirer` ; les épreuves.
+    ③ ENTRÉE — — (le fichier CONTRATS_DES_FICHIERS.py du dossier de ce programme).
+    ④ CONDITIONS D'ENTRÉE — CONTRATS_DES_FICHIERS.py est dans le même dossier que ce programme.
+    ⑤ SORTIE — DEUX valeurs : le dictionnaire {"dossier": "echanges/file/", "champs": [...], "separateur": "=",
+      "separateur_du_nom": "__", "extension": ".txt", "debut": 12, "date": "%Y-%m-%d %Hh%Mm%Ss", "nom": <motif
+      compilé du nom d'une livraison, « (.+)__([0-9a-f]{12})\\.txt »>}, ou None ; puis le motif d'échec en une ligne
+      (vide si réussi).
+      [rend: 2]
+    ⑥ TRAITEMENT — Chargement par importlib du fichier voisin ; lecture de DOSSIER_DE_LA_FILE_DE_RELECTURE,
+      CHAMPS_D_UNE_LIVRAISON_EN_FILE, SEPARATEUR_D_UNE_LIVRAISON_EN_FILE, SEPARATEUR_DU_NOM_D_UNE_LIVRAISON_EN_FILE,
+      EXTENSION_D_UNE_LIVRAISON_EN_FILE et FORME_DE_DEPOSEE_LE_EN_FILE ; le motif du nom est construit, une fois, ici,
+      du séparateur du nom, de POINTE_DU_NOM (ce programme : le contrat ne porte aucun nombre, R-743 ②) et de
+      l'extension.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Il n'y en a jamais plus d'une à la fois : c'est ce qui permet de la trouver seul.
-    ⑨ CE QUI CLOCHE — Un échec de git rend une liste vide ; le fetch qui précède a déjà dit son échec.
+    ⑧ POURQUOI — Ce qui se partage se déclare (programmes/CONTRATS_DES_FICHIERS.py) : l'écrivain (le Chat, par ce
+      programme) et le lecteur (les deux côtés, par ce programme) lisent la même déclaration. Chargé à l'appel, pas en
+      tête : les épreuves de la vérification des notes copient ce programme seul dans un dossier jetable et n'en
+      appellent que `verifier_la_note`.
+    ⑨ CE QUI CLOCHE — Le contrat est celui du dossier du programme lancé, pas celui de origin/main : une file écrite
+      sous un contrat plus récent que le programme est refusée (code 2) jusqu'à la mise à jour du clone.
+    ⑩ EFFET — Exécute CONTRATS_DES_FICHIERS.py (déclarations seulement).
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CONTRATS_DES_FICHIERS.py")
+    try:
+        sp = importlib.util.spec_from_file_location("CONTRATS_POUR_LA_BOUCLE", chemin)
+        c = importlib.util.module_from_spec(sp)
+        sp.loader.exec_module(c)
+        nom = re.compile("(.+)" + re.escape(c.SEPARATEUR_DU_NOM_D_UNE_LIVRAISON_EN_FILE)
+                         + "([0-9a-f]{%d})" % POINTE_DU_NOM
+                         + re.escape(c.EXTENSION_D_UNE_LIVRAISON_EN_FILE))
+        return {"dossier": c.DOSSIER_DE_LA_FILE_DE_RELECTURE, "champs": list(c.CHAMPS_D_UNE_LIVRAISON_EN_FILE),
+                "separateur": c.SEPARATEUR_D_UNE_LIVRAISON_EN_FILE,
+                "separateur_du_nom": c.SEPARATEUR_DU_NOM_D_UNE_LIVRAISON_EN_FILE,
+                "extension": c.EXTENSION_D_UNE_LIVRAISON_EN_FILE, "debut": POINTE_DU_NOM,
+                "date": c.FORME_DE_DEPOSEE_LE_EN_FILE, "nom": nom}, ""
+    except Exception as e:                                   # fichier absent, illisible, ou sans le contrat
+        return None, f"contrat de la file illisible dans {chemin} ({type(e).__name__})"
+
+
+def nom_du_fichier(branche, pointe, contrat):
+    """Rend le nom du fichier de file d'une livraison : « <branche>__<début de la pointe>.txt ».
+
+    ① RÔLE — Écrire le nom d'une seule façon, pour le Chat qui dépose et pour les épreuves.
+    ② CONTEXTE D'APPEL — `deposer`.
+    ③ ENTRÉE — `branche` · `pointe` : 40 caractères hexadécimaux · `contrat`.
+    ④ CONDITIONS D'ENTRÉE — — (une branche qui porte un « / » donne un nom refusé ensuite par `lire_une_livraison`).
+    ⑤ SORTIE — UNE valeur : le nom, sans dossier ; par exemple « travail-e8-corr__1ed7b5145a85.txt ».
+      [rend: 1]
+    ⑥ TRAITEMENT — branche, séparateur du nom, les contrat["debut"] (12) premiers caractères de la pointe, extension.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un fichier par livraison : deux livraisons ne peuvent pas porter le même nom, donc deux dépôts ne se
+      touchent jamais (relecture du 19-11-2026, D1 : deux écrivains d'une même ligne se battaient). Le début de la
+      pointe suffit à séparer deux livraisons d'une même branche ; la pointe entière est dans le fichier.
+    ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    _, sortie = git(depot, "branch", "-r", "--list", "origin/travail-*")
-    return sorted(x.strip()[len("origin/"):] for x in sortie.split("\n") if x.strip().startswith("origin/travail-"))
+    return f"{branche}{contrat['separateur_du_nom']}{pointe[:contrat['debut']]}{contrat['extension']}"
+
+
+def texte_d_une_livraison(livraison, contrat):
+    """Rend le contenu du fichier de file d'une livraison : une ligne « champ=valeur » par champ du contrat.
+
+    ① RÔLE — Écrire le contenu d'une seule façon (R-728 : ce qui se calcule ne s'écrit pas à la main).
+    ② CONTEXTE D'APPEL — `deposer`.
+    ③ ENTRÉE — `livraison` : un dictionnaire aux clés du contrat · `contrat`.
+    ④ CONDITIONS D'ENTRÉE — Aucune valeur ne porte de saut de ligne (`deposer` remet l'objet sur une ligne).
+    ⑤ SORTIE — UNE valeur : le texte, fin de ligne « \\n », par exemple
+      « branche=travail-e8-corr\\npointe=1ed7b5145a85…\\ndeposee_le=2026-11-19 09h59m00s\\nobjet=E8 + CORR\\n ».
+      [rend: 1]
+    ⑥ TRAITEMENT — Une ligne par champ, dans l'ordre du contrat.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — —
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return "".join(f"{c}{contrat['separateur']}{livraison[c]}\n" for c in contrat["champs"])
+
+
+def lire_une_livraison(nom, texte, contrat):
+    """Lit un fichier de la file et refuse tout écart à son contrat.
+
+    ① RÔLE — Dire si un fichier de la file est une livraison bien formée, et la rendre.
+    ② CONTEXTE D'APPEL — `file_sur_main`, pour chaque fichier du dossier.
+    ③ ENTRÉE — `nom` : le nom du fichier, sans dossier · `texte` : son contenu · `contrat`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : le dictionnaire de la livraison (clés du contrat), ou None ; puis le motif du premier
+      défaut en une ligne, vide si le fichier est conforme — par exemple « travail-x__1ed7b5145a85.txt : pointe
+      « 1ed7b51 » : 40 caractères hexadécimaux attendus ».
+      [rend: 2]
+    ⑥ TRAITEMENT — ① aucun retour chariot (fichier écrit sous Windows) · ② le texte finit par un seul saut de ligne et
+      porte exactement une ligne par champ, dans l'ordre du contrat, « champ=valeur » · ③ `branche` : lettres,
+      chiffres, « . _ - », jamais en tête un « - » (git le lirait comme une option), jamais de « / » · ④ `pointe` : 40
+      caractères hexadécimaux minuscules · ⑤ `deposee_le` : une heure VRAIE dans la forme du contrat, « AAAA-MM-JJ
+      HHhMMmSSs » (relue par strptime et réécrite à l'identique) · ⑥ `objet` non vide · ⑦ le nom est
+      « <branche>__<les 12 premiers caractères de la pointe>.txt » (motif `contrat["nom"]`), pris au contenu.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un fichier mal formé lu « au mieux » ferait guetter la mauvaise branche sans rien dire ; un contrôle
+      qui n'a pas pu faire son travail le dit (R-734). Le nom confronté au contenu : un fichier recopié sous un autre
+      nom, ou corrigé à la main d'un seul côté, se voit.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    champs, sep = contrat["champs"], contrat["separateur"]
+    if "\r" in texte:
+        return None, f"{nom} : retour chariot (fin de ligne Windows) : « \\n » seul attendu"
+    if not texte.endswith("\n") or texte.endswith("\n\n"):
+        return None, f"{nom} : le texte doit finir par un seul saut de ligne"
+    lignes = texte[:-1].split("\n")
+    if len(lignes) != len(champs):
+        return None, f"{nom} : {len(lignes)} ligne(s) au lieu de {len(champs)} ({', '.join(champs)})"
+    x = {}
+    for i, (ligne, champ) in enumerate(zip(lignes, champs), start=1):
+        cle, trouve, valeur = ligne.partition(sep)
+        if not trouve or cle != champ:
+            return None, f"{nom} : ligne {i} : « {champ}{sep}… » attendu, lu « {ligne[:40]} »"
+        x[champ] = valeur
+    if not NOM_DE_BRANCHE.fullmatch(x["branche"]) or "/" in x["branche"]:
+        return None, f"{nom} : branche « {x['branche']} » : nom de branche sans « / » attendu"
+    if not POINTE.fullmatch(x["pointe"]):
+        return None, f"{nom} : pointe « {x['pointe']} » : 40 caractères hexadécimaux attendus"
+    try:
+        date_lue = datetime.strptime(x["deposee_le"], contrat["date"]).strftime(contrat["date"])
+    except ValueError:
+        date_lue = None
+    if date_lue != x["deposee_le"]:
+        return None, f"{nom} : deposee_le « {x['deposee_le']} » : « AAAA-MM-JJ HHhMMmSSs », heure vraie, attendu"
+    if not x["objet"].strip():
+        return None, f"{nom} : objet vide"
+    forme = contrat["nom"].fullmatch(nom)
+    if not forme or forme.group(1) != x["branche"] or not x["pointe"].startswith(forme.group(2)):
+        return None, (f"{nom} : nom de fichier « {x['branche']}{contrat['separateur_du_nom']}<début de la pointe>"
+                      f"{contrat['extension']} » attendu")
+    return x, ""
+
+
+def file_sur_main(depot, contrat):
+    """Lit la file de relecture telle qu'elle est sur origin/main du dépôt donné, dans l'ordre de relecture.
+
+    ① RÔLE — Un seul lecteur de la file, pour le regard de la boucle et pour les gestes du Chat.
+    ② CONTEXTE D'APPEL — `livraisons_a_relire` (copie du programme), `pousser_la_file` (clone du Chat).
+    ③ ENTRÉE — `depot` · `contrat`.
+    ④ CONDITIONS D'ENTRÉE — Un fetch juste avant : la file lue est celle de origin/main tel que le dépôt le connaît.
+    ⑤ SORTIE — TROIS valeurs : la liste des livraisons (dictionnaires, plus la clé « fichier » : le chemin depuis la
+      racine), triée par `deposee_le` puis par nom de fichier ; le motif du premier défaut, vide si la file est
+      conforme ; la liste des chemins ÉTRANGERS (entrées du dossier dont le nom n'a pas la forme d'une livraison,
+      « echanges/file/README.md », « echanges/file/.gitkeep »). Un dossier absent rend deux listes vides et aucun défaut.
+      [rend: 3]
+    ⑥ TRAITEMENT — ① git ls-tree de origin/main sur le dossier ; échec → défaut · ② une entrée dont le nom n'a pas la
+      forme `contrat["nom"]` est étrangère : mise à part, jamais lue · ③ une entrée à la forme d'une livraison doit
+      être un fichier (pas un sous-dossier) · ④ `lire_une_livraison` sur son contenu · ⑤ tri.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le dossier est la file : git ne garde pas de dossier vide, donc une file vide n'a pas de dossier, et ce
+      n'est pas une erreur (décision du superviseur du 19-11-2026 : « dossier vide → GUETTE »). L'ordre est celui des
+      dépôts (`deposee_le`) ; le nom départage deux dépôts de la même minute, pour que les deux côtés lisent le même
+      ordre ; `deposee_le` porte les secondes depuis le 19-11-2026 (superviseur R-759, 3e tour, R6 : deux dépôts de
+      la même minute étaient relus dans l'ordre de leur nom). Un nom étranger ne bloque rien (même verdict, R5 : un
+      « .gitkeep » ou un README arrêtait la boucle ET les gestes du Chat, « --retirer » compris) ; il est rendu pour
+      que le regard le NOMME, sans le lire.
+    ⑨ CE QUI CLOCHE — Deux dépôts de la même seconde sont relus dans l'ordre de leur nom, pas de leur poussée.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    code, sortie = git(depot, "ls-tree", "refs/remotes/origin/main", "--", contrat["dossier"])
+    if code != 0:
+        return [], f"lecture de {contrat['dossier']} sur origin/main impossible (code {code})", []
+    file, etrangers = [], []
+    for entree in (x for x in sortie.split("\n") if x.strip()):
+        meta, _, chemin = entree.partition("\t")
+        nature, objet = meta.split()[1], meta.split()[2]
+        nom = chemin[len(contrat["dossier"]):]
+        if not contrat["nom"].fullmatch(nom):
+            etrangers.append(chemin)
+            continue
+        if nature != "blob":
+            return [], f"{nom} : un fichier attendu, lu « {nature} »", etrangers
+        code, texte = git(depot, "cat-file", "blob", objet, brut=True)
+        if code != 0:
+            return [], f"{nom} : illisible (code {code})", etrangers
+        x, motif = lire_une_livraison(nom, texte, contrat)
+        if motif:
+            return [], motif, etrangers
+        x["fichier"] = chemin
+        file.append(x)
+    return sorted(file, key=lambda x: (x["deposee_le"], x["fichier"])), "", etrangers
+
+
+def controler_la_livraison(depot, branche, pointe):
+    """Dit si une livraison de la file peut être guettée : sa branche existe, n'est pas fusionnée, et la pointe lui est propre.
+
+    ① RÔLE — Un seul contrôle de la livraison, pour le regard de la boucle et pour le dépôt du Chat (R-708 : deux
+      contrôles d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `un_regard` (chaque livraison guettée, dans l'ordre de la file), `deposer` (avant d'écrire).
+    ③ ENTRÉE — `depot` · `branche` · `pointe` : 40 caractères hexadécimaux.
+    ④ CONDITIONS D'ENTRÉE — Un fetch juste avant : origin/main et origin/<branche> sont à jour.
+    ⑤ SORTIE — DEUX valeurs : 0 et un motif vide si la livraison est guettable ; sinon 2 et le motif en une ligne, qui
+      commence par « livraison fusionnée », « pointe fausse » ou « branche absente ».
+      [rend: 2]
+    ⑥ TRAITEMENT — DANS CET ORDRE : ① la branche est absente du distant → si la pointe est dans origin/main,
+      « livraison fusionnée » (branche supprimée après sa fusion), sinon « branche absente » · ② origin/<branche> est
+      un ancêtre de origin/main (ou lui est égal) → « livraison fusionnée, fichier de file à retirer » · ③ la pointe
+      n'est pas dans `git rev-list origin/main..origin/<branche>` → « pointe fausse ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Verdict du superviseur du 19-11-2026 (R-759), point 4. La fusion se teste AVANT la pointe : une fois
+      la branche fusionnée, chacun de ses commits est dans origin/main, et la pointe serait dite « fausse » alors que
+      le vrai motif est un fichier de file oublié (relecture du 19-11-2026, D4 : branche fusionnée, ligne restée
+      ouverte, les deux côtés muets pour toujours). La pointe doit être PROPRE à la branche, pas seulement son
+      ancêtre (D2 : toute pointe d'une branche déjà fusionnée, et tout commit de main, passaient) ; un ancêtre propre
+      est admis, parce que chaque tour de la boucle pousse une note par-dessus le commit livré.
+    ⑨ CE QUI CLOCHE — Une fusion par « squash » ou par rebase ne rend pas la branche ancêtre de main : elle n'est pas
+      vue comme fusionnée, et la livraison reste guettée jusqu'au retrait de son fichier.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    distante = f"refs/remotes/origin/{branche}"
+    if git(depot, "rev-parse", "--verify", "-q", distante)[0] != 0:
+        if git(depot, "merge-base", "--is-ancestor", pointe, "refs/remotes/origin/main")[0] == 0:
+            return 2, (f"livraison fusionnée, fichier de file à retirer : la branche {branche} n'existe plus et sa "
+                       f"pointe {pointe[:9]} est dans origin/main")
+        return 2, f"branche absente : {branche} n'existe pas au distant"
+    if git(depot, "merge-base", "--is-ancestor", distante, "refs/remotes/origin/main")[0] == 0:
+        return 2, f"livraison fusionnée, fichier de file à retirer : {branche} est déjà dans origin/main"
+    code, propres = git(depot, "rev-list", f"refs/remotes/origin/main..{distante}")
+    if code != 0 or pointe not in propres.split("\n"):
+        return 2, (f"pointe fausse : {pointe[:9]} n'est pas un commit propre à {branche} (git rev-list "
+                   "origin/main..origin/" + branche + ") — rebase poussé de force, pointe d'une autre branche ou de "
+                   "main : retirer le fichier et redéposer la livraison")
+    return 0, ""
+
+
+def livraisons_a_relire(depot):
+    """Lit la file de relecture sur origin/main et rend les livraisons dans l'ordre où elles se relisent.
+
+    ① RÔLE — Trouver où vit le travail relu par la file écrite, et non plus en comptant les branches travail- (décision
+      de Jean-Luc du 19-11-2026 à 12h29, « 1 », BACKLOG A-920, qui remplace A-448).
+    ② CONTEXTE D'APPEL — `un_regard`, après le fetch.
+    ③ ENTRÉE — `depot` : la copie du programme.
+    ④ CONDITIONS D'ENTRÉE — Un fetch avec --prune juste avant : sinon une branche supprimée au distant reste vue.
+    ⑤ SORTIE — QUATRE valeurs : le code (0, ou 2 si la file est illisible ou mal formée) ; la liste des livraisons
+      dans l'ordre de `file_sur_main` (vide si la file est vide ou en erreur) ; le motif d'erreur en une ligne (vide si
+      code 0) ; la liste des chemins étrangers du dossier. Exemple réel attendu : (0, [{"branche": "travail-e8-corr",
+      "pointe": "1ed7b5145a859c700a61bc664a1e158e5a1b2508", …}], "", []).
+      [rend: 4]
+    ⑥ TRAITEMENT — `contrat_de_la_file` puis `file_sur_main` ; un fichier mal formé → code 2.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le 19-11-2026, 60 branches travail- au dépôt arrêtaient la boucle sur « plusieurs versions en
+      attente » (A-448), et leur suppression est refusée par GitHub (403). Une liste écrite ne dépend plus du nombre de
+      branches. TOUTE la file est rendue, et non la seule première livraison : une livraison close mais non retirée
+      est sautée par `un_regard`, qui guette la suivante (superviseur R-759, 3e tour, R1 : la suivante n'était jamais
+      guettée, en silence).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    contrat, motif = contrat_de_la_file()
+    if contrat is None:
+        return 2, [], motif, []
+    file, motif, etrangers = file_sur_main(depot, contrat)
+    if motif:
+        return 2, [], f"{contrat['dossier']} mal formée — {motif}", etrangers
+    return 0, file, "", etrangers
+
+
+def pousser_la_file(clone, preparer, message, avant_de_pousser=None):
+    """Écrit un changement de la file sur origin/main : un commit d'UN fichier, au-dessus de origin/main fraîchement tiré.
+
+    ① RÔLE — Le seul chemin par lequel la file change : le Chat dépose (`deposer`) ou retire (`retirer`) un fichier,
+      et le programme commite et pousse lui-même, sans toucher à la copie de travail ni aux branches du clone.
+    ② CONTEXTE D'APPEL — `deposer`, `retirer`.
+    ③ ENTRÉE — `clone` : le clone du Chat · `preparer` : une fonction qui reçoit (le clone, la file lue sur origin/main,
+      le contrat) et rend (code, motif ou ligne, chemin du fichier, contenu — None pour retirer) · `message` : le
+      message du commit · `avant_de_pousser` : une fonction appelée juste avant chaque poussée (les épreuves y font
+      passer une poussée concurrente) ou None.
+    ④ CONDITIONS D'ENTRÉE — Le clone sait joindre « origin » et pousser sur main ; git y connaît une identité
+      (user.name, user.email).
+    ⑤ SORTIE — DEUX valeurs : 0 et la ligne rendue par `preparer` ; ou 2 et le motif (refus de `preparer`, file sur
+      origin/main mal formée, commit impossible, ou poussée refusée ESSAIS_DE_POUSSEE fois — en disant si le dernier
+      refus est une COURSE, « main a bougé », ou un refus du distant SANS rapport avec une course : accès, protection
+      de main, crochet).
+      [rend: 2]
+    ⑥ TRAITEMENT — Jusqu'à ESSAIS_DE_POUSSEE fois : ① git fetch --prune de toutes les branches (origin/main et la
+      branche livrée à jour ; --prune : une branche supprimée au distant n'est plus vue, et `deposer` la refuse) ·
+      ② `file_sur_main` ; mal formée → code 2, rien n'est écrit (une file cassée se répare à la main, en le disant) ;
+      les fichiers étrangers sont laissés tels quels · ③ `preparer` sur cette file RELUE ; un refus → code 2 · ④ un
+      index jetable (GIT_INDEX_FILE) rempli par origin/main, le seul fichier ajouté ou retiré, write-tree, commit-tree
+      avec origin/main pour seul parent · ⑤ `avant_de_pousser` · ⑥ git push origin <commit>:refs/heads/main, sans
+      forcer ; acceptée → code 0 ; refusée → sa sortie d'erreur est gardée, et on recommence au ①. Le motif final lit
+      la sortie d'erreur du DERNIER refus : « (fetch first) » ou « (non-fast-forward) » (`COURSE`) → main a bougé ;
+      sinon → refus du distant, dont la ligne « ! [remote rejected] … » (à défaut, la première ligne hors « To … ») est
+      citée.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Verdict du superviseur du 19-11-2026 (R-759), point 3, après la relecture qui avait cassé la première
+      forme (D1, bloquant) : la file était écrite dans le dossier de travail du clone, souvent une branche travail- ou
+      un main en retard, et une ligne disparaissait en silence ; deux écrivains d'un même fichier se battaient. Ici :
+      un seul écrivain (le Chat), un fichier par livraison, le commit toujours au-dessus de origin/main RELU après
+      chaque refus, et jamais de rebase d'un texte — le geste est refait sur la file relue. La poussée n'est jamais
+      forcée : une poussée forcée effacerait le dépôt concurrent. Le clone n'est pas touché : il porte souvent du
+      travail non commité.
+    ⑨ CE QUI CLOCHE — Une poussée réussie dont la réponse se perd (réseau) est refaite : `deposer` répond alors « déjà
+      dans la file » (code 2) alors que le dépôt a réussi. · Le commit porte l'identité git du clone. · commit-tree ne
+      SIGNE PAS le commit, même quand commit.gpgsign est vrai : main du dépôt privé n'exige aucune signature
+      (mesuré le 19-11-2026 : les commits « actions » 51a5e1fae, 8ee02077f et f747a9cf0 de main n'en portent pas) ;
+      si un jour il l'exige, le refus est dit « refus du distant », pas « main a bougé ». · Un refus d'accès est
+      retenté ESSAIS_DE_POUSSEE fois comme une course : le motif final le distingue, pas le nombre d'essais.
+    ⑩ EFFET — git fetch --prune dans le clone (références origin/* seulement) ; des objets git écrits dans le clone ;
+      un commit poussé sur main au distant ; un dossier jetable (l'index) effacé.
+    ⑪ TERMINAISON — Rend la main après ESSAIS_DE_POUSSEE essais au plus ; chaque git est borné par sa limite.
+      [sort: non]
+    """
+    contrat, motif = contrat_de_la_file()
+    if contrat is None:
+        return 2, motif
+    dossier = tempfile.mkdtemp(prefix="boucle_de_check_file_")
+    try:
+        env = {"GIT_INDEX_FILE": os.path.join(dossier, "index")}
+        for essai in range(1, ESSAIS_DE_POUSSEE + 1):
+            code, _ = git(clone, "fetch", "-q", "--prune", "origin", "+refs/heads/*:refs/remotes/origin/*",
+                          limite=180)
+            if code != 0:
+                return 2, f"le fetch a échoué (code {code})"
+            file, motif, _etrangers = file_sur_main(clone, contrat)
+            if motif:
+                return 2, f"{contrat['dossier']} sur origin/main mal formée — {motif} : rien n'est écrit"
+            code, ligne, chemin, contenu = preparer(clone, file, contrat)
+            if code != 0:
+                return 2, ligne
+            parent = git(clone, "rev-parse", "--verify", "-q", "refs/remotes/origin/main")[1]
+            if contenu is None:
+                gestes = [("update-index", "--force-remove", "--", chemin)]
+            else:
+                f = os.path.join(dossier, "contenu")
+                with open(f, "w", encoding="utf-8", newline="") as sortie:
+                    sortie.write(contenu)
+                code, blob = git(clone, "hash-object", "-w", f)
+                if code != 0:
+                    return 2, f"écriture de {chemin} impossible (code {code})"
+                gestes = [("update-index", "--add", "--cacheinfo", f"100644,{blob},{chemin}")]
+            if os.path.exists(env["GIT_INDEX_FILE"]):
+                os.remove(env["GIT_INDEX_FILE"])
+            code, _ = git(clone, "read-tree", parent, env=env)
+            for g_ in gestes:
+                code = code or git(clone, *g_, env=env)[0]
+            code, arbre = (code, "") if code else git(clone, "write-tree", env=env)
+            code, commit = (code, "") if code else git(clone, "commit-tree", arbre, "-p", parent, "-m", message)
+            if code != 0:
+                return 2, f"commit de la file impossible (code {code} ; identité git du clone ?)"
+            if avant_de_pousser is not None:
+                avant_de_pousser()
+            code, refus = git(clone, "push", "-q", "origin", f"{commit}:refs/heads/main", limite=180, erreurs=True)
+            if code == 0:
+                return 0, ligne
+        if COURSE.search(refus):
+            return 2, (f"poussée de la file refusée {ESSAIS_DE_POUSSEE} fois : main a bougé à chaque essai (refus "
+                       "« fetch first » ou « non-fast-forward » lu dans la sortie de git push) : rien n'est écrit")
+        lignes = [x.strip() for x in refus.split("\n") if x.strip() and not x.startswith("To ")]
+        premiere = next((x for x in lignes if x.startswith("!")), lignes[0] if lignes else f"code {code}, sortie vide")
+        return 2, (f"poussée de la file refusée {ESSAIS_DE_POUSSEE} fois : refus du distant SANS RAPPORT avec une course "
+                   f"(accès, protection de main, crochet) — « {premiere[:160]} » : rien n'est écrit")
+    finally:
+        shutil.rmtree(dossier, ignore_errors=True)
+
+
+def deposer(clone, branche, objet, pointe=None, maintenant=None, avant_de_pousser=None):
+    """Dépose une livraison dans la file de relecture : un fichier de plus dans echanges/file/ sur origin/main.
+
+    ① RÔLE — Le geste du Chat quand il dépose une livraison à relire.
+    ② CONTEXTE D'APPEL — `main`, avec « --deposer » :
+      python3 programmes/BOUCLE_DE_CHECK.py <clone> --cote chat --deposer --branche travail-x --objet "…" [--pointe H]
+      Le programme commite et pousse lui-même ; les épreuves.
+    ③ ENTRÉE — `clone` · `branche` · `objet` : une ligne qui dit ce qui est livré · `pointe` : le commit livré, 40
+      caractères hexadécimaux (None : la pointe de origin/<branche> après le fetch) · `maintenant` : un datetime, pour
+      les épreuves · `avant_de_pousser` : voir `pousser_la_file`.
+    ④ CONDITIONS D'ENTRÉE — La branche est poussée.
+    ⑤ SORTIE — DEUX valeurs : 0 et le chemin du fichier écrit, ou 2 et le motif du refus.
+      [rend: 2]
+    ⑥ TRAITEMENT — `pousser_la_file`, avec, à chaque essai, sur la file relue : ① pointe absente → origin/<branche> ;
+      branche absente → refus · ② pointe de 40 caractères hexadécimaux · ③ `controler_la_livraison` (le même contrôle
+      que le regard : ce que la boucle refuserait n'est jamais déposé) · ④ un fichier de la même branche et de la même
+      pointe déjà dans la file → refus · ⑤ le fichier `nom_du_fichier`, contenu `texte_d_une_livraison` (heure de
+      Paris, objet sur une ligne), relu par `lire_une_livraison` avant d'être écrit (nom de branche, objet vide…).
+    ⑦ UNITÉ — Heure de Paris, à la seconde.
+    ⑧ POURQUOI — Décision A-920 (Jean-Luc, 19-11-2026, 12h29, « 1 ») et verdict du superviseur du même jour (R-759) :
+      le Chat est le seul écrivain de la file ; il dépose au dépôt de chaque livraison.
+    ⑨ CE QUI CLOCHE — Deux livraisons d'une même branche à deux pointes différentes sont deux fichiers, relus l'un après
+      l'autre.
+    ⑩ EFFET — Celui de `pousser_la_file` : un commit sur main au distant.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    quand = (maintenant or datetime.now(PARIS)).astimezone(PARIS)
+
+    def preparer(depot, file, contrat):
+        """Prépare, sur la file relue à origin/main, le fichier d'une livraison à déposer, ou dit pourquoi il est refusé.
+
+        ① RÔLE — Le contenu du geste de dépôt, refait à chaque essai de `pousser_la_file` sur la file relue.
+        ② CONTEXTE D'APPEL — `pousser_la_file`, à chaque essai, juste après le fetch.
+        ③ ENTRÉE — `depot` : le clone du Chat · `file` : les livraisons lues sur origin/main · `contrat`.
+        ④ CONDITIONS D'ENTRÉE — `branche`, `objet`, `pointe` et `quand` de `deposer`.
+        ⑤ SORTIE — QUATRE valeurs : 0, le chemin du fichier, le même chemin, son contenu ; ou 2, le motif, None, None.
+          [rend: 4]
+        ⑥ TRAITEMENT — Voir ⑥ de `deposer`.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Refait à chaque essai : la file a pu changer entre deux poussées, et le geste doit porter sur la
+          file relue, jamais sur un texte rebasé (verdict du superviseur du 19-11-2026, point 3).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        p = pointe
+        if p is None:
+            code, p = git(depot, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{branche}")
+            if code != 0:
+                return 2, f"branche absente : {branche} n'existe pas au distant", None, None
+        if not POINTE.fullmatch(p):
+            return 2, f"pointe « {p} » : 40 caractères hexadécimaux attendus", None, None
+        code, motif = controler_la_livraison(depot, branche, p)
+        if code != 0:
+            return 2, motif, None, None
+        deja = [x["fichier"] for x in file if x["branche"] == branche and x["pointe"] == p]
+        if deja:
+            return 2, f"déjà dans la file : {deja[0]}", None, None
+        x = {"branche": branche, "pointe": p, "deposee_le": quand.strftime(contrat["date"]),
+             "objet": " ".join(objet.split())}
+        nom = nom_du_fichier(branche, p, contrat)
+        texte = texte_d_une_livraison(x, contrat)
+        _, motif = lire_une_livraison(nom, texte, contrat)
+        if motif:
+            return 2, f"livraison refusée — {motif}", None, None
+        chemin = contrat["dossier"] + nom
+        return 0, chemin, chemin, texte
+
+    return pousser_la_file(clone, preparer, f"FILE DE RELECTURE : dépôt de {branche} (A-920)", avant_de_pousser)
+
+
+def retirer(clone, branche, pointe=None, avant_de_pousser=None):
+    """Retire une livraison de la file de relecture : son fichier quitte echanges/file/ sur origin/main.
+
+    ① RÔLE — Le geste du Chat quand il fusionne (ou abandonne) une livraison : la file ne la nomme plus.
+    ② CONTEXTE D'APPEL — `main`, avec « --retirer » :
+      python3 programmes/BOUCLE_DE_CHECK.py <clone> --cote chat --retirer --branche travail-x [--pointe H]
+      Le programme commite et pousse lui-même ; les épreuves.
+    ③ ENTRÉE — `clone` · `branche` · `pointe` : le début (7 caractères hexadécimaux au moins) ou l'entier de la
+      pointe, pour choisir entre deux fichiers de la même branche (None : il ne doit y en avoir qu'un) ·
+      `avant_de_pousser` : voir `pousser_la_file`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : 0 et le chemin du fichier retiré, ou 2 et le motif du refus.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① une pointe donnée qui n'a pas 7 à 40 caractères hexadécimaux minuscules → refus, avant tout
+      geste (superviseur R-759, 3e tour, R6 : un seul caractère retirait un fichier) · ② `pousser_la_file`, avec, à
+      chaque essai, sur la file relue : les fichiers de la branche (et de la pointe si donnée) ; aucun → refus ;
+      plusieurs sans pointe → refus ; sinon ce fichier est retiré.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Verdict du superviseur du 19-11-2026 (R-759), point 1 : le fichier est retiré à la fusion (ou à
+      l'abandon). Une livraison fusionnée dont le fichier reste arrête la boucle en erreur, « livraison fusionnée,
+      fichier de file à retirer » (`controler_la_livraison`) : l'oubli se dit. Une livraison close et non retirée ne
+      bloque plus la suivante : elle est sautée et nommée à chaque regard (même superviseur, 3e tour, R1).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Celui de `pousser_la_file` : un commit sur main au distant.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    def preparer(depot, file, contrat):
+        """Choisit, sur la file relue à origin/main, le fichier à retirer, ou dit pourquoi le retrait est refusé.
+
+        ① RÔLE — Le contenu du geste de retrait, refait à chaque essai de `pousser_la_file` sur la file relue.
+        ② CONTEXTE D'APPEL — `pousser_la_file`, à chaque essai, juste après le fetch.
+        ③ ENTRÉE — `depot` : le clone du Chat (inutilisé) · `file` : les livraisons lues sur origin/main · `contrat`.
+        ④ CONDITIONS D'ENTRÉE — `branche` et `pointe` de `retirer`.
+        ⑤ SORTIE — QUATRE valeurs : 0, le chemin du fichier, le même chemin, None ; ou 2, le motif, None, None.
+          [rend: 4]
+        ⑥ TRAITEMENT — Voir ⑥ de `retirer`.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Refait à chaque essai : le fichier a pu être retiré par un autre geste entre deux poussées.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        vises = [x for x in file if x["branche"] == branche and (pointe is None or x["pointe"].startswith(pointe))]
+        if not vises:
+            return 2, f"aucun fichier de file pour {branche}" + (f" à la pointe {pointe[:9]}" if pointe else ""), None, None
+        if len(vises) > 1:
+            return 2, f"{len(vises)} fichiers de file pour {branche} : préciser --pointe", None, None
+        return 0, vises[0]["fichier"], vises[0]["fichier"], None
+
+    if pointe is not None and not POINTE_DU_RETRAIT.fullmatch(pointe):
+        return 2, f"--pointe « {pointe} » : au moins 7 caractères hexadécimaux minuscules attendus (40 au plus)"
+    return pousser_la_file(clone, preparer, f"FILE DE RELECTURE : retrait de {branche} (A-920)", avant_de_pousser)
 
 
 def dernier_commit(depot, branche, fichier, base):
@@ -797,44 +1332,123 @@ def un_regard(depot, cote, maintenant):
     ③ ENTRÉE — `depot` : la copie du programme · `cote` : « chat » ou « cowork » · `maintenant` : l'heure en secondes
       depuis 1970.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : None (rien à dire), ou un couple (code, ligne) : code 0 pour un événement, 2 pour une
-      erreur ; la ligne commence par « TOUR À FAIRE », « NOTE REFUSÉE », « MA NOTE REFUSÉE », « ARRÊT » ou « ERREUR ».
+    ⑤ SORTIE — UNE valeur : None (rien à dire), ou un couple (code, texte) : code 0 pour un événement, 2 pour une
+      erreur, 1 pour des AVIS seuls (la surveillance les écrit et continue). Le texte a une ligne par chose dite :
+      l'événement d'abord, qui commence par « TOUR À FAIRE », « NOTE REFUSÉE », « MA NOTE REFUSÉE », « ARRÊT » ou
+      « ERREUR » ; puis les avis, qui commencent par « AVIS · », redits à CHAQUE regard : « AVIS · CLOSE, À RETIRER :
+      <branche> · <commit> · <motif> » et « AVIS · FICHIER ÉTRANGER À LA FILE, ignoré : <chemin> ».
       [rend: 1 ou 2]
-    ⑥ TRAITEMENT — ① git fetch --prune ; un échec rend une erreur · ② versions en attente : aucune ou plusieurs → arrêt ·
-      ③ les dernières notes des deux côtés écrites depuis que la version a quitté origin/main · ④ à qui le tour : à moi
-      si la note de l'autre existe et que la mienne est absente, en est un ancêtre, ou — quand aucune n'est l'ancêtre de
-      l'autre (une fusion) — est plus ancienne à l'horloge ; même commit, ou même heure sans ordre → arrêt « notes
-      concurrentes » · ⑤ pas mon tour : ma note est contrôlée une fois — refusée → « MA NOTE REFUSÉE » ; acceptée et
-      plus vieille que 3 heures, refusée ou non → arrêt (silence) ; sinon None · ⑥ mon tour : la note de l'autre a disparu → arrêt ; un
-      arrêt écrit en tête → arrêt ; pas de ligne de lancement sur cette version → arrêt ; 10 allers-retours ou plus →
-      arrêt · ⑦ contrôle de la note de l'autre : refusée → « NOTE REFUSÉE », puis, si elle n'est pas corrigée en 3
-      heures, arrêt (silence) ; acceptée → « TOUR À FAIRE » · ⑧ un arrêt ou un refus déjà annoncé (mémoire) n'est pas
-      redit : None. La fin d'une boucle (« aucune version ») est annoncée une fois par état de origin/main.
+    ⑥ TRAITEMENT — ① git fetch --prune ; un échec rend une erreur · ② la file de relecture sur origin/main
+      (`livraisons_a_relire`) : fichier mal formé → erreur (code 2) ; chaque fichier étranger → un avis · ③ pour
+      chaque livraison, dans l'ordre de la file : `controler_la_livraison` (branche absente, livraison fusionnée ou
+      pointe fausse → erreur, code 2, qui bloque celles qui suivent) ; puis `regard_d_une_livraison` ; une livraison
+      CLOSE (un arrêt écrit en tête de la dernière note, ou le budget atteint, déjà annoncés) → un avis « close, à
+      retirer », et on passe à la suivante ; sinon son résultat est rendu, avec les avis · ④ plus de livraison : les
+      avis seuls (code 1), ou None.
+    ⑦ UNITÉ — Secondes.
+    ⑧ POURQUOI — La file plutôt que le compte des branches : décision de Jean-Luc du 19-11-2026 à 12h29 (« 1 », BACKLOG
+      A-920) — 60 branches travail- arrêtaient la boucle sur « plusieurs versions en attente » (A-448), et GitHub refuse
+      leur suppression (403). Une livraison close SAUTÉE et redite à chaque regard : superviseur R-759, 3e tour, R1 —
+      la relecture du 19-11-2026 a montré une livraison close par « RIEN DE NEUF », non retirée, qui arrêtait la file
+      EN SILENCE : l'arrêt dit une fois, puis plus rien, et la livraison suivante jamais guettée (le retrait attend la
+      fusion, une décision de Jean-Luc qui peut prendre des jours). Les fichiers étrangers nommés sans bloquer : même
+      verdict, R5.
+    ⑨ CE QUI CLOCHE — Un arrêt qui n'est pas une clôture (silence, note supprimée, boucle non lancée, notes
+      concurrentes) bloque encore les livraisons qui suivent, et n'est dit qu'une fois. · Les avis sont redits à
+      chaque regard : la surveillance en écrit une ligne par intervalle tant que le fichier n'est pas retiré.
+    ⑩ EFFET — git fetch dans la copie du programme ; ceux de `regard_d_une_livraison`.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    mem = memoire(depot, cote)
+
+    def avec_les_avis(avis, r):
+        """Joint les avis du regard à son résultat.
+
+        ① RÔLE — Une seule forme de sortie pour le regard : l'événement d'abord, les avis ensuite.
+        ② CONTEXTE D'APPEL — `un_regard`, à chaque sortie.
+        ③ ENTRÉE — `avis` : les lignes d'avis · `r` : None ou (code, ligne).
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : None (ni événement ni avis) ; (1, les avis) ; ou (code, la ligne puis les avis).
+          [rend: 1 ou 2]
+        ⑥ TRAITEMENT — Lignes jointes par « \\n ».
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — L'événement en tête : celui qui lit la première ligne lit ce qui demande un geste.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        if r is None:
+            return (1, "\n".join(avis)) if avis else None
+        return r[0], "\n".join([r[1]] + avis)
+
+    code, _ = git(depot, "fetch", "-q", "--prune", "origin", "+refs/heads/*:refs/remotes/origin/*", limite=180)
+    if code != 0:
+        return 2, f"ERREUR · le fetch a échoué (code {code})"
+    code, file, motif, etrangers = livraisons_a_relire(depot)
+    avis = [f"AVIS · FICHIER ÉTRANGER À LA FILE, ignoré : {x}" for x in etrangers]
+    if code != 0:
+        return avec_les_avis(avis, (2, f"ERREUR · file de relecture : {motif}"))
+    if not file:                                        # aucune livraison à relire : on continue de guetter
+        return avec_les_avis(avis, None)
+    for livraison in file:
+        branche = livraison["branche"]
+        code, motif = controler_la_livraison(depot, branche, livraison["pointe"])
+        if code != 0:
+            return avec_les_avis(avis, (2, f"ERREUR · file de relecture : {livraison['fichier']} : {motif}"))
+        r = regard_d_une_livraison(depot, cote, maintenant, branche, mem)
+        if r is not None and r[0] == CLOSE:
+            avis.append(f"AVIS · CLOSE, À RETIRER : {branche} · {r[1]}")
+            continue
+        return avec_les_avis(avis, r)
+    return avec_les_avis(avis, None)
+
+
+def regard_d_une_livraison(depot, cote, maintenant, branche, mem):
+    """Regarde une livraison de la file et rend son événement, None, ou sa clôture.
+
+    ① RÔLE — Le tour d'une livraison : à qui le tour, quel arrêt, quelle note à contrôler.
+    ② CONTEXTE D'APPEL — `un_regard`, pour chaque livraison de la file, dans l'ordre, jusqu'à la première non close.
+    ③ ENTRÉE — `depot` : la copie du programme · `cote` · `maintenant` : secondes depuis 1970 · `branche` : la branche
+      de la livraison, déjà passée par `controler_la_livraison` · `mem` : la mémoire du côté (lue par `un_regard`).
+    ④ CONDITIONS D'ENTRÉE — Un fetch juste avant.
+    ⑤ SORTIE — UNE valeur : None (rien à dire) ; (code, ligne) : code 0 pour un événement, 2 pour une erreur ; ou
+      (CLOSE, motif) : la livraison est close, son arrêt déjà annoncé — la suivante peut être guettée.
+      [rend: 1 ou 2]
+    ⑥ TRAITEMENT — ① les dernières notes des deux côtés écrites depuis que la version a quitté origin/main · ② à qui
+      le tour : à moi si la note de l'autre existe et que la mienne est absente, en est un ancêtre, ou — quand aucune
+      n'est l'ancêtre de l'autre (une fusion) — est plus ancienne à l'horloge ; même commit, ou même heure sans ordre →
+      arrêt « notes concurrentes » · ③ pas mon tour : ma note porte un arrêt en tête, ou le budget est atteint →
+      CLOSE ; ma note est contrôlée une fois — refusée → « MA NOTE REFUSÉE » ; acceptée et plus vieille que 3 heures,
+      refusée ou non → arrêt (silence) ; sinon None · ④ mon tour : la note de l'autre a disparu → arrêt ; un arrêt
+      écrit en tête → arrêt la première fois, CLOSE ensuite ; pas de ligne de lancement sur cette version → arrêt ; 10
+      allers-retours ou plus → arrêt la première fois, CLOSE ensuite · ⑤ contrôle de la note de l'autre : refusée →
+      « NOTE REFUSÉE », puis, si elle n'est pas corrigée en 3 heures, arrêt (silence) ; acceptée → « TOUR À FAIRE » ·
+      ⑥ un arrêt ou un refus déjà annoncé (mémoire) n'est pas redit : None.
     ⑦ UNITÉ — Secondes.
     ⑧ POURQUOI — Le tour se lit à l'ordre des deux notes et non à un commit de départ : après une relance, une réponse
       arrivée pendant l'arrêt de la surveillance est vue. Ma propre note contrôlée : relecture indépendante du 16-10-2026,
       second tour, point 3 — sans cela, un refus du garde-fou faisait échanger des refus aux deux côtés jusqu'au budget,
       sans que la note fautive soit jamais réparée. Les notes concurrentes : même relecture, point 1 — une fusion rendait
-      la boucle muette des deux côtés, pour toujours.
+      la boucle muette des deux côtés, pour toujours. La clôture : voir `un_regard`, ⑧.
     ⑨ CE QUI CLOCHE — Le silence se mesure à l'heure du commit de la note attendue. · Le verdict sur ma propre note est
       gardé par commit : si origin/main avance et change ce verdict, il n'est pas recalculé. · Un lancement à la main
       consomme les annonces comme la vraie surveillance : le texte de la boucle dit de ne pas en lancer pendant qu'une
       surveillance tourne.
-    ⑩ EFFET — git fetch dans la copie du programme ; des copies jetables pendant les contrôles ; la mémoire écrite.
+    ⑩ EFFET — Des copies jetables pendant les contrôles ; la mémoire écrite.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     nom, ma_note, sa_note = COTES[cote]
-    mem = memoire(depot, cote)
 
     def annoncer(cle, ligne):
         """Rend un événement la première fois qu'il se produit, et rien les fois suivantes.
 
         ① RÔLE — Qu'un arrêt ou un refus ne soit annoncé qu'une fois, même si la surveillance est relancée.
-        ② CONTEXTE D'APPEL — `un_regard`, pour chaque arrêt et chaque refus.
-        ③ ENTRÉE — `cle` : ce qui identifie l'événement — sa nature, suivie du ou des commits concernés, ou des noms
-          des versions en attente pour l'arrêt « plusieurs versions » · `ligne` : la ligne à écrire.
-        ④ CONDITIONS D'ENTRÉE — `mem` et `depot`, `cote`, de `un_regard`.
+        ② CONTEXTE D'APPEL — `regard_d_une_livraison`, pour chaque arrêt et chaque refus.
+        ③ ENTRÉE — `cle` : ce qui identifie l'événement — sa nature, suivie du ou des commits concernés · `ligne` : la ligne à écrire.
+        ④ CONDITIONS D'ENTRÉE — `mem` et `depot`, `cote`, de `regard_d_une_livraison`.
         ⑤ SORTIE — UNE valeur : None si la clé a déjà été annoncée ; sinon le couple (0, ligne).
           [rend: 1 ou 2]
         ⑥ TRAITEMENT — Chercher la clé dans la mémoire ; absente : l'ajouter et écrire la mémoire.
@@ -852,18 +1466,7 @@ def un_regard(depot, cote, maintenant):
         memoire(depot, cote, mem)
         return 0, ligne
 
-    code, _ = git(depot, "fetch", "-q", "--prune", "origin", "+refs/heads/*:refs/remotes/origin/*", limite=180)
-    if code != 0:
-        return 2, f"ERREUR · le fetch a échoué (code {code})"
-    versions = versions_en_attente(depot)
-    if not versions:
-        return annoncer("aucune version après " + (git(depot, "rev-parse", "origin/main")[1] or "?"),
-                        "ARRÊT · aucune version en attente travail-* : rien à relire (fusionnée, ou pas encore poussée)")
-    if len(versions) > 1:
-        return annoncer("plusieurs " + " ".join(versions), "ARRÊT · plusieurs versions en attente : "
-                        + " ".join(versions) + " — Jean-Luc tranche (A-448)")
-    branche = versions[0]
-    base = git(depot, "merge-base", "origin/main", "origin/" + branche)[1] or None
+    base =git(depot, "merge-base", "origin/main", "origin/" + branche)[1] or None
     sien, son_heure = dernier_commit(depot, branche, sa_note, base)
     mien, mon_heure = dernier_commit(depot, branche, ma_note, base)
     if sien and mien and (sien == mien or (not est_ancetre(depot, mien, sien) and not est_ancetre(depot, sien, mien)
@@ -876,6 +1479,16 @@ def un_regard(depot, cote, maintenant):
     if not mon_tour:
         if mien is None:
             return None
+        # MA PROPRE NOTE CLÔT LA LIVRAISON (superviseur R-759, 3e tour, R1) : un arrêt en tête de ma note, ou le budget
+        # atteint, et l'autre côté a déjà eu son annonce ; de mon côté, la livraison est close et se saute.
+        mienne = lire_au_commit(depot, "origin/" + branche, ma_note)
+        close = arret_ecrit(mienne) if mienne is not None else None
+        if close:
+            return CLOSE, f"{mien[:7]} · {close} (ma note)"
+        lancement = derniere_ligne_de_lancement(lignes_de_la_version(depot, branche, base))
+        faits = allers_retours(depot, branche, lancement) if lancement is not None else None
+        if faits is not None and faits >= BUDGET:
+            return CLOSE, f"{mien[:7]} · budget de {BUDGET} allers-retours atteint ({faits})"
         cle = ma_note + "@" + mien
         if cle not in mem["verifiees"]:
             mem["verifiees"][cle] = list(controler(depot, mien, ma_note))
@@ -901,7 +1514,8 @@ def un_regard(depot, cote, maintenant):
                         f"ARRÊT · NOTE SUPPRIMÉE · {branche} · {sien[:7]} · {sa_note} n'existe plus sur la version")
     ecrit = arret_ecrit(note)
     if ecrit:
-        return annoncer("écrit " + sien, f"ARRÊT · ÉCRIT PAR L'AUTRE CÔTÉ · {branche} · {sien[:7]} · {ecrit}")
+        return (annoncer("écrit " + sien, f"ARRÊT · ÉCRIT PAR L'AUTRE CÔTÉ · {branche} · {sien[:7]} · {ecrit}")
+                or (CLOSE, f"{sien[:7]} · {ecrit}"))
     ligne = derniere_ligne_de_lancement(lignes_de_la_version(depot, branche, base))
     if ligne is None:
         return annoncer("non lancée " + sien,
@@ -911,9 +1525,10 @@ def un_regard(depot, cote, maintenant):
     if n is None:
         return 2, f"ERREUR · {branche} · le commit de la ligne de lancement est introuvable"
     if n >= BUDGET:
-        return annoncer("budget " + sien,
-                        f"ARRÊT · BUDGET · {branche} · {sien[:7]} · {n} allers-retours depuis le dernier lancement "
-                        f"(limite {BUDGET}) : Jean-Luc dit s'il continue")
+        return (annoncer("budget " + sien,
+                         f"ARRÊT · BUDGET · {branche} · {sien[:7]} · {n} allers-retours depuis le dernier lancement "
+                         f"(limite {BUDGET}) : Jean-Luc dit s'il continue")
+                or (CLOSE, f"{sien[:7]} · budget de {BUDGET} allers-retours atteint ({n})"))
     cle = sa_note + "@" + sien
     if cle not in mem["verifiees"]:
         code, motif = controler(depot, sien, sa_note)
@@ -970,8 +1585,8 @@ def guetter(clone, cote, intervalle, dossier=None, regard=None):
       [rend: 1]
     ⑥ TRAITEMENT — ① SIGTERM devient une sortie propre · ② préparer la copie du programme · ③ prendre son verrou, sans
       attendre : déjà pris → erreur · ④ écrire « GUETTE … » · ⑤ un regard ; None → attendre et recommencer, et le
-      compte d'erreurs repart de zéro · ⑥ un événement → l'écrire et rendre son code · ⑦ trois erreurs de suite →
-      rendre 2.
+      compte d'erreurs repart de zéro ; des avis seuls (code 1) → les écrire, puis comme None · ⑥ un événement →
+      l'écrire et rendre son code · ⑦ trois erreurs de suite → rendre 2.
     ⑦ UNITÉ — Secondes.
     ⑧ POURQUOI — Une erreur passagère du réseau ne doit pas arrêter la boucle ; trois de suite, si (R-734). Le verrou :
       relecture indépendante du 16-10-2026, second tour, point 7.
@@ -1000,6 +1615,10 @@ def guetter(clone, cote, intervalle, dossier=None, regard=None):
         if r is not None:
             code, ligne = r
             print(ligne, flush=True)
+            if code == 1:                               # des avis seuls : écrits, et la surveillance continue
+                erreurs = 0
+                time.sleep(intervalle)
+                continue
             if code != 2:
                 return 0
             erreurs += 1
@@ -1058,11 +1677,16 @@ def main():
     ④ CONDITIONS D'ENTRÉE — Le clone existe.
     ⑤ SORTIE — Aucune valeur rendue : sort par sys.exit (0 événement ou ligne écrite, 2 sinon).
       [rend: rien]
-    ⑥ TRAITEMENT — argparse ; « --noter » exige « --commit » et « --texte ».
+    ⑥ TRAITEMENT — argparse ; « --noter » exige « --commit » et « --texte » ; « --deposer » exige « --branche » et
+      « --objet » (« --pointe » facultative) ; « --retirer » exige « --branche » (« --pointe » facultative) ;
+      « --deposer » et « --retirer » exigent « --cote chat » ; un seul des trois gestes à la fois.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Un argument manquant est une erreur dite, jamais un comportement par défaut (R-734).
-    ⑨ CE QUI CLOCHE — —
-    ⑩ EFFET — Celui de `guetter` ou de `noter`.
+    ⑧ POURQUOI — Un argument manquant est une erreur dite, jamais un comportement par défaut (R-734). Cowork n'écrit
+      jamais la file (verdict du superviseur du 19-11-2026, R-759, point 2) : le refus est dans le programme, pas
+      seulement dans le mode d'emploi.
+    ⑨ CE QUI CLOCHE — « --cote chat » se déclare : rien n'empêche Cowork de l'écrire à la main ; le mode d'emploi le
+      lui interdit.
+    ⑩ EFFET — Celui de `guetter`, de `noter`, de `deposer` ou de `retirer`.
     ⑪ TERMINAISON — Sort par sys.exit.
       [sort: oui]
     """
@@ -1074,10 +1698,32 @@ def main():
     p.add_argument("--noter", action="store_true")
     p.add_argument("--commit")
     p.add_argument("--texte")
+    p.add_argument("--deposer", action="store_true")
+    p.add_argument("--retirer", action="store_true")
+    p.add_argument("--branche")
+    p.add_argument("--pointe")
+    p.add_argument("--objet")
     a = p.parse_args()
     if not os.path.isdir(a.clone):
         print(f"ERREUR · le clone {a.clone} n'existe pas", flush=True)
         sys.exit(2)
+    if sum((a.noter, a.deposer, a.retirer)) > 1:
+        print("ERREUR · --noter, --deposer et --retirer ne se combinent pas", flush=True)
+        sys.exit(2)
+    if a.deposer or a.retirer:
+        if a.cote != "chat":
+            print("ERREUR · Cowork n'écrit jamais la file de relecture : --deposer et --retirer sont des gestes du Chat",
+                  flush=True)
+            sys.exit(2)
+        if not a.branche or (a.deposer and not a.objet):
+            print("ERREUR · --deposer exige --branche et --objet ; --retirer exige --branche", flush=True)
+            sys.exit(2)
+        if a.deposer:
+            code, ligne = deposer(a.clone, a.branche, a.objet, a.pointe)
+        else:
+            code, ligne = retirer(a.clone, a.branche, a.pointe)
+        print(("DÉPOSÉE · " if a.deposer else "RETIRÉE · ") + ligne if code == 0 else f"ERREUR · {ligne}", flush=True)
+        sys.exit(code)
     if a.noter:
         if not a.commit or not a.texte:
             print("ERREUR · --noter exige --commit et --texte", flush=True)

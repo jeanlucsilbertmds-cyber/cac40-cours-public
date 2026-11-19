@@ -17,14 +17,20 @@
   tests/EPREUVES_DE_LA_VERIFICATION_DES_NOTES_Sam_17-10-2026.py.
 ⑤ SORTIE — Le code de sortie : 0 si tous les cas donnent la réponse attendue et, avec --saboter, si chaque sabotage en
   fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus, ou si un cas
-  n'a pas pu être monté (une commande git qui écrit le dépôt d'essai a échoué : MontageImpossible).
+  n'a pas pu être monté (une commande git qui écrit le dépôt d'essai a échoué : MontageImpossible) ; 3 (SANS_OBJET)
+  pour B65 seul, quand le dossier echanges/file/ de la racine est vide : ni vert ni faux.
   [rend: 1]
 ⑥ TRAITEMENT — Un faux dépôt distant (git init --bare), un clone qui écrit les notes comme le feraient le Chat et
   Cowork, un clone guetté, la copie propre au programme, et un faux garde-fou qui accepte une note portant « ACCEPTE »
   et refuse les autres avec le motif « MOTIF FAUX » ; il nomme le registre et programmes/LIRE_LE_CODE.py, comme le vrai.
-  Les cas : B1 aucune version → ARRÊT · B2 deux versions → ARRÊT · B3 ma note est la plus récente → rien · B4 tour,
+  Depuis le 19-11-2026 (A-920, puis verdict du superviseur du même jour), main porte aussi la file de relecture : le
+  dossier echanges/file/, un fichier par livraison, écrit par l'épreuve elle-même (`fichier_de_file`, jamais par le
+  programme éprouvé) : chaque branche travail- nouvelle y est déposée, sauf mention contraire.
+  Les cas : B1 dossier vide → rien (on guette) · B1bis lancé seul sur un dossier vide : « GUETTE », puis il guette ·
+  B2 deux livraisons → la première par `deposee_le`, pas par le nom · B2bis la première retirée → la seconde ·
+  B3 ma note est la plus récente → rien · B4 tour,
   journal sans « BOUCLE LANCÉE » → ARRÊT · B5 tour lancé, note acceptée → TOUR À FAIRE, « 0 allers-retours sur 10 » ·
-  B6 note refusée → NOTE REFUSÉE et son motif · B7 dix réponses de Cowork après le lancement → ARRÊT BUDGET · B8 dix
+  B6 note refusée → NOTE REFUSÉE et son motif · B7 dix réponses de Cowork après le lancement → ARRÊT BUDGET, puis « AVIS · CLOSE, À RETIRER » à chaque regard, des deux côtés · B8 dix
   réponses, « BOUCLE CONTINUÉE », deux réponses → TOUR, « 2 allers-retours » · B9 « RIEN DE NEUF » en tête → ARRÊT ·
   B10 « **ARRÊT — DÉCISION DE JEAN-LUC** » → ARRÊT · B11 ma note a plus de 3 heures, rien de l'autre → ARRÊT SILENCE ;
   2 heures → rien · B12 la note de l'autre est plus récente, 5 heures après → TOUR, jamais SILENCE · B13 le garde-fou
@@ -35,9 +41,10 @@
   B18 distant injoignable → ERREUR, code 2 · B19, B19bis, B19ter : voir l'épreuve de la vérification des notes · B20 lancé seul sur un tour prêt : « GUETTE » puis « TOUR À FAIRE », code 0 ·
   B21 « --noter » sans « --texte » → code 2 · B22 trois erreurs de suite → code 2 · B23 une réponse arrivée pendant que
   la surveillance était arrêtée est vue à la relance · B24 erreur, regard sain, deux erreurs, événement → code 0 (le
-  compte d'erreurs repart de zéro) · B25 la version supprimée au distant → ARRÊT aucune version · B26 un journal hérité
+  compte d'erreurs repart de zéro) · B25 la branche de la file supprimée au distant → ERREUR « branche absente », code 2 · B26 un journal hérité
   de la version officielle ne lance pas la boucle · B27 « RIEN DE NOUVEAU », « ARRÊT - … », « Arrêt — … »,
-  « ARRET – … » → ARRÊT · B28 après un rebase poussé de force, celui qui a déjà répondu ne relit pas · B29 dix réponses
+  « ARRET – … » → ARRÊT · B28 après un rebase poussé de force : ERREUR « pointe fausse »
+  jusqu'au nouveau dépôt, puis celui qui a déjà répondu ne relit pas · B29 dix réponses
   dont une seule sans sa ligne au journal → ARRÊT BUDGET · B30 la note de l'autre supprimée → ARRÊT NOTE SUPPRIMÉE ·
   B31 un fichier que le garde-fou nomme a changé → « ATTENTION » · B32 une copie jetable laissée par un arrêt brutal est
   retirée au regard suivant · B49 la copie jetable d'un autre programme encore en marche est gardée, celle d'un
@@ -52,7 +59,34 @@
   fait sortir le programme en moins de 30 secondes · B57 une copie verrouillée « initializing » d'un programme arrêté
   est retirée et comptée · B58 dans le dossier temporaire, le dossier vide d'un programme arrêté est effacé, celui d'un
   programme vivant et celui de ce programme-ci sont gardés (relecture indépendante, tour 10) · B56 un cas dont le
-  montage échoue est déclaré « MONTAGE IMPOSSIBLE » (cassure N de Cowork, 17-10-2026). Avec --saboter : chaque garde du programme retirée, une à la fois, dans une copie.
+  montage échoue est déclaré « MONTAGE IMPOSSIBLE » (cassure N de Cowork, 17-10-2026) · B45 livraison retirée de la
+  file, puis sa branche supprimée → rien, des deux côtés · B60 60 branches travail- au distant et un fichier de file →
+  TOUR À FAIRE sur la branche de la file · B61 dix-huit fichiers mal formés (lignes, champs, pointe, date sans secondes ou fausse, objet,
+  branche, retour chariot, fin du texte, nom, sous-dossier au nom de livraison), chacun → ERREUR, code 2, avec son motif ; un
+  fichier mal formé derrière une bonne livraison → ERREUR ; réparé → TOUR · B62 pointe d'une autre branche, inconnue
+  ou commit de main → ERREUR « pointe fausse » ; pointe actuelle → TOUR · B63 branche fusionnée, fichier resté →
+  ERREUR « livraison fusionnée, fichier de file à retirer », jamais « pointe fausse » ; branche supprimée ensuite →
+  même motif ; fichier retiré → rien · B64 « --deposer » depuis un clone placé sur une autre branche, main local en
+  retard, travail non commité : le fichier arrive sur main au distant, seul dans un commit au-dessus de main, la
+  livraison déjà en file reste, le clone n'est pas touché · B64bis onze refus (déjà en file, pointe, branche absente,
+  pointe fausse, livraison fusionnée, retrait inconnu, gestes combinés, Cowork qui dépose ou retire) puis l'objet
+  vide : code 2, main inchangé · B64ter retrait : deux fichiers d'une branche sans pointe → refus ; avec le début de
+  la pointe → ce fichier seul part, seul dans son commit · B64quater file cassée sur main → « --deposer » rend 2 ·
+  B66 deux dépôts concurrents (le second passe entre la lecture et la poussée du premier) → les deux fichiers sur
+  main · B67 poussée refusée 3 fois par le distant → code 2 après 3 essais exactement, « SANS RAPPORT avec une course » et la ligne de git citée ; 2 fois → le troisième passe ; main qui bouge avant chaque poussée → « main a bougé » · B68 les regards
+  et la surveillance de Cowork laissent main et echanges/file/ intacts ·
+  B69 fichiers étrangers dans le dossier (README.md, .gitkeep, nom à 7 caractères, autre extension, sous-dossier) →
+  le tour est dit et chacun NOMMÉ à chaque regard, rien ne bloque, « --deposer » et « --retirer » passent ; seuls →
+  des avis, code 1 · B70 travail-x close par « RIEN DE NEUF », travail-y derrière → le Chat : l'arrêt une fois, puis
+  l'avis « CLOSE, À RETIRER » à chaque regard ; Cowork : TOUR À FAIRE sur travail-y, avec l'avis · B71 branche vue
+  par le clone puis supprimée au distant → « --deposer » la refuse (« branche absente ») · B72 deux dépôts de la même
+  minute (20h01m10s, 20h01m50s) → secondes écrites, le premier déposé est guetté · B73 (dans `main`, une fois, sur le
+  circuit et sur SABOTAGES_DU_CIRCUIT) la poussée du fichier maître de .github/workflows/collecte_abc.yml, jouée
+  telle qu'écrite dans des dépôts jetables : course → trois essais, poussée ; maître changé au dépôt → rien
+  n'est poussé ; conflit → aucun rebase en plan.
+  B65 (seulement avec « --etat-reel=<clone> ») une copie du VRAI dépôt et ses branches travail-, le dossier
+  echanges/file/ de la racine posé sur sa main : le côté Cowork nomme la branche de la première livraison de ce
+  dossier ; le sabotage S64 (branches comptées) doit mordre ; dossier vide → « SANS OBJET », code 3. Avec --saboter : chaque garde du programme retirée, une à la fois, dans une copie.
 ⑦ UNITÉ — Des codes de sortie et des secondes (heures des commits fixées par GIT_COMMITTER_DATE).
 ⑧ POURQUOI — Décision de Jean-Luc du 16-10-2026 à 19h28 : la boucle de check devient un programme ; s'il se trompe, la
   boucle relit de trop ou s'arrête sans rien dire. Les cas B23 à B32 viennent de la relecture indépendante du même
@@ -67,17 +101,20 @@
 import importlib.util
 import multiprocessing
 import os
+import re
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
 RACINE = os.path.abspath(_args[0]) if _args else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODULE = os.path.join(RACINE, "programmes", "BOUCLE_DE_CHECK.py")
+CONTRATS = os.path.join(RACINE, "programmes", "CONTRATS_DES_FICHIERS.py")   # le contrat de la file (A-920)
 T0 = 1_800_000_000              # heure de départ des commits d'essai, en secondes depuis 1970
 REGISTRE_D_ESSAI = "# REGISTRE\n\n# LE PROTOCOLE DE LIVRAISON\n\ngestes\n\n---\n\n### R-755\n\npièges\n\n### R-756\n\nautre\n"
 PROCESSUS_EN_MEME_TEMPS = 4     # B51 : programmes qui vérifient en même temps sur un même dépôt
@@ -102,9 +139,11 @@ SABOTAGES = {
     "S5_silence_ignore": [("        if maintenant - mon_heure > SILENCE:\n", "        if False:\n")],
     "S6_tour_jamais_vu": [("    mon_tour = sien is not None and (mien is None", "    mon_tour = False and (mien is None")],
     "S7_boucle_non_lancee_admise": [("    if ligne is None:\n", "    if False:\n")],
-    "S8_plusieurs_versions_admises": [("    if len(versions) > 1:\n", "    if False:\n")],
+    # la file de relecture, 19-11-2026 (A-920) : S8 remplace « plusieurs versions admises », qui n'a plus d'objet
+    "S8_derniere_livraison_prise": [('    return sorted(file, key=lambda x: (x["deposee_le"], x["fichier"])), "", etrangers',
+                                     '    return sorted(file, key=lambda x: (x["deposee_le"], x["fichier"]), reverse=True), "", etrangers')],
     "S9_garde_fou_change_tu": [("if garde_fou_change(depot, sien) else", "if False else")],
-    "S10_branches_supprimees_gardees": [('"fetch", "-q", "--prune", "origin"', '"fetch", "-q", "origin"')],
+    "S10_branches_supprimees_gardees": [('git(depot, "fetch", "-q", "--prune", "origin"', 'git(depot, "fetch", "-q", "origin"')],
     "S11_note_lue_hors_de_la_copie": [("cwd=copie, capture_output=True", "cwd=depot, capture_output=True")],
     "S12_erreurs_sans_fin": [("            if erreurs >= 3:\n", "            if erreurs >= 10 ** 9:\n")],
     "S13_forme_du_journal": [("Paris · {nom} · {commit[:7]} · ", "Paris - {nom} - {commit[:7]} - ")],
@@ -149,9 +188,6 @@ SABOTAGES = {
     "S42_silence_apres_refus_tu": [("        if r is None and maintenant - son_heure > SILENCE:\n", "        if False:\n")],
     "S43_silence_apres_mon_refus_tu": [("            if r:\n                return r\n        if maintenant",
                                         "            return r\n        if maintenant")],
-    "S44_fin_de_boucle_dite_une_fois_pour_toutes": [
-        ('annoncer("aucune version après " + (git(depot, "rev-parse", "origin/main")[1] or "?"),',
-         'annoncer("aucune version",')],
     "S45_jeton_de_l_environnement_ecrit": [('git(clone, "config", "--local", "--get", cle)', 'git(clone, "config", "--get", cle)')],
     "S46_erreur_gardee_en_memoire": [('            del mem["verifiees"][cle]\n', '')],
     # quatrième tour de la relecture indépendante, 16-10-2026 vers 22h
@@ -183,6 +219,79 @@ SABOTAGES = {
     "S56_refus_du_systeme_vaut_mort": [("    except PermissionError:\n        return True\n",
                                         "    except PermissionError:\n        return False\n")],
     "S57_numeros_0_et_1_admis": [("int(m.group(1)) <= 1 or ", "")],
+    # la file de relecture, 19-11-2026 (A-920)
+    "S64_branches_comptees": [("    code, file, motif, etrangers = livraisons_a_relire(depot)\n",
+                               "    code, file, motif, etrangers = livraisons_a_relire(depot)\n"
+                               "    _b = sorted(x.strip()[len('origin/'):] for x in git(depot, 'branch', '-r', '--list', "
+                               "'origin/travail-*')[1].split('\\n') if x.strip())\n"
+                               "    file = [{'branche': _b[0], 'pointe': git(depot, 'rev-parse', 'origin/' + _b[0])[1], "
+                               "'fichier': '?'}] if _b else file\n")],
+    # la file refaite sur le verdict du superviseur (R-759, « simplifier »), 19-11-2026 : un fichier par livraison
+    "S65a_lignes_non_comptees": [("    if len(lignes) != len(champs):\n", "    if False:\n")],
+    "S65b_nom_de_champ_non_lu": [("        if not trouve or cle != champ:\n", "        if not trouve:\n")],
+    "S65c_branche_non_controlee": [('    if not NOM_DE_BRANCHE.fullmatch(x["branche"]) or "/" in x["branche"]:\n', "    if False:\n")],
+    "S65d_pointe_non_controlee": [('    if not POINTE.fullmatch(x["pointe"]):\n        return None', '    if False:\n        return None')],
+    "S65e_date_non_controlee": [('    if date_lue != x["deposee_le"]:\n', "    if False:\n")],
+    "S65f_objet_vide_admis": [('    if not x["objet"].strip():\n', "    if False:\n")],
+    "S65g_retour_chariot_admis": [('    if "\\r" in texte:\n', "    if False:\n")],
+    "S65h_fin_du_texte_non_controlee": [('    if not texte.endswith("\\n") or texte.endswith("\\n\\n"):\n', "    if False:\n")],
+    "S65i_nom_du_fichier_non_controle": [('    if not forme or forme.group(1) != x["branche"] or not x["pointe"].startswith(forme.group(2)):\n',
+                                          "    if False:\n")],
+    "S65j_sous_dossier_admis": [('        if nature != "blob":\n', "        if False:\n")],
+    "S66_pointe_non_verifiee": [('    if code != 0 or pointe not in propres.split("\\n"):\n', "    if False:\n")],
+    "S67_branche_absente_admise": [('    if git(depot, "rev-parse", "--verify", "-q", distante)[0] != 0:\n', "    if False:\n")],
+    "S68_fusion_non_vue": [('    if git(depot, "merge-base", "--is-ancestor", distante, "refs/remotes/origin/main")[0] == 0:\n', "    if False:\n")],
+    "S68b_pointe_avant_la_fusion": [(
+        '    if git(depot, "merge-base", "--is-ancestor", distante, "refs/remotes/origin/main")[0] == 0:\n'
+        '        return 2, f"livraison fusionnée, fichier de file à retirer : {branche} est déjà dans origin/main"\n'
+        '    code, propres = git(depot, "rev-list", f"refs/remotes/origin/main..{distante}")\n',
+        '    code, propres = git(depot, "rev-list", f"refs/remotes/origin/main..{distante}")\n'
+        '    if code != 0 or pointe not in propres.split("\\n"):\n        return 2, "pointe fausse (avant la fusion)"\n'
+        '    if git(depot, "merge-base", "--is-ancestor", distante, "refs/remotes/origin/main")[0] == 0:\n'
+        '        return 2, f"livraison fusionnée, fichier de file à retirer : {branche} est déjà dans origin/main"\n')],
+    "S68c_branche_supprimee_apres_fusion_dite_absente": [('        if git(depot, "merge-base", "--is-ancestor", pointe, "refs/remotes/origin/main")[0] == 0:\n', "        if False:\n")],
+    "S69_file_vide_arrete": [("    if not file:                                        # aucune livraison à relire : on continue de guetter\n"
+                              "        return avec_les_avis(avis, None)\n",
+                              "    if not file:\n        return 0, \"ARRÊT · file vide\"\n")],
+    "S70_ordre_par_nom": [('key=lambda x: (x["deposee_le"], x["fichier"])', 'key=lambda x: x["fichier"]')],
+    "S71_commit_sur_le_clone": [('            parent = git(clone, "rev-parse", "--verify", "-q", "refs/remotes/origin/main")[1]\n',
+                                 '            parent = git(clone, "rev-parse", "--verify", "-q", "HEAD")[1]\n')],
+    "S72_un_seul_essai": [("        for essai in range(1, ESSAIS_DE_POUSSEE + 1):\n", "        for essai in range(1, 2):\n")],
+    "S73_un_essai_de_trop": [("        for essai in range(1, ESSAIS_DE_POUSSEE + 1):\n", "        for essai in range(1, ESSAIS_DE_POUSSEE + 2):\n")],
+    "S74_main_non_retire": [('            code, _ = git(clone, "fetch", "-q", "--prune", "origin", "+refs/heads/*:refs/remotes/origin/*",\n'
+                             '                          limite=180)\n',
+                             '            code = 0 if essai > 1 else git(clone, "fetch", "-q", "--prune", "origin", '
+                             '"+refs/heads/*:refs/remotes/origin/*", limite=180)[0]\n')],
+    "S75_poussee_forcee": [('f"{commit}:refs/heads/main"', 'f"+{commit}:refs/heads/main"')],
+    "S76_cowork_ecrit_la_file": [('        if a.cote != "chat":\n', "        if False:\n")],
+    "S77_gestes_combines": [("    if sum((a.noter, a.deposer, a.retirer)) > 1:\n", "    if False:\n")],
+    "S78_retrait_sans_effet": [('                gestes = [("update-index", "--force-remove", "--", chemin)]\n', "                gestes = []\n")],
+    "S79_livraison_non_controlee_au_depot": [('        code, motif = controler_la_livraison(depot, branche, p)\n        if code != 0:\n            return 2, motif, None, None\n', "")],
+    "S80_file_cassee_completee": [("            if motif:\n                return 2, f\"{contrat['dossier']} sur origin/main mal formée", "            if False:\n                return 2, f\"{contrat['dossier']} sur origin/main mal formée")],
+    "S81_double_depot_admis": [("        if deja:\n", "        if False:\n")],
+    "S82_ecriture_sans_relecture": [("        _, motif = lire_une_livraison(nom, texte, contrat)\n        if motif:\n", "        motif = \"\"\n        if motif:\n")],
+    "S83_plusieurs_fichiers_retires_au_hasard": [("        if len(vises) > 1:\n", "        if False:\n")],
+    # le 3e tour du superviseur (R-759), 19-11-2026 : R1 (livraison close sautée, redite), R4 (--prune), R5 (noms
+    # étrangers), R6 (secondes, pointe de retrait), R2 réduit (refus d'accès distingué d'une course)
+    "S85_poussee_sans_prune": [('git(clone, "fetch", "-q", "--prune", "origin"', 'git(clone, "fetch", "-q", "origin"')],
+    "S86_etrangers_bloquent": [('        if not contrat["nom"].fullmatch(nom):\n            etrangers.append(chemin)\n            continue\n',
+                                '        if not contrat["nom"].fullmatch(nom):\n            return [], f"{nom} : nom étranger", etrangers\n')],
+    "S87_etrangers_tus": [('    avis = [f"AVIS · FICHIER ÉTRANGER À LA FILE, ignoré : {x}" for x in etrangers]\n', "    avis = []\n")],
+    "S88_close_bloque_la_suite": [('            avis.append(f"AVIS · CLOSE, À RETIRER : {branche} · {r[1]}")\n            continue\n',
+                                   "            return avec_les_avis(avis, None)\n")],
+    "S89_close_dite_une_fois": [('            avis.append(f"AVIS · CLOSE, À RETIRER : {branche} · {r[1]}")\n',
+                                 '            if "close " + branche not in mem["annonces"]:\n'
+                                 '                mem["annonces"].append("close " + branche)\n'
+                                 '                memoire(depot, cote, mem)\n'
+                                 '                avis.append(f"AVIS · CLOSE, À RETIRER : {branche} · {r[1]}")\n')],
+    "S90_ma_note_close_ignoree": [("        if close:\n            return CLOSE", "        if False:\n            return CLOSE")],
+    "S91_budget_atteint_non_clos": [('\n                or (CLOSE, f"{sien[:7]} · budget de {BUDGET} allers-retours atteint ({n})"))', ")")],
+    "S92_arret_ecrit_non_clos": [('\n                or (CLOSE, f"{sien[:7]} · {ecrit}"))', ")")],
+    "S93_refus_d_acces_dit_course": [("        if COURSE.search(refus):\n", "        if True:\n")],
+    "S94_pointe_de_retrait_courte": [("    if pointe is not None and not POINTE_DU_RETRAIT.fullmatch(pointe):\n", "    if False:\n")],
+    "S95_depot_a_la_minute": [('quand.strftime(contrat["date"])', 'quand.strftime("%Y-%m-%d %Hh%M")')],
+    "S96_budget_de_mon_cote_non_clos": [("        if faits is not None and faits >= BUDGET:\n", "        if False:\n")],
+    "S84_branche_inconnue_admise_au_depot": [('            if code != 0:\n                return 2, f"branche absente : {branche} n\'existe pas au distant", None, None\n', "")],
 }
 
 
@@ -198,6 +307,25 @@ def charger(chemin):
     m = importlib.util.module_from_spec(sp)
     sp.loader.exec_module(m)
     return m
+
+
+C = charger(CONTRATS)                            # le contrat de la file, lu là où il est déclaré
+DOSSIER = C.DOSSIER_DE_LA_FILE_DE_RELECTURE      # « echanges/file/ » : un fichier par livraison (A-920, superviseur)
+
+
+def fichier_de_file(branche, pointe, deposee_le, objet="essai", debut=12):
+    """Rend (chemin, texte) du fichier de file d'une livraison, écrit sans le programme éprouvé.
+
+    ① RÔLE — Écrire la file par un écrivain indépendant de son lecteur. ② CONTEXTE D'APPEL — `Montage`, les cas de la
+    file, l'épreuve du vrai dépôt. ③ ENTRÉE — `branche`, `pointe`, `deposee_le`, `objet` ; `debut` : caractères de la
+    pointe dans le nom. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — DEUX valeurs : le chemin depuis la racine, le texte.
+    [rend: 2] ⑥ TRAITEMENT — Le nom et les lignes « champ=valeur » selon le contrat. ⑦ UNITÉ — — ⑧ POURQUOI — A-920 et
+    verdict du superviseur du 19-11-2026. ⑨ CE QUI CLOCHE — — ⑩ EFFET — — ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    valeurs = {"branche": branche, "pointe": pointe, "deposee_le": deposee_le, "objet": objet}
+    texte = "".join(f"{c}{C.SEPARATEUR_D_UNE_LIVRAISON_EN_FILE}{valeurs[c]}\n" for c in C.CHAMPS_D_UNE_LIVRAISON_EN_FILE)
+    nom = f"{branche}{C.SEPARATEUR_DU_NOM_D_UNE_LIVRAISON_EN_FILE}{pointe[:debut]}{C.EXTENSION_D_UNE_LIVRAISON_EN_FILE}"
+    return DOSSIER + nom, texte
 
 
 class MontageImpossible(Exception):
@@ -292,12 +420,17 @@ class Montage:
         g(d, "init", "-q", "--bare", "-b", "main", self.origine)      # par `g` : un échec est un montage impossible
         g(d, "clone", "-q", self.origine, self.auteur)
         g(self.auteur, "symbolic-ref", "HEAD", "refs/heads/main")
+        self.file = []                                  # les livraisons en file, écrites par le montage (dictionnaires)
         self.ecrire("main", {"programmes/CONTROLER_MA_LIVRAISON.py": FAUX_GARDE_FOU,
                              "programmes/LIRE_LE_CODE.py": "import emp\nX = 1\n", "emp.py": "Z = 1\n",
                              "programmes/AUTRE.py": "Y = 1\n", "gouvernance/REGISTRE_REGLES.md": REGISTRE_D_ESSAI}, T0)
 
-    def ecrire(self, branche, fichiers, date):
-        """Pousse `fichiers` (None efface) sur `branche` à l'heure `date` ; rend le commit. [rend: 1] [sort: non]"""
+    def ecrire(self, branche, fichiers, date, en_file=True):
+        """Pousse `fichiers` (None efface) sur `branche` à l'heure `date` ; rend le commit. [rend: 1] [sort: non]
+
+        Une branche travail- NOUVELLE est déposée dans la file (un fichier dans echanges/file/, pointe = son premier
+        commit), sur main, à la même heure — sauf `en_file=False` (A-920 : la boucle ne guette que ce que la file nomme).
+        """
         existe = bool(g(self.auteur, "branch", "--list", branche))
         if existe:
             g(self.auteur, "checkout", "-q", branche)
@@ -308,12 +441,55 @@ class Montage:
             os.makedirs(os.path.dirname(p), exist_ok=True)
             if t is None:
                 os.remove(p)
+                try:                                    # un dossier vidé ne doit pas gêner un fichier du même nom
+                    os.removedirs(os.path.dirname(p))
+                except OSError:
+                    pass
             else:
-                open(p, "w", encoding="utf-8").write(t)
+                open(p, "w", encoding="utf-8", newline="").write(t)
         g(self.auteur, "add", "-A")
         g(self.auteur, "commit", "-q", "--allow-empty", "-m", "note", date=date)
         g(self.auteur, "push", "-q", "-f", "origin", branche)
-        return g(self.auteur, "rev-parse", "HEAD")
+        h = g(self.auteur, "rev-parse", "HEAD")
+        if not existe and en_file and branche.startswith("travail-"):
+            self.enfiler(branche, h, date)
+        return h
+
+    def enfiler(self, branche, pointe, date, deposee_le=None):
+        """Ajoute un fichier de file sur main et pousse, sans passer par le programme éprouvé. [rend: 1] [sort: non]
+
+        Écrit par l'épreuve elle-même, et non par `deposer` du programme : un sabotage de `deposer` ne doit pas
+        empêcher le montage des autres cas, et le lecteur est confronté à un écrivain qui n'est pas le sien. Par
+        défaut, chaque dépôt a une minute de plus que le précédent (l'ordre de la file est celui de `deposee_le`).
+        Rend le chemin du fichier.
+        """
+        deposee_le = deposee_le or f"2026-11-19 12h{len(self.file) + 10:02d}m00s"
+        chemin, texte = fichier_de_file(branche, pointe, deposee_le, "essai " + branche)
+        self.file.append({"branche": branche, "pointe": pointe, "chemin": chemin})
+        self.ecrire("main", {chemin: texte}, date)
+        return chemin
+
+    def desenfiler(self, branche, date):
+        """Retire de main le fichier de file de `branche` et pousse. [rend: rien] [sort: non]"""
+        x = next(x for x in self.file if x["branche"] == branche)
+        self.file.remove(x)
+        self.ecrire("main", {x["chemin"]: None}, date)
+
+    def poser_dossier(self, fichiers, date):
+        """Remplace tout le dossier de la file sur main par `fichiers` ({chemin: texte}) et pousse. [rend: rien] [sort: non]"""
+        g(self.auteur, "checkout", "-q", "main")
+        d = os.path.join(self.auteur, DOSSIER)
+        anciens = {}
+        if os.path.isdir(d):
+            for r, _sd, fs in os.walk(d):
+                for f in fs:
+                    anciens[os.path.relpath(os.path.join(r, f), self.auteur)] = None
+        self.ecrire("main", {**anciens, **fichiers}, date)
+
+    def main_distant(self):
+        """Rend (pointe de main au distant, liste des fichiers de la file sur ce main). [rend: 2] [sort: non]"""
+        h = g(self.origine, "rev-parse", "refs/heads/main")
+        return h, [x for x in g(self.origine, "ls-tree", "-r", "--name-only", h, "--", DOSSIER).split("\n") if x]
 
     def copie(self):
         """Clone le distant pour le côté guetté, si ce n'est fait, et rend le chemin du clone guetté. [rend: 1] [sort: non]"""
@@ -384,14 +560,28 @@ def tour(module):
         """Le Chat lance la boucle : sa ligne au journal et sa note. [rend: 1] [sort: non]"""
         return m.ecrire("travail-x", {"echanges/A_RELIRE.md": note, B.JOURNAL: journal(LANCE)}, quand)
 
-    cas("B1", lambda m: debut(regard(m), 0, "ARRÊT · aucune version"))
+    # B1 — dossier de la file vide (absent de git) : rien à dire, on continue de guetter (A-920)
+    cas("B1", lambda m: regard(m) is None and regard(m, cote="cowork") is None)
+
+    # B2 — deux livraisons : la première dans l'ordre de `deposee_le`, pas dans l'ordre des noms (travail-b est
+    # déposée avant travail-a) ; la première retirée de la file, la seconde
+    def deux_livraisons(m):
+        for b, q, quand in (("travail-a", T0 + 5, "2026-11-19 12h40m00s"), ("travail-b", T0 + 7, "2026-11-19 12h20m00s")):
+            h = m.ecrire(b, {"echanges/A_RELIRE.md": note_du_chat("ACCEPTE · ma note\n"), B.JOURNAL: journal(LANCE)}, q,
+                         en_file=False)
+            m.enfiler(b, h, q, deposee_le=quand)
+            m.ecrire(b, {"echanges/RELU.md": ACCEPTE}, q + 10)
 
     def b2(m):
-        m.ecrire("travail-a", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
-        m.ecrire("travail-b", {"echanges/RELU.md": ACCEPTE}, T0 + 20)
-        r = regard(m)
-        return debut(r, 0, "ARRÊT · plusieurs versions") and "travail-a" in r[1] and "travail-b" in r[1]
+        deux_livraisons(m)
+        return debut(regard(m), 0, "TOUR À FAIRE · travail-b ·")
     cas("B2", b2)
+
+    def b2bis(m):
+        deux_livraisons(m)
+        m.desenfiler("travail-b", T0 + 30)
+        return debut(regard(m), 0, "TOUR À FAIRE · travail-a ·")
+    cas("B2bis", b2bis)
 
     def b3(m):
         m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 5)
@@ -436,7 +626,11 @@ def tour(module):
         lancee(m)
         dix_reponses(m)
         r = regard(m)
-        return debut(r, 0, "ARRÊT · BUDGET") and " 10 allers-retours" in r[1]
+        # R1 (superviseur, 3e tour) : annoncé une fois, puis la livraison est close et redite à chaque regard, des
+        # deux côtés (Cowork, qui a écrit la dixième réponse, la clôt aussi)
+        apres = [regard(m), regard(m), regard(m, cote="cowork")]
+        return (debut(r, 0, "ARRÊT · BUDGET") and " 10 allers-retours" in r[1]
+                and all(debut(x, 1, "AVIS · CLOSE, À RETIRER : travail-x · ") and "budget" in x[1] for x in apres))
     cas("B7", b7)
 
     def b8(m):
@@ -595,7 +789,8 @@ def tour(module):
         m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
         vu = regard(m)
         g(m.auteur, "push", "-q", "origin", "--delete", "travail-x")
-        return debut(vu, 0, "TOUR À FAIRE") and debut(regard(m), 0, "ARRÊT · aucune version")
+        r = regard(m)                                   # la file la nomme encore : erreur, jamais un silence (A-920)
+        return debut(vu, 0, "TOUR À FAIRE") and debut(r, 2, "ERREUR · file de relecture") and "branche absente" in r[1]
     cas("B25", b25)
 
     def b26(m):
@@ -626,7 +821,13 @@ def tour(module):
                        env=dict(os.environ, GIT_COMMITTER_NAME="essai", GIT_COMMITTER_EMAIL="essai@exemple.invalid",
                                 GIT_COMMITTER_DATE=f"@{env_date} +0000"))
         g(m.auteur, "push", "-q", "-f", "origin", "travail-x")
-        return cowork_avant is None and regard(m, cote="cowork") is None and debut(regard(m), 0, "TOUR À FAIRE")
+        # la pointe déposée n'est plus propre à la branche : erreur jusqu'au nouveau dépôt (A-920)
+        sans_depot = regard(m)
+        m.desenfiler("travail-x", T0 + 17)
+        m.enfiler("travail-x", g(m.auteur, "rev-parse", "origin/travail-x"), T0 + 17)
+        return (cowork_avant is None and debut(sans_depot, 2, "ERREUR · file de relecture")
+                and "pointe fausse" in sans_depot[1]
+                and regard(m, cote="cowork") is None and debut(regard(m), 0, "TOUR À FAIRE"))
     cas("B28", b28)
 
     def b29(m):
@@ -731,7 +932,9 @@ def tour(module):
     def b39(m):
         lancee(m)
         m.ecrire("travail-x", {"echanges/RELU.md": note_de_cowork("\nRIEN DE NEUF — je propose de clore\n")}, T0 + 10)
-        return debut(regard(m), 0, "ARRÊT · ÉCRIT") and regard(m) is None
+        premier, second = regard(m), regard(m)
+        return (debut(premier, 0, "ARRÊT · ÉCRIT") and "AVIS" not in premier[1]
+                and debut(second, 1, "AVIS · CLOSE, À RETIRER : travail-x · ") and "RIEN DE NEUF" in second[1])
     cas("B39", b39)
 
     def b40(m):
@@ -799,17 +1002,15 @@ def tour(module):
                 and debut(tard_chat, 0, "ARRÊT · SILENCE") and debut(tard_cowork, 0, "ARRÊT · SILENCE"))
     cas("B44", b44)
 
+    # B45 — la livraison retirée de la file : rien à dire, des deux côtés ; sa branche supprimée ensuite n'est pas
+    # une erreur (A-920 : la file ne la nomme plus)
     def b45(m):
-        m.ecrire("travail-a", {"programmes/AUTRE.py": "Y = 4\n"}, T0 + 10)
-        g(m.auteur, "push", "-q", "origin", "--delete", "travail-a")
-        premiere = regard(m)
-        m.ecrire("main", {"programmes/AUTRE.py": "Y = 5\n"}, T0 + 20)
-        m.ecrire("travail-b", {"programmes/AUTRE.py": "Y = 6\n"}, T0 + 30)
-        pendant = regard(m)
-        g(m.auteur, "push", "-q", "origin", "--delete", "travail-b")
-        seconde = regard(m)
-        return (debut(premiere, 0, "ARRÊT · aucune version") and pendant is None
-                and debut(seconde, 0, "ARRÊT · aucune version"))
+        lancee(m)
+        m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
+        m.desenfiler("travail-x", T0 + 20)
+        rendue = (regard(m), regard(m, cote="cowork"))
+        g(m.auteur, "push", "-q", "origin", "--delete", "travail-x")
+        return rendue == (None, None) and regard(m) is None and regard(m, cote="cowork") is None
     cas("B45", b45)
 
     def b46(m):
@@ -1082,6 +1283,375 @@ def tour(module):
         return n == 0 and restent == {"vivant": True, "mort": False, "moi": True}
     cas("B58", b58)
 
+    # ── la file de relecture, 19-11-2026 (BACKLOG A-920 : décision de Jean-Luc à 12h29, « 1 ») ──
+    # B1bis — lancé seul sur une file vide : « GUETTE », puis il continue de guetter sans rien écrire
+    def b1bis(m):
+        m.copie()
+        try:
+            subprocess.run([sys.executable, module, m.guette, "--cote", "chat", "--intervalle", "1",
+                            "--copie", m.copie_du_programme], capture_output=True, text=True, timeout=8)
+            return False                                # sorti de lui-même : il devait guetter
+        except subprocess.TimeoutExpired as e:
+            sortie = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+            l = sortie.strip().split("\n")
+            return len(l) == 1 and l[0].startswith("GUETTE · Chat")
+    cas("B1bis", b1bis)
+
+    # B60 — 60 branches travail- au distant et une ligne A_RELIRE : le tour sur la branche de la file, pas une autre
+    def b60(m):
+        lancee(m)
+        m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
+        g(m.auteur, "push", "-q", "origin", *[f"main:refs/heads/travail-a{i:02d}" for i in range(60)])
+        n = len([x for x in g(m.auteur, "ls-remote", "--heads", "origin").split("\n") if "refs/heads/travail-" in x])
+        return n == 61 and debut(regard(m), 0, "TOUR À FAIRE · travail-x ·")
+    cas("B60", b60)
+
+    # B61 — un fichier de file mal formé, quel que soit le défaut : ERREUR, code 2 (R-734) ; réparé : le tour revient
+    def b61(m):
+        lancee(m)
+        m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
+        h = m.file[0]["pointe"]
+        bon_chemin, bon = fichier_de_file("travail-x", h, "2026-11-19 12h30m00s")
+        nom = bon_chemin[len(DOSSIER):]
+        lignes = bon.split("\n")[:-1]
+        sans = lambda i: "".join(x + "\n" for j, x in enumerate(lignes) if j != i)
+        variantes = [                                       # (nom du fichier, texte, mot attendu dans le motif)
+            (nom, sans(3), "ligne(s) au lieu de"),                                       # trois lignes
+            (nom, bon + "etat=A_RELIRE\n", "ligne(s) au lieu de"),                       # cinq lignes
+            (nom, bon.replace("branche=", "branch="), "attendu, lu"),                    # nom de champ faux
+            (nom, bon.replace("objet=essai", "objet essai"), "attendu, lu"),              # sans « = »
+            (nom, lignes[1] + "\n" + lignes[0] + "\n" + sans(0).split("\n", 1)[1], "attendu, lu"),   # ordre faux
+            (nom, bon.replace(h, h[:12]), "40 caractères"),                              # pointe abrégée
+            (nom, bon.replace(h, h.upper()), "40 caractères"),                           # pointe en capitales
+            (nom, bon.replace("2026-11-19 12h30m00s", "19-11-2026 12:30"), "AAAA-MM-JJ"),    # date d'une autre forme
+            (nom, bon.replace("2026-11-19 12h30m00s", "2026-11-19 12h30"), "AAAA-MM-JJ"),  # sans les secondes (R6)
+            (nom, bon.replace("2026-11-19 12h30m00s", "2026-13-45 25h99m00s"), "heure vraie"),   # heure fausse
+            (nom, bon.replace("objet=essai", "objet= "), "objet vide"),                  # objet vide
+            ("-x__" + h[:12] + ".txt", bon.replace("branche=travail-x", "branche=-x"), "nom de branche"),
+            (nom, bon.replace("objet=essai\n", "objet=essai\r\n"), "retour chariot"),    # fin de ligne Windows
+            (nom, bon[:-1], "un seul saut"),                                             # sans saut de ligne final
+            (nom, bon + "\n", "un seul saut"),                                           # ligne vide en fin
+            ("travail-y__" + h[:12] + ".txt", bon, "nom de fichier"),                    # nom d'une autre branche
+            ("travail-x__000000000000.txt", bon, "nom de fichier"),                      # nom d'une autre pointe
+            (nom + "/dedans.txt", bon, "un fichier attendu"),                            # un sous-dossier au nom de livraison
+        ]
+        ok = debut(regard(m), 0, "TOUR À FAIRE")
+        for i, (n, texte, mot) in enumerate(variantes):
+            m.poser_dossier({DOSSIER + n: texte}, T0 + 20 + i)
+            r = regard(m)
+            ok = ok and debut(r, 2, "ERREUR · file de relecture") and "mal formée" in r[1] and mot in r[1]
+        # un fichier mal formé APRÈS une livraison bonne arrête aussi la boucle
+        m.poser_dossier({bon_chemin: bon, DOSSIER + "travail-z__0123456789ab.txt": "branche=travail-z\n"}, T0 + 60)
+        r = regard(m)
+        ok = ok and debut(r, 2, "ERREUR · file de relecture") and "mal formée" in r[1]
+        m.poser_dossier({bon_chemin: bon}, T0 + 70)
+        return ok and debut(regard(m), 0, "TOUR À FAIRE")
+    cas("B61", b61)
+
+    # B62 — une pointe qui n'est pas PROPRE à la branche (celle d'une autre branche, inconnue, un commit de main) :
+    # code 2 « pointe fausse » ; la pointe actuelle de la branche, plus récente que le commit livré, est admise
+    def b62(m):
+        lancee(m)
+        m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
+        autre = m.ecrire("travail-y", {"programmes/AUTRE.py": "Y = 7\n"}, T0 + 12, en_file=False)
+        de_main = g(m.auteur, "merge-base", "origin/main", "origin/travail-x")
+        ok = True
+        for i, p in enumerate((autre, "0" * 40, de_main)):
+            m.poser_dossier(dict([fichier_de_file("travail-x", p, "2026-11-19 12h30m00s")]), T0 + 20 + i)
+            r = regard(m)
+            ok = ok and debut(r, 2, "ERREUR · file de relecture") and "pointe fausse" in r[1]
+        tete = g(m.auteur, "rev-parse", "origin/travail-x")
+        m.poser_dossier(dict([fichier_de_file("travail-x", tete, "2026-11-19 12h30m00s")]), T0 + 30)
+        return ok and debut(regard(m), 0, "TOUR À FAIRE")
+    cas("B62", b62)
+
+    # B63 — la livraison déjà fusionnée dans main, fichier resté dans la file : code 2 « livraison fusionnée, fichier
+    # de file à retirer », jamais « pointe fausse » (le contrôle de la fusion passe AVANT celui de la pointe) ; la
+    # branche supprimée ensuite : même motif ; le fichier retiré : on guette
+    def b63(m):
+        lancee(m)
+        m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
+        g(m.auteur, "checkout", "-q", "main")
+        g(m.auteur, "merge", "-q", "--no-ff", "-m", "fusion", "travail-x", date=T0 + 20)
+        g(m.auteur, "push", "-q", "origin", "main")
+        fusionnee = regard(m)
+        g(m.auteur, "push", "-q", "origin", "--delete", "travail-x")
+        supprimee = regard(m)
+        m.desenfiler("travail-x", T0 + 30)
+        mot = "livraison fusionnée, fichier de file à retirer"
+        return (debut(fusionnee, 2, "ERREUR · file de relecture") and mot in fusionnee[1]
+                and "pointe fausse" not in fusionnee[1] and debut(supprimee, 2, "ERREUR · file de relecture")
+                and mot in supprimee[1] and regard(m) is None)
+    cas("B63", b63)
+
+    def chat_clone(m, nom):
+        """Un clone du Chat, avec une identité git (le programme commite la file). [rend: 1] [sort: non]"""
+        cl = os.path.join(m.d, nom)
+        lancer_le_montage(["git", "clone", "-q", m.origine, cl], capture_output=True)
+        g(cl, "config", "user.name", "essai")
+        g(cl, "config", "user.email", "essai@exemple.invalid")
+        return cl
+
+    def lancer(cl, *args, cote="chat"):
+        return subprocess.run([sys.executable, module, cl, "--cote", cote, *args], capture_output=True, text=True,
+                              timeout=60)
+
+    def un_seul_fichier(m, commit):
+        """Le commit a pour seul parent l'ancien main et ne touche qu'un fichier de la file. [rend: 1] [sort: non]"""
+        parents = g(m.origine, "rev-list", "--parents", "-n", "1", commit).split()[1:]
+        touches = g(m.origine, "diff-tree", "--no-commit-id", "--name-only", "-r", parents[0], commit).split("\n")
+        return len(parents) == 1 and len(touches) == 1 and touches[0].startswith(DOSSIER), parents[0]
+
+    # B64 — « --deposer » lancé comme le Chat le lance, depuis un clone placé sur une AUTRE branche, au main local en
+    # retard, avec du travail non commité : le fichier arrive sur main au distant, au-dessus de son main, seul dans son
+    # commit, la livraison déjà en file reste ; le clone n'est pas touché ; la boucle continue de guetter la première
+    def b64(m):
+        lancee(m)
+        m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
+        z = m.ecrire("travail-z", {"programmes/AUTRE.py": "Y = 5\n"}, T0 + 12, en_file=False)
+        cl = chat_clone(m, "chat")
+        g(cl, "checkout", "-q", "travail-x")
+        m.ecrire("main", {"programmes/AUTRE.py": "Y = 6\n"}, T0 + 14)          # le main local du clone est en retard
+        open(os.path.join(cl, "travail_non_commite.txt"), "w", encoding="utf-8").write("x")
+        etat = lambda: (g(cl, "rev-parse", "HEAD"), g(cl, "symbolic-ref", "HEAD"), g(cl, "rev-parse", "main"),
+                        g(cl, "status", "--porcelain"))
+        avant, (main_avant, file_avant) = etat(), m.main_distant()
+        r = lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "ma  livraison\n deux")
+        main_apres, file_apres = m.main_distant()
+        chemin = fichier_de_file("travail-z", z, "")[0]
+        lu = subprocess.run(["git", "-C", m.origine, "show", f"{main_apres}:{chemin}"], capture_output=True, text=True)
+        texte = lu.stdout.strip() if lu.returncode == 0 else ""      # absent : un résultat du programme, pas du montage
+        aujourd_hui = datetime.now(ZoneInfo("Europe/Paris")).strftime("%Y-%m-%d ")
+        seul, parent = un_seul_fichier(m, main_apres)
+        return (r.returncode == 0 and r.stdout.strip() == f"DÉPOSÉE · {chemin}"
+                and file_apres == sorted(file_avant + [chemin]) and seul and parent == main_avant
+                and texte.startswith(f"branche=travail-z\npointe={z}\ndeposee_le={aujourd_hui}")
+                and texte.endswith("\nobjet=ma livraison deux") and etat() == avant
+                and open(os.path.join(cl, "travail_non_commite.txt")).read() == "x"
+                and debut(regard(m), 0, "TOUR À FAIRE · travail-x ·"))
+    cas("B64", b64)
+
+    # B64bis — les refus de « --deposer », « --retirer » et des gestes combinés : code 2, « ERREUR · <motif> », et main
+    # au distant inchangé
+    def b64bis(m):
+        lancee(m)
+        z = m.ecrire("travail-z", {"programmes/AUTRE.py": "Y = 5\n"}, T0 + 12, en_file=False)
+        m.ecrire("travail-f", {"programmes/AUTRE.py": "Y = 8\n"}, T0 + 13, en_file=False)
+        g(m.auteur, "checkout", "-q", "main")
+        g(m.auteur, "merge", "-q", "--no-ff", "-m", "fusion", "travail-f", date=T0 + 14)
+        g(m.auteur, "push", "-q", "origin", "main")
+        cl = chat_clone(m, "chat")
+        ok = lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "o").returncode == 0
+        de_main = g(m.auteur, "merge-base", "origin/main", "origin/travail-z")
+        avant = m.main_distant()
+        refus = [(lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "o"), "déjà dans la file"),
+                 (lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "o", "--pointe", "abc"), "40 caractères"),
+                 (lancer(cl, "--deposer", "--branche", "travail-inconnue", "--objet", "o"), "branche absente"),
+                 (lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "o", "--pointe", de_main), "pointe fausse"),
+                 (lancer(cl, "--deposer", "--branche", "travail-f", "--objet", "o"), "livraison fusionnée"),
+                 (lancer(cl, "--retirer", "--branche", "travail-inconnue"), "aucun fichier de file"),
+                 (lancer(cl, "--noter", "--deposer", "--branche", "travail-z", "--objet", "o"), "ne se combinent pas"),
+                 (lancer(cl, "--deposer", "--retirer", "--branche", "travail-z", "--objet", "o"), "ne se combinent pas"),
+                 (lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "o", cote="cowork"), "Cowork n'écrit jamais"),
+                 (lancer(cl, "--retirer", "--branche", "travail-z", cote="cowork"), "Cowork n'écrit jamais")]
+        for r, mot in refus:
+            ok = ok and r.returncode == 2 and r.stdout.startswith("ERREUR · ") and mot in r.stdout
+        ok = ok and m.main_distant() == avant
+        # l'objet vide n'est refusé que par la relecture du fichier avant écriture
+        z2 = m.ecrire("travail-z", {"programmes/AUTRE.py": "Y = 4\n"}, T0 + 20)
+        avant = m.main_distant()
+        r = lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "  ", "--pointe", z2)
+        return ok and r.returncode == 2 and "objet vide" in r.stdout and m.main_distant() == avant
+    cas("B64bis", b64bis)
+
+    # B64ter — « --retirer » : deux fichiers d'une même branche, sans pointe → refus ; avec le début de la pointe →
+    # ce fichier seul part, dans un commit d'un seul fichier au-dessus de main
+    def b64ter(m):
+        z1 = m.ecrire("travail-z", {"programmes/AUTRE.py": "Y = 5\n"}, T0 + 12, en_file=False)
+        z2 = m.ecrire("travail-z", {"programmes/AUTRE.py": "Y = 4\n"}, T0 + 13)
+        cl = chat_clone(m, "chat")
+        ok = all(lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "o", "--pointe", p).returncode == 0
+                 for p in (z1, z2))
+        avant = m.main_distant()
+        r = lancer(cl, "--retirer", "--branche", "travail-z")
+        ok = ok and r.returncode == 2 and "préciser --pointe" in r.stdout and m.main_distant() == avant
+        # R6 (superviseur, 3e tour) : moins de 7 caractères → refus avant tout geste, main inchangé
+        for court in (z1[:1], z1[:6]):
+            r = lancer(cl, "--retirer", "--branche", "travail-z", "--pointe", court)
+            ok = ok and r.returncode == 2 and "au moins 7 caractères" in r.stdout and m.main_distant() == avant
+        r = lancer(cl, "--retirer", "--branche", "travail-z", "--pointe", z1[:7])
+        main_apres, file_apres = m.main_distant()
+        seul, parent = un_seul_fichier(m, main_apres)
+        reste = fichier_de_file("travail-z", z2, "")[0]
+        return (ok and r.returncode == 0 and r.stdout.strip() == "RETIRÉE · " + fichier_de_file("travail-z", z1, "")[0]
+                and file_apres == [reste] and seul and parent == avant[0])
+    cas("B64ter", b64ter)
+
+    # B64quater — la file déjà cassée sur main n'est jamais complétée : « --deposer » rend 2, main inchangé
+    def b64quater(m):
+        z = m.ecrire("travail-z", {"programmes/AUTRE.py": "Y = 5\n"}, T0 + 12, en_file=False)
+        m.poser_dossier({DOSSIER + "travail-q__0123456789ab.txt": "branche=x\n"}, T0 + 14)
+        cl = chat_clone(m, "chat")
+        avant = m.main_distant()
+        r = lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "o", "--pointe", z)
+        return r.returncode == 2 and "mal formée" in r.stdout and m.main_distant() == avant
+    cas("B64quater", b64quater)
+
+    # B66 — deux « --deposer » concurrents : la poussée du premier est refusée (le second est passé entre sa lecture et
+    # sa poussée) ; il re-tire, relit main, refait son geste et repousse : les deux fichiers sont sur main, chacun seul
+    # dans son commit
+    def b66(m):
+        a = m.ecrire("travail-a", {"programmes/AUTRE.py": "Y = 5\n"}, T0 + 12, en_file=False)
+        b = m.ecrire("travail-b", {"programmes/AUTRE.py": "Y = 4\n"}, T0 + 13, en_file=False)
+        un, deux = chat_clone(m, "chat1"), chat_clone(m, "chat2")
+        vu = []
+
+        def concurrent():
+            if not vu:
+                vu.append(B.deposer(deux, "travail-b", "objet b"))
+        r1 = B.deposer(un, "travail-a", "objet a", avant_de_pousser=concurrent)
+        h, fichiers = m.main_distant()
+        attendus = sorted([fichier_de_file("travail-a", a, "")[0], fichier_de_file("travail-b", b, "")[0]])
+        seul1, parent = un_seul_fichier(m, h)
+        seul2, _ = un_seul_fichier(m, parent)
+        return r1[0] == 0 and vu and vu[0][0] == 0 and fichiers == attendus and seul1 and seul2
+    cas("B66", b66)
+
+    # B67 — le distant refuse la poussée : refusée 3 fois → code 2 après 3 essais exactement ; refusée 2 fois → le
+    # troisième essai passe
+    def b67(m):
+        z = m.ecrire("travail-z", {"programmes/AUTRE.py": "Y = 5\n"}, T0 + 12, en_file=False)
+        cl = chat_clone(m, "chat")
+        journal_des_essais = os.path.join(m.d, "essais.log")
+        crochet = os.path.join(m.origine, "hooks", "pre-receive")
+
+        def refuser(n):
+            open(journal_des_essais, "w").close()
+            open(crochet, "w").write(f'#!/bin/sh\necho x >> "{journal_des_essais}"\n'
+                                     f'[ "$(wc -l < "{journal_des_essais}")" -gt {n} ] && exit 0\nexit 1\n')
+            os.chmod(crochet, 0o755)
+        refuser(3)
+        avant = m.main_distant()
+        code, motif = B.deposer(cl, "travail-z", "o")
+        essais_refus = len(open(journal_des_essais).read().split())
+        ok = (code == 2 and "refusée 3 fois" in motif and essais_refus == 3 and m.main_distant() == avant
+              and "SANS RAPPORT avec une course" in motif and "pre-receive hook declined" in motif)
+        refuser(2)
+        code, _ = B.deposer(cl, "travail-z", "o")
+        essais_ok = len(open(journal_des_essais).read().split())
+        os.remove(crochet)
+        ok = ok and code == 0 and essais_ok == 3 and m.main_distant()[1] == [fichier_de_file("travail-z", z, "")[0]]
+        # une vraie course à chaque essai : main bouge juste avant chacune des trois poussées → « main a bougé »
+        autre = chat_clone(m, "autre")
+
+        def bouger():
+            open(os.path.join(autre, f"bouge_{len(os.listdir(autre))}.txt"), "w").write("x")
+            g(autre, "add", "-A")
+            g(autre, "commit", "-q", "-m", "main bouge")
+            g(autre, "pull", "-q", "--rebase", "origin", "main")
+            g(autre, "push", "-q", "origin", "HEAD:main")
+        code, motif = B.retirer(cl, "travail-z", avant_de_pousser=bouger)
+        return (ok and code == 2 and "refusée 3 fois" in motif and "main a bougé" in motif
+                and "SANS RAPPORT" not in motif)
+    cas("B67", b67)
+
+    # B68 — Cowork ne modifie jamais echanges/file/ : ses regards (tour, refus) laissent main et la file intacts, au
+    # distant comme dans le clone guetté
+    def b68(m):
+        lancee(m)
+        m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
+        m.ecrire("travail-x", {"echanges/A_RELIRE.md": note_du_chat("ACCEPTE · réponse\n")}, T0 + 20)
+        cl = m.copie()
+        avant, local = m.main_distant(), g(cl, "ls-tree", "-r", "HEAD", "--", DOSSIER)
+        r = regard(m, cote="cowork")
+        r2 = subprocess.run([sys.executable, module, cl, "--cote", "cowork", "--intervalle", "0",
+                             "--copie", m.copie_du_programme], capture_output=True, text=True, timeout=60)
+        return (debut(r, 0, "TOUR À FAIRE") and r2.returncode == 0 and m.main_distant() == avant
+                and g(cl, "ls-tree", "-r", "HEAD", "--", DOSSIER) == local and not g(cl, "status", "--porcelain"))
+    cas("B68", b68)
+
+    # B69 — R5 (superviseur, 3e tour) : des fichiers étrangers dans le dossier de la file (README.md, .gitkeep, un nom
+    # à 7 caractères, une autre extension, un sous-dossier) ne bloquent rien : le tour est dit, chacun est NOMMÉ, à
+    # chaque regard ; seuls, ils donnent des avis (code 1) ; « --deposer » et « --retirer » passent et les laissent
+    def b69(m):
+        lancee(m)
+        m.ecrire("travail-x", {"echanges/RELU.md": ACCEPTE}, T0 + 10)
+        h = m.file[0]["pointe"]
+        etrangers = {DOSSIER + "README.md": "# la file\n", DOSSIER + ".gitkeep": "",
+                     DOSSIER + "travail-x__" + h[:7] + ".txt": "x\n", DOSSIER + "travail-x__" + h[:12] + ".md": "x\n",
+                     DOSSIER + "sous/f.txt": "x\n"}
+        noms = [DOSSIER + "README.md", DOSSIER + ".gitkeep", DOSSIER + "travail-x__" + h[:7] + ".txt",
+                DOSSIER + "travail-x__" + h[:12] + ".md", DOSSIER + "sous"]
+        m.poser_dossier({**dict([fichier_de_file("travail-x", h, "2026-11-19 12h30m00s")]), **etrangers}, T0 + 20)
+        dits = [regard(m), regard(m), regard(m, cote="cowork")]
+        ok = (debut(dits[0], 0, "TOUR À FAIRE · travail-x ·") and debut(dits[1], 0, "TOUR À FAIRE · travail-x ·")
+              and all(f"AVIS · FICHIER ÉTRANGER À LA FILE, ignoré : {n}" in x[1].split("\n") for x in dits[:2] for n in noms)
+              and dits[2] is not None and all(f"ignoré : {n}" in dits[2][1] for n in noms))
+        z = m.ecrire("travail-z", {"programmes/AUTRE.py": "Y = 5\n"}, T0 + 30, en_file=False)
+        cl = chat_clone(m, "chat")
+        depose = lancer(cl, "--deposer", "--branche", "travail-z", "--objet", "o", "--pointe", z)
+        retire = lancer(cl, "--retirer", "--branche", "travail-x")
+        _h, file = m.main_distant()
+        ok = (ok and depose.returncode == 0 and retire.returncode == 0
+              and sorted(file) == sorted([n for n in etrangers] + [fichier_de_file("travail-z", z, "")[0]]))
+        # les étrangers seuls (plus aucune livraison guettable) : des avis, code 1, à chaque regard
+        lancer(cl, "--retirer", "--branche", "travail-z")
+        seuls = [regard(m), regard(m)]
+        return ok and all(debut(x, 1, "AVIS · FICHIER ÉTRANGER") and len(x[1].split("\n")) == len(noms) for x in seuls)
+    cas("B69", b69)
+
+    # B70 — R1 (superviseur, 3e tour) : travail-x close par « RIEN DE NEUF » de Cowork mais non retirée, travail-y
+    # lancée derrière. Le Chat : l'arrêt une fois, puis « AVIS · CLOSE, À RETIRER : travail-x » à CHAQUE regard ;
+    # Cowork, qui a écrit la clôture : la livraison sautée, le tour de travail-y dit avec l'avis ; Cowork répond sur
+    # travail-y → le Chat a son tour sur travail-y, avec l'avis
+    def b70(m):
+        lancee(m)
+        m.ecrire("travail-x", {"echanges/RELU.md": note_de_cowork("\nRIEN DE NEUF — je propose de clore\n")}, T0 + 10)
+        m.ecrire("travail-y", {"echanges/A_RELIRE.md": note_du_chat("ACCEPTE · y\n"), B.JOURNAL: journal(LANCE)}, T0 + 20)
+        avis = "AVIS · CLOSE, À RETIRER : travail-x · "
+        chat = [regard(m), regard(m), regard(m, maintenant=T0 + 3600)]
+        cowork = [regard(m, cote="cowork"), regard(m, cote="cowork")]
+        ok = (debut(chat[0], 0, "ARRÊT · ÉCRIT PAR L'AUTRE CÔTÉ · travail-x")
+              and all(debut(x, 1, avis) for x in chat[1:])
+              and all(debut(x, 0, "TOUR À FAIRE · travail-y ·") and x[1].split("\n")[1].startswith(avis)
+                      for x in cowork))
+        m.ecrire("travail-y", {"echanges/RELU.md": ACCEPTE}, T0 + 30)
+        r = regard(m)
+        return ok and debut(r, 0, "TOUR À FAIRE · travail-y ·") and r[1].split("\n")[1].startswith(avis)
+    cas("B70", b70)
+
+    # B71 — R4 (superviseur, 3e tour) : le clone du Chat a déjà vu travail-z ; la branche est supprimée au distant ;
+    # « --deposer » doit la refuser (« branche absente ») : sans --prune au fetch de la file, le clone la croyait
+    # encore là, et la boucle l'aurait refusée ensuite
+    def b71(m):
+        z = m.ecrire("travail-z", {"programmes/AUTRE.py": "Y = 5\n"}, T0 + 12, en_file=False)
+        cl = chat_clone(m, "chat")
+        g(cl, "fetch", "-q", "origin")
+        g(m.auteur, "push", "-q", "origin", "--delete", "travail-z")
+        avant = m.main_distant()
+        code, motif = B.deposer(cl, "travail-z", "o", pointe=z)
+        return code == 2 and "branche absente" in motif and m.main_distant() == avant
+    cas("B71", b71)
+
+    # B72 — R6 (superviseur, 3e tour) : deux dépôts dans la même minute, travail-b à 20h01m10s puis travail-a à
+    # 20h01m50s : deposee_le porte les secondes, et la première livraison est travail-b (l'ordre des dépôts, pas
+    # celui des noms)
+    def b72(m):
+        for b, q in (("travail-a", T0 + 5), ("travail-b", T0 + 7)):
+            m.ecrire(b, {"echanges/A_RELIRE.md": note_du_chat("ACCEPTE · ma note\n"), B.JOURNAL: journal(LANCE)}, q,
+                     en_file=False)
+            m.ecrire(b, {"echanges/RELU.md": ACCEPTE}, q + 10)
+        cl = chat_clone(m, "chat")
+        paris = ZoneInfo("Europe/Paris")
+        rb = B.deposer(cl, "travail-b", "b", maintenant=datetime(2026, 11, 19, 20, 1, 10, tzinfo=paris))
+        ra = B.deposer(cl, "travail-a", "a", maintenant=datetime(2026, 11, 19, 20, 1, 50, tzinfo=paris))
+        if rb[0] != 0:                                  # un refus du programme, pas du montage : le cas est faux
+            return False
+        texte = g(m.origine, "show", "refs/heads/main:" + rb[1])
+        return (ra[0] == 0 and "\ndeposee_le=2026-11-19 20h01m10s\n" in texte + "\n"
+                and debut(regard(m), 0, "TOUR À FAIRE · travail-b ·"))
+    cas("B72", b72)
+
     # B56 — un cas dont le montage échoue est déclaré « MONTAGE IMPOSSIBLE », avec un message sans chemin jetable,
     # jamais compté comme un cas faux ordinaire (cassure N de Cowork, 17-10-2026). Ce cas éprouve l'épreuve elle-même.
     avant = len(faux)
@@ -1107,6 +1677,261 @@ def tour(module):
     return faux
 
 
+SANS_OBJET = 3                  # code de sortie de B65 quand le vrai dossier de la file est vide : ni vert ni faux
+
+
+def premiere_livraison_du_dossier(racine):
+    """Lit le dossier de la file d'une racine (fichiers sur disque) sans le programme éprouvé ; rend la première livraison.
+
+    ① RÔLE — Dire, par une lecture indépendante du lecteur éprouvé, quelle livraison la boucle doit nommer.
+    ② CONTEXTE D'APPEL — `epreuve_du_vrai_depot`. ③ ENTRÉE — `racine` : le dépôt dont on prend echanges/file/.
+    ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — DEUX valeurs : la liste {chemin: texte} des fichiers du dossier, puis la
+    première livraison (dictionnaire des champs) dans l'ordre de `deposee_le` puis du nom, ou None si le dossier est
+    vide ou absent. [rend: 2] ⑥ TRAITEMENT — lignes « champ=valeur ». ⑦ UNITÉ — — ⑧ POURQUOI — Verdict du
+    superviseur du 19-11-2026, point 5 : la livraison n'est plus écrite en dur dans l'épreuve (relecture, D6).
+    ⑨ CE QUI CLOCHE — Un fichier mal formé est lu au mieux ici : c'est le regard du programme qui le refusera.
+    ⑩ EFFET — — ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    d = os.path.join(racine, DOSSIER)
+    fichiers = {}
+    if os.path.isdir(d):
+        for nom in sorted(os.listdir(d)):
+            if os.path.isfile(os.path.join(d, nom)):
+                fichiers[DOSSIER + nom] = open(os.path.join(d, nom), encoding="utf-8", newline="").read()
+    livraisons = []
+    forme = re.compile("(.+)" + re.escape(C.SEPARATEUR_DU_NOM_D_UNE_LIVRAISON_EN_FILE)
+                       + "[0-9a-f]{12}" + re.escape(C.EXTENSION_D_UNE_LIVRAISON_EN_FILE))
+    for chemin, texte in fichiers.items():
+        if not forme.fullmatch(chemin[len(DOSSIER):]):  # un fichier étranger (README, .gitkeep) n'est pas une livraison
+            continue
+        x = dict(l.split(C.SEPARATEUR_D_UNE_LIVRAISON_EN_FILE, 1) for l in texte.split("\n")
+                 if C.SEPARATEUR_D_UNE_LIVRAISON_EN_FILE in l)
+        livraisons.append((x.get("deposee_le", ""), chemin, x))
+    return fichiers, (min(livraisons)[2] if livraisons else None)
+
+
+def epreuve_du_vrai_depot(module, clone, racine):
+    """Joue un regard de la boucle sur une COPIE du vrai dépôt : ses vraies branches travail-, et le vrai dossier de la
+    file (celui de `racine`) posé sur sa main.
+
+    ① RÔLE — Prouver sur le vrai état, et non sur un montage, que le nombre de branches travail- n'a plus d'effet
+      (A-920) : le regard nomme la branche de la première livraison du vrai dossier. ② CONTEXTE D'APPEL — `main`, avec
+      « --etat-reel=<clone> » ; jamais la nuit (il dépend des branches du jour). ③ ENTRÉE — `module` : le programme à
+      éprouver · `clone` : un clone du vrai dépôt, LU seulement (ses objets servent d'emprunt, ses références
+      origin/* sont recopiées) · `racine` : le dépôt dont on prend le dossier echanges/file/.
+    ④ CONDITIONS D'ENTRÉE — Le clone connaît les branches nommées par le dossier.
+    ⑤ SORTIE — DEUX valeurs : vrai si le côté Cowork rend un événement (code 0) qui nomme la branche de la première
+      livraison, faux sinon, None si le dossier est vide (« sans objet ») ; puis les lignes à afficher (la livraison
+      attendue, le nombre de branches travail- de la copie, la réponse de chaque côté ; celle du Chat est affichée,
+      non jugée : elle dépend de l'heure, par le silence de 3 heures). [rend: 2]
+    ⑥ TRAITEMENT — ① `premiere_livraison_du_dossier` ; aucune → None · ② un dépôt nu dans un dossier jetable, qui
+      emprunte les objets du clone (objects/info/alternates) et reçoit ses références origin/* comme branches · ③ sur
+      sa main, un commit qui ajoute les fichiers du dossier · ④ un clone guetté (--shared) · ⑤ `un_regard` côté cowork
+      puis côté chat, chacun dans sa copie du programme. ⑦ UNITÉ — —
+    ⑧ POURQUOI — Consigne du 19-11-2026 : une épreuve au moins sur le vrai état du dépôt (60 branches travail-) ;
+      verdict du superviseur du même jour, point 5 : la première livraison du vrai dossier, et un dossier vide dit
+      « sans objet » par un code non nul distinct, jamais vert.
+    ⑨ CE QUI CLOCHE — Le garde-fou joué est le vrai, sur la vraie note : son verdict (tour, refus, arrêt) dépend du
+      jour ; l'épreuve ne juge que la branche nommée. ⑩ EFFET — Écrit dans un dossier jetable, effacé ; le clone
+      n'est jamais écrit. ⑪ TERMINAISON — Rend la main (deux vérifications du vrai garde-fou au plus). [sort: non]
+    """
+    fichiers, premiere = premiere_livraison_du_dossier(racine)
+    if premiere is None:
+        return None, [f"{DOSSIER} de {racine} est vide : aucune livraison à guetter"]
+    B = charger(module)
+    d = tempfile.mkdtemp(prefix="boucle_vrai_")
+    try:
+        nu = os.path.join(d, "origine.git")
+        g(d, "init", "-q", "--bare", "-b", "main", nu)
+        objets = os.path.join(g(clone, "rev-parse", "--path-format=absolute", "--git-common-dir"), "objects")
+        open(os.path.join(nu, "objects", "info", "alternates"), "w").write(objets + "\n")
+        refs = [x.split() for x in g(clone, "for-each-ref", "--format=%(objectname) %(refname)",
+                                     "refs/remotes/origin/").split("\n") if x.strip()]
+        ordres = "".join(f"create refs/heads/{r[len('refs/remotes/origin/'):]} {h}\n" for h, r in refs
+                         if r != "refs/remotes/origin/HEAD")
+        subprocess.run(["git", "-C", nu, "update-ref", "--stdin"], input=ordres, text=True, check=True)
+        env = dict(os.environ, GIT_INDEX_FILE=os.path.join(d, "index"), GIT_AUTHOR_NAME="essai",
+                   GIT_AUTHOR_EMAIL="essai@exemple.invalid", GIT_COMMITTER_NAME="essai",
+                   GIT_COMMITTER_EMAIL="essai@exemple.invalid")
+
+        def nu_git(*args):
+            return subprocess.run(["git", "-C", nu, *args], capture_output=True, text=True, check=True,
+                                  env=env).stdout.strip()
+        nu_git("read-tree", "main")
+        for i, (chemin, texte) in enumerate(fichiers.items()):
+            f = os.path.join(d, f"fichier_{i}")
+            open(f, "w", encoding="utf-8", newline="").write(texte)
+            nu_git("update-index", "--add", "--cacheinfo", f"100644,{nu_git('hash-object', '-w', f)},{chemin}")
+        commit = nu_git("commit-tree", nu_git("write-tree"), "-p", "main", "-m", "file de relecture (épreuve du vrai dépôt)")
+        nu_git("update-ref", "refs/heads/main", commit)
+        guette = os.path.join(d, "guette")
+        g(d, "clone", "-q", "--shared", "--no-checkout", nu, guette)
+        branche = premiere.get("branche", "")
+        lignes = [f"première livraison du dossier : {branche} {premiere.get('pointe', '')[:9]}",
+                  f"branches travail- dans la copie : {sum(1 for h, r in refs if r.startswith('refs/remotes/origin/travail-'))}"]
+        ok = True
+        for cote in ("cowork", "chat"):
+            depot = B.copie_du_programme(guette, os.path.join(d, "copie_du_programme_" + cote))[0]
+            r = B.un_regard(depot, cote, time.time())
+            lignes.append(f"{cote} : {r}")
+            if cote == "cowork":                        # un événement qui nomme la branche de la première livraison
+                ok = r is not None and r[0] == 0 and f" {branche} " in r[1]
+        return ok, lignes
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+CIRCUIT = os.path.join(RACINE, ".github", "workflows", "collecte_abc.yml")
+DEBUT_DE_LA_POUSSEE = "# DEBUT DE LA POUSSEE DU MAITRE"
+FIN_DE_LA_POUSSEE = "# FIN DE LA POUSSEE DU MAITRE"
+# Les sabotages du circuit (B73) : chacun retire une garde de la poussée du fichier maître, dans le texte du circuit.
+SABOTAGES_DU_CIRCUIT = {
+    "SC1_poussee_nue": [("          VERSE_ICI=$(git rev-parse HEAD:donnees/cours_maitre.csv)\n",
+                         "          git push || { echo \"::error::poussee du maitre refusee\"; exit 1; }; exit 0\n")],
+    "SC2_un_seul_essai": [("          for i in 1 2 3; do\n            if git pull --rebase origin main; then\n",
+                           "          for i in 1; do\n            if git pull --rebase origin main; then\n")],
+    "SC3_maitre_melange_admis": [("              if [ \"$(git rev-parse HEAD:donnees/cours_maitre.csv)\" != \"$VERSE_ICI\" ]; then\n",
+                                  "              if false; then\n")],
+    "SC4_rebase_laisse_en_plan": [("              git rebase --abort || true\n", "              true\n")],
+}
+
+
+def script_de_la_poussee(texte):
+    """Rend les lignes du circuit entre les deux marques de la poussée du maître, sans leur retrait commun.
+
+    ① RÔLE — Jouer la poussée du maître TELLE QU'ELLE EST ÉCRITE dans le circuit, et non une copie. ② CONTEXTE
+    D'APPEL — `epreuve_de_la_poussee_du_maitre`. ③ ENTRÉE — `texte` : le texte du circuit. ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le script, ou None si les marques manquent ou se répètent. [rend: 1] ⑥ TRAITEMENT — Les
+    lignes strictement entre les marques ; le retrait de la première est retiré de toutes. ⑦ UNITÉ — — ⑧ POURQUOI —
+    Superviseur R-759, 3e tour, 19-11-2026 : la poussée du maître passe en trois essais, et l'épreuve doit rougir si
+    on retire la boucle. ⑨ CE QUI CLOCHE — Les pas qui précèdent (versement, commit) ne sont pas joués : le montage
+    les remplace par un commit du maître. ⑩ EFFET — — ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    lignes = texte.split("\n")
+    debuts = [i for i, l in enumerate(lignes) if l.strip().startswith(DEBUT_DE_LA_POUSSEE)]
+    fins = [i for i, l in enumerate(lignes) if l.strip() == FIN_DE_LA_POUSSEE]
+    if len(debuts) != 1 or len(fins) != 1 or fins[0] <= debuts[0]:
+        return None
+    corps = lignes[debuts[0] + 1:fins[0]]
+    retrait = len(corps[0]) - len(corps[0].lstrip(" "))
+    return "\n".join(l[retrait:] for l in corps) + "\n"
+
+
+def epreuve_de_la_poussee_du_maitre(texte):
+    """B73 — joue la poussée du fichier maître du circuit du soir dans des dépôts jetables ; rend la liste des défauts.
+
+    ① RÔLE — Prouver que la poussée du maître (pas « Verser la seance du jour dans le fichier maitre » de
+      .github/workflows/collecte_abc.yml) survit à une poussée concurrente sur main, ne pousse jamais un maître
+      mélangé par le rebase, et ne laisse pas de rebase en plan. ② CONTEXTE D'APPEL — `main`, une fois sur le vrai
+      circuit (ligne « Z0 »), puis une fois par sabotage de SABOTAGES_DU_CIRCUIT avec « --saboter ». ③ ENTRÉE —
+      `texte` : le texte du circuit. ④ CONDITIONS D'ENTRÉE — git et bash sur la machine. ⑤ SORTIE — UNE valeur : la
+      liste des défauts (vide si tout tient). [rend: 1] ⑥ TRAITEMENT — Trois montages, chacun : un distant nu dont main
+      porte donnees/cours_maitre.csv ; une « machine » (clone, identité) qui ajoute une ligne au maître et commite,
+      comme le versement ; le script joué par « bash -e », « sleep » neutralisé. (a) COURSE : un crochet pre-push de la
+      machine pousse, à son PREMIER appel, un commit concurrent (un autre fichier) → code 0, le distant porte les
+      deux, le maître est celui de la machine, deux poussées tentées. (b) MAÎTRE CHANGÉ AU DÉPÔT : avant le script,
+      le distant reçoit une ligne en TÊTE du maître (le rebase la fusionnerait sans conflit) → code non nul, le
+      message « LE FICHIER MAITRE A CHANGE », le maître du distant intact. (c) CONFLIT : le distant change la même
+      ligne → code non nul, aucun rebase en plan (.git/rebase-merge et .git/rebase-apply absents). ⑦ UNITÉ — — ⑧
+      POURQUOI — Superviseur R-759, 3e tour (19-11-2026) : chaque « --deposer » ou « --retirer » du Chat est une poussée
+      sur main ; tombée entre la collecte et le versement, elle faisait refuser la poussée nue du maître, et le pas
+      des signaux ne tournait pas (une séance non lue le jour même perd ses signaux pour toujours). ⑨ CE QUI CLOCHE —
+      Joué hors de GitHub : ni le jeton, ni le crochet de protection de main, ni ETAPE_MUETTE.py du circuit public.
+      ⑩ EFFET — Dossiers jetables, effacés. ⑪ TERMINAISON — Rend la main ; chaque script est borné à 120 secondes.
+      [sort: non]
+    """
+    script = script_de_la_poussee(texte)
+    if script is None:
+        return ["B73 : marques de la poussée du maître absentes ou répétées dans le circuit"]
+    script = "sleep() { :; }\n" + script         # les 5 secondes entre deux essais, sans rien changer d'autre
+    defauts = []
+    env = dict(os.environ, GIT_AUTHOR_NAME="essai", GIT_AUTHOR_EMAIL="essai@exemple.invalid",
+               GIT_COMMITTER_NAME="essai", GIT_COMMITTER_EMAIL="essai@exemple.invalid")
+
+    def git_(dossier, *args):
+        return subprocess.run(["git", "-C", dossier, *args], capture_output=True, text=True, check=True,
+                              env=env).stdout.strip()
+
+    def monter(d):
+        nu, machine, autre = (os.path.join(d, x) for x in ("origine.git", "machine", "autre"))
+        git_(d, "init", "-q", "--bare", "-b", "main", nu)
+        for c in (machine, autre):
+            git_(d, "clone", "-q", nu, c)
+            git_(c, "symbolic-ref", "HEAD", "refs/heads/main")
+        os.makedirs(os.path.join(autre, "donnees"))
+        open(os.path.join(autre, "donnees", "cours_maitre.csv"), "w").write("date;valeur\n2026-11-18;A\n")
+        git_(autre, "add", "-A")
+        git_(autre, "commit", "-q", "-m", "init")
+        git_(autre, "push", "-q", "origin", "main")
+        git_(machine, "pull", "-q", "origin", "main")
+        git_(machine, "branch", "-q", "--set-upstream-to=origin/main", "main")
+        open(os.path.join(machine, "donnees", "cours_maitre.csv"), "a").write("2026-11-19;A\n")
+        git_(machine, "add", "-A")
+        git_(machine, "commit", "-q", "-m", "versement")
+        return nu, machine, autre
+
+    def pousser_dans(autre, chemin, texte_):
+        git_(autre, "pull", "-q", "--rebase", "origin", "main")
+        open(os.path.join(autre, chemin), "w").write(texte_)
+        git_(autre, "add", "-A")
+        git_(autre, "commit", "-q", "-m", "concurrent")
+        git_(autre, "push", "-q", "origin", "main")
+
+    def jouer(machine):
+        return subprocess.run(["bash", "-e", "-c", script], cwd=machine, capture_output=True, text=True,
+                              timeout=120, env=env)
+
+    def maitre(nu):
+        return git_(nu, "show", "refs/heads/main:donnees/cours_maitre.csv")
+
+    # (a) course : le crochet pre-push de la machine fait pousser un concurrent à son premier appel
+    d = tempfile.mkdtemp(prefix="boucle_b73a_")
+    try:
+        nu, machine, autre = monter(d)
+        compte = os.path.join(d, "appels")
+        crochet = os.path.join(machine, ".git", "hooks", "pre-push")
+        open(crochet, "w").write(
+            "#!/bin/sh\n"
+            f'echo x >> "{compte}"\n'
+            f'if [ "$(wc -l < "{compte}")" -eq 1 ]; then\n'
+            f'  cd "{autre}" && git pull -q --rebase origin main && echo y > autre.txt && git add -A '
+            f'&& git commit -q -m concurrent && git push -q origin main\n'
+            "fi\nexit 0\n")
+        os.chmod(crochet, 0o755)
+        attendu = open(os.path.join(machine, "donnees", "cours_maitre.csv")).read()
+        r = jouer(machine)
+        appels = len(open(compte).read().split()) if os.path.exists(compte) else 0
+        fichiers = git_(nu, "ls-tree", "-r", "--name-only", "refs/heads/main").split("\n")
+        if not (r.returncode == 0 and appels == 2 and "autre.txt" in fichiers and maitre(nu) == attendu.rstrip("\n")):
+            defauts.append(f"B73a course : code {r.returncode}, {appels} poussée(s) tentée(s)")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    # (b) le maître changé au dépôt sans conflit : rien n'est poussé, le pas le dit
+    d = tempfile.mkdtemp(prefix="boucle_b73b_")
+    try:
+        nu, machine, autre = monter(d)
+        pousser_dans(autre, "donnees/cours_maitre.csv", "# en tete\ndate;valeur\n2026-11-18;A\n")
+        avant = maitre(nu)
+        r = jouer(machine)
+        if not (r.returncode != 0 and "LE FICHIER MAITRE A CHANGE" in r.stdout and maitre(nu) == avant):
+            defauts.append(f"B73b maître changé au dépôt : code {r.returncode}, maître du distant "
+                           f"{'intact' if maitre(nu) == avant else 'RÉÉCRIT'}")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    # (c) conflit sur la même ligne : arrêt, et aucun rebase laissé en plan
+    d = tempfile.mkdtemp(prefix="boucle_b73c_")
+    try:
+        nu, machine, autre = monter(d)
+        pousser_dans(autre, "donnees/cours_maitre.csv", "date;valeur\n2026-11-18;B\n2026-11-19;B\n")
+        r = jouer(machine)
+        en_plan = [x for x in ("rebase-merge", "rebase-apply") if os.path.exists(os.path.join(machine, ".git", x))]
+        if not (r.returncode != 0 and not en_plan):
+            defauts.append(f"B73c conflit : code {r.returncode}, rebase en plan : {en_plan}")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    return defauts
+
+
 def main():
     """Le programme entier (voir la fiche en tête).
 
@@ -1122,7 +1947,31 @@ def main():
     des cas faux est donnée entière, dans l'ordre des cas, pour qu'un essai refait la nuit se compare mot pour mot.
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Voir la fiche en tête. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
+    reel = [a.split("=", 1)[1] for a in sys.argv if a.startswith("--etat-reel=")]
+    if reel:                                            # l'épreuve du vrai dépôt, seule (A-920, 19-11-2026)
+        ok, lignes = epreuve_du_vrai_depot(MODULE, reel[0], RACINE)
+        if ok is None:                                  # dossier vide : ni vert ni faux (superviseur, point 5)
+            print("B65 SANS OBJET — " + " | ".join(lignes), flush=True)
+            return SANS_OBJET
+        print("B65 programme tel quel : " + ("conforme" if ok else "FAUX") + " — " + " | ".join(lignes), flush=True)
+        a, b = SABOTAGES["S64_branches_comptees"][0]
+        d = tempfile.mkdtemp(prefix="boucle_sab_")
+        try:
+            p = os.path.join(d, "BOUCLE_DE_CHECK.py")
+            texte = open(MODULE, encoding="utf-8").read()
+            if texte.count(a) != 1:
+                print("S64_branches_comptees NE S'APPLIQUE PLUS")
+                return 2
+            open(p, "w", encoding="utf-8").write(texte.replace(a, b))
+            shutil.copy(CONTRATS, d)
+            ok_s, lignes_s = epreuve_du_vrai_depot(p, reel[0], RACINE)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+        print(f"B65 S64_branches_comptees {'NE MORD PAS' if ok_s else 'mord'} — " + " | ".join(lignes_s))
+        return 0 if ok and not ok_s else 1
     faux = tour(MODULE)
+    texte_du_circuit = open(CIRCUIT, encoding="utf-8").read()
+    faux += epreuve_de_la_poussee_du_maitre(texte_du_circuit)
     impossible = any("MONTAGE IMPOSSIBLE" in f for f in faux)
     print("Z0 programme tel quel : " + ("tous les cas conformes" if not faux else "FAUX " + ", ".join(faux)))
     code = 1 if faux else 0
@@ -1142,6 +1991,7 @@ def main():
             try:
                 p = os.path.join(d, "BOUCLE_DE_CHECK.py")
                 open(p, "w", encoding="utf-8").write(t)
+                shutil.copy(CONTRATS, d)                # le contrat de la file, lu à côté du programme (A-920)
                 f = tour(p)
             finally:
                 shutil.rmtree(d, ignore_errors=True)
@@ -1149,6 +1999,18 @@ def main():
                 print(f"{nom} NE PEUT PAS ÊTRE JOUÉ : {[x for x in f if 'MONTAGE IMPOSSIBLE' in x]}", flush=True)
                 impossible = True
                 continue
+            print(f"{nom} {'mord' if f else 'NE MORD PAS'} : {f}", flush=True)
+            code |= 0 if f else 1
+        for nom, remplacements in SABOTAGES_DU_CIRCUIT.items():
+            if choix and nom not in choix[0]:
+                continue
+            t = texte_du_circuit
+            for a, b in remplacements:
+                if t.count(a) != 1:
+                    print(f"{nom} NE S'APPLIQUE PLUS : texte cible trouvé {t.count(a)} fois")
+                    return 2
+                t = t.replace(a, b)
+            f = epreuve_de_la_poussee_du_maitre(t)
             print(f"{nom} {'mord' if f else 'NE MORD PAS'} : {f}", flush=True)
             code |= 0 if f else 1
     if impossible:
