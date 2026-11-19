@@ -147,6 +147,21 @@ def changer(t, ident, colonne, valeur):
     return s.getvalue()
 
 
+def fermer_les_deux(reg0):
+    """Rend le registre où les deux fiches vivantes du 10-11-2026 sont FERMÉES par leur état de vie.
+    ① RÔLE — Fabriquer le registre « aucune fiche suivie » de C10, C10b et C13. ② CONTEXTE D'APPEL — `les_cas`.
+    ③ ENTRÉE — `reg0` : le texte du vrai registre. ④ CONDITIONS D'ENTRÉE — C5E10-OBS-V1 et C5E10-QA-V1 présentes.
+    ⑤ SORTIE — UNE valeur, le texte. [rend: 1] ⑥ TRAITEMENT — `etat_vie` des deux à « VECUE-PUIS-ARCHIVEE » (un état
+    de sortie du chemin de R-513) ; `statut` laissé à « ⭐ VIVANTE ». ⑦ UNITÉ — —. ⑧ POURQUOI — Depuis le 18-11-2026
+    (étape E8, A-644 ; R-513 ①), le soir choisit ses fiches sur `etat_vie` par `suivie_par_le_soir` du contrat, et
+    `statut` n'est qu'un affichage : fermer par `statut`, comme jusqu'au 18-11-2026, ne ferme plus rien. Laisser
+    `statut` à « VIVANTE » prouve en plus que le soir ne le lit plus. ⑨ CE QUI CLOCHE — la fiche est alors « à deux
+    stations » (R-513 ③), ce que cette épreuve ne regarde pas. ⑩ EFFET — Aucun. ⑪ TERMINAISON — celle de `changer`.
+    [sort: non]"""
+    return changer(changer(reg0, "C5E10-OBS-V1", "etat_vie", "VECUE-PUIS-ARCHIVEE"),
+                   "C5E10-QA-V1", "etat_vie", "VECUE-PUIS-ARCHIVEE")
+
+
 def lancer(base, env=None):
     """Lance le détecteur de la copie. ① RÔLE — Emprunter le chemin réel, en ligne de commande. ② CONTEXTE D'APPEL —
     `les_cas`, `lancer_avec_sortie`. ③ ENTRÉE — `base` : la copie · `env` : l'environnement (None : celui du
@@ -403,7 +418,7 @@ def les_cas(base, reg0, textes):
     # l'ISSUE est comptée, plus seulement le lancement — C11-1, RELU Cowork afcdb05c du 11-11-2026), le pas de fin
     # AVERTIT en disant « tenues », et le passage ne rougit pas. ROUGE ATTENDU avec le teneur de main (il rend 1 sans
     # fiche VIVANTE) ; VERT avec le teneur de l'agent A (épreuve V10 de A).
-    preparer(changer(changer(reg0, "C5E10-OBS-V1", "statut", "CLOSE"), "C5E10-QA-V1", "statut", "CLOSE"))
+    preparer(fermer_les_deux(reg0))
     try:
         vus, rouge = jouer_le_circuit(base, open(os.path.join(base, YML), encoding="utf-8").read())
     except Exception as e:
@@ -418,7 +433,7 @@ def les_cas(base, reg0, textes):
          ({k: (v[0], v[1][-160:]) for k, v in vus.items()}, rouge))
     # C10b — AUCUNE VIVANTE, TENEUR EN ÉCHEC (forcé : `exit 1` à la place du teneur) : le pas de fin ne dit PAS
     # « tenues », il dit « NON TENUES » et ROUGIT, même pour aucune_vivante (scénario « FERMEE » de Cowork, C11-1).
-    preparer(changer(changer(reg0, "C5E10-OBS-V1", "statut", "CLOSE"), "C5E10-QA-V1", "statut", "CLOSE"))
+    preparer(fermer_les_deux(reg0))
     try:
         vus, rouge = jouer_le_circuit(base, open(os.path.join(base, YML), encoding="utf-8").read(), "exit 1")
     except Exception as e:
@@ -449,7 +464,7 @@ def les_cas(base, reg0, textes):
     dire("C12b lecteur, contrat sans le changement : le même fichier est hors contrat",
          "LU « garde_du_soir » : HORS CONTRAT SIGNAUX_DU_JOUR" in m, m[:500])
     # C13 — LE LECTEUR, AUCUNE VIVANTE : la garde est dite en ⚠️, pas en 🚨.
-    preparer(changer(changer(reg0, "C5E10-OBS-V1", "statut", "CLOSE"), "C5E10-QA-V1", "statut", "CLOSE"))
+    preparer(fermer_les_deux(reg0))
     c, o, j = lancer(base)
     m = lire_par_le_message(base)
     dire("C13 lecteur : aucune_vivante dite en avertissement", c == 0

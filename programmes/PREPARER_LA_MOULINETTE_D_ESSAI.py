@@ -74,6 +74,9 @@ BORNE_DE_FIN_EXCLUE = "2026-10-30"   # A-861 : « fin de période avant le 2026-
 # de sens différent : la marque de ligne d'un essai, cherchée par le tri. Même nom, deux sens : un lecteur qui importe
 # le mauvais cherche une marque que le tri ne reconnaît pas. Valeur inchangée.
 STATUT_DE_LA_FICHE_D_ESSAI = "ESSAI (A-853, A-861) : copie jetable, hors de tout compte et de toute sélection"
+# l'état de vie de la fiche d'essai : un état que le circuit du soir ne suit jamais (`suivie_par_le_soir`, étape E8,
+# 18-11-2026) et que le juge juge — voir `ligne_d_essai`, ⑧
+ETAT_DE_LA_FICHE_D_ESSAI = "LABO"
 MOULINETTE = os.path.join("programmes", "JOUER_LES_VERSIONS.py")
 
 
@@ -186,26 +189,32 @@ def ligne_source(lignes):
 
 
 def ligne_d_essai(entete, source, debut, fin):
-    """Rend la ligne de la fiche d'essai : la ligne source, où seuls changent l'identifiant, la période et le statut.
+    """Rend la ligne de la fiche d'essai : la ligne source, où seuls changent l'identifiant, la période, le statut et
+    l'état de vie.
 
     ① RÔLE — Fabriquer la fiche d'essai.
     ② CONTEXTE D'APPEL — `preparer` ; l'épreuve.
     ③ ENTRÉE — `entete` : la ligne d'en-tête ; `source` : la ligne recopiée ; `debut`, `fin` : la période.
-    ④ CONDITIONS D'ENTRÉE — L'en-tête porte « id », « periode » et « statut ».
+    ④ CONDITIONS D'ENTRÉE — L'en-tête porte « id », « periode », « statut » et « etat_vie ».
     ⑤ SORTIE — UNE valeur : une nouvelle liste de textes, de la longueur de `source`.
       [rend: 1]
     ⑥ TRAITEMENT — copier ; id ← IDENTIFIANT ; periode ← « début -> fin » (la forme des fiches, ex. C5E10-OBS-V1
-      « 2024-01-02 -> 2026-07-10 ») ; statut ← STATUT_DE_LA_FICHE_D_ESSAI.
+      « 2024-01-02 -> 2026-07-10 ») ; statut ← STATUT_DE_LA_FICHE_D_ESSAI ; etat_vie ← ETAT_DE_LA_FICHE_D_ESSAI.
     ⑦ UNITÉ — Des dates.
     ⑧ POURQUOI — Consigne du 16-11-2026 : « seuls changent l'identifiant, la période et un statut ou une mention
-      d'essai ». Le statut ne contient pas « VIVANTE » : le soir ne la lirait pas, si elle sortait par erreur de la copie.
+      d'essai ». DEPUIS LE 18-11-2026 (étape E8, R-513 ①), le soir choisit ses fiches sur `etat_vie`
+      (`suivie_par_le_soir` du contrat : QA ou PRODUCTION), plus sur `statut` : recopiée de C5E10-QA-V1, la ligne
+      gardait « QA » et le soir l'aurait suivie si elle sortait par erreur de la copie (relecture de travail-e8
+      c81c1457, D1). Son état de vie est donc posé à « LABO » — un état que le soir ne suit pas et que le juge
+      juge (`ETATS_JUGEABLES` de son `main`) ; c'est l'« état d'essai » de la consigne.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Aucun : `source` n'est pas modifiée.
     ⑪ TERMINAISON — Rend la main ; lève ValueError si une colonne manque.
       [sort: non]
     """
     nouvelle = list(source)
-    for colonne, valeur in (("id", IDENTIFIANT), ("periode", "%s -> %s" % (debut, fin)), ("statut", STATUT_DE_LA_FICHE_D_ESSAI)):
+    for colonne, valeur in (("id", IDENTIFIANT), ("periode", "%s -> %s" % (debut, fin)), ("statut", STATUT_DE_LA_FICHE_D_ESSAI),
+                            ("etat_vie", ETAT_DE_LA_FICHE_D_ESSAI)):
         nouvelle[entete.index(colonne)] = valeur
     return nouvelle
 
