@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=CircuitLecteur
+pointe=a8aa9ccbbc249db0d7530259229b42bd3200bbb5
