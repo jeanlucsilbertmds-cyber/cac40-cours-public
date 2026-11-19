@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=PorteEntree,LectureFiche
+pointe=b67586a157831546c57f35aaacaad2bcf155ff41
