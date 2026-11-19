@@ -1,0 +1,3 @@
+circuit=series
+serie=Boucle
+pointe=647ad710f7b52184159cdc807ac101bce520f6e2
