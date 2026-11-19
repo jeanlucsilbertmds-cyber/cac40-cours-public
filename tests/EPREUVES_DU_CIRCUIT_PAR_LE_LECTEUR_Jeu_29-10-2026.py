@@ -102,7 +102,8 @@ SANS = ("sources_yahoo", "sources_bnains", "sources_francfort")
 SABOTAGES = {
     "Z0": [],
     "D1_le_detecteur_ne_coupe_plus_aux_trous": [(DET, '    serie = B.couper_aux_trous(serie, lecture["trous"].get(cle, []))[-1]\n', "")],
-    "D2_le_detecteur_ignore_l_indice": [(DET, 'dedans = B.dans_l_indice(lecture["passages"].get(B.cle_valeur(v), []), seance)', "dedans = True")],
+    "D2_le_detecteur_ignore_l_indice": [(DET, 'appelée.\n                dedans = B.dans_l_indice(lecture["passages"].get(B.cle_valeur(v), []), seance)',
+                                        "appelée.\n                dedans = True")],
     "D3_le_detecteur_lit_par_charger_cours": [(DET, "        cours, lecture = B.lire_par_le_lecteur(racine, os.path.relpath(fichiers[0], racine), mnemo)",
                                                '        cours, lecture = B.charger_cours(*fichiers), {"passages": {}, "trous": {}, "composition": True, "seances": []}')],
     "D4_la_detection_n_est_plus_bornee_a_la_seance": [(DET, "                serie, sig = signaux_sur(cours, lecture, B, g.signal, v, seance)",
