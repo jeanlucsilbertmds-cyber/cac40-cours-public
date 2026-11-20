@@ -1901,7 +1901,64 @@ _TEMOIN_ATTENDU = {
 }
 
 
-def calibrage(operations):
+# LA RÉFÉRENCE DU CALIBRAGE PAR DÉFAUT — la première opération réelle du système (voir `calibrage`). Elle reste
+# la référence du circuit ; un dépôt fabriqué en désigne une autre par le dossier d'étalonnage (A-952), jamais aucune.
+REFERENCE_BUREAU_VERITAS = {'motif_de_la_valeur': 'BUREAU', 'libelle': 'Bureau Veritas',
+                            'pnl_net_eur': 6884.75, 'pnl_net_convention_eur': 3694.00, 'prix_entree': 27.28}
+
+
+def reference_designee(base):
+    """Rend la référence du calibrage : celle du circuit, ou celle du dossier d'étalonnage désigné (A-952).
+
+    ① RÔLE — Dire à `calibrage` quelle opération connue retrouver, sans jamais lui permettre de n'en retrouver aucune.
+    ② CONTEXTE D'APPEL — `main`, une fois, juste avant `calibrage`.
+    ③ ENTRÉE — `base` : la racine mesurée ; la variable d'environnement ETALONNAGE_DU_DEPOT, lue par
+      `CONTRATS_DES_FICHIERS.dossier_d_etalonnage`.
+    ④ CONDITIONS D'ENTRÉE — programmes/CONTRATS_DES_FICHIERS.py à côté de ce programme.
+    ⑤ SORTIE — DEUX valeurs : la référence (un dictionnaire aux cases de CONTRATS.REFERENCE_DE_LA_MESURE) ou None,
+      et le motif d'un refus ou None. Exemple : variable absente → (REFERENCE_BUREAU_VERITAS, None).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① variable absente → la référence Bureau Veritas · ② sinon lire
+      donnees/REFERENCE_DE_LA_MESURE.json dans le dossier désigné · ③ exiger exactement les cases du contrat, un motif
+      non vide en majuscules, trois nombres.
+    ⑦ UNITÉ — euros pour les gains, euros par action pour le prix d'entrée.
+    ⑧ POURQUOI — A-952 : sur un dépôt fabriqué de 2024 et après (A-945), le journal ne porte pas le trade Bureau
+      Veritas ; le calibrage ne se retire pas, il se désigne. Une référence absente, mal formée ou vide ARRÊTE la
+      mesure : jamais de repli silencieux sur Bureau Veritas, ni de calibrage sans référence (R-734).
+    ⑨ CE QUI CLOCHE — La référence désignée est écrite par celui qui fabrique le dépôt : si elle est relevée dans le
+      journal même (cas de l'épreuve de bout en bout), elle prouve que la mesure lit ce journal sans le déformer, comme
+      la référence Bureau Veritas (voir ⑨ ① de `calibrage`), pas que le teneur a bien calculé.
+    ⑩ EFFET — Lit un fichier quand la variable est posée ; affiche le dossier désigné.
+    ⑪ TERMINAISON — Rend la main ; aucun appel ne peut ne pas revenir.
+      [sort: non]
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from CONTRATS_DES_FICHIERS import (dossier_d_etalonnage, EtalonnageIntrouvable, VARIABLE_D_ETALONNAGE,
+                                       ETALON_REFERENCE_DE_LA_MESURE, REFERENCE_DE_LA_MESURE)
+    try:
+        etal = dossier_d_etalonnage(base)
+    except EtalonnageIntrouvable as e:
+        return None, str(e)
+    if etal is None:
+        return REFERENCE_BUREAU_VERITAS, None
+    ch = os.path.join(etal, ETALON_REFERENCE_DE_LA_MESURE)
+    print(f"ETALONNAGE DESIGNE (A-952, variable {VARIABLE_D_ETALONNAGE}) : la reference du calibrage est {ch}")
+    try:
+        ref = json.load(open(ch, encoding='utf-8'))
+    except (OSError, ValueError) as e:
+        return None, f"la reference du calibrage {ch} ne se lit pas : {e}"
+    if not isinstance(ref, dict) or sorted(ref) != sorted(REFERENCE_DE_LA_MESURE):
+        return None, f"la reference du calibrage {ch} ne porte pas exactement les cases {REFERENCE_DE_LA_MESURE}"
+    motif = ref['motif_de_la_valeur']
+    if not isinstance(motif, str) or not motif.strip() or motif != motif.upper():
+        return None, f"la reference du calibrage {ch} : motif de la valeur vide ou pas en majuscules : {motif!r}"
+    for k in ('pnl_net_eur', 'pnl_net_convention_eur', 'prix_entree'):
+        if isinstance(ref[k], bool) or not isinstance(ref[k], (int, float)):
+            return None, f"la reference du calibrage {ch} : {k} n'est pas un nombre : {ref[k]!r}"
+    return ref, None
+
+
+def calibrage(operations, reference=None):
     """REPRODUIRE AVANT DE PRODUIRE. Le service doit retrouver des chiffres deja
     connus et verifies. S'il echoue : ARRET TOTAL, rien n'est ecrit.
     Reference : premiere operation reelle du systeme, Bureau Veritas, +6 884,75 EUR
@@ -1916,6 +1973,10 @@ def calibrage(operations):
       journal et AVANT tout le reste. Son résultat décide si le programme
       continue ou s'arrête.
     ③ ENTRÉE — `operations` : toutes les opérations terminées lues au journal.
+      `reference` (A-952, 20-11-2026) : None pour la référence Bureau Veritas (le circuit,
+      REFERENCE_BUREAU_VERITAS), ou celle que rend `reference_designee` d'un dossier d'étalonnage —
+      le motif de la valeur, le libellé et les trois chiffres attendus remplacent alors `BUREAU`,
+      6 884,75, 3 694,00 et 27,28 dans tout ce qui suit.
     ④ CONDITIONS D'ENTRÉE — Le journal doit porter au moins une opération dont le
       nom de valeur contient `BUREAU`, avec les colonnes `pnl_net_eur`,
       `pnl_net_convention_eur` et `prix_entree` renseignées.
@@ -1998,13 +2059,14 @@ def calibrage(operations):
       une valeur : une entreprise cotée du CAC 40, telle qu'elle est nommée dans les fichiers du projet
 """
     controles = []
-    bv = [o for o in operations if 'BUREAU' in (o.get('valeur') or '').upper()]
+    ref = REFERENCE_BUREAU_VERITAS if reference is None else reference
+    bv = [o for o in operations if ref['motif_de_la_valeur'] in (o.get('valeur') or '').upper()]
     if not bv:
-        return False, ["aucune operation Bureau Veritas dans le journal : reference introuvable"]
+        return False, ["aucune operation %s dans le journal : reference introuvable" % ref['libelle']]
     o = bv[0]
-    for cle, attendu, lib in (('pnl_net_eur', 6884.75, 'resultat reel'),
-                              ('pnl_net_convention_eur', 3694.00, 'convention backtest'),
-                              ('prix_entree', 27.28, "prix d'entree")):
+    for cle, attendu, lib in (('pnl_net_eur', ref['pnl_net_eur'], 'resultat reel'),
+                              ('pnl_net_convention_eur', ref['pnl_net_convention_eur'], 'convention backtest'),
+                              ('prix_entree', ref['prix_entree'], "prix d'entree")):
         v = nombre(o.get(cle))
         ok = v is not None and abs(v - attendu) < 0.01
         controles.append(f"{lib} : {v} attendu {attendu} -> {'OK' if ok else 'ECHEC'}")
@@ -2459,7 +2521,11 @@ def main():
     vrai_journal = os.path.realpath(ch) == os.path.realpath(_vrai)
     operations = lire_csv(ch)
 
-    ok, controles = calibrage(operations)
+    reference, _refus = reference_designee(base)
+    if _refus:
+        print(f"ARRET TOTAL : {_refus} — le calibrage ne peut pas tourner, aucune mesure n'est ecrite.")
+        return 1
+    ok, controles = calibrage(operations, reference)
     print("CALIBRAGE :")
     for c in controles:
         print("   ", c)
@@ -2610,7 +2676,8 @@ def main():
             # comptabilite, lues par `operations_de` (methode A, decision du 29-10-2026)
             lignes.append(ligne(jour, sid, comptabilite, etats[sid], s, carte,
                                 (ref or {}).get(gref), tp_, tm_, gs,
-                                'Bureau Veritas +6884.75 / +3694.00 : OK',
+                                '%s %+.2f / %+.2f : OK' % (reference['libelle'], reference['pnl_net_eur'],
+                                                           reference['pnl_net_convention_eur']),
                                 operations_de(operations, carte, gref)))
 
     # LA PROPRIETE SE VERIFIE SUR CE QUI VA ETRE ECRIT, CHAQUE SOIR, SUR LE VRAI JOURNAL :

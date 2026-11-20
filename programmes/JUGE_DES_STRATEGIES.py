@@ -5162,6 +5162,11 @@ def main():
       unique consommé ; chaque ligne écrite commence par « ESSAI — NI RÉSULTAT NI SÉLECTION » ;
       refus en 2 si la racine porte .git, sans fiche visée, ou si la fiche visée n'est
       identique à aucune fiche de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE (`jeton_d_essai`).
+      Variable d'environnement ETALONNAGE_DU_DEPOT (A-952, 20-11-2026) : absente, le golden, son témoin, le
+      tableau des 100 trades et le référentiel du calibrage se cherchent sous la racine (le circuit) ; posée, dans
+      le dossier qu'elle désigne (`CONTRATS_DES_FICHIERS.dossier_d_etalonnage`), annoncé ; désignant un dossier
+      absent, ou vide : arrêt en 1, rien n'est jugé. Exemple : l'épreuve de bout en bout désigne un dossier qui
+      porte les copies du golden du 01-08-2026, de son témoin (cours 2024-01-02 → 2026-07-10) et du tableau.
     ④ CONDITIONS D'ENTRÉE — Trois fichiers doivent exister sous la racine : le
       registre des stratégies, les cours et le module de positions. Depuis le
       30-10-2026 (A-542), le module de signal n'est plus cherché ici : chaque fiche
@@ -5475,6 +5480,22 @@ def main():
     # et `signal_de_la_fiche` le charge. Avant, le motif « MODULE_C5_ETENDU_10 » l'imposait à toutes les fiches.
     f_pos = trouver(base, "MODULE_POSITIONS.py")
     f_gold = trouver(base, "golden_tests_")
+    # L'ÉTALON DU CALIBRAGE EST DÉSIGNABLE, JAMAIS RETIRÉ (A-952, 20-11-2026). Sans la variable ETALONNAGE_DU_DEPOT,
+    # le golden, son témoin, le tableau des 100 trades et le référentiel du calibrage se cherchent sous la racine,
+    # comme toujours. Posée (dépôt fabriqué de 2024 et après, A-945), ils se cherchent DANS le dossier qu'elle
+    # désigne, et le calibrage tourne À L'IDENTIQUE sur eux : un étalon absent y fait le même arrêt qu'ici.
+    from CONTRATS_DES_FICHIERS import dossier_d_etalonnage, EtalonnageIntrouvable, VARIABLE_D_ETALONNAGE
+    try:
+        _etalonnage = dossier_d_etalonnage(base)
+    except EtalonnageIntrouvable as _e:
+        print("ARRET : %s — l'instrument ne peut pas etre calibre, rien n'est juge." % _e)
+        return 1
+    _base_du_calibrage = base
+    if _etalonnage is not None:
+        _base_du_calibrage = _etalonnage
+        f_gold = trouver(_etalonnage, "golden_tests_")
+        print("ETALONNAGE DESIGNE (A-952, variable %s) : le calibrage lit le golden, son temoin, le tableau des "
+              "100 trades et le referentiel dans %s\n" % (VARIABLE_D_ETALONNAGE, _etalonnage))
 
     # UN NOM QUI REPOND DEUX FOIS EST UNE ALERTE, jamais un choix silencieux.
     for _lib, _mot in (("le registre des strategies", NOM_DU_REGISTRE_DES_STRATEGIES),
@@ -5629,7 +5650,7 @@ def main():
         # LE TEMOIN N EST EMPLOYE QUE S IL EST LE BON : son empreinte doit valoir
         # celle que le golden DECLARE. Sinon on ne calibre pas sur un a-peu-pres,
         # on le dit et on garde le fichier vivant.
-        _f_tem = trouver(base, "TEMOIN_cac40_ohlcv_JEU_DU_GOLDEN")
+        _f_tem = trouver(_base_du_calibrage, "TEMOIN_cac40_ohlcv_JEU_DU_GOLDEN")
         _cours_cal, _f_cal = cours, f_cours
         if _f_tem:
             import hashlib as _h
@@ -5647,12 +5668,15 @@ def main():
             print("  aucun temoin du golden : calibrage sur le fichier VIVANT,"
                   " tout ecart peut venir des donnees.")
         # le tableau de reference des 100 trades ne se compare qu'aux cours de SA prise
-        _f_tab = trouver(base, "TABLEAU_100_TRADES_C5E10") if _f_cal == _f_tem else None
+        _f_tab = trouver(_base_du_calibrage, "TABLEAU_100_TRADES_C5E10") if _f_cal == _f_tem else None
         if _f_cal == _f_tem and not _f_tab:
             print("  ARRET : le tableau de reference des 100 trades est introuvable — "
                   "les sorties ne peuvent pas etre comparees.")
             return 1
-        ok, lignes = calibrer(_cours_cal, mnemo, base, mod_pos, golden, _f_cal, _f_tab)
+        # le référentiel du calibrage : celui de la racine, sauf si l'étalon désigné porte le sien (A-952)
+        _f_ref_cal = trouver(_etalonnage, "REFERENTIEL_VALEURS") if _etalonnage is not None else None
+        _mnemo_cal = table_mnemoniques(_f_ref_cal) if _f_ref_cal else mnemo
+        ok, lignes = calibrer(_cours_cal, _mnemo_cal, base, mod_pos, golden, _f_cal, _f_tab)
         print("CALIBRAGE DE L'INSTRUMENT (9bis) - rejoue C5-ETENDU-10 :")
         for l in lignes:
             print(l)
