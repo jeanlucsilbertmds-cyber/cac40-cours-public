@@ -58,8 +58,9 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   portent la même stratégie et le même essai, ses identifiants sont uniques, et
   son nombre de lignes égale la colonne `versions_dans_l_essai`, aucun univers
   n'écrit deux fois la même valeur · ② une seule
-  version y est marquée identique à la fiche · ③ la fiche existe une fois au
-  registre · ④ le juge des stratégies, lancé seul sur cette fiche, se calibre sur
+  version y est marquée identique à la fiche · ③ la fiche existe au registre (sa
+  DERNIÈRE ligne fait foi, n°83) ; elle et CHAQUE version fusionnée suivent le
+  contrat de stratégie (A-923 ; les versions depuis le 20-11-2026) · ④ le juge des stratégies, lancé seul sur cette fiche, se calibre sur
   le témoin du golden et rend le même résultat que ce programme · ⑤ chaque
   version, une fois fusionnée, est lue par le juge avec ses propres réglages ·
   ⑥ les cours de CHAQUE valeur vont assez loin après le début de la période pour
@@ -71,16 +72,22 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   existe, chaque version le retrouve · ⑧ le fichier nommé par `--cours=` existe.
   Le moindre manquement arrête tout, avant ou pendant le jeu.
 ⑤ SORTIE — UNE valeur : le code de sortie, 0 quand toutes les versions sont
-  jouées et écrites, 1 sinon (dont une fiche relue qui ne suit pas le contrat de
-  stratégie, depuis le 19-11-2026) ; 2 quand le contrat n'a pas pu être contrôlé
-  (R-734).
+  jouées et écrites, 1 sinon (dont une fiche relue, depuis le 19-11-2026, ou une
+  version fusionnée, depuis le 20-11-2026, qui ne suit pas le contrat de stratégie) ;
+  2 quand le contrat n'a pas pu être contrôlé (R-734) — référentiel, MODULE_POSITIONS.py,
+  barème des frais ou donnees/VALEURS_TTF.csv absents ou illisibles : depuis le
+  20-11-2026, ce contrôle vient AVANT le calibrage, qui ne peut donc plus masquer
+  ce 2 par un 1 ; 2 aussi pour un essai déclaré refusé (A-863).
   [rend: 1]
-⑥ TRAITEMENT — ① lire la ligne de commande et contrôler la combinatoire · ② lancer
+⑥ TRAITEMENT — ① lire la ligne de commande et contrôler la combinatoire ·
+  ①bis (depuis le 20-11-2026, AVANT le calibrage) importer le juge du dépôt, lire la
+  fiche par `fiches_du_registre` du contrat (sa DERNIÈRE ligne, n°83, depuis le
+  05-11-2026), charger le module de positions, passer la fiche PUIS CHAQUE VERSION
+  fusionnée au contrat de stratégie (`manques_du_contrat`, A-923 ;
+  `refus_des_versions`) · ② lancer
   le juge des stratégies seul sur la fiche (avec le même `--cours=`) et exiger son
   calibrage · ③ charger cours et modules
-  par les fonctions du juge, et la fiche par `fiches_du_registre` du contrat (sa
-  DERNIÈRE ligne, n°83, depuis le 05-11-2026), puis la passer au contrat de
-  stratégie (`manques_du_contrat`, A-923 ; depuis le 19-11-2026) · ④ jouer la fiche telle quelle et exiger le résultat
+  par les fonctions du juge · ④ jouer la fiche telle quelle et exiger le résultat
   que le juge vient d'afficher · ⑤ jouer la version identique et exiger le même
   résultat · ⑥ CALCULER LA FIN DE PÉRIODE UTILISABLE (`fin_utilisable`, plan V7,
   bloc 5g) : la plus tardive des dates, au plus la fin écrite dans la fiche, qui
@@ -136,7 +143,7 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
 ⑩ EFFET — Crée le fichier de résultats, via un fichier provisoire `.en_cours`
   effacé en cas d'échec s'il a été créé par ce lancement. Rien d'autre n'est
   écrit : le juge est lancé avec `-B`.
-⑪ TERMINAISON — Sort du programme avec le code 0 ou 1. Le juge est lancé dans un
+⑪ TERMINAISON — Sort du programme avec le code 0, 1 ou 2 (voir ⑤). Le juge est lancé dans un
   processus séparé, sans limite de temps : s'il ne revenait pas, ce programme
   non plus.
   [sort: oui]
@@ -715,6 +722,48 @@ def controler_fusion(J, fusion, version):
     return ecarts
 
 
+def refus_des_versions(contrat, J, mod_pos, base, fiche, versions):
+    """Rend les refus du contrat de stratégie pour chaque version de la combinatoire, fusionnée avec la fiche.
+
+    ① RÔLE — Passer CHAQUE version au contrat de stratégie (A-923), pas seulement la fiche du registre (M5 du RELU
+      e77edfacf, 20-11-2026).
+    ② CONTEXTE D'APPEL — `main`, une fois, avant le calibrage, après que la fiche elle-même a passé le contrat.
+    ③ ENTRÉE — `contrat` : le module CONTRATS_DES_FICHIERS chargé · `J` : le juge · `mod_pos` : le module de positions
+      (None : le contrat le charge, ou lève s'il manque) · `base` : la racine · `fiche` : la dernière ligne de la fiche
+      au registre · `versions` : les lignes de la combinatoire. Exemple réel : COMBINATOIRE_C5E10-OBS-V1_E01, 2 695
+      versions.
+    ④ CONDITIONS D'ENTRÉE — Chaque version porte les cases de REGLAGES (celles de `fusionner`).
+    ⑤ SORTIE — UNE valeur : la liste des refus, VIDE si toutes les versions suivent le contrat ; chaque refus est
+      « <id_version> — <case> : <motif> » (le texte rendu par `manques_du_contrat`, case nommée en tête). Exemple mesuré
+      (20-11-2026) : version 0001 réécrite « TTE,ZZZ » → « C5E10-OBS-V1-E01-0001 — univers : mnémonique(s) absent(s) du
+      référentiel : ZZZ ».
+      [rend: 1]
+    ⑥ TRAITEMENT — pour chaque version : `fusionner` (la fiche jouée), son `etat_vie` mis à
+      `contrat.ETAT_D_UNE_VERSION_DE_MOULINETTE` (« LABO » : une version se joue au laboratoire, jamais au soir), puis
+      `contrat.manques_du_contrat` sur elle ; chaque refus préfixé de l'identifiant de la version.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — La combinatoire fait varier univers, tp, sl et horizon par version ; la fiche seule au contrat
+      laissait jouer une version « TTE,ZZZ », arrêtée plus loin par la marge de cours sans nommer la case (RELU
+      e77edfacf, M5). Le contrôle vit au contrat, il est APPELÉ ici (R-708 : deux écritures d'une même chose divergent).
+      L'état « LABO » : sans lui, les contrôles du SOIR s'appliquaient aux versions d'une fiche suivie par le soir
+      (mesuré le 20-11-2026 : 245 refus faux sur 3 675 versions de C5E10-QA-V1, toutes à « sans stop », réglage que
+      PREPARER ⓪ propose et que ce programme joue).
+    ⑨ CE QUI CLOCHE — ① Durée : un appel du contrat par version (mesuré le 20-11-2026 après la mémoire du chemin du
+      référentiel : voir la note echanges/A_RELIRE.md) ; sous --tranche, TOUTE la combinatoire est contrôlée à chaque
+      tranche, comme ses autres contrôles. ② Les avis du contrat (`avis_du_contrat`) ne sont pas rendus ici. ③ La fiche
+      elle-même reste contrôlée sous SON état (contrôles du soir compris) : une fiche QA à « sans stop » est refusée.
+    ⑩ EFFET — Celui de `manques_du_contrat` (lit, charge le module de signal de la fiche au premier appel).
+    ⑪ TERMINAISON — Rend la main ; laisse passer ContratImpossible (le contrôle n'a pas tourné), que `main` rend en 2.
+      [sort: non]
+    """
+    refus = []
+    for v in versions:
+        version_au_labo = dict(fusionner(fiche, v), etat_vie=contrat.ETAT_D_UNE_VERSION_DE_MOULINETTE)
+        for r in contrat.manques_du_contrat(version_au_labo, base, J=J, mod_pos=mod_pos):
+            refus.append("%s — %s" % (v["id_version"], r))
+    return refus
+
+
 def calibrer_par_le_juge(base, ident, cours=None, essai=False):
     """Lance le juge seul sur la fiche et lit son verdict.
 
@@ -866,7 +915,8 @@ def main():
     ③ ENTRÉE — La ligne de commande (voir l'en-tête).
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête, ④.
     ⑤ SORTIE — UNE valeur : 0 ou 1, passée à la sortie du processus ; 2 quand un essai déclaré est refusé (A-863)
-      ou quand le contrat de stratégie n'a pas pu être contrôlé (R-734, depuis le 19-11-2026).
+      ou quand le contrat de stratégie n'a pas pu être contrôlé (R-734, depuis le 19-11-2026 ; AVANT le calibrage
+      depuis le 20-11-2026, pour que le juge qui tombe faute de référentiel ne masque plus ce 2 par un 1).
       [rend: 1]
     ⑥ TRAITEMENT — Voir l'en-tête, ⑥.
     ⑦ UNITÉ — Voir l'en-tête, ⑦.
@@ -973,6 +1023,44 @@ def main():
         print("ESSAI DÉCLARÉ (A-863) : %s, une version ; rien n'est inscrit ni compté, le fichier écrit porte la colonne"
               " %s et le tri le refuse" % (sid, _CE.COLONNE_DU_STATUT_D_ESSAI))
 
+    # LE CONTRAT DE STRATÉGIE, AVANT LE CALIBRAGE ET AVANT TOUT JEU (20-11-2026, M4 et M5 du RELU e77edfacf) : la fiche
+    # relue au registre ET CHAQUE VERSION fusionnée passent le contrat ; un contrôle qui n'a pas pu tourner rend 2
+    # (R-734). Avant le 20-11-2026, le contrat venait APRÈS le calibrage : sans référentiel, le juge tombait d'abord et
+    # ce programme rendait 1 (« le juge ne se calibre pas »), le 2 annoncé n'était jamais atteint ; et une version
+    # « TTE,ZZZ » n'était arrêtée que par la marge de cours, sans nommer la case.
+    sys.path.insert(0, os.path.join(base, "programmes"))
+    import JUGE_DES_STRATEGIES as J
+    if os.path.dirname(os.path.abspath(J.__file__)) != os.path.join(base, "programmes"):
+        return arreter("le juge importé n'est pas celui du dépôt : %s" % J.__file__)
+    # LA FICHE EST LA DERNIÈRE LIGNE DE SON IDENTIFIANT (décision de Jean-Luc n°83 du 01-11-2026 à 12h33 : « La
+    # dernière ligne ajoutée fait foi. Les précédentes restent comme historique. ») : le nom du registre et sa lecture
+    # vivent au contrat (programmes/CONTRATS_DES_FICHIERS.py, chargé depuis le même dossier que le juge). Avant le
+    # 05-11-2026, une fiche écrite deux fois arrêtait ce programme (« trouvée 2 fois au registre »).
+    import CONTRATS_DES_FICHIERS as contrat
+    fiche = contrat.fiches_du_registre(J.trouver(base, contrat.NOM_DU_REGISTRE_DES_STRATEGIES)).get(sid)
+    if fiche is None:
+        return arreter("fiche %s absente du registre" % sid)
+    # LE MODULE DE POSITIONS, celui que `jouer` emploie ; absent, le contrat le dit (ContratImpossible, code 2).
+    f_pos = J.trouver(base, "MODULE_POSITIONS.py")
+    mod_pos = J.charger_module(f_pos, "pos") if f_pos else None
+    # LA FICHE RELUE ICI PASSE LE CONTRAT DE STRATÉGIE, PAS SEULEMENT `porte_0` (relecteur neuf du contrat du 19-11-2026,
+    # M3) : un registre réécrit entre ⓪ et ② faisait jouer ① ② ③ une fiche hors contrat (mesuré : univers « TTE,ZZZ »,
+    # `porte_0` (True, [])). Le contrôle vit au contrat, il est APPELÉ ici (R-708). PUIS CHAQUE VERSION (M5) : la
+    # combinatoire fait varier univers, tp, sl et horizon, et un fichier réécrit entre ⓪ et ② vaut pour elle aussi.
+    try:
+        refus_du_contrat = contrat.manques_du_contrat(fiche, base, J=J, mod_pos=mod_pos)
+        if refus_du_contrat:
+            return arreter("la fiche %s ne suit pas le contrat de stratégie (A-923) : %s"
+                           % (sid, " ; ".join(refus_du_contrat)))
+        refus_des_v = refus_des_versions(contrat, J, mod_pos, base, fiche, versions)
+    except contrat.ContratImpossible as e:
+        print("ARRÊT : le contrat de stratégie n'a pas pu être contrôlé (R-734) : %s. Rien n'est joué." % e)
+        return 2
+    if refus_des_v:
+        return arreter("%d version(s) ne suivent pas le contrat de stratégie (A-923) : %s%s. Rien n'est joué."
+                       % (len(refus_des_v), " ‖ ".join(refus_des_v[:5]), " ‖ …" if len(refus_des_v) > 5 else ""))
+    print("CONTRAT DE STRATÉGIE : la fiche et les %d versions le suivent" % len(versions))
+
     ok, ligne_juge = (calibrer_par_le_juge(base, sid, autre_cours) if jeton is None
                       else calibrer_par_le_juge(base, sid, autre_cours, essai=True))
     print("CALIBRAGE PAR LE JUGE SEUL : %s" % ("OK" if ok else "ÉCHEC"))
@@ -980,10 +1068,6 @@ def main():
         return arreter("le juge des stratégies ne se calibre pas, ou n'a pas joué la fiche")
     print("  le juge affiche : %s" % ligne_juge)
 
-    sys.path.insert(0, os.path.join(base, "programmes"))
-    import JUGE_DES_STRATEGIES as J
-    if os.path.dirname(os.path.abspath(J.__file__)) != os.path.join(base, "programmes"):
-        return arreter("le juge importé n'est pas celui du dépôt : %s" % J.__file__)
     mnemo = J.table_mnemoniques(J.trouver(base, "REFERENTIEL_VALEURS"))
     # LES COURS PASSENT PAR LE LECTEUR UNIQUE, COMME DANS `main` DU JUGE (A-577, étape 1, 27-10-2026) : ce
     # programme se compare au juge, il lit donc comme lui — sinon le juge affiche 89 opérations et ce
@@ -998,27 +1082,8 @@ def main():
             raise
         return arreter(str(e))
     # LE SIGNAL N'EST PLUS CHARGÉ ICI (A-542, 30-10-2026) : chaque fiche jouée le nomme, `jouer_une` le lit par
-    # `signal_de_la_fiche` du juge, la seule lecture (R-708).
-    mod_pos = J.charger_module(J.trouver(base, "MODULE_POSITIONS.py"), "pos")
-    # LA FICHE EST LA DERNIÈRE LIGNE DE SON IDENTIFIANT (décision de Jean-Luc n°83 du 01-11-2026 à 12h33 : « La
-    # dernière ligne ajoutée fait foi. Les précédentes restent comme historique. ») : le nom du registre et sa lecture
-    # vivent au contrat (programmes/CONTRATS_DES_FICHIERS.py, chargé depuis le même dossier que le juge). Avant le
-    # 05-11-2026, une fiche écrite deux fois arrêtait ce programme (« trouvée 2 fois au registre »).
-    import CONTRATS_DES_FICHIERS as contrat
-    fiche = contrat.fiches_du_registre(J.trouver(base, contrat.NOM_DU_REGISTRE_DES_STRATEGIES)).get(sid)
-    if fiche is None:
-        return arreter("fiche %s absente du registre" % sid)
-    # LA FICHE RELUE ICI PASSE LE CONTRAT DE STRATÉGIE, PAS SEULEMENT `porte_0` (relecteur neuf du contrat du 19-11-2026,
-    # M3) : un registre réécrit entre ⓪ et ② faisait jouer ① ② ③ une fiche hors contrat (mesuré : univers « TTE,ZZZ »,
-    # `porte_0` (True, [])). Le contrôle vit au contrat, il est APPELÉ ici (R-708). Une fois, sur la fiche du
-    # registre : les versions en dérivent par la combinatoire que ⓪ a préparée.
-    try:
-        refus_du_contrat = contrat.manques_du_contrat(fiche, base, J=J, mod_pos=mod_pos)
-    except contrat.ContratImpossible as e:
-        print("ARRÊT : le contrat de stratégie n'a pas pu être contrôlé (R-734) : %s" % e)
-        return 2
-    if refus_du_contrat:
-        return arreter("la fiche %s ne suit pas le contrat de stratégie (A-923) : %s" % (sid, " ; ".join(refus_du_contrat)))
+    # `signal_de_la_fiche` du juge, la seule lecture (R-708). LE MODULE DE POSITIONS, LA FICHE ET LE CONTRAT sont
+    # chargés et contrôlés AVANT le calibrage depuis le 20-11-2026 (plus haut).
 
     def jouer_une(f, bareme=None, ops_rendues=None, periode=None):
         """Fait passer une fiche par la porte 0 puis la joue.

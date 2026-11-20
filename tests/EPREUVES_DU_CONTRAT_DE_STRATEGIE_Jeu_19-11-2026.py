@@ -12,24 +12,31 @@ doivent rougir, et redevenir verts une fois retirés (R-731 : une épreuve qui r
 teste est une décoration).
 
 USAGE
-    python3 -B tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py <source> <travail>
+    python3 -B tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py <source> <travail> [--sabotages=S1,S9b,...]
+    --sabotages= (20-11-2026) : ne poser que les sabotages nommés (premier mot de leur nom) ; la sonde intacte est
+    toujours jouée. Raison : la série entière approche les dix minutes (mesure dans echanges/A_RELIRE.md) ; deux
+    moitiés se jouent chacune sous ce plafond.
     <source> : la racine d'un worktree du dépôt ; <travail> : un dossier sous /dev/shm qui n'existe pas encore.
 
 ① RÔLE — Prouver que le contrat laisse passer les fiches complètes, refuse les autres en NOMMANT chaque case, donne un
   avis sans refuser sur ce que Jean-Luc n'a pas tranché, et qu'il est branché à ⓪ et à la porte du juge.
 ② CONTEXTE D'APPEL — À la main (le Chat, le relecteur). Aucune tâche automatique.
-③ ENTRÉE — La ligne de commande (USAGE). Avec « --sonde <programmes> <A> <B> <C> <D> <E> » : appel interne, en sous-processus.
+③ ENTRÉE — La ligne de commande (USAGE). Avec « --sonde <programmes> <A> <B> <C> <D> <E> <F> <G> » : appel interne, en
+  sous-processus.
 ④ CONDITIONS D'ENTRÉE — <travail> n'existe pas ; <source> porte programmes/, donnees/ et donnees/combinatoires/.
 ⑤ SORTIE — UNE valeur, le code : 0 tout tient (épreuves vertes, sabotages rouges puis verts) · 1 une épreuve ou un
   sabotage ne se comporte pas comme attendu · 2 une épreuve n'a pas pu tourner (R-734).
 ⑥ TRAITEMENT — ① copies : A (programmes/ et les fichiers de donnees/ du premier niveau, plus combinatoires/), B (= A,
   la ligne AIR 2025 retirée de VALEURS_TTF.csv), C (= A sans référentiel), D (= A sans MODULE_POSITIONS.py), E (= A,
-  C5E10-OBS-V1 réécrite au registre avec l'univers « TTE,ZZZ ») · ② la sonde (E1 à E15) sur la copie A
-  intacte : tout vert · ③ sabotage S1 (`manques_du_contrat` rend toujours []) : rouge attendu, puis retiré : vert ·
+  C5E10-OBS-V1 réécrite au registre avec l'univers « TTE,ZZZ »), F (= A sans VALEURS_TTF.csv, C5E10-QA-V1 réécrite au
+  registre MARQUÉE de moulinette, journal de sa chaîne vide), G (= A, pour E22) · ② la sonde (E1 à E23) sur les
+  copies intactes : tout vert · ③ sabotage S1 (`manques_du_contrat` rend toujours []) : rouge attendu, puis retiré : vert ·
   ④ sabotage S2 (le contrôle de l'univers retiré) : rouge attendu, puis retiré : vert · ④bis sabotage S3 (la case
   d'un refus cherchée parmi TOUTES les cases, défaut trouvé par l'auteur le 19-11-2026) : E8b rouge, puis vert ·
   ④ter sabotages S4 à S8 (relecteur neuf du 19-11-2026 : I2, M1, M3, M2 ③), chacun EXACTEMENT ses épreuves rouges
-  (S4 → E6b, S5 → E13, S6 → E14, S7 → E15, S8 → E5b), puis tout vert retiré · ⑤ bilan.
+  (S4 → E6b, S5 → E13, S6 → E14 et E17, S7 → E15, S8 → E5b), puis tout vert retiré · ④quater sabotages S9 à S15
+  (RELU e77edfacf du 20-11-2026 : SB, M4, M5 ; S9 → E16, S9b → E16 et E20, S10 → E17, S11 → E18, S12 → E19, S13 → E20,
+  S14 → E21 et E23, S15 → E22, S16 → E23), posés dans CHAQUE copie qui porte le fichier saboté · ⑤ bilan.
 ⑦ UNITÉ — —
 ⑧ POURQUOI — R-731 ; consigne du Chat du 19-11-2026 (A-925) : « les fiches complètes du registre passent (dis
   lesquelles) ; C5-EI-RETEST refusée avec ses cases ; MA200-S1 (univers « A TRANCHER ») refusée sur l'univers ; un
@@ -41,7 +48,8 @@ USAGE
   tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py. ③ Les clauses du module de signal (étude A.3) ne sont pas
   éprouvées : elles ne sont pas au contrat d'entrée.
 ⑩ EFFET — Écrit sous <travail> seulement (copies, sorties de PREPARER).
-⑪ TERMINAISON — Chaque sous-processus est borné à 300 s. [sort: oui — code]
+⑪ TERMINAISON — Chaque programme lancé par la sonde est borné à 300 s, chaque sonde à 600 s. Durée mesurée le
+  20-11-2026 : voir echanges/A_RELIRE.md. [sort: oui — code]
 """
 import json
 import os
@@ -56,6 +64,8 @@ COMPLETES = ["IND-001-RETEST", "C5E10-QA-V1", "C5E10-OBS-V1", "C5-EI-PARAMS"]   
 CASES_C5_EI_RETEST = {"univers", "tp", "sl", "horizon", "periode", "module_signal", "fonction_signal", "entree",
                       "donnees_demandees"}   # cas connu du 14-11-2026 : neuf cases
 JOUER = "programmes/JOUER_LES_VERSIONS.py"
+JUGE = "programmes/JUGE_DES_STRATEGIES.py"
+COMBI_OBS = "donnees/combinatoires/COMBINATOIRE_C5E10-OBS-V1_E01.csv"
 # (nom, fichier saboté, texte d'avant, texte d'après, épreuves qui DOIVENT rougir — None : au moins une). Un sabotage
 # nouveau (relecteur neuf du 19-11-2026, I2, M1, M3, M2 ③) nomme EXACTEMENT les épreuves qu'il fait rougir : il rougit
 # pour SA raison, et pour elle seule.
@@ -64,8 +74,8 @@ SABOTAGES = (
      '    import os as _os\n    if J is None:\n        import JUGE_DES_STRATEGIES as J\n    refus = []\n',
      '    return []\n    import os as _os\n    if J is None:\n        import JUGE_DES_STRATEGIES as J\n    refus = []\n', None),
     ("S2 contrôle de l'univers retiré", CONTRATS,
-     '    if "univers" not in deja:\n        f_ref = J.trouver(racine, "REFERENTIEL_VALEURS")',
-     '    if False:\n        f_ref = J.trouver(racine, "REFERENTIEL_VALEURS")', None),
+     '    if "univers" not in deja:\n        f_ref = _REFERENTIELS_DU_CONTRAT.get(_os.path.realpath(racine))',
+     '    if False:\n        f_ref = _REFERENTIELS_DU_CONTRAT.get(_os.path.realpath(racine))', None),
     ("S3 attribution non bornée aux cases du contrôle", CONTRATS,
      '    for c in cases_du_controle:\n        m = _re.search',
      '    for c in CASES_DU_CONTRAT:\n        m = _re.search', None),
@@ -75,13 +85,47 @@ SABOTAGES = (
      '        refus.append(("id", "aucun identifiant"))\n', '        pass\n', {"E13"}),
     ("S6 MODULE_POSITIONS absent : pas d'arrêt", CONTRATS,
      '                    raise ContratImpossible("MODULE_POSITIONS.py introuvable sous %s" % racine)\n',
-     '                    return ["%s : %s" % r for r in refus]\n', {"E14"}),
+     '                    return ["%s : %s" % r for r in refus]\n', {"E14", "E17"}),
     ("S7 JOUER ne passe plus la fiche relue au contrat (M3)", JOUER,
      '        refus_du_contrat = contrat.manques_du_contrat(fiche, base, J=J, mod_pos=mod_pos)\n',
      '        refus_du_contrat = []\n', {"E15"}),
     ("S8 années sans liste dans VALEURS_TTF sautées (ancien choix des années, M2 ③)", CONTRATS,
      '                    if d[:4] in manquent:\n',
      '                    if d[:4] in manquent or d[:4] > "2026":\n', {"E5b"}),
+    # (20-11-2026, RELU e77edfacf : SB, M4, M5) — chacun EXACTEMENT ses épreuves rouges.
+    ("S9 JOUER avale ContratImpossible (SB)", JOUER,
+     '        print("ARRÊT : le contrat de stratégie n\'a pas pu être contrôlé (R-734) : %s. Rien n\'est joué." % e)\n'
+     '        return 2\n',
+     '        refus_des_v = []\n', {"E16"}),
+    ("S9b JOUER calibre AVANT le contrat (l'ordre d'avant le 20-11-2026, M4)", JOUER,
+     '    try:\n        refus_du_contrat = contrat.manques_du_contrat(fiche, base, J=J, mod_pos=mod_pos)\n',
+     '    if not calibrer_par_le_juge(base, sid, autre_cours)[0]:\n'
+     '        return arreter("le juge des stratégies ne se calibre pas, ou n\'a pas joué la fiche")\n'
+     '    try:\n        refus_du_contrat = contrat.manques_du_contrat(fiche, base, J=J, mod_pos=mod_pos)\n', {"E16", "E20"}),
+    ("S10 PREPARER avale ContratImpossible (M4)", PREP,
+     '        print("CONTRÔLE IMPOSSIBLE (R-734) — rien n\'est écrit : le contrat de stratégie n\'a pas pu être contrôlé : %s" % e)\n'
+     '        return 2\n',
+     '        refus_du_contrat, avis_du_contrat = [], []\n', {"E17"}),
+    ("S11 le contrat laisse sortir OSError (VALEURS_TTF absent)", CONTRATS,
+     '                    except (ValueError, OSError) as e:  # barème',
+     '                    except ValueError as e:  # barème', {"E18"}),
+    ("S12 le juge rend 1 quand la porte n'a pas pu tourner (M4)", JUGE,
+     '            print("ARRET (A-919) : la chaîne de %s n\'a pas pu être vérifiée : %s. Rien n\'est juge." % (cible, _e))\n'
+     '            return 2\n',
+     '            print("ARRET (A-919) : la chaîne de %s n\'a pas pu être vérifiée : %s. Rien n\'est juge." % (cible, _e))\n'
+     '            return 1\n', {"E19"}),
+    ("S13 JOUER ne passe plus les versions au contrat (M5)", JOUER,
+     '        refus_des_v = refus_des_versions(contrat, J, mod_pos, base, fiche, versions)\n',
+     '        refus_des_v = []\n', {"E20"}),
+    ("S14 les versions passées au contrat sans être fusionnées (faux refus)", JOUER,
+     '        version_au_labo = dict(fusionner(fiche, v), etat_vie=contrat.ETAT_D_UNE_VERSION_DE_MOULINETTE)\n',
+     '        version_au_labo = dict(v, etat_vie=contrat.ETAT_D_UNE_VERSION_DE_MOULINETTE)\n', {"E21", "E23"}),
+    ("S15 le chemin gardé du référentiel n'est plus revérifié", CONTRATS,
+     '        if not f_ref or not _os.path.isfile(f_ref):\n',
+     '        if not f_ref:\n', {"E22"}),
+    ("S16 les versions contrôlées sous l'état de la fiche (contrôles du soir sur une version)", JOUER,
+     '        version_au_labo = dict(fusionner(fiche, v), etat_vie=contrat.ETAT_D_UNE_VERSION_DE_MOULINETTE)\n',
+     '        version_au_labo = dict(fusionner(fiche, v))\n', {"E23"}),
 )
 
 
@@ -103,12 +147,12 @@ def cases_de(refus):
     return {c.strip() for r in refus for c in r.split(" : ", 1)[0].split("/")}
 
 
-def sonde(programmes, A, B, C, D, E):
-    """Joue E1 à E12 dans CE processus, modules chargés depuis `programmes` ; affiche un JSON {épreuve: [vert, détail]}.
+def sonde(programmes, A, B, C, D, E, F, G):
+    """Joue E1 à E23 dans CE processus, modules chargés depuis `programmes` ; affiche un JSON {épreuve: [vert, détail]}.
 
     ① RÔLE — Mesurer le contrat tel qu'il est écrit dans la copie (intacte ou sabotée), en un processus neuf.
     ② CONTEXTE D'APPEL — `__main__` avec « --sonde », lancé par `lancer_la_sonde`.
-    ③ ENTRÉE — `programmes` : le dossier programmes/ de la copie A ; `A` à `E` : les cinq racines copiées.
+    ③ ENTRÉE — `programmes` : le dossier programmes/ de la copie A ; `A` à `G` : les sept racines copiées.
     ④ CONDITIONS D'ENTRÉE — Les copies faites par `copier`.
     ⑤ SORTIE — Aucune valeur rendue ; un JSON affiché sur la sortie standard. [rend: 0]
     ⑥ TRAITEMENT — E1 fiches complètes · E2 C5-EI-RETEST · E3 MA200-S1 · E4 « +150% » · E5 AIR sans ligne 2025 (B) ·
@@ -118,13 +162,21 @@ def sonde(programmes, A, B, C, D, E):
       (relecteur neuf, I2, M1, M2 ③, M3) : E5b période qui déborde sur 2027 (année sans liste, taxée) · E6b T2 sur une
       fiche du LABO (période « banane », tp « x », entree vide : les trois cases nommées) · E13 id vide · E14
       MODULE_POSITIONS absent (D) : ContratImpossible · E15 JOUER_LES_VERSIONS (copie E, registre réécrit après ⓪) :
-      arrêt nommé sur le contrat, avant tout jeu.
+      arrêt nommé sur le contrat, la case univers nommée (depuis le 20-11-2026), avant tout jeu · ajoutées le
+      20-11-2026 (RELU e77edfacf : SB, M4, M5) : E16 JOUER sur C (sans référentiel), SANS calibrage remplacé : code 2,
+      avant le calibrage · E17 PREPARER ⓪ sur D (sans MODULE_POSITIONS) : code 2 · E18 contrat sur F (sans
+      VALEURS_TTF) : ContratImpossible · E19 le juge sur F, fiche visée marquée de moulinette : code 2 à sa porte ·
+      E20 JOUER sur A, une version « TTE,ZZZ » dans une combinatoire de trois vraies versions : code 1, la version et
+      la case univers nommées, avant le calibrage · E21 les 2 695 vraies versions de C5E10-OBS-V1 E01 : aucun refus ·
+      E22 un référentiel effacé après un premier contrôle est vu absent (le chemin gardé est revérifié) · E23 une
+      version « sans stop » de C5E10-QA-V1 passe (contrôlée sous l'état LABO), la fiche « sans stop » reste refusée.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Un processus neuf par mesure : un module saboté ne reste pas en mémoire d'une mesure à l'autre.
     ⑨ CE QUI CLOCHE — voir ⑨ ② de l'en-tête (E12).
-    ⑩ EFFET — Charge les modules de la copie ; E11 écrit sous un dossier neuf A/../sortie_prep_* ; E12 crée un journal
-      vide sous A.
-    ⑪ TERMINAISON — Rend la main ; E11 lance PREPARER borné à 300 s. [sort: non]
+    ⑩ EFFET — Charge les modules de la copie ; E11 et E17 écrivent sous un dossier neuf A/../sortie_prep_* ; E12 crée
+      un journal vide sous A ; E15, E16, E20 sous A/../sortie_jouer_* (rien, si JOUER refuse) ; E22 renomme le référentiel
+      de G le temps de l'épreuve, puis le remet (à l'octet : un renommage).
+    ⑪ TERMINAISON — Rend la main ; E11, E15, E16, E17, E19, E20 lancent un programme borné à 300 s. [sort: non]
     """
     sys.path.insert(0, programmes)
     import CONTRATS_DES_FICHIERS as CT
@@ -276,26 +328,158 @@ def sonde(programmes, A, B, C, D, E):
                      os.path.join(E, "donnees/combinatoires/COMBINATOIRE_C5E10-OBS-V1_E01.csv"), sortie))
         p = subprocess.run([sys.executable, "-B", "-c", pilote], capture_output=True, text=True, timeout=300, cwd=E)
         o = p.stdout + p.stderr
-        ok = p.returncode == 1 and "ne suit pas le contrat de stratégie" in o and "ZZZ" in o \
-            and not os.path.exists(sortie)
+        ok = p.returncode == 1 and "ne suit pas le contrat de stratégie" in o \
+            and "univers : mnémonique(s) absent(s) du référentiel : ZZZ" in o and not os.path.exists(sortie)
         return ok, "code %d : %s" % (p.returncode, " | ".join(l for l in o.splitlines() if "ARR" in l or "Error" in l)
                                      or o[-300:])
-    e("E15 JOUER refuse la fiche relue hors contrat (registre réécrit après ⓪), avant tout jeu", e15)
+    e("E15 JOUER refuse la fiche relue hors contrat (registre réécrit après ⓪), case univers nommée, avant tout jeu", e15)
+
+    import tempfile
+
+    def jouer_seul(racine, combinatoire):
+        """Lance JOUER_LES_VERSIONS de `racine` tel quel, sans rien substituer, et rend ce qu'il a fait.
+
+        ① RÔLE — Mesurer JOUER de bout en bout, calibrage compris (E15 le remplace ; E16 et E20 non).
+        ② CONTEXTE D'APPEL — E16, E20.
+        ③ ENTRÉE — `racine` : une copie (C ou A) · `combinatoire` : le chemin d'une combinatoire.
+        ④ CONDITIONS D'ENTRÉE — La copie porte programmes/JOUER_LES_VERSIONS.py.
+        ⑤ SORTIE — TROIS valeurs : le code de sortie, la sortie affichée (standard et erreurs), vrai si un fichier de
+          résultats (ou son provisoire) existe. [rend: 3]
+        ⑥ TRAITEMENT — un dossier neuf sous le parent de `racine`, JOUER lancé en sous-processus `-B`, le résultat lu.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — M4 du RELU e77edfacf : le code 2 de JOUER n'était jamais éprouvé par JOUER lui-même.
+        ⑨ CE QUI CLOCHE — Dans les copies, le juge ne se calibre pas (le témoin du golden n'y est pas copié) : un JOUER
+          qui atteint le calibrage s'y arrête en 1 — c'est ce qui fait rougir E16 et E20 sous S9, S9b et S13.
+        ⑩ EFFET — Crée un dossier sous le parent de `racine` ; JOUER y écrirait ses résultats.
+        ⑪ TERMINAISON — Rend la main ; lève subprocess.TimeoutExpired au-delà de 300 s. [sort: non]
+        """
+        sortie = os.path.join(tempfile.mkdtemp(prefix="sortie_jouer_", dir=os.path.dirname(racine)), "R.csv")
+        p = subprocess.run([sys.executable, "-B", os.path.join(racine, JOUER), racine, combinatoire, sortie],
+                           capture_output=True, text=True, timeout=300, cwd=racine)
+        return p.returncode, p.stdout + p.stderr, os.path.exists(sortie) or os.path.exists(sortie + ".en_cours")
+
+    def e16():
+        # M4 : SANS référentiel, le contrôle du contrat ne peut pas tourner → 2 (R-734), et AVANT le calibrage : le juge
+        # n'est pas lancé (avant le 20-11-2026 : code 1, « le juge ne se calibre pas »).
+        code, o, reste = jouer_seul(C, os.path.join(C, COMBI_OBS))
+        ok = code == 2 and "n'a pas pu être contrôlé (R-734)" in o and "référentiel" in o \
+            and "CALIBRAGE PAR LE JUGE" not in o and not reste
+        return ok, "code %d : %s" % (code, " | ".join(l for l in o.splitlines() if "ARR" in l or "CALIBRAGE" in l)
+                                     or o[-300:])
+    e("E16 JOUER sans référentiel : code 2 (R-734), avant le calibrage, rien d'écrit", e16)
+
+    def e17():
+        sortie = tempfile.mkdtemp(prefix="sortie_prep_", dir=os.path.dirname(D))
+        p = subprocess.run([sys.executable, "-B", os.path.join(D, PREP), os.path.join(D, CT.REGISTRE_DES_STRATEGIES),
+                            "C5E10-OBS-V1", os.path.join(D, "donnees/combinatoires/VOISINAGE.csv"), "E77", sortie],
+                           capture_output=True, text=True, timeout=300, cwd=D)
+        o = p.stdout + p.stderr
+        ok = p.returncode == 2 and "CONTRÔLE IMPOSSIBLE (R-734)" in o and "MODULE_POSITIONS" in o \
+            and os.listdir(sortie) == []
+        return ok, "code %d, écrit %s : %s" % (p.returncode, os.listdir(sortie),
+                                              " | ".join(l for l in o.splitlines() if "R-734" in l) or o[-300:])
+    e("E17 PREPARER ⓪ sans MODULE_POSITIONS : code 2 (R-734), rien d'écrit", e17)
+
+    def e18():
+        try:
+            r = CT.manques_du_contrat(fiches["C5E10-QA-V1"], F, J=J)
+        except CT.ContratImpossible as x:
+            return "VALEURS_TTF" in str(x), str(x)
+        return False, "aucune exception ContratImpossible : %s" % r
+    e("E18 VALEURS_TTF absent : ContratImpossible (R-734), jamais une trace Python ni une liste", e18)
+
+    def e19():
+        # LA PORTE DU JUGE (A-919) sur la fiche visée, MARQUÉE de moulinette (dernière ligne du registre de F) : le contrat
+        # ne peut pas tourner (VALEURS_TTF absent) → le juge rend 2 avant tout calcul.
+        p = subprocess.run([sys.executable, "-B", os.path.join(F, JUGE), F, "C5E10-QA-V1"],
+                           capture_output=True, text=True, timeout=300, cwd=F)
+        o = p.stdout + p.stderr
+        ok = p.returncode == 2 and "n'a pas pu être vérifiée" in o and "VALEURS_TTF" in o
+        return ok, "code %d : %s" % (p.returncode, " | ".join(l for l in o.splitlines() if "ARRET" in l) or o[-300:])
+    e("E19 le juge, fiche marquée, contrat impossible à sa porte : code 2 (R-734)", e19)
+
+    def e20():
+        # M5 : une version (pas la fiche) hors contrat ; trois VRAIES versions (R-732), la 0001 réécrite « TTE,ZZZ ».
+        import csv
+        lignes = [l for l in csv.DictReader(open(os.path.join(A, COMBI_OBS), encoding="utf-8-sig"))
+                  if l["id_version"][-4:] in ("0914", "0001", "0500")]
+        for l in lignes:
+            l["versions_dans_l_essai"] = str(len(lignes))
+            if l["id_version"].endswith("-0001"):
+                l["univers"] = "TTE,ZZZ"
+        d = tempfile.mkdtemp(prefix="combi_", dir=os.path.dirname(A))
+        f = os.path.join(d, os.path.basename(COMBI_OBS))
+        with open(f, "w", encoding="utf-8", newline="") as s:
+            w = csv.DictWriter(s, fieldnames=list(lignes[0]))
+            w.writeheader()
+            w.writerows(lignes)
+        code, o, reste = jouer_seul(A, f)
+        ok = code == 1 and "C5E10-OBS-V1-E01-0001 — univers : mnémonique(s) absent(s) du référentiel : ZZZ" in o \
+            and "Rien n'est joué" in o and "CALIBRAGE PAR LE JUGE" not in o and not reste
+        return ok, "code %d : %s" % (code, " | ".join(l for l in o.splitlines() if "ARR" in l) or o[-300:])
+    e("E20 JOUER : une version « TTE,ZZZ » refusée, la version et la case univers nommées, avant tout calibrage", e20)
+
+    def e21():
+        import csv
+        sys.path.insert(0, os.path.join(A, "programmes"))
+        import JOUER_LES_VERSIONS as JV
+        versions = list(csv.DictReader(open(os.path.join(A, COMBI_OBS), encoding="utf-8-sig")))
+        mod_pos = J.charger_module(J.trouver(A, "MODULE_POSITIONS.py"), "pos_e21")
+        r = JV.refus_des_versions(CT, J, mod_pos, A, fiches["C5E10-OBS-V1"], versions)
+        return r == [] and len(versions) > 1000, "%d versions, %d refus : %s" % (len(versions), len(r), r[:3])
+    e("E21 les vraies versions de C5E10-OBS-V1 E01 passent toutes le contrat (aucun faux refus)", e21)
+
+    def e22():
+        # Le référentiel (tous les fichiers dont le nom commence par REFERENTIEL_VALEURS, ce que `J.trouver` cherche) est
+        # écarté SOUS UN AUTRE NOM à la racine de G, puis remis : un nom qui garderait ce début serait encore trouvé.
+        refs = [os.path.join(G, "donnees", n) for n in os.listdir(os.path.join(G, "donnees"))
+                if n.upper().startswith("REFERENTIEL_VALEURS")]
+        premier = CT.manques_du_contrat(fiches["C5E10-QA-V1"], G, J=J)
+        for f in refs:
+            os.rename(f, os.path.join(G, "ECARTE_" + os.path.basename(f)))
+        try:
+            CT.manques_du_contrat(fiches["C5E10-QA-V1"], G, J=J)
+            second = "aucune exception"
+        except CT.ContratImpossible as x:
+            second = str(x)
+        finally:
+            for f in refs:
+                os.rename(os.path.join(G, "ECARTE_" + os.path.basename(f)), f)
+        return premier == [] and "introuvable" in second, "premier %s · après effacement : %s" % (premier, second)
+    e("E22 référentiel effacé après un premier contrôle : vu absent, ContratImpossible « introuvable »", e22)
+
+    def e23():
+        # UNE VERSION « SANS STOP » D'UNE FICHE SUIVIE PAR LE SOIR (C5E10-QA-V1, état QA) : PREPARER ⓪ propose ce réglage,
+        # JOUER le joue au laboratoire ; le contrat ne doit pas lui appliquer les contrôles du soir (mesuré le 20-11-2026 :
+        # 245 refus faux sur 3 675 versions). Témoin : la FICHE à « sans stop » reste refusée (E7).
+        sys.path.insert(0, os.path.join(A, "programmes"))
+        import JOUER_LES_VERSIONS as JV
+        qa = fiches["C5E10-QA-V1"]
+        v = {"id_version": "C5E10-QA-V1-E98-SANS-STOP", "tp": "0.04", "sl": "sans stop", "horizon": "20",
+             "univers": qa["univers"]}
+        mod_pos = J.charger_module(J.trouver(A, "MODULE_POSITIONS.py"), "pos_e23")
+        r = JV.refus_des_versions(CT, J, mod_pos, A, qa, [v])
+        fiche_refusee = "sl" in cases_de(m(dict(qa, sl="sans stop")))
+        return r == [] and fiche_refusee, "version %s · fiche « sans stop » refusée : %s" % (r, fiche_refusee)
+    e("E23 une version « sans stop » d'une fiche QA passe (jouée au labo) ; la fiche « sans stop » reste refusée", e23)
     print(json.dumps(res, ensure_ascii=False))
 
 
 def copier(source, travail):
-    """Fabrique les cinq copies A à E sous `travail`, et rend leurs chemins.
+    """Fabrique les sept copies A à G sous `travail`, et rend leurs chemins.
 
     ① RÔLE — Ne jamais éprouver sur le dépôt : programmes/ et les fichiers de donnees/ utiles, copiés.
     ② CONTEXTE D'APPEL — `main`, une fois.
     ③ ENTRÉE — `source` : la racine du worktree ; `travail` : le dossier de travail (créé ici).
     ④ CONDITIONS D'ENTRÉE — `travail` n'existe pas.
-    ⑤ SORTIE — CINQ valeurs : les racines A, B, C, D, E. [rend: 5]
+    ⑤ SORTIE — SEPT valeurs : les racines A, B, C, D, E, F, G. [rend: 7]
     ⑥ TRAITEMENT — A : programmes/ (sans __pycache__), les fichiers .py de la racine (emp.py, importé par la chaîne),
       les fichiers du premier niveau de donnees/, donnees/combinatoires/ et donnees/sources_indice/ · B : A, puis la ligne « 2025,AIR, » retirée de donnees/VALEURS_TTF.csv (exactement une) ·
       C : A sans donnees/REFERENTIEL_VALEURS*.csv · D : A sans programmes/MODULE_POSITIONS.py · E : A, plus une
-      DERNIÈRE ligne au registre : la vraie fiche C5E10-OBS-V1, univers « TTE,ZZZ » (la dernière ligne fait foi, n°83).
+      DERNIÈRE ligne au registre : la vraie fiche C5E10-OBS-V1, univers « TTE,ZZZ » (la dernière ligne fait foi, n°83) ·
+      F (20-11-2026) : A sans donnees/VALEURS_TTF.csv, plus une DERNIÈRE ligne au registre : la vraie fiche C5E10-QA-V1
+      MARQUÉE de moulinette (« MOULINETTE (A-919) C5E10-QA-V1 E99 ») et le journal de sa chaîne, vide · G : A, intacte
+      (E22 y renomme le référentiel le temps de l'épreuve).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — E5 a besoin d'une valeur connue du référentiel et absente de la liste d'une année ; E9 d'une racine
       sans référentiel. Les fabriquer à partir des VRAIS fichiers (R-732).
@@ -305,7 +489,7 @@ def copier(source, travail):
       pas unique. [sort: non]
     """
     os.makedirs(travail)
-    A, B, C, D, E = (os.path.join(travail, x) for x in ("A", "B", "C", "D", "E"))
+    A, B, C, D, E, F, G = (os.path.join(travail, x) for x in ("A", "B", "C", "D", "E", "F", "G"))
     shutil.copytree(os.path.join(source, "programmes"), os.path.join(A, "programmes"),
                     ignore=shutil.ignore_patterns("__pycache__"))
     for n in os.listdir(source):
@@ -323,19 +507,47 @@ def copier(source, travail):
     shutil.copytree(A, C)
     shutil.copytree(A, D)
     shutil.copytree(A, E)
+    shutil.copytree(A, F)
+    shutil.copytree(A, G)
     os.remove(os.path.join(D, "programmes", "MODULE_POSITIONS.py"))
+    os.remove(os.path.join(F, "donnees", "VALEURS_TTF.csv"))
     import csv
-    reg = os.path.join(E, "donnees", "cac40_strategies.csv")
-    texte = open(reg, encoding="utf-8").read()
-    entete = next(l for l in texte.split("\n") if l.startswith("id,") or ",univers," in l)
-    lignes_obs = [r for r in csv.DictReader(texte.split("\n")[texte.split("\n").index(entete):])
-                  if r.get("id") == "C5E10-OBS-V1"]
-    assert lignes_obs, "C5E10-OBS-V1 absente du registre"
     import io
-    tampon = io.StringIO()
-    w = csv.DictWriter(tampon, fieldnames=next(csv.reader([entete])), lineterminator="\n")
-    w.writerow(dict(lignes_obs[-1], univers="TTE,ZZZ"))
-    open(reg, "a", encoding="utf-8").write(("" if texte.endswith("\n") else "\n") + tampon.getvalue())
+
+    def ajouter_au_registre(racine, ident, **cases):
+        """Ajoute au registre de `racine` une DERNIÈRE ligne : la vraie dernière ligne de `ident`, `cases` changées.
+
+        ① RÔLE — Fabriquer une fiche réécrite à partir d'une VRAIE ligne (R-732) ; la dernière ligne fait foi (n°83).
+        ② CONTEXTE D'APPEL — `copier`, pour E (univers « TTE,ZZZ ») et F (marque de moulinette).
+        ③ ENTRÉE — `racine` : une copie · `ident` : l'identifiant, exemple C5E10-QA-V1 · `cases` : colonnes à changer.
+        ④ CONDITIONS D'ENTRÉE — Le registre de la copie porte `ident` ; chaque clé de `cases` est une de ses colonnes.
+        ⑤ SORTIE — Aucune valeur. [rend: 0]
+        ⑥ TRAITEMENT — lire l'en-tête et les lignes de `ident`, recopier la dernière avec `cases`, l'ajouter en fin.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Deux copies en ont besoin (E, F) : un seul geste.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Ajoute une ligne au registre de la copie.
+        ⑪ TERMINAISON — Rend la main ; lève AssertionError si `ident` est absent. [sort: non]
+        """
+        reg = os.path.join(racine, "donnees", "cac40_strategies.csv")
+        texte = open(reg, encoding="utf-8").read()
+        entete = next(l for l in texte.split("\n") if l.startswith("id,") or ",univers," in l)
+        trouvees = [r for r in csv.DictReader(texte.split("\n")[texte.split("\n").index(entete):])
+                    if r.get("id") == ident]
+        assert trouvees, "%s absente du registre" % ident
+        tampon = io.StringIO()
+        w = csv.DictWriter(tampon, fieldnames=next(csv.reader([entete])), lineterminator="\n")
+        w.writerow(dict(trouvees[-1], **cases))
+        open(reg, "a", encoding="utf-8").write(("" if texte.endswith("\n") else "\n") + tampon.getvalue())
+
+    ajouter_au_registre(E, "C5E10-OBS-V1", univers="TTE,ZZZ")
+    sys.path.insert(0, os.path.join(F, "programmes"))
+    import CONTRATS_DES_FICHIERS as CT
+    import VERIFIER_LA_CHAINE as V
+    ajouter_au_registre(F, "C5E10-QA-V1", **{CT.COLONNE_DE_LA_MARQUE_DE_MOULINETTE: "%s %s %s" % (
+        CT.MARQUE_DE_MOULINETTE, "C5E10-QA-V1", "E99")})
+    os.makedirs(V.dossier(F, "C5E10-QA-V1", "E99"))
+    open(os.path.join(V.dossier(F, "C5E10-QA-V1", "E99"), V.JOURNAL), "x").close()
     ttf = os.path.join(B, "donnees", "VALEURS_TTF.csv")
     lignes = open(ttf, encoding="utf-8").read().split("\n")
     air = [l for l in lignes if l.startswith("2025,AIR,")]
@@ -344,15 +556,15 @@ def copier(source, travail):
     for n in os.listdir(os.path.join(C, "donnees")):
         if n.upper().startswith("REFERENTIEL_VALEURS"):
             os.remove(os.path.join(C, "donnees", n))
-    return A, B, C, D, E
+    return A, B, C, D, E, F, G
 
 
-def lancer_la_sonde(A, B, C, D, E):
+def lancer_la_sonde(A, B, C, D, E, F, G):
     """Lance la sonde dans un processus neuf ; rend le dictionnaire des épreuves.
 
     ① RÔLE — Mesurer le contrat tel qu'il est écrit À CET INSTANT dans la copie A.
     ② CONTEXTE D'APPEL — `main`, une fois sans sabotage, puis deux fois par sabotage.
-    ③ ENTRÉE — Les cinq racines.
+    ③ ENTRÉE — Les sept racines.
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : {épreuve: [vert, détail]}. [rend: 1]
     ⑥ TRAITEMENT — `python3 -B <ce fichier> --sonde`, dernière ligne de la sortie lue en JSON.
@@ -364,7 +576,7 @@ def lancer_la_sonde(A, B, C, D, E):
       subprocess.TimeoutExpired au-delà de 600 s. [sort: non]
     """
     p = subprocess.run([sys.executable, "-B", os.path.abspath(__file__), "--sonde", os.path.join(A, "programmes"),
-                        A, B, C, D, E], capture_output=True, text=True, timeout=600, cwd=A)
+                        A, B, C, D, E, F, G], capture_output=True, text=True, timeout=600, cwd=A)
     try:
         return json.loads(p.stdout.strip().splitlines()[-1])
     except (IndexError, ValueError):
@@ -376,10 +588,10 @@ def main(argv):
 
     ① RÔLE — Le déroulé de l'épreuve (⑥ de l'en-tête).
     ② CONTEXTE D'APPEL — `__main__`.
-    ③ ENTRÉE — `argv` : [programme, source, travail].
+    ③ ENTRÉE — `argv` : [programme, source, travail], puis facultativement « --sabotages=<noms séparés par « , »> ».
     ④ CONDITIONS D'ENTRÉE — Celles de l'en-tête.
     ⑤ SORTIE — UNE valeur : 0, 1 ou 2. [rend: 1]
-    ⑥ TRAITEMENT — ① copies · ② sonde intacte, tout vert · ③ pour chaque sabotage : poser, sonder (au moins une
+    ⑥ TRAITEMENT — ① copies · ② sonde intacte, tout vert · ③ pour chaque sabotage (les seuls nommés par --sabotages=, s'il est donné) : poser, sonder (au moins une
       épreuve rouge attendue, nommées), retirer à l'octet, sonder (tout vert) · ④ afficher chaque ligne et le bilan.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — R-731.
@@ -387,32 +599,39 @@ def main(argv):
     ⑩ EFFET — Écrit sous <travail> ; affiche.
     ⑪ TERMINAISON — Rend la main ; `__main__` passe le code à `sys.exit`. [sort: non]
     """
-    if len(argv) != 3:
+    choix = [a.split("=", 1)[1].split(",") for a in argv[3:] if a.startswith("--sabotages=")]
+    inconnus = sorted(set(sum(choix, [])) - {n.split(" ")[0] for n, *_ in SABOTAGES})
+    if len(argv) != 3 + len(choix) or len(choix) > 1 or inconnus:
+        if inconnus:
+            print("sabotages inconnus : %s" % inconnus)
         print(__doc__.split("① RÔLE")[0])
         return 2
     source, travail = os.path.abspath(argv[1]), os.path.abspath(argv[2])
     try:
-        A, B, C, D, E = copier(source, travail)
+        racines = copier(source, travail)
         rouge = 0
-        base = lancer_la_sonde(A, B, C, D, E)
+        base = lancer_la_sonde(*racines)
         print("— CONTRAT INTACT —")
         for k, (ok, det) in base.items():
             print("  %s %s\n      %s" % ("✅" if ok else "❌", k, det))
             rouge += not ok
         for nom, fichier, avant, apres, attendues in SABOTAGES:
-            # le fichier saboté l'est dans CHAQUE copie qui le porte et le sert (A, et E pour JOUER) — restitué à l'octet
-            cibles = [os.path.join(r, fichier) for r in (A, E)]
+            if choix and nom.split(" ")[0] not in choix[0]:
+                continue
+            # le fichier saboté l'est dans CHAQUE copie qui le porte (depuis le 20-11-2026 : les sept ; E16, E17 et E19
+            # lancent JOUER, PREPARER et le juge de C, D et F) — restitué à l'octet
+            cibles = [os.path.join(r, fichier) for r in racines if os.path.isfile(os.path.join(r, fichier))]
             originaux = {f: open(f, "rb").read() for f in cibles}
             for f in cibles:
                 texte = originaux[f].decode("utf-8")
                 if texte.count(avant) != 1:
                     raise RuntimeError("%s : le texte à saboter n'est pas unique (%d)" % (nom, texte.count(avant)))
                 open(f, "w", encoding="utf-8").write(texte.replace(avant, apres))
-            sab = lancer_la_sonde(A, B, C, D, E)
+            sab = lancer_la_sonde(*racines)
             rouges = [k for k, (ok, _) in sab.items() if not ok]
             for f in cibles:
                 open(f, "wb").write(originaux[f])
-            retire = lancer_la_sonde(A, B, C, D, E)
+            retire = lancer_la_sonde(*racines)
             verts = all(ok for ok, _ in retire.values()) and all(open(f, "rb").read() == originaux[f] for f in cibles)
             noms = {r.split(" ")[0] for r in rouges}
             pour_sa_raison = bool(rouges) if attendues is None else noms == attendues
@@ -432,7 +651,7 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 8 and sys.argv[1] == "--sonde":
+    if len(sys.argv) == 10 and sys.argv[1] == "--sonde":
         sonde(*sys.argv[2:])
         sys.exit(0)
     sys.exit(main(sys.argv))

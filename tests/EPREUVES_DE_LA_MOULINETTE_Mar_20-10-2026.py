@@ -500,9 +500,12 @@ def cas_jouer_dehors(racine):
     un_cas("JOUER, univers vide", lambda L: L[:-1] + [dict(L[-1], univers="")], "univers vide pour")
     un_cas("JOUER, valeur écrite deux fois", lambda L: L[:-1] + [dict(L[-1], univers="TTE,TTE")], "valeur écrite deux fois dans l'univers")
     un_cas("JOUER, aucune version identique à la fiche", None, "0 versions marquées identiques à la fiche", fiche="aucune")
-    un_cas("JOUER, stratégie inconnue : le juge ne se calibre pas",
+    # (20-11-2026, M4 du RELU e77edfacf) la fiche est lue et passée au contrat AVANT le calibrage : une stratégie absente
+    # du registre s'arrête là, avant le juge. Le refus « le juge ne se calibre pas » est éprouvé par le faux juge
+    # (`cas_jouer_dedans`, ligne de juge absente).
+    un_cas("JOUER, stratégie inconnue : absente du registre, arrêt avant le calibrage",
            lambda L: [dict(l, strategie="STRATEGIE-INCONNUE", id_version="STRATEGIE-INCONNUE-" + l["id_version"]) for l in L],
-           "le juge des stratégies ne se calibre pas")
+           ("fiche STRATEGIE-INCONNUE absente du registre",))
     un_cas("JOUER, version marquée identique qui ne l'est pas", None, "identique à la fiche, ne retrouve pas la fiche",
            fiche="%s-%s-0001" % (SID, ESSAI))
     # LA FIN DE LA PÉRIODE SE CALCULE (plan V7, bloc 5g, 11-11-2026) : un horizon de 500 séances la ramènerait de près
@@ -517,16 +520,19 @@ def cas_jouer_dehors(racine):
                          sur_0500(tp="1.5"),
                          ("fusion fausse pour %s-%s-0500" % (SID, ESSAI), "tp lu '1.5', version '1.5'"))
     noter("JOUER, fusion fausse : le fichier provisoire est effacé", not os.path.exists(f_out + ".en_cours") and not os.path.exists(f_out))
-    un_cas("JOUER, horizon 0 sur une version : la lecture du juge le refuse, fusion fausse", sur_0500(horizon="0"),
-           "horizon lu '0'")
-    # La version identique à la fiche est jouée AVANT le contrôle de la marge de cours : un code inconnu y donne
-    # « valeurs absentes » ; sur une autre version, la marge l'arrête d'abord (lu dans le code, vu le 20-10-2026).
-    un_cas("JOUER, un code inconnu des cours dans la version identique à la fiche : valeurs absentes",
-           sur_0914(univers="ZZZ"), "valeurs absentes des cours")
-    un_cas("JOUER, un code inconnu des cours dans une autre version : marge insuffisante", sur_0500(univers="ZZZ"),
-           "pas assez de cours après la période pour ZZZ")
-    un_cas("JOUER, horizon 0 sur la version identique à la fiche : la porte 0 refuse", sur_0914(horizon="0"),
-           "la porte 0 refuse")
+    # (20-11-2026, M5 du RELU e77edfacf) CHAQUE VERSION fusionnée passe le contrat de stratégie AVANT le calibrage et
+    # avant tout jeu : un horizon 0 ou un code inconnu du référentiel y est refusé, la version et la case nommées.
+    # Jusqu'au 20-11-2026, ces quatre cas atteignaient plus loin la fusion fausse (« horizon lu '0' »), « valeurs
+    # absentes des cours », la marge de cours et la porte 0 : ces refus restent éprouvés par le cas « objectif écrit
+    # 1.5 » (fusion fausse), le cas « horizon de 5000 séances » (marge) et le faux juge (valeurs absentes, porte 0).
+    un_cas("JOUER, horizon 0 sur une version : le contrat la refuse, version et case nommées", sur_0500(horizon="0"),
+           ("ne suivent pas le contrat de stratégie", "%s-%s-0500 — horizon" % (SID, ESSAI), "Rien n'est joué"))
+    un_cas("JOUER, un code inconnu dans la version identique à la fiche : le contrat la refuse, case univers nommée",
+           sur_0914(univers="ZZZ"), ("%s-%s-0914 — univers : mnémonique(s) absent(s) du référentiel : ZZZ" % (SID, ESSAI),))
+    un_cas("JOUER, un code inconnu dans une autre version : le contrat la refuse, case univers nommée",
+           sur_0500(univers="ZZZ"), ("%s-%s-0500 — univers : mnémonique(s) absent(s) du référentiel : ZZZ" % (SID, ESSAI),))
+    un_cas("JOUER, horizon 0 sur la version identique à la fiche : le contrat la refuse", sur_0914(horizon="0"),
+           ("%s-%s-0914 — horizon" % (SID, ESSAI),))
     d, f_out, c = un_cas("JOUER, combinatoire réduite sans témoin : écrit, code 0", None, "AUCUN TÉMOIN DE RÉSULTATS", code_attendu=0)
     noter("JOUER, sans témoin : le fichier de résultats est écrit", c == 0 and os.path.exists(f_out))
 
@@ -714,7 +720,8 @@ def cas_jouer_dedans(racine):
         ⑦ UNITÉ — —
         ⑧ POURQUOI — Ces refus ne s'atteignent pas avec de vraies données cohérentes.
         ⑨ CE QUI CLOCHE — Voir `faux_juge`, ⑨.
-        ⑩ EFFET — Écrit dans un dossier temporaire ; modifie `sys.modules`, `sys.argv` et `jouer.calibrer_par_le_juge` le temps du cas.
+        ⑩ EFFET — Écrit dans un dossier temporaire ; modifie `sys.modules`, `sys.argv`, `jouer.calibrer_par_le_juge` et
+          `CONTRATS_DES_FICHIERS.manques_du_contrat` (neutralisé, 20-11-2026) le temps du cas.
         ⑪ TERMINAISON — Rend la main.
           [sort: non]
         """
@@ -735,6 +742,13 @@ def cas_jouer_dedans(racine):
         sys.modules["JUGE_DES_STRATEGIES"] = J
         sys.argv = ["JOUER_LES_VERSIONS.py", base, f_comb, f_out]
         jouer.calibrer_par_le_juge = lambda b, i, cours=None: (True, ligne_juge)   # `cours` : --cours=, 11-11-2026
+        # LE CONTRAT DE STRATÉGIE EST NEUTRALISÉ (20-11-2026) : JOUER l'appelle avec le juge reçu, et le faux juge n'en
+        # porte pas les fonctions (mesuré le 20-11-2026 sur e77edfacf : « AttributeError … no attribute 'VIDE' », la
+        # famille interrompue au deuxième cas). Le contrat dans JOUER est éprouvé par
+        # tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py (E15, E16, E20) ; ici, la logique de JOUER seule.
+        import CONTRATS_DES_FICHIERS as _CT
+        avant_contrat = _CT.manques_du_contrat
+        _CT.manques_du_contrat = lambda *a, **k: []
         tampon, code, erreur = io.StringIO(), None, ""
         try:
             with contextlib.redirect_stdout(tampon):
@@ -742,6 +756,7 @@ def cas_jouer_dedans(racine):
         except ValueError as e:
             erreur = str(e)
         finally:
+            _CT.manques_du_contrat = avant_contrat
             jouer.calibrer_par_le_juge = avant_cal
             sys.argv = avant_argv
             if avant_mod is None:
@@ -766,6 +781,8 @@ def cas_jouer_dedans(racine):
     un_cas("JOUER (faux juge), valeurs absentes des cours", "valeurs absentes des cours", leve=True, inconnus=["XYZ"])
     un_cas("JOUER (faux juge), la fiche ne produit aucune opération", "la fiche elle-même ne produit aucune opération", n=0)
     un_cas("JOUER (faux juge), le lecteur refuse la lecture", "le lecteur unique a mis 1 ligne(s)", refus_lecture=True)
+    un_cas("JOUER (faux juge), le juge ne se calibre pas (aucune ligne de résultat)",
+           "le juge des stratégies ne se calibre pas", ligne_juge=None)
     un_cas("JOUER (faux juge), le juge seul dit autre chose", "ne rendent pas la même chose pour la fiche",
            ligne_juge="2 operations . 50.0 % de reussite . +5.00 EUR")
     un_cas("JOUER (faux juge), période différente pour une version", "période différente pour F-E01-2", leve=True,

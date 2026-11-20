@@ -1567,6 +1567,13 @@ CONTRATS_PAR_FICHIER = {
 # d'affichage `statut` (« contient VIVANTE ») ; mesuré le 18-11-2026 sur la dernière ligne des 68 fiches : les deux
 # critères désignent les mêmes fiches (C5E10-QA-V1 et C5E10-OBS-V1), le changement ne change donc rien ce soir-là.
 ETATS_SUIVIS_PAR_LE_SOIR = ("QA", "PRODUCTION")
+# L'ÉTAT D'UNE VERSION DE MOULINETTE (20-11-2026) : une version se joue AU LABORATOIRE (JOUER_LES_VERSIONS, le tri, le
+# juge), jamais au soir ; `refus_des_versions` de JOUER la passe donc au contrat sous cet état, pour que les contrôles du
+# soir (« sans stop », « aucune », `lecture_du_soir`) ne refusent pas une version d'une fiche suivie par le soir. Mesuré le
+# 20-11-2026 sans lui : 245 refus faux sur 3 675 versions de C5E10-QA-V1 (toutes celles à « sans stop », que PREPARER ⓪
+# propose). Le même mot est écrit À PART par programmes/ENCHAINER_LA_MOULINETTE.py (ligne de version au registre) et par
+# PREPARER_LA_MOULINETTE_D_ESSAI.ETAT_DE_LA_FICHE_D_ESSAI : trois écritures (R-708), à réunir (BACKLOG, à consigner).
+ETAT_D_UNE_VERSION_DE_MOULINETTE = "LABO"
 
 
 def suivie_par_le_soir(fiche):
@@ -1687,8 +1694,10 @@ class ContratImpossible(RuntimeError):
 
     ① RÔLE — Distinguer « la fiche ne suit pas le contrat » (une liste de refus) de « le contrôle n'a pas tourné ».
     ② CONTEXTE D'APPEL — Levée par `manques_du_contrat` ; rattrapée par `main` de
-      programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py (code 2) et par `porte_du_juge` de
-      programmes/VERIFIER_LA_CHAINE.py (convertie en `Impossible`, code 2 du juge).
+      programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py (code 2), par `main` de
+      programmes/JOUER_LES_VERSIONS.py (code 2, avant le calibrage depuis le 20-11-2026) et par `porte_du_juge` de
+      programmes/VERIFIER_LA_CHAINE.py (convertie en `Impossible`, code 2 du juge). Les trois codes 2 sont éprouvés par
+      tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py (E16, E17, E19) depuis le 20-11-2026.
     ③ ENTRÉE — Le motif, en texte.
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — Aucune (exception). [rend: 0]
@@ -1703,6 +1712,11 @@ class ContratImpossible(RuntimeError):
 
 
 _MODULES_DU_CONTRAT = {}
+# LE CHEMIN DU RÉFÉRENTIEL, TROUVÉ UNE FOIS PAR RACINE (20-11-2026, M5 du RELU e77edfacf) : `J.trouver` descend tout le
+# dépôt (mesuré le 20-11-2026 : 90 % des 6,3 s de 61 appels du contrat) ; JOUER_LES_VERSIONS passe désormais CHAQUE
+# version au contrat (2 695 pour C5E10-OBS-V1). Seul le CHEMIN est gardé, et il est retrouvé s'il n'existe plus ; la
+# table est relue à chaque appel. Même usage que `_MODULES_DU_CONTRAT`, une mémoire par processus.
+_REFERENTIELS_DU_CONTRAT = {}
 
 
 def _case_du_motif(motif, cases_du_controle):
@@ -1780,7 +1794,8 @@ def manques_du_contrat(fiche, racine, J=None, mod_pos=None):
       sa case (CONTRAT_DE_STRATEGIE, colonne « controle »), et ajoute le trou T1 de l'étude (univers connu du
       référentiel ET de la liste des valeurs taxées pour chaque année de la période où l'achat paie la taxe).
     ② CONTEXTE D'APPEL — `main` de programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py (⓪, une fois par
-      lancement) ; `porte_du_juge` de programmes/VERIFIER_LA_CHAINE.py (fiche marquée de moulinette, avant ④) ;
+      lancement) ; `main` de programmes/JOUER_LES_VERSIONS.py (la fiche, puis chaque version par `refus_des_versions`,
+      avant le calibrage) ; `porte_du_juge` de programmes/VERIFIER_LA_CHAINE.py (fiche marquée de moulinette, avant ④) ;
       l'épreuve tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py.
     ③ ENTRÉE — `fiche` : un dictionnaire de champs (ligne du registre des stratégies) · `racine` : la racine du dépôt
       ou d'une copie (où sont le module de signal, le référentiel, le réglage du soir et MODULE_POSITIONS.py) · `J` :
@@ -1823,12 +1838,15 @@ def manques_du_contrat(fiche, racine, J=None, mod_pos=None):
       refuse à ② sans reçu d'inscription (RegardNonInscrit, R-505 ③). Relevé par le relecteur neuf du 19-11-2026 (I1) ;
       comportement GARDÉ sur consigne du Chat (« c'est une décision de Jean-Luc ») : faut-il un reçu pour entrer, un
       refus ou un avis — À DÉCIDER par Jean-Luc.
-      ⑨ Un ValueError de `cout_d_un_ordre` (barème ou liste illisible, autre que l'absence d'une ligne) lève
-      ContratImpossible : il dit que le contrôle n'a pas tourné, pas que la valeur manque.
+      ⑨ Un ValueError ou un OSError de `cout_d_un_ordre` (barème ou liste illisible ou absent, autre que l'absence
+      d'une ligne ; OSError depuis le 20-11-2026) lève ContratImpossible : il dit que le contrôle n'a pas tourné, pas
+      que la valeur manque. ⑩ Le CHEMIN du référentiel est gardé par racine pour la durée du processus
+      (`_REFERENTIELS_DU_CONTRAT`, 20-11-2026) : un référentiel RENOMMÉ en cours de processus, l'ancien restant en place,
+      ne serait pas vu ; un référentiel effacé l'est (le chemin est recherché).
     ⑩ EFFET — LIT le référentiel, VALEURS_TTF, le barème des frais et le réglage du soir ; CHARGE (exécute) le module de signal déclaré et
-      MODULE_POSITIONS. N'écrit rien.
+      MODULE_POSITIONS ; garde en mémoire le chemin du référentiel de chaque racine (`_REFERENTIELS_DU_CONTRAT`). N'écrit rien.
     ⑪ TERMINAISON — Rend la main, ou lève ContratImpossible (référentiel ou MODULE_POSITIONS introuvables, référentiel,
-      barème des frais ou VALEURS_TTF illisibles). Un module de signal dont le chargement ne revient pas bloque l'appel (⑪ de `signal_de_la_fiche`).
+      barème des frais ou VALEURS_TTF illisibles ou absents). Un module de signal dont le chargement ne revient pas bloque l'appel (⑪ de `signal_de_la_fiche`).
       [sort: non]
     """
     import os as _os
@@ -1854,9 +1872,12 @@ def manques_du_contrat(fiche, racine, J=None, mod_pos=None):
             refus.append((_case_du_motif(str(e), GROUPE_DU_SIGNAL), str(e)))
     # ④ L'UNIVERS : AU RÉFÉRENTIEL, PUIS À LA LISTE DES VALEURS TAXÉES DE CHAQUE ANNÉE DE LA PÉRIODE (trou T1)
     if "univers" not in deja:
-        f_ref = J.trouver(racine, "REFERENTIEL_VALEURS")
-        if not f_ref:
-            raise ContratImpossible("référentiel des valeurs introuvable sous %s" % racine)
+        f_ref = _REFERENTIELS_DU_CONTRAT.get(_os.path.realpath(racine))
+        if not f_ref or not _os.path.isfile(f_ref):
+            f_ref = J.trouver(racine, "REFERENTIEL_VALEURS")
+            if not f_ref:
+                raise ContratImpossible("référentiel des valeurs introuvable sous %s" % racine)
+            _REFERENTIELS_DU_CONTRAT[_os.path.realpath(racine)] = f_ref
         try:
             table = J.table_mnemoniques(f_ref)
         except (OSError, ValueError) as e:
@@ -1892,8 +1913,12 @@ def manques_du_contrat(fiche, racine, J=None, mod_pos=None):
                         mod_pos.cout_d_un_ordre(c, d, "achat", mod_pos.CAPITAL, bareme=nom_du_bareme)
                     except LookupError:      # FraisNonChiffrables : pas de liste pour l'année, ou pas de ligne unique
                         manquent.append(d[:4])
-                    except ValueError as e:  # barème ou liste illisible : le contrôle n'a pas tourné (R-734)
-                        raise ContratImpossible("frais non lisibles pour %s le %s : %s" % (c, d, e))
+                    except (ValueError, OSError) as e:  # barème ou liste illisible OU ABSENT : le contrôle n'a
+                        # pas tourné (R-734). OSError depuis le 20-11-2026 : sans donnees/VALEURS_TTF.csv,
+                        # `_lire_un_tableau` lève FileNotFoundError, qui sortait du contrat en trace Python (code 1)
+                        # alors que le ④ annonçait ContratImpossible (mesuré sur une copie sans ce fichier).
+                        raise ContratImpossible("frais non lisibles pour %s le %s : %s: %s"
+                                                % (c, d, type(e).__name__, e))
                 if manquent:
                     refus.append(("univers", "%s sans ligne unique dans donnees/VALEURS_TTF.csv pour : %s (les frais "
                                              "ne se chiffreraient pas, A-550)" % (c, ", ".join(manquent))))
