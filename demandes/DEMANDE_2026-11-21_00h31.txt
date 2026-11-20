@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=CircuitSeries
+pointe=48b13b6ac16ee389022da2b730c146bc6b41afd7
