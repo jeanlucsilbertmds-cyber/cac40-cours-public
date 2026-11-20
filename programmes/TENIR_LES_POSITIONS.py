@@ -380,7 +380,8 @@ def reglages_du_registre(base):
       seuils et son horizon par `lecture_du_soir` du juge des stratégies (depuis le 12-11-2026 ; elle lit les seuils
       par `seuil_de_la_fiche`, la lecture unique, A-548) ; une ligne que cette lecture refuse (seuils illisibles ou
       mal signés, « sans stop », horizon illisible, « aucune » non accepté au soir) est passée — la porte
-      `fiche_suivie` la refuse avec le même motif, en le disant · ③ l indexer sous ses deux désignations.
+      `fiche_suivie` la refuse avec le même motif, en le disant · ③ l indexer sous ses deux désignations. Le ② et le
+      ③ vivent depuis le 20-11-2026 dans `reglages_des_fiches` (F3 d A-924), que cette fonction appelle.
     ⑦ UNITÉ — **Les seuils sont écrits en POURCENTS dans le registre et RENDUS en
       FRACTIONS (« +4.0% » → 0,04) ; l horizon en JOURS DE BOURSE et
       non en jours calendaires.**
@@ -416,42 +417,70 @@ def reglages_du_registre(base):
     # 12h33 : « La dernière ligne ajoutée fait foi. Les précédentes restent comme historique. »).
     p = chemin_du_registre(base)
     if os.path.exists(p):
-        r = {}
-        # LES SEUILS SE LISENT AU JUGE DES STRATÉGIES, À UN SEUL ENDROIT (A-548, 31-10-2026) : trois programmes les
-        # lisaient de trois façons ; « -0.6% » valait 0,6 chez le juge et 0,006 ici.
-        juge = _juge_d_a_cote()
-        for x in fiches_du_registre(p).values():
-            # LA LECTURE DU SOIR VIT DANS LE JUGE, UNE FOIS (`lecture_du_soir`, 12-11-2026 ; défaut D1 de la mission
-            # VENTE, marche du superviseur R-759) : la MÊME que celle de la porte `fiche_suivie`, si bien qu'une fiche
-            # suivie est une fiche réglée. Elle lit les seuils par `seuil_de_la_fiche` (A-548), refuse « sans stop »,
-            # un horizon illisible, et « aucune » tant que le réglage du soir ne l'accepte pas.
-            try:
-                tp, sl, _h = juge.lecture_du_soir(base, x)
-            except ValueError:
-                continue
-            # les noms d'une strategie se lisent au contrat (R-708), une fois
-            for k in sorted(noms_d_une_strategie(x)):
-                if k:
-                    # W2 de Cowork, 12-09 : l horizon est une colonne PAR
-                    # STRATEGIE, et le fichier s en sert — C4-RAV 3j,
-                    # MA200-S1 20j, C5-EI-PARAMS 30. Deux vivantes d horizons
-                    # differents n est donc PAS une anomalie : c est une
-                    # configuration que l etat civil prevoit. Mon garde-fou
-                    # l interdisait, et « il ne protegeait pas d un defaut,
-                    # il masquait une limite de conception ».
-                    # W1 : la graphie MAJORITAIRE du fichier porte un « j ».
-                    # `isdigit()` l excluait, l ensemble tombait vide, et le
-                    # repli code en dur s appliquait EN ANNONCANT une lecture
-                    # du registre qui n avait pas eu lieu.
-                    # UNE SEULE LECTURE DE L'HORIZON (R-708) : `lire_horizon`,
-                    # aussi employee par le garde-fou `horizons_illisibles`.
-                    # DEPUIS LE 11-11-2026 (plan V7, bloc 4) : `lire_horizon_ou_aucune`, qui rend
-                    # aussi HORIZON_AUCUNE pour « aucune » ; `horizon_connu` le garde tel quel.
-                    r[k] = {"tp": tp, "sl": sl, "horizon": _h}
-        return r
+        return reglages_des_fiches(base, fiches_du_registre(p).values())
     raise FileNotFoundError(
         "le registre des strategies est introuvable dans %r : sans lui, aucune "
         "position ne peut s'ouvrir, et ce silence serait invisible." % base)
+
+
+def reglages_des_fiches(base, fiches):
+    """Lit les seuils et l horizon de fiches DONNÉES, par la lecture du soir du juge des stratégies.
+
+    ① RÔLE — Le corps de `reglages_du_registre`, séparé pour qu un appelant qui a déjà CHOISI sa fiche (une ligne
+      du registre qui n est pas la dernière) la règle par le même chemin que le soir (R-708).
+    ② CONTEXTE D APPEL — `reglages_du_registre`, une fois par appel, sur les fiches du registre ;
+      `rejouer_la_decision` de `programmes/CORRIGER_LES_COMPTES_UN_JETON.py`, sur la fiche désignée par l empreinte
+      de la décision (F3 d A-924, 20-11-2026).
+    ③ ENTRÉE — `base` : la racine du dépôt (le juge y lit le réglage du soir) · `fiches` : des lignes du registre
+      des stratégies (dictionnaires), dans l ordre où elles doivent s appliquer.
+    ④ CONDITIONS D ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un dictionnaire des réglages {désignation : {"tp", "sl", "horizon"}}, indexé à la fois
+      par identifiant et par nom ; une fiche que `lecture_du_soir` refuse n y est pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque fiche : `lecture_du_soir` du juge ; un refus (ValueError) la passe ; sinon l indexer
+      sous chacune de ses désignations (`noms_d_une_strategie`). Une désignation déjà vue est écrasée par la fiche
+      qui suit.
+    ⑦ UNITÉ — Seuils en FRACTIONS (« +4.0% » → 0,04) ; horizon en jours de bourse.
+    ⑧ POURQUOI — F3 de la relecture de Cowork du 19-11-2026 (A-924) : le rejeu d une correction lisait les seuils de
+      la DERNIÈRE ligne du registre ; il doit pouvoir les lire sur la ligne qu il a désignée, sans recopier la lecture.
+    ⑨ CE QUI CLOCHE — Voir le ⑨ de `reglages_du_registre` (une ligne aux seuils illisibles est passée sans un mot).
+    ⑩ EFFET — Charge le juge des stratégies posé à côté de ce fichier, une fois par processus.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le juge manque à côté de ce fichier.
+      [sort: non]
+    """
+    r = {}
+    # LES SEUILS SE LISENT AU JUGE DES STRATÉGIES, À UN SEUL ENDROIT (A-548, 31-10-2026) : trois programmes les
+    # lisaient de trois façons ; « -0.6% » valait 0,6 chez le juge et 0,006 ici.
+    juge = _juge_d_a_cote()
+    for x in fiches:
+        # LA LECTURE DU SOIR VIT DANS LE JUGE, UNE FOIS (`lecture_du_soir`, 12-11-2026 ; défaut D1 de la mission
+        # VENTE, marche du superviseur R-759) : la MÊME que celle de la porte `fiche_suivie`, si bien qu'une fiche
+        # suivie est une fiche réglée. Elle lit les seuils par `seuil_de_la_fiche` (A-548), refuse « sans stop »,
+        # un horizon illisible, et « aucune » tant que le réglage du soir ne l'accepte pas.
+        try:
+            tp, sl, _h = juge.lecture_du_soir(base, x)
+        except ValueError:
+            continue
+        # les noms d'une strategie se lisent au contrat (R-708), une fois
+        for k in sorted(noms_d_une_strategie(x)):
+            if k:
+                # W2 de Cowork, 12-09 : l horizon est une colonne PAR
+                # STRATEGIE, et le fichier s en sert — C4-RAV 3j,
+                # MA200-S1 20j, C5-EI-PARAMS 30. Deux vivantes d horizons
+                # differents n est donc PAS une anomalie : c est une
+                # configuration que l etat civil prevoit. Mon garde-fou
+                # l interdisait, et « il ne protegeait pas d un defaut,
+                # il masquait une limite de conception ».
+                # W1 : la graphie MAJORITAIRE du fichier porte un « j ».
+                # `isdigit()` l excluait, l ensemble tombait vide, et le
+                # repli code en dur s appliquait EN ANNONCANT une lecture
+                # du registre qui n avait pas eu lieu.
+                # UNE SEULE LECTURE DE L'HORIZON (R-708) : `lire_horizon`,
+                # aussi employee par le garde-fou `horizons_illisibles`.
+                # DEPUIS LE 11-11-2026 (plan V7, bloc 4) : `lire_horizon_ou_aucune`, qui rend
+                # aussi HORIZON_AUCUNE pour « aucune » ; `horizon_connu` le garde tel quel.
+                r[k] = {"tp": tp, "sl": sl, "horizon": _h}
+    return r
 
 
 def _fichiers_de_cours(base):

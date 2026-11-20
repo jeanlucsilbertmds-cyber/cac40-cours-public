@@ -2596,7 +2596,11 @@ def bloc_journal(S):
       est positif, en rouge sinon ; sous une operation retiree des comptes un jeton
       (meme strategie, valeur, jour d achat et comptabilite qu une ligne « retiree »
       du fichier des corrections), dire qu elle est retiree et ce qui est compte a
-      sa place, lu dans la ligne « ajoutee » de la meme action · ② chercher la mesure la plus recente en
+      sa place, lu dans la ligne « ajoutee » de la meme action, SEULEMENT si cette
+      ligne passe `verifier_la_ligne_ajoutee` (CONTRATS_DES_FICHIERS, la garde de
+      la mesure, appelee sur le journal lu) ; refusee, ou d une action non
+      declaree : ecrire « correction refusée » a sa place, sans aucun de ses
+      chiffres, et le motif sur la sortie d erreur · ② chercher la mesure la plus recente en
       comptabilite un jeton, toutes strategies confondues · ③ si elle existe,
       composer la synthese — gagnantes sur total, serie en cours, pire chute,
       cumul net — et la mention de sa date · ④ sinon composer un message disant
@@ -2610,8 +2614,19 @@ def bloc_journal(S):
       (R-708), et un chiffre affiche doit pouvoir etre retrouve caractere pour
       caractere dans donnees/historique_mesures.csv. Le resultat net est colore,
       et c est la seule couleur porteuse de sens du tableau : elle evite d avoir a
-      lire le signe.
+      lire le signe. La ligne ajoutee est verifiee ici parce que le cockpit est
+      fabrique et publie AVANT la mesure du soir (.github/workflows/collecte_abc.yml :
+      « Fabriquer et publier le cockpit en page web » precede « Mesurer la
+      performance », qui porte `continue-on-error: true`) : sans l appel, une
+      ligne falsifiee serait publiee, au depot public compris, avant que la
+      mesure ne s arrete (S1 du superviseur R-759, 20-11-2026). La garde est
+      appelee et non recopiee : deux implementations d une meme chose divergent
+      toujours (R-708).
     ⑨ CE QUI CLOCHE —
+      ⓪ La ligne RETIREE n est pas confrontee au journal ici (la mesure le fait,
+      sur les champs de la decision) : le cockpit la dit retiree des qu elle
+      porte l identite d une ligne du journal. Le motif d un refus n est pas
+      sur la page, seulement sur la sortie d erreur.
       ① CORRIGE LE 27-09-2026 POUR LE TABLEAU (defaut 3 de A-491) : chaque ligne
       porte desormais sa strategie et sa comptabilite, lues au journal qui a recu
       cette colonne le meme jour. Le constat d origine suit. Le tableau et la
@@ -2648,12 +2663,14 @@ def bloc_journal(S):
       ⑤ Le tableau ne dit nulle part qu il melange les deux comptabilites, alors
       que le journal porte une colonne d explication qui le precise ligne par
       ligne. Cette colonne n est jamais affichee.
-    ⑩ EFFET — LIT des donnees deja en memoire. N ouvre aucun fichier, n ecrit
-      rien, ne touche pas au reseau, n affiche rien.
+    ⑩ EFFET — LIT des donnees deja en memoire. N ouvre aucun fichier, ne touche
+      pas au reseau ; ecrit sur la sortie d erreur le motif d une correction
+      refusee, et rien d autre.
     ⑪ TERMINAISON — Rend la main dans le cas normal. PEUT LEVER sur un resultat
       net illisible, et cette erreur n est rattrapee nulle part : elle arrete le
-      programme avant qu aucune page ne soit ecrite. Aucun de ses appels ne se
-      termine.
+      programme avant qu aucune page ne soit ecrite. Un refus de la ligne
+      ajoutee (`CorrectionUnJetonImpossible`) est rattrape ici et ne lève jamais.
+      Tous ses appels reviennent.
       [sort: non]
     ⑫ DEFINITIONS
       l historique des mesures : donnees/historique_mesures.csv, une ligne par
@@ -2679,6 +2696,10 @@ def bloc_journal(S):
     _ident = ('action',) + tuple(_id_ligne)   # la cle de la correction elle-meme (R-708)
     _ajoutees = {c.get('action'): c for c in S.corrections if c.get('geste') == _ga}
     _retirees = {tuple(c.get(k) for k in _ident[1:]): c for c in S.corrections if c.get('geste') == _gr}
+    from CONTRATS_DES_FICHIERS import verifier_la_ligne_ajoutee as _verifier
+    from CONTRATS_DES_FICHIERS import CorrectionUnJetonImpossible as _refus
+    from CONTRATS_DES_FICHIERS import CORRECTIONS_UN_JETON_DECIDEES as _decisions
+    _decision_de = {d['action']: d for d in _decisions}
     # CHAQUE LIGNE DIT SA STRATEGIE ET SA COMPTABILITE (defaut 3 de A-491, 27-09-2026).
     # Avant, le tableau affichait quatre fois UNIBAIL_RODAMCO au 27-08 a -2 796,25 EUR
     # sans dire que c etaient deux strategies fois deux comptabilites : un lecteur
@@ -2697,6 +2718,24 @@ def bloc_journal(S):
         _r = _retirees.get(tuple(t.get(k) for k in _ident[1:]))
         if _r:
             _a = _ajoutees.get(_r.get('action'), {})
+            # LA LIGNE AJOUTEE SE VERIFIE AVANT D ETRE AFFICHEE (S1 du superviseur R-759, 20-11-2026) : le cockpit
+            # est fabrique et publie AVANT la mesure du soir ; sans cet appel, une ligne ajoutee falsifiee serait
+            # publiee, au depot public compris, avant que la mesure ne s arrete. La garde est APPELEE, jamais
+            # recopiee (R-708) : la meme que celle de la mesure.
+            try:
+                if _r.get('action') not in _decision_de:
+                    raise _refus('%s : action absente de CORRECTIONS_UN_JETON_DECIDEES' % _r.get('action'))
+                _verifier(_decision_de[_r.get('action')], _r, _a, S.trades)
+                _motif_du_refus = ''
+            except _refus as _x:
+                _motif_du_refus = str(_x) or 'refus sans motif'
+            if _motif_du_refus:
+                print('COCKPIT : correction refusée, rien n est affiché a sa place — %s' % _motif_du_refus,
+                      file=sys.stderr)
+                lignes[-1][1] += (f'<div style="font-size:9px;color:{C["red"]}">RETIREE DES COMPTES UN JETON '
+                                  f'({esc(_r.get("action", ""))}), ligne gardee au journal — correction refusée : '
+                                  f'la ligne ajoutee ne se verifie pas au journal</div>')
+                continue
             lignes[-1][1] += (f'<div style="font-size:9px;color:{C["gld"]}">RETIREE DES COMPTES UN JETON '
                               f'({esc(_r.get("action", ""))}), ligne gardee au journal — comptee a sa place : '
                               f'{esc(_a.get("valeur", "?"))} achetee le {esc(_a.get("date_entree", "?"))}, '
