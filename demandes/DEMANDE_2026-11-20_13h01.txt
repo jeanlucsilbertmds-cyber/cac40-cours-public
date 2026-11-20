@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=ProprietesChaine,ProprietesSabot
+pointe=9e783cd806695f1560101873cd19aab76091de91
