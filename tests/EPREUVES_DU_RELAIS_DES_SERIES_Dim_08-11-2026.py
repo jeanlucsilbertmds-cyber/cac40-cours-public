@@ -1142,9 +1142,12 @@ SABOTAGES = {
                                                 "                pass    #")],
     "S22_filet_sans_les_souches_NV1": [(FABRICANT, "            if souche in texte:\n", "            if False:\n")],
     # tour 2 (relecture du 08-11-2026) : I-1, m-2, m-3, et une propriété de `verifier_un_relais` par sabotage (I-2)
+    # S23 reciblé le 20-11-2026 (étape FILE-2, E-1 de Cowork) : la même propriété — les défauts DÉCLARÉS du bouton,
+    # machines et lot, ne sont pas intervertis (cas V0) — écrite depuis c1e4d396d (A-896, E4, 18-11-2026) par
+    # `_ENTREE_D_UNE_SERIE` ; l'ancienne cible, absente depuis, rendait le code 2 à toute la série (certificat de nuit)
     "S23_bouton_defauts_machines_et_lot_intervertis": [
-        (FABRICANT, '% (c.lower(), c, n, c.lower(), c, l) for c, _, n, l in SERIES_DU_CIRCUIT',
-         '% (c.lower(), c, l, c.lower(), c, n) for c, _, n, l in SERIES_DU_CIRCUIT')],
+        (FABRICANT, '_ENTREE_D_UNE_SERIE[e] % {"c": c, "m": c.lower(), "n": n, "l": l}',
+         '_ENTREE_D_UNE_SERIE[e] % {"c": c, "m": c.lower(), "n": l, "l": n}')],
     "S24_rassembler_depuis_et_travail_intervertis": [
         (FABRICANT, '--depuis="$RUNNER_TEMP/parts" --travail="$RUNNER_TEMP/rassemble"',
          '--depuis="$RUNNER_TEMP/rassemble" --travail="$RUNNER_TEMP/parts"')],
