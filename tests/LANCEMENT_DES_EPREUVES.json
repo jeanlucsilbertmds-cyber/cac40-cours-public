@@ -291,7 +291,7 @@
     "{copie}",
     "--saboter"
    ],
-   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 1 082 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 1 082 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026) ; MESURE RÉELLE du circuit des épreuves longues (passage 44825730750, 20-11-2026, pointe 3d248dc42, sous « unshare -rn ») : 4 742 s pour Z0 et les 50 sabotages, soit environ 79 min, sous les 330 min d'un job (DUREE_D_UNE_EPREUVE_LONGUE) ; les 1 082 s ci-dessus sont une durée de nuit, pas celle de ce circuit"
   },
   "CircuitPublic": {
    "chemin": "tests/EPREUVES_DU_CIRCUIT_PUBLIC_Jeu_15-10-2026.py",
