@@ -391,9 +391,10 @@
   "Tri": {
    "chemin": "tests/EPREUVES_DU_TRI_ET_DE_LA_FIN_CALCULEE_Mer_11-11-2026.py",
    "arguments": [
-    "{copie}"
+    "{copie}",
+    "--sabotages"
    ],
-   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) (« celui du tri ») ; sans « --saboter » (le fichier ne le lit pas)"
+   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) (« celui du tri ») ; avec « --sabotages », SON option de sabotage (il ne lit pas « --saboter » ; sa `main` lit « --sabotages » et « --un-sabotage= ») : la note d'avant le 20-11-2026 disait « sans --saboter (le fichier ne le lit pas) », et le tri sous ses sabotages n'était jamais joué sur GitHub (A2 du RELU 33ee384ae, 20-11-2026) ; jeu intact mesuré 222 s sur GitHub (44736193620) et 727 s sur la machine du Chat le 20-11-2026 ; avec ses 61 sabotages, durée non mesurée"
   },
   "Moulinette": {
    "chemin": "tests/EPREUVES_DE_LA_MOULINETTE_Mar_20-10-2026.py",
@@ -455,6 +456,14 @@
     "--saboter"
    ],
    "pourquoi": "1 500 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+  },
+  "ContratSabot": {
+   "chemin": "tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "travail_du_contrat"
+   ],
+   "pourquoi": "manque n° 2 du RELU de Cowork sur travail-contrat-4 (745639bdb, 20-11-2026 à 20h05) : la série entière des sabotages du contrat de stratégie (A-923) n'avait jamais tourné d'un seul tenant sur GitHub ; sans « --sabotages= » (son USAGE : « <source> <travail> [--sabotages=S1,S9b,...] », l'option ne pose QUE les sabotages nommés), donc la sonde intacte et les 22 sabotages S1 à S21 (S9b compris) ; le second argument est le dossier de travail, qui ne doit pas exister, relatif à la copie jouée (ARGUMENT_FIGE de programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py refuse « / ») ; 6 min 50 s et 6 min 35 s mesurées pour deux moitiés parallèles sur la machine du Chat le 20-11-2026 (note archives/A_RELIRE_CONTRAT_DE_STRATEGIE_TOUR6_745639bdb_REMPLACE_PAR_LA_NOTE_RECIBLAGE_T18_VENTE_REGLABLE_Ven_20-11-2026.md), d'un tenant non mesurée"
   },
   "Comptabilites": {
    "chemin": "tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py",

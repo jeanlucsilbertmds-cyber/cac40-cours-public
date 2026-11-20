@@ -24,6 +24,18 @@ USAGE
     chaque ligne écrite commence par « ESSAI — NI RÉSULTAT NI SÉLECTION », et le fichier
     de résultats porte la colonne `statut_d_essai`, que le tri refuse.
 
+    --tranche=<k>/<N> (A-919, 19-11-2026) : ne jouer que la tranche k (0 … N-1) de la combinatoire,
+    coupée en N parts contiguës dans l'ordre du fichier (la dernière peut être plus courte) ; la combinatoire
+    reste ENTIÈRE et contrôlée entière, chaque ligne écrite porte `versions_dans_l_essai` = la combinatoire
+    entière, et le témoin de résultats n'est comparé que sur les versions jouées ; l'assemblage le compare ENTIER
+    (relecteur du 19-11-2026, I2). Un fichier de tranche ne se
+    trie pas seul (le tri exige autant de lignes que `versions_dans_l_essai`) : il s'assemble.
+    python3 JOUER_LES_VERSIONS.py --assembler <combinatoire> <fichier_resultats> <tranche> [<tranche> ...] :
+    réunit les fichiers de tranche en UN fichier de résultats, dans l'ordre de la combinatoire ; refuse (1)
+    si une version manque ou est en double, si une colonne n'est pas celle du contrat, si une colonne
+    commune au tri porte plus d'une valeur, si l'ensemble diffère du témoin de résultats entier. Raison : une moulinette entière dépasse les 10 minutes par appel
+    (consigne du 19-11-2026) ; le découpage vit ICI, une seule fois (superviseur R-759 du 19-11-2026, R-708).
+
 CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
     ⓪ PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES propose les réglages ;
     Jean-Luc valide · ① DECLINER_LES_STRATEGIES fabrique les versions ·
@@ -46,8 +58,9 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   portent la même stratégie et le même essai, ses identifiants sont uniques, et
   son nombre de lignes égale la colonne `versions_dans_l_essai`, aucun univers
   n'écrit deux fois la même valeur · ② une seule
-  version y est marquée identique à la fiche · ③ la fiche existe une fois au
-  registre · ④ le juge des stratégies, lancé seul sur cette fiche, se calibre sur
+  version y est marquée identique à la fiche · ③ la fiche existe au registre (sa
+  DERNIÈRE ligne fait foi, n°83) ; elle et CHAQUE version fusionnée suivent le
+  contrat de stratégie (A-923 ; les versions depuis le 20-11-2026) · ④ le juge des stratégies, lancé seul sur cette fiche, se calibre sur
   le témoin du golden et rend le même résultat que ce programme · ⑤ chaque
   version, une fois fusionnée, est lue par le juge avec ses propres réglages ·
   ⑥ les cours de CHAQUE valeur vont assez loin après le début de la période pour
@@ -59,13 +72,22 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   existe, chaque version le retrouve · ⑧ le fichier nommé par `--cours=` existe.
   Le moindre manquement arrête tout, avant ou pendant le jeu.
 ⑤ SORTIE — UNE valeur : le code de sortie, 0 quand toutes les versions sont
-  jouées et écrites, 1 sinon.
+  jouées et écrites, 1 sinon (dont une fiche relue, depuis le 19-11-2026, ou une
+  version fusionnée, depuis le 20-11-2026, qui ne suit pas le contrat de stratégie) ;
+  2 quand le contrat n'a pas pu être contrôlé (R-734) — référentiel, MODULE_POSITIONS.py,
+  barème des frais ou donnees/VALEURS_TTF.csv absents ou illisibles : depuis le
+  20-11-2026, ce contrôle vient AVANT le calibrage, qui ne peut donc plus masquer
+  ce 2 par un 1 ; 2 aussi pour un essai déclaré refusé (A-863).
   [rend: 1]
-⑥ TRAITEMENT — ① lire la ligne de commande et contrôler la combinatoire · ② lancer
+⑥ TRAITEMENT — ① lire la ligne de commande et contrôler la combinatoire ·
+  ①bis (depuis le 20-11-2026, AVANT le calibrage) importer le juge du dépôt, lire la
+  fiche par `fiches_du_registre` du contrat (sa DERNIÈRE ligne, n°83, depuis le
+  05-11-2026), charger le module de positions, passer la fiche PUIS CHAQUE VERSION
+  fusionnée au contrat de stratégie (`manques_du_contrat`, A-923 ;
+  `refus_des_versions`) · ② lancer
   le juge des stratégies seul sur la fiche (avec le même `--cours=`) et exiger son
   calibrage · ③ charger cours et modules
-  par les fonctions du juge, et la fiche par `fiches_du_registre` du contrat (sa
-  DERNIÈRE ligne, n°83, depuis le 05-11-2026) · ④ jouer la fiche telle quelle et exiger le résultat
+  par les fonctions du juge · ④ jouer la fiche telle quelle et exiger le résultat
   que le juge vient d'afficher · ⑤ jouer la version identique et exiger le même
   résultat · ⑥ CALCULER LA FIN DE PÉRIODE UTILISABLE (`fin_utilisable`, plan V7,
   bloc 5g) : la plus tardive des dates, au plus la fin écrite dans la fiche, qui
@@ -121,7 +143,7 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
 ⑩ EFFET — Crée le fichier de résultats, via un fichier provisoire `.en_cours`
   effacé en cas d'échec s'il a été créé par ce lancement. Rien d'autre n'est
   écrit : le juge est lancé avec `-B`.
-⑪ TERMINAISON — Sort du programme avec le code 0 ou 1. Le juge est lancé dans un
+⑪ TERMINAISON — Sort du programme avec le code 0, 1 ou 2 (voir ⑤). Le juge est lancé dans un
   processus séparé, sans limite de temps : s'il ne revenait pas, ce programme
   non plus.
   [sort: oui]
@@ -148,6 +170,133 @@ OPTION_COURS = "--cours="
 # L'option de l'essai déclaré (A-863) ; son texte vit au contrat (CONTRATS.OPTION_D_ESSAI_SANS_REGARD), et `main` les
 # confronte dès que l'option est lue : sans elle, ce programme n'importe rien de plus qu'avant.
 OPTION_ESSAI = "--essai-sans-regard"
+OPTION_TRANCHE = "--tranche="
+
+
+def lire_la_tranche(arguments):
+    """Rend (k, N) de `--tranche=k/N`, (None, None) sans l'option, ou lève ValueError.
+
+    ① RÔLE — Lire l'option de tranche (A-919).
+    ② CONTEXTE D'APPEL — `main`, une fois.
+    ③ ENTRÉE — `arguments` : `sys.argv[1:]` ; exemple réel `[…, "--tranche=2/5"]`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs.
+    [rend: 2]
+    ⑥ TRAITEMENT — une seule option, deux entiers, 0 ≤ k < N.
+    ⑦ UNITÉ — des tranches.
+    ⑧ POURQUOI — une tranche mal écrite ne doit pas jouer tout ou rien en silence (R-734).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — rend la main ou lève.
+    [sort: non]
+    """
+    t = [a[len(OPTION_TRANCHE):] for a in arguments if a.startswith(OPTION_TRANCHE)]
+    if not t:
+        return None, None
+    try:
+        k, n = (int(x) for x in t[0].split("/"))
+    except ValueError:
+        raise ValueError("option %s mal écrite : %r (attendu k/N, deux entiers)" % (OPTION_TRANCHE, t[0]))
+    if len(t) > 1 or not 0 <= k < n:
+        raise ValueError("option %s : une seule fois, et 0 ≤ k < N (lu %s)" % (OPTION_TRANCHE, t))
+    return k, n
+
+
+def tranche(versions, k, n):
+    """Rend la tranche k sur n de la liste, parts contiguës de taille ⌈len/n⌉.
+
+    ① RÔLE — LE découpage, une fois (R-708).
+    ② CONTEXTE D'APPEL — `main`.
+    ③ ENTRÉE — `versions` : la liste des versions de la combinatoire ; `k` : le rang de la tranche ; `n` : le nombre
+      de tranches (exemple réel : 2695 versions, k = 2, n = 5).
+    ④ CONDITIONS D'ENTRÉE — 0 ≤ k < n.
+    ⑤ SORTIE — UNE liste.
+    [rend: 1]
+    ⑥ TRAITEMENT — tranche de liste.
+    ⑦ UNITÉ — versions.
+    ⑧ POURQUOI — parts disjointes dont la réunion est la combinatoire.
+    ⑨ CE QUI CLOCHE — une tranche peut être vide si n dépasse le nombre de versions.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — rend la main.
+    [sort: non]
+    """
+    taille = -(-len(versions) // n)
+    return versions[k * taille:(k + 1) * taille]
+
+
+def assembler(arguments):
+    """Réunit des fichiers de tranche en un fichier de résultats ; rend le code de sortie.
+
+    ① RÔLE — Refaire UN fichier de résultats, celui que le tri lit, à partir des tranches (A-919).
+    ② CONTEXTE D'APPEL — `main`, sous `--assembler`.
+    ③ ENTRÉE — `arguments` : la combinatoire, le fichier de sortie, puis les fichiers de tranche.
+    ④ CONDITIONS D'ENTRÉE — la sortie n'existe pas.
+    ⑤ SORTIE — UNE valeur : 0 écrit, 1 refus.
+    [rend: 1]
+    ⑥ TRAITEMENT — ① exiger les champs du contrat dans chaque tranche · ② refuser une version en double ou hors de
+    la combinatoire · ③ refuser une version de la combinatoire sans résultat (une tranche perdue rougit ICI) ·
+    ④ exiger `versions_dans_l_essai` = la combinatoire entière et une seule valeur par colonne commune au tri ·
+    ⑤ comparer l'ensemble au témoin de résultats ENTIER, sans filtre d'identifiants (`comparer_au_temoin` ; sous un
+    autre barème que le témoin, les identifiants seuls) · ⑥ écrire dans l'ordre de la combinatoire, par un fichier
+    provisoire renommé.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — le tri exige un fichier par essai.
+    ⑨ CE QUI CLOCHE — les chiffres ne sont pas rejoués : l'assemblage recopie.
+    ⑩ EFFET — Écrit la sortie.
+    ⑪ TERMINAISON — rend la main.
+    [sort: non]
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import CONTRATS_DES_FICHIERS as C
+    if len(arguments) < 3:
+        return arreter("--assembler <combinatoire> <fichier_resultats> <tranche> [<tranche> ...]")
+    f_comb, f_out, tranches = arguments[0], arguments[1], arguments[2:]
+    if os.path.exists(f_out):
+        return arreter("le fichier de résultats existe déjà : %s" % f_out)
+    ids = [v["id_version"] for v in csv.DictReader(open(f_comb, encoding="utf-8-sig"))]
+    vus = {}
+    for f in tranches:
+        lecteur = csv.DictReader(open(f, encoding="utf-8"))
+        if lecteur.fieldnames != list(C.RESULTATS_DES_VERSIONS):
+            return arreter("%s : colonnes différentes du contrat RESULTATS_DES_VERSIONS" % f)
+        for r in lecteur:
+            if r["id_version"] in vus:
+                return arreter("%s en double (%s)" % (r["id_version"], f))
+            vus[r["id_version"]] = r
+    hors, manque = sorted(set(vus) - set(ids)), [i for i in ids if i not in vus]
+    if hors or manque:
+        return arreter("%d versions hors de la combinatoire (%s) · %d versions de la combinatoire sans résultat (%s)"
+                       " : une tranche manque ou est de trop" % (len(hors), hors[:3], len(manque), manque[:3]))
+    communes = {c: {r[c] for r in vus.values()} for c in C.COLONNES_COMMUNES_A_UN_TRI + ("versions_dans_l_essai",)}
+    if any(len(v) != 1 for v in communes.values()) or communes["versions_dans_l_essai"] != {str(len(ids))}:
+        return arreter("conditions de jeu différentes d'une tranche à l'autre : %s"
+                       % {c: sorted(v) for c, v in communes.items() if len(v) != 1})
+    # LE TÉMOIN ENTIER, UNE FOIS, SUR L'ENSEMBLE (relecteur du 19-11-2026, I2 ; superviseur R-759, ④) : sous --tranche,
+    # chaque tranche ne s'est comparée qu'à ses versions — une version du témoin hors de la combinatoire n'y était plus
+    # jamais signalée. Ici, aucun filtre d'identifiants. Sous le barème du témoin, les chiffres se comparent aussi ; sous
+    # un autre barème, seuls les identifiants (les chiffres ont été comparés tranche par tranche, sous le bon barème).
+    paire = {(r["strategie"], r["essai"]) for r in vus.values()}
+    if len(paire) != 1:
+        return arreter("stratégie ou essai différents d'une tranche à l'autre : %s" % sorted(paire))
+    sid, essai = paire.pop()
+    try:
+        b_tem = bareme_du_temoin(f_comb, sid, essai)
+    except ValueError as e:
+        return arreter(str(e))
+    if b_tem is None or b_tem == communes["bareme"].copy().pop():
+        ecarts = comparer_au_temoin(f_comb, sid, essai, vus)
+    else:
+        ecarts = comparer_au_temoin(f_comb, sid, essai, vus, chiffres=False)
+    if ecarts:
+        return arreter("l'ensemble assemblé diffère du témoin de résultats entier (%d écarts) : %s"
+                       % (len(ecarts), " · ".join(ecarts[:5])))
+    with open(f_out + ".en_cours", "x", encoding="utf-8", newline="") as s:
+        w = csv.DictWriter(s, fieldnames=list(C.RESULTATS_DES_VERSIONS))
+        w.writeheader()
+        w.writerows(vus[i] for i in ids)
+    os.replace(f_out + ".en_cours", f_out)
+    print("ASSEMBLÉ : %s · %d versions de %d tranches" % (f_out, len(ids), len(tranches)))
+    return 0
 RECUL_MAXIMUM = "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv"
 
 
@@ -253,6 +402,39 @@ def empreinte_des_cours_jusqu_a(chemin, fin):
             if len(ligne) > i and ligne[i] <= fin:
                 h.update(("\x1f".join(ligne) + "\n").encode("utf-8"))
     return h.hexdigest()[:16]
+
+
+def empreinte_du_bareme(mod_pos, nom):
+    """Rend l'empreinte du CONTENU d'un barème des frais, tel que le module de positions le lit.
+
+    ① RÔLE — LA définition de « le barème réellement utilisé » (contrat : colonne `empreinte_du_bareme` de
+      RESULTATS_DES_VERSIONS), une fois (R-708 : deux définitions d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `main` (écrite dans le fichier de résultats) ; `VERIFIER_LA_CHAINE.porte_du_juge` (recalculée
+      sur le barème que le juge utiliserait), par import.
+    ③ ENTRÉE — `mod_pos` : le module de positions chargé (celui qui chiffre) ; `nom` : le nom du barème, exemple
+      réel « REEL ».
+    ④ CONDITIONS D'ENTRÉE — le module porte `_lire_un_tableau`, sa lecture de donnees/BAREME_FRAIS.csv.
+    ⑤ SORTIE — UNE valeur : seize caractères hexadécimaux.
+    [rend: 1]
+    ⑥ TRAITEMENT — ① les lignes du barème lues par le module (`_lire_un_tableau("BAREME_FRAIS.csv", "BAREME_FRAIS")`,
+      la lecture même de `cout_d_un_ordre`) · ② celles dont `nom_bareme` vaut `nom`, dans l'ordre du fichier · ③ chaque
+      ligne en JSON à clés triées · ④ sha256 de l'ensemble, seize premiers caractères.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 19-11-2026, tour 3, I2 : le tarif peut changer entre ② et ④ sous le même nom ;
+      mesuré : courtage REEL 0.0015 → 0.015, la porte comparait le seul nom, la fiche était jouée (−247 262,12 €).
+    ⑨ CE QUI CLOCHE — ① La liste des valeurs taxées (donnees/VALEURS_TTF.csv) n'y entre pas : la taxe dépend aussi
+      d'elle. ② Les colonnes de source et de remarque y entrent : une remarque corrigée change l'empreinte.
+    ⑩ EFFET — lit le barème (par le module, qui le garde en mémoire).
+    ⑪ TERMINAISON — rend la main ; lève ValueError si aucune ligne ne porte ce nom.
+    [sort: non]
+    """
+    import hashlib
+    import json
+    lignes = [l for l in mod_pos._lire_un_tableau("BAREME_FRAIS.csv", "BAREME_FRAIS") if l.get("nom_bareme") == nom]
+    if not lignes:
+        raise ValueError("barème inconnu : %r (donnees/BAREME_FRAIS.csv)" % nom)
+    texte = "\n".join(json.dumps(l, sort_keys=True, ensure_ascii=False) for l in lignes)
+    return hashlib.sha256(texte.encode("utf-8")).hexdigest()[:16]
 
 
 def partie_de_reglage(mod_jug, ops, seances_de_la_fiche, horizon, frontiere):
@@ -540,6 +722,50 @@ def controler_fusion(J, fusion, version):
     return ecarts
 
 
+def refus_des_versions(contrat, J, mod_pos, base, fiche, versions):
+    """Rend les refus du contrat de stratégie pour chaque version de la combinatoire, fusionnée avec la fiche.
+
+    ① RÔLE — Passer CHAQUE version au contrat de stratégie (A-923), pas seulement la fiche du registre (M5 du RELU
+      e77edfacf, 20-11-2026).
+    ② CONTEXTE D'APPEL — `main`, une fois, avant le calibrage, après que la fiche elle-même a passé le contrat.
+    ③ ENTRÉE — `contrat` : le module CONTRATS_DES_FICHIERS chargé · `J` : le juge · `mod_pos` : le module de positions
+      (None : le contrat le charge, ou lève s'il manque) · `base` : la racine · `fiche` : la dernière ligne de la fiche
+      au registre · `versions` : les lignes de la combinatoire. Exemple réel : COMBINATOIRE_C5E10-OBS-V1_E01, 2 695
+      versions.
+    ④ CONDITIONS D'ENTRÉE — Chaque version porte les cases de REGLAGES (celles de `fusionner`).
+    ⑤ SORTIE — UNE valeur : la liste des refus, VIDE si toutes les versions suivent le contrat ; chaque refus est
+      « <id_version> — <case> : <motif> » (le texte rendu par `manques_du_contrat`, case nommée en tête). Exemple mesuré
+      (20-11-2026) : version 0001 réécrite « TTE,ZZZ » → « C5E10-OBS-V1-E01-0001 — univers : mnémonique(s) absent(s) du
+      référentiel : ZZZ ».
+      [rend: 1]
+    ⑥ TRAITEMENT — pour chaque version : `fusionner` (la fiche jouée), son `etat_vie` mis à
+      `contrat.ETAT_D_UNE_VERSION_DE_MOULINETTE` (« LABO » : une version se joue au laboratoire, jamais au soir), puis
+      `contrat.manques_du_contrat` sur elle ; chaque refus préfixé de l'identifiant de la version.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — La combinatoire fait varier univers, tp, sl et horizon par version ; la fiche seule au contrat
+      laissait jouer une version « TTE,ZZZ », arrêtée plus loin par la marge de cours sans nommer la case (RELU
+      e77edfacf, M5). Le contrôle vit au contrat, il est APPELÉ ici (R-708 : deux écritures d'une même chose divergent).
+      L'état « LABO » : sans lui, les contrôles du SOIR s'appliquaient aux versions d'une fiche suivie par le soir
+      (mesuré le 20-11-2026 : 245 refus faux sur 3 675 versions de C5E10-QA-V1, toutes à « sans stop », réglage que
+      PREPARER ⓪ propose et que ce programme joue).
+    ⑨ CE QUI CLOCHE — ① Durée : un appel du contrat par version (mesuré le 20-11-2026 après la mémoire du chemin du
+      référentiel : voir la note echanges/A_RELIRE.md) ; sous --tranche, TOUTE la combinatoire est contrôlée à chaque
+      tranche, comme ses autres contrôles. ② Les avis du contrat (`avis_du_contrat`) ne sont pas rendus ici. ③ La fiche
+      elle-même reste contrôlée sous SON état (contrôles du soir compris) : une fiche QA à « sans stop » est refusée —
+      éprouvé par JOUER lui-même depuis le 20-11-2026 (E24 de tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py,
+      sabotage S18 ; M1 du RELU 33ee384ae).
+    ⑩ EFFET — Celui de `manques_du_contrat` (lit, charge le module de signal de la fiche au premier appel).
+    ⑪ TERMINAISON — Rend la main ; laisse passer ContratImpossible (le contrôle n'a pas tourné), que `main` rend en 2.
+      [sort: non]
+    """
+    refus = []
+    for v in versions:
+        version_au_labo = dict(fusionner(fiche, v), etat_vie=contrat.ETAT_D_UNE_VERSION_DE_MOULINETTE)
+        for r in contrat.manques_du_contrat(version_au_labo, base, J=J, mod_pos=mod_pos):
+            refus.append("%s — %s" % (v["id_version"], r))
+    return refus
+
+
 def calibrer_par_le_juge(base, ident, cours=None, essai=False):
     """Lance le juge seul sur la fiche et lit son verdict.
 
@@ -625,7 +851,7 @@ def bareme_du_temoin(f_comb, sid, essai):
     return vals.pop()
 
 
-def comparer_au_temoin(f_comb, sid, essai, f_resultats):
+def comparer_au_temoin(f_comb, sid, essai, f_resultats, ids=None, chiffres=True):
     """Compare les résultats d'un lancement au témoin de résultats, s'il existe.
 
     ① RÔLE — Protéger les réglages que le calibrage du juge ne touche pas : il ne
@@ -634,7 +860,10 @@ def comparer_au_temoin(f_comb, sid, essai, f_resultats):
     ③ ENTRÉE — `f_comb` : la combinatoire · `sid`, `essai` : la stratégie et
       l'essai · `f_resultats` : le fichier provisoire qui vient d'être écrit, ou
       (depuis le 29-10-2026, C15) un dictionnaire id_version -> ligne, quand les
-      versions ont été rejouées sous le barème du témoin.
+      versions ont été rejouées sous le barème du témoin · `ids` : sous --tranche, les
+      versions jouées (le témoin est filtré sur elles), None sinon · `chiffres` : faux
+      pour ne comparer que les identifiants (`assembler`, sous un autre barème que le
+      témoin, A-919).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des écarts, vide si tout concorde ou s'il
       n'y a pas de témoin.
@@ -664,14 +893,15 @@ def comparer_au_temoin(f_comb, sid, essai, f_resultats):
               " protégés par le calibrage." % os.path.basename(f_tem))
         return []
     champs = ("operations", "reussite_pourcents_exacte", "gain_net_euros")
-    tem = {r["id_version"]: r for r in csv.DictReader(open(f_tem, encoding="utf-8-sig"))}
+    tem = {r["id_version"]: r for r in csv.DictReader(open(f_tem, encoding="utf-8-sig"))
+           if ids is None or r["id_version"] in ids}   # sous --tranche, les seules versions jouées (A-919)
     # `f_resultats` : un fichier de résultats, OU un dictionnaire id_version -> ligne, quand la comparaison se fait
     # sous le barème du témoin et non sous celui des résultats écrits (C15, 29-10-2026).
     res = f_resultats if isinstance(f_resultats, dict) else \
         {r["id_version"]: r for r in csv.DictReader(open(f_resultats, encoding="utf-8"))}
     ecarts = ["%s absente du témoin" % k for k in sorted(set(res) - set(tem))]
     ecarts += ["%s absente des résultats" % k for k in sorted(set(tem) - set(res))]
-    for k in sorted(set(res) & set(tem)):
+    for k in sorted(set(res) & set(tem)) if chiffres else ():    # chiffres=False : les identifiants seuls (A-919)
         for c in champs:
             if res[k].get(c) != tem[k].get(c):
                 ecarts.append("%s %s : %s au lieu de %s" % (k, c, res[k].get(c), tem[k].get(c)))
@@ -686,7 +916,9 @@ def main():
     ② CONTEXTE D'APPEL — Le lancement, et lui seul.
     ③ ENTRÉE — La ligne de commande (voir l'en-tête).
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête, ④.
-    ⑤ SORTIE — UNE valeur : 0 ou 1, passée à la sortie du processus ; 2 quand un essai déclaré est refusé (A-863).
+    ⑤ SORTIE — UNE valeur : 0 ou 1, passée à la sortie du processus ; 2 quand un essai déclaré est refusé (A-863)
+      ou quand le contrat de stratégie n'a pas pu être contrôlé (R-734, depuis le 19-11-2026 ; AVANT le calibrage
+      depuis le 20-11-2026, pour que le juge qui tombe faute de référentiel ne masque plus ce 2 par un 1).
       [rend: 1]
     ⑥ TRAITEMENT — Voir l'en-tête, ⑥.
     ⑦ UNITÉ — Voir l'en-tête, ⑦.
@@ -701,7 +933,16 @@ def main():
     # lecture habituelle, et la sortie marquée AVANT toute écriture, par la fonction du juge de ce dossier (R-708).
     # SANS L'OPTION, RIEN NE CHANGE : aucun import de plus (ce programme se lance aussi seul, copié hors du dépôt, par
     # les épreuves du tri) ; le texte de l'option est confronté au contrat dès qu'elle est lue.
+    if sys.argv[1:2] == ["--assembler"]:
+        return assembler(sys.argv[2:])
+    try:
+        k_tranche, n_tranches = lire_la_tranche(sys.argv[1:])
+    except ValueError as e:
+        return arreter("%s. Rien n'est joué." % e)
+    sys.argv = [a for a in sys.argv if not a.startswith(OPTION_TRANCHE)]
     essai_declare = OPTION_ESSAI in sys.argv[1:]
+    if essai_declare and n_tranches is not None:
+        return arreter("--tranche= et %s ensemble : un essai sans regard ne joue qu'une version" % OPTION_ESSAI)
     jeton = None
     if essai_declare:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -784,6 +1025,44 @@ def main():
         print("ESSAI DÉCLARÉ (A-863) : %s, une version ; rien n'est inscrit ni compté, le fichier écrit porte la colonne"
               " %s et le tri le refuse" % (sid, _CE.COLONNE_DU_STATUT_D_ESSAI))
 
+    # LE CONTRAT DE STRATÉGIE, AVANT LE CALIBRAGE ET AVANT TOUT JEU (20-11-2026, M4 et M5 du RELU e77edfacf) : la fiche
+    # relue au registre ET CHAQUE VERSION fusionnée passent le contrat ; un contrôle qui n'a pas pu tourner rend 2
+    # (R-734). Avant le 20-11-2026, le contrat venait APRÈS le calibrage : sans référentiel, le juge tombait d'abord et
+    # ce programme rendait 1 (« le juge ne se calibre pas »), le 2 annoncé n'était jamais atteint ; et une version
+    # « TTE,ZZZ » n'était arrêtée que par la marge de cours, sans nommer la case.
+    sys.path.insert(0, os.path.join(base, "programmes"))
+    import JUGE_DES_STRATEGIES as J
+    if os.path.dirname(os.path.abspath(J.__file__)) != os.path.join(base, "programmes"):
+        return arreter("le juge importé n'est pas celui du dépôt : %s" % J.__file__)
+    # LA FICHE EST LA DERNIÈRE LIGNE DE SON IDENTIFIANT (décision de Jean-Luc n°83 du 01-11-2026 à 12h33 : « La
+    # dernière ligne ajoutée fait foi. Les précédentes restent comme historique. ») : le nom du registre et sa lecture
+    # vivent au contrat (programmes/CONTRATS_DES_FICHIERS.py, chargé depuis le même dossier que le juge). Avant le
+    # 05-11-2026, une fiche écrite deux fois arrêtait ce programme (« trouvée 2 fois au registre »).
+    import CONTRATS_DES_FICHIERS as contrat
+    fiche = contrat.fiches_du_registre(J.trouver(base, contrat.NOM_DU_REGISTRE_DES_STRATEGIES)).get(sid)
+    if fiche is None:
+        return arreter("fiche %s absente du registre" % sid)
+    # LE MODULE DE POSITIONS, celui que `jouer` emploie ; absent, le contrat le dit (ContratImpossible, code 2).
+    f_pos = J.trouver(base, "MODULE_POSITIONS.py")
+    mod_pos = J.charger_module(f_pos, "pos") if f_pos else None
+    # LA FICHE RELUE ICI PASSE LE CONTRAT DE STRATÉGIE, PAS SEULEMENT `porte_0` (relecteur neuf du contrat du 19-11-2026,
+    # M3) : un registre réécrit entre ⓪ et ② faisait jouer ① ② ③ une fiche hors contrat (mesuré : univers « TTE,ZZZ »,
+    # `porte_0` (True, [])). Le contrôle vit au contrat, il est APPELÉ ici (R-708). PUIS CHAQUE VERSION (M5) : la
+    # combinatoire fait varier univers, tp, sl et horizon, et un fichier réécrit entre ⓪ et ② vaut pour elle aussi.
+    try:
+        refus_du_contrat = contrat.manques_du_contrat(fiche, base, J=J, mod_pos=mod_pos)
+        if refus_du_contrat:
+            return arreter("la fiche %s ne suit pas le contrat de stratégie (A-923) : %s"
+                           % (sid, " ; ".join(refus_du_contrat)))
+        refus_des_v = refus_des_versions(contrat, J, mod_pos, base, fiche, versions)
+    except contrat.ContratImpossible as e:
+        print("ARRÊT : le contrat de stratégie n'a pas pu être contrôlé (R-734) : %s. Rien n'est joué." % e)
+        return 2
+    if refus_des_v:
+        return arreter("%d version(s) ne suivent pas le contrat de stratégie (A-923) : %s%s. Rien n'est joué."
+                       % (len(refus_des_v), " ‖ ".join(refus_des_v[:5]), " ‖ …" if len(refus_des_v) > 5 else ""))
+    print("CONTRAT DE STRATÉGIE : la fiche et les %d versions le suivent" % len(versions))
+
     ok, ligne_juge = (calibrer_par_le_juge(base, sid, autre_cours) if jeton is None
                       else calibrer_par_le_juge(base, sid, autre_cours, essai=True))
     print("CALIBRAGE PAR LE JUGE SEUL : %s" % ("OK" if ok else "ÉCHEC"))
@@ -791,10 +1070,6 @@ def main():
         return arreter("le juge des stratégies ne se calibre pas, ou n'a pas joué la fiche")
     print("  le juge affiche : %s" % ligne_juge)
 
-    sys.path.insert(0, os.path.join(base, "programmes"))
-    import JUGE_DES_STRATEGIES as J
-    if os.path.dirname(os.path.abspath(J.__file__)) != os.path.join(base, "programmes"):
-        return arreter("le juge importé n'est pas celui du dépôt : %s" % J.__file__)
     mnemo = J.table_mnemoniques(J.trouver(base, "REFERENTIEL_VALEURS"))
     # LES COURS PASSENT PAR LE LECTEUR UNIQUE, COMME DANS `main` DU JUGE (A-577, étape 1, 27-10-2026) : ce
     # programme se compare au juge, il lit donc comme lui — sinon le juge affiche 89 opérations et ce
@@ -809,16 +1084,8 @@ def main():
             raise
         return arreter(str(e))
     # LE SIGNAL N'EST PLUS CHARGÉ ICI (A-542, 30-10-2026) : chaque fiche jouée le nomme, `jouer_une` le lit par
-    # `signal_de_la_fiche` du juge, la seule lecture (R-708).
-    mod_pos = J.charger_module(J.trouver(base, "MODULE_POSITIONS.py"), "pos")
-    # LA FICHE EST LA DERNIÈRE LIGNE DE SON IDENTIFIANT (décision de Jean-Luc n°83 du 01-11-2026 à 12h33 : « La
-    # dernière ligne ajoutée fait foi. Les précédentes restent comme historique. ») : le nom du registre et sa lecture
-    # vivent au contrat (programmes/CONTRATS_DES_FICHIERS.py, chargé depuis le même dossier que le juge). Avant le
-    # 05-11-2026, une fiche écrite deux fois arrêtait ce programme (« trouvée 2 fois au registre »).
-    import CONTRATS_DES_FICHIERS as contrat
-    fiche = contrat.fiches_du_registre(J.trouver(base, contrat.NOM_DU_REGISTRE_DES_STRATEGIES)).get(sid)
-    if fiche is None:
-        return arreter("fiche %s absente du registre" % sid)
+    # `signal_de_la_fiche` du juge, la seule lecture (R-708). LE MODULE DE POSITIONS, LA FICHE ET LE CONTRAT sont
+    # chargés et contrôlés AVANT le calibrage depuis le 20-11-2026 (plus haut).
 
     def jouer_une(f, bareme=None, ops_rendues=None, periode=None):
         """Fait passer une fiche par la porte 0 puis la joue.
@@ -976,6 +1243,7 @@ def main():
     # Les résultats se chiffrent sous le BARÈME DES VERDICTS (le défaut du juge, `MODULE_POSITIONS.BAREME_DES_VERDICTS`,
     # superviseur R-759 tour 2, D2) ; le témoin n'est rejoué à part que s'il a été fait sous un autre barème.
     b_res = J.bareme_des_verdicts(None, mod_pos)
+    empreinte_bareme = empreinte_du_bareme(mod_pos, b_res)   # le CONTENU du barème des résultats (I2, 19-11-2026)
     rejouer = b_tem is not None and b_tem != b_res
     vue_du_temoin, invariant_faux = {}, []
     if b_tem is not None:
@@ -995,7 +1263,10 @@ def main():
             cree = True
             w = csv.DictWriter(s, fieldnames=champs)
             w.writeheader()
-            for i, v in enumerate(versions, 1):
+            jouees = versions if n_tranches is None else tranche(versions, k_tranche, n_tranches)
+            if n_tranches is not None:
+                print("TRANCHE %d/%d : %d versions sur %d" % (k_tranche, n_tranches, len(jouees), len(versions)))
+            for i, v in enumerate(jouees, 1):
                 fusion = fusionner(fiche, v)
                 ecarts = controler_fusion(J, fusion, v)
                 if ecarts:
@@ -1044,7 +1315,8 @@ def main():
                             "operations": r["n"],
                             "reussite_pourcents_exacte": "%.6f" % r["wr_exact"] if r["n"] else "",
                             "gain_net_euros": "%.2f" % r["net"] if r["n"] else "0.00",
-                            "bareme": b_res, "fin_ecrite_dans_la_fiche": bornes[1],
+                            "bareme": b_res, "empreinte_du_bareme": empreinte_bareme,
+                            "fin_ecrite_dans_la_fiche": bornes[1],
                             "cours_joues": f_cours_rel, "empreinte_des_cours": empreinte_cours,
                             "frontiere_70_30": frontiere, "embargo_seances": "" if emb_v is None else emb_v,
                             "operations_70": "" if r70 is None else r70["n"],
@@ -1058,14 +1330,15 @@ def main():
                             "gain_net_euros_a_part_fin_des_donnees": "%.2f" % r.get("fin_des_donnees", {}).get(
                                 "net", 0.0)}, **colonne_d_essai))
                 if i % 250 == 0:
-                    print("  %d / %d" % (i, len(versions)), flush=True)
+                    print("  %d / %d" % (i, len(jouees)), flush=True)
         if invariant_faux:
             print("L'ÉCART ENTRE LES DEUX BARÈMES N'EST PAS LA TAXE (%d) :" % len(invariant_faux))
             for e in invariant_faux[:10]:
                 print("  %s" % e)
             os.remove(provisoire)
             return arreter("l'écart au témoin n'est pas expliqué par la taxe : rien n'est écrit")
-        ecarts = comparer_au_temoin(f_comb, sid, essai, vue_du_temoin if rejouer else provisoire)
+        ecarts = comparer_au_temoin(f_comb, sid, essai, vue_du_temoin if rejouer else provisoire,
+                                    None if n_tranches is None else {v["id_version"] for v in jouees})
         if ecarts:
             print("ÉCARTS AVEC LE TÉMOIN DE RÉSULTATS (%d) :" % len(ecarts))
             for e in ecarts[:10]:
@@ -1077,7 +1350,7 @@ def main():
             os.remove(provisoire)
         raise
     os.replace(provisoire, f_out)
-    print("ÉCRIT : %s · %d versions" % (f_out, len(versions)))
+    print("ÉCRIT : %s · %d versions" % (f_out, len(jouees)))
     return 0
 
 
