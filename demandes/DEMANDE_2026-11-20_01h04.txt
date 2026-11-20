@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=CircuitLecteur,SoirFiche,VenteUnique,BaremeFrais,Comptabilites,CircuitPublic
+pointe=04c6a2e48fe1e0f9a276bb08cedc9d90696dfa65
