@@ -465,6 +465,21 @@
    ],
    "pourquoi": "manque n° 2 du RELU de Cowork sur travail-contrat-4 (745639bdb, 20-11-2026 à 20h05) : la série entière des sabotages du contrat de stratégie (A-923) n'avait jamais tourné d'un seul tenant sur GitHub ; sans « --sabotages= » (son USAGE : « <source> <travail> [--sabotages=S1,S9b,...] », l'option ne pose QUE les sabotages nommés), donc la sonde intacte et les 22 sabotages S1 à S21 (S9b compris) ; le second argument est le dossier de travail, qui ne doit pas exister, relatif à la copie jouée (ARGUMENT_FIGE de programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py refuse « / ») ; 6 min 50 s et 6 min 35 s mesurées pour deux moitiés parallèles sur la machine du Chat le 20-11-2026 (note archives/A_RELIRE_CONTRAT_DE_STRATEGIE_TOUR6_745639bdb_REMPLACE_PAR_LA_NOTE_RECIBLAGE_T18_VENTE_REGLABLE_Ven_20-11-2026.md), d'un tenant non mesurée"
   },
+  "EtatTravaux": {
+   "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat, 20-11-2026) : faux dépôt git et faux gh fabriqués dans un dossier temporaire, cas réels travail-contrat-6 (passage 44804954374, RELU DÉPLOYABLE 21h16, installée par 38bec5772) et travail-proprietes-7 (EN ÉPREUVE au passage 44814017661) ; consigne du Chat du 20-11-2026 à 22h08 : aucune épreuve ni aucun sabotage sur la machine du Chat, saturée ; jeu sans sabotage, 23 cas, environ 10 s mesurées une fois le 20-11-2026"
+  },
+  "EtatTravauxSabot": {
+   "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat, 20-11-2026) : faux dépôt git et faux gh fabriqués dans un dossier temporaire, cas réels travail-contrat-6 (passage 44804954374, RELU DÉPLOYABLE 21h16, installée par 38bec5772) et travail-proprietes-7 (EN ÉPREUVE au passage 44814017661) ; consigne du Chat du 20-11-2026 à 22h08 : aucune épreuve ni aucun sabotage sur la machine du Chat, saturée ; les cinq sabotages (état mal rangé, fils libres mal comptés, alarme muette, alarme sur une branche installée, pointe d'auteur), durée non mesurée (estimée à six fois le jeu sans sabotage)"
+  },
   "Comptabilites": {
    "chemin": "tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py",
    "arguments": [
