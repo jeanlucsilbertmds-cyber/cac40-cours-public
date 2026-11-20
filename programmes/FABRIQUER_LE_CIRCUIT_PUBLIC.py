@@ -631,6 +631,12 @@ DEFAULTS = """    defaults:
         shell: python3 programmes/ETAPE_MUETTE.py {0}
 """
 
+# LA COMMANDE QUI AMÈNE LE PUBLIC À MAIN (réparation du 20-11-2026 au soir, consigne B ; relecture de Cowork de
+# 21h23, D-3) : le pas « Poser les programmes publics » s'arrête quand un programme public diffère du privé, AVANT le
+# pas `PUBLIC_A_JOUR` ; son message nomme donc la commande. Écrite UNE fois ici ; programmes/LIVRER.py la lit dans ce
+# fichier (`commande_de_republication`).
+COMMANDE_DE_REPUBLICATION = "python3 -B programmes/REPUBLIER.py"
+
 CLONAGES = """      - uses: actions/checkout@v5
         with:
           repository: %s
@@ -654,7 +660,7 @@ CLONAGES = """      - uses: actions/checkout@v5
           done
           for x in programmes/*; do [ -d "$x" ] && D="$D $x(dossier)"; done
           for x in $(find . -path ./_code -prune -o -path ./.git -prune -o \\( -name '*.pyc' -o -name '*.so' -o -name '*.pyd' \\) -print); do D="$D $x(compile)"; done
-          if [ -n "$D" ]; then echo "::error::PROGRAMMES PUBLICS DIFFERENTS DU DEPOT PRIVE :$D"; exit 1; fi
+          if [ -n "$D" ]; then echo "::error::PROGRAMMES PUBLICS DIFFERENTS DU DEPOT PRIVE :$D — lancer : %s"; exit 1; fi
           cp _code/programmes/*.py programmes/
           mkdir -p "$RUNNER_TEMP/circuit_public" "$RUNNER_TEMP/garde"
           cp _code/.github/workflows/circuit_du_soir.yml "$RUNNER_TEMP/circuit_public/"
@@ -677,7 +683,22 @@ CLONAGES = """      - uses: actions/checkout@v5
           python3 programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py . "$RUNNER_TEMP/refait"
           cmp "$RUNNER_TEMP/refait/.github/workflows/circuit_du_soir.yml" "$RUNNER_TEMP/circuit_public/circuit_du_soir.yml" \
             || { echo "::error::LE CIRCUIT PUBLIC N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }
-""" % DEPOT_PRIVE
+""" % (DEPOT_PRIVE, COMMANDE_DE_REPUBLICATION)
+
+# LE PUBLIC PORTE-T-IL LE CODE DE MAIN ? (réparation du 20-11-2026 au soir, consigne B : INSTALLER s'arrête à la
+# fusion poussée sur main, programmes/REPUBLIER.py amène le public à main.) Ce pas, dans le PREMIER job, juste après
+# les clonages et le garde du code (donc sur le code PUBLIÉ, jamais celui du privé), fabrique à blanc depuis main
+# dans une copie du clone public (`REPUBLIER.verifier`, par ce fabricant : R-708) et ROUGIT en nommant la commande
+# si le public diffère. Il ne publie pas : le jeton d'un passage ne peut pas pousser un fichier .github/workflows/
+# (permission « workflows » non attribuable), et la portée de secrets.JETON_DEPOTS sur le public n'est écrite nulle
+# part. « continue-on-error » : un public en retard ne doit pas arrêter la collecte (une séance non lue le jour même
+# perd ses signaux) ; le pas reste rouge au journal du passage.
+PUBLIC_A_JOUR = """      - name: Le public porte-t-il le code de main ?
+        id: public_a_jour
+        continue-on-error: true
+        run: |
+          python3 -B programmes/REPUBLIER.py --verifier . "$RUNNER_TEMP/code"
+"""
 
 JOURNAL = """      - name: Enregistrer le journal du passage au depot prive
         id: journal
@@ -2065,6 +2086,7 @@ jobs:
           TMPDIR: ${{ runner.temp }}
           MATRICE: ${{ needs.preparer.outputs.matrice }}
           DEPART_DU_JOB: ${{ steps.depart.outputs.t }}
+          POINTE_JOUEE: ${{ needs.preparer.outputs.sha }}
         run: |
           [[ "$CODE" =~ ^""" + CODE_DE_SERIE + """$ ]] || { echo "::error::code d epreuve refuse"; exit 1; }
           mkdir -p "$GITHUB_WORKSPACE/rapports/epreuves_longues/$GITHUB_RUN_ID/$CODE"
@@ -4308,7 +4330,7 @@ def fabriquer_le_circuit(texte_prive):
     corps = corps.replace("${{ secrets.TOKEN_PUBLIC }}", "${{ secrets.JETON_DEPOTS }}")
     lignes = [l for l in corps.split("\n") if not l.lstrip().startswith("#")]
     verifier_les_pas("\n".join(lignes))
-    texte = (ENTETE + DECISION_ENTETE + POSE_DE_PYTHON + CLONAGES + DECISION_PAS + JOURNAL
+    texte = (ENTETE + DECISION_ENTETE + POSE_DE_PYTHON + CLONAGES + PUBLIC_A_JOUR + DECISION_PAS + JOURNAL
              + "\n".join(lignes).rstrip("\n") + "\n" + JOURNAL)
     for interdit in ("secrets.TOKEN_PUBLIC",):
         if interdit in texte:

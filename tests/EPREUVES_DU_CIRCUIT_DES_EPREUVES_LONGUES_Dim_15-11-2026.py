@@ -853,6 +853,7 @@ def tour(racine, source_git=None, fragment_p3=None):
                        GITHUB_RUN_ID="77", FAUX_UNSHARE_JOURNAL=journal,
                        **resoudre(env_j, {"matrix.code": "Mini", "runner.temp": rt,
                                           "needs.preparer.outputs.matrice": matrice4,
+                                          "needs.preparer.outputs.sha": "a" * 40,
                                           "steps.depart.outputs.t": "1700000000"}))
             c, o = lancer(["bash", "--noprofile", "--norc", "-e", "-c", script_j], env=env, cwd=rt)
             vus = [json.loads(l) for l in open(journal)] if os.path.exists(journal) else []
@@ -870,6 +871,9 @@ def tour(racine, source_git=None, fragment_p3=None):
                     or job_jouer.index("id: depart\n") > job_jouer.index("actions/checkout"):
                 faux.append("E7b le job « jouer » ne porte pas DUREE_D_UNE_EPREUVE_LONGUE, ou le pas « depart » n'est pas "
                             "avant le clonage")
+            if env.get("POINTE_JOUEE") != "a" * 40:
+                faux.append("G4ter (réparation du 20-11-2026 au soir, point A) le pas « Jouer l epreuve » ne reçoit pas la "
+                            "pointe préparée (POINTE_JOUEE) : RESULTAT.json ne pourrait pas dire quel code a été joué")
             env["CODE"] = "Mini;id"
             c, o = lancer(["bash", "--noprofile", "--norc", "-e", "-c", script_j], env=env, cwd=rt)
             if c == 0:
@@ -880,6 +884,7 @@ def tour(racine, source_git=None, fragment_p3=None):
         sorties = os.path.join(espace, "rapports", "epreuves_longues", "77")
         env = dict(GIT_ENV, TEMOIN_ORDINAIRE="vu", **{n: "/tmp/piege_" + n for n in F.FICHIERS_DE_COMMANDES_DE_GITHUB})
         env["GIT_CONFIG_GLOBAL"] = "/tmp/config_de_la_machine"
+        env["POINTE_JOUEE"] = "b" * 40
         c, o = lancer([sys.executable, "-B", os.path.join(racine, JOUEUR), copie, "Mini",
                        "--sortie=" + os.path.join(sorties, "Mini")], env=env)
         try:
@@ -891,6 +896,9 @@ def tour(racine, source_git=None, fragment_p3=None):
         manques = [m for m in (f"ARGV ['{copie}', '--saboter']", "ERREUR_VUE", "TEMOIN_ORDINAIRE=vu",
                                f"GIT_CONFIG_GLOBAL={os.devnull}") if m not in s]
         fuites = [n for n in F.FICHIERS_DE_COMMANDES_DE_GITHUB if f"{n}=None" not in s]
+        if r.get("pointe_jouee") != "b" * 40:
+            faux.append(f"J1bis (20-11-2026 au soir, point A) RESULTAT.json ne porte pas la pointe jouée : "
+                        f"{r.get('pointe_jouee')!r}")
         if c != 3 or r.get("code_de_sortie") != 3 or r.get("chemin") != essai["Mini"] or manques or fuites:
             faux.append(f"J1 épreuve d'essai : code {c}, résultat {r.get('code_de_sortie')}, manques {manques}, "
                         f"variables transmises {fuites} : {o[-200:]}")

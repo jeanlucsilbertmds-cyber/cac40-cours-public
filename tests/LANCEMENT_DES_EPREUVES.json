@@ -391,10 +391,9 @@
   "Tri": {
    "chemin": "tests/EPREUVES_DU_TRI_ET_DE_LA_FIN_CALCULEE_Mer_11-11-2026.py",
    "arguments": [
-    "{copie}",
-    "--sabotages"
+    "{copie}"
    ],
-   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) (« celui du tri ») ; avec « --sabotages », SON option de sabotage (il ne lit pas « --saboter » ; sa `main` lit « --sabotages » et « --un-sabotage= ») : la note d'avant le 20-11-2026 disait « sans --saboter (le fichier ne le lit pas) », et le tri sous ses sabotages n'était jamais joué sur GitHub (A2 du RELU 33ee384ae, 20-11-2026) ; jeu intact mesuré 222 s sur GitHub (44736193620) et 727 s sur la machine du Chat le 20-11-2026 ; avec ses 61 sabotages, durée non mesurée"
+   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) (« celui du tri ») ; sans « --saboter » (le fichier ne le lit pas)"
   },
   "Moulinette": {
    "chemin": "tests/EPREUVES_DE_LA_MOULINETTE_Mar_20-10-2026.py",
@@ -456,14 +455,6 @@
     "--saboter"
    ],
    "pourquoi": "1 500 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
-  },
-  "ContratSabot": {
-   "chemin": "tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "travail_du_contrat"
-   ],
-   "pourquoi": "manque n° 2 du RELU de Cowork sur travail-contrat-4 (745639bdb, 20-11-2026 à 20h05) : la série entière des sabotages du contrat de stratégie (A-923) n'avait jamais tourné d'un seul tenant sur GitHub ; sans « --sabotages= » (son USAGE : « <source> <travail> [--sabotages=S1,S9b,...] », l'option ne pose QUE les sabotages nommés), donc la sonde intacte et les 22 sabotages S1 à S21 (S9b compris) ; le second argument est le dossier de travail, qui ne doit pas exister, relatif à la copie jouée (ARGUMENT_FIGE de programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py refuse « / ») ; 6 min 50 s et 6 min 35 s mesurées pour deux moitiés parallèles sur la machine du Chat le 20-11-2026 (note archives/A_RELIRE_CONTRAT_DE_STRATEGIE_TOUR6_745639bdb_REMPLACE_PAR_LA_NOTE_RECIBLAGE_T18_VENTE_REGLABLE_Ven_20-11-2026.md), d'un tenant non mesurée"
   },
   "Comptabilites": {
    "chemin": "tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py",
@@ -551,6 +542,14 @@
     "--jouer"
    ],
    "pourquoi": "décisions de Jean-Luc A-853 (16-11-2026 à 15h18) et A-861 (16-11-2026 à 20h05) : la moulinette des 20 ans s'éprouve sur une fiche d'essai C5 2000-2026 qui ne vit que dans une copie jetable du registre ; programmes/PREPARER_LA_MOULINETTE_D_ESSAI.py prépare la copie du circuit (sans .git) puis, avec --jouer, lance programmes/JOUER_LES_VERSIONS.py sur UNE version (la fiche elle-même) avec --cours= le fichier des 20 ans ; résultats sur la sortie standard, donc au privé seulement (SORTIE.txt, A-835). Durée estimée, non mesurée sur 26 ans : environ 45 s fixes plus environ 13 s par jeu de la fiche, 5 jeux, soit environ 2 min (mesure locale du 16-11-2026 : 1,2 s par version sur 644 séances, × 6864/644 séances) ; 2695 versions en demanderaient environ 574 min, au-delà des 330 d'une machine. ATTENTION, mesuré le 16-11-2026 : sur 2000-2023 le juge refuse la fiche (garde M puis RegardNonInscrit, fenêtre du regard unique) ; l'épreuve rend 1 tant que Jean-Luc n'a pas tranché"
+  },
+  "LivrerSabots": {
+   "chemin": "tests/EPREUVES_DE_LIVRER_ET_INSTALLER_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "demande de Jean-Luc du 20-11-2026 à 19h38 et ajout de 19h40 (LIVRER, INSTALLER, QUI_FAIT_QUOI) : les 20 cas puis les 18 sabotages, sans réseau, sur des dépôts git jetables ; 45 s sans sabotage et 834 s avec (dont environ 300 s pour le sabotage du plafond, coupé par la borne), mesurés sur la machine du Chat le 20-11-2026 sous nice (note echanges/A_RELIRE.md de travail-livrer)"
   }
  }
 }

@@ -1272,9 +1272,7 @@ def manques_du_jeu(fiche):
     ④ CONDITIONS D'ENTRÉE — Aucune : une case absente vaut vide.
     ⑤ SORTIE — UNE valeur : la liste des motifs, VIDE si la fiche est jouable. Exemples réels : C5E10-QA-V1
       (« Open J+1 », « cours ») rend [] ; C1-004 (« CLOSE ») rend le motif « NON JUGEABLE — moment d'achat non
-      jouable … » ; C2-001 (« INTRADAY ») aussi. Chaque motif cite le nom de SA case (« entree lu », « donnees_demandees
-      lu », depuis le 19-11-2026) : `manques_du_contrat` du contrat des fichiers attribue chaque refus à sa case par ce
-      nom (A-923).
+      jouable … » ; C2-001 (« INTRADAY ») aussi.
       [rend: 1]
     ⑥ TRAITEMENT — ① `entree` vide ou « — » → manque ; sinon, écrite en majuscules sans espace ni souligné, elle doit
       être une clé de `ENTREES_JOUABLES`, sinon NON JUGEABLE · ② `donnees_demandees` vide → manque ; sinon chaque
@@ -1307,8 +1305,8 @@ def manques_du_jeu(fiche):
     else:
         absentes = [d for d in donnees_du_texte(donnees) if d not in DONNEES_FOURNIES]
         if absentes:
-            manq.append("NON JUGEABLE — donnée absente : %s ; le juge ne fournit au signal que : %s "
-                        "(donnees_demandees lu %r)" % (", ".join(absentes), ", ".join(DONNEES_FOURNIES), donnees))
+            manq.append("NON JUGEABLE — donnée absente : %s ; le juge ne fournit au signal que : %s"
+                        % (", ".join(absentes), ", ".join(DONNEES_FOURNIES)))
     return manq
 
 
@@ -2197,56 +2195,6 @@ def seuil_de_la_fiche_ou_aucun(fiche, champ):
     return seuil_de_la_fiche(fiche, champ)
 
 
-def bornes_de_la_periode(texte):
-    """Lit la case `periode` d'une fiche : ses deux bornes, ou le motif qui la refuse. LA lecture de la période.
-
-    ① RÔLE — Lire « AAAA-MM-JJ -> AAAA-MM-JJ » une seule fois pour toute la chaîne : forme, dates du calendrier, ordre.
-    ② CONTEXTE D'APPEL — `porte_0` (chaque fiche, période non vide) ; `manques_du_contrat` de
-      programmes/CONTRATS_DES_FICHIERS.py (années de la période, contrôle des frais).
-    ③ ENTRÉE — `texte` : la case `periode`, telle qu'écrite au registre (None ou vide admis).
-    ④ CONDITIONS D'ENTRÉE — Aucune.
-    ⑤ SORTIE — DEUX valeurs : le couple (début, fin) en textes « AAAA-MM-JJ », ou None ; le motif du refus en texte, ou
-      None. Texte vide : (None, None). Période lisible : ((début, fin), None). Exemples réels : C5-EI-PARAMS
-      « 2024-04-29 -> 2026-03-11 » → (('2024-04-29', '2026-03-11'), None) ; « banane » → (None, "periode illisible :
-      lu 'banane', attendu « AAAA-MM-JJ -> AAAA-MM-JJ »").
-      [rend: 2]
-    ⑥ TRAITEMENT — ① retirer les blancs ; vide : (None, None) · ② la forme, sinon « periode illisible » · ③ chaque date
-      au calendrier, sinon « periode impossible » · ④ début ≤ fin, sinon « periode INVERSEE ».
-    ⑦ UNITÉ — Des dates AAAA-MM-JJ.
-    ⑧ POURQUOI — Extraite de `porte_0` le 19-11-2026, mot pour mot (mêmes motifs, même ordre) : le contrat de stratégie
-      relisait la période par `split("->")` pour choisir les années à contrôler (relecteur neuf du contrat, M2 ②),
-      et `porte_0` ne rend ses bornes que si la fiche entière passe. Une seule lecture (R-708).
-    ⑨ CE QUI CLOCHE — —
-    ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend toujours la main.
-      [sort: non]
-    """
-    _p = (texte or "").strip()
-    if not _p:
-        return None, None
-    # une periode presente mais mal formee ne vaut pas mieux qu'absente
-    # LE FORMAT SE VERIFIE VRAIMENT, ET LE MESSAGE MONTRE CE QU'IL A LU.
-    _m = re.match(r"^(\d{4}-\d{2}-\d{2})\s*->\s*(\d{4}-\d{2}-\d{2})$", _p)
-    if not _m:
-        return None, ("periode illisible : lu %r, attendu "
-                      "« AAAA-MM-JJ -> AAAA-MM-JJ »" % _p)
-    # LA FORME NE SUFFIT PAS : LA DATE DOIT EXISTER. « 2024-13-45 » a la
-    # bonne forme et n'est pas une date. La comparaison de CHAINES ne
-    # broncherait pas : elle rendrait zero operation ou un perimetre
-    # absurde, EN SILENCE — le defaut de l'inversion, un cran plus loin.
-    from datetime import datetime as _dtv
-    for _d in (_m.group(1), _m.group(2)):
-        try:
-            _dtv.strptime(_d, "%Y-%m-%d")
-        except ValueError:
-            return None, ("periode impossible : %r n'existe pas dans le "
-                          "calendrier (lu %r)" % (_d, _p))
-    if _m.group(1) > _m.group(2):
-        return None, ("periode INVERSEE : lu %r — le debut est apres la "
-                      "fin, aucune operation ne serait trouvee" % _p)
-    return (_m.group(1), _m.group(2)), None
-
-
 def porte_0(fiche):
     """Refuse une fiche incomplete AVANT tout calcul. Ne consomme aucun essai.
 
@@ -2275,8 +2223,7 @@ def porte_0(fiche):
       [rend: 2 ou 3]
     ⑥ TRAITEMENT — ① si une période est écrite, vérifier qu'elle a la forme
       `AAAA-MM-JJ -> AAAA-MM-JJ`, que ses deux dates existent au calendrier, et que
-      le début précède la fin (`bornes_de_la_periode`, la lecture unique, depuis le
-      19-11-2026) · ② relever les champs obligatoires vides · ③ vérifier
+      le début précède la fin · ② relever les champs obligatoires vides · ③ vérifier
       que l'objectif de gain et la perte acceptée sont des nombres lisibles ·
       ④ vérifier que l'horizon est un entier · ⑤ rendre le verdict, la liste des
       manques, et les bornes validées. Entre ② et ③, les manques du signal nommé
@@ -2381,11 +2328,25 @@ def porte_0(fiche):
     # quelconque — silencieusement, puisqu'on compare des CHAINES. Et une
     # periode INVERSEE rendait zero operation sans dire pourquoi.
     _p = (fiche.get("periode") or "").strip()
-    # LA LECTURE DE LA PÉRIODE VIT DANS `bornes_de_la_periode` (extraite le 19-11-2026, relecteur neuf du contrat, M2 ② :
-    # le contrat de stratégie la recopiait — R-708, deux écritures d'une même chose divergent toujours). Mêmes motifs.
-    _bornes_lues, _motif_periode = bornes_de_la_periode(_p)
-    if _motif_periode is not None:
-        return False, [_motif_periode]
+    if _p:
+        _m = re.match(r"^(\d{4}-\d{2}-\d{2})\s*->\s*(\d{4}-\d{2}-\d{2})$", _p)
+        if not _m:
+            return False, ["periode illisible : lu %r, attendu "
+                           "« AAAA-MM-JJ -> AAAA-MM-JJ »" % _p]
+        # LA FORME NE SUFFIT PAS : LA DATE DOIT EXISTER. « 2024-13-45 » a la
+        # bonne forme et n'est pas une date. La comparaison de CHAINES ne
+        # broncherait pas : elle rendrait zero operation ou un perimetre
+        # absurde, EN SILENCE — le defaut de l'inversion, un cran plus loin.
+        from datetime import datetime as _dtv
+        for _d in (_m.group(1), _m.group(2)):
+            try:
+                _dtv.strptime(_d, "%Y-%m-%d")
+            except ValueError:
+                return False, ["periode impossible : %r n'existe pas dans le "
+                               "calendrier (lu %r)" % (_d, _p)]
+        if _m.group(1) > _m.group(2):
+            return False, ["periode INVERSEE : lu %r — le debut est apres la "
+                           "fin, aucune operation ne serait trouvee" % _p]
     manq = [c for c in CHAMPS_OBLIGATOIRES
             if (fiche.get(c) or "").strip().lower() in VIDE]
     # LA FICHE NOMME SON SIGNAL (A-542, 30-10-2026) : sans module ni fonction nommés, elle est refusée ici, jamais
@@ -2417,7 +2378,7 @@ def porte_0(fiche):
     # recu. Ca marchait, mais une fonction qui s'appelle « porte » et qui ECRIT
     # dans ce qu'elle controle surprend qui la lit — et une fiche refusee
     # gardait les bornes d'un appel precedent si on la repassait.
-    _b = _bornes_lues if (not manq and _p) else None
+    _b = (_m.group(1), _m.group(2)) if (not manq and _p) else None
     return (not manq), manq, _b
 
 
@@ -2537,32 +2498,6 @@ def lecture_du_soir(racine, fiche):
     return tp, sl, h
 
 
-def mnemoniques_absents_du_referentiel(codes, mnemo):
-    """Rend les mnémoniques d'un univers que le référentiel des valeurs ne connaît pas : LA règle « univers connu ».
-
-    ① RÔLE — Dire, une seule fois pour le soir et pour le contrat de stratégie, quels codes d'un univers manquent au
-      référentiel.
-    ② CONTEXTE D'APPEL — `fiche_suivie` (garde du soir) ; `manques_du_contrat` de programmes/CONTRATS_DES_FICHIERS.py.
-    ③ ENTRÉE — `codes` : la liste lue par `mnemoniques_de_l_univers` · `mnemo` : la table du référentiel
-      (`table_mnemoniques`), mnémonique → clé de valeur.
-    ④ CONDITIONS D'ENTRÉE — `mnemo` admet l'opérateur « in ».
-    ⑤ SORTIE — UNE valeur : la liste des codes absents, dans l'ordre de l'univers (vide si tous sont connus). Exemple
-      réel (19-11-2026) : MA200-S1, univers « A TRANCHER — voir etude_ref » → ['A TRANCHER — VOIR ETUDE_REF'].
-      [rend: 1]
-    ⑥ TRAITEMENT — garder chaque code qui n'est pas dans `mnemo`.
-    ⑦ UNITÉ — Des mnémoniques.
-    ⑧ POURQUOI — Extraite de `fiche_suivie` le 19-11-2026 : le contrat de stratégie recopiait la même compréhension de
-      liste (relecteur neuf du contrat, M2 ①) ; R-708, deux écritures d'une même chose divergent toujours.
-    ⑨ CE QUI CLOCHE — PREPARER (programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py, `main`) garde SA
-      règle, plus stricte : elle exclut aussi les valeurs « hors univers » du référentiel (MT, A-410) et refuse un code
-      répété. Les deux règles divergent ; l'aligner change ce que le soir suit : À DÉCIDER par Jean-Luc, non fait ici.
-    ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend toujours la main.
-      [sort: non]
-    """
-    return [c for c in codes if c not in mnemo]
-
-
 def fiche_suivie(racine, fiche, mnemo):
     """Dit si le soir peut suivre une fiche : le signal et les valeurs qu'elle déclare, ou le motif de son refus.
 
@@ -2579,8 +2514,7 @@ def fiche_suivie(racine, fiche, mnemo):
       [rend: 3]
     ⑥ TRAITEMENT — ① `porte_0` : refus avec ses motifs · ①bis `lecture_du_soir` (depuis le 12-11-2026) : refus avec
       son motif (« sans stop », « aucune » non accepté au soir) · ② `signal_de_la_fiche` : refus si elle lève ValueError ·
-      ③ chaque mnémonique de l'univers doit être au référentiel (`mnemoniques_absents_du_referentiel`), sinon la
-      fiche ENTIÈRE est refusée, mnémonique(s)
+      ③ chaque mnémonique de l'univers doit être au référentiel, sinon la fiche ENTIÈRE est refusée, mnémonique(s)
       nommé(s).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Le critère était écrit deux fois (détecteur de C, `refus_du_juge` du teneur de A) et divergeait :
@@ -2608,7 +2542,7 @@ def fiche_suivie(racine, fiche, mnemo):
     except ValueError as e:
         return None, None, str(e)
     codes = mnemoniques_de_l_univers(fiche["univers"])
-    inconnus = mnemoniques_absents_du_referentiel(codes, mnemo)
+    inconnus = [c for c in codes if c not in mnemo]
     if inconnus:
         return None, None, "mnémonique(s) absent(s) du référentiel : " + ", ".join(inconnus)
     return sig, [mnemo[c] for c in codes], None
@@ -5287,34 +5221,6 @@ def main():
       directement ; un fichier tronqué ou mal formé arrêterait le programme sur une
       erreur brute, alors que tout le reste de cette fonction traite l'absence d'un
       fichier comme une situation prévue.
-      ⑨ TROU ASSUMÉ DE LA PORTE DE LA CHAÎNE (A-921, décision de Jean-Luc du
-      19-11-2026 à 12h31, « 1 ») : la porte reconnaît une version de moulinette à la
-      MARQUE que l'enchaîneur écrit sur la fiche (CONTRATS.MARQUE_DE_MOULINETTE, dans
-      la colonne `origine`). Une fiche fabriquée à la main SANS cette marque n'est pas
-      gardée : elle est jugée comme toute fiche. Montré, vert, par le sabotage S17 de
-      tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py.
-      ⑩ LA PORTE N'EST QUE DANS `main`. Un programme qui importe ce module et appelle
-      `jouer` ou `juger` lui-même (JOUER_LES_VERSIONS le fait pour chaque version, et
-      c'est voulu) ne passe pas par la porte de la chaîne : aucune garde à l'import.
-      · LES TROUS DE LA PORTE, CONSIGNÉS (superviseur R-759 du 19-11-2026, tour 3 ;
-      à porter au BACKLOG) : (a) A-921 — une marque ABSENTE, ou mal écrite à la main
-      autrement qu'en casse ou en espaces de bord (deux espaces intérieurs, une
-      faute), n'est pas une marque : la fiche est jugée sans porte · (b) `--cours=`
-      donné au juge n'est pas confronté : la porte confronte les cours que ② a
-      joués (`cours_joues`), pas ceux que le juge lira · (c) le barème est confronté
-      par son nom et le contenu de ses lignes, pas la liste des valeurs taxées
-      (donnees/VALEURS_TTF.csv) · (d) le CODE de MODULE_POSITIONS (sorties, frais) n'est
-      confronté à rien : `empreinte_des_reglages` porte le code du module de SIGNAL,
-      pas celui des positions (lu dans `empreinte_des_reglages`, son ⑨ ①) · (e) la
-      période jouée par ② après la fin ramenée par JOUER n'est pas recalculée ;
-      les bornes de la fiche le sont, dans l'empreinte des réglages · (f) le juge se
-      relance sur une version déjà jugée : l'enchaîneur écrit alors une seconde
-      ligne « 4-juger-… » au journal, et la dernière fait foi (M1 du relecteur du
-      19-11-2026) · (g) NON ÉPROUVÉS : la phase « bilan » de
-      tests/CHAINE_C5_MOULINETTE_SUR_COPIE_Jeu_19-11-2026.py, `--tranche` avec
-      `--cours=`, et une cible en minuscules sous `--essai-sans-regard` (le
-      `.get(cible)` exact de l'essai déclaré, plus haut, la dit absente — lu dans le
-      code, non lancé).
     ⑩ EFFET — N'ÉCRIT AUCUN FICHIER et ne touche pas au réseau : `git status` reste
       vide après un passage complet sur une copie du dépôt, mesuré le 20-09-2026.
       Elle LIT sept fichiers, EXÉCUTE le code des modules Python chargés
@@ -5394,16 +5300,6 @@ def main():
     _args = [a for a in sys.argv[1:] if not a.startswith("--")]
     base = _args[0] if _args else "/mnt/project"
     cible = _args[1] if len(_args) > 1 else None
-    # LA PORTE DE LA CHAÎNE (A-919 et A-921, décisions de Jean-Luc du 19-11-2026 ; superviseur R-759 du 19-11-2026) :
-    # une fiche qui porte la MARQUE DE MOULINETTE (CONTRATS.MARQUE_DE_MOULINETTE, écrite par l'enchaîneur sur la fiche
-    # qu'il ajoute ; jamais la forme du nom) ne se juge que si la moulinette ⓪ ① ② ③ est faite, témoins intacts, et si
-    # ses réglages sont ceux que ② a joués (programmes/VERIFIER_LA_CHAINE.py, la seule définition). Le 19-11-2026, le
-    # juge a été lancé sans ① ② ③ et rien ne l'a arrêté : la porte est ici, là où le saut a eu lieu. Elle s'applique
-    # plus bas, dès le registre lu (fiche visée) ou fiche par fiche (aucune visée). Les fiches non marquées ne sont pas
-    # touchées. LA FICHE VISÉE EST DÉSIGNÉE PAR `_VC.fiche_du_registre`, la seule définition (B1 du relecteur du
-    # 19-11-2026 ; superviseur R-759, tour 3, ①) : plusieurs fiches pour la cible → arrêt en 2 ; ensuite, la fiche
-    # visée se suit par IDENTITÉ (`is`), sans autre filtre d'identifiant ici.
-    import VERIFIER_LA_CHAINE as _VC
     # L'ESSAI DÉCLARÉ (A-863, décision de Jean-Luc du 16-11-2026 à 20h46) : « --essai-sans-regard » marque chaque ligne
     # écrite, AVANT la première, et refuse en 2 un dépôt ou un jugement sans fiche visée ; l'identité de la fiche se
     # juge plus bas, au registre (`jeton_d_essai`). Sans l'option, rien ne change.
@@ -5538,28 +5434,9 @@ def main():
     # UNE FICHE PAR IDENTIFIANT, SA DERNIÈRE LIGNE (décision de Jean-Luc n°83, 01-11-2026 à 12h33 : « La dernière
     # ligne ajoutée fait foi. Les précédentes restent comme historique. ») ; avant le 05-11-2026, chaque ligne était
     # jugée, l'ancienne ligne de C5-EI-PARAMS comprise (refusée à la porte 0).
-    _registre = fiches_du_registre(f_sas)
-    fiches = list(_registre.values())
+    fiches = list(fiches_du_registre(f_sas).values())
     print("DONNEES : %d valeurs . %d mnemoniques . %d fiches au registre\n"
           % (len(cours), len(mnemo), len(fiches)))
-    # LA FICHE VISÉE, UNE FOIS (B1) : aucune → None, et l'arrêt en 1 plus bas (fiche visée absente, comme avant).
-    try:
-        _visee = _VC.fiche_du_registre(os.path.abspath(base), cible, fiches=_registre, absente_permise=True) \
-            if cible else None
-    except _VC.Impossible as _e:
-        print("ARRET : la fiche visée %s ne désigne pas UNE fiche : %s. Rien n'est juge." % (cible, _e))
-        return 2
-    # LA PORTE DE LA CHAÎNE POUR LA FICHE VISÉE (A-919, A-921), avant tout calcul : refus → 1, contrôle impossible → 2.
-    for _f in ([_visee] if _visee is not None else []):
-        try:
-            _porte = _VC.porte_du_juge(os.path.abspath(base), _f, J=sys.modules[__name__], mod_pos=mod_pos)
-        except _VC.Impossible as _e:
-            print("ARRET (A-919) : la chaîne de %s n'a pas pu être vérifiée : %s. Rien n'est juge." % (cible, _e))
-            return 2
-        if _porte:
-            print("ARRET (A-919) : %s est une version de moulinette (marquée) dont la chaîne n'est pas faite, a changé,"
-                  " ou dont les réglages ne sont pas ceux joués :\n  %s\nRien n'est juge." % (cible, "\n  ".join(_porte)))
-            return 1
 
     print("PORTE 0 - une fiche incomplete est refusee AVANT tout calcul :")
     # ON NE JUGE QUE CE QUI EST EN COURS DE ROUTE. Au 30-08-2026 le registre
@@ -5661,7 +5538,7 @@ def main():
             return 1
         print("  -> OK, l'instrument est calibre.\n")
 
-    if cible and not any(f is _visee for f in passees):
+    if cible and not any(f["id"] == cible for f in passees):
         # Une fiche visée qui n'existe pas, ou que la porte 0 refuse, ne se juge pas en silence (R-734, superviseur
         # du 27-10-2026) : une faute de frappe dans l'identifiant rendait 0 sans rien juger.
         print("ARRET : la fiche visee %s n'est pas parmi les fiches qui passent la porte 0. Rien n'est juge." % cible)
@@ -5675,18 +5552,7 @@ def main():
     # du registre arrêtait le juge, et aucune des trois fiches C5 n'était jugée.
     en_echec = []
     for f in passees:
-        if cible and f is not _visee:
-            continue
-        # LA PORTE DE LA CHAÎNE, FICHE PAR FICHE quand aucune n'est visée (A-919, A-921) : une fiche marquée refusée, ou
-        # dont la vérification n'a pas pu tourner, est EN ÉCHEC ; elle seule — les suivantes sont jugées.
-        try:
-            _porte = None if cible else _VC.porte_du_juge(os.path.abspath(base), f, J=sys.modules[__name__],
-                                                          mod_pos=mod_pos)
-        except _VC.Impossible as _e:
-            _porte = ["vérification impossible : %s" % _e]
-        if _porte:
-            print("=== %s . REFUSÉE PAR LA PORTE DE LA CHAÎNE (A-919) :\n  %s" % (f["id"], "\n  ".join(_porte)))
-            en_echec.append(f["id"])
+        if cible and f["id"] != cible:
             continue
         # LE SIGNAL JOUÉ EST CELUI QUE LA FICHE NOMME, LU À LA PORTE (A-542, 30-10-2026) — plus aucun repli vers C5.
         mod_sig = f["_signal"]

@@ -124,11 +124,9 @@ SABOTAGES = {
     # Tour 2 (12-11-2026) : D1 et D3 du relecteur neuf.
     "T17_porte_du_soir_sans_lecture_du_soir": [(BAN, '        lecture_du_soir(racine, fiche)\n    except ValueError as e:\n        return None, None, "lecture du soir : " + str(e)',
                                                  '        pass\n    except ValueError as e:\n        return None, None, "lecture du soir : " + str(e)')],
-    # T18 reciblé le 20-11-2026 : F3 d'A-924 (ae65aad03) a sorti la boucle de `reglages_du_registre` dans
-    # `reglages_des_fiches`, un niveau de retrait plus haut (16 -> 12 espaces). Même ligne, même sens, même remplaçant.
-    "T18_soir_relit_a_sa_facon": [("programmes/TENIR_LES_POSITIONS.py", '            tp, sl, _h = juge.lecture_du_soir(base, x)\n',
-                                   '            tp, sl = juge.seuil_de_la_fiche(x, "tp"), juge.seuil_de_la_fiche(x, "sl")\n'
-                                   '            _h = lire_horizon_ou_aucune(x.get("horizon", ""))\n')],
+    "T18_soir_relit_a_sa_facon": [("programmes/TENIR_LES_POSITIONS.py", '                tp, sl, _h = juge.lecture_du_soir(base, x)\n',
+                                   '                tp, sl = juge.seuil_de_la_fiche(x, "tp"), juge.seuil_de_la_fiche(x, "sl")\n'
+                                   '                _h = lire_horizon_ou_aucune(x.get("horizon", ""))\n')],
     "T19_aucune_acceptee_par_defaut": [(BAN, '    return any((l.get("reglage") or "").strip() == REGLAGE_HORIZON_AUCUNE_AU_SOIR',
                                         '    return True or any((l.get("reglage") or "").strip() == REGLAGE_HORIZON_AUCUNE_AU_SOIR')],
     "T21_reglage_absent_ouvre_le_soir": [(BAN, '    if not isinstance(lignes, list):\n        return False\n    return any(',
