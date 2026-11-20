@@ -25,7 +25,8 @@ Simulation uniquement — aucun ordre réel.
   `run` qui contient `<Y>=` et `$GITHUB_OUTPUT` (`echo "a_part=1" >> "$GITHUB_OUTPUT"`), ou, dans un programme
   `programmes/<P>.py` que son `run` nomme et qui contient `GITHUB_OUTPUT`, une CONSTANTE CHAÎNE lue par l'arbre
   syntaxique (`ast`, docstrings exclues) qui, découpée sur ses retours à la ligne, a un morceau commençant par `<Y>=`
-  (« positions_signalees=%d » et « \nsignaux_mis_a_part=%d » dans TENIR_LES_POSITIONS) · ④ rouge pour toute lecture
+  (« positions_signalees=%d », « \nsignaux_mis_a_part=%d » et « \nfiches_mises_a_part=%d » dans TENIR_LES_POSITIONS)
+  · ④ rouge pour toute lecture
   sans pas <X>, toute lecture que <X> n'écrit pas, toute sortie écrite que rien ne lit, et chaque manque de la garde
   du pas rouge sur `anomalies_d_identite` · ⑤ avec `--saboter` : Z0 d'abord ; s'il n'est pas vert, aucun sabotage
   n'est jugé (« NON JUGÉ ») ; sinon chaque sabotage est joué et comparé à SA liste de rouges déclarée ; enfin S9
@@ -41,7 +42,10 @@ Simulation uniquement — aucun ordre réel.
   f-chaînes — une propriété, pas une liste de préfixes. Et `bon = bool(rg)` comptait le rouge d'un Z0 rouge comme
   la morsure de chaque sabotage : l'épreuve ne prouvait plus rien. Calibrage de l'arbre (superviseur, 16-11-2026) :
   TENIR_LES_POSITIONS → positions_signalees, signaux_mis_a_part ; TENIR_L_HISTORIQUE → anomalies_d_identite ;
-  DETECTER_LES_SIGNAUX_GITHUB → garde ; rien en trop.
+  DETECTER_LES_SIGNAUX_GITHUB → garde ; rien en trop. Depuis E8 (A-934, 18-11-2026), TENIR_LES_POSITIONS écrit aussi
+  fiches_mises_a_part, après un retour à la ligne comme signaux_mis_a_part : l'ancien motif ne voit ni l'une ni
+  l'autre, et S8 déclare depuis le 20-11-2026 ces DEUX rouges (certification 44657248373 : S8 en voyait deux pour un
+  seul déclaré).
 ⑨ CE QUI CLOCHE — Un programme qui écrit une sortie par un module qu'il importe n'est pas vu : sa lecture rougit
   (fausse alarme, du côté sûr). · Une constante chaîne « nom=… » sans rapport avec la sortie, dans un programme qui
   écrit une sortie, serait prise pour une sortie et rougirait comme « écrite, jamais lue » (aucune aujourd'hui,
@@ -50,7 +54,9 @@ Simulation uniquement — aucun ordre réel.
   n'a aujourd'hui de ligne `nom=`. · Les rouges attendus de la garde (S2, S5, S11) recopient ses messages : si la
   garde change de mots, ces sabotages sortent « NE MORD PAS POUR SA RAISON » (rouge, du côté sûr) et leur
   déclaration est à refaire. · La garde n'est jouée que pour `anomalies_d_identite` ; les deux sorties du teneur
-  sont gardées par V10f et T10. · GitHub Actions n'est pas lancé : la propriété est lue dans les fichiers.
+  sont gardées par V10f et T10. · GitHub Actions n'est pas lancé : la propriété est lue dans les fichiers. · S8
+  déclare un rouge par sortie que l'ancien motif ne voit pas (écrite après un retour à la ligne) : une sortie de plus
+  écrite ainsi le fait sortir « NE MORD PAS POUR SA RAISON » (rouge, du côté sûr) et sa déclaration est à refaire.
 ⑩ EFFET — Lit des fichiers ; n'écrit rien.
 ⑪ TERMINAISON — Rend la main.
   [sort: oui]
@@ -192,6 +198,8 @@ def jeu(sab, lecteur):
 
 _MIS_A_PART_JAMAIS_ECRIT = ("lu, jamais écrit par le pas « tenir_les_positions » : "
                             "steps.tenir_les_positions.outputs.signaux_mis_a_part")
+_FICHES_MISES_A_PART_JAMAIS_ECRIT = ("lu, jamais écrit par le pas « tenir_les_positions » : "
+                                     "steps.tenir_les_positions.outputs.fiches_mises_a_part")
 _GARDE_SANS_PAS_ROUGE = ("garde du pas rouge, anomalies_d_identite : 0 pas rouge(s) pour « anomalies_d_identite » "
                          "(if qui lit la sortie et run qui finit par « exit 1 ») : un seul attendu")
 _FIN_DU_PAS_ROUGE_ANOMALIE = "corriger la ligne de la societe nommee)\"\n          exit 1\n"
@@ -235,7 +243,10 @@ SABOTAGES = {
           '    # ancien : "signaux_mis_a_part=%d"\n')],
         [_MIS_A_PART_JAMAIS_ECRIT], noms_ecrits_par_l_arbre),
     # Sabotage de l'épreuve elle-même : l'ancien motif « guillemet avant le nom » remis — la pointe doit rougir.
-    "S8_ancien_motif_remis_dans_l_epreuve": ([], [_MIS_A_PART_JAMAIS_ECRIT], noms_ecrits_par_l_ancien_motif),
+    # Sa raison : l'ancien motif ne voit aucune sortie écrite après un retour à la ligne — au 20-11-2026, les deux du
+    # teneur, signaux_mis_a_part et fiches_mises_a_part (E8, A-934). Exactement ces deux rouges, ni plus ni moins.
+    "S8_ancien_motif_remis_dans_l_epreuve": ([], [_MIS_A_PART_JAMAIS_ECRIT, _FICHES_MISES_A_PART_JAMAIS_ECRIT],
+                                             noms_ecrits_par_l_ancien_motif),
     # Le troisième écrivain, qu'aucune épreuve ne sabotait.
     "S10_nom_change_dans_le_detecteur_seul": (
         [(DETECTEUR, '"garde="', '"gard="')],

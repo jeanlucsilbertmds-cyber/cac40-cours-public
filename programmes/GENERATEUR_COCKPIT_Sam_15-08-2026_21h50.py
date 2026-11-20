@@ -323,9 +323,11 @@ class Sources:
           `_site_travail`.
         ④ CONDITIONS D ENTREE — Aucune. Le dossier n est ni ouvert ni verifie ici ;
           `charger` s en charge.
-        ⑤ SORTIE — Ne rend rien. Elle pose onze attributs sur l objet : `base`,
-          `trace`, `ohlcv`, `trades`, `positions`, `strategies`, `candidates`,
-          `golden`, `audit`, `rapport` et `mesures`.
+        ⑤ SORTIE — Ne rend rien. Elle pose treize attributs sur l objet : `base`,
+          `trace`, `ohlcv`, `trades`, `corrections` (depuis le 18-11-2026),
+          `chemin_corrections` (le chemin du fichier des corrections lu, ou `None` ;
+          depuis le 20-11-2026, H1 d A-936), `positions`, `strategies`,
+          `candidates`, `golden`, `audit`, `rapport` et `mesures`.
           [rend: rien]
         ⑥ TRAITEMENT — ① retenir le dossier de base · ② poser la trace a liste vide ·
           ③ poser les cours a dictionnaire vide · ④ poser les cinq sources tabulaires
@@ -357,6 +359,7 @@ class Sources:
         self.ohlcv = {}      # valeur -> [(date, close, high, low, open)]
         self.trades = []     # journal des operations cloturees
         self.corrections = []  # corrections decidees des comptes un jeton (A-801), lues, jamais calculees
+        self.chemin_corrections = None  # le fichier lu, rendu tel quel a la garde de la mesure (H1 d'A-936)
         self.positions = []  # positions ouvertes
         self.strategies = [] # registre d'etat civil
         self.candidates = [] # file d'idees
@@ -621,6 +624,7 @@ class Sources:
         ch = self._p(_nom_corr)
         if ch:
             self.corrections = self._lire_csv(ch)
+            self.chemin_corrections = ch
             self.trace.append((os.path.basename(ch), 'LU', f'{len(self.corrections)} ligne(s) de correction un jeton'))
 
         # --- positions ouvertes ---
@@ -2581,14 +2585,16 @@ def bloc_journal(S):
       cinquieme des six sections de la page.
     ③ ENTREE — `S` : l objet des sources, deja charge. La section y lit trois
       choses : le journal des operations cloturees, les corrections decidees des
-      comptes un jeton (`S.corrections`, depuis le 18-11-2026) et l historique des
-      mesures.
+      comptes un jeton (`S.corrections` et `S.chemin_corrections`, depuis le
+      18-11-2026 et le 20-11-2026) et l historique des mesures.
     ④ CONDITIONS D ENTREE — Chaque ligne du journal doit porter un resultat net
       CONVERTIBLE EN NOMBRE : c est la seule condition dure de tout le programme,
       et elle n est pas rattrapee.
     ⑤ SORTIE — UNE valeur : un texte, le fragment de page — le tableau des
-      operations, suivi soit de la synthese et de la mention de sa source, soit
-      d un message disant qu aucune mesure n a encore ete ecrite.
+      operations, precede d un bandeau « correction refusée » quand la garde
+      refuse et qu aucune ligne du journal ne porte l identite d une ligne
+      retiree (K1, 20-11-2026), suivi soit de la synthese et de la mention de sa
+      source, soit d un message disant qu aucune mesure n a encore ete ecrite.
       [rend: 1]
     ⑥ TRAITEMENT — ① pour chaque operation, composer une ligne : date de sortie,
       titre avec, dessous en petit, strategie et comptabilite (« NON DITE » si
@@ -2596,7 +2602,18 @@ def bloc_journal(S):
       est positif, en rouge sinon ; sous une operation retiree des comptes un jeton
       (meme strategie, valeur, jour d achat et comptabilite qu une ligne « retiree »
       du fichier des corrections), dire qu elle est retiree et ce qui est compte a
-      sa place, lu dans la ligne « ajoutee » de la meme action · ② chercher la mesure la plus recente en
+      sa place, SEULEMENT si la garde ENTIERE de la mesure,
+      `appliquer_les_corrections_un_jeton` (CONTRATS_DES_FICHIERS), appelee UNE
+      fois sur le journal lu et le fichier lu, rend la main : la ligne comptee est
+      alors celle que la garde rend pour cette action ; si la garde leve, ou ne
+      rend pas cette action : ecrire « correction refusée » sous CHAQUE ligne
+      retiree, sans aucun chiffre de remplacement, et le motif sur la sortie
+      d erreur. La garde est appelee DES QU UN FICHIER DE CORRECTIONS EST LU (K1 du
+      RELU 3b71fbf7, 20-11-2026), qu une ligne du journal porte ou non l identite
+      d une ligne retiree ; si elle refuse et qu aucune ligne n est a marquer,
+      un bandeau « correction refusée » precede le tableau, sans aucun chiffre de
+      remplacement, et le motif va sur la sortie d erreur ; aucun fichier lu :
+      rien n est appele ni affiche · ② chercher la mesure la plus recente en
       comptabilite un jeton, toutes strategies confondues · ③ si elle existe,
       composer la synthese — gagnantes sur total, serie en cours, pire chute,
       cumul net — et la mention de sa date · ④ sinon composer un message disant
@@ -2610,8 +2627,43 @@ def bloc_journal(S):
       (R-708), et un chiffre affiche doit pouvoir etre retrouve caractere pour
       caractere dans donnees/historique_mesures.csv. Le resultat net est colore,
       et c est la seule couleur porteuse de sens du tableau : elle evite d avoir a
-      lire le signe.
+      lire le signe. La correction est verifiee ici parce que le cockpit est
+      fabrique et publie AVANT la mesure du soir (.github/workflows/collecte_abc.yml :
+      « Fabriquer et publier le cockpit en page web » precede « Mesurer la
+      performance », qui porte `continue-on-error: true`) : sans l appel, une
+      ligne falsifiee serait publiee, au depot public compris, avant que la
+      mesure ne s arrete (S1 du superviseur R-759, 20-11-2026). La garde est
+      appelee et non recopiee : deux implementations d une meme chose divergent
+      toujours (R-708). Elle est appelee ENTIERE et non par sa seule partie
+      `verifier_la_ligne_ajoutee` (H1 du relecteur, RELU 354ca97b, 20-11-2026) :
+      mesure par le relecteur, une ligne ajoutee doublee avec la fausse EN PREMIER,
+      ou une ligne ajoutee en comptabilite jetons illimites, faisaient ecrire
+      « comptee a sa place » alors que la mesure du soir s arretait — ces controles
+      vivent avant `verifier_la_ligne_ajoutee`, dans la garde entiere. Elle est
+      appelee des qu un fichier de corrections est lu, et non plus seulement
+      quand une ligne du journal porte l identite d une ligne retiree (K1 du
+      relecteur, RELU 3b71fbf7, 20-11-2026) : mesure par le relecteur, la date
+      d entree de la ligne ENGIE retiree deplacee au journal, le cockpit publiait
+      la ligne comme un trade ordinaire, sans mention, alors que la garde de la
+      mesure refusait (« … est absente du journal »).
     ⑨ CE QUI CLOCHE —
+      ⓪ Le motif d un refus n est pas sur la page, seulement sur la sortie
+      d erreur (PUBLIER_LE_SITE.py la recopie sur la sienne depuis le
+      20-11-2026, H2). Un refus marque TOUTES les lignes retirees, meme celles
+      d une autre action que celle qui ne tient pas : la mesure, elle aussi,
+      s arrete entiere. Le journal passe a la garde est celui du cockpit avec
+      `vrai_journal` vrai : le cockpit affiche le journal du soir, copie tel quel
+      par PUBLIER_LE_SITE.py ; un cockpit lance sur un journal temoin qui porte la
+      ligne retiree jugerait donc comme sur le vrai, et, depuis K1, un cockpit
+      lance sur un journal temoin QUI COUVRE le 21-10-2026 sans la ligne retiree
+      ni sa jumelle, avec le fichier des corrections, porte le bandeau (la garde
+      n y voit pas un autre journal : cas E10 de la correction, qui ne vaut que
+      pour la mesure lancee hors du vrai journal). Un journal ANTERIEUR au
+      21-10-2026 reste sans objet, sans bandeau (cas E18, et E29 ②). Le fichier
+      des corrections ABSENT n appelle pas la garde : la mesure, elle, s arrete
+      (« introuvable alors que … correction(s) sont décidées ») et la page n en
+      dit rien — meme desaccord silencieux que K1, sur une autre cause ; non
+      corrige ici, a consigner au BACKLOG.
       ① CORRIGE LE 27-09-2026 POUR LE TABLEAU (defaut 3 de A-491) : chaque ligne
       porte desormais sa strategie et sa comptabilite, lues au journal qui a recu
       cette colonne le meme jour. Le constat d origine suit. Le tableau et la
@@ -2648,12 +2700,17 @@ def bloc_journal(S):
       ⑤ Le tableau ne dit nulle part qu il melange les deux comptabilites, alors
       que le journal porte une colonne d explication qui le precise ligne par
       ligne. Cette colonne n est jamais affichee.
-    ⑩ EFFET — LIT des donnees deja en memoire. N ouvre aucun fichier, n ecrit
-      rien, ne touche pas au reseau, n affiche rien.
+    ⑩ EFFET — LIT des donnees deja en memoire, et, par la garde de la mesure,
+      RELIT le fichier des corrections (une fois, des qu il a ete lu au
+      chargement). Ne touche pas au reseau ; ecrit sur la sortie d erreur le
+      motif d une correction refusee, et rien d autre.
     ⑪ TERMINAISON — Rend la main dans le cas normal. PEUT LEVER sur un resultat
       net illisible, et cette erreur n est rattrapee nulle part : elle arrete le
-      programme avant qu aucune page ne soit ecrite. Aucun de ses appels ne se
-      termine.
+      programme avant qu aucune page ne soit ecrite. Un refus de la garde
+      (`CorrectionUnJetonImpossible`) est rattrape ici et ne lève jamais. Une
+      OSError de la garde (fichier des corrections devenu illisible entre la
+      lecture et la garde) n est pas rattrapee : la page n est pas ecrite.
+      Tous ses appels reviennent.
       [sort: non]
     ⑫ DEFINITIONS
       l historique des mesures : donnees/historique_mesures.csv, une ligne par
@@ -2674,11 +2731,27 @@ def bloc_journal(S):
     # LA LIGNE RETIREE DES COMPTES UN JETON LE DIT, ET DIT CE QUI EST COMPTE A SA PLACE (A-801, superviseur R-759 du
     # 18-11-2026, point 1) : sans cela, la synthese (lue dans la mesure, corrigee) contredisait la liste. Rien n'est
     # recompte : les deux lignes sont LUES dans le fichier des corrections, rapprochees par l'identite du trade.
-    from CONTRATS_DES_FICHIERS import GESTE_RETIREE as _gr, GESTE_AJOUTEE as _ga
+    from CONTRATS_DES_FICHIERS import GESTE_RETIREE as _gr
     from CONTRATS_DES_FICHIERS import IDENTITE_D_UNE_LIGNE_DU_JOURNAL as _id_ligne
     _ident = ('action',) + tuple(_id_ligne)   # la cle de la correction elle-meme (R-708)
-    _ajoutees = {c.get('action'): c for c in S.corrections if c.get('geste') == _ga}
     _retirees = {tuple(c.get(k) for k in _ident[1:]): c for c in S.corrections if c.get('geste') == _gr}
+    from CONTRATS_DES_FICHIERS import appliquer_les_corrections_un_jeton as _garde
+    from CONTRATS_DES_FICHIERS import CorrectionUnJetonImpossible as _refus
+    # LA GARDE ENTIERE DE LA MESURE, APPELEE UNE FOIS (H1 d'A-936, RELU 354ca97b) DES QU'UN FICHIER DE CORRECTIONS EST
+    # LU (K1 du RELU 3b71fbf7, 20-11-2026) : avant, elle n'etait appelee que si une ligne du journal portait l'identite
+    # d'une ligne retiree ; la date d'entree de la ligne retiree deplacee au journal, la page publiait la ligne comme un
+    # trade ordinaire, sans mention, alors que la mesure s'arretait.
+    _comptee, _motif_du_refus = {}, ''
+    _une_ligne_retiree_au_journal = any(tuple(t.get(k) for k in _ident[1:]) in _retirees for t in S.trades)
+    if S.chemin_corrections is not None:
+        try:
+            _, _ret_g, _aj_g, _ = _garde(S.trades, S.chemin_corrections, True)
+            _comptee = {r.get('action'): a for r, a in zip(_ret_g, _aj_g)}
+        except _refus as _x:
+            _motif_du_refus = str(_x) or 'refus sans motif'
+        if _motif_du_refus:
+            print('COCKPIT : correction refusée, rien n est affiché a sa place — %s' % _motif_du_refus,
+                  file=sys.stderr)
     # CHAQUE LIGNE DIT SA STRATEGIE ET SA COMPTABILITE (defaut 3 de A-491, 27-09-2026).
     # Avant, le tableau affichait quatre fois UNIBAIL_RODAMCO au 27-08 a -2 796,25 EUR
     # sans dire que c etaient deux strategies fois deux comptabilites : un lecteur
@@ -2696,7 +2769,19 @@ def bloc_journal(S):
                        f'{f_eur(t.get("pnl_net_eur"))}</b>'])
         _r = _retirees.get(tuple(t.get(k) for k in _ident[1:]))
         if _r:
-            _a = _ajoutees.get(_r.get('action'), {})
+            _a = _comptee.get(_r.get('action'))
+            # LA CORRECTION SE VERIFIE AVANT D ETRE AFFICHEE (S1 du superviseur R-759, 20-11-2026 ; H1 d'A-936) : le
+            # cockpit est fabrique et publie AVANT la mesure du soir ; sans la garde, une ligne ajoutee falsifiee serait
+            # publiee, au depot public compris, avant que la mesure ne s arrete. La garde est APPELEE, jamais
+            # recopiee (R-708), et ENTIERE : la meme que celle de la mesure.
+            if _a is None:
+                if not _motif_du_refus:
+                    print('COCKPIT : correction refusée, rien n est affiché a sa place — %s : la garde ne rend pas '
+                          'cette action' % _r.get('action'), file=sys.stderr)
+                lignes[-1][1] += (f'<div style="font-size:9px;color:{C["red"]}">RETIREE DES COMPTES UN JETON '
+                                  f'({esc(_r.get("action", ""))}), ligne gardee au journal — correction refusée : '
+                                  f'la ligne ajoutee ne se verifie pas au journal</div>')
+                continue
             lignes[-1][1] += (f'<div style="font-size:9px;color:{C["gld"]}">RETIREE DES COMPTES UN JETON '
                               f'({esc(_r.get("action", ""))}), ligne gardee au journal — comptee a sa place : '
                               f'{esc(_a.get("valeur", "?"))} achetee le {esc(_a.get("date_entree", "?"))}, '
@@ -2715,8 +2800,18 @@ def bloc_journal(S):
         synth = (f'<div style="font-size:11px;color:{C["gld"]};padding:6px 0">Synthese indisponible : '
                  f'le service MESURER LA PERFORMANCE n a pas encore ecrit de mesure.</div>')
         src = ''
-    return tab(['Date', 'Titre · strategie · comptabilite', 'Entree', 'Sortie', 'Motif',
-                'Resultat net'], lignes) + synth + src
+    # UN REFUS SANS LIGNE A MARQUER SE DIT PAR UN BANDEAU (K1 du RELU 3b71fbf7) : sinon la page se tait alors que la
+    # mesure du soir s'arrete. Une seule mention par page : quand une ligne retiree est au journal, c'est elle qui la porte.
+    bandeau = ''
+    if _motif_du_refus and not _une_ligne_retiree_au_journal:
+        bandeau = (f'<div style="font-size:10px;color:{C["red"]};border:1px solid {C["red"]};border-radius:6px;'
+                   f'padding:6px 8px;margin:4px 0 8px">CORRECTIONS DES COMPTES UN JETON — correction refusée : la '
+                   f'garde de la mesure refuse le fichier des corrections sur ce journal, et la mesure du soir s arrete. '
+                   f'Aucune ligne ci-dessous n est marquee, et rien n est affiche en remplacement ; le journal est '
+                   f'affiche tel quel.'
+                   f'</div>')
+    return bandeau + tab(['Date', 'Titre · strategie · comptabilite', 'Entree', 'Sortie', 'Motif',
+                          'Resultat net'], lignes) + synth + src
 
 def bloc_surveillance(S):
     """Compose la section « Surveillance et archives » : les voyants de chaque

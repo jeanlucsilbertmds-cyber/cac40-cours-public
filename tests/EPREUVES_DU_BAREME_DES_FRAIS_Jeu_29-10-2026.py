@@ -973,6 +973,9 @@ def epreuves(sab):
     # journal, qui porte toujours les deux lignes ENGIE d'OBS ; ses attendus OBS sont à recalculer […] sans les
     # deviner ») : le journal fabriqué garde aussi les deux VRAIES lignes ENGIE d'OBS (un jeton, jetons illimités), et
     # la mesure y applique la correction A-801 (ENGIE un jeton → EIFFAGE achetée le 2026-10-21).
+    # DEPUIS LE 20-11-2026 (F1 de la relecture de Cowork du 19-11-2026, A-924) : la mesure exige que la ligne ajoutée
+    # (EIFFAGE un jeton) ait sa JUMELLE en jetons illimités au journal ; le vrai journal la porte (EIFFAGE d'OBS, jetons
+    # illimités, achetée le 2026-10-21, écrite par le circuit le 02-11-2026) : le journal fabriqué la garde aussi.
     # Attendus CALCULÉS plus bas, +4 % / −2,5 % (les deux fiches), barème réel, 100 000 € ; gain + perte = 6 490,25 € :
     #   valeur non taxée l'année de l'achat : 100 × 2 796,25 / 6 490,25 = 43,08 % (pmA)
     #   valeur taxée l'année de l'achat     : 100 × 3 196,25 / 6 490,25 = 49,25 % (pmB)
@@ -980,8 +983,9 @@ def epreuves(sab):
     #   C5E10-QA-V1  · un jeton         : [AIRBUS]                     → « 43.1 »
     #   C5E10-QA-V1  · jetons illimités : aucune                       → case vide, « echantillon insuffisant »
     #   C5E10-OBS-V1 · un jeton         : [AIRBUS, BOUYGUES, EIFFAGE]  → (pmA + 2 pmB) / 3 = 47,19 → « 47.2 »
-    #   C5E10-OBS-V1 · jetons illimités : [BUREAU_VERITAS, AIRBUS, AIRBUS, ENGIE] → (2 pmA + 2 pmB) / 4 = 46,17 → « 46.2 »
-    # Tout le journal (X1) donnerait 100 × (4 × 2 796,25 + 2 × 3 196,25) / 6 / 6 490,25 = 45,14 partout ; les
+    #   C5E10-OBS-V1 · jetons illimités : [BUREAU_VERITAS, AIRBUS, AIRBUS, ENGIE, EIFFAGE] → calculé par `_pm20` d'après
+    #   la taxe lue (avant le 20-11-2026, sans EIFFAGE : (2 pmA + 2 pmB) / 4 = 46,17 → « 46.2 »)
+    # Avant le 20-11-2026 (sans la jumelle EIFFAGE) : tout le journal (X1) donnait 100 × (4 × 2 796,25 + 2 × 3 196,25) / 6 / 6 490,25 = 45,14 partout ; les
     # comptabilités mélangées (X2), 43,1 aux deux lignes de QA et 45,5 aux deux d'OBS.
     d20 = copie(sab)
     fm20 = os.path.join(d20, "programmes", "MODULE_POSITIONS.py")
@@ -1007,7 +1011,10 @@ def epreuves(sab):
     # les deux vraies lignes ENGIE d'OBS, telles qu'au journal (A-801 : le vrai journal les porte toujours)
     engie20 = [o for o in lu20 if o.get("strategie") == "C5E10-OBS-V1" and o.get("valeur") == "ENGIE"
                and o.get("date_entree") == "2026-10-21"]
-    fab20 += engie20
+    # et la vraie jumelle EIFFAGE d'OBS en jetons illimités, telle qu'au journal (F1 d'A-924)
+    jumelle20 = [o for o in lu20 if o.get("strategie") == "C5E10-OBS-V1" and o.get("valeur") == "EIFFAGE"
+                 and o.get("date_entree") == "2026-10-21" and o.get("comptabilite") == "jetons_illimites"]
+    fab20 += engie20 + jumelle20
     with open(fj20, "w", encoding="utf-8", newline="") as g20:
         w20 = csv.DictWriter(g20, fieldnames=champs20); w20.writeheader(); w20.writerows(fab20)
     s20 = os.path.join(d20, "_sortie_e20")
@@ -1031,12 +1038,13 @@ def epreuves(sab):
     att20 = {("C5E10-QA-V1", "un jeton"): "%.1f" % _pm20(["AIRBUS"]),
              ("C5E10-QA-V1", "jetons illimites"): "",
              ("C5E10-OBS-V1", "un jeton"): "%.1f" % _pm20(["AIRBUS", "BOUYGUES", "EIFFAGE"]),
-             ("C5E10-OBS-V1", "jetons illimites"): "%.1f" % _pm20(["BUREAU_VERITAS", "AIRBUS", "AIRBUS", "ENGIE"])}
+             ("C5E10-OBS-V1", "jetons illimites"): "%.1f" % _pm20(["BUREAU_VERITAS", "AIRBUS", "AIRBUS", "ENGIE",
+                                                                  "EIFFAGE"])}
     obt20 = {k: v[0] for k, v in lignes20.items()}
     vide20 = lignes20.get(("C5E10-QA-V1", "jetons illimites"), ("?", "?"))[1]
     dire("E20 point mort publié sur les opérations de SA stratégie et de SA comptabilité (journal fabriqué Airbus + "
          "Bouygues) ; sans opération, case vide et verdict sans étiquette",
-         n_bv20 == 1 and len(bv20) == 1 and len(engie20) == 2 and c == 0 and obt20 == att20
+         n_bv20 == 1 and len(bv20) == 1 and len(engie20) == 2 and len(jumelle20) == 1 and c == 0 and obt20 == att20
          and vide20 == "echantillon insuffisant",
          f"obtenu {obt20} · attendu {att20} · verdict sans opération {vide20!r} · code {c} · {o.strip()[-120:]}")
     # E12 aucun nom lu sans définition (C1)

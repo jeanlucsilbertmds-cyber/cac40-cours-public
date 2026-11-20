@@ -45,7 +45,11 @@ fichier des corrections que la mesure de la performance lit. Le journal des trad
   seul résultat. La décision nomme EIFFAGE : le programme la RETROUVE par la règle et refuse si la règle en donne une
   autre, pour qu'une décision mal recopiée ne s'applique jamais.
 ⑨ CE QUI CLOCHE — Consigné, non corrigé (R-752) : · le rejeu ne repasse pas le filtre `juge.fiche_suivie` du soir (fiche refusée
-  par le juge) : la fiche de la décision est prise telle qu'elle est au registre · le rejeu part de positions vides le
+  par le juge) : la fiche de la décision est prise au registre par son empreinte (`fiche_de_la_decision`, F3
+  d'A-924, 20-11-2026), sans passer la porte du soir · les cours, le barème, le calendrier et le référentiel du rejeu
+  restent ceux d'aujourd'hui (seule la fiche est désignée de façon stable) · « personne ne relance --verifier » est
+  atténué depuis le 20-11-2026 : la mesure du soir exige que la ligne ajoutée ait sa jumelle au journal
+  (`verifier_la_ligne_ajoutee`, F1 d'A-924) · le rejeu part de positions vides le
   soir du signal : `confronter` vérifie au journal qu'aucune position un jeton de la stratégie n'était en cours, pas
   aux positions de ce soir-là (le fichier des positions de l'époque n'est pas relu) · le radar et le message du soir
   lisent le journal brut ; le cockpit dit la ligne retirée · personne ne relance `--verifier` (BACKLOG, D5).
@@ -153,6 +157,46 @@ def signaux_du_soir(racine, trace):
         raise CalculImpossible("signaux de %s illisibles : %s" % (trace, e))
 
 
+def fiche_de_la_decision(racine, decision):
+    """Rend la ligne du registre des stratégies que la décision désigne par son empreinte.
+
+    ① RÔLE — Donner au rejeu la fiche du soir du signal, quelle que soit la place de sa ligne au registre.
+    ② CONTEXTE D'APPEL — `rejouer_la_decision` ; l'épreuve.
+    ③ ENTRÉE — `racine` : la racine du dépôt · `decision` : une entrée de `CORRECTIONS_UN_JETON_DECIDEES`, qui porte
+      `strategie` et `empreinte_de_la_fiche`.
+    ④ CONDITIONS D'ENTRÉE — Le registre existe.
+    ⑤ SORTIE — UNE valeur : la ligne (dictionnaire) ; s'il y en a plusieurs de même empreinte, la dernière — elles
+      sont égales sur toutes les cases qui font le rejeu.
+      [rend: 1]
+    ⑥ TRAITEMENT — Lire TOUTES les lignes du registre (`lignes_du_registre`, pas `fiches_du_registre`, qui ne garde
+      que la dernière) ; garder celles de la stratégie dont `empreinte_d_une_fiche` égale l'empreinte déclarée.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — F3 de la relecture de Cowork du 19-11-2026 (RELU 21ff6013, A-924) : le rejeu prenait la DERNIÈRE
+      ligne de C5E10-OBS-V1 ; le jour où Jean-Luc ajoute une ligne à cette fiche (univers, seuils), l'épreuve aurait
+      rougi sans que la correction soit fausse. Le registre ne fait qu'ajouter des lignes (R-727) : la ligne du soir
+      du signal y reste.
+    ⑨ CE QUI CLOCHE — Une ligne RÉÉCRITE sur place dans une case de l'empreinte fait perdre la fiche : le calcul
+      s'arrête (CalculImpossible), il ne se trompe pas. Les autres entrées du rejeu restent celles d'AUJOURD'HUI :
+      les cours du fichier maître, le barème des frais, le calendrier, le référentiel des valeurs ; une révision de
+      l'une d'elles ferait encore diverger le rejeu (à consigner au BACKLOG).
+    ⑩ EFFET — Lit le registre.
+    ⑪ TERMINAISON — Rend la main ; lève `CalculImpossible` si aucune ligne ne porte l'empreinte, ou si le registre ne
+      se lit pas.
+      [sort: non]
+    """
+    try:
+        lignes = C.lignes_du_registre(os.path.join(racine, C.REGISTRE_DES_STRATEGIES))
+    except Exception as e:  # registre absent ou illisible : pas de calcul (R-734)
+        raise CalculImpossible("registre des stratégies illisible : %s : %s" % (type(e).__name__, e))
+    bonnes = [l for l in lignes if (l.get("id") or "") == decision["strategie"]
+              and C.empreinte_d_une_fiche(l) == decision["empreinte_de_la_fiche"]]
+    if not bonnes:
+        raise CalculImpossible("aucune ligne %s du registre ne porte l'empreinte %s déclarée par la décision %s "
+                               "(cases %s)" % (decision["strategie"], decision["empreinte_de_la_fiche"],
+                                               decision["action"], ", ".join(C.CASES_DE_L_EMPREINTE_D_UNE_FICHE)))
+    return bonnes[-1]
+
+
 def rejouer_la_decision(racine, decision):
     """Rejoue, par la tenue des positions du soir, les signaux du soir de la décision, jusqu'à leurs ventes.
 
@@ -166,11 +210,13 @@ def rejouer_la_decision(racine, decision):
       positions encore ouvertes à la dernière séance des cours.
       [rend: 3]
     ⑥ TRAITEMENT — ① lire les cours par le lecteur unique du soir (`lire_les_cours_du_soir`) · ② relire les signaux
-      du soir (`signaux_du_soir`) et vérifier que leur séance est celle de la décision · ③ les attribuer à la seule
-      stratégie de la décision (`attribuer_aux_strategies`, univers lu à sa fiche) et refuser un CCI fautif
+      du soir (`signaux_du_soir`) et vérifier que leur séance est celle de la décision · ③ prendre la fiche désignée
+      par l'empreinte de la décision (`fiche_de_la_decision`, F3 d'A-924) et ses réglages (`reglages_des_fiches` du
+      teneur), puis attribuer les signaux à cette seule stratégie (`attribuer_aux_strategies`, univers lu à cette
+      fiche) et refuser un CCI fautif
       (`mettre_a_part_les_cci_fautifs`) · ④ pour chaque séance depuis celle du signal : couper les cours à cette
       séance (rien du lendemain n'est visible), appeler `tenir` avec les signaux le soir du signal et aucun ensuite,
-      la séance suivante, la lecture et le juge — comme `tenir_pour_de_vrai` · ⑤ s'arrêter quand plus aucune position
+      la séance suivante, les réglages de la fiche, la lecture et le juge — comme `tenir_pour_de_vrai` · ⑤ s'arrêter quand plus aucune position
       n'est ouverte, ou à la dernière séance.
     ⑦ UNITÉ — Euros, séances de bourse.
     ⑧ POURQUOI — R-708 : l'achat de remplacement se calcule par le chemin du soir, et non par une formule écrite ici ;
@@ -179,7 +225,7 @@ def rejouer_la_decision(racine, decision):
     ⑨ CE QUI CLOCHE — Voir le ⑨ de l'en-tête (positions vides le soir du signal, filtre `fiche_suivie` absent).
     ⑩ EFFET — Lit des fichiers et lance `git show` ; `tenir` n'écrit rien.
     ⑪ TERMINAISON — Rend la main ; lève `CalculImpossible` (briques introuvables, signaux introuvables, séance
-      différente, fiche absente, référentiel introuvable ou vide, CCI fautif, lecture des cours refusée) ; les autres
+      différente, aucune fiche à l'empreinte déclarée, fiche refusée par la lecture du soir, référentiel introuvable ou vide, CCI fautif, lecture des cours refusée) ; les autres
       exceptions de `tenir` remontent.
       [sort: non]
     """
@@ -196,9 +242,13 @@ def rejouer_la_decision(racine, decision):
     if sig.get("seance") != seance:
         raise CalculImpossible("les signaux de %s portent la séance %r, la décision %s dit %r"
                                % (decision["signaux_du_soir"], sig.get("seance"), decision["action"], seance))
-    fiche = C.fiches_du_registre(os.path.join(racine, C.REGISTRE_DES_STRATEGIES)).get(decision["strategie"])
-    if not fiche:
-        raise CalculImpossible("fiche %s absente du registre" % decision["strategie"])
+    # LA FICHE DE LA DÉCISION, PAR SON EMPREINTE ET NON PAR SA PLACE (F3 d'A-924) ; ses seuils et son horizon passent
+    # à `tenir` par `reglages`, sans quoi `tenir` relirait la DERNIÈRE ligne du registre
+    fiche = fiche_de_la_decision(racine, decision)
+    reglages = T.reglages_des_fiches(racine, [fiche])
+    if fiche["id"] not in reglages:
+        raise CalculImpossible("fiche %s (empreinte %s) refusée par la lecture du soir du juge"
+                               % (fiche["id"], decision["empreinte_de_la_fiche"]))
     univers = {m.strip().upper() for m in (fiche.get("univers") or "").split(",") if m.strip()}
     # la table nom → mnémonique : celle du circuit (`TENIR_LES_POSITIONS.table_nom_vers_mnemonique`, R-708), sur le
     # référentiel trouvé comme le lecteur du soir le trouve (relecture du 18-11-2026, D4)
@@ -221,7 +271,7 @@ def rejouer_la_decision(racine, decision):
         coupes = {k: s[:bisect.bisect_right(dates[k], d)] for k, s in cours.items()}
         suivante = seances[i + 1] if i + 1 < len(seances) else ""
         r = T.tenir(positions, coupes, traduits if d == seance else [], suivante, mod,
-                    base=racine, lecture=lecture, juge=juge)
+                    reglages=reglages, base=racine, lecture=lecture, juge=juge)
         positions = r["positions"]
         trades += [t for t in r["trades"] if t.get("strategie") == decision["strategie"]]
         incidents += ["%s : %s" % (d, x) for x in r["incidents"] + r["signaux_ignores"]]

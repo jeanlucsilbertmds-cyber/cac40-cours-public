@@ -40,9 +40,10 @@ du juge, qui refuse un module non déclaré (A-542, superviseur R-759 du 31-10-2
     entier, `programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py`, et appelle
     `signaux_c5etendu10`, `_c5e10_cmf` et `_c5e10_cci`.
   ② programmes/audit_ecosysteme.py : son maillon 10 recalcule chaque trade déjà
-    clôturé en appelant `_c5e10_sortie`, et son maillon 11 compare le prix
-    d'objectif et le prix de stop des positions ouvertes à `C5E10_TP` et
-    `C5E10_SL`.
+    clôturé en appelant `_c5e10_sortie` AVEC L'OBJECTIF, LE STOP ET L'HORIZON DE LA
+    FICHE DU TRADE (BACKLOG A-928, D2, 19-11-2026) ; son maillon 11 compare les
+    positions ouvertes aux seuils de leur fiche, plus à `C5E10_TP` ni `C5E10_SL`
+    (depuis le 18-11-2026, A-644 ③).
   ③ programmes/JUGE_DES_STRATEGIES.py, qui lit `C5E10_UNIVERS` et appelle
     `signaux_c5etendu10` pour son calibrage. Le fichier gouvernance/SOCLE.csv le
     range ligne 135 en VIVANT, avec le motif « appele par JUGE_DES_STRATEGIES.py ». Lancé
@@ -615,7 +616,7 @@ def memoire_signaux_c5etendu10():
     return max(C5E10_CMF_P + 2, C5E10_CCI_P)
 
 
-def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
+def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None, tp=None, sl=None, horizon=None):
     """Rejoue la vie d'un trade, de l'entrée du lendemain jusqu'à sa sortie.
 
     ① RÔLE — Chiffrer ce qu'un signal aurait rapporté. Elle pose l'achat à
@@ -625,18 +626,23 @@ def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
       module, et pour le contrôle du soir qui recalcule chaque trade déjà
       clôturé afin de vérifier que le journal ne s'est pas trompé.
     ② CONTEXTE D'APPEL — Deux appelants. ① `backtest_c5etendu10`, dans ce
-      fichier, une fois par signal. ② programmes/audit_ecosysteme.py, maillon
-      10, ligne 697 : chaque soir, il reprend chaque trade clôturé du journal,
-      retrouve la séance d'entrée dans les cours, et lui passe l'indice de la
-      séance PRÉCÉDENTE, puisque cette fonction entre au lendemain. Il compare
-      ensuite le résultat qu'elle rend à celui inscrit au journal et alerte
-      au-delà d'un euro d'écart.
+      fichier, une fois par signal, sans `tp`, `sl` ni `horizon` : les réglages
+      de C5. ② programmes/audit_ecosysteme.py, maillon 10 : chaque soir, il
+      reprend chaque trade clôturé du journal, retrouve la séance d'entrée dans
+      les cours, et lui passe l'indice de la séance PRÉCÉDENTE, puisque cette
+      fonction entre au lendemain, AVEC l'objectif, le stop et l'horizon de la
+      fiche du trade lus par `lecture_du_soir` du juge des stratégies (A-928, D2,
+      19-11-2026). Il compare ensuite le résultat qu'elle rend à celui inscrit
+      au journal et alerte au-delà de `SEUIL_ECART_CALCUL` (25 €).
     ③ ENTRÉE — `ohlcv` : la liste des séances d'UNE valeur, triée par date
       croissante. `i_signal` : l'indice, dans cette liste, de la séance où le
       signal a été vu. `valeur` : le nom ou le mnémonique de cette valeur, pour la
       taxe sur les transactions financières (A-550). `bareme` : le nom d'un barème
       de `donnees/BAREME_FRAIS.csv`, None pour le barème réel ; le radar passe celui
       que le journal des trades nomme pour le montant qu'il recalcule.
+      `tp`, `sl` : l'objectif et le stop en FRACTIONS POSITIVES (0,06 pour
+      « +6.0% », 0,03 pour « -3.0% »), None pour ceux de C5 (`C5E10_TP`,
+      `C5E10_SL`). `horizon` : un entier de séances, None pour `C5E10_HORIZON`.
     ④ CONDITIONS D'ENTRÉE — `i_signal` doit désigner une séance qui existe dans
       `ohlcv`, et chaque séance doit porter `open`, `high`, `low` et `close`. La
       fonction ne vérifie pas que le signal était réellement actif à cet indice
@@ -652,8 +658,9 @@ def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
     ⑥ TRAITEMENT — ① l'entrée se fait à la séance suivant le signal ; s'il n'y
       en a pas, rendre `None` · ② prendre le prix d'ouverture de cette séance
       comme prix d'entrée ·
-      ③ poser l'objectif à +4,0 % et le stop à −2,5 % de ce prix · ④ borner la
-        recherche à 20 séances après l'entrée, ou à la dernière séance connue si
+      ③ poser l'objectif et le stop de ce prix : ceux reçus, sinon +4,0 % et
+        −2,5 % (C5) · ④ borner la recherche à l'horizon reçu, sinon 20 séances
+        après l'entrée, ou à la dernière séance connue si
         elle arrive avant ·
       ⑤ parcourir les séances : si le plus bas touche le stop, sortir au stop ;
         sinon, si le plus haut touche l'objectif, sortir à l'objectif · ⑥ si
@@ -712,7 +719,14 @@ def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
         que la loi du projet dit que les seuils vivent au REGISTRE et jamais
         dans le code (R-743 §②), et que la règle R-201 les y écrit déjà. Les
         deux disent la même chose aujourd'hui, vérifié le 19-09-2026 ; rien ne
-        garantit qu'elles le diront demain.
+        garantit qu'elles le diront demain. DEPUIS LE 19-11-2026 (A-928, D2), ces
+        constantes ne servent plus qu'au backtest : le radar passe les seuils et
+        l'horizon de la fiche du trade, lus par `lecture_du_soir` du juge, la
+        lecture même du teneur : l'indépendance gardée au ⓪ ne couvre plus que
+        la mécanique de vente, pas la lecture des seuils (RELU 37f397227, D-R1).
+        Un horizon « aucune » (HORIZON_AUCUNE de
+        programmes/COMMUN.py) n'est pas adapté ici : `i_in + horizon` lève
+        TypeError, comme le contrat du lot 0 le demande d'un lecteur non adapté.
       ⑤ La sortie par délai écoulé n'est atteinte que si les données vont
         jusqu'au bout. Une valeur retirée de la cote, ou un historique qui
         s'arrête, fait disparaître le trade au lieu de le clôturer au dernier
@@ -725,7 +739,7 @@ def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
     ⑪ TERMINAISON — Rend la main. LÈVE `KeyError` sur une séance à laquelle il
       manque `open`, `high`, `low` ou `close`, `IndexError` si `i_signal`
       désigne une séance qui n'existe pas, `TypeError` si un prix est un texte
-      au lieu d'un nombre, et ce que lève `frais_aller_retour` (`ValueError` :
+      au lieu d'un nombre ou si `horizon` est HORIZON_AUCUNE, et ce que lève `frais_aller_retour` (`ValueError` :
       barème inconnu, date absente du calendrier ; `FraisNonChiffrables` : valeur
       ou année absente de la liste des valeurs taxées). Aucun de ses appels ne termine le programme.
       [sort: non]
@@ -751,9 +765,14 @@ def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
     if i_in >= n:
         return None
     px_in = ohlcv[i_in]["open"]
-    tp = px_in * (1 + C5E10_TP)
-    sl = px_in * (1 - C5E10_SL)
-    i_max = min(i_in + C5E10_HORIZON, n - 1)
+    # LES RÉGLAGES DE LA FICHE QUAND L'APPELANT LES DONNE (A-928, D2, 19-11-2026) : le radar
+    # recalcule chaque trade aux seuils de SA stratégie ; sans eux, ceux de C5 (le backtest).
+    _tp = C5E10_TP if tp is None else tp
+    _sl = C5E10_SL if sl is None else sl
+    _h = C5E10_HORIZON if horizon is None else horizon
+    tp = px_in * (1 + _tp)
+    sl = px_in * (1 - _sl)
+    i_max = min(i_in + _h, n - 1)
     px_out, motif, i_out = None, None, None
     for j in range(i_in, i_max + 1):
         bar = ohlcv[j]
@@ -764,7 +783,7 @@ def _c5e10_sortie(ohlcv, i_signal, valeur=None, bareme=None):
             px_out, motif, i_out = tp, "TP", j
             break
     if px_out is None:
-        if i_max < i_in + C5E10_HORIZON:
+        if i_max < i_in + _h:
             return None                 # trade encore ouvert (fin de données)
         px_out, motif, i_out = ohlcv[i_max]["close"], "HORIZON", i_max
     brut = C5E10_CAPITAL * (px_out / px_in - 1)

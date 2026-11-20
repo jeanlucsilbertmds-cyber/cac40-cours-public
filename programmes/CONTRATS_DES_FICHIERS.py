@@ -47,6 +47,9 @@ Quand l'appeler : par tout programme qui écrit ou lit un fichier de liaison. Ja
   lecture de jeu du juge —, que le lot S_kk écrit et éprouve, et son étalon en données
   (ETALON_DES_VERSIONS, lu par `cas_de_l_etalon_des_versions`) ; les contrats du lot DIV (TABLE_DES_DIVIDENDES, DISTRIBUTIONS_DECIDEES) ; lire un en-tête en
   colonnes à un seul endroit (`champs_de_l_en_tete`) ·
+  ①quinquies (19-11-2026, A-923, A-925) déclarer le CONTRAT DE STRATÉGIE — les 13 cases qu'une fiche porte pour entrer
+  dans la chaîne (CONTRAT_DE_STRATEGIE), deux réglages À DÉCIDER par Jean-Luc — et le contrôler (`manques_du_contrat`,
+  qui APPELLE les contrôles du juge ; `avis_du_contrat`) ·
   ② déclarer la table qui relie les noms de fichiers à ces listes · ③ définir les
   fonctions · ④ lancé à la main, jouer les six épreuves du contrat des signaux et sortir.
 ⑦ UNITÉ — Aucune grandeur physique : des NOMS DE CHAMPS et des NOMBRES DE CHAMPS.
@@ -158,8 +161,13 @@ Quand l'appeler : par tout programme qui écrit ou lit un fichier de liaison. Ja
 # `strategie` N'EST PAS un champ du signal : le détecteur calcule une règle,
 # il ne sait pas quelles stratégies la suivent. C'est l'adaptateur de TENIR qui
 # l'ajoute, en lisant l'univers de chaque stratégie AU REGISTRE.
+# `fiches` (A-925, 19-11-2026, décision de Jean-Luc du 19-11-2026 à 19h23 : le soir fait tourner PLUSIEURS modules de
+# signal) : les identifiants des fiches du registre qui reçoivent ce signal — celles qui déclarent le signal qui l'a
+# donné ET dont l'univers porte la valeur. Le teneur n'attribue un signal qu'à elles : sans ce champ, un signal du
+# module RSI aurait été attribué à une fiche C5 dont l'univers porte la même valeur. Exemple réel (copie du
+# 19-11-2026) : un signal C5 sur VEOLIA porte ["C5E10-OBS-V1", "C5E10-QA-V1"].
 
-SIGNAL = ["valeur", "date_signal", "cmf", "cci", "close"]
+SIGNAL = ["valeur", "date_signal", "cmf", "cci", "close", "fiches"]
 
 # L'ENVELOPPE du fichier, autour de la liste des signaux.
 SIGNAUX_DU_JOUR = ["seance", "strategie", "calcule_le", "signaux",
@@ -172,6 +180,15 @@ SIGNAUX_DU_JOUR = ["seance", "strategie", "calcule_le", "signaux",
                    "garde_du_soir"]
 # Les champs de l'enveloppe que l'écrivain peut omettre : garde_du_soir n'est écrit que si la garde mord.
 CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR = ("garde_du_soir",)
+# A-925 (19-11-2026) : deux champs FACULTATIFS de plus, écrits par programmes/DETECTER_LES_SIGNAUX_GITHUB.py —
+# `calibrages` (le calibrage de chaque module, seulement s'il y en a plus d'un) et `fiches_mises_a_part` (les fiches
+# suivies que le détecteur n'a pas pu servir ce soir, chacune {fiche, motif}), lu par programmes/TENIR_LES_POSITIONS.py,
+# qui les compte dans sa sortie du pas `fiches_mises_a_part`. Ajoutés à part, sans toucher le bloc d'A-706 ci-dessus,
+# que tests/EPREUVES_C_LE_SOIR_LIT_LA_FICHE_Mar_10-11-2026.py retire au mot près pour rejouer le contrat d'avant (ce
+# contrat d'avant n'a pas CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR : d'où `globals().get`, qui le prend vide).
+SIGNAUX_DU_JOUR = SIGNAUX_DU_JOUR + ["calibrages", "fiches_mises_a_part"]
+CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR = (tuple(globals().get("CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR", ()))
+                                         + ("calibrages", "fiches_mises_a_part"))
 
 # LES FICHIERS FABRIQUÉS CHAQUE SOIR ET LE MOTIF DE LEUR DATE, écrits une fois (R-708 :
 # deux implémentations d'une même chose divergent toujours). Lus par programmes/
@@ -418,7 +435,7 @@ def _epreuves():
     ok = any("date_signal" in x and "NON ÉCRIT" in x for x in e)
     print(f"  {'✅' if ok else '❌'} et « date_signal » manquant : vu aussi")
     bons += ok
-    e2 = verifier("SIGNAL", ["valeur", "date_signal", "cmf", "cci", "close"], "ECRIT")
+    e2 = verifier("SIGNAL", ["valeur", "date_signal", "cmf", "cci", "close", "fiches"], "ECRIT")
     print(f"  {'✅' if not e2 else '❌'} le détecteur corrigé : aucun écart")
     bons += (not e2)
     e3 = verifier("SIGNAL", ["valeur", "date_signal"], "LU")
@@ -579,6 +596,11 @@ CORRECTIONS_UN_JETON_DECIDEES = [
      # la trace des signaux de ce soir-là : le fichier des signaux tel que le circuit l'a écrit et poussé le
      # 20-10-2026 à 21h59 (Paris), relu au dépôt par `git show` ; le programme refuse s'il ne le retrouve pas
      "signaux_du_soir": "553c2fd26aaf9be3e12e3e3347a46a791fbd84d3:donnees/signaux_du_jour.json",
+     # LA FICHE DU SOIR DU SIGNAL, désignée par son EMPREINTE et jamais par sa place au registre (F3 de la relecture
+     # de Cowork du 19-11-2026, A-924) : `empreinte_d_une_fiche` sur les cases qui font le rejeu. Mesurée le
+     # 20-11-2026 à 01h51 (Paris) : la même sur la ligne C5E10-OBS-V1 du registre au commit des signaux (553c2fd2) et
+     # sur celle de main aa384a7c. Une ligne AJOUTÉE plus tard à cette fiche ne change donc pas le rejeu.
+     "empreinte_de_la_fiche": "ab897d8a05c3073d",
      "valeur_retiree": "ENGIE",
      # la valeur que la décision NOMME ; le programme la RETROUVE par le rejeu, et refuse si la règle en donne une autre
      "valeur_nommee_par_la_decision": "EIFFAGE",
@@ -601,6 +623,39 @@ CORRECTION_UN_JETON = ["action", "geste"] + TRADE + ["cause"]
 # visée est (stratégie, comptabilité « un jeton », valeur, jour d'achat) ; son JUMEAU est la même identité en jetons
 # illimités — le circuit écrit les deux ensemble, une par comptabilité.
 IDENTITE_D_UNE_LIGNE_DU_JOURNAL = ("strategie", "comptabilite", "valeur", "date_entree")
+# LES CASES D'UNE FICHE QUI FONT LE REJEU d'une correction (F3, A-924) : l'identifiant, l'univers (quelles valeurs
+# reçoivent le signal), l'objectif, le stop et l'horizon (comment la position se vend). Les autres cases (note,
+# compteur, statut…) changent sans changer l'achat ni la vente rejoués.
+CASES_DE_L_EMPREINTE_D_UNE_FICHE = ("id", "univers", "tp", "sl", "horizon")
+
+
+def empreinte_d_une_fiche(ligne):
+    """Rend l'empreinte d'une ligne du registre des stratégies sur les cases qui font le rejeu d'une correction.
+
+    ① RÔLE — Désigner une fiche par une propriété STABLE, son contenu utile, et non par sa place au registre.
+    ② CONTEXTE D'APPEL — `fiche_de_la_decision` de `programmes/CORRIGER_LES_COMPTES_UN_JETON.py` ; l'épreuve
+      `tests/EPREUVES_DE_LA_CORRECTION_UN_JETON_Mer_18-11-2026.py`.
+    ③ ENTRÉE — `ligne` : un dictionnaire {colonne : texte}, une ligne du registre.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : seize caractères hexadécimaux, le début du SHA-256 des cases
+      `CASES_DE_L_EMPREINTE_D_UNE_FICHE`, dans cet ordre, jointes par le séparateur d'unité (U+001F), une case absente
+      valant le texte vide. Exemple réel : la ligne C5E10-OBS-V1 du 20-10-2026 rend « ab897d8a05c3073d ».
+      [rend: 1]
+    ⑥ TRAITEMENT — Joindre les cases, encoder en UTF-8, hacher, garder seize caractères.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — F3 de la relecture de Cowork du 19-11-2026 (A-924) : le rejeu prenait la DERNIÈRE ligne de la fiche ;
+      une ligne ajoutée plus tard (univers, seuils) l'aurait fait diverger sans que la correction soit fausse. Le
+      registre ne fait qu'ajouter des lignes (R-727) : la ligne désignée par l'empreinte y reste.
+    ⑨ CE QUI CLOCHE — Les cases sont hachées telles qu'écrites : « +4.0% » et « +4% » donnent deux empreintes. Une
+      ligne RÉÉCRITE sur place (et non ajoutée) dans l'une de ces cases fait perdre la fiche : le rejeu s'arrête alors
+      (code 2 de l'épreuve), il ne se trompe pas.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    import hashlib as _hashlib
+    texte = "\x1f".join((ligne.get(c) or "") for c in CASES_DE_L_EMPREINTE_D_UNE_FICHE)
+    return _hashlib.sha256(texte.encode("utf-8")).hexdigest()[:16]
 
 
 class CorrectionUnJetonImpossible(ValueError):
@@ -689,6 +744,65 @@ def journal_couvre(operations, date_de_reference):
     return bool(dates) and max(dates) >= ref
 
 
+def verifier_la_ligne_ajoutee(decision, retiree, ajoutee, operations):
+    """Refuse la ligne AJOUTÉE du fichier des corrections si le journal des trades ne la porte pas en jetons illimités.
+
+    ① RÔLE — Garder, le soir, la ligne que la mesure va compter à la place de la ligne retirée : elle doit être la
+      même que l'achat que le circuit a réellement suivi en jetons illimités.
+    ② CONTEXTE D'APPEL — `appliquer_les_corrections_un_jeton`, une fois par décision, quand la ligne visée est au
+      journal et égale à la ligne retirée, juste avant le remplacement ; `bloc_journal` du générateur du cockpit
+      (programmes/GENERATEUR_COCKPIT_Sam_15-08-2026_21h50.py), sous chaque ligne retirée, avant de l'afficher — le
+      cockpit est publié AVANT la mesure du soir (S1 du superviseur R-759, 20-11-2026) ; les épreuves.
+    ③ ENTRÉE — `decision` : une entrée de `CORRECTIONS_UN_JETON_DECIDEES` · `retiree`, `ajoutee` : les deux lignes
+      du fichier des corrections (dictionnaires) · `operations` : les lignes du journal des trades.
+    ④ CONDITIONS D'ENTRÉE — La comptabilité et la stratégie de `ajoutee` ont déjà été contrôlées (« un_jeton », celle
+      de la décision).
+    ⑤ SORTIE — Aucune valeur : elle rend la main, ou elle lève.
+      [rend: rien]
+    ⑥ TRAITEMENT — ① la valeur ajoutée est celle que la décision NOMME (`valeur_nommee_par_la_decision`) · ② elle est
+      achetée le même jour que la ligne retirée (le même signal donne les deux achats, à l'ouverture du lendemain) ·
+      ③ le journal porte EXACTEMENT une ligne JUMELLE : même stratégie, comptabilité jetons illimités, même valeur,
+      même jour d'achat (`IDENTITE_D_UNE_LIGNE_DU_JOURNAL`) · ④ la jumelle égale la ligne ajoutée sur les
+      `champs_compares` de la décision (prix, dates, motif, résultats nets).
+    ⑦ UNITÉ — Textes tels qu'écrits (euros, dates AAAA-MM-JJ).
+    ⑧ POURQUOI — F1 de la relecture de Cowork du 19-11-2026 (RELU 21ff6013, A-924) : la ligne ajoutée était recopiée
+      sans contrôle ; mesuré par Cowork sur la VRAIE ligne EIFFAGE, un résultat net porté de 3294.00 à 32940.00, ou
+      EIFFAGE remplacée par LVMH, passaient la mesure du soir en code 0. Le circuit du soir n'appelle jamais
+      `programmes/CORRIGER_LES_COMPTES_UN_JETON.py` : sans cette garde, rien ne prouve le soir que le fichier est le
+      calcul (R-728). La jumelle existe parce que les jetons illimités suivent TOUT signal : l'achat que la règle
+      donnait y est déjà, écrit par le circuit (le ④bis de `confronter`, dans CORRIGER, confronte le rejeu à la même
+      ligne). Réparation suggérée par Cowork, appliquée telle quelle.
+    ⑨ CE QUI CLOCHE — Les colonnes hors `champs_compares` de la ligne ajoutée (`explication`, `regles_pre_trade`,
+      `bareme_reel`, `bareme_convention`) ne sont pas gardées : la mesure ne compte pas avec elles, et le cockpit ne
+      les affiche pas pour cette ligne. Une décision dont l'achat de remplacement n'aurait PAS de jumelle en jetons
+      illimités (une stratégie qui ne tiendrait qu'un jeton) ne pourrait pas s'appliquer : la mesure s'arrêterait ;
+      aucune n'existe aujourd'hui.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève `CorrectionUnJetonImpossible` à la première condition qui ne tient pas.
+      [sort: non]
+    """
+    a = decision["action"]
+    quoi = "%s · %s · entrée %s" % (ajoutee.get("strategie"), ajoutee.get("valeur"), ajoutee.get("date_entree"))
+    if (ajoutee.get("valeur") or "") != decision["valeur_nommee_par_la_decision"]:
+        raise CorrectionUnJetonImpossible("%s : la ligne ajoutée porte %r, la décision nomme %r"
+                                          % (a, ajoutee.get("valeur"), decision["valeur_nommee_par_la_decision"]))
+    if (ajoutee.get("date_entree") or "") != (retiree.get("date_entree") or ""):
+        raise CorrectionUnJetonImpossible("%s : la ligne ajoutée est achetée le %r, la ligne retirée le %r ; le même "
+                                          "signal donne les deux achats le même jour"
+                                          % (a, ajoutee.get("date_entree"), retiree.get("date_entree")))
+    jumelle = tuple(JETONS_ILLIMITES if c == "comptabilite" else (ajoutee.get(c) or "")
+                    for c in IDENTITE_D_UNE_LIGNE_DU_JOURNAL)
+    trouvees = [o for o in operations if tuple((o.get(c) or "") for c in IDENTITE_D_UNE_LIGNE_DU_JOURNAL) == jumelle]
+    if len(trouvees) != 1:
+        raise CorrectionUnJetonImpossible("%s : la ligne ajoutée %s a %d jumelle(s) en jetons illimités au journal, "
+                                          "attendu exactement une" % (a, quoi, len(trouvees)))
+    ecarts = [c for c in decision["champs_compares"] if (trouvees[0].get(c) or "") != (ajoutee.get(c) or "")]
+    if ecarts:
+        raise CorrectionUnJetonImpossible("%s : la ligne ajoutée %s diffère de sa jumelle en jetons illimités au "
+                                          "journal sur %s — le fichier des corrections n'est pas le calcul"
+                                          % (a, quoi, ", ".join(ecarts)))
+
+
 def appliquer_les_corrections_un_jeton(operations, chemin, vrai_journal):
     """Rend les opérations du journal corrigées en un jeton : la ligne retirée mise de côté, son remplacement à sa place.
 
@@ -711,7 +825,9 @@ def appliquer_les_corrections_un_jeton(operations, chemin, vrai_journal):
       déclarée a EXACTEMENT une ligne retirée et une ligne ajoutée · ⑥ chercher au journal la ligne VISÉE (identité
       `IDENTITE_D_UNE_LIGNE_DU_JOURNAL` de la ligne retirée) et son JUMEAU (même identité, jetons illimités) ; une clé
       en double → lever · ⑦ visée présente : elle doit égaler la ligne retirée sur les `champs_compares` de la
-      décision, sinon lever ; la remplacer, à son rang, par la ligne ajoutée (ses colonnes TRADE) · ⑧ visée absente
+      décision, sinon lever ; la ligne ajoutée doit passer `verifier_la_ligne_ajoutee` (valeur nommée, même jour
+      d'achat, une jumelle en jetons illimités au journal, égale sur les mêmes champs ; F1 d'A-924), sinon lever ;
+      la remplacer, à son rang, par la ligne ajoutée (ses colonnes TRADE) · ⑧ visée absente
       et jumeau présent → lever (ligne effacée) · ⑨ les deux absentes : si le journal couvre le jour d'achat de la
       ligne retirée (`journal_couvre`, date lue dans le fichier) → lever sur le vrai journal, SANS OBJET sinon ; s'il ne
       le couvre pas (journal antérieur, témoin figé) → SANS OBJET ; une date illisible → lever.
@@ -728,7 +844,8 @@ def appliquer_les_corrections_un_jeton(operations, chemin, vrai_journal):
     ⑨ CE QUI CLOCHE — Une épreuve qui fabrique son journal À LA PLACE du vrai, dans une copie du dépôt (E20 de
       `tests/EPREUVES_DU_BAREME_DES_FRAIS_Jeu_29-10-2026.py`), est un « vrai journal » pour cette règle : la mesure s'y
       arrête. Seule la mesure de la performance compte avec les corrections : le radar et le message du soir lisent
-      le journal brut ; le cockpit dit la ligne retirée sans recompter.
+      le journal brut ; le cockpit dit la ligne retirée sans recompter, et n'affiche la ligne ajoutée qu'après
+      `verifier_la_ligne_ajoutee`.
     ⑩ EFFET — Lit le fichier des corrections ; n'écrit rien.
     ⑪ TERMINAISON — Rend la main ; lève `CorrectionUnJetonImpossible` pour toute correction qui ne tient pas, et
       OSError si le fichier ne se lit pas. Aucun appel qui ne revienne pas.
@@ -801,6 +918,8 @@ def appliquer_les_corrections_un_jeton(operations, chemin, vrai_journal):
         if ecarts:
             raise CorrectionUnJetonImpossible("%s : la ligne un jeton %s diffère au journal sur %s — le journal a changé "
                                               "sous la correction" % (a, quoi, ", ".join(ecarts)))
+        # LA LIGNE AJOUTÉE SE VÉRIFIE AVANT D'ÊTRE COMPTÉE (F1 de la relecture de Cowork du 19-11-2026, A-924)
+        verifier_la_ligne_ajoutee(dec, r, aj, corrigees)
         corrigees[vises[0]] = {c: aj.get(c, "") for c in TRADE}
         retirees.append(r)
         ajoutees.append(aj)
@@ -1032,6 +1151,18 @@ STRATEGIE = [
     #                       17h15, QJ-17) ; le juge écrit « filtres non joués : <texte> » sous chaque fiche jouée.
     "donnees_demandees",
 ]
+
+# LA MARQUE D'UNE VERSION DE MOULINETTE (A-921, décision de Jean-Luc du Jeu 19-11-2026 à 12h31, réponse « 1 » : « la porte
+# reconnaît une version de moulinette à une MARQUE écrite par la moulinette sur chaque fiche qu'elle fabrique, jamais à
+# la forme du nom »). Aucune colonne de marque n'existait : la colonne `origine` du registre (STRATEGIE, ci-dessus), texte
+# libre et vide sur 63 fiches sur 70 au 19-11-2026, porte la marque, sans changer l'en-tête du registre. Forme, et elle
+# seule : MARQUE_DE_MOULINETTE, une espace, la stratégie, une espace, l'essai — exemple réel :
+# « MOULINETTE (A-919) C5E10-OBS-V1 E01 ». ÉCRITE par programmes/ENCHAINER_LA_MOULINETTE.py (`ajouter_la_fiche`), qui
+# ajoute la fiche de la version au registre de la copie ; LUE par programmes/VERIFIER_LA_CHAINE.py (`marque_de`), que le
+# juge appelle. Une fiche dont la case commence par MARQUE_DE_MOULINETTE est gardée par la porte de la chaîne (A-919),
+# quel que soit son identifiant. TROU ASSUMÉ (A-921) : une fiche fabriquée à la main SANS la marque n'est pas gardée.
+COLONNE_DE_LA_MARQUE_DE_MOULINETTE = "origine"
+MARQUE_DE_MOULINETTE = "MOULINETTE (A-919)"
 
 # LOT 0 — INTERFACES COMMUNES DES AGENTS DE MERCREDI 11-11-2026 (plan V7 ; écrit le Lun 09-11-2026). Ce que A, B, C et D
 # LISENT dans la fiche et les fichiers partagés, fixé une fois, pour qu'aucun d'eux n'écrive dans ce fichier-ci. Un besoin
@@ -1838,6 +1969,366 @@ def suivie_par_le_soir(fiche):
     """
     etat = (fiche.get("etat_vie") or "").strip().upper()
     return etat in ETATS_SUIVIS_PAR_LE_SOIR and bool((fiche.get("univers") or "").strip())
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# LE CONTRAT DE STRATÉGIE (BACKLOG A-923, décision de Jean-Luc du 19-11-2026 à 19h09, réponse « 1 » : « contrat de
+# stratégie + épreuve par propriétés de toute la chaîne » ; A-925, 19-11-2026 à 19h23, réponse « 1 » : écrire le contrat
+# maintenant, étape 1 de l'étude ETUDE_CONTRAT_ET_PROPRIETES du 19-11-2026, 19h14). CE QU'UNE FICHE DOIT PORTER POUR
+# ENTRER DANS LA CHAÎNE, en un seul endroit. Chaque case NOMME le contrôle qui existe déjà (« programme:fonction »,
+# comme LECTEURS_DE_LA_FICHE_POUR_LE_SOIR) : `manques_du_contrat` APPELLE ces contrôles, il ne les recopie pas (R-708 :
+# deux écritures d'une même chose divergent toujours). Trois ajouts seulement, mesurés comme trous par l'étude : T1
+# (l'univers connu du référentiel ET de donnees/VALEURS_TTF.csv pour chaque année taxée de la période), T2 (une période mal
+# formée ne cache plus les autres manques), T3 (un seuil au-delà de la borne donne un AVIS). Les cases d'identité et
+# de résultats écrites par le juge (A-788) ne sont PAS des cases d'entrée. Simulation uniquement.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+CONTRAT_DE_STRATEGIE = (
+    {"case": "id", "type": "texte", "admis": "non vide ; la DERNIÈRE ligne d'un identifiant fait foi au registre",
+     "source": "décision n°83 (01-11-2026) ; CONTRATS_DES_FICHIERS:fiches_des_lignes",
+     "controle": "CONTRATS_DES_FICHIERS:manques_du_contrat"},
+    {"case": "indicateurs", "type": "texte libre", "admis": "non vide",
+     "source": "JUGE_DES_STRATEGIES:CHAMPS_OBLIGATOIRES ; A-541 (complément du 07-10-2026)",
+     "controle": "JUGE_DES_STRATEGIES:porte_0"},
+    {"case": "univers", "type": "mnémoniques séparés par « , »",
+     "admis": "non vide ; chaque mnémonique au référentiel des valeurs ET chiffrable à l'achat (donnees/VALEURS_TTF.csv) "
+              "à chaque date de la période où une ligne de taxe du barème des verdicts s'applique",
+     "source": "JUGE_DES_STRATEGIES:CHAMPS_OBLIGATOIRES ; JUGE_DES_STRATEGIES:fiche_suivie (référentiel, au soir) ; "
+               "MODULE_POSITIONS:valeur_taxee (A-550) ; étude A-923, trou T1",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 + JUGE_DES_STRATEGIES:mnemoniques_absents_du_referentiel + "
+                 "MODULE_POSITIONS:cout_d_un_ordre (barème des verdicts)"},
+    {"case": "tp", "type": "pourcent écrit", "admis": "fraction finie > 0, sans signe moins ; borne haute À DÉCIDER (avis)",
+     "source": "JUGE_DES_STRATEGIES:seuil_de_la_fiche ; A-547, A-548",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 (seuil_de_la_fiche_ou_aucun)"},
+    {"case": "sl", "type": "pourcent écrit, ou « sans stop »",
+     "admis": "fraction finie > 0, sans signe plus ; « sans stop » admis au laboratoire, refusé au soir ; borne haute "
+              "À DÉCIDER (avis)",
+     "source": "JUGE_DES_STRATEGIES:seuil_de_la_fiche_ou_aucun ; A-541 (19-10-2026 20h22) ; A-645",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 ; JUGE_DES_STRATEGIES:lecture_du_soir (fiche suivie par le soir)"},
+    {"case": "horizon", "type": "« N », « Nj » (N entier > 0, en séances) ou « aucune »",
+     "admis": "« aucune » refusé au soir tant que donnees/REGLAGES_DU_SOIR.csv ne dit pas « accepter »",
+     "source": "COMMUN:lire_horizon_ou_aucune ; contrat du lot 0 ① (plus haut) ; JUGE_DES_STRATEGIES:soir_accepte_aucune",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 ; JUGE_DES_STRATEGIES:lecture_du_soir (fiche suivie par le soir)"},
+    {"case": "periode", "type": "« AAAA-MM-JJ -> AAAA-MM-JJ »",
+     "admis": "deux dates du calendrier, début ≤ fin ; la fenêtre du regard unique n'est PAS contrôlée ici (À DÉCIDER "
+              "par Jean-Luc, relecteur neuf du 19-11-2026, I1)",
+     "source": "JUGE_DES_STRATEGIES:porte_0 (obligatoire depuis le 29-08-2026)",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 (bornes_de_la_periode)"},
+    {"case": "module_signal", "type": "chemin relatif à la racine",
+     "admis": "finit par .py, sans « .. », ni absolu ; le fichier existe et se DÉCLARE module de signal",
+     "source": "JUGE_DES_STRATEGIES:manques_du_signal ; JUGE_DES_STRATEGIES:declaration_de_signal ; A-542",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 + JUGE_DES_STRATEGIES:signal_de_la_fiche"},
+    {"case": "fonction_signal", "type": "nom Python", "admis": "la fonction existe dans le module et s'appelle",
+     "source": "JUGE_DES_STRATEGIES:manques_du_signal ; JUGE_DES_STRATEGIES:signal_de_la_fiche ; A-542",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 + JUGE_DES_STRATEGIES:signal_de_la_fiche"},
+    {"case": "reglages_signal", "type": "vide, ou objet JSON {\"nom\": valeur}",
+     "admis": "clés = noms Python, acceptées par la signature de la fonction (facultative mais contrôlée)",
+     "source": "JUGE_DES_STRATEGIES:signal_de_la_fiche (inspect.signature(...).bind) ; A-542",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 + JUGE_DES_STRATEGIES:signal_de_la_fiche"},
+    {"case": "entree", "type": "texte", "admis": "OPEN_J+1, Open J+1, DÉFAUT (liste fermée)",
+     "source": "JUGE_DES_STRATEGIES:manques_du_jeu, ENTREES_JOUABLES ; R-601",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 (manques_du_jeu)"},
+    {"case": "donnees_demandees", "type": "liste séparée par « , », « ; » ou « + »", "admis": "aujourd'hui « cours » seul",
+     "source": "JUGE_DES_STRATEGIES:manques_du_jeu, DONNEES_FOURNIES",
+     "controle": "JUGE_DES_STRATEGIES:porte_0 (manques_du_jeu)"},
+    {"case": "etat_vie", "type": "mot",
+     "admis": "QA ou PRODUCTION → suivie par le soir (contrôles du soir en plus) ; liste fermée À DÉCIDER (avis)",
+     "source": "CONTRATS_DES_FICHIERS:suivie_par_le_soir, ETATS_SUIVIS_PAR_LE_SOIR ; R-513 ① ; étude A-923, trou T5",
+     "controle": "CONTRATS_DES_FICHIERS:avis_du_contrat"},
+)
+CASES_DU_CONTRAT = tuple(c["case"] for c in CONTRAT_DE_STRATEGIE)
+
+# À DÉCIDER PAR JEAN-LUC (étude A-923, trous T3 et T5 ; A-548, A-769) — le contrat NE TRANCHE PAS : tant que ces deux
+# réglages valent None, `avis_du_contrat` rend un AVIS, jamais un refus.
+# · la borne haute d'un seuil, en POURCENTS (« +150% » vaut 150). None : l'avis se donne au-delà de la seule borne écrite
+#   aujourd'hui dans le code, COMMUN.POURCENT_MAXIMUM (la grille du voisinage de PREPARER ⓪, 50 % au 19-11-2026), qui
+#   n'est PAS une borne décidée pour la fiche.
+# · la liste fermée des états de vie. None : l'avis ne se donne que sur une case vide. Candidate connue : les six états
+#   d'A-194 que le radar écrit (programmes/audit_ecosysteme.py, ETATS_OFFICIELS) — non recopiés ici (R-708).
+BORNE_HAUTE_DES_SEUILS_EN_POURCENTS = None
+ETATS_DE_VIE_ADMIS = None
+
+# Les contrôles qui touchent au SIGNAL et au SOIR rendent des motifs qui ne nomment pas toujours leur case (« le module
+# … n'expose pas la fonction … », « sans stop : … ») : ils sont alors attribués au GROUPE de cases que ce contrôle lit.
+GROUPE_DU_SIGNAL = ("module_signal", "fonction_signal", "reglages_signal")
+GROUPE_DU_SOIR = ("tp", "sl", "horizon")
+
+
+class ContratImpossible(RuntimeError):
+    """Le contrat n'a pas pu être contrôlé : un fichier ou un programme qu'il lit manque (R-734).
+
+    ① RÔLE — Distinguer « la fiche ne suit pas le contrat » (une liste de refus) de « le contrôle n'a pas tourné ».
+    ② CONTEXTE D'APPEL — Levée par `manques_du_contrat` ; rattrapée par `main` de
+      programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py (code 2) et par `porte_du_juge` de
+      programmes/VERIFIER_LA_CHAINE.py (convertie en `Impossible`, code 2 du juge).
+    ③ ENTRÉE — Le motif, en texte.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Aucune (exception). [rend: 0]
+    ⑥ TRAITEMENT — Celui de RuntimeError.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — R-734 : un contrôle qui n'a pas pu tourner rend un code de sortie non nul ; une liste vide rendue
+      faute de référentiel serait un « conforme » faux.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — — [sort: non]
+    """
+
+
+_MODULES_DU_CONTRAT = {}
+
+
+def _case_du_motif(motif, cases_du_controle):
+    """Rend la case qu'un motif de refus nomme, parmi les cases que lit le contrôle qui l'a rendu, ou leur groupe.
+
+    ① RÔLE — Nommer la case de chaque refus, pour que Jean-Luc corrige toutes les cases en un passage.
+    ② CONTEXTE D'APPEL — `manques_du_contrat`, une fois par motif rendu par un contrôle appelé.
+    ③ ENTRÉE — `motif` : le texte rendu par le contrôle · `cases_du_controle` : le tuple des cases que ce contrôle lit
+      (toutes pour `porte_0`, GROUPE_DU_SIGNAL pour `signal_de_la_fiche`, GROUPE_DU_SOIR pour `lecture_du_soir`).
+    ④ CONDITIONS D'ENTRÉE — `motif` est un texte.
+    ⑤ SORTIE — UNE valeur : un texte, le nom de la case citée en PREMIER dans le motif (mot entier, parmi
+      `cases_du_controle` seulement), sinon les noms de `cases_du_controle` joints par « / ». Exemples réels : « tp illisible : lu '—' »
+      → « tp » ; « NON JUGEABLE — moment d'achat non jouable : entree lu 'CLOSE' … » → « entree » ; « … le module
+      programmes/x.py n'expose pas la fonction 'f' » → « module_signal/fonction_signal/reglages_signal ».
+      [rend: 1]
+    ⑥ TRAITEMENT — chercher chaque case comme mot entier (lettres, chiffres, souligné) ; garder la plus à gauche.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Propriété, pas énumération : les contrôles existants commencent leurs motifs par le nom de la case
+      (`manques_du_signal`, `seuil_de_la_fiche`, `porte_0`) ; renommer un message ne change pas la règle.
+      Le choix est BORNÉ aux cases du contrôle (mandat inversé de l'auteur, 19-11-2026) : un réglage de signal nommé
+      « periode » (IND-001-RETEST porte {"periode": 14, …}) cité dans un refus de `signal_de_la_fiche` était attribué à
+      la case `periode`, et le contrôle de l'univers par VALEURS_TTF était alors sauté.
+    ⑨ CE QUI CLOCHE — Un motif de `porte_0` qui citerait une AUTRE case avant la sienne serait mal attribué ; aucun
+      n'est mesuré ainsi le 19-11-2026.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    import re as _re
+    trouvees = []
+    for c in cases_du_controle:
+        m = _re.search(r"(?<![A-Za-z0-9_])%s(?![A-Za-z0-9_])" % _re.escape(c), motif)
+        if m:
+            trouvees.append((m.start(), c))
+    return min(trouvees)[1] if trouvees else "/".join(cases_du_controle)
+
+
+def dates_d_achat_a_controler(debut, fin):
+    """Rend les dates où le contrat demande si un achat se chiffre : le début de la période, puis le 1er de chaque mois.
+
+    ① RÔLE — Échantillonner la période d'une fiche pour `manques_du_contrat` : la taxe dépend de l'ANNÉE (liste de
+      donnees/VALEURS_TTF.csv) et de la DATE (lignes « ttf » de donnees/BAREME_FRAIS.csv, avec début et fin).
+    ② CONTEXTE D'APPEL — `manques_du_contrat`, une fois par fiche dont la période est lisible.
+    ③ ENTRÉE — `debut`, `fin` : les bornes rendues par `JUGE_DES_STRATEGIES.bornes_de_la_periode`.
+    ④ CONDITIONS D'ENTRÉE — Deux dates « AAAA-MM-JJ » du calendrier, début ≤ fin.
+    ⑤ SORTIE — UNE valeur : la liste des dates, croissante, sans doublon, toutes dans [début, fin]. Exemple réel :
+      C5-EI-PARAMS (2024-04-29 -> 2026-03-11) → ['2024-04-29', '2024-05-01', …, '2026-03-01'], 24 dates.
+      [rend: 1]
+    ⑥ TRAITEMENT — le début, puis le 1er de chaque mois qui suit, jusqu'à la fin comprise.
+    ⑦ UNITÉ — Des dates AAAA-MM-JJ (jours du calendrier, pas des séances).
+    ⑧ POURQUOI — Les lignes de taxe du barème commencent toutes un 1er du mois (01-08-2012, 01-01-2017, 01-04-2025 au
+      19-11-2026) : chaque ligne qui touche la période est donc vue au moins une fois, et chaque année où un achat
+      paierait la taxe aussi.
+    ⑨ CE QUI CLOCHE — Une ligne de taxe qui commencerait et finirait entre deux 1ers du mois, après le début, ne
+      serait pas vue. Aucune n'existe au 19-11-2026.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    import datetime as _dt
+    d = _dt.date.fromisoformat(debut)
+    f = _dt.date.fromisoformat(fin)
+    dates = [d]
+    m = _dt.date(d.year + (d.month == 12), d.month % 12 + 1, 1)
+    while m <= f:
+        dates.append(m)
+        m = _dt.date(m.year + (m.month == 12), m.month % 12 + 1, 1)
+    return [x.isoformat() for x in dates]
+
+
+def manques_du_contrat(fiche, racine, J=None, mod_pos=None):
+    """Rend la liste des cases d'une fiche qui manquent ou ne suivent pas le contrat de stratégie, chacune nommée.
+
+    ① RÔLE — LE contrôle d'entrée d'une fiche dans la chaîne (A-923) : il APPELLE les contrôles existants, chacun pour
+      sa case (CONTRAT_DE_STRATEGIE, colonne « controle »), et ajoute le trou T1 de l'étude (univers connu du
+      référentiel ET de la liste des valeurs taxées pour chaque année de la période où l'achat paie la taxe).
+    ② CONTEXTE D'APPEL — `main` de programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py (⓪, une fois par
+      lancement) ; `porte_du_juge` de programmes/VERIFIER_LA_CHAINE.py (fiche marquée de moulinette, avant ④) ;
+      l'épreuve tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py.
+    ③ ENTRÉE — `fiche` : un dictionnaire de champs (ligne du registre des stratégies) · `racine` : la racine du dépôt
+      ou d'une copie (où sont le module de signal, le référentiel, le réglage du soir et MODULE_POSITIONS.py) · `J` :
+      le module du juge (None : importé) · `mod_pos` : le module de positions (None : chargé sous `racine` comme le
+      juge le charge, `J.trouver` puis `J.charger_module`, gardé en mémoire par chemin).
+    ④ CONDITIONS D'ENTRÉE — Une case absente vaut vide. Le référentiel des valeurs, MODULE_POSITIONS.py et
+      donnees/VALEURS_TTF.csv se trouvent sous `racine`, sinon ContratImpossible.
+    ⑤ SORTIE — UNE valeur : la liste des refus, VIDE si la fiche suit le contrat ; chaque refus est un texte
+      « <case> : <motif> », dans l'ordre des cases du contrat. Exemple réel (19-11-2026) : MA200-S1 rend, entre
+      autres, « univers : mnémonique(s) absent(s) du référentiel : A TRANCHER — VOIR ETUDE_REF ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① `id` vide (VIDE du juge) → refus · ② `J.porte_0` ; si elle rend DEUX valeurs (période mal formée,
+      son ⑨ ①, trou T2), la rappeler sur la fiche sans période pour avoir AUSSI les autres manques, et garder le motif
+      précis de la période · ③ si aucune case du signal n'est refusée : `J.signal_de_la_fiche` (le module existe, se
+      déclare, se charge, la fonction existe, les réglages s'appliquent) · ④ univers lisible (non vide) : les codes de
+      `J.mnemoniques_de_l_univers` absents de `J.table_mnemoniques` du référentiel, par
+      `J.mnemoniques_absents_du_referentiel` (la règle du soir) ; puis, période lue par `J.bornes_de_la_periode` (la
+      lecture de `porte_0`), chaque code connu passé à `cout_d_un_ordre` de MODULE_POSITIONS — achat de `CAPITAL` sous
+      `J.bareme_des_verdicts`, la fonction et le barème que `jouer` emploie à chaque achat — à chaque date de
+      `dates_d_achat_a_controler` ; une FraisNonChiffrables (LookupError) donne le refus, l'année nommée · ⑤ fiche suivie par le soir (`suivie_par_le_soir`) et seuils/horizon passés :
+      `J.lecture_du_soir` · ⑥ attribuer chaque motif à sa case (`_case_du_motif`), trier dans l'ordre du contrat.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — A-923 : l'inventaire du 19-11-2026 (68 identifiants × 14 maillons) a trouvé des refus que `porte_0`
+      ne voyait pas — univers « A TRANCHER » accepté par la porte du juge (mesuré `(True, [])`) puis refusé à ⓪ et au
+      soir ; une valeur absente de VALEURS_TTF fait lever `jouer` en plein calcul (« FraisNonChiffrables … 0 ligne(s)
+      pour 'AAA' en 2024 »). Le contrôle vit au contrat parce qu'il dit ce qu'une fiche DOIT porter ; il appelle le
+      juge pour chaque règle parce que les règles y vivent déjà (R-708).
+    ⑨ CE QUI CLOCHE — ① `signal_de_la_fiche` EXÉCUTE le module déclaré à son premier chargement (son ⑨ ②). ② La
+      règle « hors univers » du référentiel (MT, A-410) n'est lue que par PREPARER (dans son `main`, pas dans une
+      fonction) : MT passe ce contrat, comme il passe `fiche_suivie` — deux règles qui divergent (R-708), à décider.
+      ③ Un univers qui répète un code (« TTE,TTE ») passe ici et au juge, PREPARER le refuse : même divergence.
+      ④ Depuis le 19-11-2026 (relecteur neuf, M2 ③), une année de la période SANS liste dans VALEURS_TTF où une ligne
+      de taxe s'applique (2027 et au-delà au 19-11-2026, la ligne à 0,4 % n'ayant pas de fin) est REFUSÉE, comme
+      `jouer` lèverait ; une période qui déborde sur une année sans cours est donc refusée même si `jouer` n'y
+      achèterait rien. ⑤ Les dates sont échantillonnées (`dates_d_achat_a_controler`, son ⑨). ⑥ Les motifs du signal
+      et du soir qui ne nomment pas leur case sont attribués au groupe (GROUPE_DU_SIGNAL, GROUPE_DU_SOIR). ⑦ Les cinq
+      clauses du module de signal (étude A.3) ne sont pas contrôlées ici, hors la déclaration et la signature.
+      ⑧ LA FENÊTRE DU REGARD UNIQUE (2000-01-01..2023-12-31, `fenetre_du_regard_unique`) N'EST PAS UNE CASE DU CONTRAT :
+      une fiche dont la période y entre (IND-001-RETEST, 2000-01-03 -> 2026-10-30) PASSE le contrat, puis `jouer` la
+      refuse à ② sans reçu d'inscription (RegardNonInscrit, R-505 ③). Relevé par le relecteur neuf du 19-11-2026 (I1) ;
+      comportement GARDÉ sur consigne du Chat (« c'est une décision de Jean-Luc ») : faut-il un reçu pour entrer, un
+      refus ou un avis — À DÉCIDER par Jean-Luc.
+      ⑨ Un ValueError de `cout_d_un_ordre` (barème ou liste illisible, autre que l'absence d'une ligne) lève
+      ContratImpossible : il dit que le contrôle n'a pas tourné, pas que la valeur manque.
+    ⑩ EFFET — LIT le référentiel, VALEURS_TTF, le barème des frais et le réglage du soir ; CHARGE (exécute) le module de signal déclaré et
+      MODULE_POSITIONS. N'écrit rien.
+    ⑪ TERMINAISON — Rend la main, ou lève ContratImpossible (référentiel ou MODULE_POSITIONS introuvables, référentiel,
+      barème des frais ou VALEURS_TTF illisibles). Un module de signal dont le chargement ne revient pas bloque l'appel (⑪ de `signal_de_la_fiche`).
+      [sort: non]
+    """
+    import os as _os
+    if J is None:
+        import JUGE_DES_STRATEGIES as J
+    refus = []
+    if (fiche.get("id") or "").strip().lower() in J.VIDE:
+        refus.append(("id", "aucun identifiant"))
+    # ② LA PORTE DU JUGE, ET TOUS SES MANQUES MÊME QUAND LA PÉRIODE EST MAL FORMÉE (trou T2)
+    rendu = J.porte_0(fiche)
+    motifs = [str(m) for m in rendu[1]]
+    if len(rendu) == 2:
+        reste = J.porte_0(dict(fiche, periode=""))
+        motifs += [str(m) for m in reste[1] if str(m) != "periode"]
+    for m in motifs:
+        refus.append((_case_du_motif(m, CASES_DU_CONTRAT), m))
+    deja = {c for c, _ in refus}
+    # ③ LE SIGNAL NOMMÉ SE CHARGE (existence, déclaration, fonction, réglages)
+    if not deja & set(GROUPE_DU_SIGNAL):
+        try:
+            J.signal_de_la_fiche(racine, fiche)
+        except ValueError as e:
+            refus.append((_case_du_motif(str(e), GROUPE_DU_SIGNAL), str(e)))
+    # ④ L'UNIVERS : AU RÉFÉRENTIEL, PUIS À LA LISTE DES VALEURS TAXÉES DE CHAQUE ANNÉE DE LA PÉRIODE (trou T1)
+    if "univers" not in deja:
+        f_ref = J.trouver(racine, "REFERENTIEL_VALEURS")
+        if not f_ref:
+            raise ContratImpossible("référentiel des valeurs introuvable sous %s" % racine)
+        try:
+            table = J.table_mnemoniques(f_ref)
+        except (OSError, ValueError) as e:
+            raise ContratImpossible("référentiel illisible : %s: %s" % (type(e).__name__, e))
+        codes = J.mnemoniques_de_l_univers(fiche.get("univers") or "")
+        inconnus = J.mnemoniques_absents_du_referentiel(codes, table)   # la règle du soir, une seule (R-708)
+        if inconnus:
+            refus.append(("univers", "mnémonique(s) absent(s) du référentiel : " + ", ".join(inconnus)))
+        bornes = J.bornes_de_la_periode(fiche.get("periode"))[0]        # la lecture de `porte_0`, une seule (R-708)
+        if "periode" not in deja and bornes is not None:
+            if mod_pos is None:
+                f_pos = J.trouver(racine, "MODULE_POSITIONS.py")
+                if not f_pos:
+                    raise ContratImpossible("MODULE_POSITIONS.py introuvable sous %s" % racine)
+                f_pos = _os.path.realpath(f_pos)
+                if f_pos not in _MODULES_DU_CONTRAT:
+                    _MODULES_DU_CONTRAT[f_pos] = J.charger_module(f_pos, "pos_du_contrat")
+                mod_pos = _MODULES_DU_CONTRAT[f_pos]
+            # « L'ACHAT SE CHIFFRE-T-IL ? » SE DEMANDE À LA FONCTION QUE `jouer` APPELLE À CHAQUE ACHAT :
+            # `cout_d_un_ordre`, sous le barème des verdicts (`J.bareme_des_verdicts`). C'est elle qui décide si une
+            # ligne de taxe s'applique à la date, puis appelle `valeur_taxee` (relecteur neuf du contrat, M2 ③ : choisir
+            # les années par « l'année a une liste dans VALEURS_TTF » était une seconde définition).
+            nom_du_bareme = J.bareme_des_verdicts(None, mod_pos)
+            dates = dates_d_achat_a_controler(*bornes)
+            for c in codes:
+                if c in inconnus:
+                    continue
+                manquent = []
+                for d in dates:
+                    if d[:4] in manquent:
+                        continue
+                    try:
+                        mod_pos.cout_d_un_ordre(c, d, "achat", mod_pos.CAPITAL, bareme=nom_du_bareme)
+                    except LookupError:      # FraisNonChiffrables : pas de liste pour l'année, ou pas de ligne unique
+                        manquent.append(d[:4])
+                    except ValueError as e:  # barème ou liste illisible : le contrôle n'a pas tourné (R-734)
+                        raise ContratImpossible("frais non lisibles pour %s le %s : %s" % (c, d, e))
+                if manquent:
+                    refus.append(("univers", "%s sans ligne unique dans donnees/VALEURS_TTF.csv pour : %s (les frais "
+                                             "ne se chiffreraient pas, A-550)" % (c, ", ".join(manquent))))
+    # ⑤ UNE FICHE SUIVIE PAR LE SOIR SE LIT COMME LE SOIR LA LIT (« sans stop », « aucune »)
+    deja = {c for c, _ in refus}
+    if suivie_par_le_soir(fiche) and not deja & set(GROUPE_DU_SOIR):
+        try:
+            J.lecture_du_soir(racine, fiche)
+        except ValueError as e:
+            refus.append((_case_du_motif(str(e), GROUPE_DU_SOIR), "lecture du soir : " + str(e)))
+    ordre = {c: k for k, c in enumerate(CASES_DU_CONTRAT)}
+    refus.sort(key=lambda r: ordre.get(r[0].split("/")[0], len(ordre)))
+    return ["%s : %s" % r for r in refus]
+
+
+def avis_du_contrat(fiche, J=None):
+    """Rend les AVIS du contrat sur une fiche : ce que Jean-Luc n'a pas encore tranché. N'arrête jamais rien.
+
+    ① RÔLE — Signaler, sans refuser, un seuil au-delà de la borne et un état de vie hors de la liste, tant que la
+      borne et la liste ne sont pas décidées (BORNE_HAUTE_DES_SEUILS_EN_POURCENTS, ETATS_DE_VIE_ADMIS).
+    ② CONTEXTE D'APPEL — `main` de programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py (affichés) ;
+      l'épreuve du contrat.
+    ③ ENTRÉE — `fiche` : un dictionnaire de champs · `J` : le module du juge (None : importé).
+    ④ CONDITIONS D'ENTRÉE — Aucune : une case illisible ne donne pas d'avis (`manques_du_contrat` la refuse).
+    ⑤ SORTIE — UNE valeur : la liste des avis, textes « <case> : AVIS — <motif> ». Exemple : `tp` « +150% » →
+      « tp : AVIS — 150 % dépasse 50 % (COMMUN.POURCENT_MAXIMUM, borne de la grille de voisinage ; borne de la fiche
+      À DÉCIDER par Jean-Luc, A-548) ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① tp et sl lus par `J.seuil_de_la_fiche_ou_aucun` ; « sans stop » et illisible : rien · ② au-delà de
+      la borne (décidée, sinon COMMUN.POURCENT_MAXIMUM) : avis · ③ `etat_vie` vide, ou hors de ETATS_DE_VIE_ADMIS si
+      la liste est décidée : avis.
+    ⑦ UNITÉ — Pourcents (la borne et le message) ; la fiche porte des pourcents écrits, lus en fraction puis × 100.
+    ⑧ POURQUOI — Consigne du Chat du 19-11-2026 (A-925) : « NE TRANCHE PAS ce qui revient à Jean-Luc (borne haute des
+      seuils, liste fermée des etat_vie) : laisse-les en paramètre À DÉCIDER et rends un AVIS, pas un refus ». Mesuré
+      par l'étude (T3) : `tp` « +150% » passe `porte_0`.
+    ⑨ CE QUI CLOCHE — ① Les avis ne sont affichés qu'à ⓪ : la porte du juge rend des refus seulement. ② La borne de
+      repli est celle de la grille de PREPARER : PREPARER refuse déjà « +150% » à ⓪ (« pas de valeur lisible »), le
+      juge l'accepte — divergence connue (A-548).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    if J is None:
+        import JUGE_DES_STRATEGIES as J
+    import COMMUN as _COMMUN
+    avis = []
+    borne = BORNE_HAUTE_DES_SEUILS_EN_POURCENTS
+    nom = ("BORNE_HAUTE_DES_SEUILS_EN_POURCENTS, décidée" if borne is not None else
+           "COMMUN.POURCENT_MAXIMUM, borne de la grille de voisinage ; borne de la fiche À DÉCIDER par Jean-Luc, A-548")
+    if borne is None:
+        borne = _COMMUN.POURCENT_MAXIMUM
+    for c in ("tp", "sl"):
+        try:
+            v = J.seuil_de_la_fiche_ou_aucun(fiche, c)
+        except ValueError:
+            continue
+        if isinstance(v, float) and v * 100 > borne:
+            avis.append("%s : AVIS — %g %% dépasse %g %% (%s)" % (c, round(v * 100, 6), borne, nom))
+    etat = (fiche.get("etat_vie") or "").strip().upper()
+    if not etat:
+        avis.append("etat_vie : AVIS — case vide (liste fermée des états À DÉCIDER par Jean-Luc, A-769)")
+    elif ETATS_DE_VIE_ADMIS is not None and etat not in ETATS_DE_VIE_ADMIS:
+        avis.append("etat_vie : AVIS — %r hors de ETATS_DE_VIE_ADMIS" % etat)
+    return avis
 
 
 def noms_d_une_strategie(ligne_du_registre):
@@ -3124,6 +3615,12 @@ RESULTATS_DES_VERSIONS = [
     # de la fiche jouée, la même sur toutes les lignes d'un fichier. Elle est une COLONNE COMMUNE du tri (ci-dessous) :
     # deux fichiers joués avec un code de module, un signal ou une période différents arrêtent le tri.
     "empreinte_de_la_fiche",
+    # L'EMPREINTE DU BARÈME (19-11-2026, superviseur R-759, tour 3, I2 : la dérive du tarif se RÉPARE) : sha256 du
+    # CONTENU des lignes de donnees/BAREME_FRAIS.csv qui portent le nom de la colonne `bareme`, telles que
+    # MODULE_POSITIONS les lit, calculé par `JOUER_LES_VERSIONS.empreinte_du_bareme`, la seule définition. Écrite par
+    # JOUER ; relue par la porte du juge (programmes/VERIFIER_LA_CHAINE.py), qui la recalcule sur le barème que le
+    # juge utiliserait. Exemple : courtage REEL 0.0015 → 0.015 change l'empreinte sous le même nom « REEL ».
+    "empreinte_du_bareme",
 ]
 # Les SEULES colonnes qu'un critère du tri peut lire : celles de la partie de réglage. Les colonnes `operations`,
 # `reussite_pourcents_exacte` et `gain_net_euros` portent la période ENTIÈRE, 30 % compris : elles servent à la
@@ -3132,7 +3629,7 @@ COLONNES_DU_TRI = ("operations_70", "reussite_pourcents_exacte_70", "gain_net_eu
 # Les colonnes qui doivent porter UNE seule valeur sur tous les fichiers que le tri réunit : sinon les versions n'ont
 # pas été jouées dans les mêmes conditions (relecteur neuf, D4).
 COLONNES_COMMUNES_A_UN_TRI = ("periode_debut", "periode_fin", "fin_ecrite_dans_la_fiche", "bareme", "cours_joues",
-                              "empreinte_des_cours", "frontiere_70_30", "empreinte_de_la_fiche")
+                              "empreinte_des_cours", "frontiere_70_30", "empreinte_de_la_fiche", "empreinte_du_bareme")
 
 def confronter_tous(base):
     """Confronte CHAQUE fichier de liaison à son contrat. Rend la liste des écarts.
