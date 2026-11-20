@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=BaremeFrais,Comptabilites
+pointe=00e71bc96261cab8a19961f881115becceee414b
