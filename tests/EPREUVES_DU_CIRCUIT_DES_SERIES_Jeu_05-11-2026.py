@@ -38,7 +38,8 @@
   des séries, et refuse ce gabarit privé de « persist-credentials: false », puis d'un « shell: bash » d'un pas qui
   reçoit le jeton ; « max-parallel » du gabarit vaut PARTS_EN_MEME_TEMPS, et la largeur CALCULÉE des circuits
   fabriqués tient dans les tâches simultanées du compte (`refus_de_la_largeur`, A-884, 17-11-2026 ; avant : la
-  part plus une marge écrite à la main, 15-11-2026), celle du circuit des séries valant PARTS_EN_MEME_TEMPS ; le joueur des parts et le rassembleur sont lancés sous
+  part plus une marge écrite à la main, 15-11-2026), celle du circuit des séries étant le réservoir des places
+  (RESERVOIR_DES_PLACES, PLACES_LONGUES, étape FILE-2) ; le joueur des parts et le rassembleur sont lancés sous
   « unshare -rn » · N2 (tour 3, M-2) le filet accepte le gabarit (T0) et refuse F1 à F7 : jeton dans l'env du job,
   du circuit, toJSON(secrets), secrets['…'], un pas bash à jeton qui lance un programme de la version, qui écrit ou
   copie vers $GITHUB_ENV, qui écrit une variable dans un fichier (F5 à F7 ajoutés AVANT le code de la version, pour
@@ -282,8 +283,9 @@ SABOTAGES = {
     "SGP7_branches_du_prive_au_journal": [(FABRICANT, '''          [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }''',
                                            '''          echo "$tetes" | cut -f2 | grep travail- || true
           [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }''')],
-    "SN1_parts_au_dela_du_budget": [(FABRICANT, "\nPARTS_EN_MEME_TEMPS = ",
-                                     "\nPARTS_EN_MEME_TEMPS = TACHES_EN_MEME_TEMPS_DU_COMPTE - 1  # ")],
+    # étape FILE-2 : le budget des circuits longs est le réservoir ; à 19 places, le soir perdrait la sienne
+    "SN1_parts_au_dela_du_budget": [(FABRICANT, "\nLARGEUR_DES_CIRCUITS_LONGS = ",
+                                     "\nLARGEUR_DES_CIRCUITS_LONGS = TACHES_EN_MEME_TEMPS_DU_COMPTE - 1  # ")],
     "SG3_pointe_non_comparee": [(FABRICANT, '''          [ -n "$pointe" ] && [ "$(git -C "$GITHUB_WORKSPACE" -c core.hooksPath=/dev/null rev-parse HEAD)" = "$pointe" ] ||''',
                                  '''          true ||''')],
     "SG4_meme_depot_non_compare": [(FABRICANT, '''          [ "$(git rev-parse HEAD)" = "$SHA" ] ||''', '''          true ||''')],
@@ -986,9 +988,10 @@ def tour(racine):
         refus_n1, _ = F.refus_de_la_largeur(fiches_n1)
         if refus_n1:
             faux.append(f"N1 (largeur calculée des circuits fabriqués : {refus_n1})")
-        if F.largeur_d_une_fiche(F.SERIES) != (F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS):
+        # étape FILE-2 : chaque job des séries prend une place du réservoir (largeur : les places, pas le passage)
+        if F.largeur_d_une_fiche(F.SERIES) != (F.RESERVOIR_DES_PLACES, F.PLACES_LONGUES):
             faux.append(f"N1 (largeur calculée du circuit des séries {F.largeur_d_une_fiche(F.SERIES)} au lieu de "
-                        f"{(F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS)})")
+                        f"{(F.RESERVOIR_DES_PLACES, F.PLACES_LONGUES)})")
         if F.SERIES.count("max-parallel: %d\n" % F.PARTS_EN_MEME_TEMPS) != 1:
             faux.append("N1 (le gabarit n'écrit pas max-parallel = PARTS_EN_MEME_TEMPS)")
         lances = [l.strip() for l in F.SERIES.split("\n") if '.py "$RUNNER_TEMP/depot"' in l]

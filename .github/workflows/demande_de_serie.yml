@@ -7,14 +7,17 @@
 # CE QU'IL FAIT, DANS L'ORDRE : ① la poussée doit porter UN commit, dont le parent est la pointe d'avant, qui AJOUTE UN
 # seul fichier, demandes/DEMANDE_<AAAA-MM-JJ_HHhMM>.txt (une publication de code ne lance donc jamais rien) ; ② le fichier
 # est lu en ASCII strict, une clé par ligne, clés connues seulement, valeurs validées par des motifs tirés de la table
-# des séries (tests/LANCEMENT_DES_EPREUVES.json) ; ③ aucun passage du circuit des séries ne doit être en cours ou en
-# attente (GitHub n'en garde qu'un en attente par groupe : un troisième ferait disparaître le deuxième sans message) ;
+# des séries (tests/LANCEMENT_DES_EPREUVES.json) ; ③ pour un circuit long (séries, épreuves, examen), il CHOISIT LES
+# PLACES (étape FILE-2, 20-11-2026) : il compte les jobs prévus, lit la charge de chaque place du réservoir dans le
+# titre des passages en cours ou en attente des trois circuits (« … places <p>+<n> »), et prend la fenêtre de places
+# consécutives la moins chargée ; il ne refuse JAMAIS pour un passage en cours : la demande part, et ses jobs attendent
+# sur leur place si elle est prise (« queue: max ») ; ses propres passages font file aussi (« queue: max » ci-dessous) ;
 # ④ « a_blanc=oui » : il écrit au journal ce qu'il aurait lancé et s'arrête ; sinon il lance le circuit des séries
 # sur CETTE branche, version = nom de la branche, pointe = la pointe demandée (obligatoire depuis travail-…, A-811),
 # chaque valeur passée explicitement (celles absentes de la demande prennent la valeur de la table).
 # « circuit=epreuve » (étape GHUB ②, 15-11-2026) : « epreuves=<code>,<code>… » ou « epreuves=toutes » (codes
 # de la table epreuves_longues), « pointe » obligatoire depuis travail-… ; il lance epreuves_longues.yml. Les séries et
-# les épreuves partagent un groupe de concurrence : le compte des passages en cours porte sur les DEUX circuits.
+# les épreuves et la certification partagent le réservoir des places : le choix des places lit les TROIS circuits.
 # CE QU'IL N'A PAS : aucune clé du dépôt privé, aucun clonage du privé, aucun programme de la version lancé (seulement
 # des commandes du système et gh) ; permissions : lire le dépôt, lancer un circuit. Ce texte a été relu ; le
 # fabricant refuse de publier un relais qui n'est pas ce texte, octet pour octet (empreinte), et tout autre circuit
@@ -27,6 +30,7 @@ on:
 concurrency:
   group: demande-de-serie
   cancel-in-progress: false
+  queue: max
 permissions:
   contents: read
   actions: write
@@ -104,7 +108,7 @@ jobs:
               if [ "$valeur" != "toutes" ]; then
                 deja=" "
                 for c in ${valeur//,/ }; do
-                  [[ " CircuitSeries CircuitPublic Relais NuitDecoupee Certification VenteUnique MessageDuSoir VingtAns RegistreEssais Bloc5A DossierLancement RegistreStrategies CircuitLecteur JugeLecteur Tri Moulinette ArriveeSignaux LectureCours PorteEntree Comblement VeriteJuge SeanceAchat VenteReglable ContratSabot Comptabilites BaremeFrais LectureFiche GardeFou Confrontation JeuRadar RsiRebond SoirFiche TroisElements CopieBoucles MoulinetteEssai " == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue : $c"; exit 1; }
+                  [[ " CircuitSeries CircuitPublic Relais NuitDecoupee Certification VenteUnique MessageDuSoir VingtAns RegistreEssais Bloc5A DossierLancement RegistreStrategies CircuitLecteur JugeLecteur Tri Moulinette ArriveeSignaux LectureCours PorteEntree Comblement VeriteJuge SeanceAchat VenteReglable ContratSabot Comptabilites BaremeFrais LectureFiche GardeFou Confrontation JeuRadar RsiRebond SoirFiche TroisElements CopieBoucles MoulinetteEssai File " == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue : $c"; exit 1; }
                   [[ "$deja" != *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve demandee deux fois : $c"; exit 1; }
                   deja="$deja$c "
                 done
@@ -219,28 +223,69 @@ jobs:
             echo "::error::DEMANDE REFUSEE : elle regle la serie Signal, qu'elle ne joue pas (serie $SERIE)"
             exit 1
           fi
-          COMPTES="$FICHIER"
-          if [[ " series_longues.yml epreuves_longues.yml " == *" $FICHIER "* ]]; then COMPTES="series_longues.yml epreuves_longues.yml"; fi
-          for F in $COMPTES; do
-            en_cours=$(gh run list --workflow "$F" --limit 100 --json status --jq '[.[] | select(.status != "completed")] | length' 2>"$D/erreur_gh") || {
-              if grep -qi "could not find" "$D/erreur_gh"; then echo "::error::DEMANDE REFUSEE : le circuit $F est inconnu de GitHub au depot public (le relais et $F s installent dans la meme publication, puis une demande a_blanc=oui)"; else echo "::error::DEMANDE REFUSEE : passages de $F illisibles"; fi
-              exit 1; }
-            [ "$en_cours" = "0" ] || { echo "::error::DEMANDE REFUSEE : $en_cours passage(s) de $F en cours ou en attente ; redeposer la demande quand ils sont finis"; exit 1; }
-          done
-          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE ; parts_yahoo $PARTS_YAHOO ; lot_yahoo $LOT_YAHOO ; parts_hl $PARTS_HL ; lot_hl $LOT_HL ; parts_boucle $PARTS_BOUCLE ; lot_boucle $LOT_BOUCLE ; parts_signaux $PARTS_SIGNAUX ; lot_signaux $LOT_SIGNAUX ; parts_debuts $PARTS_DEBUTS ; lot_debuts $LOT_DEBUTS ; parts_signal $PARTS_SIGNAL ; lot_signal $LOT_SIGNAL ; epreuves $EPREUVES ; a blanc $A_BLANC"
+          PREMIERE=""
+          NOMBRE=""
+          if [[ " series_longues.yml epreuves_longues.yml certifier_la_version.yml " == *" $FICHIER "* ]]; then
+            # ETAPE FILE-2 : LES PLACES de cette demande, jamais un refus. Le nombre de jobs prevus ; la charge de chaque
+            # place lue dans le titre des passages en cours ou en attente des trois circuits longs (un titre sans places,
+            # passage lance a la main avant l'etape FILE-2, est ignore : charger toutes les places a la fois ne changerait
+            # pas le choix) ; la fenetre de places consecutives la moins chargee.
+            # Le reservoir est borne par les groupes de job, pas par ce choix : ce choix ne fait que repartir.
+            if [ "$CIRCUIT" = "epreuve" ]; then
+              if [ "$EPREUVES" = "toutes" ]; then NOMBRE=36; else IFS=, read -ra liste <<<"$EPREUVES"; NOMBRE=${#liste[@]}; fi
+            elif [ "$CIRCUIT" = "series" ]; then
+              NOMBRE=0
+              if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "Yahoo" ]; then NOMBRE=$(( NOMBRE + PARTS_YAHOO )); fi
+              if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "HL" ]; then NOMBRE=$(( NOMBRE + PARTS_HL )); fi
+              if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "Boucle" ]; then NOMBRE=$(( NOMBRE + PARTS_BOUCLE )); fi
+              if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "Signaux" ]; then NOMBRE=$(( NOMBRE + PARTS_SIGNAUX )); fi
+              if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "Debuts" ]; then NOMBRE=$(( NOMBRE + PARTS_DEBUTS )); fi
+              if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "Signal" ]; then NOMBRE=$(( NOMBRE + PARTS_SIGNAL )); fi
+            else
+              NOMBRE=15
+            fi
+            : > "$D/passages"
+            for F in series_longues.yml epreuves_longues.yml certifier_la_version.yml; do
+              gh run list --workflow "$F" --limit 100 --json status,displayTitle --jq '.[] | select(.status != "completed") | .displayTitle' >> "$D/passages" 2>"$D/erreur_gh" || {
+                if grep -qi "could not find" "$D/erreur_gh"; then echo "::error::DEMANDE REFUSEE : le circuit $F est inconnu de GitHub au depot public (le relais et $F s installent dans la meme publication, puis une demande a_blanc=oui)"; else echo "::error::DEMANDE REFUSEE : passages de $F illisibles"; fi
+                exit 1; }
+            done
+            M=18
+            declare -a charge=()
+            for (( k = 1; k <= M; k++ )); do charge[k]=0; done
+            while IFS= read -r t; do
+              if [[ "$t" =~ \ places\ ([1-9][0-9]?)\+([1-9][0-9]{0,2})$ ]] && [ "${BASH_REMATCH[1]}" -ge 1 ] && [ "${BASH_REMATCH[1]}" -le "$M" ] && [ "${BASH_REMATCH[2]}" -ge 1 ]; then
+                p="${BASH_REMATCH[1]}"; n="${BASH_REMATCH[2]}"; [ "$n" -le "$M" ] || n="$M"
+                for (( i = 0; i < n; i++ )); do k=$(( (p - 1 + i) % M + 1 )); charge[k]=$(( charge[k] + 1 )); done
+              fi
+            done < "$D/passages"
+            if [ "$CIRCUIT" != "epreuve" ] && [ "$CIRCUIT" != "series" ]; then
+              PREMIERE=1
+            else
+              w="$NOMBRE"; [ "$w" -le "$M" ] || w="$M"; [ "$w" -ge 1 ] || w=1
+              meilleure=""
+              for (( p = 1; p <= M; p++ )); do
+                somme=0
+                for (( i = 0; i < w; i++ )); do somme=$(( somme + charge[(p - 1 + i) % M + 1] )); done
+                if [ -z "$meilleure" ] || [ "$somme" -lt "$meilleure" ]; then meilleure="$somme"; PREMIERE="$p"; fi
+              done
+            fi
+            echo "places $PREMIERE+$NOMBRE (jobs en cours ou en attente par place :$(for (( k = 1; k <= M; k++ )); do printf ' %s=%s' "$k" "${charge[k]}"; done)) ; un job attend sur sa place si elle est occupee"
+          fi
+          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; places ${PREMIERE:-aucune}+${NOMBRE:-0} ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE ; parts_yahoo $PARTS_YAHOO ; lot_yahoo $LOT_YAHOO ; parts_hl $PARTS_HL ; lot_hl $LOT_HL ; parts_boucle $PARTS_BOUCLE ; lot_boucle $LOT_BOUCLE ; parts_signaux $PARTS_SIGNAUX ; lot_signaux $LOT_SIGNAUX ; parts_debuts $PARTS_DEBUTS ; lot_debuts $LOT_DEBUTS ; parts_signal $PARTS_SIGNAL ; lot_signal $LOT_SIGNAL ; epreuves $EPREUVES ; a blanc $A_BLANC"
           if [ "$A_BLANC" = "oui" ]; then
             echo "A BLANC : rien n'est lance"
             exit 0
           fi
           if [ "$CIRCUIT" = "epreuve" ]; then
-            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "epreuves=$EPREUVES" || { echo "::error::le circuit des epreuves n'a pas pu etre lance"; exit 1; }
+            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "epreuves=$EPREUVES" -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit des epreuves n'a pas pu etre lance"; exit 1; }
             echo "LANCE : $FICHIER sur $BRANCHE"
             exit 0
           fi
           if [ "$CIRCUIT" != "series" ]; then
-            gh workflow run "$FICHIER" --ref "$BRANCHE" || { echo "::error::le circuit $FICHIER n'a pas pu etre lance"; exit 1; }
+            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit $FICHIER n'a pas pu etre lance"; exit 1; }
             echo "LANCE : $FICHIER sur $BRANCHE"
             exit 0
           fi
-          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE" -f "parts_yahoo=$PARTS_YAHOO" -f "lot_yahoo=$LOT_YAHOO" -f "parts_hl=$PARTS_HL" -f "lot_hl=$LOT_HL" -f "parts_boucle=$PARTS_BOUCLE" -f "lot_boucle=$LOT_BOUCLE" -f "parts_signaux=$PARTS_SIGNAUX" -f "lot_signaux=$LOT_SIGNAUX" -f "parts_debuts=$PARTS_DEBUTS" -f "lot_debuts=$LOT_DEBUTS" -f "parts_signal=$PARTS_SIGNAL" -f "lot_signal=$LOT_SIGNAL" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
+          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE" -f "parts_yahoo=$PARTS_YAHOO" -f "lot_yahoo=$LOT_YAHOO" -f "parts_hl=$PARTS_HL" -f "lot_hl=$LOT_HL" -f "parts_boucle=$PARTS_BOUCLE" -f "lot_boucle=$LOT_BOUCLE" -f "parts_signaux=$PARTS_SIGNAUX" -f "lot_signaux=$LOT_SIGNAUX" -f "parts_debuts=$PARTS_DEBUTS" -f "lot_debuts=$LOT_DEBUTS" -f "parts_signal=$PARTS_SIGNAL" -f "lot_signal=$LOT_SIGNAL" -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
           echo "LANCE : $FICHIER sur $BRANCHE"

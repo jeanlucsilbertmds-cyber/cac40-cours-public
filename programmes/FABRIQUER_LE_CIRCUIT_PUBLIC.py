@@ -746,18 +746,133 @@ RATTRAPAGE_PUBLIC = "${{ needs.faut_il_tourner.outputs.rattrapage }}"
 # certificat partiel les porte (« charges_prevues_secondes »), et tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py
 # (N5) les recalcule et rougit quand une tranche dépasse ce tiers : il faut alors augmenter ce nombre.
 TACHES_EN_MEME_TEMPS_DU_COMPTE = 20     # « 20 total concurrent jobs », offre gratuite, docs.github.com lu le 15-11-2026
-PARTS_EN_MEME_TEMPS = 18  # décision de Jean-Luc A-888 du 17-11-2026 22h30 : 2 places toujours libres pour le soir et le relais
-# LE GROUPE DE CONCURRENCE COMMUN (son commentaire complet est plus bas, avant SERIES_BRANCHES) : depuis A-896, la
-# certification le porte aussi. Écrit ici parce que le gabarit de la certification, plus haut que ce commentaire, le lit.
-GROUPE_DES_MACHINES_LONGUES = "series-longues"
+LARGEUR_DES_CIRCUITS_LONGS = 18  # décision de Jean-Luc A-888 du 17-11-2026 22h30 : 2 places toujours libres pour le soir et le relais
+# LE RÉSERVOIR DES PLACES LONGUES (étape FILE-2, branche travail-file-2, 20-11-2026). Décisions de Jean-Luc : A-884 ②
+# (17-11-2026 à 22h00 : le garde « un circuit à la fois » est d'abord MESURÉ, puis remplacé par une protection plus fine,
+# jamais supprimé sans remplacement) ; A-888 (17-11-2026 à 22h30 : « 18 calculs en parallèle au plus, et 2 places
+# toujours libres pour le circuit du soir et le relais ») ; le 20-11-2026 à 20h52 : « Pourquoi on ne fait pas tous les
+# 20… tout ce qui est parallélisable ».
+# LE PROBLÈME MESURÉ : un seul groupe de concurrence au niveau du PASSAGE (« series-longues ») et un relais qui refusait
+# toute demande dès qu'un passage long était en cours. Le 20-11-2026, contrat-6 n'occupait que 2 places sur 18 et
+# proprietes-6 était refusé. Les VOIES de travail-file (2 voies de 9) ne traduisaient pas la décision : un passage seul
+# n'avait plus que 9 machines.
+# LA RÉPONSE — UN SEUL RÉSERVOIR DE PLACES_LONGUES PLACES : CHAQUE job des trois circuits longs (séries, épreuves
+# longues, certification) porte un groupe de concurrence DE JOB, « place-longue-<k> », k de 1 à PLACES_LONGUES, avec
+# « queue: max ». GitHub ne fait tourner qu'un job par groupe : les trois circuits ensemble, quel que soit le nombre de
+# passages, n'occupent jamais plus de PLACES_LONGUES machines ; au-delà, c'est GitHub qui met les jobs en file, sur leur
+# place. Plusieurs demandes tournent donc EN MÊME TEMPS, chacune sur les places libres que le relais lui a choisies.
+# BORNÉ PAR CONSTRUCTION : le numéro vient d'une expression de GitHub (`place_bornee`) qui ne rend que « 1 » … « 18 »,
+# quelle que soit la valeur reçue (le numéro d'une épreuve est écrit par un pas du gabarit, mais la matrice d'origine
+# vient d'un programme de la version) ; `largeur_d_une_fiche` ne reconnaît que CE texte, à l'octet.
+# CE QUI N'EXISTE PAS CHEZ GITHUB : une place « prise par le premier job venu ». Un job attend sur SA place même si une
+# autre se libère avant ; le relais répartit donc chaque demande sur les places les moins chargées au moment du dépôt
+# (`RELAIS`, « LES PLACES »). Un job en attente sur sa place ne prend aucune machine (THÉORIQUE pour un groupe de job :
+# l'essai réel du 18-11-2026 l'a mesuré pour un groupe de passage).
+# « queue: max » AU NIVEAU D'UN JOB : la documentation (control-workflow-concurrency, lue le 20-11-2026) le décrit pour
+# « job or workflow run » sans exemple de job : THÉORIQUE tant qu'un passage ne l'a pas montré. Sans lui, GitHub ne
+# garde qu'un job en attente par place et ANNULE le précédent : le premier passage le dira (un job « cancelled »).
+PLACES_LONGUES = LARGEUR_DES_CIRCUITS_LONGS
+PARTS_EN_MEME_TEMPS = LARGEUR_DES_CIRCUITS_LONGS   # « max-parallel » d'UN passage : il peut prendre tout le réservoir
+PREFIXE_DES_PLACES = "place-longue-"
+NOMS_DES_PLACES = tuple(PREFIXE_DES_PLACES + str(k) for k in range(1, PLACES_LONGUES + 1))
+# Le nom que `largeur_d_une_fiche` rend pour une fiche du réservoir, jamais écrit dans une fiche (aucun gabarit ne
+# porte « … ») ; `groupes_reels` le déplie en NOMS_DES_PLACES.
+RESERVOIR_DES_PLACES = PREFIXE_DES_PLACES + "1…" + str(PLACES_LONGUES)
+# Les valeurs de GitHub d'où une place se lit : la place d'une entrée de matrice (écrite par « preparer »), la première
+# place du passage (choisie par le relais), le numéro d'une tranche de la certification (1 … TRANCHES_DE_LA_NUIT).
+SOURCES_DE_PLACE = ("matrix.place", "inputs.premiere_place", "matrix.tranche")
+
+
+def place_bornee(source):
+    """Rend l'expression de GitHub qui donne le numéro de place d'un job, borné de 1 à PLACES_LONGUES.
+
+    ① RÔLE — Écrire une fois la place d'un job, telle que GitHub la calcule, sans jamais sortir du réservoir.
+    ② CONTEXTE D'APPEL — `groupe_de_place`, à la construction des gabarits CERTIFICATION, SERIES et EPREUVES ;
+      `largeur_d_une_fiche`, qui reconnaît le texte à l'octet.
+    ③ ENTRÉE — `source` : une valeur de SOURCES_DE_PLACE (texte d'une expression de GitHub).
+    ④ CONDITIONS D'ENTRÉE — `source` est dans SOURCES_DE_PLACE (sinon ValueError).
+    ⑤ SORTIE — UNE valeur : « ${{ <source> == '18' && '18' || … || <source> == '2' && '2' || '1' }} ».
+      [rend: 1]
+    ⑥ TRAITEMENT — une comparaison par place de PLACES_LONGUES à 2, la valeur « '1' » sinon.
+    ⑦ UNITÉ — Un numéro de place (1 à PLACES_LONGUES).
+    ⑧ POURQUOI — GitHub n'a pas de calcul (« modulo ») dans ses expressions ; une valeur reçue hors de 1 … 18 (vide,
+      « 19 », du texte) ferait un groupe hors du réservoir, donc une machine de plus. Ici, toute valeur inconnue vaut 1.
+    ⑨ CE QUI CLOCHE — GitHub compare un nombre et un texte en convertissant le texte en nombre (documentation des
+      expressions) : « 2 » et '2' sont égaux ; « 02 » aussi (THÉORIQUE, non essayé). Sans conséquence : la place reste bornée.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    if source not in SOURCES_DE_PLACE:
+        raise ValueError(f"source de place inconnue : {source!r}")
+    return "${{ " + "".join("%s == '%d' && '%d' || " % (source, k, k) for k in range(PLACES_LONGUES, 1, -1)) + "'1' }}"
+
+
+def groupe_de_place(source):
+    """Rend le bloc « concurrency: » d'un job des circuits longs : sa place dans le réservoir, en file.
+
+    ① RÔLE — Écrire une fois le groupe de job qui borne le réservoir (commentaire de PLACES_LONGUES).
+    ② CONTEXTE D'APPEL — La construction des gabarits CERTIFICATION, SERIES et EPREUVES, une fois par job.
+    ③ ENTRÉE — `source` : une valeur de SOURCES_DE_PLACE.
+    ④ CONDITIONS D'ENTRÉE — Celles de `place_bornee`.
+    ⑤ SORTIE — UNE valeur : quatre lignes indentées de quatre espaces (« concurrency: », « group: », « cancel-in-progress:
+      false », « queue: max »).
+      [rend: 1]
+    ⑥ TRAITEMENT — assemblage de texte.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Sans « queue: max », GitHub ne garde qu'un job en attente par groupe et annule le précédent (essai réel
+      du 18-11-2026 pour un groupe de passage) ; avec « cancel-in-progress: true », un job en cours serait tué.
+    ⑨ CE QUI CLOCHE — « queue: max » au niveau d'un job : THÉORIQUE (commentaire de PLACES_LONGUES).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    return ("    concurrency:\n      group: " + PREFIXE_DES_PLACES + place_bornee(source)
+            + "\n      cancel-in-progress: false\n      queue: max\n")
+
+
+# LA PROTECTION FINE, AU NIVEAU DU PASSAGE (A-884 ②, mesure de l'étape FILE-2 dans echanges/A_RELIRE.md, « CE QUE LE
+# GARDE PROTÉGEAIT ») : une même épreuve d'une même branche ne tourne jamais deux fois en même temps. GitHub ne donne
+# qu'UN groupe à un job, et celui des jobs est déjà leur place : le groupe « par branche et par code » ne peut donc pas
+# être un groupe de job. Il est porté par le PASSAGE, par branche : « epreuves-longues-<branche> » (et
+# « series-longues-<branche> » pour les séries), avec « queue: max ». Deux passages d'un MÊME CIRCUIT et d'une même
+# branche se suivent ; deux branches différentes tournent ensemble ; une série et des épreuves longues d'une même
+# branche tournent ensemble (deux groupes : aucune écriture commune, chaque job dépose sur la branche de son passage).
+# C'est PLUS STRICT que « par branche et par code » (deux codes différents d'une
+# même branche se suivent aussi) : la règle la plus stricte prime, et un passage porte plusieurs codes, il n'y a pas de
+# groupe de passage plus fin qui garde la propriété. Le nom de branche vient de github.ref_name, que le relais ne lance
+# que depuis une branche de la forme MOTIF_DE_VERSION.
+# La certification garde un groupe de passage À ELLE (deux certifications écrivent les mêmes fichiers de main du dépôt
+# privé : rapports/certificats_partiels/, rapports/CERTIFICAT_DE_LA_VERSION.md) ; sa largeur est celle de ses places.
+GROUPE_DES_EPREUVES = "epreuves-longues-${{ github.ref_name }}"
+GROUPE_DES_SERIES = "series-longues-${{ github.ref_name }}"
+GROUPE_DE_LA_CERTIFICATION = "certification-de-la-version"
+# Les deux entrées de place du bouton des trois circuits longs, et le titre du passage qui les montre : le relais lit
+# la charge des places dans le titre des passages en cours (« … places <p>+<n> », seul champ de « gh run list » qui la
+# porte). « preparer » n'en croit que la première, bornée ; la seconde n'est qu'un renseignement pour le relais.
+CORPS_DE_L_ENTREE_PREMIERE_PLACE = """        description: "Premiere place du reservoir, de 1 a """ + str(PLACES_LONGUES) + """ (choisie par le relais ; toute autre valeur : 1)"
+        required: false
+        type: string
+        default: "1"
+"""
+CORPS_DE_L_ENTREE_NOMBRE_DE_PLACES = """        description: "Nombre de places prevu par le relais (renseignement du titre, jamais lu par les jobs)"
+        required: false
+        type: string
+        default: ""
+"""
+ENTREES_DES_PLACES = ("      premiere_place:\n" + CORPS_DE_L_ENTREE_PREMIERE_PLACE
+                      + "      nombre_de_places:\n" + CORPS_DE_L_ENTREE_NOMBRE_DE_PLACES)
+TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inputs.premiere_place, "
+                    "inputs.nombre_de_places) || '' }}")
 # 15 TRANCHES ET UNE FILE UNIQUE (A-896, décision de Jean-Luc du 18-11-2026 à 12h25, « si c'est la meilleure solution
 # possible, la plus optimum, ben à ce moment-là, prends le 1, la file unique », pour l'option « Une file unique : 18
 # places au maximum et 2 laissées libres, 15 tranches, après un essai de 10 min de queue: max »). Pourquoi 15 : la mesure
 # par les fonctions de la certification sur les journaux (etudes/C3_C4_TRANCHES_DE_LA_CERTIFICATION_Mer_18-11-2026.md,
 # § 2) ; les charges ne sont pas recopiées ici : N5 de tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py les RECALCULE
 # chaque nuit (superviseur R-759 du 18-11-2026, E5/E6). Pourquoi la file unique : GitHub ne RÉSERVE aucune place
-# (relecture D1 de A-884) ; la certification porte donc le même groupe que les séries et les épreuves longues
-# (GROUPE_DES_MACHINES_LONGUES) avec « queue: max » : un seul passage du groupe tourne, au plus PARTS_EN_MEME_TEMPS tâches.
+# (relecture D1 de A-884) ; la certification portait donc le même groupe que les séries et les épreuves longues, avec
+# « queue: max ». Depuis l'étape FILE-2 (commentaire de PLACES_LONGUES), ce n'est plus un groupe de passage mais le
+# réservoir des places : chaque tranche prend sa place, et les trois circuits ensemble ne dépassent jamais PLACES_LONGUES.
 # Parmi les circuits COMPTÉS du dépôt public (`refus_de_la_largeur`), les deux places du soir et du relais restent libres ;
 # ni les fiches « peut attendre » du dépôt public, ni les circuits du dépôt privé ne sont comptés. Essai réel du 18-11-2026 (dépôt public, branche essai-queue-max-18-11-2026, passages
 # 44295116680, 44295145189, 44295170760 contre 44295116696, 44295145099, 44295170796) : trois poussées en 20 s ; avec
@@ -774,6 +889,14 @@ TRANCHES_DE_LA_NUIT = 15
 # le Chat) : leur nombre n'est pas mesuré. tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py rougit si le circuit
 # fabriqué fait moins d'essais qu'il n'y a de tranches.
 ESSAIS_DE_POUSSEE = TRANCHES_DE_LA_NUIT + 3
+# LES ESSAIS DE POUSSÉE D'UN JOB QUI DÉPOSE SUR SA BRANCHE (séries, épreuves longues ; étape FILE-2, 20-11-2026,
+# protection fine qui remplace le refus global du relais, A-884 ②). Mesure de l'étape FILE-2 : la branche d'un job
+# porte le numéro du passage (GITHUB_RUN_ID, unique au dépôt) et son code ou sa part ; aucun autre job ne l'écrit, même
+# quand plusieurs demandes tournent ensemble. Les essais couvrent donc ce qui reste : une erreur passagère de GitHub ou
+# du réseau quand 18 jobs poussent à la même minute (une seule poussée, sans nouvel essai, perdait le résultat d'une
+# épreuve de plusieurs heures), et la reprise par « git pull --rebase » si la branche existe déjà. Cinq : choix du Chat,
+# non mesuré ; il n'y a pas d'écrivain concurrent à compter, comme pour ESSAIS_DE_POUSSEE.
+ESSAIS_DE_POUSSEE_SUR_SA_BRANCHE = 5
 
 # LA VERSION DE PYTHON DE TOUS LES CIRCUITS PUBLICS, ÉCRITE ICI ET NULLE PART AILLEURS (R-708 : deux écritures d'une même
 # chose divergent toujours). Décision de Jean-Luc A-874 du 17-11-2026 à 07h48 (« 1 ») : fixer la version des circuits qui
@@ -993,13 +1116,17 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
       .gitignore du dossier de travail recopié dans .git/info/exclude de $T, refusé s'il est un lien symbolique),
       l'identité, l'ajout, un commit SANS PARENT
       (la branche ne porte que les résultats, pas la version), l'adresse du privé, AUTORISATION, l'aide aux
-      identifiants écrite dans la configuration de $T, puis UNE poussée « HEAD:refs/heads/<branche> », sans reprise
-      ni nouvel essai — une référence que nul autre n'écrit n'a pas de concurrent. JAMAIS « --force » (superviseur
+      identifiants écrite dans la configuration de $T, puis ESSAIS_DE_POUSSEE_SUR_SA_BRANCHE essais (étape FILE-2,
+      20-11-2026) : chacun pousse « HEAD:refs/heads/<branche> » et rend 0 s'il passe ; sinon « git pull --rebase » de
+      cette branche (s'il échoue : abandon du rebasage), une attente tirée au hasard de 1 à 15 s, et l'essai suivant ;
+      après le dernier, le message d'erreur. JAMAIS « --force » (superviseur
       R-759 du 04-11-2026, tour 4, R1 ; MODE_EMPLOI_DEPOT.md : « jamais push --force », le seul geste qui puisse
       détruire le travail d'un autre) : une nouvelle tentative du MÊME job (« Re-run ») vise la même branche, déjà
-      poussée, et sa poussée est REFUSÉE (mesuré : « [rejected] … (non-fast-forward) », code 1). Un passage rouge
-      ne se relance donc pas : ménage des branches, puis nouveau passage (en-tête du circuit des séries). La forme
-      de cette ligne est la SEULE que permet `verifier_les_gabarits_publics` : la changer ici, c'est la changer là.
+      poussée ; le rebasage y pose ses fichiers PAR-DESSUS si aucun ne diffère, sinon il s'arrête sur le conflit
+      (mêmes chemins, autre contenu), et chaque essai est refusé (« non-fast-forward ») : rien n'est écrasé. Un passage
+      rouge ne se relance donc pas : ménage des branches, puis nouveau passage (en-tête du circuit des séries). La
+      forme de la ligne de poussée est l'une des DEUX que permet `verifier_les_gabarits_publics` : la changer ici,
+      c'est la changer là.
     ⑦ UNITÉ — Des secondes (l'attente entre deux essais).
     ⑧ POURQUOI — Les tranches poussent leur certificat partiel au dépôt privé, où la tâche finale le lit : les
       archives jointes d'un passage public sont téléchargeables par tous (fiche du programme, ⑥ ③). AVEC `branche` :
@@ -1084,9 +1211,12 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
           git commit -q -m \"""" + message + """, passage public ${GITHUB_RUN_ID} [skip ci]"
           git remote add origin "$PRIVE"
 """ + AUTORISATION + """          git config --local credential.helper "$AIDE"
-          git push -q origin "HEAD:refs/heads/""" + branche + """" \\
-            || { echo "::error::POUSSEE REFUSEE — """ + reste + """ reste sur la machine jetable"; exit 1; }
-          echo "depose sur sa branche"
+          for essai in """ + " ".join(str(k) for k in range(1, ESSAIS_DE_POUSSEE_SUR_SA_BRANCHE + 1)) + """; do
+            if git push -q origin "HEAD:refs/heads/""" + branche + """"; then echo "depose sur sa branche (essai $essai)"; exit 0; fi
+            git pull -q --rebase origin "refs/heads/""" + branche + """" || git rebase --abort || true
+            sleep $((RANDOM % 15 + 1))
+          done
+          echo "::error::POUSSEE REFUSEE """ + str(ESSAIS_DE_POUSSEE_SUR_SA_BRANCHE) + """ FOIS — """ + reste + """ reste sur la machine jetable"; exit 1
 """)
 
 
@@ -1197,9 +1327,11 @@ CERTIFICATION = """# CERTIFIER LA VERSION — FICHIER FABRIQUÉ, NE PAS ÉCRIRE 
 # La tâche finale lit ensuite les certificats partiels à la pointe de main, où les tranches les ont
 # poussés ; le code qu'elle exécute reste celui du commit noté.
 name: Certifier la version
+run-name: "Certifier la version places 1+%(nombre)d"
 on:
   workflow_dispatch:
-  # 21h00 en heure universelle : 23h00 à Paris l'été, 22h00 l'hiver, après le circuit du soir
+    inputs:
+%(entrees_places)s  # 21h00 en heure universelle : 23h00 à Paris l'été, 22h00 l'hiver, après le circuit du soir
   # (dont des épreuves lisent les données). GitHub peut retarder un réveil de plusieurs heures.
   schedule:
     - cron: "0 21 * * 1-5"
@@ -1213,7 +1345,7 @@ jobs:
   preparer:
     # LE COMMIT DE LA NUIT : la pointe de main du dépôt privé, lue UNE fois, au départ (aucun code n'est exécuté ici).
     runs-on: ubuntu-latest
-    outputs:
+%(place_du_passage)s    outputs:
       sha: ${{ steps.noter.outputs.sha }}
     steps:
       - uses: actions/checkout@v5
@@ -1230,12 +1362,13 @@ jobs:
   certifier:
     needs: preparer
     runs-on: ubuntu-latest
-    # 330 minutes PAR TRANCHE : GitHub coupe toute tâche à 6 heures ; chaque tranche a les siennes.
+    # la tranche k prend la place k du réservoir (étape FILE-2) ; une tranche au-delà de PLACES_LONGUES prend la place 1
+%(place_de_la_tranche)s    # 330 minutes PAR TRANCHE : GitHub coupe toute tâche à 6 heures ; chaque tranche a les siennes.
     timeout-minutes: 330
     strategy:
       # une tranche rouge n'arrête pas les autres : la tâche finale doit voir chacune
       fail-fast: false
-      # la file unique (A-896) : jamais plus de tranches en même temps que les circuits longs
+      # le réservoir (étape FILE-2) : jamais plus de tranches en même temps que de places longues
       max-parallel: %(en_meme_temps)d
       matrix:
         tranche:
@@ -1254,7 +1387,7 @@ jobs:
       - certifier
     if: ${{ always() }}
     runs-on: ubuntu-latest
-%(defaults)s    steps:
+%(place_du_passage)s%(defaults)s    steps:
 %(depart)s%(meme_depot)s      - name: Lire les certificats partiels a la pointe du depot prive
         id: partiels
         run: |
@@ -1273,7 +1406,9 @@ jobs:
     # séries (`depart_pour`, SERIES_MEME_DEPOT), sans en écrire un second (R-708) ; le jeton reste au clonage, comme
     # avant, pour la poussée de `pas_de_depot`
     "prive": DEPOT_PRIVE, "meme_depot": SERIES_MEME_DEPOT,
-    "groupe": GROUPE_DES_MACHINES_LONGUES, "en_meme_temps": PARTS_EN_MEME_TEMPS,
+    "groupe": GROUPE_DE_LA_CERTIFICATION, "en_meme_temps": PARTS_EN_MEME_TEMPS,
+    "entrees_places": ENTREES_DES_PLACES,
+    "place_du_passage": groupe_de_place("inputs.premiere_place"), "place_de_la_tranche": groupe_de_place("matrix.tranche"),
     "depart": depart_pour(os.path.basename(CIRCUIT_CERTIFICATION), "de certification",
                           ref="${{ needs.preparer.outputs.sha }}", jeton_garde=True),
     # A-891 (17-11-2026) : le SEUL job « certifier » pose en plus les versions comparées de l'empreinte, en une pose, la
@@ -1327,10 +1462,9 @@ jobs:
 # le soir pourrait attendre une machine ; choisir 20 demanderait donc aussi de reclasser le soir.
 # (PARTS_EN_MEME_TEMPS est écrite plus haut, avant TRANCHES_DE_LA_NUIT : A-896, la certification la lit.)
 SERIES_IDENTITE = "series-longues-publiques"
-# LE GROUPE DE CONCURRENCE DES MACHINES LONGUES (étape GHUB ②, 15-11-2026) : le circuit des séries ET celui des
-# épreuves longues portent CE groupe. GitHub ne fait tourner qu'un passage d'un groupe à la fois ; les deux circuits se
-# partagent donc le même budget de PARTS_EN_MEME_TEMPS machines, et la marge des autres circuits reste entière.
-# (GROUPE_DES_MACHINES_LONGUES est écrit plus haut, avant TRANCHES_DE_LA_NUIT : A-896, la certification le porte.)
+# LE BUDGET DES MACHINES LONGUES (étape GHUB ②, 15-11-2026 ; étape FILE-2, 20-11-2026) : le circuit des séries, celui
+# des épreuves longues et la certification se partagent le réservoir des places (PLACES_LONGUES, écrit plus haut, avant
+# TRANCHES_DE_LA_NUIT, avec son commentaire) ; la marge des autres circuits reste entière.
 # LES BRANCHES DES SÉRIES (superviseur R-759 du 04-11-2026, R1, « RUSTINE, À REPRENDRE » de l'archive jointe et de la
 # garde d'horaire). Chaque job pousse UNE fois sur SA branche neuve du dépôt privé, jamais sur main :
 #   series-longues/<passage>/<série>/part_<n>  (une part)   et   series-longues/<passage>/<série>/releve  (le relevé).
@@ -1561,7 +1695,10 @@ ENTREES_FIXES_DES_SERIES = (
         type: choice
         options: [%(options)s]
         default: "%(toutes)s"
-"""))
+"""),
+    # étape FILE-2 (20-11-2026) : les places choisies par le relais (commentaire de PLACES_LONGUES)
+    ("premiere_place", CORPS_DE_L_ENTREE_PREMIERE_PLACE),
+    ("nombre_de_places", CORPS_DE_L_ENTREE_NOMBRE_DE_PLACES))
 ENTREES_PAR_SERIE = ("parts", "lot")   # les entrées de chaque série (machines, taille de lot), écrites par SERIES_ENTREES
 SERIES_AU_PLUS = (ENTREES_DU_BOUTON_AU_PLUS - len(ENTREES_FIXES_DES_SERIES)) // len(ENTREES_PAR_SERIE)
 
@@ -1727,6 +1864,41 @@ SERIES_ENTREES = ("".join("      %s:\n" % nom + texte % {"toutes": TOUTES, "opti
                           for nom, texte in ENTREES_FIXES_DES_SERIES)
                   + "".join(_ENTREE_D_UNE_SERIE[e] % {"c": c, "m": c.lower(), "n": n, "l": l}
                             for c, _, n, l in SERIES_DU_CIRCUIT for e in ENTREES_PAR_SERIE))
+# LE PLACEMENT D'UNE MATRICE (étape FILE-2) : lignes de shell posées à la fin du pas « Fabriquer la matrice » des séries
+# et des épreuves longues (R-708 : une seule écriture). Elles ajoutent à chaque entrée de la matrice JSON nommée sa place
+# dans le réservoir : la k-ième entrée (k à partir de 0) prend la place ((p − 1 + k) modulo PLACES_LONGUES) + 1, où p
+# est l'entrée « premiere_place » du bouton si elle vaut 1 … PLACES_LONGUES, sinon 1. Une clé « place » déjà écrite par
+# un programme de la version est remplacée. La place reste BORNÉE par le groupe du job (`place_bornee`), quoi que ce
+# pas écrive : ce pas ne fait que RÉPARTIR.
+def placer_la_matrice(variable):
+    """Rend les lignes de shell qui écrivent la place de chaque entrée de la matrice JSON `$<variable>`.
+
+    ① RÔLE — Répartir les jobs d'un passage sur les places choisies par le relais (commentaire ci-dessus).
+    ② CONTEXTE D'APPEL — La construction des gabarits SERIES (deux matrices) et EPREUVES (une).
+    ③ ENTRÉE — `variable` : le nom d'une variable de shell qui porte une liste JSON d'objets.
+    ④ CONDITIONS D'ENTRÉE — Le pas porte « PREMIERE: ${{ inputs.premiere_place }} » dans son « env: », et « jq » est
+      installé (machines de GitHub) ; `variable` est un nom de shell (lettres, chiffres, « _ »).
+    ⑤ SORTIE — UNE valeur : des lignes indentées de dix espaces.
+      [rend: 1]
+    ⑥ TRAITEMENT — p0 = PREMIERE si elle est un entier de 1 à PLACES_LONGUES, sinon 1 ; jq réécrit la liste, entrée par
+      entrée, avec « place » en texte ; un échec de jq arrête le pas (« ::error:: »).
+    ⑦ UNITÉ — Un numéro de place.
+    ⑧ POURQUOI — Commentaire de PLACES_LONGUES : GitHub ne prend pas « la première place libre », le relais choisit
+      les places les moins chargées au dépôt de la demande, et ce pas les applique ; sans lui, toutes les demandes
+      prendraient les places 1, 2, 3… et attendraient l'une derrière l'autre.
+    ⑨ CE QUI CLOCHE — Une liste qui n'est pas une liste d'objets fait échouer jq : le passage s'arrête, rien ne tourne.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", variable):
+        raise ValueError(f"nom de variable refusé : {variable!r}")
+    return ("""          p0=1
+          if [[ "$PREMIERE" =~ ^[1-9][0-9]?$ ]] && [ "$PREMIERE" -le """ + str(PLACES_LONGUES) + """ ]; then p0="$PREMIERE"; fi
+          """ + variable + """=$(jq -c --argjson p "$p0" --argjson m """ + str(PLACES_LONGUES) + """ '[to_entries[] | .value + {place: (((($p - 1) + .key) % $m) + 1 | tostring)}]' <<<"$""" + variable + """") || { echo "::error::places de la matrice illisibles"; exit 1; }
+""")
+
+
 SERIES_ENV_MATRICE = "".join("          PARTS_%s: ${{ inputs.parts_%s }}\n          LOT_%s: ${{ inputs.lot_%s }}\n"
                              % (c.upper(), c.lower(), c.upper(), c.lower()) for c, _, _, _ in SERIES_DU_CIRCUIT)
 
@@ -1783,6 +1955,7 @@ SERIES = """# SERIES LONGUES DE SABOTAGES, EN PARALLELE — FICHIER FABRIQUÉ, N
 # tests/EPREUVES_DES_AJUSTEMENTS_DE_YAHOO_Jeu_08-10-2026.py (liste : INTERDITS de tests/outils/jouer_une_part.py) —
 # retirés de la copie jouée, refusés comme épreuve, cherchés dans l'écoute de chaque part.
 name: Series longues de sabotages
+run-name: "Series longues de sabotages%(titre_places)s"
 on:
   workflow_dispatch:
     inputs:
@@ -1795,7 +1968,7 @@ permissions:
 jobs:
   preparer:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+%(place_du_passage)s    timeout-minutes: 30
     outputs:
       sha: ${{ steps.matrice.outputs.sha }}
       series: ${{ steps.matrice.outputs.series }}
@@ -1805,6 +1978,7 @@ jobs:
         id: matrice
         env:
           SERIE: ${{ inputs.serie }}
+          PREMIERE: ${{ inputs.premiere_place }}
 %(env_matrice)s        run: |
           set -u -o pipefail
           echec () { echo "::error::$1"; exit 1; }
@@ -1841,13 +2015,13 @@ jobs:
             echo "serie $s : $epreuve -> $releve, $n part(s), lots de $l"
           done
           [ "$(jq length <<<"$matrice")" -le 256 ] || echec "plus de 256 jobs : limite d'une matrice chez GitHub"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+%(placer_matrice)s%(placer_series)s          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "series=$series" >> "$GITHUB_OUTPUT"
           echo "matrice=$matrice" >> "$GITHUB_OUTPUT"
   jouer:
     needs: preparer
     runs-on: ubuntu-latest
-    # 330 minutes : sous les 6 heures d'une tâche chez GitHub, comme une tranche de la certification
+%(place_de_l_entree)s    # 330 minutes : sous les 6 heures d'une tâche chez GitHub, comme une tranche de la certification
     timeout-minutes: 330
     strategy:
       # une part rouge n'arrête pas les autres ; le rassemblement, lui, refuse dès qu'une seule n'est pas verte
@@ -1873,7 +2047,7 @@ jobs:
     needs: [preparer, jouer]
     if: ${{ !cancelled() && needs.preparer.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+%(place_de_l_entree)s    timeout-minutes: 90
     strategy:
       fail-fast: false
       # borne écrite pour que la largeur du circuit se CALCULE sur sa fiche (A-884) : une série au plus par machine, et
@@ -1911,9 +2085,11 @@ jobs:
           exit "$code"
 %(deposer_final)s""" % {
     "defaults": DEFAULTS, "installer": INSTALLER_LA_MESURE, "en_meme_temps": PARTS_EN_MEME_TEMPS,
-    "series_au_plus": max(1, len(SERIES_DU_CIRCUIT)),
-    "branches": SERIES_BRANCHES, "groupe": GROUPE_DES_MACHINES_LONGUES,
-    "entrees": SERIES_ENTREES, "env_matrice": SERIES_ENV_MATRICE, "toutes": TOUTES,
+    "series_au_plus": max(1, min(len(SERIES_DU_CIRCUIT), PARTS_EN_MEME_TEMPS)),
+    "branches": SERIES_BRANCHES, "groupe": GROUPE_DES_SERIES,
+    "entrees": SERIES_ENTREES, "titre_places": TITRE_DES_PLACES, "env_matrice": SERIES_ENV_MATRICE, "toutes": TOUTES,
+    "place_du_passage": groupe_de_place("inputs.premiere_place"), "place_de_l_entree": groupe_de_place("matrix.place"),
+    "placer_matrice": placer_la_matrice("matrice"), "placer_series": placer_la_matrice("series"),
     "codes": " ".join(s[0] for s in SERIES_DU_CIRCUIT),
     "depart_version": depart_pour(os.path.basename(CIRCUIT_SERIES), "des series longues",
                                   apres_le_clonage=SERIES_VERSION, ref="${{ inputs.version }}",
@@ -1981,9 +2157,11 @@ EPREUVES = ("""# EPREUVES LONGUES D'UN TENANT, EN PARALLELE — FICHIER FABRIQU�
 # LA TABLE : l'entrée « epreuves » ne porte que des CODES ; la commande de chaque code est FIGÉE dans la table
 # « epreuves_longues » de tests/LANCEMENT_DES_EPREUVES.json de la version éprouvée (lue par
 # tests/outils/jouer_une_epreuve_longue.py) ; aucun argument ne vient de la demande.
-# LE GROUPE : le même que le circuit des séries (%(groupe)s) : GitHub ne fait tourner qu'un passage du groupe à la fois,
-# les deux circuits ne dépassent donc jamais ensemble %(en_meme_temps)d machines ; la place des autres circuits se
-# CALCULE sur leurs fiches (`refus_de_la_largeur` du fabricant, A-884).
+# LES PLACES (étape FILE-2, 20-11-2026) : chaque job prend une place du réservoir commun aux circuits longs
+# (« place-longue-<k> », groupe de JOB, en file) : séries, épreuves longues et certification ensemble ne dépassent jamais
+# le nombre de places, quel que soit le nombre de passages ; au-delà, GitHub met les jobs en file sur leur place. Le
+# groupe du PASSAGE (%(groupe)s) fait se suivre deux passages de ce circuit sur une même branche. La place des autres
+# circuits se CALCULE sur leurs fiches (`refus_de_la_largeur` du fabricant, A-884).
 # CE QU'IL FAIT. ① « preparer » clone la version demandée, vérifie aussitôt, avant tout code de la version, qu'elle est
 # la branche publique lancée, qu'elle existe au privé et que la pointe demandée est exactement sa pointe (A-811 ; la
 # porte est celle du circuit des séries) ; puis il valide la liste contre la table de la version et fabrique la
@@ -2000,6 +2178,7 @@ EPREUVES = ("""# EPREUVES LONGUES D'UN TENANT, EN PARALLELE — FICHIER FABRIQU�
 # INTERDITS ICI : les programmes d'INTERDITS de tests/outils/jouer_une_part.py — retirés de la copie jouée ; une épreuve
 # qui les nomme est refusée par le joueur.
 name: Epreuves longues d'un tenant
+run-name: "Epreuves longues d'un tenant%(titre_places)s"
 on:
   workflow_dispatch:
     inputs:
@@ -2022,7 +2201,7 @@ permissions:
 jobs:
   preparer:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+%(place_du_passage)s    timeout-minutes: 30
     outputs:
       sha: ${{ steps.matrice.outputs.sha }}
       matrice: ${{ steps.matrice.outputs.matrice }}
@@ -2031,18 +2210,19 @@ jobs:
         id: matrice
         env:
           EPREUVES: ${{ inputs.epreuves }}
+          PREMIERE: ${{ inputs.premiere_place }}
         run: |
           set -u -o pipefail
           matrice=$(python3 -B tests/outils/jouer_une_epreuve_longue.py --matrice . "$EPREUVES") || { echo "::error::liste d epreuves refusee"; exit 1; }
           n=$(jq length <<<"$matrice") || { echo "::error::matrice illisible"; exit 1; }
           [ "$n" -ge 1 ] && [ "$n" -le 256 ] || { echo "::error::matrice de $n epreuve(s) : de 1 a 256"; exit 1; }
           echo "$n epreuve(s) : $(jq -r '[.[].code] | join(" ")' <<<"$matrice")"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+%(placer_matrice)s          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "matrice=$matrice" >> "$GITHUB_OUTPUT"
   jouer:
     needs: preparer
     runs-on: ubuntu-latest
-    # DUREE_D_UNE_EPREUVE_LONGUE minutes : sous les 6 heures d'une tâche chez GitHub ; le joueur coupe l'épreuve sur le
+%(place_de_l_entree)s    # DUREE_D_UNE_EPREUVE_LONGUE minutes : sous les 6 heures d'une tâche chez GitHub ; le joueur coupe l'épreuve sur le
     # temps qui reste au job, compté depuis le pas « depart », moins MARGE_D_ECRITURE
     timeout-minutes: %(duree)d
     strategy:
@@ -2073,8 +2253,10 @@ jobs:
             --sortie="$GITHUB_WORKSPACE/rapports/epreuves_longues/$GITHUB_RUN_ID/$CODE"
 %(deposer)s""") % {
     "defaults": DEFAULTS, "installer": INSTALLER_LA_MESURE, "logiciels": LOGICIELS_DE_LA_CERTIFICATION,
-    "en_meme_temps": PARTS_EN_MEME_TEMPS, "branches": EPREUVES_BRANCHES, "groupe": GROUPE_DES_MACHINES_LONGUES,
-    "entrees": EPREUVES_ENTREES, "duree": DUREE_D_UNE_EPREUVE_LONGUE,
+    "en_meme_temps": PARTS_EN_MEME_TEMPS, "branches": EPREUVES_BRANCHES, "groupe": GROUPE_DES_EPREUVES,
+    "entrees": EPREUVES_ENTREES + ENTREES_DES_PLACES, "titre_places": TITRE_DES_PLACES, "duree": DUREE_D_UNE_EPREUVE_LONGUE,
+    "place_du_passage": groupe_de_place("inputs.premiere_place"), "place_de_l_entree": groupe_de_place("matrix.place"),
+    "placer_matrice": placer_la_matrice("matrice"),
     "depart_version": depart_pour(os.path.basename(CIRCUIT_EPREUVES), "des epreuves longues",
                                   apres_le_clonage=SERIES_VERSION, ref="${{ inputs.version }}",
                                   aussi=("demande_de_serie.yml",)),
@@ -2125,15 +2307,15 @@ NOM_DE_DEMANDE = r"^demandes/DEMANDE_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2
 CIRCUITS_DU_RELAIS = (("series", os.path.basename(CIRCUIT_SERIES), MOTIF_DE_VERSION),
                       ("examen", os.path.basename(CIRCUIT_CERTIFICATION), "^main$"),
                       ("epreuve", os.path.basename(CIRCUIT_EPREUVES), MOTIF_DE_VERSION))
-# Les circuits qui partagent GROUPE_DES_MACHINES_LONGUES : avant de lancer l'un, le relais compte les passages en cours
-# ou en attente de TOUS (GitHub ne garde qu'un passage en attente par groupe, quel que soit le circuit : une demande
-# d'épreuves ferait disparaître sans message une série en attente, et l'inverse).
-# A-896 (18-11-2026) : la certification porte aussi ce groupe, mais N'EST PAS comptée ici. Raison : chaque fiche du
-# groupe porte désormais « queue: max » (`refus_de_la_file`), une demande en attente n'est plus remplacée ; ne pas la
-# compter laisse une série demandée pendant la certification de nuit attendre son tour au lieu d'être refusée. Le garde
-# reste aussi strict qu'avant pour les séries et les épreuves (un seul de leurs passages en cours ou en attente) ; son
-# affinage (étape ③ de l'étude A-884) n'est pas fait.
-CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_SERIES), os.path.basename(CIRCUIT_EPREUVES))
+# Les circuits qui partagent le réservoir des places (PLACES_LONGUES) : avant de lancer l'un, le relais lit les titres
+# des passages en cours ou en attente de TOUS et CHOISIT des places ; il ne refuse plus jamais pour cause de passage en
+# cours (étape FILE-2, décisions A-884 ②, A-888 et du 20-11-2026 à 20h52, commentaire de PLACES_LONGUES). Historique :
+# du 08-11 au 20-11-2026, il refusait dès qu'un passage des séries ou des épreuves était en cours ou en attente, parce
+# que GitHub ne gardait qu'un passage en attente par groupe (un troisième faisait disparaître le deuxième sans message) ;
+# depuis A-896 (18-11-2026) chaque fiche porte « queue: max » (essai réel du 18-11-2026 : trois passages réussis l'un
+# après l'autre). La certification est lue aussi : ses tranches occupent les places 1 … TRANCHES_DE_LA_NUIT.
+CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_SERIES), os.path.basename(CIRCUIT_EPREUVES),
+                           os.path.basename(CIRCUIT_CERTIFICATION))
 TAILLE_DE_DEMANDE = 1000          # octets au plus
 
 
@@ -2169,14 +2351,17 @@ RELAIS = """# DEMANDE DE SERIE — LE RELAIS — FICHIER FABRIQUÉ, NE PAS ÉCRI
 # CE QU'IL FAIT, DANS L'ORDRE : ① la poussée doit porter UN commit, dont le parent est la pointe d'avant, qui AJOUTE UN
 # seul fichier, demandes/DEMANDE_<AAAA-MM-JJ_HHhMM>.txt (une publication de code ne lance donc jamais rien) ; ② le fichier
 # est lu en ASCII strict, une clé par ligne, clés connues seulement, valeurs validées par des motifs tirés de la table
-# des séries (tests/LANCEMENT_DES_EPREUVES.json) ; ③ aucun passage du circuit des séries ne doit être en cours ou en
-# attente (GitHub n'en garde qu'un en attente par groupe : un troisième ferait disparaître le deuxième sans message) ;
+# des séries (tests/LANCEMENT_DES_EPREUVES.json) ; ③ pour un circuit long (séries, épreuves, examen), il CHOISIT LES
+# PLACES (étape FILE-2, 20-11-2026) : il compte les jobs prévus, lit la charge de chaque place du réservoir dans le
+# titre des passages en cours ou en attente des trois circuits (« … places <p>+<n> »), et prend la fenêtre de places
+# consécutives la moins chargée ; il ne refuse JAMAIS pour un passage en cours : la demande part, et ses jobs attendent
+# sur leur place si elle est prise (« queue: max ») ; ses propres passages font file aussi (« queue: max » ci-dessous) ;
 # ④ « a_blanc=oui » : il écrit au journal ce qu'il aurait lancé et s'arrête ; sinon il lance le circuit des séries
 # sur CETTE branche, version = nom de la branche, pointe = la pointe demandée (obligatoire depuis travail-…, A-811),
 # chaque valeur passée explicitement (celles absentes de la demande prennent la valeur de la table).
 # « circuit=epreuve » (étape GHUB ②, 15-11-2026) : « epreuves=<code>,<code>… » ou « epreuves=""" + TOUTES + """ » (codes
 # de la table epreuves_longues), « pointe » obligatoire depuis travail-… ; il lance epreuves_longues.yml. Les séries et
-# les épreuves partagent un groupe de concurrence : le compte des passages en cours porte sur les DEUX circuits.
+# les épreuves et la certification partagent le réservoir des places : le choix des places lit les TROIS circuits.
 # CE QU'IL N'A PAS : aucune clé du dépôt privé, aucun clonage du privé, aucun programme de la version lancé (seulement
 # des commandes du système et gh) ; permissions : lire le dépôt, lancer un circuit. Ce texte a été relu ; le
 # fabricant refuse de publier un relais qui n'est pas ce texte, octet pour octet (empreinte), et tout autre circuit
@@ -2189,6 +2374,7 @@ on:
 concurrency:
   group: demande-de-serie
   cancel-in-progress: false
+  queue: max
 permissions:
   contents: read
   actions: write
@@ -2313,30 +2499,66 @@ jobs:
             echo "::error::DEMANDE REFUSEE : elle regle la serie %(c)s, qu'elle ne joue pas (serie $SERIE)"
             exit 1
           fi
-""") + """          COMPTES="$FICHIER"
-          if [[ " """ + " ".join(CIRCUITS_DU_GROUPE_LONG) + """ " == *" $FICHIER "* ]]; then COMPTES=\"""" + " ".join(CIRCUITS_DU_GROUPE_LONG) + """\"; fi
-          for F in $COMPTES; do
-            en_cours=$(gh run list --workflow "$F" --limit 100 --json status --jq '[.[] | select(.status != "completed")] | length' 2>"$D/erreur_gh") || {
-              if grep -qi "could not find" "$D/erreur_gh"; then echo "::error::DEMANDE REFUSEE : le circuit $F est inconnu de GitHub au depot public (le relais et $F s installent dans la meme publication, puis une demande a_blanc=oui)"; else echo "::error::DEMANDE REFUSEE : passages de $F illisibles"; fi
-              exit 1; }
-            [ "$en_cours" = "0" ] || { echo "::error::DEMANDE REFUSEE : $en_cours passage(s) de $F en cours ou en attente ; redeposer la demande quand ils sont finis"; exit 1; }
-          done
-          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE""" + _relais_par_serie(" ; parts_%(m)s $PARTS_%(M)s ; lot_%(m)s $LOT_%(M)s") + """ ; epreuves $EPREUVES ; a blanc $A_BLANC"
+""") + """          PREMIERE=""
+          NOMBRE=""
+          if [[ " """ + " ".join(CIRCUITS_DU_GROUPE_LONG) + """ " == *" $FICHIER "* ]]; then
+            # ETAPE FILE-2 : LES PLACES de cette demande, jamais un refus. Le nombre de jobs prevus ; la charge de chaque
+            # place lue dans le titre des passages en cours ou en attente des trois circuits longs (un titre sans places,
+            # passage lance a la main avant l'etape FILE-2, est ignore : charger toutes les places a la fois ne changerait
+            # pas le choix) ; la fenetre de places consecutives la moins chargee.
+            # Le reservoir est borne par les groupes de job, pas par ce choix : ce choix ne fait que repartir.
+            if [ "$CIRCUIT" = "epreuve" ]; then
+              if [ "$EPREUVES" = \"""" + TOUTES + """\" ]; then NOMBRE=""" + str(len(EPREUVES_DU_CIRCUIT)) + """; else IFS=, read -ra liste <<<"$EPREUVES"; NOMBRE=${#liste[@]}; fi
+            elif [ "$CIRCUIT" = "series" ]; then
+              NOMBRE=0
+""" + _relais_par_serie("""              if [ "$SERIE" = "%(t)s" ] || [ "$SERIE" = "%(c)s" ]; then NOMBRE=$(( NOMBRE + PARTS_%(M)s )); fi
+""") + """            else
+              NOMBRE=""" + str(TRANCHES_DE_LA_NUIT) + """
+            fi
+            : > "$D/passages"
+            for F in """ + " ".join(CIRCUITS_DU_GROUPE_LONG) + """; do
+              gh run list --workflow "$F" --limit 100 --json status,displayTitle --jq '.[] | select(.status != "completed") | .displayTitle' >> "$D/passages" 2>"$D/erreur_gh" || {
+                if grep -qi "could not find" "$D/erreur_gh"; then echo "::error::DEMANDE REFUSEE : le circuit $F est inconnu de GitHub au depot public (le relais et $F s installent dans la meme publication, puis une demande a_blanc=oui)"; else echo "::error::DEMANDE REFUSEE : passages de $F illisibles"; fi
+                exit 1; }
+            done
+            M=""" + str(PLACES_LONGUES) + """
+            declare -a charge=()
+            for (( k = 1; k <= M; k++ )); do charge[k]=0; done
+            while IFS= read -r t; do
+              if [[ "$t" =~ \\ places\\ ([1-9][0-9]?)\\+([1-9][0-9]{0,2})$ ]] && [ "${BASH_REMATCH[1]}" -ge 1 ] && [ "${BASH_REMATCH[1]}" -le "$M" ] && [ "${BASH_REMATCH[2]}" -ge 1 ]; then
+                p="${BASH_REMATCH[1]}"; n="${BASH_REMATCH[2]}"; [ "$n" -le "$M" ] || n="$M"
+                for (( i = 0; i < n; i++ )); do k=$(( (p - 1 + i) % M + 1 )); charge[k]=$(( charge[k] + 1 )); done
+              fi
+            done < "$D/passages"
+            if [ "$CIRCUIT" != "epreuve" ] && [ "$CIRCUIT" != "series" ]; then
+              PREMIERE=1
+            else
+              w="$NOMBRE"; [ "$w" -le "$M" ] || w="$M"; [ "$w" -ge 1 ] || w=1
+              meilleure=""
+              for (( p = 1; p <= M; p++ )); do
+                somme=0
+                for (( i = 0; i < w; i++ )); do somme=$(( somme + charge[(p - 1 + i) % M + 1] )); done
+                if [ -z "$meilleure" ] || [ "$somme" -lt "$meilleure" ]; then meilleure="$somme"; PREMIERE="$p"; fi
+              done
+            fi
+            echo "places $PREMIERE+$NOMBRE (jobs en cours ou en attente par place :$(for (( k = 1; k <= M; k++ )); do printf ' %s=%s' "$k" "${charge[k]}"; done)) ; un job attend sur sa place si elle est occupee"
+          fi
+          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; places ${PREMIERE:-aucune}+${NOMBRE:-0} ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE""" + _relais_par_serie(" ; parts_%(m)s $PARTS_%(M)s ; lot_%(m)s $LOT_%(M)s") + """ ; epreuves $EPREUVES ; a blanc $A_BLANC"
           if [ "$A_BLANC" = "oui" ]; then
             echo "A BLANC : rien n'est lance"
             exit 0
           fi
           if [ "$CIRCUIT" = "epreuve" ]; then
-            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "epreuves=$EPREUVES" || { echo "::error::le circuit des epreuves n'a pas pu etre lance"; exit 1; }
+            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "epreuves=$EPREUVES" -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit des epreuves n'a pas pu etre lance"; exit 1; }
             echo "LANCE : $FICHIER sur $BRANCHE"
             exit 0
           fi
           if [ "$CIRCUIT" != "series" ]; then
-            gh workflow run "$FICHIER" --ref "$BRANCHE" || { echo "::error::le circuit $FICHIER n'a pas pu etre lance"; exit 1; }
+            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit $FICHIER n'a pas pu etre lance"; exit 1; }
             echo "LANCE : $FICHIER sur $BRANCHE"
             exit 0
           fi
-          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE\"""" + _relais_par_serie(""" -f "parts_%(m)s=$PARTS_%(M)s" -f "lot_%(m)s=$LOT_%(M)s\"""") + """ || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
+          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE\"""" + _relais_par_serie(""" -f "parts_%(m)s=$PARTS_%(M)s" -f "lot_%(m)s=$LOT_%(M)s\"""") + """ -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
           echo "LANCE : $FICHIER sur $BRANCHE"
 """
 if ERREUR_DE_LA_TABLE:
@@ -2397,7 +2619,7 @@ BRANCHES_DES_GABARITS = {"series": SERIES_BRANCHES, "epreuves": EPREUVES_BRANCHE
 # retire ces variables de l'environnement de l'épreuve qu'il joue : la changer ici, c'est la changer là.
 COMMANDES_DU_SYSTEME = frozenset(("git", "printf", "base64", "echo", "[", "[[", "test", "cut", "grep", "awk", "tr",
                                   "true", "exit", "set", "mkdir", "rm", "tar", "mv", "cp", "cd", "mktemp", "export",
-                                  "read", "unset"))
+                                  "read", "unset", "sleep"))   # sleep : l'attente entre deux essais de poussée (étape FILE-2)
 FICHIERS_DE_COMMANDES_DE_GITHUB = ("GITHUB_ENV", "GITHUB_PATH", "GITHUB_OUTPUT", "GITHUB_STATE", RESUME_PUBLIC, "BASH_ENV")
 # les jetons après lesquels le mot suivant est en position de commande
 _AVANT_UNE_COMMANDE = frozenset((";", "&&", "||", "|", "(", "<(", "{", "!", "then", "do", "else", "elif", "if", "while",
@@ -2586,8 +2808,9 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
       matrice <j> dont il dépend (« needs: » en ligne ou en liste à tirets, depuis le 15-11-2026), sauf déclaration dans SANS_LECTURE_DU_RESULTAT · ⑥ dans un gabarit de
       BRANCHES_DES_GABARITS, les lignes coupées par une barre inverse sont recollées (la barre, la fin de ligne et
       les blancs du début de la ligne suivante retirés), puis toute ligne qui contient « push » (sans égard à la casse) doit avoir
-      EXACTEMENT la forme permise, git push -q origin "HEAD:refs/heads/<préfixe><CIBLE_DE_POUSSEE>" || { echo
-      "<message>"; exit 1; } ; et le préfixe de ses branches ne commence pas par « travail- » · ⑦ dans TOUT gabarit
+      EXACTEMENT l'une des deux formes permises, git push -q origin "HEAD:refs/heads/<préfixe><CIBLE_DE_POUSSEE>" ||
+      { echo "<message>"; exit 1; }, ou (étape FILE-2, l'essai d'une boucle) if git push -q origin
+      "HEAD:refs/heads/<préfixe><CIBLE_DE_POUSSEE>"; then echo "<message>"; exit 0; fi ; et le préfixe de ses branches ne commence pas par « travail- » · ⑦ dans TOUT gabarit
       (depuis le 15-11-2026 ; avant, ceux de BRANCHES_DES_GABARITS seulement), chaque clonage du dépôt privé
       (« - uses: actions/checkout@… » dont le bloc, lu par indentation, porte « repository: » DEPOT_PRIVE) porte une
       ligne « ref: » non vide ; ⑦ bis (15-11-2026) si cette ligne est une sortie d'un autre job
@@ -2783,8 +3006,10 @@ def verifier_les_gabarits_publics(gabarits, circuit_du_soir):
         if prefixe is not None:
             if prefixe.startswith("travail-"):
                 raise ValueError(f"gabarit {nom} : ses branches commencent par « travail- », réservé à la version en attente")
-            forme = re.compile(r'\s*git push -q origin "HEAD:refs/heads/' + re.escape(prefixe) + CIBLE_DE_POUSSEE
-                               + r'" \|\| \{ echo "[^"$`\\]*"; exit 1; \}\s*')
+            # deux formes permises (étape FILE-2 : la seconde est l'essai d'une boucle de `pas_de_depot`, qui sort à 0)
+            cible = r'git push -q origin "HEAD:refs/heads/' + re.escape(prefixe) + CIBLE_DE_POUSSEE + r'"'
+            forme = re.compile(r'\s*(?:' + cible + r' \|\| \{ echo "[^"$`\\]*"; exit 1; \}|if ' + cible
+                               + r'; then echo "[^"`\\]*"; exit 0; fi)\s*')
             for l in re.sub(r"\\\n[ \t]*", "", texte).split("\n"):
                 if "push" in l.lower() and not forme.fullmatch(l):
                     raise ValueError(f"gabarit {nom} : une poussée hors de la forme permise (git push -q origin "
@@ -3731,7 +3956,8 @@ def conditions_du_circuit(texte):
 # est le plus grand nombre de ses tâches qui tournent ensemble dans UN passage : une matrice compte sa taille, bornée par
 # son « max-parallel » ; deux jobs liés par « needs » ne tournent jamais ensemble ; deux jobs sans lien, si. Un groupe de
 # concurrence au premier niveau ne fait tourner qu'un passage à la fois : les fiches d'un même groupe comptent pour la
-# plus large d'entre elles. Pourquoi : la marge écrite à la main le 15-11-2026 (10) avait divergé le jour même — la
+# plus large d'entre elles. Une fiche dont chaque job porte une place du réservoir (étape FILE-2) compte UNE tâche par
+# place, quel que soit le nombre de ses passages (`largeur_d_une_fiche`, `groupes_reels`). Pourquoi : la marge écrite à la main le 15-11-2026 (10) avait divergé le jour même — la
 # certification passée de 6 à 12 tranches — et aucune épreuve ne l'a vu (16 + 10 = 26 > 20, mesuré par l'étude) :
 # « un chiffre qui existe ailleurs ne se recopie pas » (R-708) ; « ce qui se calcule ne s'écrit jamais à la main » (R-728).
 # LE LECTEUR est celui des conditions (`conditions_du_circuit`) : même sous-ensemble YAML (CLE_YAML, SCALAIRE_DE_LISTE,
@@ -3749,8 +3975,8 @@ JAMAIS_ATTENDRE, PEUT_ATTENDRE, LONGS = "jamais attendre", "peut attendre", "lon
 #   peut attendre — le consensus et l'essai des archives (posés à la main au dépôt public, aucun passage depuis le 10-10-2026) : ils N'ENTRENT PAS
 #     dans la somme, et l'on SUPPOSE que GitHub les met en file au-delà de 20 (THÉORIQUE, jamais mesuré) ;
 #   longs — les séries, les épreuves longues et, depuis A-896 (décision de Jean-Luc du 18-11-2026 à 12h25, la file
-#     unique), la certification : un seul groupe (GROUPE_DES_MACHINES_LONGUES), une file (« queue: max »,
-#     `refus_de_la_file`). Avant A-896 la certification était « peut attendre », hors de la somme : sa tranche en file
+#     unique), la certification : un seul réservoir de places (PLACES_LONGUES, étape FILE-2 ; avant, un seul groupe
+#     de passage), chaque place une file (« queue: max », `largeur_d_une_fiche`). Avant A-896 la certification était « peut attendre », hors de la somme : sa tranche en file
 #     pouvait prendre une des deux places du soir (défaut D1 de la relecture de A-884, superviseur : RUSTINE).
 FAMILLES_DES_CIRCUITS_PUBLICS = {
     os.path.basename(CIRCUIT_PUBLIC): JAMAIS_ATTENDRE,
@@ -3776,11 +4002,14 @@ def structure_d_une_fiche(texte):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — TROIS valeurs : le groupe (texte, sans guillemets ; None si la fiche n'a pas de « concurrency » au premier
       niveau), le dictionnaire {job : {"needs": [noms], "max_parallel": entier ou None, "matrice": None (pas de
-      matrice) ou liste des tailles, None pour une taille calculée par GitHub (« ${{ … }} »)}}, et la file du groupe
+      matrice) ou liste des tailles, None pour une taille calculée par GitHub (« ${{ … }} »), "groupe": le groupe DE JOB
+      (texte sans guillemets, ou None), "file": None, ou {"queue": …, "cancel-in-progress": …} du groupe de job
+      (étape FILE-2)}}, et la file du groupe
       {"queue": texte ou None, "cancel-in-progress": texte ou None} (valeurs écrites sous « concurrency: », sans
       guillemets ; ajoutée par A-896, lue par `refus_de_la_file`). Lève ValueError :
       caractère d'une catégorie refusée · ligne hors du sous-ensemble · chaîne non fermée sur sa ligne · « jobs: »
-      absent ou vide · job qui appelle un autre circuit (« uses: ») ou porte son propre groupe (« concurrency: ») ·
+      absent ou vide · job qui appelle un autre circuit (« uses: ») · « concurrency: » de job écrit sur sa ligne, sans
+      « group: », ou avec une autre clé que group, queue, cancel-in-progress ·
       « needs » ou « max-parallel » d'une forme non lue · « max-parallel » qui n'est pas un entier positif écrit ·
       élément de matrice qui n'est pas un scalaire · « include »/« exclude » écrits en clair · clé de matrice vide.
       [rend: 3]
@@ -3879,10 +4108,23 @@ def structure_d_une_fiche(texte):
         elif len(chemin) == 2 and chemin[0] == "jobs":
             if m.group(2) or valeur:
                 raise ValueError(f"job d'une forme non lue ({ou})")
-            jobs[cle] = {"needs": [], "max_parallel": None, "matrice": None, "_cles": {}, "_dynamique": False}
+            jobs[cle] = {"needs": [], "max_parallel": None, "matrice": None, "_cles": {}, "_dynamique": False,
+                         "groupe": None, "file": None}
+        elif len(chemin) == 4 and chemin[0] == "jobs" and chemin[2] == "concurrency":
+            # étape FILE-2 : le groupe d'un JOB (sa place dans le réservoir) et sa file
+            if cle == "group":
+                jobs[chemin[1]]["groupe"] = sans_guillemets
+            elif cle in ("queue", "cancel-in-progress"):
+                jobs[chemin[1]]["file"][cle] = sans_guillemets
+            else:
+                raise ValueError(f"le job « {chemin[1]} » porte « concurrency.{cle} », forme non lue ({ou})")
         elif len(chemin) == 3 and chemin[0] == "jobs":
-            if cle in ("uses", "concurrency"):
+            if cle == "uses":
                 raise ValueError(f"le job « {chemin[1]} » porte « {cle}: » : sa largeur n'est pas lue par ce programme ({ou})")
+            if cle == "concurrency":
+                if valeur:
+                    raise ValueError(f"le job « {chemin[1]} » porte « concurrency: » sur sa ligne : forme non lue ({ou})")
+                jobs[chemin[1]]["file"] = {"queue": None, "cancel-in-progress": None}
             if cle == "needs":
                 liste = LISTE_EN_LIGNE.match(valeur)
                 if liste:
@@ -3923,6 +4165,8 @@ def structure_d_une_fiche(texte):
     if not vu_jobs or not jobs:
         raise ValueError("aucun job lu (« jobs: » absent ou vide)")
     for nom, j in jobs.items():
+        if j["file"] is not None and j["groupe"] is None:
+            raise ValueError(f"job « {nom} » : « concurrency: » sans « group: »")
         if j["matrice"] is not None:
             for cle, n in j["_cles"].items():
                 if n == 0:
@@ -3943,9 +4187,14 @@ def largeur_d_une_fiche(texte):
     ③ ENTRÉE — `texte` : le texte d'une fiche de circuit.
     ④ CONDITIONS D'ENTRÉE — Celles de `structure_d_une_fiche`.
     ⑤ SORTIE — DEUX valeurs : le groupe (None si la fiche n'en a pas, ou si son nom porte « ${{ », c'est-à-dire change
-      d'un passage à l'autre et ne borne donc rien) et la largeur (entier ≥ 1). Lève ValueError : celles de
-      `structure_d_une_fiche` · une matrice dont GitHub calcule la taille sans « max-parallel » (sans borne) · un
-      « needs » qui nomme un job absent · un cycle de « needs » · plus de 16 jobs.
+      d'un passage à l'autre et ne borne donc rien) et la largeur (entier ≥ 1). FICHE DU RÉSERVOIR (étape FILE-2) : si
+      un job au moins porte un groupe de job, CHAQUE job doit porter l'un des groupes de place reconstruits ici
+      (PREFIXE_DES_PLACES + `place_bornee`(source), source de SOURCES_DE_PLACE, à l'octet), avec « queue: max » et sans
+      « cancel-in-progress: true » ; la fiche rend alors RESERVOIR_DES_PLACES et PLACES_LONGUES, quel que soit le nombre
+      de ses passages. Lève ValueError : celles de `structure_d_une_fiche` · une matrice dont GitHub calcule la taille
+      sans « max-parallel » (sans borne) · un « needs » qui nomme un job absent · un cycle de « needs » · plus de 16
+      jobs · un job sans place dans une fiche à places, un groupe de job non reconnu, une place sans « queue: max » ou
+      avec « cancel-in-progress: true ».
       [rend: 2]
     ⑥ TRAITEMENT — largeur d'un job : 1 sans matrice ; sinon le produit des tailles, borné par « max-parallel », ou
       « max-parallel » seul si une taille est calculée par GitHub · les ancêtres de chaque job par « needs » · la
@@ -3982,6 +4231,20 @@ def largeur_d_une_fiche(texte):
             for n in j["matrice"]:
                 taille *= n
             largeurs[nom] = min(taille, j["max_parallel"]) if j["max_parallel"] is not None else taille
+    if any(j["groupe"] is not None for j in jobs.values()):
+        # étape FILE-2 : une fiche du réservoir — chaque job sur une place bornée, en file ; ses matrices restent
+        # bornées (ci-dessus), même si le réservoir les borne déjà : la règle la plus stricte
+        places = {PREFIXE_DES_PLACES + place_bornee(source) for source in SOURCES_DE_PLACE}
+        for nom, j in jobs.items():
+            if j["groupe"] is None:
+                raise ValueError(f"job « {nom} » sans place dans une fiche à places : ses passages ne sont pas bornés")
+            if j["groupe"] not in places:
+                raise ValueError(f"job « {nom} » : groupe de job non reconnu (pas une place bornée du réservoir) : "
+                                 f"{j['groupe'][:80]}")
+            if j["file"]["queue"] != "max" or j["file"]["cancel-in-progress"] == "true":
+                raise ValueError(f"job « {nom} » : sa place n'est pas une file (« queue: max », sans "
+                                 "« cancel-in-progress: true ») : un job en attente serait annulé")
+        return RESERVOIR_DES_PLACES, PLACES_LONGUES
     ancetres = {}
 
     def remonter(nom, chemin):
@@ -4024,6 +4287,28 @@ def largeur_d_une_fiche(texte):
     return groupe, meilleure
 
 
+def groupes_reels(groupe):
+    """Rend les groupes de concurrence RÉELS qu'un groupe rendu par `largeur_d_une_fiche` occupe chez GitHub.
+
+    ① RÔLE — Déplier le réservoir (RESERVOIR_DES_PLACES) en ses PLACES_LONGUES groupes de place.
+    ② CONTEXTE D'APPEL — `refus_de_la_largeur` (une fiche du réservoir compte 1 par place) et `refus_de_la_file`
+      (partage de groupe).
+    ③ ENTRÉE — `groupe` : le groupe rendu par `largeur_d_une_fiche` (texte ou None).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un tuple — NOMS_DES_PLACES si `groupe` est RESERVOIR_DES_PLACES, sinon (groupe,).
+      [rend: 1]
+    ⑥ TRAITEMENT — une comparaison.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Commentaire de PLACES_LONGUES : chaque job d'une fiche du réservoir prend une place, laquelle se
+      décide au passage ; pour la somme et pour les partages, la fiche est dans CHAQUE place.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return NOMS_DES_PLACES if groupe == RESERVOIR_DES_PLACES else (groupe,)
+
+
 def refus_de_la_largeur(fiches):
     """Rend les refus de la largeur du compte et le détail du calcul, pour un ensemble de fiches publiques.
 
@@ -4040,7 +4325,8 @@ def refus_de_la_largeur(fiches):
     ⑥ TRAITEMENT — pour chaque fiche, dans l'ordre des noms : sa famille dans FAMILLES_DES_CIRCUITS_PUBLICS (absente :
       refus, et comptée « jamais attendre ») ; sa largeur (`largeur_d_une_fiche` ; illisible : refus) ; une fiche
       « peut attendre » n'entre pas dans la somme ; une fiche comptée sans groupe de concurrence : refus (plusieurs de
-      ses passages peuvent tourner ensemble), comptée pour un passage ; les fiches comptées d'un même groupe comptent
+      ses passages peuvent tourner ensemble), comptée pour un passage ; une fiche du réservoir compte 1 dans chacune
+      des places (`groupes_reels`, étape FILE-2) ; les fiches comptées d'un même groupe comptent
       pour la plus large ; la somme des groupes ne dépasse pas TACHES_EN_MEME_TEMPS_DU_COMPTE, sinon refus ; puis les
       refus de `refus_de_la_file` (groupe partagé sans file, « peut attendre » dans un groupe compté, « jamais attendre »
       qui partage son groupe avec une autre fiche).
@@ -4076,10 +4362,16 @@ def refus_de_la_largeur(fiches):
             refus.append(f"{nom} : comptée parmi les circuits qui n'attendent pas, sans groupe de concurrence fixe : "
                          "plusieurs de ses passages peuvent tourner ensemble, largeur sans borne (un passage compté)")
             groupe = "(aucun groupe : " + nom + ")"
-        groupes[groupe] = max(groupes.get(groupe, 0), largeur)
-        membres.setdefault(groupe, []).append(nom)
+        # étape FILE-2 : une fiche du réservoir occupe au plus UNE machine par place, quel que soit son nombre de passages
+        part = 1 if groupe == RESERVOIR_DES_PLACES else largeur
+        for reel in groupes_reels(groupe):
+            groupes[reel] = max(groupes.get(reel, 0), part)
+            membres.setdefault(reel, []).append(nom)
     total = sum(groupes.values())
-    detail = " + ".join(f"{g} {groupes[g]}" for g in sorted(groupes)) or "rien"
+    hors = [g for g in sorted(groupes) if g not in NOMS_DES_PLACES]
+    detail = " + ".join([f"{g} {groupes[g]}" for g in hors]
+                        + ([f"{RESERVOIR_DES_PLACES} {sum(groupes[g] for g in NOMS_DES_PLACES if g in groupes)}"]
+                           if any(g in groupes for g in NOMS_DES_PLACES) else [])) or "rien"
     lignes.append(f"circuits qui peuvent tourner ensemble sans attendre : {detail} = {total} "
                   f"(limite du compte : {TACHES_EN_MEME_TEMPS_DU_COMPTE})")
     if attente:
@@ -4106,9 +4398,12 @@ def refus_de_la_file(fiches, membres):
     ⑤ SORTIE — UNE valeur : la liste des refus (textes ; vide si tout va).
       [rend: 1]
     ⑥ TRAITEMENT — ① pour chaque groupe qui a au moins deux fiches comptées, chacune doit porter « queue: max » et ne pas
-      porter « cancel-in-progress: true » · ② pour chaque fiche « peut attendre » lisible, son groupe ne doit être celui
+      porter « cancel-in-progress: true » · ①bis (étape FILE-2) chaque fiche de la famille LONGS porte un groupe de
+      passage fixe ou nommé par sa branche (« ${{ github.ref_name }} », aucune autre expression), en file · ② pour chaque fiche « peut attendre » lisible, son groupe ne doit être celui
       d'aucune fiche comptée · ③ pour chaque fiche de la famille JAMAIS_ATTENDRE lisible et qui a un groupe, aucune
-      autre fiche lisible de `fiches` (comptée ou non, classée ou non) ne doit porter ce groupe.
+      autre fiche lisible de `fiches` (comptée ou non, classée ou non) ne doit porter ce groupe. ② et ③ comparent les
+      groupes RÉELS (`groupes_reels` : le réservoir vaut chacune de ses places, étape FILE-2) ; ① ne lit pas les places,
+      dont la file est celle de chaque job, vérifiée par `largeur_d_une_fiche`.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — GitHub ne garde par défaut qu'UN passage en attente par groupe : un troisième annule le deuxième. Essai
       réel du 18-11-2026 (dépôt public, branche essai-queue-max-18-11-2026, commentaire de TRANCHES_DE_LA_NUIT) : sans
@@ -4122,16 +4417,16 @@ def refus_de_la_file(fiches, membres):
       attendrait derrière elle (une séance non lue le jour même perd ses signaux pour toujours), et le compte par groupe
       le ferait disparaître de la somme (mesuré par la relecture : 19 au lieu de 20, aucun refus).
     ⑨ CE QUI CLOCHE — Un groupe qui ne compte qu'une fiche n'est pas obligé d'être une file : deux passages rapprochés
-      d'un même circuit peuvent encore s'annuler (le relais des demandes, `demande-de-serie`, A-884 étape ③, non
-      traité ici). Au-delà de 100 passages en attente, GitHub annule aussi (documentation) : rien ne le compte ici.
+      d'un même circuit peuvent encore s'annuler. Le relais des demandes (`demande-de-serie`) porte « queue: max »
+      depuis l'étape FILE (20-11-2026, épreuve G5 du relais), mais rien ICI ne l'exige d'un groupe à une seule fiche. Au-delà de 100 passages en attente, GitHub annule aussi (documentation) : rien ne le compte ici.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     refus = []
     for groupe in sorted(membres):
-        if len(membres[groupe]) < 2:
-            continue
+        if len(membres[groupe]) < 2 or groupe in NOMS_DES_PLACES:
+            continue   # une place : sa file est celle de chaque JOB, vérifiée par `largeur_d_une_fiche` (étape FILE-2)
         for nom in sorted(membres[groupe]):
             _, _, file = structure_d_une_fiche(fiches[nom])
             if file["queue"] != "max":
@@ -4139,27 +4434,44 @@ def refus_de_la_file(fiches, membres):
                              "un troisième passage annulerait celui qui attend")
             if file["cancel-in-progress"] == "true":
                 refus.append(f"{nom} : groupe « {groupe} » partagé avec « cancel-in-progress: true »")
+    # étape FILE-2, LA PROTECTION FINE (commentaire de GROUPE_DES_EPREUVES) : chaque fiche « longs » porte un groupe DE
+    # PASSAGE fixe ou nommé par sa branche (seule expression permise : ${{ github.ref_name }}), en file ; sans lui, deux
+    # passages d'une même branche tourneraient ensemble, et sans file un troisième annulerait celui qui attend
+    for nom in sorted(fiches):
+        if FAMILLES_DES_CIRCUITS_PUBLICS.get(nom) != LONGS:
+            continue
+        try:
+            groupe, _, file = structure_d_une_fiche(fiches[nom])
+        except ValueError:
+            continue   # déjà refusée par `refus_de_la_largeur`
+        if groupe is None or not re.fullmatch(r"[A-Za-z0-9_.-]+(?:\$\{\{ github\.ref_name \}\}[A-Za-z0-9_.-]*)?", groupe):
+            refus.append(f"{nom} : circuit long sans groupe de passage fixe ou nommé par sa branche ({groupe}) : deux "
+                         "passages d'une même branche pourraient tourner ensemble")
+        elif file["queue"] != "max" or file["cancel-in-progress"] == "true":
+            refus.append(f"{nom} : le groupe de passage « {groupe} » n'est pas une file (« queue: max », sans "
+                         "« cancel-in-progress: true ») : une demande en attente serait annulée")
     groupes_comptes = set(membres)
     for nom in sorted(fiches):
         if FAMILLES_DES_CIRCUITS_PUBLICS.get(nom) != PEUT_ATTENDRE:
             continue
         try:
-            groupe, _, _ = structure_d_une_fiche(fiches[nom])
+            groupe, _ = largeur_d_une_fiche(fiches[nom])
         except ValueError:
             continue   # déjà refusée par `refus_de_la_largeur`
-        if groupe in groupes_comptes:
+        if set(groupes_reels(groupe)) & groupes_comptes:
             refus.append(f"{nom} : classée « {PEUT_ATTENDRE} » mais porte le groupe compté « {groupe} » : elle y prendrait "
                          "une place sans entrer dans la somme")
     groupes_lus = {}
     for nom in sorted(fiches):
         try:
-            groupes_lus[nom] = structure_d_une_fiche(fiches[nom])[0]
+            groupes_lus[nom] = largeur_d_une_fiche(fiches[nom])[0]
         except ValueError:
             continue   # déjà refusée par `refus_de_la_largeur`
     for nom in sorted(groupes_lus):
         if FAMILLES_DES_CIRCUITS_PUBLICS.get(nom) != JAMAIS_ATTENDRE or groupes_lus[nom] is None:
             continue
-        autres = [n for n, g in sorted(groupes_lus.items()) if n != nom and g == groupes_lus[nom]]
+        siens = set(groupes_reels(groupes_lus[nom]))
+        autres = [n for n, g in sorted(groupes_lus.items()) if n != nom and siens & set(groupes_reels(g))]
         if autres:
             refus.append(f"{nom} : classée « {JAMAIS_ATTENDRE} » mais partage son groupe « {groupes_lus[nom]} » avec "
                          f"{', '.join(autres)} : elle attendrait derrière")

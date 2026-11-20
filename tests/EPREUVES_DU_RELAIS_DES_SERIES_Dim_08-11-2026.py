@@ -28,7 +28,8 @@ valeurs à chaque passage, et chacun doit la faire rougir.
   (le shell de « shell: bash ») avec l'environnement de son bloc « env: », dont chaque expression « ${{ … }} » est
   remplacée par la valeur du contexte imité (github.event.before, github.sha, github.ref_name…) ; « gh » est un faux
   qui note ses arguments et, à « run list », applique avec jq le filtre « --jq » reçu à une liste JSON de passages
-  imités (tour 2, N1 de Cowork : P27 refusé pour un passage in_progress, queued, waiting, pending ou requested). Les arguments de « gh workflow run » deviennent les entrées du bouton, contrôlées comme
+  imités (tour 2, N1 de Cowork : chaque état non fini, in_progress, queued, waiting, pending ou requested, est vu ;
+  depuis l'étape FILE-2, 20-11-2026, P27 n'est plus un refus : la demande part sur les places libres). Les arguments de « gh workflow run » deviennent les entrées du bouton, contrôlées comme
   GitHub le ferait contre les entrées DÉCLARÉES du circuit des séries fabriqué (inconnue, choix hors liste, nombre
   illisible : refus ; absente : valeur par défaut). Le pas « Fabriquer la matrice », extrait du même fichier fabriqué,
   est joué avec ces entrées sur une copie minimale de la version (la table, le joueur des parts, un fichier vide par
@@ -52,11 +53,22 @@ valeurs à chaque passage, et chacun doit la faire rougir.
   « version » (Q2 : la version est le nom de la branche), « ; », « $( ) », « ${{ }} », série inconnue ou à la mauvaise
   casse, nombres 0, 100 et 07, clé « serie » absente, « a_blanc » faux, deux fichiers dans le commit, deux commits
   dans la poussée, un nom hors de demandes/SERIE_<date>.txt, un fichier modifié et non ajouté, une branche créée par
-  la poussée, une branche qui n'est pas une version, un passage des séries en cours, plus de 1 000 octets.
+  la poussée, une branche qui n'est pas une version, plus de 1 000 octets.
+  Q (le réservoir, étape FILE-2, 20-11-2026 ; décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52) : JAMAIS
+  un refus pour un passage en cours ; la demande part avec « premiere_place » et « nombre_de_places », la première place
+  étant celle que rend un ORACLE écrit ici (`attendu_premiere` : la fenêtre de places consécutives la moins chargée,
+  la charge lue dans le titre « … places p+n » des passages non finis des trois circuits longs, un titre sans places
+  ignoré), et, pour Q1 à Q6 et Q9, une valeur écrite à la main qui doit être celle de l'oracle. Q1 une autre demande
+  sur 1+3 · Q2 un titre sans places · Q3 3+4 et 1+18 · Q4 une fenêtre qui tourne (16+5) · Q5 la certification (1+15)
+  · Q6 deux circuits · Q8 les titres des trois circuits · Q9 un titre « 08+3 » ignoré (D-2 de Cowork : « 08 » lu en
+  octal arrêtait le compte) · Q5bis le titre de la certification porte ses places · Q7 les trois fiches longues sont
+  des fiches du réservoir. Le pas matrice des séries (V) doit écrire la place de chaque entrée. S19 remet le refus
+  global, S74, S75, S78, S79 faussent le choix ou sa transmission.
   E (l'examen à la demande, décision de Jean-Luc du 08-11-2026 à 18h06) : E0 le circuit de certification a un bouton
   sans entrée obligatoire · E1 « circuit=examen » sur main → un seul « gh workflow run certifier_la_version.yml --ref
   main », sans réglage, compte des passages pris sur ce circuit · E2 à blanc → rien · E3 depuis une version en attente,
-  E4 avec un réglage de série, E5 un examen en attente, E6 circuit inconnu, E7 clé circuit absente → refusés. Les
+  E4 avec un réglage de série, E6 circuit inconnu, E7 clé circuit absente → refusés ; E5 un examen en attente → lancé
+  (étape FILE-2 : places 1+TRANCHES_DE_LA_NUIT, la file est celle du groupe de la certification). Les
   demandes des cas V et P reçoivent « circuit=series » en tête (`relayer`).
   L (lecture du joueur et du rassembleur) : L1 « --lot » donné deux fois → refusé (NV-2) · L2 « --lot » absent →
   refusé (plus de valeur cachée) · L3 « --depuis » deux fois au rassembleur → refusé.
@@ -134,8 +146,9 @@ a = sys.argv[1:]
 with open(os.environ["FAUX_GH_JOURNAL"], "a", encoding="utf-8") as f:
     f.write(json.dumps({"args": a, "repo": os.environ.get("GH_REPO"), "jeton": os.environ.get("GH_TOKEN")}) + "\\n")
 if a[:2] == ["run", "list"]:
-    if "--jq" not in a or "--json" not in a or a[a.index("--json") + 1] != "status":
-        sys.exit("faux gh : run list sans --json status ou sans --jq")
+    # étape FILE-2 (20-11-2026) : le relais lit l'état et le titre (qui porte les places) de chaque passage
+    if "--jq" not in a or "--json" not in a or a[a.index("--json") + 1] != "status,displayTitle":
+        sys.exit("faux gh : run list sans --json status,displayTitle ou sans --jq")
     passages = json.loads(os.environ.get("FAUX_GH_PASSAGES", "[]"))
     if isinstance(passages, dict):   # 15-11-2026 (GHUB ②) : des passages propres à chaque circuit
         passages = passages.get(a[a.index("--workflow") + 1], []) if "--workflow" in a else []
@@ -355,6 +368,10 @@ def tour(racine):
             return [f"chargement : {type(e).__name__} : {e}"]
         if F.RELAIS is None or F.SERIES is None:
             return [f"le fabricant n'a pas fabriqué ses gabarits : {F.ERREUR_DE_LA_TABLE}"]
+        # les trois circuits du réservoir, dans l'ordre où le relais doit lire leurs passages (étape FILE-2, 20-11-2026) ;
+        # écrits ici à partir des chemins, et non lus dans CIRCUITS_DU_GROUPE_LONG, pour que S49 morde
+        LONGS = [os.path.basename(F.CIRCUIT_SERIES), os.path.basename(F.CIRCUIT_EPREUVES),
+                 os.path.basename(F.CIRCUIT_CERTIFICATION)]
         table = json.load(open(os.path.join(racine, TABLE), encoding="utf-8"))
         # l'attendu : la table lue ICI, en JSON, sans le fabricant
         ref = {}
@@ -539,6 +556,15 @@ def tour(racine):
                 return ecarts + [f"{nom} : pas matrice code {c} : {o[-300:]}"]
             sorties = dict(l.split("=", 1) for l in open(sortie, encoding="utf-8").read().split("\n") if "=" in l)
             matrice, series = json.loads(sorties["matrice"]), json.loads(sorties["series"])
+            # étape FILE-2 : la k-ième entrée de chaque matrice prend la place ((p − 1 + k) modulo PLACES_LONGUES) + 1, p
+            # la première place transmise par le relais (1 si elle n'est pas une place du réservoir)
+            pp = boutons.get("premiere_place") or ""
+            p0 = int(pp) if re.fullmatch(r"[0-9]{1,2}", pp) and 1 <= int(pp) <= F.PLACES_LONGUES else 1
+            for quoi, liste in (("matrice", matrice), ("series", series)):
+                vues = [x.get("place") for x in liste]
+                voulues = [str((p0 - 1 + k) % F.PLACES_LONGUES + 1) for k in range(len(liste))]
+                if vues != voulues:
+                    ecarts.append(f"{nom} : places de la {quoi} {vues} au lieu de {voulues}")
             # chaque ligne de matrice → « Jouer la part » → lecture du joueur
             par_serie = {}
             for ligne in matrice:
@@ -615,14 +641,17 @@ def tour(racine):
                 faux.append(f"{nom} : relais code {c}, {len(lances(appels))} lancement(s) : {o[-300:]}")
                 continue
             listes = [x["args"] for x in appels if x["args"][:2] == ["run", "list"]]
-            # 15-11-2026 (GHUB ②) : les passages des DEUX circuits du groupe des machines longues, séries d'abord
-            if [x[2:4] for x in listes] != [["--workflow", os.path.basename(F.CIRCUIT_SERIES)],
-                                            ["--workflow", os.path.basename(F.CIRCUIT_EPREUVES)]]:
+            # 15-11-2026 (GHUB ②) : les passages des circuits longs, séries d'abord ; étape FILE-2 (20-11-2026) : la
+            # certification aussi, ses tranches occupent des places
+            if [x[2:4] for x in listes] != [["--workflow", w] for w in LONGS]:
                 faux.append(f"{nom} : le relais n'a pas regardé les passages du groupe des machines longues : {listes}")
             if a_blanc:
                 if "A BLANC" not in o or "parts_hl 5 ; lot_hl 9" not in o:
                     faux.append(f"{nom} : le journal à blanc ne dit pas les valeurs : {o[-300:]}")
                 continue
+            if lances(appels)[0]["args"][-4:-2] != ["-f", "premiere_place=1"]:
+                faux.append(f"{nom} : aucun passage en cours, la première place lancée n'est pas la 1 : "
+                            f"{lances(appels)[0]['args'][-4:]}")
             faux += suivre(nom, branche, demande, lances(appels)[0])
         # V0 (tour 2, I-1) : le bouton « Run workflow » appuyé SANS relais, aucune entrée donnée sauf la version : les
         # valeurs par défaut DÉCLARÉES par le circuit des séries doivent mener le joueur aux valeurs de la table (et T0
@@ -632,6 +661,59 @@ def tour(racine):
                        {"args": ["workflow", "run", os.path.basename(F.CIRCUIT_SERIES), "--ref", "main", "-f",
                                  "version=main"], "repo": "essai/public", "jeton": "jeton-fictif-du-passage"})
         # P : les demandes piégées, chacune refusée pour sa raison, rien de lancé
+        M = F.PLACES_LONGUES
+
+        def attendu_premiere(titres, w):
+            """Rend la première place que le relais doit choisir : l'ORACLE de l'épreuve, écrit ici sans le relais.
+
+            ① RÔLE — Recalculer, en Python, le choix des places décrit dans l'en-tête du relais (étape FILE-2).
+            ② CONTEXTE D'APPEL — `tour`, cas P27, P29, Q, E5, X9, X10.
+            ③ ENTRÉE — `titres` : les titres des passages non finis ; `w` : le nombre de jobs de la demande.
+            ④ CONDITIONS D'ENTRÉE — —
+            ⑤ SORTIE — UNE valeur : la première place (texte). [rend: 1]
+            ⑥ TRAITEMENT — charge de chaque place : « … places p+n » charge n places à partir de p (en tournant, n borné à
+              PLACES_LONGUES) ; un autre titre est ignoré ; la fenêtre de min(w, PLACES_LONGUES) places
+              consécutives de plus petite charge, la première en cas d'égalité.
+            ⑦ UNITÉ — Un numéro de place.
+            ⑧ POURQUOI — Une seconde écriture, indépendante, du même choix : l'épreuve compare deux calculs.
+            ⑨ CE QUI CLOCHE — —
+            ⑩ EFFET — Aucun.
+            ⑪ TERMINAISON — Rend la main. [sort: non]
+            """
+            charge = [0] * (M + 1)
+            for titre in titres:
+                m = re.search(r" places ([1-9][0-9]?)\+([1-9][0-9]{0,2})$", titre or "")
+                if m and 1 <= int(m.group(1)) <= M and int(m.group(2)) >= 1:
+                    for i in range(min(int(m.group(2)), M)):
+                        charge[(int(m.group(1)) - 1 + i) % M + 1] += 1
+            w = max(1, min(w, M))
+            sommes = [sum(charge[(q - 1 + i) % M + 1] for i in range(w)) for q in range(1, M + 1)]
+            return str(sommes.index(min(sommes)) + 1)
+
+        def accepte(nom, premiere, nombre, c, o, appels):
+            """Range parmi les cas faux une demande qui n'est pas lancée, une fois, sur les places attendues.
+
+            ① RÔLE — Juger un cas du réservoir (étape FILE-2, 20-11-2026).
+            ② CONTEXTE D'APPEL — `tour`, pour les cas P27, P29, Q, E5, X9, X10.
+            ③ ENTRÉE — `nom` ; `premiere`, `nombre` : la première place et le nombre de places attendus (textes) ; `c`, `o`,
+              `appels` : ce que rend `relayer`.
+            ④ CONDITIONS D'ENTRÉE — —
+            ⑤ SORTIE — Aucune valeur : ajoute à `faux`. [rend: rien]
+            ⑥ TRAITEMENT — faux si code non nul, ou pas exactement un lancement, ou s'il ne finit pas par
+              « -f premiere_place=<premiere> -f nombre_de_places=<nombre> ».
+            ⑦ UNITÉ — —
+            ⑧ POURQUOI — Une demande n'est JAMAIS refusée pour un passage en cours (A-884 ②, décision du 20-11-2026 à
+              20h52) : elle part, sur les places les moins chargées.
+            ⑨ CE QUI CLOCHE — La file elle-même est celle de GitHub (« queue: max ») : elle n'est pas imitée ici.
+            ⑩ EFFET — Ajoute à la liste `faux` du tour.
+            ⑪ TERMINAISON — Rend la main. [sort: non]
+            """
+            l = lances(appels)
+            if c != 0 or len(l) != 1 or l[0]["args"][-4:] != ["-f", f"premiere_place={premiere}", "-f",
+                                                               f"nombre_de_places={nombre}"]:
+                faux.append(f"{nom} : code {c}, lancements {[x['args'][-4:] for x in l]}, places attendues "
+                            f"{premiere}+{nombre} : {o[-200:]}")
+
         def refus(nom, attendu, c, o, appels):
             """Range parmi les cas faux une demande piégée qui n'est pas refusée pour sa raison.
 
@@ -664,12 +746,71 @@ def tour(racine):
         refus("P26 branche qui n'est pas une version", "branche", *relayer("autre", [(NOM, b"serie=HL\n")]))
         refus("P30 version en attente sans pointe (A-811)", "pointe manque",
               *relayer("travail-essai", [(NOM, b"serie=HL\n")]))
+        # P27, P29 (étape FILE-2, 20-11-2026) : un passage en cours ou en attente n'est JAMAIS un refus ; la demande part
+        # sur les places libres. Chaque état non fini doit être vu. La demande règle 2 machines (parts_hl=2) : avec les
+        # machines de la table, une fenêtre pourrait couvrir tout le réservoir, et le choix ne se verrait plus.
+        hl = "2"
+        DHL = b"serie=HL\nparts_hl=2\n"
         for etat in ("in_progress", "queued", "waiting", "pending", "requested"):   # N1 de Cowork (tour 2)
-            refus(f"P27 un passage des séries « {etat} »", "en cours",
-                  *relayer("main", [(NOM, b"serie=HL\n")], en_cours=json.dumps([{"status": "completed"}, {"status": etat}])))
+            accepte(f"P27 un passage des séries « {etat} » d'une autre branche, places 1+{hl}",
+                    attendu_premiere(["x places 1+" + hl], int(hl)), hl,
+                    *relayer("main", [(NOM, DHL)], en_cours=json.dumps(
+                        [{"status": "completed", "displayTitle": "Series longues de sabotages places 7+3"},
+                         {"status": etat, "displayTitle": "Series longues de sabotages places 1+" + hl}])))
         # (tour 3, C7 de Cowork) un passage ancien en attente derrière 30 passages récents finis : il doit être vu
-        refus("P29 un passage en attente derrière 30 passages finis", "en cours",
-              *relayer("main", [(NOM, b"serie=HL\n")], en_cours=json.dumps([{"status": "completed"}] * 30 + [{"status": "queued"}])))
+        accepte("P29 un passage en attente derrière 30 passages finis", attendu_premiere(["x places 4+2"], int(hl)), hl,
+                *relayer("main", [(NOM, DHL)], en_cours=json.dumps(
+                    [{"status": "completed", "displayTitle": "y places 1+18"}] * 30
+                    + [{"status": "queued", "displayTitle": "Series longues de sabotages places 4+2"}])))
+        # Q : LE RÉSERVOIR (étape FILE-2) — plusieurs demandes en même temps, chacune sur la fenêtre de places la moins
+        # chargée ; jamais un refus. Chaque cas : les titres en cours, la place attendue (oracle), et une valeur écrite
+        # à la main qui doit être celle de l'oracle (pour que l'oracle lui-même soit éprouvé).
+        def passage(titre, etat="in_progress"):
+            """Rend un passage imité, tel que « gh run list --json status,displayTitle » le décrit.
+
+            ① RÔLE — Écrire un passage non fini d'un circuit long. ② CONTEXTE D'APPEL — `tour`, cas Q.
+            ③ ENTRÉE — `titre` ; `etat`. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : le dictionnaire. [rend: 1]
+            ⑥ TRAITEMENT — — ⑦ UNITÉ — — ⑧ POURQUOI — Le relais lit les places d'un passage dans son titre.
+            ⑨ CE QUI CLOCHE — — ⑩ EFFET — Aucun. ⑪ TERMINAISON — Rend la main. [sort: non]
+            """
+            return {"status": etat, "displayTitle": titre}
+        w_hl = int(hl)
+        for nom, titres, a_la_main in (
+                ("Q1 une autre demande en cours sur les places 1+3 : la 2e part après", ["Series longues de sabotages places 1+3"],
+                 "4" if w_hl <= M - 3 else None),
+                ("Q2 un titre sans places est ignoré : place 1", ["Series longues de sabotages"], "1"),
+                ("Q3 deux demandes, 3+4 et un réservoir plein (1+18) : les places 1-2, avant les places prises",
+                 ["a places 3+4", "b places 1+18"], "1" if w_hl <= 2 else None),
+                ("Q4 une fenêtre qui tourne après la place 18 (16+5)", ["a places 16+5"], "3" if w_hl <= M - 5 else None),
+                ("Q5 la certification de nuit (places 1+15)", ["Certifier la version places 1+15"], "16"),
+                # D-2 de Cowork (20-11-2026) : « 08 » se lirait en octal et arrêterait le compte de TOUS les titres :
+                # un titre à zéro de tête est ignoré, le suivant compte
+                ("Q9 un titre « places 08+3 » ignoré, le suivant (1+2) compté", ["a places 08+3", "b places 1+2"],
+                 "3" if w_hl <= 2 else None),
+                ("Q6 des épreuves en attente (places 1+2) et une série en cours (3+2)",
+                 ["Epreuves longues d'un tenant places 1+2", "Series longues de sabotages places 3+2"],
+                 "5" if w_hl <= M - 4 else None)):
+            attendue = attendu_premiere(titres, w_hl)
+            if a_la_main is not None and attendue != a_la_main:
+                faux.append(f"{nom} : l'oracle rend {attendue}, la valeur écrite à la main {a_la_main}")
+            accepte(nom, attendue, hl, *relayer("main", [(NOM, DHL)], en_cours=json.dumps(
+                {os.path.basename(F.CIRCUIT_SERIES): [passage(x) for x in titres]})))
+        # Q8 : les titres sont lus dans les TROIS circuits (une demande d'épreuves voit la série en cours)
+        if len(table.get("epreuves_longues") or {}) >= 1:
+            code0 = list(table["epreuves_longues"])[0]
+            accepte("Q8 épreuves pendant une série (1+10) et une certification (11+3)",
+                    attendu_premiere(["s places 1+10", "c places 11+3"], 1), "1",
+                    *relayer("main", [(NOM, f"circuit=epreuve\nepreuves={code0}\n".encode())], en_cours=json.dumps(
+                        {os.path.basename(F.CIRCUIT_SERIES): [passage("s places 1+10")],
+                         os.path.basename(F.CIRCUIT_CERTIFICATION): [passage("c places 11+3", "queued")]})))
+        # Q5bis : le titre de la certification porte ses places, même lancée à l'heure (sans entrée) : ses tranches
+        # occupent toujours les places 1 … TRANCHES_DE_LA_NUIT
+        if f'\nrun-name: "Certifier la version places 1+{F.TRANCHES_DE_LA_NUIT}"\n' not in (F.CERTIFICATION or ""):
+            faux.append("Q5bis le titre de la certification ne dit pas ses places")
+        # Q7 : la propriété du réservoir dans le fabricant — chaque fiche longue est une fiche du réservoir
+        for g in (F.SERIES, F.EPREUVES, F.CERTIFICATION):
+            if F.largeur_d_une_fiche(g or "")[0] != F.RESERVOIR_DES_PLACES:
+                faux.append("Q7 une fiche longue n'est pas une fiche du réservoir des places")
         # (tour 3, C3 de Cowork) une demande d'exactement 1 000 octets passe
         mille = b"circuit=series\nserie=HL\n"
         mille += b"#" * (1000 - len(mille) - 1) + b"\n"
@@ -684,6 +825,8 @@ def tour(racine):
                            ("G3 clonage à deux commits, sans jeton gardé", r"\n          fetch-depth: 2\n          persist-credentials: false\n")):
             if len(re.findall(motif, F.RELAIS)) != 1:
                 faux.append(f"{nom} : le gabarit du relais ne porte plus ce réglage")
+        if len(re.findall(r"\nconcurrency:\n  group: demande-de-serie\n  cancel-in-progress: false\n  queue: max\n", F.RELAIS)) != 1:
+            faux.append("G5 le relais ne fait pas file de ses propres passages (« queue: max ») : une demande serait annulée")
         usages = sorted(set(re.findall(r"\bgh ([a-z]+ [a-z]+)", F.RELAIS)))
         if usages != ["run list", "workflow run"] or len(re.findall(r"runs-on:", F.RELAIS)) != 1:
             faux.append(f"G4 gh employé autrement que « run list » et « workflow run », ou plus d'un job : {usages}")
@@ -697,17 +840,21 @@ def tour(racine):
         for nom, demande, a_blanc in (("E1 examen sur main", b"circuit=examen\n", False),
                                       ("E2 examen à blanc", b"a_blanc=oui\ncircuit=examen\n", True)):
             c, o, appels = relayer("main", [(NOM, demande)])
-            attendus = [] if a_blanc else [["workflow", "run", certification, "--ref", "main"]]
+            attendus = [] if a_blanc else [["workflow", "run", certification, "--ref", "main", "-f", "premiere_place=1",
+                                            "-f", f"nombre_de_places={F.TRANCHES_DE_LA_NUIT}"]]
             listes = [x["args"][2:4] for x in appels if x["args"][:2] == ["run", "list"]]
-            if c != 0 or [x["args"] for x in lances(appels)] != attendus or listes != [["--workflow", certification]]:
+            if c != 0 or [x["args"] for x in lances(appels)] != attendus or listes != [["--workflow", w] for w in LONGS]:
                 faux.append(f"{nom} : code {c}, lancements {[x['args'] for x in lances(appels)]}, run list {listes} : {o[-200:]}")
         refus("E3 examen depuis une version en attente", "ne se lance pas depuis",
               *relayer("travail-essai", [(NOM, b"circuit=examen\n")]))
         refus("E4 examen avec un réglage de série", "aucun reglage", *relayer("main", [(NOM, b"circuit=examen\nserie=HL\n")]))
         refus("E8 examen avec une pointe (A-811)", "aucun reglage",
               *relayer("main", [(NOM, b"circuit=examen\npointe=1c5302a94959b9702e41bb49b13c7a5220a6da43\n")]))
-        refus("E5 examen pendant un examen en attente", "en cours",
-              *relayer("main", [(NOM, b"circuit=examen\n")], en_cours='[{"status": "queued"}]'))
+        # E5 (étape FILE-2) : un examen pendant un examen en attente n'est pas refusé ; ses tranches gardent leurs places
+        # (la tranche k sur la place k), il part à la place 1 et attend derrière l'autre (groupe de la certification)
+        accepte("E5 examen pendant un examen en attente", "1", str(F.TRANCHES_DE_LA_NUIT),
+                *relayer("main", [(NOM, b"circuit=examen\n")], en_cours=json.dumps(
+                    {certification: [{"status": "queued", "displayTitle": "Certifier la version places 1+15"}]})))
         refus("E6 circuit inconnu", "circuit inconnu", *relayer("main", [(NOM, b"circuit=nuit\n")]))
         refus("E7 circuit absent", "circuit manque", *relayer("main", [(NOM, b"serie=HL\n")], circuit=False))
         # X : les épreuves longues d'un tenant (étape GHUB ②, 15-11-2026, A-809, A-811, A-816) — « circuit=epreuve » :
@@ -728,10 +875,11 @@ def tour(racine):
                     ("X3 à blanc", "main", f"circuit=epreuve\nepreuves={codes[0]}\na_blanc=oui\n", codes[0], "", True)):
                 c, o, appels = relayer(branche, [(NOM, demande.encode())])
                 attendus = [] if a_blanc else [["workflow", "run", epreuves, "--ref", branche, "-f", f"version={branche}",
-                                                "-f", f"pointe={pointe}", "-f", f"epreuves={liste}"]]
+                                                "-f", f"pointe={pointe}", "-f", f"epreuves={liste}", "-f", "premiere_place=1",
+                                                "-f", f"nombre_de_places={len(codes) if liste == 'toutes' else len(liste.split(','))}"]]
                 listes = [x["args"][2:4] for x in appels if x["args"][:2] == ["run", "list"]]
                 if (c != 0 or [x["args"] for x in lances(appels)] != attendus
-                        or sorted(listes) != sorted([["--workflow", series_yml], ["--workflow", epreuves]])):
+                        or sorted(listes) != sorted([["--workflow", w] for w in LONGS])):
                     faux.append(f"{nom} : code {c}, lancements {[x['args'] for x in lances(appels)]}, run list {listes} : "
                                 f"{o[-200:]}")
                     continue
@@ -741,7 +889,7 @@ def tour(racine):
                 rt = tempfile.mkdtemp(prefix="rt_matrice_epreuves_", dir=d)
                 sortie = os.path.join(rt, "sortie")
                 env = dict(GIT_ENV, PATH=outils + os.pathsep + os.environ["PATH"], GITHUB_OUTPUT=sortie, RUNNER_TEMP=rt,
-                           **resoudre(env_mx, {"inputs.epreuves": liste}))
+                           **resoudre(env_mx, {"inputs.epreuves": liste, "inputs.premiere_place": "1"}))
                 c, o = lancer(["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script_mx], env=env,
                               cwd=version)
                 lu = dict(l.split("=", 1) for l in open(sortie, encoding="utf-8").read().split("\n") if "=" in l) \
@@ -758,10 +906,6 @@ def tour(racine):
                     ("X7 épreuve avec un réglage de série", "ne prend que", "main",
                      f"circuit=epreuve\nepreuves={codes[0]}\nserie=HL\n", None),
                     ("X8 série avec une liste d'épreuves", "ne vaut que", "main", f"serie=HL\nepreuves={codes[0]}\n", None),
-                    ("X9 épreuves pendant une série en attente (même groupe)", series_yml, "main",
-                     f"circuit=epreuve\nepreuves={codes[0]}\n", json.dumps({series_yml: [{"status": "queued"}]})),
-                    ("X10 série pendant des épreuves en cours (même groupe)", epreuves, "main", "serie=HL\n",
-                     json.dumps({epreuves: [{"status": "in_progress"}]})),
                     ("X11 liste avec un point-virgule", "codes separes", "main",
                      f"circuit=epreuve\nepreuves={codes[0]};id\n", None),
                     ("X12 clé epreuves absente", "epreuves manque", "main", "circuit=epreuve\n", None),
@@ -769,6 +913,14 @@ def tour(racine):
                      f"circuit=epreuve\nepreuves={codes[0]}\nepreuves={codes[1]}\n", None)):
                 refus(nom, attendu, *relayer(branche, [(NOM, demande.encode())],
                                              **({"en_cours": en_cours} if en_cours else {})))
+        # X9, X10 (étape FILE-2) : un passage de l'AUTRE circuit long : la demande part, sur les places libres
+        if len(codes) >= 1:
+            accepte("X9 épreuves pendant une série en attente (places 1+4)", attendu_premiere(["s places 1+4"], 1), "1",
+                    *relayer("main", [(NOM, f"circuit=epreuve\nepreuves={codes[0]}\n".encode())],
+                             en_cours=json.dumps({series_yml: [{"status": "queued", "displayTitle": "s places 1+4"}]})))
+            accepte("X10 série pendant des épreuves en cours (places 2+3)", attendu_premiere(["e places 2+3"], int(hl)), hl,
+                    *relayer("main", [(NOM, DHL)],
+                             en_cours=json.dumps({epreuves: [{"status": "in_progress", "displayTitle": "e places 2+3"}]})))
         # L : la lecture des arguments par le joueur et le rassembleur
         base = ["r", "tests/E.py", "tests/resultats/R.txt", "--part=0", "--nb-parts=2", "--travail=t"]
         for nom, args in (("L1 --lot donné deux fois (NV-2)", base + ["--lot=13", "--lot=11"]),
@@ -964,8 +1116,27 @@ SABOTAGES = {
         (FABRICANT, '''          [ "$(printf '%s\\\\n' "$changes" | grep -c .)" = "1" ] ||''', '''          true ||''')],
     "S18_relais_sans_controle_un_seul_commit": [(FABRICANT, '''          [ "$parent" = "$AVANT" ] ||''',
                                                  '''          true ||''')],
-    "S19_relais_sans_controle_passage_en_cours": [(FABRICANT, '''          [ "$en_cours" = "0" ] ||''',
-                                                   '''          true ||''')],
+    # étape FILE-2 (20-11-2026) : S19 REMET LE REFUS GLOBAL (l'état d'avant : refuser dès qu'un passage long est en
+    # cours) ; S74, S75 et S78, les règles du choix des places ; S77, la file propre du relais
+    "S19_relais_remet_le_refus_global": [
+        (FABRICANT, '''            done
+            M=""" + str(PLACES_LONGUES) + """''', '''            done
+            [ ! -s "$D/passages" ] || { echo "::error::DEMANDE REFUSEE : passage(s) en cours ou en attente"; exit 1; }
+            M=""" + str(PLACES_LONGUES) + """''')],
+    "S74_relais_toujours_premiere_place_1": [
+        (FABRICANT, '''if [ -z "$meilleure" ] || [ "$somme" -lt "$meilleure" ]; then''', '''if [ -z "$meilleure" ]; then''')],
+    "S75_relais_places_non_transmises_aux_series": [
+        (FABRICANT, '''+ """ -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit des series''',
+         '''+ """ || { echo "::error::le circuit des series''')],
+    # D-2 de Cowork : le motif du titre qui laisse passer « 08 » (lu en octal, le compte de charge s'arrête)
+    "S79_relais_titre_a_zero_de_tete": [(FABRICANT, '''places\\\\ ([1-9][0-9]?)\\\\+([1-9][0-9]{0,2})$''',
+                                         '''places\\\\ ([0-9]{1,2})\\\\+([0-9]{1,3})$''')],
+    "S77_relais_sans_file_propre": [(FABRICANT, '''  group: demande-de-serie
+  cancel-in-progress: false
+  queue: max''', '''  group: demande-de-serie
+  cancel-in-progress: false''')],
+    "S78_relais_fenetre_sans_tour": [(FABRICANT, '''somme=$(( somme + charge[(p - 1 + i) % M + 1] ))''',
+                                      '''somme=$(( somme + charge[p + i] ))''')],
     "S20_relais_a_blanc_ignore": [(FABRICANT, '''if [ "$A_BLANC" = "oui" ]; then''', '''if [ "$A_BLANC" = "jamais" ]; then''')],
     "S21_filet_actions_write_sans_condition": [(FABRICANT, "                verifier_un_relais(nom, texte)    #",
                                                 "                pass    #")],
@@ -999,12 +1170,12 @@ SABOTAGES = {
         (FABRICANT, '("examen", os.path.basename(CIRCUIT_CERTIFICATION), "^main$")',
          '("examen", os.path.basename(CIRCUIT_CERTIFICATION), MOTIF_DE_VERSION)')],
     "S40_relais_compte_toujours_les_series": [
-        (FABRICANT, 'en_cours=$(gh run list --workflow "$F"', 'en_cours=$(gh run list --workflow series_longues.yml')],
+        (FABRICANT, 'gh run list --workflow "$F" --limit 100', 'gh run list --workflow series_longues.yml --limit 100')],
     # 15-11-2026 (GHUB ②) : les gardes du circuit « epreuve » du relais
     "S48_relais_liste_d_epreuves_non_transmise": [(FABRICANT, '-f "epreuves=$EPREUVES"', '-f "epreuves=toutes"')],
     "S49_relais_ne_compte_pas_le_groupe": [
-        (FABRICANT, "CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_SERIES), os.path.basename(CIRCUIT_EPREUVES))",
-         "CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_EPREUVES),)")],
+        (FABRICANT, "CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_SERIES), os.path.basename(CIRCUIT_EPREUVES),\n",
+         "CIRCUITS_DU_GROUPE_LONG = (os.path.basename(CIRCUIT_EPREUVES),\n")],
     "S50_relais_admet_une_epreuve_inconnue": [
         (FABRICANT, '''" == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue''',
          '''" == *" $c "* ]] || true || { echo "::error::DEMANDE REFUSEE : epreuve inconnue''')],
@@ -1043,7 +1214,7 @@ def main():
     ⑩ EFFET — Fiche en tête. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     faux = tour(DEPOT)
-    print("Z0 programmes tels quels : " + ("T0, V0 à V5, V7, P01 à P28, P30, P31, P33, P34, P36, E0 à E8, X0 à X13, L1 à L3, F0 à F14, A0 à A14, R1 à R8, V6, P29, G1 à G4 conformes" if not faux else
+    print("Z0 programmes tels quels : " + ("T0, V0 à V5, V7, P01 à P28, P30, P31, P33, P34, P36, E0 à E8, X0 à X13, Q1 à Q9, G5, L1 à L3, F0 à F14, A0 à A14, R1 à R8, V6, P29, G1 à G4 conformes" if not faux else
                                             "FAUX " + " | ".join(faux)))
     code = 1 if faux else 0
     choix = [a.split("=", 1)[1].split(",") for a in sys.argv[1:] if a.startswith("--saboter=")]
