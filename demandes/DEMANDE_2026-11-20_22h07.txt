@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=File,Relais,CircuitSeries,CircuitPublic
+pointe=66a7afbd08d13f9fc76cc8b0da8db367c38e6308
