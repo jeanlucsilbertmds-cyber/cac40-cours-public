@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Moulinette,VenteReglable,Tri
+pointe=bbb265856daf05403cb99d5f706f58608e8a1806
