@@ -852,7 +852,8 @@ def passage(racine, base, fiches, valeurs, soir_args, sabotage):
         if sabotage is not None and sabotage[2] not in (None, MODULE):
             for r in (W, S):
                 chem = os.path.join(r, sabotage[2])
-                open(chem, "w", encoding="utf-8").write(saboter(open(chem, encoding="utf-8").read()))
+                texte = saboter(open(chem, encoding="utf-8").read())   # lu AVANT d'ouvrir en écriture (tour 2 :
+                open(chem, "w", encoding="utf-8").write(texte)          # l'ouverture vidait le fichier lu ensuite)
         ids = ["PROP-ORD"] + [f["id"] for f in fiches if f["id"].startswith(("PROP-L", "PROP-V"))] + \
               [f["id"] for f in fiches if f["id"].startswith("PROP-H")][:N_CHAINE_HASARD]
         octet = ["--octet"] if sabotage is not None and sabotage[2] is None else []
