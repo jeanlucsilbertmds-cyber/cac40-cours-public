@@ -53,7 +53,9 @@ USAGE
   L'ÉPREUVE dans la copie jetable, pour des fiches factices : elle ne vaut validation de rien, et ne quitte jamais la
   copie. ② La couche en mémoire joue `jouer` sans lecture du lecteur (pas de composition de l'indice ni de trous) : la
   composition n'est pas éprouvée ici. ③ Le soir est joué une fois (deux passages du teneur), sur la dernière séance du
-  cours maître ; P4 n'est mesurée que si une position factice s'ouvre — sinon « NON MESURÉE ». ④ P6 est mesurée sur
+  cours maître ; P4 exige une position OUVERTE pour chaque fiche QA dont l'univers porte le signal posé (le teneur
+  se calibre lui-même et refuse de tourner sous le sabotage S-P4a : sans cette exigence, P4 ne mesurerait rien et
+  resterait verte) ; « NON MESURÉE » si aucune fiche QA n'est servie. ④ P6 est mesurée sur
   un échantillon de séances (une sur trois). ⑤ Maillons ②, ③, ④ non joués (A-941). ⑥ Les fiches réelles du registre
   restent dans la copie du soir : le détecteur voit ensemble C5 et les fiches factices.
 ⑩ EFFET — Écrit sous un dossier temporaire, effacé à la fin ; affiche.
@@ -138,32 +140,38 @@ def memoire_signal(mode="seuil", baisse=0.02, k=5, graine=7, jour=""):
     return 1
 '''
 
-# LES SABOTAGES — (nom, propriété qui DOIT rougir, fichier, texte avant, texte après) ; fichier None : geste spécial.
+# LES SABOTAGES — (nom, propriété qui DOIT rougir, fichier, [(texte avant, texte après), …]) ; fichier None : geste
+# spécial (l'octet de P3). Chaque texte « avant » doit être présent UNE fois, sinon le sabotage n'est pas joué (rouge).
+FORCE_C5 = ('                tp, sl, _h = juge.lecture_du_soir(base, x)\n', '                tp, sl, _h = 0.04, 0.025, 20\n')
 SABOTAGES = (
     ("S-P1 contrôle VALEURS_TTF neutralisé", "P1", CONTRATS,
-     '                        mod_pos.cout_d_un_ordre(c, d, "achat", mod_pos.CAPITAL, bareme=nom_du_bareme)\n',
-     '                        pass\n'),
+     [('                        mod_pos.cout_d_un_ordre(c, d, "achat", mod_pos.CAPITAL, bareme=nom_du_bareme)\n',
+       '                        pass\n')]),
     ("S-P2 manques_du_jeu rend []", "P2", JUGE,
-     '    manq = []\n    entree = (fiche.get("entree") or "").strip()\n',
-     '    return []\n    manq = []\n    entree = (fiche.get("entree") or "").strip()\n'),
-    ("S-P3 un octet changé dans un fichier témoigné", "P3", None, "octet", ""),
-    ("S-P4 teneur forcé aux seuils de C5", "P4", TENIR,
-     '                tp, sl, _h = juge.lecture_du_soir(base, x)\n',
-     '                tp, sl, _h = 0.04, 0.025, 20\n'),
+     [('    manq = []\n    entree = (fiche.get("entree") or "").strip()\n',
+       '    return []\n    manq = []\n    entree = (fiche.get("entree") or "").strip()\n')]),
+    ("S-P3 un octet changé dans un fichier témoigné", "P3", None, "octet"),
+    # LE TENEUR SE CALIBRE LUI-MÊME (`_calibrage` de programmes/TENIR_LES_POSITIONS.py lit un registre fabriqué où
+    # MA200-S1 porte +5 % / -2 %) : forcé aux seuils de C5, il refuse de tourner, et aucune position factice ne s'ouvre
+    # (P4a, mesuré le 20-11-2026, passage 44732420101). P4b retire AUSSI ce calibrage, pour que ce soit la comparaison
+    # des seuils de P4 elle-même qui morde.
+    ("S-P4a teneur forcé aux seuils de C5", "P4", TENIR, [FORCE_C5]),
+    ("S-P4b teneur forcé aux seuils de C5, son calibrage retiré", "P4", TENIR,
+     [FORCE_C5, ('    if not _calibrage(mod, base):\n', '    if False:\n')]),
     ("S-SIL suivie_par_le_soir rend faux", "SIL", CONTRATS,
-     '    etat = (fiche.get("etat_vie") or "").strip().upper()\n    return etat in ETATS_SUIVIS_PAR_LE_SOIR and',
-     '    return False\n    etat = (fiche.get("etat_vie") or "").strip().upper()\n'
-     '    return etat in ETATS_SUIVIS_PAR_LE_SOIR and'),
+     [('    etat = (fiche.get("etat_vie") or "").strip().upper()\n    return etat in ETATS_SUIVIS_PAR_LE_SOIR and',
+       '    return False\n    etat = (fiche.get("etat_vie") or "").strip().upper()\n'
+       '    return etat in ETATS_SUIVIS_PAR_LE_SOIR and')]),
     ("S-P5 vente jouée avec un autre tp", "P5", JUGE,
-     '                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu)\n',
-     '                op = jouer_une_entree(v, serie, j, tp * 1.5, sl, h, mod_positions, lecture, bareme, recu)\n'),
+     [('                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu)\n',
+       '                op = jouer_une_entree(v, serie, j, tp * 1.5, sl, h, mod_positions, lecture, bareme, recu)\n')]),
     ("S-P6 module tricheur (clôture du lendemain)", "P6", MODULE,
-     '        if serie[i]["close"] / serie[i - 1]["close"] - 1 <= -baisse:\n',
-     '        if i + 1 < n and serie[i + 1]["close"] / serie[i]["close"] - 1 <= -baisse:\n'),
+     [('        if serie[i]["close"] / serie[i - 1]["close"] - 1 <= -baisse:\n',
+       '        if i + 1 < n and serie[i + 1]["close"] / serie[i]["close"] - 1 <= -baisse:\n')]),
     ("S-P7 tirage sans graine", "P7", MODULE,
-     '        alea = random.Random(graine)\n', '        alea = random.Random()\n'),
+     [('        alea = random.Random(graine)\n', '        alea = random.Random()\n')]),
     ("S-P8 filtre de période retiré du juge", "P8", JUGE,
-     '                if periode and not (periode[0] <= d_sig <= periode[1]):\n                    continue\n', ''),
+     [('                if periode and not (periode[0] <= d_sig <= periode[1]):\n                    continue\n', '')]),
 )
 
 
@@ -623,7 +631,7 @@ def chaine(W, ids, octet):
             p3.append("%s : %s%s" % (i, " ; ".join(m)[:200], (" ; témoins absents %s" % absents) if absents else ""))
     rendu = {"proprietes": {
         "P1": ["ROUGE" if p1 else ("VERT" if n1 else "NON MESURÉE"),
-               "⓪ ① : %d fiche(s) conforme(s) lancée(s) ; %s" % (n1, " ; ".join(p1[:3]) or "aucun plantage")],
+               "%d fiche(s) conforme(s) lancée(s) ; %s" % (n1, " ; ".join(p1[:3]) or "aucun plantage")],
         "P3": ["ROUGE" if p3 else ("VERT" if n3 else "NON MESURÉE"),
                "%d fiche(s) passée(s) par ⓪ ① ; %s" % (n3, " ; ".join(p3[:3]) or "témoins intacts")]},
         "refus": refus}
@@ -693,11 +701,20 @@ def soir(S, valeur, d_sig, close):
     refs = [n for n in os.listdir(os.path.join(S, "donnees")) if n.startswith("REFERENTIEL_VALEURS") and n.endswith(".csv")]
     _e, ref = lire_csv(os.path.join(S, "donnees", refs[0]))
     code_de = {(l.get("onglet_google") or "").strip().upper(): (l.get("mnemonique") or "").strip().upper() for l in ref}
+    code_du_signal = code_de.get(valeur.strip().upper())
+    servies = 0
     for i in qa:
         f = fiches[i]
         tp_f, sl_f, _h = J.lecture_du_soir(S, f)
         univ = {c.strip().upper() for c in f["univers"].split(",") if c.strip()}
         miennes = [p for p in positions if p.get("strategie") == i]
+        # UN SIGNAL POSÉ SUR SON UNIVERS DOIT OUVRIR UNE POSITION À SES SEUILS (sinon P4 ne mesurerait rien et
+        # resterait verte : un teneur qui refuse de tourner n'achète pas « ce que la fiche permet »)
+        if code_du_signal in univ:
+            servies += 1
+            if not any((p.get("statut") or "").strip() == "OUVERTE" for p in miennes):
+                p4.append("%s : signal posé sur %s (son univers), aucune position OUVERTE ; teneur codes %d puis %d : %s"
+                          % (i, valeur, code_t, code_t2, " | ".join(texte_t2.strip().splitlines()[-4:])[:300]))
         jeton = [p for p in miennes if p.get("comptabilite") == "un_jeton" and
                  (p.get("statut") or "").strip() in ("OUVERTE", "EN_ATTENTE_ENTREE")]
         if len(jeton) > 1:
@@ -716,11 +733,9 @@ def soir(S, valeur, d_sig, close):
         "SIL": ["ROUGE" if sil else ("VERT" if qa else "NON MESURÉE"),
                 "%d fiche(s) QA conforme(s) : %s ; %s" % (len(qa), qa, " ; ".join(sil) or "toutes nommées")],
         "P4": ["ROUGE" if p4 else ("VERT" if n4 else "NON MESURÉE"),
-               "%d position(s) factice(s) OUVERTE(S) mesurée(s) ; %s%s" % (
-                   n4, " ; ".join(p4[:3]) or "aucun défaut",
-                   "" if n4 else " ; teneur : " + " | ".join(l.strip() for l in texte_t2.splitlines()
-                                                             if "PROP-" in l or "❌" in l or "CODE" in l)[:300])],
-        "P1": ["ROUGE" if p1 else "VERT", "soir : détecteur %d, teneur %d puis %d ; %s" % (
+               "%d fiche(s) QA servie(s) par le signal, %d position(s) factice(s) OUVERTE(S) mesurée(s) ; %s" % (
+                   servies, n4, " ; ".join(p4[:3]) or "aucun défaut")],
+        "P1": ["ROUGE" if p1 else "VERT", "détecteur %d, teneur %d puis %d ; %s" % (
             code_d, code_t, code_t2, " ; ".join(p1) or "aucun plantage")]},
         "refus": refus}
     print(json.dumps(rendu, ensure_ascii=False))
@@ -823,23 +838,24 @@ def passage(racine, base, fiches, valeurs, soir_args, sabotage):
     try:
         fabriquer_w(racine, W, fiches, valeurs[0])
         fabriquer_s(racine, S, [f for f in fiches if f["id"].startswith("PROP-Q")])
+        def saboter(t):
+            for avant, apres in sabotage[3]:
+                if t.count(avant) != 1:
+                    raise RuntimeError("%s : texte à saboter présent %d fois" % (sabotage[0], t.count(avant)))
+                t = t.replace(avant, apres)
+            return t
         module = TEXTE_DU_MODULE
         if sabotage is not None and sabotage[2] == MODULE:
-            if module.count(sabotage[3]) != 1:
-                raise RuntimeError("%s : texte à saboter présent %d fois" % (sabotage[0], module.count(sabotage[3])))
-            module = module.replace(sabotage[3], sabotage[4])
+            module = saboter(module)
         for r in (W, S):
             open(os.path.join(r, MODULE), "w", encoding="utf-8").write(module)
         if sabotage is not None and sabotage[2] not in (None, MODULE):
             for r in (W, S):
                 chem = os.path.join(r, sabotage[2])
-                t = open(chem, encoding="utf-8").read()
-                if t.count(sabotage[3]) != 1:
-                    raise RuntimeError("%s : texte à saboter présent %d fois" % (sabotage[0], t.count(sabotage[3])))
-                open(chem, "w", encoding="utf-8").write(t.replace(sabotage[3], sabotage[4]))
+                open(chem, "w", encoding="utf-8").write(saboter(open(chem, encoding="utf-8").read()))
         ids = ["PROP-ORD"] + [f["id"] for f in fiches if f["id"].startswith(("PROP-L", "PROP-V"))] + \
               [f["id"] for f in fiches if f["id"].startswith("PROP-H")][:N_CHAINE_HASARD]
-        octet = ["--octet"] if sabotage is not None and sabotage[3] == "octet" else []
+        octet = ["--octet"] if sabotage is not None and sabotage[2] is None else []
         rendus = [("couche en mémoire", lancer_json(["--couche", W, ",".join(valeurs)], 1800)),
                   ("⓪ ①", lancer_json(["--chaine", W, ",".join(ids)] + octet, 2400))]
         if soir_args[0] is None:
