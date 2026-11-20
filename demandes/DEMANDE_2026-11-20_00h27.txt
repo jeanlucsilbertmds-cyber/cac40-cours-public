@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=ProprietesBout,ProprietesBoutSabot,ProprietesChaine,ProprietesSabot,ProprietesSuite,ProprietesSuiteSabot,JugeLecteur,VeriteJuge,Moulinette,MoulinetteEssai,Comptabilites,SoirFiche,RsiRebond,ArriveeSignaux,Comblement
+pointe=b992efda2d1f65b051b218beb6e83aa63f6fb83c
