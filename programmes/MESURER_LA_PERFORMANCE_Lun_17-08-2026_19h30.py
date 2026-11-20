@@ -2252,16 +2252,29 @@ def main():
       EXISTER sous le dossier de sortie : le programme ne le crée pas.
     ⑤ SORTIE — UNE valeur : un entier. 0 quand les mesures ont été écrites, 0
       également quand aucune stratégie n'est vivante au registre, 1 quand le
-      journal est introuvable, 1 quand le calibrage échoue, 1 quand une
+      journal est introuvable, 1 quand deux journaux existent (celui de `donnees/` et
+      un autre trouvé avant lui, depuis le 18-11-2026), 1 quand le calibrage échoue, 1 quand une
       opération du journal ne porte pas l'une des deux comptabilités déclarées
       au contrat (depuis le 27-09-2026), 1 quand, pour une stratégie, les opérations
       écrites dans ses deux comptabilités ne font pas le nombre de ses lignes au
-      journal.
+      journal, 1 quand une correction décidée des comptes un jeton ne s'applique pas
+      (depuis le 18-11-2026, A-801).
       [rend: 1]
     ⑥ TRAITEMENT — ① relever l'heure de Paris · ② trouver et lire
-      le journal des opérations, et s'arrêter s'il manque · ③ refaire les chiffres
+      le journal des opérations, et s'arrêter s'il manque, ou si un autre fichier est
+      trouvé avant `donnees/claude_journal_trades.csv` (deux journaux) · ③ refaire les chiffres
       de référence, et s'arrêter s'ils ne tombent pas juste · ③bis s'arrêter si
-      une opération n'a pas de comptabilité reconnue · ④ relever au
+      une opération n'a pas de comptabilité reconnue · ③ter appliquer les
+      corrections décidées des comptes un jeton par
+      `CONTRATS_DES_FICHIERS.appliquer_les_corrections_un_jeton` (fichier
+      `corrections_des_comptes_un_jeton.csv`, cherché par `_p`) : la ligne retirée
+      reste au journal et n'est plus comptée, son remplacement compte à sa place, et
+      chaque correction s'affiche ; la ligne visée est reconnue à son identité
+      (stratégie, comptabilité, valeur, jour d'achat) ; absente avec son jumeau en
+      jetons illimités présent, en double, ou différente sur les champs de la
+      décision : s'arrêter ; absente avec son jumeau : s'arrêter sur le vrai journal
+      (`donnees/claude_journal_trades.csv` de la racine) s'il couvre leur jour, SANS OBJET (ALERTE)
+      ailleurs (A-801, 18-11-2026 ; superviseur R-759, D1 et D2) · ④ relever au
       registre (par `fiches_du_registre` du contrat : une fiche par identifiant, sa
       dernière ligne, n°83, depuis le 05-11-2026) les stratégies en essai ou en production, et s'arrêter s'il n'y en
       a aucune · ④bis signaler un nom qui désigne deux d'entre elles · ⑤ charger les chiffres de référence figés · ⑥ charger le
@@ -2432,6 +2445,18 @@ def main():
     if not ch:
         print("ARRET : journal des operations introuvable — rien n'est ecrit.")
         return 1
+    # LE VRAI JOURNAL = donnees/claude_journal_trades.csv de la racine mesuree : sur lui, une correction dont ni la
+    # ligne ni son jumeau ne se retrouvent ARRETE (superviseur R-759 du 18-11-2026, D2).
+    # DEUX JOURNAUX ARRETENT (superviseur R-759 du 18-11-2026, arbitrage d'E20 : « si donnees/claude_journal_trades.csv
+    # existe a la racine mesuree et que _p rend un autre chemin, la mesure doit ARRETER (deux journaux = defaut, §10) ;
+    # ainsi « vrai journal » ne depend plus de l'ordre de recherche ») : `_p` cherche d'abord a plat ; un journal
+    # parasite pose a la racine serait pris avant le vrai, qui ne serait plus mesure.
+    _vrai = os.path.join(base, 'donnees', 'claude_journal_trades.csv')
+    if os.path.isfile(_vrai) and os.path.realpath(ch) != os.path.realpath(_vrai):
+        print(f"ARRET : deux journaux des operations — {ch} serait lu a la place de {_vrai} ; "
+              "aucune mesure n'est ecrite.")
+        return 1
+    vrai_journal = os.path.realpath(ch) == os.path.realpath(_vrai)
     operations = lire_csv(ch)
 
     ok, controles = calibrage(operations)
@@ -2457,6 +2482,27 @@ def main():
             print(f"   {o.get('strategie')} · {o.get('valeur')} · {o.get('date_sortie')} : "
                   f"comptabilite {o.get('comptabilite')!r} ; admises : {', '.join(COMPTABILITES)}")
         return 1
+
+    # LES CORRECTIONS DECIDEES DES COMPTES UN JETON (BACKLOG A-801, decision de Jean-Luc du 15-11-2026 a 12h29) :
+    # une ligne du journal retiree des comptes un jeton reste au journal, a l'octet, et n'est plus comptee ; son
+    # remplacement, calcule par programmes/CORRIGER_LES_COMPTES_UN_JETON.py, est compte a sa place. Les jetons
+    # illimites ne sont jamais corriges. Une correction qui ne retrouve pas sa ligne ARRETE la mesure : sautee en
+    # silence, elle ferait compter l'achat retire. Le calibrage, juste au-dessus, a lu le journal brut.
+    from CONTRATS_DES_FICHIERS import (NOM_DES_CORRECTIONS_UN_JETON, appliquer_les_corrections_un_jeton,
+                                       CorrectionUnJetonImpossible)
+    try:
+        operations, _retirees, _ajoutees, _sans_objet = appliquer_les_corrections_un_jeton(
+            operations, _p(base, NOM_DES_CORRECTIONS_UN_JETON), vrai_journal)
+    except CorrectionUnJetonImpossible as e:
+        print(f"ARRET : correction des comptes un jeton impossible — aucune mesure n'est ecrite : {e}")
+        return 1
+    for _r, _a in zip(_retirees, _ajoutees):
+        print(f"   CORRECTION {_r['action']} (un jeton) : {_r['strategie']} · {_r['valeur']} achetee le "
+              f"{_r['date_entree']} ({_r['pnl_net_eur']} EUR) RETIREE DES COMPTES, ligne gardee au journal ; "
+              f"comptee a sa place : {_a['valeur']} achetee le {_a['date_entree']} ({_a['pnl_net_eur']} EUR)")
+    for _a in _sans_objet:
+        print(f"   ALERTE : correction {_a} (un jeton) SANS OBJET — ce journal ne porte ni la ligne retiree ni son jumeau, "
+              "et il ne couvre pas leur jour (ou ce n'est pas le vrai journal) : rien n'est corrige")
 
     # carte d'identite de chaque strategie vivante (registre = etat civil)
     cartes, etats = {}, {}
