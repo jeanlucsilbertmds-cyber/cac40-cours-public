@@ -237,8 +237,9 @@ def fiches_du_soir(racine, B, mnemo):
       Les fiches refusées sont toujours dites, avec le motif de leur refus.
       [rend: 1]
     ⑥ TRAITEMENT — ① lire les fiches (`fiches_du_registre`, la dernière ligne d'un identifiant fait foi) · ② garder
-      celles que le soir suit : « VIVANTE » dans `statut` et `univers` non vide — le critère de
-      `programmes/TENIR_LES_POSITIONS.py`, qui leur attribue les signaux · ③ LA GARDE : refuser si `porte_0` dit non,
+      celles que le soir suit : `suivie_par_le_soir` du contrat (`etat_vie` QA ou PRODUCTION et `univers` non vide,
+      depuis le 18-11-2026, étape E8 ; avant : « VIVANTE » dans `statut`) — le critère que
+      `programmes/TENIR_LES_POSITIONS.py` appelle aussi pour leur attribuer les signaux · ③ LA GARDE : refuser si `porte_0` dit non,
       si `signal_de_la_fiche` lève, ou si un mnémonique de l'univers n'est pas au référentiel · ④ rendre la garde
       « aucune_vivante » si aucune fiche n'est suivie, « refus_total » si aucune n'est retenue, « signaux_multiples » si
       les fiches retenues déclarent des signaux différents · ⑤ sinon, l'univers est la réunion des univers retenus :
@@ -262,13 +263,13 @@ def fiches_du_soir(racine, B, mnemo):
       séance sans signal ; c'est le circuit qui rougit (refus_total, signaux_multiples) ou avertit (aucune_vivante).
       L'ORDRE DE L'UNIVERS fixe l'ordre des listes du fichier publié : le plus grand univers d'abord rend les dix
       valeurs de C5 dans l'ordre exact de l'ancienne liste écrite en dur, donc un fichier identique à l'octet.
-    ⑨ CE QUI CLOCHE — ① Le critère « VIVANTE et univers non vide » est RECOPIÉ de `TENIR_LES_POSITIONS.py`
-      (l. 2900-2904 au 10-11-2026), qui l'écrit en ligne et ne l'expose pas : deux écritures (R-708). ② La garde
+    ⑨ CE QUI CLOCHE — ① (réglé le 18-11-2026, étape E8 : le critère vit au contrat, `suivie_par_le_soir`, appelé ici
+      et par le teneur ; il était RECOPIÉ de `TENIR_LES_POSITIONS.py`.) ② La garde
       d'ici ne retire une fiche refusée que de l'UNIVERS DU DÉTECTEUR : si son univers est contenu dans celui d'une
       fiche retenue (C5E10-QA-V1 ⊂ C5E10-OBS-V1), le teneur de positions lui attribuera encore un signal — il faut
       qu'il lise la garde (reste connu, fichier de l'agent A : BACKLOG A-706 ④). ③ L'ordre « plus grand univers
-      d'abord » est une convention choisie pour l'identité du fichier, sans autre raison. ④ La garde ne regarde pas
-      `etat_vie`. ⑤ Un refus PARTIEL (une fiche refusée, une autre retenue) n'est dit qu'à l'écran, pas dans le
+      d'abord » est une convention choisie pour l'identité du fichier, sans autre raison. ④ (réglé le 18-11-2026 : les
+      fiches suivies se choisissent sur `etat_vie`.) ⑤ Un refus PARTIEL (une fiche refusée, une autre retenue) n'est dit qu'à l'écran, pas dans le
       fichier : `garde_du_soir` n'est écrit que si le soir ne suit aucune fiche — sinon le fichier d'un soir ordinaire
       cesserait d'être identique à l'octet à celui de l'ancien détecteur.
     ⑩ EFFET — Lit le registre et le référentiel ; charge (donc EXÉCUTE) le module de signal de chaque fiche suivie,
@@ -276,7 +277,7 @@ def fiches_du_soir(racine, B, mnemo):
     ⑪ TERMINAISON — PEUT NE PAS RENDRE LA MAIN : code 2 si le registre est illisible. La garde, elle, rend la main.
       [sort: oui]
     """
-    from CONTRATS_DES_FICHIERS import chemin_du_registre, fiches_du_registre
+    from CONTRATS_DES_FICHIERS import chemin_du_registre, fiches_du_registre, suivie_par_le_soir
     try:
         fiches = list(fiches_du_registre(chemin_du_registre(racine)).values())
     except (OSError, ValueError, KeyError) as e:
@@ -284,7 +285,9 @@ def fiches_du_soir(racine, B, mnemo):
         sys.exit(2)
     retenues, refusees, suivies = [], [], 0
     for f in fiches:
-        if "VIVANTE" not in (f.get("statut") or "") or not (f.get("univers") or "").strip():
+        # LE SOIR SUIT LA STRATÉGIE DÉCIDÉE (étape E8, A-644 ; R-513 ①) : `etat_vie` QA ou PRODUCTION et univers non
+        # vide, critère écrit UNE fois au contrat et appelé aussi par le teneur des positions (R-708).
+        if not suivie_par_le_soir(f):
             continue
         suivies += 1
         ident = f.get("id") or "(sans identifiant)"

@@ -185,6 +185,9 @@ from CONTRATS_DES_FICHIERS import COMPTABILITES, TRADE, POSITION, UN_JETON, JETO
 # le registre des stratégies : son nom, ses graphies et sa lecture vivent au contrat (n°83, 05-11-2026)
 from CONTRATS_DES_FICHIERS import (REGISTRE_DES_STRATEGIES, NOM_DU_REGISTRE_DES_STRATEGIES, chemin_du_registre,
                                    fiches_du_registre)
+# quelles fiches le soir suit : la stratégie décidée, lue dans `etat_vie` (étape E8, A-644 ; R-513 ①) — une fois, au
+# contrat, pour le détecteur et pour ce programme (R-708)
+from CONTRATS_DES_FICHIERS import suivie_par_le_soir
 from COMMUN import lire_horizon                 # la seule lecture d'un horizon (R-708)
 # « aucune » (aucune durée maximale, contrat du lot 0 du 09-11-2026) est lisible par le soir depuis le 11-11-2026
 # (plan V7, bloc 4) : `reglages_du_registre`, `horizon_connu`, `completer_echeances`, `horizons_illisibles`.
@@ -1608,6 +1611,38 @@ def mettre_a_part_les_cci_fautifs(signaux):
     return gardes, a_part
 
 
+def table_nom_vers_mnemonique(chemin):
+    """Rend la table nom de valeur (majuscules) → mnémonique, lue dans le référentiel des valeurs.
+
+    ① RÔLE — LA SEULE construction de la table qui traduit le nom porté par un signal en mnémonique d'univers (R-708 :
+      deux implémentations d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `tenir_pour_de_vrai` (le circuit du soir) ; `programmes/CORRIGER_LES_COMPTES_UN_JETON.py`
+      (`rejouer_la_decision`), depuis le 18-11-2026.
+    ③ ENTRÉE — `chemin` : le fichier du référentiel des valeurs.
+    ④ CONDITIONS D'ENTRÉE — Le fichier porte les colonnes `onglet_google` et `mnemonique`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire ; vide si le fichier n'existe pas (comme `_lire_csv`).
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque ligne : `onglet_google` en majuscules → `mnemonique` en majuscules, lignes complètes
+      seules.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Sortie le 18-11-2026 de `tenir_pour_de_vrai`, où elle était écrite en ligne, parce que la correction
+      des comptes un jeton (A-801) la recopiait (relecture du 18-11-2026, D4 ; superviseur R-759).
+    ⑨ CE QUI CLOCHE — `tenir_pour_de_vrai` lui passe un nom de référentiel écrit en dur (v3), quand le lecteur du
+      soir le trouve par `trouver(base, "REFERENTIEL_VALEURS")` : au premier référentiel v4, les deux divergeraient
+      (non changé ici, BACKLOG).
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    mnemo = {}
+    for ligne in _lire_csv(chemin):
+        nom = (ligne.get("onglet_google") or "").strip().upper()
+        code = (ligne.get("mnemonique") or "").strip().upper()
+        if nom and code:
+            mnemo[nom] = code
+    return mnemo
+
+
 def attribuer_aux_strategies(signaux, strategies, mnemo):
     """Attribue chaque signal du détecteur aux stratégies vivantes dont l'univers porte sa valeur, CCI compris.
 
@@ -2870,8 +2905,10 @@ def horizons_illisibles(lignes):
 
     ① RÔLE — **Refuser un horizon absent, mal écrit ou nul** avant que le soir
       ne tienne une seule position.
-    ② CONTEXTE D APPEL — `tenir_pour_de_vrai`, sur les stratégies vivantes du
-      registre ; et `_calibrage`, qui l éprouve.
+    ② CONTEXTE D APPEL — `tenir_pour_de_vrai`, sur chaque fiche suivie que la garde
+      du soir accepte, une à une (depuis le 18-11-2026, étape E8 : une fiche
+      illisible est mise à part, elle n arrête plus le soir) ; et `_calibrage`,
+      qui l éprouve.
     ③ ENTRÉE — `lignes` : des lignes du registre des stratégies, avec `id` et
       `horizon`.
     ④ CONDITIONS D ENTRÉE — Aucune.
@@ -3105,7 +3142,11 @@ def tenir_pour_de_vrai(base):
     ⑥ TRAITEMENT — ① charger le module, le juge des stratégies, les réglages · ② **CALIBRER, et
       s arrêter si le trade connu ne tombe pas** · ③ lire l état de la veille, et les fiches du
       registre par `fiches_du_registre` du contrat, UNE fois, la dernière ligne d un identifiant
-      faisant foi (n°83, depuis le 05-11-2026 ; les univers et les horizons des vivantes en viennent) ·
+      faisant foi (n°83, depuis le 05-11-2026 ; les univers et les horizons des vivantes en viennent) ;
+      les fiches suivies sont celles que `suivie_par_le_soir` du contrat désigne (`etat_vie`, depuis le
+      18-11-2026, étape E8) ; une fiche que la garde du soir refuse, ou dont l'horizon est illisible, est MISE À
+      PART avec son motif, les autres tournent, et la sortie du pas `fiches_mises_a_part=<n>` fait rougir le
+      pas de fin (avant : un horizon illisible arrêtait tout le soir, code 1) ·
       ③bis lire les cours par le lecteur unique, et s arrêter en code 2 si la lecture
       est refusée ou impossible (29-10-2026) · ③ter s arrêter en code 1, sans rien écrire, si
       le registre manque ; une position OUVERTE sans horizon lu au soir (`positions_sans_horizon_du_soir` :
@@ -3222,9 +3263,17 @@ def tenir_pour_de_vrai(base):
     _registre = os.path.join(base, REGISTRE_DES_STRATEGIES)
     _fiches = list(fiches_du_registre(_registre).values()) if os.path.isfile(_registre) else []
     strategies = []
+    # CHAQUE FICHE SUIVIE EST ISOLÉE DES AUTRES (étape E8 du planning, plan V7 bloc 9, A-644 ②) : une fiche que la
+    # garde refuse, ou dont l'horizon est illisible, est MISE À PART avec son motif ; les autres reçoivent leurs
+    # signaux et leurs positions sont tenues ; la sortie du pas `fiches_mises_a_part=<n>` fait rougir le pas de fin
+    # « Rougir si une fiche suivie a ete mise a part ». Avant le 18-11-2026, un horizon illisible sur UNE fiche VIVANTE
+    # arrêtait le soir de toutes (code 1, rien d'écrit), et un refus de la garde n'était dit qu'à l'écran, passage vert.
+    _mises_a_part = []
     _mnemo_du_juge = None
     for ligne in _fiches:
-        if "VIVANTE" in (ligne.get("statut") or "") and (ligne.get("univers") or "").strip():
+        # LE SOIR SUIT LA STRATÉGIE DÉCIDÉE : `etat_vie` QA ou PRODUCTION, univers non vide (R-513 ① ; critère du
+        # contrat, appelé aussi par le détecteur). Avant le 18-11-2026 : « VIVANTE » dans `statut`, une copie.
+        if suivie_par_le_soir(ligne):
             # UNE FICHE QUE LE JUGE REFUSE NE RECOIT PLUS DE SIGNAL (BACKLOG A-706 ④, 10-11-2026 ; plan V7, bloc 4,
             # 11-11-2026) : on le dit, et la tenue des positions continue.
             # LE CRITÈRE VIT DANS LE JUGE (`fiche_suivie`), le même que celui du détecteur, référentiel compris (RELU
@@ -3234,16 +3283,19 @@ def tenir_pour_de_vrai(base):
             _refus = juge.fiche_suivie(base, ligne, _mnemo_du_juge)[2]
             if _refus:
                 print(f"  ⛔ FICHE {ligne['id']} REFUSEE PAR LE JUGE — aucun signal ne lui est attribue : {_refus}")
+                _mises_a_part.append((ligne["id"], _refus))
+                continue
+            # L'HORIZON ILLISIBLE MET LA SEULE FICHE À PART (A-644 ②). `porte_0` le refuse déjà ci-dessus ; cette
+            # seconde porte reste pour le jour où la porte changerait : elle ne coupe plus que la fiche fautive.
+            if horizons_illisibles([ligne]):
+                _motif_h = "horizon illisible : %r" % (ligne.get("horizon") or "")
+                print(f"  ⛔ FICHE {ligne['id']} MISE A PART — aucun signal ne lui est attribue : {_motif_h}")
+                _mises_a_part.append((ligne["id"], _motif_h))
                 continue
             strategies.append((ligne["id"], {m.strip().upper()
                                              for m in ligne["univers"].split(",") if m.strip()}))
-    mnemo = {}
-    for ligne in _lire_csv(os.path.join(base, "donnees",
-                                        "REFERENTIEL_VALEURS_v3_Lun_17-08-2026_10h54.csv")):
-        nom = (ligne.get("onglet_google") or "").strip().upper()
-        code = (ligne.get("mnemonique") or "").strip().upper()
-        if nom and code:
-            mnemo[nom] = code
+    mnemo = table_nom_vers_mnemonique(os.path.join(base, "donnees",
+                                                   "REFERENTIEL_VALEURS_v3_Lun_17-08-2026_10h54.csv"))
 
     # ═══ LE LECTEUR SE CONFRONTE AU CONTRAT, LUI AUSSI ═══
     # CC1 de Cowork, 13-09-2026 : j avais ecrit « chaque bout se confronte AU
@@ -3340,8 +3392,8 @@ def tenir_pour_de_vrai(base):
     # le programme qui calcule le P&L, est le pire endroit du systeme pour une
     # valeur inventee.** Un horizon illisible n est pas un 20, c est un arret.
     lignes_v = [l for l in _fiches          # les fiches lues plus haut, la dernière ligne faisant foi (n°83)
-                if "VIVANTE" in (l.get("statut") or "")]
-    illisibles = horizons_illisibles(lignes_v)
+                if suivie_par_le_soir(l)]
+    _retenues = {s_ for s_, _u in strategies}
     # AUCUNE FICHE VIVANTE N'EST PAS UNE PANNE (message du Chat du 11-11-2026 a 02h35, mesure de l'agent C ; BACKLOG
     # A-706) : une fermeture de strategie est une decision de Jean-Luc. Avant, le teneur rendait 1 ici, et les
     # positions deja ouvertes n'etaient plus tenues (objectif, stop, echeance), le passage rougissait. Desormais il
@@ -3350,14 +3402,18 @@ def tenir_pour_de_vrai(base):
     if not lignes_v:
         print("  ⚠️ AUCUNE STRATEGIE VIVANTE au registre — aucun signal n'est attribue ; "
               "les positions deja ouvertes sont tenues.")
-    if illisibles:
-        print(f"  ❌ HORIZON ILLISIBLE pour : {', '.join(illisibles)}")
-        print("     Un horizon absent ou mal ecrit n est PAS un 20 par defaut :")
-        print("     une cloture au mauvais horizon fausse le P&L de chaque trade.")
-        return 1
+    # UN HORIZON ILLISIBLE N'ARRÊTE PLUS LE SOIR ENTIER (étape E8, A-644 ②) : la fiche est mise à part plus haut, avec
+    # son motif ; ses positions déjà ouvertes, sans horizon lu au soir, sont signalées juste en dessous et laissées
+    # telles quelles. Un horizon absent ou mal écrit reste un refus, jamais un 20 par défaut.
+    if _mises_a_part:
+        print(f"  ❌ {len(_mises_a_part)} FICHE(S) SUIVIE(S) MISE(S) A PART CE SOIR — aucun signal ne leur est attribue ; "
+              "les autres strategies sont tenues :")
+        for _i, _m in _mises_a_part:
+            print(f"     {_i} : {_m}")
     for l in lignes_v:
-        print(f"  horizon lu au registre · {l['id']} : "
-              f"{lire_horizon_ou_aucune(l['horizon'])} seances")
+        if l["id"] in _retenues:
+            print(f"  horizon lu au registre · {l['id']} : "
+                  f"{lire_horizon_ou_aucune(l['horizon'])} seances")
     # UNE POSITION DÉJÀ OUVERTE NE SE TIENT PAS À UN HORIZON INVENTÉ (défaut D-A du relecteur neuf de la vente, tour 2,
     # 12-11-2026) : si le soir n'a pas d'horizon pour sa stratégie (fiche refusée par `lecture_du_soir` — « aucune »
     # non ouverte au soir, « sans stop », horizon illisible — ou absente du registre), `completer_echeances` lui
@@ -3397,6 +3453,9 @@ def tenir_pour_de_vrai(base):
     # du sabotage S27 de `tests/EPREUVES_DE_LA_VENTE_UNIQUE_A_Mer_11-11-2026.py` ; la seconde s'ajoute a part.
     _ligne_du_pas = "positions_signalees=%d" % len(_sans_horizon)
     _ligne_du_pas += "\nsignaux_mis_a_part=%d" % _n_mis_a_part
+    # la troisième (étape E8, A-644 ②) : les fiches suivies mises à part ce soir, lue par « Rougir si une fiche suivie
+    # a ete mise a part » ; les deux premières lignes restent à l'octet.
+    _ligne_du_pas += "\nfiches_mises_a_part=%d" % len(_mises_a_part)
     _sortie_du_pas = os.environ.get("GITHUB_OUTPUT")
     if _sortie_du_pas:
         try:

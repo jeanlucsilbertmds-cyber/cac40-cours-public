@@ -556,14 +556,14 @@ def preparer(racine, indic):
     ① RÔLE — Le contexte. ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — la racine, le chemin du rejeu (ou None).
     ④ CONDITIONS D'ENTRÉE — Celles du programme. ⑤ SORTIE — UNE valeur : un dictionnaire.
     ⑥ TRAITEMENT — ① référentiel : onglet_google → mnémonique, comme `tenir_pour_de_vrai` · ② stratégies : fiches
-    VIVANTES à univers non vide, la dernière ligne faisant foi (`fiches_du_registre`) · ③ le détecteur réel relit
+    suivies par le soir (`suivie_par_le_soir` du contrat, depuis le 18-11-2026), la dernière ligne faisant foi (`fiches_du_registre`) · ③ le détecteur réel relit
     deux journées sur le fichier maître · ④ le rejeu (`MESURER_LES_INDICATEURS.py`), s'il est trouvé. ⑦ UNITÉ — —
     ⑧ POURQUOI — Le détecteur coûte quelques secondes : une seule lecture. ⑨ CE QUI CLOCHE — Voir ⑨ du programme.
     ⑩ EFFET — Exécute le code du détecteur et du rejeu (lecture seule). ⑪ TERMINAISON — Rend la main ; lève si le
     matériel manque.
     """
     prog = os.path.join(racine, "programmes")
-    from CONTRATS_DES_FICHIERS import fiches_du_registre, REGISTRE_DES_STRATEGIES
+    from CONTRATS_DES_FICHIERS import fiches_du_registre, REGISTRE_DES_STRATEGIES, suivie_par_le_soir
     mnemo = {}
     with open(os.path.join(racine, "donnees", "REFERENTIEL_VALEURS_v3_Lun_17-08-2026_10h54.csv"),
               encoding="utf-8-sig", newline="") as fh:
@@ -573,7 +573,8 @@ def preparer(racine, indic):
                 mnemo[nom] = code
     strategies = []
     for l in fiches_du_registre(os.path.join(racine, REGISTRE_DES_STRATEGIES)).values():
-        if "VIVANTE" in (l.get("statut") or "") and (l.get("univers") or "").strip():
+        # le critère du soir, appelé au contrat et non recopié (étape E8, 18-11-2026 : `etat_vie`, R-513 ①)
+        if suivie_par_le_soir(l):
             strategies.append((l["id"], {m.strip().upper() for m in l["univers"].split(",") if m.strip()}))
     D = charger("epreuve_detecteur", os.path.join(prog, "DETECTER_LES_SIGNAUX_GITHUB.py"))
     B, mod, cours, lecture = D.charger(racine)

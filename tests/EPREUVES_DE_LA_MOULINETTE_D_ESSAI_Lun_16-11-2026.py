@@ -6,9 +6,11 @@ LE SENS EN TÊTE. Épreuves R-731 de programmes/PREPARER_LA_MOULINETTE_D_ESSAI.p
 du 16-11-2026 : la fiche d'essai C5 2000-2026 vit dans une copie jetable du registre, jamais dans le vrai). Quatre
 propriétés, chacune avec un sabotage qui doit la faire rougir : le refus sur un dépôt (racine avec .git) ; la copie a
 exactement une ligne de plus et toutes les autres identiques à l'octet ; le registre d'un dépôt refusé est inchangé ;
-la ligne d'essai est la vraie ligne C5 recopiée, seuls l'identifiant, la période et le statut changeant.
+la ligne d'essai est la vraie ligne C5 recopiée, seuls l'identifiant, la période, le statut et l'état de vie
+changeant ; et (depuis le 18-11-2026, étape E8, relecture c81c1457 D1) la ligne d'essai n'est JAMAIS suivie par le
+circuit du soir (`suivie_par_le_soir` du contrat de la copie rend faux).
 
-① RÔLE — Jouer les cas E1 à E6 sur le programme tel quel (Z0), puis, avec --saboter, sous chaque sabotage S1 à S7.
+① RÔLE — Jouer les cas E1 à E7 sur le programme tel quel (Z0), puis, avec --saboter, sous chaque sabotage S1 à S8.
 ② CONTEXTE D'APPEL — À la main, par le Chat ou un agent ; la certification si on l'y inscrit.
 ③ ENTRÉE — La ligne de commande : la racine d'un dépôt ou d'une copie (lue, jamais écrite), « --saboter » facultatif.
 ④ CONDITIONS D'ENTRÉE — La racine porte le programme, programmes/, donnees/cac40_strategies.csv et le fichier des 20 ans.
@@ -41,7 +43,7 @@ PROGRAMME = os.path.join("programmes", "PREPARER_LA_MOULINETTE_D_ESSAI.py")
 REGISTRE = os.path.join("donnees", "cac40_strategies.csv")
 VINGT_ANS = "temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv"
 SOURCE_ATTENDUE = "C5E10-QA-V1"
-CHANGEES = ("id", "periode", "statut")
+CHANGEES = ("id", "periode", "statut", "etat_vie")
 DELAI = 120
 
 SABOTAGES = {
@@ -57,6 +59,8 @@ SABOTAGES = {
                               'SOURCES = ("C5-ETENDU-10", "C5E10-OBS-V1", "C5E10-QA-V1")'),
     "S6_borne_de_fin_oubliee": ('BORNE_DE_FIN_EXCLUE = "2026-10-30"', 'BORNE_DE_FIN_EXCLUE = "9999-12-31"'),
     "S7_periode_non_changee": ('("periode", "%s -> %s" % (debut, fin)), ', ""),
+    # E8, 18-11-2026 : la ligne d'essai garde l'état de vie de C5E10-QA-V1 (« QA ») — le soir la suivrait
+    "S8_etat_de_vie_non_change": ('("etat_vie", ETAT_DE_LA_FICHE_D_ESSAI)', '("statut", STATUT_DE_LA_FICHE_D_ESSAI)'),
 }
 
 
@@ -106,14 +110,16 @@ def lancer(copie):
 
 
 def jouer_les_cas(racine, texte_du_programme):
-    """Joue E1 à E6 ; rend la liste des cas faux (vide si tout est conforme). ① RÔLE — Le jeu d'épreuves.
+    """Joue E1 à E7 ; rend la liste des cas faux (vide si tout est conforme). ① RÔLE — Le jeu d'épreuves.
     ② CONTEXTE D'APPEL — `main`, pour Z0 et chaque sabotage. ③ ENTRÉE — la racine ; le texte du programme.
     ④ CONDITIONS D'ENTRÉE — fiche en tête, ④. ⑤ SORTIE — UNE valeur : la liste des cas faux, chacun « Ex : raison ».
     [rend: 1] ⑥ TRAITEMENT — E1 refus sur une racine avec .git (code 2, « porte .git ») ; E2 une ligne de plus, les
     octets d'origine en préfixe exact ; E3 registre inchangé après le refus de E1 ; E4 la vraie ligne C5E10-QA-V1
-    recopiée, seuls id, periode, statut changent, période 2000-01-03 -> dernière séance avant le 2026-10-30, calculée
+    recopiée, seuls id, periode, statut, etat_vie changent, période 2000-01-03 -> dernière séance avant le 2026-10-30, calculée
     ici par une lecture à part du fichier des 20 ans ; E5 second passage refusé, registre inchangé ; E6 combinatoire
-    d'une version marquée OUI, seuils 0.04 et 0.025, horizon 20. ⑦ UNITÉ — — ⑧ POURQUOI — Fiche en tête.
+    d'une version marquée OUI, seuils 0.04 et 0.025, horizon 20 ; E7 la ligne d'essai écrite n'est pas suivie par le
+    soir (`suivie_par_le_soir` du contrat de la mini-copie) et son état de vie n'est pas celui de la source.
+    ⑦ UNITÉ — — ⑧ POURQUOI — Fiche en tête.
     ⑨ CE QUI CLOCHE — E4 recalcule la période à part : un défaut commun aux deux lectures passerait. ⑩ EFFET — Crée
     et efface des mini-copies. ⑪ TERMINAISON — Rend la main. [sort: non]"""
     faux = []
@@ -149,10 +155,20 @@ def jouer_les_cas(racine, texte_du_programme):
         dates = {r["date"] for r in csv.DictReader(open(os.path.join(racine, VINGT_ANS), encoding="utf-8-sig"))}
         periode = "%s -> %s" % (min(x for x in dates if x[:4] == "2000"), max(x for x in dates if x < "2026-10-30"))
         attendu = dict(zip(entete, src), id="ESSAI-C5-2000-2026", periode=periode)
-        ecarts = [c for c in entete if c != "statut" and dict(zip(entete, essai)).get(c) != attendu[c]]
+        ecarts = [c for c in entete if c not in ("statut", "etat_vie") and dict(zip(entete, essai)).get(c) != attendu[c]]
         statut = dict(zip(entete, essai)).get("statut", "")
         if len(essai) != len(src) or ecarts or not statut.startswith("ESSAI") or statut == attendu["statut"]:
             faux.append("E4 vraie ligne C5 : colonnes en écart %s, statut %r" % (ecarts, statut[:40]))
+        # E7 — LA PROPRIÉTÉ : une ligne d'essai n'est jamais suivie par le circuit du soir (étape E8, relecture
+        # c81c1457 D1 : recopiée de C5E10-QA-V1, elle gardait « QA » et le soir l'aurait suivie). Le critère est celui
+        # du contrat de la copie, appelé, jamais recopié (R-708).
+        import importlib.util as _u
+        _sp = _u.spec_from_file_location("contrat_e7", os.path.join(d, "programmes", "CONTRATS_DES_FICHIERS.py"))
+        _K = _u.module_from_spec(_sp)
+        _sp.loader.exec_module(_K)
+        _ligne = dict(zip(entete, essai))
+        if _K.suivie_par_le_soir(_ligne) or _ligne.get("etat_vie") == attendu["etat_vie"]:
+            faux.append("E7 ligne d'essai suivie par le soir : etat_vie %r" % _ligne.get("etat_vie"))
         avant = empreinte(os.path.join(d, REGISTRE))
         code, sortie = lancer(d)
         if code != 2 or empreinte(os.path.join(d, REGISTRE)) != avant:
@@ -190,7 +206,7 @@ def main(arguments):
         return 2
     ok = True
     faux = jouer_les_cas(racine, texte)
-    print("Z0 programme tel quel : %s" % ("E1 à E6 conformes" if not faux else "FAUX %s" % faux))
+    print("Z0 programme tel quel : %s" % ("E1 à E7 conformes" if not faux else "FAUX %s" % faux))
     ok = ok and not faux
     if "--saboter" in arguments:
         for nom, (ancre, remplacement) in SABOTAGES.items():
