@@ -380,7 +380,8 @@ def reglages_du_registre(base):
       seuils et son horizon par `lecture_du_soir` du juge des stratégies (depuis le 12-11-2026 ; elle lit les seuils
       par `seuil_de_la_fiche`, la lecture unique, A-548) ; une ligne que cette lecture refuse (seuils illisibles ou
       mal signés, « sans stop », horizon illisible, « aucune » non accepté au soir) est passée — la porte
-      `fiche_suivie` la refuse avec le même motif, en le disant · ③ l indexer sous ses deux désignations.
+      `fiche_suivie` la refuse avec le même motif, en le disant · ③ l indexer sous ses deux désignations. Le ② et le
+      ③ vivent depuis le 20-11-2026 dans `reglages_des_fiches` (F3 d A-924), que cette fonction appelle.
     ⑦ UNITÉ — **Les seuils sont écrits en POURCENTS dans le registre et RENDUS en
       FRACTIONS (« +4.0% » → 0,04) ; l horizon en JOURS DE BOURSE et
       non en jours calendaires.**
@@ -416,42 +417,70 @@ def reglages_du_registre(base):
     # 12h33 : « La dernière ligne ajoutée fait foi. Les précédentes restent comme historique. »).
     p = chemin_du_registre(base)
     if os.path.exists(p):
-        r = {}
-        # LES SEUILS SE LISENT AU JUGE DES STRATÉGIES, À UN SEUL ENDROIT (A-548, 31-10-2026) : trois programmes les
-        # lisaient de trois façons ; « -0.6% » valait 0,6 chez le juge et 0,006 ici.
-        juge = _juge_d_a_cote()
-        for x in fiches_du_registre(p).values():
-            # LA LECTURE DU SOIR VIT DANS LE JUGE, UNE FOIS (`lecture_du_soir`, 12-11-2026 ; défaut D1 de la mission
-            # VENTE, marche du superviseur R-759) : la MÊME que celle de la porte `fiche_suivie`, si bien qu'une fiche
-            # suivie est une fiche réglée. Elle lit les seuils par `seuil_de_la_fiche` (A-548), refuse « sans stop »,
-            # un horizon illisible, et « aucune » tant que le réglage du soir ne l'accepte pas.
-            try:
-                tp, sl, _h = juge.lecture_du_soir(base, x)
-            except ValueError:
-                continue
-            # les noms d'une strategie se lisent au contrat (R-708), une fois
-            for k in sorted(noms_d_une_strategie(x)):
-                if k:
-                    # W2 de Cowork, 12-09 : l horizon est une colonne PAR
-                    # STRATEGIE, et le fichier s en sert — C4-RAV 3j,
-                    # MA200-S1 20j, C5-EI-PARAMS 30. Deux vivantes d horizons
-                    # differents n est donc PAS une anomalie : c est une
-                    # configuration que l etat civil prevoit. Mon garde-fou
-                    # l interdisait, et « il ne protegeait pas d un defaut,
-                    # il masquait une limite de conception ».
-                    # W1 : la graphie MAJORITAIRE du fichier porte un « j ».
-                    # `isdigit()` l excluait, l ensemble tombait vide, et le
-                    # repli code en dur s appliquait EN ANNONCANT une lecture
-                    # du registre qui n avait pas eu lieu.
-                    # UNE SEULE LECTURE DE L'HORIZON (R-708) : `lire_horizon`,
-                    # aussi employee par le garde-fou `horizons_illisibles`.
-                    # DEPUIS LE 11-11-2026 (plan V7, bloc 4) : `lire_horizon_ou_aucune`, qui rend
-                    # aussi HORIZON_AUCUNE pour « aucune » ; `horizon_connu` le garde tel quel.
-                    r[k] = {"tp": tp, "sl": sl, "horizon": _h}
-        return r
+        return reglages_des_fiches(base, fiches_du_registre(p).values())
     raise FileNotFoundError(
         "le registre des strategies est introuvable dans %r : sans lui, aucune "
         "position ne peut s'ouvrir, et ce silence serait invisible." % base)
+
+
+def reglages_des_fiches(base, fiches):
+    """Lit les seuils et l horizon de fiches DONNÉES, par la lecture du soir du juge des stratégies.
+
+    ① RÔLE — Le corps de `reglages_du_registre`, séparé pour qu un appelant qui a déjà CHOISI sa fiche (une ligne
+      du registre qui n est pas la dernière) la règle par le même chemin que le soir (R-708).
+    ② CONTEXTE D APPEL — `reglages_du_registre`, une fois par appel, sur les fiches du registre ;
+      `rejouer_la_decision` de `programmes/CORRIGER_LES_COMPTES_UN_JETON.py`, sur la fiche désignée par l empreinte
+      de la décision (F3 d A-924, 20-11-2026).
+    ③ ENTRÉE — `base` : la racine du dépôt (le juge y lit le réglage du soir) · `fiches` : des lignes du registre
+      des stratégies (dictionnaires), dans l ordre où elles doivent s appliquer.
+    ④ CONDITIONS D ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un dictionnaire des réglages {désignation : {"tp", "sl", "horizon"}}, indexé à la fois
+      par identifiant et par nom ; une fiche que `lecture_du_soir` refuse n y est pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque fiche : `lecture_du_soir` du juge ; un refus (ValueError) la passe ; sinon l indexer
+      sous chacune de ses désignations (`noms_d_une_strategie`). Une désignation déjà vue est écrasée par la fiche
+      qui suit.
+    ⑦ UNITÉ — Seuils en FRACTIONS (« +4.0% » → 0,04) ; horizon en jours de bourse.
+    ⑧ POURQUOI — F3 de la relecture de Cowork du 19-11-2026 (A-924) : le rejeu d une correction lisait les seuils de
+      la DERNIÈRE ligne du registre ; il doit pouvoir les lire sur la ligne qu il a désignée, sans recopier la lecture.
+    ⑨ CE QUI CLOCHE — Voir le ⑨ de `reglages_du_registre` (une ligne aux seuils illisibles est passée sans un mot).
+    ⑩ EFFET — Charge le juge des stratégies posé à côté de ce fichier, une fois par processus.
+    ⑪ TERMINAISON — Rend la main ; lève FileNotFoundError si le juge manque à côté de ce fichier.
+      [sort: non]
+    """
+    r = {}
+    # LES SEUILS SE LISENT AU JUGE DES STRATÉGIES, À UN SEUL ENDROIT (A-548, 31-10-2026) : trois programmes les
+    # lisaient de trois façons ; « -0.6% » valait 0,6 chez le juge et 0,006 ici.
+    juge = _juge_d_a_cote()
+    for x in fiches:
+        # LA LECTURE DU SOIR VIT DANS LE JUGE, UNE FOIS (`lecture_du_soir`, 12-11-2026 ; défaut D1 de la mission
+        # VENTE, marche du superviseur R-759) : la MÊME que celle de la porte `fiche_suivie`, si bien qu'une fiche
+        # suivie est une fiche réglée. Elle lit les seuils par `seuil_de_la_fiche` (A-548), refuse « sans stop »,
+        # un horizon illisible, et « aucune » tant que le réglage du soir ne l'accepte pas.
+        try:
+            tp, sl, _h = juge.lecture_du_soir(base, x)
+        except ValueError:
+            continue
+        # les noms d'une strategie se lisent au contrat (R-708), une fois
+        for k in sorted(noms_d_une_strategie(x)):
+            if k:
+                # W2 de Cowork, 12-09 : l horizon est une colonne PAR
+                # STRATEGIE, et le fichier s en sert — C4-RAV 3j,
+                # MA200-S1 20j, C5-EI-PARAMS 30. Deux vivantes d horizons
+                # differents n est donc PAS une anomalie : c est une
+                # configuration que l etat civil prevoit. Mon garde-fou
+                # l interdisait, et « il ne protegeait pas d un defaut,
+                # il masquait une limite de conception ».
+                # W1 : la graphie MAJORITAIRE du fichier porte un « j ».
+                # `isdigit()` l excluait, l ensemble tombait vide, et le
+                # repli code en dur s appliquait EN ANNONCANT une lecture
+                # du registre qui n avait pas eu lieu.
+                # UNE SEULE LECTURE DE L'HORIZON (R-708) : `lire_horizon`,
+                # aussi employee par le garde-fou `horizons_illisibles`.
+                # DEPUIS LE 11-11-2026 (plan V7, bloc 4) : `lire_horizon_ou_aucune`, qui rend
+                # aussi HORIZON_AUCUNE pour « aucune » ; `horizon_connu` le garde tel quel.
+                r[k] = {"tp": tp, "sl": sl, "horizon": _h}
+    return r
 
 
 def _fichiers_de_cours(base):
@@ -1644,9 +1673,10 @@ def table_nom_vers_mnemonique(chemin):
 
 
 def attribuer_aux_strategies(signaux, strategies, mnemo):
-    """Attribue chaque signal du détecteur aux stratégies vivantes dont l'univers porte sa valeur, CCI compris.
+    """Attribue chaque signal du détecteur aux stratégies vivantes dont l'univers porte sa valeur — et, depuis le
+    19-11-2026, aux seules fiches que le signal nomme —, CCI compris.
 
-    ① RÔLE — L'adaptateur entre le fichier du détecteur ({valeur, date_signal, cmf, cci, close}) et
+    ① RÔLE — L'adaptateur entre le fichier du détecteur ({valeur, date_signal, cmf, cci, close, fiches}) et
       `ouvrir_sur_signaux` ({strategie, valeur, date_signal, cci}).
     ② CONTEXTE D'APPEL — `tenir_pour_de_vrai`, une fois par soir, après la confrontation au contrat SIGNAL.
     ③ ENTRÉE — `signaux` : les signaux du fichier du détecteur · `strategies` : liste de couples (identifiant de
@@ -1657,14 +1687,24 @@ def attribuer_aux_strategies(signaux, strategies, mnemo):
       {strategie, valeur, date_signal, cci} · ② les valeurs sans mnémonique · ③ les valeurs connues hors de tout
       univers vivant.
       [rend: 3]
-    ⑥ TRAITEMENT — Pour chaque signal : ① son mnémonique · ② pour chaque stratégie dont l'univers le porte, un signal
-      attribué, AVEC SON CCI · ③ sinon, noté hors univers, ou sans mnémonique.
+    ⑥ TRAITEMENT — Pour chaque signal : ① son mnémonique · ② pour chaque stratégie dont l'univers le porte ET, si le
+      signal porte `fiches`, que `fiches` nomme, un signal attribué, AVEC SON CCI · ③ sinon, noté hors univers, ou sans
+      mnémonique.
     ⑦ UNITÉ — Le CCI, sans unité, recopié tel que le détecteur l'a écrit.
     ⑧ POURQUOI — Le départage R-207bis (`departager_r207bis`) a besoin du CCI au moment de la sélection. Jusqu'au
       14-11-2026, l'adaptateur (écrit en ligne dans `tenir_pour_de_vrai`) ne recopiait que la stratégie, la valeur et
       la date : le CCI s'arrêtait là, et le jeton allait à la première valeur de l'univers. Sorti en fonction pour
       que l'épreuve passe par le vrai code, pas par une copie.
-    ⑨ CE QUI CLOCHE — Le `cmf` et la `close` du signal ne voyagent pas : rien ne les lit après l'adaptateur aujourd'hui.
+      LE SIGNAL NOMME SES FICHES (A-925, décision de Jean-Luc du 19-11-2026 à 19h23 : le soir fait tourner plusieurs
+      modules de signal) : un signal du module RSI sur VEOLIA ne va qu'aux fiches RSI, pas à C5E10-OBS-V1 dont l'univers
+      porte aussi VEOLIA. Avant, le détecteur refusait tout second signal pour cette seule raison (garde
+      « signaux_multiples »), et les fiches C5 perdaient aussi leurs signaux.
+    ⑨ CE QUI CLOCHE — ① Le `cmf` et la `close` du signal ne voyagent pas : rien ne les lit après l'adaptateur
+      aujourd'hui. ② UN SIGNAL SANS `fiches` (fichier écrit avant le 19-11-2026, ou fabriqué par une épreuve) est
+      attribué à l'ancienne, par l'univers seul : le contrat SIGNAL exige le champ à l'ÉCRITURE (le détecteur s'arrête
+      en code 3 sans lui), pas à la lecture. ③ Un signal dont les fiches nommées sont toutes mises à part ce soir est
+      compté « hors univers » : son message (« aucune stratégie vivante ne suit cette valeur ») est alors inexact ; la
+      mise à part est dite plus haut, en ❌.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
@@ -1674,8 +1714,9 @@ def attribuer_aux_strategies(signaux, strategies, mnemo):
         val = (sg.get("valeur") or "").strip().upper()
         code = mnemo.get(val, "")
         pris = False
+        nommees = sg.get("fiches")
         for sid, univers in strategies:
-            if code and code in univers:
+            if code and code in univers and (nommees is None or sid in nommees):
                 traduits.append({"strategie": sid, "valeur": sg["valeur"],
                                  "date_signal": sg["date_signal"], "cci": sg.get("cci")})
                 pris = True
@@ -3144,8 +3185,9 @@ def tenir_pour_de_vrai(base):
       registre par `fiches_du_registre` du contrat, UNE fois, la dernière ligne d un identifiant
       faisant foi (n°83, depuis le 05-11-2026 ; les univers et les horizons des vivantes en viennent) ;
       les fiches suivies sont celles que `suivie_par_le_soir` du contrat désigne (`etat_vie`, depuis le
-      18-11-2026, étape E8) ; une fiche que la garde du soir refuse, ou dont l'horizon est illisible, est MISE À
-      PART avec son motif, les autres tournent, et la sortie du pas `fiches_mises_a_part=<n>` fait rougir le
+      18-11-2026, étape E8) ; une fiche que la garde du soir refuse, dont l'horizon est illisible, ou que le
+      détecteur a mise à part (champ `fiches_mises_a_part` du fichier des signaux : module non calibré ou calcul
+      tombé, depuis le 19-11-2026, A-925), est MISE À PART avec son motif, les autres tournent, et la sortie du pas `fiches_mises_a_part=<n>` fait rougir le
       pas de fin (avant : un horizon illisible arrêtait tout le soir, code 1) ·
       ③bis lire les cours par le lecteur unique, et s arrêter en code 2 si la lecture
       est refusée ou impossible (29-10-2026) · ③ter s arrêter en code 1, sans rien écrire, si
@@ -3155,7 +3197,8 @@ def tenir_pour_de_vrai(base):
       `positions_signalees=<n>` (fichier `GITHUB_OUTPUT`) fait rougir le pas de fin du circuit · ④ tenir la séance, au calendrier
       officiel, en n achetant que dans le CAC 40 — un achat refusé se dit par une ligne
       « ⛔ » ; chaque signal est confronté au contrat SIGNAL (tous, pas le seul premier) ;
-      les signaux sont attribués par `attribuer_aux_strategies`, CCI compris ; une stratégie
+      les signaux sont attribués par `attribuer_aux_strategies`, CCI compris, aux seules fiches que chaque
+      signal nomme (`fiches`, depuis le 19-11-2026, A-925) ; une stratégie
       dont un signal porte un CCI absent, illisible ou non fini est MISE À PART ce soir par
       `mettre_a_part_les_cci_fautifs`, nommée, et comptée dans la sortie du pas
       `signaux_mis_a_part=<n>` (code 0, le pas de fin du circuit rougit) ; le jeton se
@@ -3270,6 +3313,10 @@ def tenir_pour_de_vrai(base):
     # arrêtait le soir de toutes (code 1, rien d'écrit), et un refus de la garde n'était dit qu'à l'écran, passage vert.
     _mises_a_part = []
     _mnemo_du_juge = None
+    # Les fiches que le détecteur a mises à part (A-925) : {identifiant: motif}, lues au fichier des signaux ; une
+    # entrée qui n'est pas un dictionnaire portant `fiche` est ignorée (le champ est FACULTATIF au contrat).
+    _par_le_detecteur = {x["fiche"]: x.get("motif", "")
+                         for x in (d.get("fiches_mises_a_part") or []) if isinstance(x, dict) and x.get("fiche")}
     for ligne in _fiches:
         # LE SOIR SUIT LA STRATÉGIE DÉCIDÉE : `etat_vie` QA ou PRODUCTION, univers non vide (R-513 ① ; critère du
         # contrat, appelé aussi par le détecteur). Avant le 18-11-2026 : « VIVANTE » dans `statut`, une copie.
@@ -3291,6 +3338,15 @@ def tenir_pour_de_vrai(base):
                 _motif_h = "horizon illisible : %r" % (ligne.get("horizon") or "")
                 print(f"  ⛔ FICHE {ligne['id']} MISE A PART — aucun signal ne lui est attribue : {_motif_h}")
                 _mises_a_part.append((ligne["id"], _motif_h))
+                continue
+            # LA FICHE QUE LE DÉTECTEUR A MISE À PART CE SOIR (A-925, 19-11-2026) : son module ne s'est pas calibré, ou
+            # son calcul est tombé ; le détecteur l'écrit dans `fiches_mises_a_part` du fichier des signaux. Elle ne
+            # reçoit rien, et elle est COMPTÉE ici, pour que le pas de fin « Rougir si une fiche suivie a ete mise a
+            # part » rougisse : sans cela, un module qui ne se calibre pas ne serait vu qu'à l'écran du détecteur.
+            if ligne["id"] in _par_le_detecteur:
+                _motif_d = "mise a part par le detecteur : %s" % _par_le_detecteur[ligne["id"]]
+                print(f"  ⛔ FICHE {ligne['id']} MISE A PART — aucun signal ne lui est attribue : {_motif_d}")
+                _mises_a_part.append((ligne["id"], _motif_d))
                 continue
             strategies.append((ligne["id"], {m.strip().upper()
                                              for m in ligne["univers"].split(",") if m.strip()}))

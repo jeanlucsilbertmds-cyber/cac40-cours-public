@@ -342,8 +342,9 @@ TSH = J[now.weekday()] + now.strftime(' %d-%m-%Y %Hh%M') + ' (Paris)'
 # LES SOUS-DOSSIERS COMPTENT — mesuré le 28-08-2026, et c'est le défaut le plus
 # grave du radar. Le dossier « claude/ » porte les positions ouvertes, le journal
 # des trades, les cours du jour et l'audit du soir. Avec os.listdir, le maillon
-# 10-Trades — le recalcul indépendant de chaque trade, le contrôle le plus
-# important de tout le radar — passait au VERT en annonçant « aucun trade
+# 10-Trades — le recalcul indépendant de chaque trade (depuis le 19-11-2026,
+# indépendant pour la vente seulement, pas pour la lecture des seuils : ⑨ ④ de
+# `_reglage_du_trade`), le contrôle le plus important de tout le radar — passait au VERT en annonçant « aucun trade
 # clôturé, rien à contrôler ». Il ne contrôlait rien et le disait comme un succès.
 # Cela ne se voyait pas grâce à une compensation écrite dans le PROMPT de la
 # tâche, qui aplatit le projet avant de lancer : elle tient tant que personne ne
@@ -2185,6 +2186,111 @@ def _lire_csv(motifs):
                 pass
     return [], None
 
+def _reglage_du_trade(sid, fiches, juge, contrat):
+    """Rend l'objectif, le stop et l'horizon de la fiche d'un trade clôturé, tels que le soir les exécute.
+
+    ① RÔLE — Donner au maillon 10 les seuils de LA STRATÉGIE QUI A FAIT LE TRADE, lus là où le teneur des positions
+      les lit, pour que le recalcul d'un trade ne se fasse plus aux seuils de C5 quelle que soit sa fiche (BACKLOG
+      A-928, défaut D2 du RELU e5113b94, 19-11-2026).
+    ② CONTEXTE D'APPEL — Le maillon 10, une fois par trade du journal dont le barème est nommé.
+    ③ ENTRÉE — `sid` : la case `strategie` du journal des trades, identifiant ou nom court (« C5E10-QA-V1 »,
+      « COURS_BAS_ARGENT_REVIENT_6 ») · `fiches` : les fiches du registre des stratégies rendues par
+      `_lire_le_registre` · `juge` : le module `programmes/JUGE_DES_STRATEGIES.py` chargé · `contrat` : le module
+      `programmes/CONTRATS_DES_FICHIERS.py`.
+    ④ CONDITIONS D'ENTRÉE — `juge` porte `lecture_du_soir` ; `contrat` porte `noms_d_une_strategie`.
+    ⑤ SORTIE — DEUX valeurs : le réglage `(tp, sl, horizon)` et un motif de refus ; l'une des deux vaut None. Mesuré
+      le 19-11-2026 sur une copie du dépôt : « COURS_BAS_ARGENT_REVIENT_6 » rend ((0.04, 0.025, 20), None), par la
+      fiche C5E10-QA-V1 ; « INCONNUE » rend (None, « fiche introuvable au registre des stratégies »).
+      [rend: 2]
+    ⑥ TRAITEMENT — ① prendre la première fiche dont `noms_d_une_strategie` contient `sid` (la même recherche que le
+      maillon 11) · ② aucune : rendre le refus « fiche introuvable » · ③ lire ses seuils par `lecture_du_soir` · ④ un
+      refus de cette lecture (ValueError) : le rendre, avec son motif · ⑤ sinon rendre le réglage.
+    ⑦ UNITÉ — Objectif et stop en FRACTIONS POSITIVES (0,04 pour « +4.0% ») ; horizon en SÉANCES DE BOURSE, ou
+      HORIZON_AUCUNE.
+    ⑧ POURQUOI — Les seuils viennent de la fiche, jamais du code, et se lisent à UN endroit : `lecture_du_soir`, que
+      `reglages_du_registre` du teneur appelle aussi (R-708 : deux implémentations d'une même chose divergent
+      toujours). Jusqu'au 19-11-2026, le maillon recalculait tout trade aux constantes de C5 : il restait vert sur
+      IND-001-RETEST par COÏNCIDENCE (mêmes seuils, +4 / −2,5 / 20) ; une fiche à +6 / −3 aurait fait une fausse
+      alerte de 499 € sur LVMH et STELLANTIS au 2026-01-21, et un teneur appliquant par erreur les seuils de C5 serait
+      resté vert.
+    ⑨ CE QUI CLOCHE — ① La fiche lue est celle d'AUJOURD'HUI (dernière ligne de l'identifiant, n°83) : une fiche
+      modifiée sur place après un trade fait rougir ce trade, même juste (erreur de manipulation, décision de
+      Jean-Luc du 13-11-2026 à 16h30 — le maillon 11 a la même limite). ② Un nom court partagé par deux fiches
+      (A-493) rattache le trade à la PREMIÈRE trouvée. ③ La recherche de la fiche est écrite deux fois, ici et au
+      maillon 11 (`_maillon_des_seuils_par_fiche`) : une ligne chacune, non mise en commun. ④ LE RECALCUL N'EST
+      PLUS INDÉPENDANT POUR LA LECTURE DES SEUILS : le radar et le teneur les lisent par la MÊME fonction,
+      `lecture_du_soir` (R-708 : deux implémentations d'une même chose divergent toujours). Une erreur de cette
+      lecture les rend donc faux TOUS LES DEUX, à l'identique, et le radar reste VERT. Seul le calcul de la vente
+      (`_c5e10_sortie`, BACKLOG A-208 ⑤) reste indépendant. Mesuré par le relecteur (RELU 37f397227, D-R1, Jeu
+      19-11-2026) : `return tp, sl, h` de `lecture_du_soir` saboté en ×1,5 / ×1,2, le trade FAUX fabriqué par le
+      teneur saboté reste vert, le trade JUSTE rougit (LVMH −3 196 contre −3 696 €). Limite, non réparable sans une
+      seconde lecture contraire à R-708 ; le maillon 11 a la même dépendance.
+    ⑩ EFFET — Aucun : ni fichier, ni rapport ; `lecture_du_soir` ne fait que lire.
+    ⑪ TERMINAISON — Rend la main ; seule ValueError de `lecture_du_soir` est rattrapée, toute autre exception remonte
+      à l'appelant (qui la compte en écart). Aucun appel qui puisse ne pas revenir.
+      [sort: non]
+    """
+    fiche = next((x for x in (fiches or []) if sid in contrat.noms_d_une_strategie(x)), None)
+    if fiche is None:
+        return None, "fiche introuvable au registre des stratégies"
+    try:
+        return juge.lecture_du_soir(PROJ, fiche), None
+    except ValueError as e:
+        return None, f"fiche refusée par la lecture du soir — {e}"
+
+
+def _cause_de_l_ecart(trade, reglage):
+    """Nomme la cause probable d'un écart de calcul quand le journal a vendu à un seuil que la fiche du jour n'a pas.
+
+    ① RÔLE — Dire à celui qui lit un rouge du maillon 10 OÙ chercher : quand le seuil auquel le journal a vendu
+      diffère de celui de la fiche d'aujourd'hui, la cause probable est une fiche modifiée après l'achat, pas une
+      erreur de calcul du teneur (RELU 37f397227, point ②, Jeu 19-11-2026).
+    ② CONTEXTE D'APPEL — Le maillon 10, pour un trade dont l'écart dépasse SEUIL_ECART_CALCUL.
+    ③ ENTRÉE — `trade` : la ligne du journal des trades (colonnes `motif_sortie`, `prix_entree`,
+      `prix_sortie_convention`) · `reglage` : `(tp, sl, horizon)` de la fiche, rendu par `_reglage_du_trade`.
+    ④ CONDITIONS D'ENTRÉE — —.
+    ⑤ SORTIE — UNE valeur : un texte à ajouter au message, ou "" quand rien ne se déduit. Mesuré le 19-11-2026 sur
+      l'épreuve R7 (journal aux seuils de C5, fiche à +6 / −3 ; LVMH sorti en SL_GAP, STELLANTIS en SL) : « — seuil
+      vendu −2.50 % ≠ fiche du jour −3.00 % : fiche modifiée après l'achat (interdit par A-754/A-768) ? sinon le
+      teneur a vendu à d'autres seuils ».
+      [rend: 1]
+    ⑥ TRAITEMENT — ① motif commençant par « TP » : seuil vendu = prix de convention / prix d'entrée − 1, comparé à
+      l'objectif de la fiche · ② motif commençant par « SL » : 1 − prix de convention / prix d'entrée, comparé au stop
+      · ③ autre motif (HORIZON), case illisible ou écart sous 0,0005 : "".
+    ⑦ UNITÉ — Seuils en FRACTIONS POSITIVES, affichés en pour cent ; prix en euros.
+    ⑧ POURQUOI — Le teneur fige l'objectif et le stop EN PRIX à l'achat (`TENIR_LES_POSITIONS.py`, `seuils_de_vente`) ;
+      le radar relit la fiche d'AUJOURD'HUI. Une fiche changée sous le même identifiant fait donc rougir un trade
+      juste ; or c'est interdit : A-754 (décision de Jean-Luc du Ven 13-11-2026 à 16h30, « s'il y a un changement de
+      paramètre, une stratégie […] c'est une autre stratégie ») et A-768 (Sam 14-11-2026 à 11h48, « un réglage
+      changé = un nouvel id »). Le rouge signale une vraie infraction ; le libellé « ÉCART DE CALCUL » seul accusait
+      le teneur et envoyait chercher au mauvais endroit. 0,0005 : les prix du journal sont arrondis à 5 décimales, et
+      un seuil réglé au registre l'est au dixième de pour cent.
+    ⑨ CE QUI CLOCHE — ① Le journal ne distingue pas une fiche modifiée d'un teneur qui aurait vendu à d'autres seuils :
+      les deux donnent les mêmes cases ; d'où le point d'interrogation et la mention du teneur. ② Une sortie à
+      l'échéance ne dit rien du seuil : un horizon changé après l'achat n'est pas nommé. ③ Ce qui sert à l'écrire
+      n'entre pas dans le verdict : l'écart reste ❌, qu'une cause soit nommée ou non.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main ; toute case illisible rend "". Aucun appel qui puisse ne pas revenir.
+      [sort: non]
+    """
+    try:
+        motif = str(trade.get("motif_sortie") or "").strip().upper()
+        pe = float(str(trade.get("prix_entree")).replace(",", "."))
+        pc = float(str(trade.get("prix_sortie_convention")).replace(",", "."))
+        if motif.startswith("TP"):
+            vendu, fiche, signe = pc / pe - 1, float(reglage[0]), "+"
+        elif motif.startswith("SL"):
+            vendu, fiche, signe = 1 - pc / pe, float(reglage[1]), "−"
+        else:
+            return ""
+    except Exception:
+        return ""
+    if abs(vendu - fiche) < 0.0005:
+        return ""
+    return (f" — seuil vendu {signe}{vendu * 100:.2f} % ≠ fiche du jour {signe}{fiche * 100:.2f} % : fiche modifiée "
+            f"après l'achat (interdit par A-754/A-768) ? sinon le teneur a vendu à d'autres seuils")
+
+
 MOD, MOD_NOM = _charge_module()
 if MOD is None:
     rapport.append((FAIL, "10-Trades",
@@ -2196,6 +2302,18 @@ else:
     cours_rows, _ = _lire_csv(["cours_nouveaux"])
     hist_rows, _  = _lire_csv(["cac40_ohlcv"])
 
+    # LES SEUILS DE LA FICHE DU TRADE (A-928, D2, 19-11-2026) : le juge porte `lecture_du_soir`, la lecture que le
+    # teneur exécute ; sans lui, aucun trade ne se recalcule (rouge, jamais vert). La branche des trades tourne quand
+    # même : elle construit `serie`, que le maillon 12 relit plus bas (A-250 : un maillon ne fait pas tomber le suivant).
+    _J10, _C10, _err10 = None, None, None
+    try:
+        _sp10 = _ilu.spec_from_file_location("juge_seuils_maillon_10", os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "JUGE_DES_STRATEGIES.py"))
+        _J10 = _ilu.module_from_spec(_sp10); _sp10.loader.exec_module(_J10)
+        import CONTRATS_DES_FICHIERS as _C10
+    except Exception as _e10:
+        _err10 = f"{type(_e10).__name__} : {_e10}"
+    _fiches10 = _lire_le_registre()[0] if _err10 is None else []
     if f_tr is None:
         rapport.append((OK, "10-Trades", "Aucun trade clôturé à ce jour — rien à contrôler"))
         score["ok"] += 1
@@ -2241,8 +2359,17 @@ else:
             if not _bar:
                 ecarts.append(f"{v} {d_e} : le journal ne nomme pas le barème de son montant")
                 continue
+            _sid = (t.get("strategie") or "").strip()
+            if _err10 is not None:
+                ecarts.append(f"{v} {d_e} ({_sid}) : seuils de la fiche illisibles — juge des stratégies ou contrat "
+                              f"illisible ({_err10})")
+                continue
+            _reg, _refus = _reglage_du_trade(_sid, _fiches10, _J10, _C10)
+            if _reg is None:
+                ecarts.append(f"{v} {d_e} ({_sid or 'sans stratégie'}) : {_refus} — recalcul impossible")
+                continue
             try:
-                res = MOD._c5e10_sortie(oh, idx[0] - 1, v, _bar)
+                res = MOD._c5e10_sortie(oh, idx[0] - 1, v, _bar, tp=_reg[0], sl=_reg[1], horizon=_reg[2])
             except Exception as _e:
                 ecarts.append(f"{v} {d_e} : recalcul impossible sous {_bar} ({type(_e).__name__} : {_e})")
                 continue
@@ -2257,7 +2384,7 @@ else:
             d = abs(res["pnl"] - pnl_inscrit)
             if d > SEUIL_ECART_CALCUL:
                 ecarts.append(f"{v} {d_e} : journal {pnl_inscrit:+.0f} € vs module "
-                              f"{res['pnl']:+.0f} € ({res['motif']})")
+                              f"{res['pnl']:+.0f} € ({res['motif']})" + _cause_de_l_ecart(t, _reg))
             elif d > 1.0:
                 ecarts_frais.append(f"{v} {d_e} : {d:.0f} €")
 
@@ -2268,8 +2395,8 @@ else:
             score["fail"] += 1
         elif controles:
             rapport.append((OK, "10-Trades",
-                f"{controles} trade(s) clôturé(s) recalculé(s) PAR LE MODULE ({MOD_NOM}) — "
-                f"aucun écart de CALCUL (seuil {SEUIL_ECART_CALCUL:.0f} €)"))
+                f"{controles} trade(s) clôturé(s) recalculé(s) PAR LE MODULE ({MOD_NOM}), aux seuils de LEUR "
+                f"fiche — aucun écart de CALCUL (seuil {SEUIL_ECART_CALCUL:.0f} €)"))
             score["ok"] += 1
         else:
             rapport.append((WARN, "10-Trades",
@@ -2308,23 +2435,70 @@ else:
 _s3, _f_s3, _e3 = _lire_le_registre()   # la dernière ligne d'un identifiant fait foi (n°83)
 _serv3 = [s for s in _s3
           if (s.get("etat_vie") or "").strip().upper() in ("QA", "PRODUCTION")]
-# LE LIEN FICHE -> CODE PASSE PAR LA COLONNE `chemin`, PAS PAR LE NOM.
-# Premiere version : on cherchait la racine de l'identifiant dans les noms de
-# fichiers — « C5E10 » ne se trouve nulle part, le module s'appelant
-# MODULE_C5_ETENDU_10. Le maillon denoncait alors DEUX strategies qui ont
-# pourtant leur code. Chercher un code par ressemblance de nom est exactement
-# ce que le chapitre IDENTITE interdit ; tant que la fiche ne DESIGNE pas son
-# module, ce controle ne peut rien affirmer.
-_MODULES = {"C5E10-QA-V1": "MODULE_C5_ETENDU",
-            "C5E10-OBS-V1": "MODULE_C5_ETENDU"}
-_sans_code, _sans_lien = [], []
-for s in _serv3:
-    _id = (s.get("id") or "").strip()
-    _mot = _MODULES.get(_id)
-    if not _mot:
-        _sans_lien.append(_id)
-    elif not existe(_mot):
-        _sans_code.append("%s (%s)" % (_id, _mot))
+# LE LIEN FICHE -> CODE PASSE PAR LA FICHE ELLE-MÊME (A-925, 19-11-2026) : ses cases `module_signal`,
+# `fonction_signal` et `reglages_signal`, lues et chargées par le juge des stratégies, comme le soir les charge.
+# Avant le 19-11-2026, deux identifiants étaient écrits ici en dur (C5E10-QA-V1, C5E10-OBS-V1 → « MODULE_C5_ETENDU ») :
+# toute autre fiche en service était dite « AUCUN MODULE CONNU », même quand elle déclarait son module (inventaire du
+# 19-11-2026 : IND-001-RETEST et C5-EI-PARAMS).
+
+
+def _modules_des_fiches_en_service(serv):
+    """Dit, pour chaque fiche en service, si elle déclare un module de signal et si ce module se charge.
+
+    ① RÔLE — Le contrôle du maillon 3 : toute stratégie en service désigne son module de signal (sinon ⚠), et ce
+      module se charge comme le soir le charge (sinon ❌ critique : elle prend des positions sans calcul).
+    ② CONTEXTE D'APPEL — Le maillon 3, une fois par passage du radar.
+    ③ ENTRÉE — `serv` : les fiches du registre dont `etat_vie` vaut QA ou PRODUCTION (dernière ligne d'un
+      identifiant, n°83).
+    ④ CONDITIONS D'ENTRÉE — `programmes/JUGE_DES_STRATEGIES.py` à côté de ce fichier ; `PROJ` est la racine du dépôt
+      (le circuit lance le radar avec « $GITHUB_WORKSPACE »).
+    ⑤ SORTIE — TROIS valeurs : ① les identifiants sans module déclaré (case `module_signal` vide) · ② les « identifiant
+      (motif) » dont le module déclaré ne se charge pas · ③ None, ou le motif pour lequel le juge ne s'est pas chargé
+      (rien n'est alors jugé). Exemple réel (copie du 19-11-2026, IND-001-RETEST passée en QA) : C5E10-QA-V1,
+      C5E10-OBS-V1 et IND-001-RETEST → ([], [], None).
+      [rend: 3]
+    ⑥ TRAITEMENT — ① charger le juge à côté de ce fichier · ② pour chaque fiche : lire ses cases par
+      `declaration_du_signal` (la seule lecture des colonnes du signal) ; case vide → sans lien ; sinon
+      `signal_de_la_fiche(PROJ, fiche)`, la fonction qui charge le module pour le juge, le détecteur et le teneur
+      (R-708) ; une ValueError → sans code, avec son motif.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — R-708 : deux lectures d'une même chose divergent toujours ; le radar lit le module comme le soir.
+      Réparer par une propriété, jamais par une énumération : le radar ne change plus d'avis quand une fiche change
+      de nom.
+    ⑨ CE QUI CLOCHE — ① `signal_de_la_fiche` EXÉCUTE le module (comme le juge) : un module qui écrirait au chargement
+      écrirait aussi ici — la porte `declaration_de_signal` du juge filtre avant. ② Lancé sur un dossier à plat (sans
+      `programmes/`), chaque module serait dit introuvable, en critique.
+    ⑩ EFFET — Charge et exécute le juge et les modules de signal déclarés ; n'écrit rien.
+    ⑪ TERMINAISON — Rend la main ; le chargement du juge est rattrapé. Un module de signal chargé peut ne pas revenir :
+      du code de module, non borné.
+      [sort: non]
+    """
+    import importlib.util as _u
+    try:
+        _sp = _u.spec_from_file_location("juge_modules_radar", os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "JUGE_DES_STRATEGIES.py"))
+        J = _u.module_from_spec(_sp); _sp.loader.exec_module(J)
+    except Exception as e:
+        return [], [], "%s : %s" % (type(e).__name__, e)
+    sans_lien, sans_code = [], []
+    for s in serv:
+        _id = (s.get("id") or "").strip()
+        module = J.declaration_du_signal(s)[0]
+        if module.lower() in J.VIDE:
+            sans_lien.append(_id)
+            continue
+        try:
+            J.signal_de_la_fiche(PROJ, s)
+        except ValueError as e:
+            sans_code.append("%s (%s)" % (_id, e))
+    return sans_lien, sans_code, None
+
+
+_sans_lien, _sans_code, _juge_illisible = _modules_des_fiches_en_service(_serv3)
+if _juge_illisible:
+    rapport.append((WARN, "3-Calcul", "MODULES DE SIGNAL NON VÉRIFIABLES — juge des stratégies illisible ("
+                    + _juge_illisible + ")"))
+    score["warn"] += 1
 check("3-Calcul", not _sans_lien,
       "Toute stratégie en service désigne son module de signal",
       "AUCUN MODULE CONNU POUR : %s — la fiche ne dit pas quel code produit "
@@ -2858,9 +3032,9 @@ def _maillon_des_seuils_par_fiche(ouvertes):
       (`_juge_d_a_cote`) : au circuit public, c'est la copie publique du code.
     ⑨ CE QUI CLOCHE — ① Un nom court partagé par deux fiches (A-493) rattache la position à la PREMIÈRE trouvée. ② Une
       fiche modifiée sur place pendant la position (erreur de manipulation, décision de Jean-Luc du 13-11-2026 à
-      16h30) rougit ici en CRITIQUE si ses nouveaux seuils se lisent, en ⚠ sinon ; le teneur la signale aussi. ③ Le
-      recalcul indépendant des trades clôturés (maillon 7) rejoue encore chaque trade par le module de C5, quelle que
-      soit sa fiche : non réglé ici (BACKLOG, étape E8).
+      16h30) rougit ici en CRITIQUE si ses nouveaux seuils se lisent, en ⚠ sinon ; le teneur la signale aussi. ③ (RÉGLÉ
+      LE 19-11-2026, A-928 D2 : le maillon 10 recalcule chaque trade clôturé aux seuils de SA fiche, par
+      `_reglage_du_trade`.) Le recalcul rejouait chaque trade aux seuils de C5, quelle que soit sa fiche.
     ⑩ EFFET — AJOUTE des lignes à `rapport`, augmente `score` ; exécute le juge des stratégies en le chargeant ; lit le
       registre. N'écrit aucun fichier.
     ⑪ TERMINAISON — Rend la main ; le chargement du juge et chaque lecture sont rattrapés. Aucun appel qui puisse ne pas

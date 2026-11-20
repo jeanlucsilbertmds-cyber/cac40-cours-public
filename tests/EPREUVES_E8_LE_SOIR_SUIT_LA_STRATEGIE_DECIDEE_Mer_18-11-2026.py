@@ -21,9 +21,11 @@ seuils de sa fiche (avant : aux constantes de C5, en critique pour toute autre s
 ③ ENTRÉE — `<racine>` : un clone du dépôt, jamais modifié (tout se joue sur une copie sous /dev/shm ou /tmp).
 ④ CONDITIONS D'ENTRÉE — La racine porte programmes/, donnees/ (registre des stratégies avec C5E10-QA-V1 et
   C5E10-OBS-V1, référentiel, cours maître avec la séance VEOLIA du 2026-11-17), tests/GARDE_DU_PAS_ROUGE.py et
-  .github/workflows/collecte_abc.yml ; le module `yaml` de Python.
+  .github/workflows/collecte_abc.yml ; le module `yaml` de Python. Le chemin du registre se lit au contrat,
+  programmes/CONTRATS_DES_FICHIERS.py (REGISTRE_DES_STRATEGIES), jamais écrit ici (R-708, garde G1, 20-11-2026).
 ⑤ SORTIE — UNE valeur, le code de sortie : 0 si toutes les épreuves passent (et, avec --saboter, si chaque sabotage
-  fait rougir au moins une épreuve) ; 1 sinon ; 2 si la copie n'a pas pu être faite. [rend: 1]
+  fait rougir au moins une épreuve) ; 1 sinon ; 2 si la copie n'a pas pu être faite ou si le contrat ne se lit pas.
+  [rend: 1]
 ⑥ TRAITEMENT — ① copier la racine sans .git, etudes/, archives/ · ② jouer les cas K1 à K9 (registre, signaux et
   positions fabriqués à partir des vraies lignes, programmes lancés en ligne de commande comme le circuit) · ③ avec
   --saboter : pour chaque sabotage, remettre les fichiers d'origine, saboter, rejouer les cas, exiger un rouge.
@@ -46,7 +48,36 @@ DET = "programmes/DETECTER_LES_SIGNAUX_GITHUB.py"
 TEN = "programmes/TENIR_LES_POSITIONS.py"
 RAD = "programmes/audit_ecosysteme.py"
 YML = ".github/workflows/collecte_abc.yml"
-REG = "donnees/cac40_strategies.csv"
+
+
+def chemin_du_registre_au_contrat():
+    """Rend le chemin du registre des stratégies, relatif à la racine, tel que le contrat le déclare.
+    ① RÔLE — Lire le chemin du registre là où tous les programmes le lisent (R-708 : deux implémentations d'une même
+    chose divergent toujours) ; avant le 20-11-2026, ce fichier l'écrivait en dur et la garde G1 de
+    tests/EPREUVES_DU_REGISTRE_DES_STRATEGIES_Jeu_05-11-2026.py rougissait (certification 44657248373).
+    ② CONTEXTE D'APPEL — Une fois, au chargement du fichier. ③ ENTRÉE — RACINE. ④ CONDITIONS D'ENTRÉE —
+    programmes/CONTRATS_DES_FICHIERS.py sous RACINE. ⑤ SORTIE — UNE valeur, `REGISTRE_DES_STRATEGIES` du contrat
+    (au 20-11-2026 : le registre sous donnees/). [rend: 1] ⑥ TRAITEMENT — charger le contrat de RACINE par son
+    chemin (`python3 -I` n'ajoute pas programmes/ aux chemins d'import) et lire la constante. ⑦ UNITÉ — —.
+    ⑧ POURQUOI — Voir ①. ⑨ CE QUI CLOCHE — Le contrat est chargé depuis RACINE, pas depuis la copie : un sabotage du
+    contrat dans la copie ne change pas ce chemin (aucun sabotage de ce fichier ne le vise). ⑩ EFFET — Exécute le
+    module du contrat (aucun effet au chargement). ⑪ TERMINAISON — Rend la main ; lève OSError ou toute erreur du
+    chargement. [sort: non]"""
+    import importlib.util
+    chemin = os.path.join(RACINE, CTR)
+    if not os.path.isfile(chemin):
+        raise OSError("%s est absent" % chemin)
+    spec = importlib.util.spec_from_file_location("contrat_des_fichiers_e8", chemin)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.REGISTRE_DES_STRATEGIES
+
+
+try:
+    REG = chemin_du_registre_au_contrat()
+except Exception as _e:   # R-734 : une épreuve qui n'a pas pu lire son contrat ne rend pas 0
+    print("CODE 2 — contrat des fichiers illisible : %s : %s" % (type(_e).__name__, _e))
+    sys.exit(2)
 SIG = "donnees/signaux_du_jour.json"
 POS = "donnees/claude_positions_ouvertes.csv"
 QA, OBS = "C5E10-QA-V1", "C5E10-OBS-V1"

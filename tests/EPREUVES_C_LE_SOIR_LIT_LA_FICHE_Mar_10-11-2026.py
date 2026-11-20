@@ -10,9 +10,12 @@ Simulation uniquement — aucun ordre réel.
   le 11-11-2026 (A-706, superviseur R-759 du 10-11-2026 sur le défaut C9-1) — que la garde N'ARRÊTE PLUS LE SOIR :
   le détecteur publie la séance avec `signaux: []` et le champ `garde_du_soir`, sort en 0 et dit `garde=<verdict>` ;
   dans le circuit (`.github/workflows/collecte_abc.yml`), la tenue des positions tourne, et le pas de fin « Rougir si
-  la garde du soir a mordu » fait rougir le passage (refus_total, signaux_multiples, ou teneur en échec — il lit
+  la garde du soir a mordu » fait rougir le passage (refus_total, ou teneur en échec — il lit
   l'issue du teneur, C11-1 du 11-11-2026) ou seulement avertir (aucune_vivante, positions tenues) ; le lecteur `programmes/MESSAGE_DU_SOIR.py` lit le fichier sans le déclarer illisible et dit la
-  garde. Avec `--saboter`, prouver que chaque épreuve MORD : chaque sabotage retire une partie de la correction et
+  garde. Depuis le 19-11-2026 (A-925, décision de Jean-Luc à 19h23 : le soir fait tourner plusieurs modules de
+  signal), C7 prouve que DEUX MODULES ne font plus mordre de garde : le module sans étalon met à part SA fiche, nommée
+  au fichier, l'autre tourne, le teneur compte la fiche et le passage rougit par « Rougir si une fiche suivie a ete
+  mise a part ». Avec `--saboter`, prouver que chaque épreuve MORD : chaque sabotage retire une partie de la correction et
   doit faire rougir au moins une épreuve.
 ② CONTEXTE D'APPEL — À la main : `python3 -I tests/EPREUVES_C_LE_SOIR_LIT_LA_FICHE_Mar_10-11-2026.py <racine> [--saboter]`.
 ③ ENTRÉE — `<racine>` : un clone du dépôt (jamais modifié : tout se joue sur une copie sous /dev/shm ou /tmp).
@@ -57,6 +60,7 @@ JUGE = "programmes/JUGE_DES_STRATEGIES.py"   # le critère de la garde y vit (`f
 MSG = "programmes/MESSAGE_DU_SOIR.py"
 CTR = "programmes/CONTRATS_DES_FICHIERS.py"
 YML = ".github/workflows/collecte_abc.yml"
+TEN = "programmes/TENIR_LES_POSITIONS.py"   # saboté par S14 (19-11-2026, A-925)
 
 
 def registre_au_contrat(racine):
@@ -90,6 +94,7 @@ OBS_DIX = ["TOTALENERGIES", "ENGIE", "VEOLIA", "BOUYGUES", "EIFFAGE", "AIRBUS", 
 PAS_DET = "detecter_les_signaux_du_jour_le_calcul"
 PAS_TENIR = "tenir_les_positions"
 PAS_GARDE = "rougir_si_la_garde_du_soir_a_mordu"
+PAS_FICHE = "rougir_si_une_fiche_suivie_a_ete_mise_a_part"   # joué depuis le 19-11-2026 (C7, A-925)
 # Les sorties d'un soir ordinaire pour les pas que la simulation ne joue pas (la collecte a rendu 0).
 SORTIES_ORDINAIRES = {"collecte": {"code": "0"}}
 
@@ -244,7 +249,7 @@ def jouer_le_circuit(base, texte_yml, teneur_force=None):
     ⑩ EFFET — Les pas joués écrivent dans la copie. ⑪ TERMINAISON — Chaque pas joué est borné à 300 s. [sort: non]
     """
     pas_ = [p for job in yaml.safe_load(texte_yml)["jobs"].values() for p in job.get("steps", [])]
-    joues = {PAS_DET, PAS_TENIR, PAS_GARDE}
+    joues = {PAS_DET, PAS_TENIR, PAS_GARDE, PAS_FICHE}
     echec, sorties, vus, issues = False, {}, {}, {}
     for p in pas_:
         ident = p.get("id", "")
@@ -382,9 +387,11 @@ def les_cas(base, reg0, textes):
     c, o, j = lancer(base)
     dire("C6 signal refusé par le juge → fiche non suivie", c == 0 and "⛔ GARDE DU SOIR — la fiche C5E10-QA-V1" in o
          and "signaux_inexistants" in o, (c, o[:400]))
-    # C7 — DEUX SIGNAUX DIFFÉRENTS, DANS LE CIRCUIT (superviseur R-759 du 10-11-2026) : le fichier porte la garde
-    # « signaux_multiples », le teneur de positions a tourné (code 0, il a lu la séance du soir), et le passage rougit
-    # par le pas de fin.
+    # C7 — DEUX MODULES DIFFÉRENTS, DANS LE CIRCUIT (réécrite le 19-11-2026, A-925 ; avant : garde
+    # « signaux_multiples », aucun signal pour personne). QA-V1 nomme une COPIE du module C5, sans étalon : SA fiche est
+    # mise à part par le détecteur, nommée au fichier (`fiches_mises_a_part`, motif « CALIBRAGE IMPOSSIBLE ») ; OBS-V1
+    # tourne (calibrage C5, univers de dix) ; aucune garde ; le teneur a tourné (code 0) et COMPTE la fiche
+    # (fiches_mises_a_part=1) ; le passage ROUGIT par « Rougir si une fiche suivie a ete mise a part ».
     src = os.path.join(base, "programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py")
     shutil.copyfile(src, os.path.join(base, "programmes/MODULE_C_COPIE.py"))
     preparer(changer(reg0, "C5E10-QA-V1", "module_signal", "programmes/MODULE_C_COPIE.py"), '{"temoin": "hier"}')
@@ -395,13 +402,16 @@ def les_cas(base, reg0, textes):
     j = json.load(open(os.path.join(base, SIG), encoding="utf-8")) if os.path.isfile(os.path.join(base, SIG)) else None
     g = (j or {}).get("garde_du_soir") or {}
     t = vus.get(PAS_TENIR, (None, ""))
-    dire("C7 deux signaux : garde signaux_multiples au fichier, le teneur a tourné, le passage ROUGIT",
-         g.get("verdict") == "signaux_multiples" and j.get("signaux") == [] and j.get("seance") == seance
-         and len(g.get("fiches", [])) == 2 and all("signal déclaré" in x["motif"] for x in g["fiches"])
-         and t[0] == 0 and ("seance %s" % seance) in t[1]
-         and vus.get(PAS_GARDE, (None, ""))[0] == 1 and "::error::GARDE DU SOIR" in vus[PAS_GARDE][1]
-         and "les positions ont ete tenues" in vus[PAS_GARDE][1] and rouge is True,
-         ({k: (v[0], v[1][-160:]) for k, v in vus.items()}, rouge, g))
+    ma = (j or {}).get("fiches_mises_a_part") or []
+    dire("C7 deux modules : la fiche au module sans étalon est mise à part et nommée, l'autre tourne, pas de garde, "
+         "le teneur la compte, le passage ROUGIT",
+         j and not g and j.get("seance") == seance and j.get("univers") == 10 and j.get("strategie") == "C5-ETENDU-10"
+         and [x.get("fiche") for x in ma] == ["C5E10-QA-V1"] and "CALIBRAGE IMPOSSIBLE" in ma[0].get("motif", "")
+         and all(s.get("fiches") and "C5E10-QA-V1" not in s["fiches"] for s in j.get("signaux", []))
+         and t[0] == 0 and ("seance %s" % seance) in t[1] and "MISE A PART" in t[1]
+         and PAS_GARDE not in vus and vus.get(PAS_FICHE, (None, ""))[0] == 1
+         and "::error::1 FICHE(S) SUIVIE(S) MISE(S) A PART" in vus[PAS_FICHE][1] and rouge is True,
+         ({k: (v[0], v[1][-160:]) for k, v in vus.items()}, rouge, g, ma))
     # C8 — un seul signal, mais sans étalon → code 1 « CALIBRAGE IMPOSSIBLE » (vraie panne : bloquant, rien publié).
     preparer(changer(changer(reg0, "C5E10-QA-V1", "module_signal", "programmes/MODULE_C_COPIE.py"),
                      "C5E10-OBS-V1", "module_signal", "programmes/MODULE_C_COPIE.py"), '{"temoin": "hier"}')
@@ -481,15 +491,25 @@ SABOTAGES = [
     ("S1 garde de la porte retirée", JUGE, "    if not porte[0]:\n        return None, None,", "    if False:\n        return None, None,"),
     ("S2 univers écrit en dur", DET, "    for v in mod.univers:\n",
      "    for v in ['TOTALENERGIES','ENGIE','VEOLIA','BOUYGUES','EIFFAGE','AIRBUS','RENAULT','UNIBAIL_RODAMCO','BUREAU_VERITAS','VINCI']:\n"),
-    ("S3 plusieurs signaux acceptés", DET, "    if len(declarations) > 1:\n", "    if False:\n"),
-    ("S4 signal sans étalon accepté", DET, "    if ETALON is None:\n", "    if False:\n"),
+    # S3, S4 et S13 visent, depuis le 19-11-2026 (A-925), le soir à plusieurs modules.
+    ("S3 retour à un seul module", DET,
+     "    return SuiviDuSoir([GroupeDuSoir(sig, membres) for sig, membres in par_signal.values()], refusees)\n",
+     "    return SuiviDuSoir([GroupeDuSoir(sig, membres) for sig, membres in list(par_signal.values())[:1]], refusees)\n"),
+    ("S4 module sans étalon calibré sur un autre", DET, "    etalon = ETALONS.get(cle)\n",
+     "    etalon = ETALONS.get(cle) or next(iter(ETALONS.values()))\n"),
+    ("S13 un module sans étalon arrête tout le soir", DET,
+     "            motifs_du_calibrage.append(motif)\n            mod.retirer(g, motif)\n",
+     "            print(\"CODE 1 — \" + motif)\n            sys.exit(1)\n"),
+    ("S14 le teneur ignore les fiches mises à part par le détecteur", TEN,
+     "            if ligne[\"id\"] in _par_le_detecteur:\n", "            if False:\n"),
     ("S5 mnémonique inconnu accepté", JUGE, "    if inconnus:\n        return None, None,", "    if False:\n        return None, None,"),
     ("S6 refus total non gardé", DET, "    if not retenues:\n", "    if False:\n"),
     ("S7 refus tu", DET, "        print(f\"  ⛔ GARDE DU SOIR", "        pass  # print(f\"  ⛔ GARDE DU SOIR"),
     ("S8 sortie du pas tue", DET, "                fh.write(ligne + \"\\n\")\n", "                pass\n"),
     ("S9 garde absente du fichier", DET, "        \"garde_du_soir\": garde,\n", ""),
+    # S10 : la fin de `publier_la_garde`, suivie depuis le 19-11-2026 (A-925) de `_lisible` et non plus de `main`.
     ("S10 la garde arrête le soir (code 4)", DET,
-     "octets\")\n    sys.exit(0)\n\n\ndef main", "octets\")\n    sys.exit(4)\n\n\ndef main"),
+     "octets\")\n    sys.exit(0)\n\n\ndef _lisible", "octets\")\n    sys.exit(4)\n\n\ndef _lisible"),
     ("S11 l'écrivain ne confronte plus l'enveloppe", DET,
      "    facultatifs = tuple(getattr(C, \"CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR\", ()))\n",
      "    return\n"),
@@ -558,7 +578,8 @@ def main():
                    JUGE: open(os.path.join(base, JUGE), encoding="utf-8").read(),   # LC-1 : S1, S5 y visent `fiche_suivie`
                    MSG: open(os.path.join(base, MSG), encoding="utf-8").read(),
                    YML: open(os.path.join(base, YML), encoding="utf-8").read(),
-                   CTR: contrat_reel}
+                   CTR: contrat_reel,
+                   TEN: open(os.path.join(base, TEN), encoding="utf-8").read()}   # S14 (A-925)
         res = les_cas(base, reg0, textes0)
         for nom, ok, preuve in res:
             print(("  ✅ " if ok else "  ❌ ") + nom + ("" if ok else "\n       " + preuve))

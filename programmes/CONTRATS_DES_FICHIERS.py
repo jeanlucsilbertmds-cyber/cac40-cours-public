@@ -158,8 +158,13 @@ Quand l'appeler : par tout programme qui écrit ou lit un fichier de liaison. Ja
 # `strategie` N'EST PAS un champ du signal : le détecteur calcule une règle,
 # il ne sait pas quelles stratégies la suivent. C'est l'adaptateur de TENIR qui
 # l'ajoute, en lisant l'univers de chaque stratégie AU REGISTRE.
+# `fiches` (A-925, 19-11-2026, décision de Jean-Luc du 19-11-2026 à 19h23 : le soir fait tourner PLUSIEURS modules de
+# signal) : les identifiants des fiches du registre qui reçoivent ce signal — celles qui déclarent le signal qui l'a
+# donné ET dont l'univers porte la valeur. Le teneur n'attribue un signal qu'à elles : sans ce champ, un signal du
+# module RSI aurait été attribué à une fiche C5 dont l'univers porte la même valeur. Exemple réel (copie du
+# 19-11-2026) : un signal C5 sur VEOLIA porte ["C5E10-OBS-V1", "C5E10-QA-V1"].
 
-SIGNAL = ["valeur", "date_signal", "cmf", "cci", "close"]
+SIGNAL = ["valeur", "date_signal", "cmf", "cci", "close", "fiches"]
 
 # L'ENVELOPPE du fichier, autour de la liste des signaux.
 SIGNAUX_DU_JOUR = ["seance", "strategie", "calcule_le", "signaux",
@@ -172,6 +177,15 @@ SIGNAUX_DU_JOUR = ["seance", "strategie", "calcule_le", "signaux",
                    "garde_du_soir"]
 # Les champs de l'enveloppe que l'écrivain peut omettre : garde_du_soir n'est écrit que si la garde mord.
 CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR = ("garde_du_soir",)
+# A-925 (19-11-2026) : deux champs FACULTATIFS de plus, écrits par programmes/DETECTER_LES_SIGNAUX_GITHUB.py —
+# `calibrages` (le calibrage de chaque module, seulement s'il y en a plus d'un) et `fiches_mises_a_part` (les fiches
+# suivies que le détecteur n'a pas pu servir ce soir, chacune {fiche, motif}), lu par programmes/TENIR_LES_POSITIONS.py,
+# qui les compte dans sa sortie du pas `fiches_mises_a_part`. Ajoutés à part, sans toucher le bloc d'A-706 ci-dessus,
+# que tests/EPREUVES_C_LE_SOIR_LIT_LA_FICHE_Mar_10-11-2026.py retire au mot près pour rejouer le contrat d'avant (ce
+# contrat d'avant n'a pas CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR : d'où `globals().get`, qui le prend vide).
+SIGNAUX_DU_JOUR = SIGNAUX_DU_JOUR + ["calibrages", "fiches_mises_a_part"]
+CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR = (tuple(globals().get("CHAMPS_FACULTATIFS_DE_SIGNAUX_DU_JOUR", ()))
+                                         + ("calibrages", "fiches_mises_a_part"))
 
 # LES FICHIERS FABRIQUÉS CHAQUE SOIR ET LE MOTIF DE LEUR DATE, écrits une fois (R-708 :
 # deux implémentations d'une même chose divergent toujours). Lus par programmes/
@@ -418,7 +432,7 @@ def _epreuves():
     ok = any("date_signal" in x and "NON ÉCRIT" in x for x in e)
     print(f"  {'✅' if ok else '❌'} et « date_signal » manquant : vu aussi")
     bons += ok
-    e2 = verifier("SIGNAL", ["valeur", "date_signal", "cmf", "cci", "close"], "ECRIT")
+    e2 = verifier("SIGNAL", ["valeur", "date_signal", "cmf", "cci", "close", "fiches"], "ECRIT")
     print(f"  {'✅' if not e2 else '❌'} le détecteur corrigé : aucun écart")
     bons += (not e2)
     e3 = verifier("SIGNAL", ["valeur", "date_signal"], "LU")
@@ -579,6 +593,11 @@ CORRECTIONS_UN_JETON_DECIDEES = [
      # la trace des signaux de ce soir-là : le fichier des signaux tel que le circuit l'a écrit et poussé le
      # 20-10-2026 à 21h59 (Paris), relu au dépôt par `git show` ; le programme refuse s'il ne le retrouve pas
      "signaux_du_soir": "553c2fd26aaf9be3e12e3e3347a46a791fbd84d3:donnees/signaux_du_jour.json",
+     # LA FICHE DU SOIR DU SIGNAL, désignée par son EMPREINTE et jamais par sa place au registre (F3 de la relecture
+     # de Cowork du 19-11-2026, A-924) : `empreinte_d_une_fiche` sur les cases qui font le rejeu. Mesurée le
+     # 20-11-2026 à 01h51 (Paris) : la même sur la ligne C5E10-OBS-V1 du registre au commit des signaux (553c2fd2) et
+     # sur celle de main aa384a7c. Une ligne AJOUTÉE plus tard à cette fiche ne change donc pas le rejeu.
+     "empreinte_de_la_fiche": "ab897d8a05c3073d",
      "valeur_retiree": "ENGIE",
      # la valeur que la décision NOMME ; le programme la RETROUVE par le rejeu, et refuse si la règle en donne une autre
      "valeur_nommee_par_la_decision": "EIFFAGE",
@@ -601,6 +620,39 @@ CORRECTION_UN_JETON = ["action", "geste"] + TRADE + ["cause"]
 # visée est (stratégie, comptabilité « un jeton », valeur, jour d'achat) ; son JUMEAU est la même identité en jetons
 # illimités — le circuit écrit les deux ensemble, une par comptabilité.
 IDENTITE_D_UNE_LIGNE_DU_JOURNAL = ("strategie", "comptabilite", "valeur", "date_entree")
+# LES CASES D'UNE FICHE QUI FONT LE REJEU d'une correction (F3, A-924) : l'identifiant, l'univers (quelles valeurs
+# reçoivent le signal), l'objectif, le stop et l'horizon (comment la position se vend). Les autres cases (note,
+# compteur, statut…) changent sans changer l'achat ni la vente rejoués.
+CASES_DE_L_EMPREINTE_D_UNE_FICHE = ("id", "univers", "tp", "sl", "horizon")
+
+
+def empreinte_d_une_fiche(ligne):
+    """Rend l'empreinte d'une ligne du registre des stratégies sur les cases qui font le rejeu d'une correction.
+
+    ① RÔLE — Désigner une fiche par une propriété STABLE, son contenu utile, et non par sa place au registre.
+    ② CONTEXTE D'APPEL — `fiche_de_la_decision` de `programmes/CORRIGER_LES_COMPTES_UN_JETON.py` ; l'épreuve
+      `tests/EPREUVES_DE_LA_CORRECTION_UN_JETON_Mer_18-11-2026.py`.
+    ③ ENTRÉE — `ligne` : un dictionnaire {colonne : texte}, une ligne du registre.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : seize caractères hexadécimaux, le début du SHA-256 des cases
+      `CASES_DE_L_EMPREINTE_D_UNE_FICHE`, dans cet ordre, jointes par le séparateur d'unité (U+001F), une case absente
+      valant le texte vide. Exemple réel : la ligne C5E10-OBS-V1 du 20-10-2026 rend « ab897d8a05c3073d ».
+      [rend: 1]
+    ⑥ TRAITEMENT — Joindre les cases, encoder en UTF-8, hacher, garder seize caractères.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — F3 de la relecture de Cowork du 19-11-2026 (A-924) : le rejeu prenait la DERNIÈRE ligne de la fiche ;
+      une ligne ajoutée plus tard (univers, seuils) l'aurait fait diverger sans que la correction soit fausse. Le
+      registre ne fait qu'ajouter des lignes (R-727) : la ligne désignée par l'empreinte y reste.
+    ⑨ CE QUI CLOCHE — Les cases sont hachées telles qu'écrites : « +4.0% » et « +4% » donnent deux empreintes. Une
+      ligne RÉÉCRITE sur place (et non ajoutée) dans l'une de ces cases fait perdre la fiche : le rejeu s'arrête alors
+      (code 2 de l'épreuve), il ne se trompe pas.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    import hashlib as _hashlib
+    texte = "\x1f".join((ligne.get(c) or "") for c in CASES_DE_L_EMPREINTE_D_UNE_FICHE)
+    return _hashlib.sha256(texte.encode("utf-8")).hexdigest()[:16]
 
 
 class CorrectionUnJetonImpossible(ValueError):
@@ -689,6 +741,65 @@ def journal_couvre(operations, date_de_reference):
     return bool(dates) and max(dates) >= ref
 
 
+def verifier_la_ligne_ajoutee(decision, retiree, ajoutee, operations):
+    """Refuse la ligne AJOUTÉE du fichier des corrections si le journal des trades ne la porte pas en jetons illimités.
+
+    ① RÔLE — Garder, le soir, la ligne que la mesure va compter à la place de la ligne retirée : elle doit être la
+      même que l'achat que le circuit a réellement suivi en jetons illimités.
+    ② CONTEXTE D'APPEL — `appliquer_les_corrections_un_jeton`, une fois par décision, quand la ligne visée est au
+      journal et égale à la ligne retirée, juste avant le remplacement ; `bloc_journal` du générateur du cockpit
+      (programmes/GENERATEUR_COCKPIT_Sam_15-08-2026_21h50.py), sous chaque ligne retirée, avant de l'afficher — le
+      cockpit est publié AVANT la mesure du soir (S1 du superviseur R-759, 20-11-2026) ; les épreuves.
+    ③ ENTRÉE — `decision` : une entrée de `CORRECTIONS_UN_JETON_DECIDEES` · `retiree`, `ajoutee` : les deux lignes
+      du fichier des corrections (dictionnaires) · `operations` : les lignes du journal des trades.
+    ④ CONDITIONS D'ENTRÉE — La comptabilité et la stratégie de `ajoutee` ont déjà été contrôlées (« un_jeton », celle
+      de la décision).
+    ⑤ SORTIE — Aucune valeur : elle rend la main, ou elle lève.
+      [rend: rien]
+    ⑥ TRAITEMENT — ① la valeur ajoutée est celle que la décision NOMME (`valeur_nommee_par_la_decision`) · ② elle est
+      achetée le même jour que la ligne retirée (le même signal donne les deux achats, à l'ouverture du lendemain) ·
+      ③ le journal porte EXACTEMENT une ligne JUMELLE : même stratégie, comptabilité jetons illimités, même valeur,
+      même jour d'achat (`IDENTITE_D_UNE_LIGNE_DU_JOURNAL`) · ④ la jumelle égale la ligne ajoutée sur les
+      `champs_compares` de la décision (prix, dates, motif, résultats nets).
+    ⑦ UNITÉ — Textes tels qu'écrits (euros, dates AAAA-MM-JJ).
+    ⑧ POURQUOI — F1 de la relecture de Cowork du 19-11-2026 (RELU 21ff6013, A-924) : la ligne ajoutée était recopiée
+      sans contrôle ; mesuré par Cowork sur la VRAIE ligne EIFFAGE, un résultat net porté de 3294.00 à 32940.00, ou
+      EIFFAGE remplacée par LVMH, passaient la mesure du soir en code 0. Le circuit du soir n'appelle jamais
+      `programmes/CORRIGER_LES_COMPTES_UN_JETON.py` : sans cette garde, rien ne prouve le soir que le fichier est le
+      calcul (R-728). La jumelle existe parce que les jetons illimités suivent TOUT signal : l'achat que la règle
+      donnait y est déjà, écrit par le circuit (le ④bis de `confronter`, dans CORRIGER, confronte le rejeu à la même
+      ligne). Réparation suggérée par Cowork, appliquée telle quelle.
+    ⑨ CE QUI CLOCHE — Les colonnes hors `champs_compares` de la ligne ajoutée (`explication`, `regles_pre_trade`,
+      `bareme_reel`, `bareme_convention`) ne sont pas gardées : la mesure ne compte pas avec elles, et le cockpit ne
+      les affiche pas pour cette ligne. Une décision dont l'achat de remplacement n'aurait PAS de jumelle en jetons
+      illimités (une stratégie qui ne tiendrait qu'un jeton) ne pourrait pas s'appliquer : la mesure s'arrêterait ;
+      aucune n'existe aujourd'hui.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève `CorrectionUnJetonImpossible` à la première condition qui ne tient pas.
+      [sort: non]
+    """
+    a = decision["action"]
+    quoi = "%s · %s · entrée %s" % (ajoutee.get("strategie"), ajoutee.get("valeur"), ajoutee.get("date_entree"))
+    if (ajoutee.get("valeur") or "") != decision["valeur_nommee_par_la_decision"]:
+        raise CorrectionUnJetonImpossible("%s : la ligne ajoutée porte %r, la décision nomme %r"
+                                          % (a, ajoutee.get("valeur"), decision["valeur_nommee_par_la_decision"]))
+    if (ajoutee.get("date_entree") or "") != (retiree.get("date_entree") or ""):
+        raise CorrectionUnJetonImpossible("%s : la ligne ajoutée est achetée le %r, la ligne retirée le %r ; le même "
+                                          "signal donne les deux achats le même jour"
+                                          % (a, ajoutee.get("date_entree"), retiree.get("date_entree")))
+    jumelle = tuple(JETONS_ILLIMITES if c == "comptabilite" else (ajoutee.get(c) or "")
+                    for c in IDENTITE_D_UNE_LIGNE_DU_JOURNAL)
+    trouvees = [o for o in operations if tuple((o.get(c) or "") for c in IDENTITE_D_UNE_LIGNE_DU_JOURNAL) == jumelle]
+    if len(trouvees) != 1:
+        raise CorrectionUnJetonImpossible("%s : la ligne ajoutée %s a %d jumelle(s) en jetons illimités au journal, "
+                                          "attendu exactement une" % (a, quoi, len(trouvees)))
+    ecarts = [c for c in decision["champs_compares"] if (trouvees[0].get(c) or "") != (ajoutee.get(c) or "")]
+    if ecarts:
+        raise CorrectionUnJetonImpossible("%s : la ligne ajoutée %s diffère de sa jumelle en jetons illimités au "
+                                          "journal sur %s — le fichier des corrections n'est pas le calcul"
+                                          % (a, quoi, ", ".join(ecarts)))
+
+
 def appliquer_les_corrections_un_jeton(operations, chemin, vrai_journal):
     """Rend les opérations du journal corrigées en un jeton : la ligne retirée mise de côté, son remplacement à sa place.
 
@@ -711,7 +822,9 @@ def appliquer_les_corrections_un_jeton(operations, chemin, vrai_journal):
       déclarée a EXACTEMENT une ligne retirée et une ligne ajoutée · ⑥ chercher au journal la ligne VISÉE (identité
       `IDENTITE_D_UNE_LIGNE_DU_JOURNAL` de la ligne retirée) et son JUMEAU (même identité, jetons illimités) ; une clé
       en double → lever · ⑦ visée présente : elle doit égaler la ligne retirée sur les `champs_compares` de la
-      décision, sinon lever ; la remplacer, à son rang, par la ligne ajoutée (ses colonnes TRADE) · ⑧ visée absente
+      décision, sinon lever ; la ligne ajoutée doit passer `verifier_la_ligne_ajoutee` (valeur nommée, même jour
+      d'achat, une jumelle en jetons illimités au journal, égale sur les mêmes champs ; F1 d'A-924), sinon lever ;
+      la remplacer, à son rang, par la ligne ajoutée (ses colonnes TRADE) · ⑧ visée absente
       et jumeau présent → lever (ligne effacée) · ⑨ les deux absentes : si le journal couvre le jour d'achat de la
       ligne retirée (`journal_couvre`, date lue dans le fichier) → lever sur le vrai journal, SANS OBJET sinon ; s'il ne
       le couvre pas (journal antérieur, témoin figé) → SANS OBJET ; une date illisible → lever.
@@ -728,7 +841,8 @@ def appliquer_les_corrections_un_jeton(operations, chemin, vrai_journal):
     ⑨ CE QUI CLOCHE — Une épreuve qui fabrique son journal À LA PLACE du vrai, dans une copie du dépôt (E20 de
       `tests/EPREUVES_DU_BAREME_DES_FRAIS_Jeu_29-10-2026.py`), est un « vrai journal » pour cette règle : la mesure s'y
       arrête. Seule la mesure de la performance compte avec les corrections : le radar et le message du soir lisent
-      le journal brut ; le cockpit dit la ligne retirée sans recompter.
+      le journal brut ; le cockpit dit la ligne retirée sans recompter, et n'affiche la ligne ajoutée qu'après
+      `verifier_la_ligne_ajoutee`.
     ⑩ EFFET — Lit le fichier des corrections ; n'écrit rien.
     ⑪ TERMINAISON — Rend la main ; lève `CorrectionUnJetonImpossible` pour toute correction qui ne tient pas, et
       OSError si le fichier ne se lit pas. Aucun appel qui ne revienne pas.
@@ -801,6 +915,8 @@ def appliquer_les_corrections_un_jeton(operations, chemin, vrai_journal):
         if ecarts:
             raise CorrectionUnJetonImpossible("%s : la ligne un jeton %s diffère au journal sur %s — le journal a changé "
                                               "sous la correction" % (a, quoi, ", ".join(ecarts)))
+        # LA LIGNE AJOUTÉE SE VÉRIFIE AVANT D'ÊTRE COMPTÉE (F1 de la relecture de Cowork du 19-11-2026, A-924)
+        verifier_la_ligne_ajoutee(dec, r, aj, corrigees)
         corrigees[vises[0]] = {c: aj.get(c, "") for c in TRADE}
         retirees.append(r)
         ajoutees.append(aj)

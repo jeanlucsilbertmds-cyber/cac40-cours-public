@@ -62,7 +62,10 @@
     proclame qu il ne reecrit rien.
 ⑩ EFFET — **CREE un dossier `_site_travail` dans la racine du depot et y copie
   jusqu a huit fichiers** ; il n est jamais efface. **LANCE deux autres
-  programmes.** **ECRIT une page sur le depot public, sur Internet.**
+  programmes** — le generateur dans un environnement prive de `GH_TOKEN` et de
+  `PHRASE` (K2, 20-11-2026), le chiffrement avec la phrase —, et recopie sur sa
+  sortie d erreur celle du generateur (H2 d A-936, 20-11-2026). **ECRIT une
+  page sur le depot public, sur Internet.**
 ⑪ TERMINAISON — **NE REND JAMAIS LA MAIN : tous les chemins se terminent.**
   0 = page publiee · 1 = phrase absente, protection en echec, jeton absent, ou
   publication refusee · 2 = generateur absent ou aucun cockpit produit.
@@ -165,8 +168,10 @@ def main():
       [rend: rien]
     ⑥ TRAITEMENT — ① creer le dossier de travail · ② y copier les six entrees
       sous les noms attendus, et signaler celles qui manquent · ③ y copier les
-      chiffres de reference et les signaux du jour · ④ lancer le generateur et
-      afficher la fin de son compte rendu · ⑤ prendre la page produite ·
+      chiffres de reference et les signaux du jour · ④ lancer le generateur,
+      dans un environnement PRIVE de `GH_TOKEN` et de `PHRASE` (K2, 20-11-2026),
+      afficher la fin de son compte rendu, et recopier ENTIERE sa sortie
+      d erreur sur la sienne (H2 d A-936, 20-11-2026) · ⑤ prendre la page produite ·
       ⑥ la faire chiffrer, et **s arreter si la phrase manque ou si le
       chiffrement echoue** · ⑦ demander l empreinte de la page en place ·
       ⑧ envoyer la nouvelle.
@@ -179,7 +184,16 @@ def main():
       11-09-2026.
       **Et seules les 400 dernieres lettres du compte rendu du generateur sont
       affichees** : le reste encombrerait le journal du circuit sans rien
-      apprendre.
+      apprendre. **Sa sortie d erreur, elle, est recopiee entiere** : le motif
+      d une correction refusee par le cockpit n est ecrit que la ; capturee puis
+      jetee, il n apparaissait nulle part au journal du circuit (H2 du relecteur,
+      RELU 354ca97b, 20-11-2026). Un soir normal, elle est vide.
+      **Le generateur ne recoit ni le jeton ni la phrase** (K2 du relecteur,
+      RELU 3b71fbf7, 20-11-2026) : il ne lit aucune variable d environnement, et
+      sa sortie d erreur est recopiee au journal du circuit ; un environnement
+      qui ne les porte pas ferme la porte par construction plutot que par
+      l absence de fuite constatee. Le reste de l environnement lui est passe tel
+      quel (chemins, PYTHONPATH).
     ⑨ CE QUI CLOCHE — **Le choix de la page publiee se fait par l alphabet.**
       `sorted(...)[-1]` sur des noms qui commencent par le jour de la semaine
       rend toujours celui du vendredi quand plusieurs cockpits coexistent. Le
@@ -188,7 +202,7 @@ def main():
       grossit d un cockpit par passage sans que rien ne le dise.
     ⑩ EFFET — **CREE un dossier dans la racine et y ecrit jusqu a huit
       fichiers** · **LANCE deux autres programmes** · **ECRIT une page sur
-      Internet.**
+      Internet** · ecrit sur sa sortie d erreur celle du generateur.
     ⑪ TERMINAISON — **NE REND JAMAIS LA MAIN : tous les chemins se terminent.**
       0 = publie · 1 = phrase absente, protection en echec, jeton absent, ou
       refus du serveur · 2 = generateur absent ou aucun cockpit produit.
@@ -223,9 +237,16 @@ def main():
     gen = os.path.join(racine, "programmes", GENERATEUR)
     if not os.path.isfile(gen):
         print(f"CODE 2 — générateur absent : {gen}"); sys.exit(2)
+    # LE GÉNÉRATEUR NE REÇOIT NI LE JETON NI LA PHRASE (K2 du RELU 3b71fbf7, 20-11-2026) : il n'en a pas besoin, et sa
+    # sortie d'erreur est recopiée au journal du circuit juste en dessous.
+    env_du_generateur = {k: v for k, v in os.environ.items() if k not in ("GH_TOKEN", "PHRASE")}
     r = subprocess.run([sys.executable, gen, travail, travail],
-                       capture_output=True, text=True, timeout=600)
+                       capture_output=True, text=True, timeout=600, env=env_du_generateur)
     print(r.stdout.strip()[-400:] if r.stdout else "")
+    # LA SORTIE D'ERREUR DU GÉNÉRATEUR EST RECOPIÉE, ENTIÈRE, SUR LA NÔTRE (H2 d'A-936, RELU 354ca97b) : le motif
+    # d'une correction refusée n'y vit que là ; capturée puis jetée, il n'apparaissait nulle part au journal du circuit.
+    if r.stderr:
+        print(r.stderr.rstrip(), file=sys.stderr)
     pages = sorted(glob.glob(os.path.join(travail, "cockpit_*.html")))
     if not pages:
         print("CODE 2 — aucun cockpit fabriqué"); sys.exit(2)
