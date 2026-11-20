@@ -1096,10 +1096,13 @@ def famille_jouer():
     ⑤ SORTIE — Aucune valeur. [rend: 0]
     ⑥ TRAITEMENT — Trois versions réelles (0001, 0500 et 0914, celle de la fiche) ; des fichiers de cours tronqués du
       maître dans un dossier temporaire ; deux copies du programme modifiées ICI pour atteindre un garde-fou (J6, J8).
+      J8 (depuis le 20-11-2026, A1 du RELU 33ee384ae) joue le jeu figé au 2026-07-20, horizon calculé sur ce jeu.
     ⑦ UNITÉ — Dates ; opérations.
     ⑧ POURQUOI — `--cours=` doit valoir pour le juge ET pour ce programme (bloc 5l ⑤) ; chaque garde-fou doit pouvoir
       rougir (relecteur neuf, D5, D6, D8).
-    ⑨ CE QUI CLOCHE — Environ quinze secondes par lancement (calibrage du juge compris).
+    ⑨ CE QUI CLOCHE — Environ quinze secondes par lancement (calibrage du juge compris). Les jeux « figés » sont des
+      coupes du maître au 2026-07-20 et au 2026-06-30 : ils ne bougent que si une séance passée est RÉVISÉE (signalée,
+      jamais écrasée, A-231).
     ⑩ EFFET — Lance JOUER ; écrit dans des dossiers temporaires. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     d = dossier()
@@ -1168,8 +1171,22 @@ def famille_jouer():
               c == 1 and "la fin calculée recule de" in s and "par AIR" in s and not os.path.exists(os.path.join(d, "R7.csv")),
               s[-600:])
     if voulu("J8"):
-        # D5 : une copie dont le réglage du recul est remplacé par un fichier temporaire permissif ; horizon 700 sur la
-        # version 0500 : la fiche n'a AUCUNE opération sur la période ramenée ; c'est un résultat, pas un arrêt.
+        # D5 : une copie dont le réglage du recul est remplacé par un fichier temporaire permissif ; un horizon géant sur
+        # la version 0500 : la fiche n'a AUCUNE opération sur la période ramenée ; c'est un résultat, pas un arrêt.
+        # INDÉPENDANT DE LA DATE DES DONNÉES (A1 du RELU 33ee384ae, 20-11-2026) : avant, J8 jouait le fichier maître
+        # ENTIER avec un horizon fixe de 700 ; le maître grandissant, la période ramenée s'allongeait (2024-01-02 ->
+        # 2024-02-20 sur GitHub le 20-11-2026) et attrapait une opération : « CAS : 102 / 103 tenus ». Désormais J8 joue
+        # le jeu FIGÉ `court` (le maître coupé au 2026-07-20, des séances passées qui ne s'écrivent plus) par
+        # `--cours=`, et l'horizon est CALCULÉ sur ce jeu pour ramener la fin à la PREMIÈRE séance de la fiche : la
+        # valeur la plus courte n'a, après le 2024-01-02, que horizon + 1 séances. Une période d'une séance, où un
+        # achat (à l'Open du lendemain) ne peut pas se faire.
+        sys.path.insert(0, os.path.join(RACINE, "programmes"))
+        import JUGE_DES_STRATEGIES as J
+        mn8 = J.table_mnemoniques(J.trouver(RACINE, "REFERENTIEL_VALEURS"))
+        lus8, _ = J.lire_par_le_lecteur(RACINE, rel(court), mn8)
+        codes8 = sorted({x.strip() for l in trois for x in l["univers"].split(",") if x.strip()})
+        debut8 = "2024-01-02"
+        h8 = min(sum(1 for b in lus8[mn8.get(m, J.cle_valeur(m))] if b["date"] > debut8) for m in codes8) - 1
         reglage = os.path.join(dossier(), "RECUL.csv")
         open(reglage, "w", encoding="utf-8").write("reglage,valeur,unite,statut,source\n"
                                                     "recul_maximum,100000,seances,ÉPREUVE,épreuve J8\n")
@@ -1177,14 +1194,15 @@ def famille_jouer():
         avant = 'RECUL_MAXIMUM = "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv"'
         copie = os.path.join(dossier(), "JOUER_LES_VERSIONS.py")
         open(copie, "w", encoding="utf-8").write(texte.replace(avant, "RECUL_MAXIMUM = %r" % reglage))
-        c700 = ecrire(os.path.join(d, "C700.csv"), champs, [dict(l, horizon="700") if l["id_version"].endswith("-0500")
+        c700 = ecrire(os.path.join(d, "C700.csv"), champs, [dict(l, horizon=str(h8)) if l["id_version"].endswith("-0500")
                                                              else l for l in trois])
-        r = subprocess.run([sys.executable, "-B", copie, ".", c700, os.path.join(d, "R8.csv")], cwd=RACINE,
-                           capture_output=True, text=True, timeout=DELAI)
+        r = subprocess.run([sys.executable, "-B", copie, ".", c700, os.path.join(d, "R8.csv"), "--cours=" + rel(court)],
+                           cwd=RACINE, capture_output=True, text=True, timeout=DELAI)
         s = r.stdout + r.stderr
-        noter("J8 la fiche n'a aucune opération sur la période ramenée : « aucune opération », code 0, jamais KeyError",
-              texte.count(avant) == 1 and r.returncode == 0 and "la fiche sur la période jouée : aucune opération" in s
-              and "KeyError" not in s, s[-600:])
+        noter("J8 la fiche n'a aucune opération sur la période ramenée (jeu figé au 2026-07-20, horizon %d calculé : "
+              "fin ramenée au %s) : « aucune opération », code 0, jamais KeyError" % (h8, debut8),
+              texte.count(avant) == 1 and r.returncode == 0 and "FIN CALCULÉE : %s " % debut8 in s
+              and "la fiche sur la période jouée : aucune opération" in s and "KeyError" not in s, s[-600:])
     if voulu("J9"):
         F = resultats_reels()
         _, a = lire(F["resultats"])

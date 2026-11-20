@@ -391,9 +391,10 @@
   "Tri": {
    "chemin": "tests/EPREUVES_DU_TRI_ET_DE_LA_FIN_CALCULEE_Mer_11-11-2026.py",
    "arguments": [
-    "{copie}"
+    "{copie}",
+    "--sabotages"
    ],
-   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) (« celui du tri ») ; sans « --saboter » (le fichier ne le lit pas)"
+   "pourquoi": "nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-LU2 (da2e0f23) (« celui du tri ») ; avec « --sabotages », SON option de sabotage (il ne lit pas « --saboter » ; sa `main` lit « --sabotages » et « --un-sabotage= ») : la note d'avant le 20-11-2026 disait « sans --saboter (le fichier ne le lit pas) », et le tri sous ses sabotages n'était jamais joué sur GitHub (A2 du RELU 33ee384ae, 20-11-2026) ; jeu intact mesuré 222 s sur GitHub (44736193620) et 727 s sur la machine du Chat le 20-11-2026 ; avec ses 61 sabotages, durée non mesurée"
   },
   "Moulinette": {
    "chemin": "tests/EPREUVES_DE_LA_MOULINETTE_Mar_20-10-2026.py",

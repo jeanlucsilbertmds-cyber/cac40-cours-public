@@ -47,11 +47,14 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   voisinage porte une ligne pour tp, sl et horizon. L'identifiant ne contient
   que lettres, chiffres, point, tiret ou tiret bas. Le tableau à écrire n'existe
   pas déjà : un numéro d'essai ne sert qu'une fois (A-541, décision de Jean-Luc
-  du 07-10-2026 à 17h59).
+  du 07-10-2026 à 17h59). DEPUIS LE 19-11-2026 (A-923, A-925) : la fiche suit le CONTRAT DE STRATÉGIE
+  (`CONTRATS_DES_FICHIERS.CONTRAT_DE_STRATEGIE`, contrôlé par `manques_du_contrat`) — signal nommé et chargeable,
+  période, moment d'achat, données, univers connu du référentiel et de donnees/VALEURS_TTF.csv ; chaque case
+  refusée est nommée. Exemple réel : C5E10-TP5-SL5, qui passait ⓪ le 19-11-2026, est refusé (signal, période).
 ⑤ SORTIE — Un code de sortie et un fichier. 0 : le tableau
   `VARIABLES_DE_DECLINAISON_<ID_FICHE>_<essai>.csv` est écrit puis relu
   conforme · 1 : une condition d'entrée manque, rien n'est écrit · 2 : arguments
-  absents, ce texte est affiché.
+  absents, ce texte est affiché ; ou (depuis le 19-11-2026) le contrat de stratégie n'a pas pu être contrôlé.
 ⑥ TRAITEMENT — ① vérifier les arguments · ② lire la fiche et le référentiel ·
   ③ lire le voisinage · ④ pour l'objectif, le stop et la durée, entourer la
   valeur de la fiche de ses voisins · ⑤ proposer les ensembles de valeurs :
@@ -454,18 +457,24 @@ def main(argv):
     ② CONTEXTE D'APPEL — Le lancement en ligne de commande ; les épreuves l'appellent aussi.
     ③ ENTRÉE — `argv` : les cinq arguments, sans le nom du programme.
     ④ CONDITIONS D'ENTRÉE — Celles de l'en-tête.
-    ⑤ SORTIE — UNE valeur : le code de sortie 0, 1 ou 2.
+    ⑤ SORTIE — UNE valeur : le code de sortie 0, 1 ou 2 (2 : arguments absents, ou contrat de stratégie impossible
+      à contrôler, R-734).
       [rend: 1]
     ⑥ TRAITEMENT — ① vérifier les arguments et leur forme · ② lire la fiche,
       sa DERNIÈRE ligne par `fiches_des_lignes` du contrat (n°83, depuis le
       05-11-2026 ; avant, une fiche double était refusée), refuser si absente ·
       ③ lire le référentiel, refuser s'il n'y en a
-      pas exactement un · ④ lire le voisinage · ⑤ préparer · ⑥ refuser au moindre
-      manque · ⑦ écrire en mode exclusif · ⑧ relire et comparer · ⑨ afficher.
+      pas exactement un · ④ lire le voisinage · ④bis (depuis le 19-11-2026, A-923) contrôler la fiche contre le
+      CONTRAT DE STRATÉGIE (`CONTRATS_DES_FICHIERS.manques_du_contrat`, racine = le dépôt de ce programme), afficher
+      ses avis (`avis_du_contrat`), sortir en 2 si le contrôle est impossible · ⑤ préparer · ⑥ refuser au moindre
+      manque, ceux du contrat en tête, chaque case nommée · ⑦ écrire en mode exclusif · ⑧ relire et comparer · ⑨ afficher.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — La relecture prouve que le fichier écrit dit ce qui a été calculé.
-    ⑨ CE QUI CLOCHE — rien vu.
-    ⑩ EFFET — Écrit un fichier nouveau ; l'efface si sa relecture échoue.
+    ⑨ CE QUI CLOCHE — ① (19-11-2026) Le contrat lit le référentiel de la RACINE du programme, la règle de ce programme
+      celui qui est À CÔTÉ DU REGISTRE : deux fichiers différents si le registre est hors du dépôt (épreuves de la
+      déclinaison) ; dans la chaîne, c'est le même. ② Le contrat charge (exécute) le module de signal déclaré par la
+      fiche : ce programme ne le faisait pas avant le 19-11-2026.
+    ⑩ EFFET — Écrit un fichier nouveau ; l'efface si sa relecture échoue ; charge le module de signal de la fiche.
     ⑪ TERMINAISON — Rend la main avec un code ; c'est le bloc final qui sort.
       [sort: non]
     """
@@ -497,6 +506,19 @@ def main(argv):
     if fiche is None:
         print("REFUS : la fiche %s est absente du registre" % ident)
         return 1
+    # LE CONTRAT DE STRATÉGIE, À L'ENTRÉE DE LA CHAÎNE (A-923 ; A-925, décision de Jean-Luc du 19-11-2026 à 19h23) :
+    # chaque case refusée est nommée ; les avis (ce que Jean-Luc n'a pas tranché) s'affichent et n'arrêtent rien. La
+    # racine est celle du dépôt dont ce programme est lancé (son dossier parent) : c'est là que vivent le module de
+    # signal nommé par la fiche, le référentiel que le juge lit et la liste des valeurs taxées.
+    racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        refus_du_contrat = CONTRAT.manques_du_contrat(fiche, racine)
+        avis_du_contrat = CONTRAT.avis_du_contrat(fiche)
+    except CONTRAT.ContratImpossible as e:
+        print("CONTRÔLE IMPOSSIBLE (R-734) — rien n'est écrit : le contrat de stratégie n'a pas pu être contrôlé : %s" % e)
+        return 2
+    for a in avis_du_contrat:
+        print("AVIS (n'arrête rien) : " + a)
     voisinage = {r["parametre"]: r for r in regles}
     heure = datetime.now(ZoneInfo("Europe/Paris")).strftime("%Y-%m-%d %Hh%M Paris")
     try:
@@ -504,6 +526,7 @@ def main(argv):
     except ValueError as e:
         print("REFUS : %s" % e)
         return 1
+    manques = ["contrat de stratégie (A-923) — " + r for r in refus_du_contrat] + manques
     if manques:
         print("REFUS — rien n'est écrit :")
         for m in manques:
