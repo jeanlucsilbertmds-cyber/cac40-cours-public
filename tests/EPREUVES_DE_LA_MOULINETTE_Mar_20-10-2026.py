@@ -635,7 +635,9 @@ def faux_juge(base, **reglages):
         frontiere_de_la_fiche=lambda fiche, seances, bornes: "2025-06-02",
         coupure_70_30=lambda ops, sea, horizon=None, frontiere=None: {
             "frontiere": frontiere, "embargo_seances": 21, "res_70": {"n": 1, "wr_exact": 100.0, "net": 10.0}}) \
-        if nom == "jug" else None
+        if nom == "jug" else (types.SimpleNamespace(       # (19-11-2026, I2) JOUER lit le CONTENU du barème par ce module
+            _lire_un_tableau=lambda f, c: [{"nom_bareme": "HIST_COURTAGE_SANS_TTF", "taux_fraction": "0.0015"}])
+            if nom == "pos" else None)
     J.lire_horizon = lambda x: int(x)
     J.empreinte = lambda chemin: "0000000000000000"
     # le signal que la fiche nomme (A-542, 30-10-2026) : le faux juge n'en lit pas, son faux `jouer` n'en a pas besoin

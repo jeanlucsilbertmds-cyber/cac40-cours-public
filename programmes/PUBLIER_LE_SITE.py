@@ -89,7 +89,6 @@ GENERATEUR = "GENERATEUR_COCKPIT_Sam_15-08-2026_21h50.py"
 # cherche sous ce même nom, pris au même endroit)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from CONTRATS_DES_FICHIERS import REGISTRE_DES_STRATEGIES, NOM_DU_REGISTRE_DES_STRATEGIES
-from CONTRATS_DES_FICHIERS import CORRECTIONS_UN_JETON, NOM_DES_CORRECTIONS_UN_JETON
 
 # fichier du dépôt -> nom attendu par le générateur
 ENTREES = [
@@ -98,8 +97,6 @@ ENTREES = [
     ("donnees/historique_mesures.csv",       "historique_mesures.csv"),
     ("donnees/claude_journal_trades.csv",    "journal_trades.csv"),
     ("donnees/claude_positions_ouvertes.csv","positions_ouvertes.csv"),
-    # les corrections decidees des comptes un jeton : le cockpit dit la ligne retiree (A-801, 18-11-2026)
-    (CORRECTIONS_UN_JETON,                   NOM_DES_CORRECTIONS_UN_JETON),
 ]
 
 
