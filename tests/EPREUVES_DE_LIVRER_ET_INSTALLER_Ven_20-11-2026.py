@@ -35,7 +35,30 @@ import sys
 import tempfile
 import time
 
-PROGRAMMES = ("LIVRER.py", "INSTALLER.py", "QUI_FAIT_QUOI.py", "REPUBLIER.py", "CONTRATS_DES_FICHIERS.py")
+# Les cas choisis par « --cas=I13,L15 » (vide : tous) ; essais courts d'un défaut sans rejouer les 43 cas (21-11-2026).
+CHOISIS = set()
+
+
+def choisi(nom):
+    """Dit si le cas `nom` est à jouer.
+
+    ① RÔLE — Restreindre un essai aux cas nommés par --cas=. ② CONTEXTE D'APPEL — Chaque famille de cas.
+    ③ ENTRÉE — `nom` : « L15 », ou un préfixe de famille (« R », « Q »). ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : vrai si aucun choix n'est fait, si un cas choisi est `nom`, si un choix de famille
+      (lettres seules, « R ») est le début de `nom`, ou si `nom` est une famille dont un cas est choisi.
+      [rend: 1]
+    ⑥ TRAITEMENT — —. ⑦ UNITÉ — — ⑧ POURQUOI — Un sabotage rejoue les 43 cas (plus de 2 minutes).
+    ⑨ CE QUI CLOCHE — Un essai restreint ne dit rien des autres cas. ⑩ EFFET — —. ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return not CHOISIS or any(c == nom or (c.isalpha() and nom.startswith(c)) or (nom.isalpha() and c.startswith(nom))
+                              for c in CHOISIS)
+
+
+PROGRAMMES = ("LIVRER.py", "INSTALLER.py", "QUI_FAIT_QUOI.py", "REPUBLIER.py", "CONTRATS_DES_FICHIERS.py",
+              # 21-11-2026 (N-7, N-11) : le fabricant et le module qu'il charge à côté de lui, pour que R5 et R8 lisent
+              # la copie, sabotable, et non le dépôt
+              "FABRIQUER_LE_CIRCUIT_PUBLIC.py", "FORME_D_UN_JETON.py")
 
 FAUX_GH = r'''#!/usr/bin/env python3
 import json, os, subprocess, sys, tempfile
@@ -147,6 +170,10 @@ bq = g(public, "symbolic-ref", "-q", "--short", "HEAD").stdout.strip()
 if not bp or bp != bq:
     print("ARRET — le clone public est sur %r, le prive sur %r" % (bq, bp)); sys.exit(1)
 sha = g(prive, "rev-parse", "HEAD").stdout.strip()
+if os.environ.get("FAUX_FAB_MUET") and "--publier" not in sys.argv:   # muet à blanc seulement (N-4)
+    sys.exit(0)
+if os.environ.get("FAUX_FAB_IGNORE"):
+    open(os.path.join(public, "ignore.txt"), "w").write(sha + "\n")
 open(os.path.join(public, "version.txt"), "w").write(sha + "\n")
 open(os.path.join(public, "code.txt"), "w").write(open(os.path.join(prive, "programmes", "CODE.py")).read())
 if "--publier" in sys.argv:
@@ -206,12 +233,13 @@ class Monde:
     ⑪ TERMINAISON — —
     """
 
-    def __init__(self, source, progs, liste="- `CircuitPublic`\n- `GardeFou`"):
+    def __init__(self, source, progs, liste="- `CircuitPublic`\n- `GardeFou`", code_change=True):
         """Bâtit le monde.
 
         ① RÔLE — Dépôts, outils faux, état du faux gh.
         ② CONTEXTE D'APPEL — Chaque cas.
-        ③ ENTRÉE — `self` · `source` · `progs` · `liste` : les éléments de la section « à jouer ».
+        ③ ENTRÉE — `self` · `source` · `progs` · `liste` : les éléments de la section « à jouer » · `code_change` :
+          faux pour un travail qui ne change que echanges/ (N-3 : « aucune » n'est cru que pour lui).
         ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — Rien.
           [rend: rien]
@@ -261,7 +289,8 @@ class Monde:
         self.git(dep, "push", "-q", self.public, "main")
         self.git(dep, "checkout", "-q", "-b", "travail-x")
         self.lancer([sys.executable, os.path.join(self.t, "garde.py"), "echanges/A_RELIRE.md"], dep)
-        with open(os.path.join(dep, "programmes", "CODE.py"), "w") as f:
+        with open(os.path.join(dep, "programmes", "CODE.py") if code_change
+                  else os.path.join(dep, "echanges", "TRAVAIL.md"), "w") as f:
             f.write("V = 2\n")
         self.git(dep, "add", "-A")
         self.git(dep, "commit", "-q", "-m", "travail")
@@ -515,13 +544,20 @@ def cas_livrer(progs, source):
       « queued » (M2) ; L8 épreuve absente → 3, jamais verte (M1) ; L9a deux passages vivants → 3 (M3) ; L9b un fini et
       un vivant de la même branche → 3 (M3) ; L10 un ancien passage fini de la branche n'est pas pris (M4) ;
       L11 plantage → 5, registre poussé ; L12 un tiers pousse pendant le passage : rien n'est perdu ; L13 résultat
-      d'une autre pointe → 3 ; L14 publication refusée → 3 (son clone public effacé : R0, sabotage S18).
+      d'une autre pointe → 3 ; L14 publication refusée → 3 (son clone public effacé : R0, sabotage S18) ; L15 note
+      « aucune » sur un travail qui change du code → 2 (N-3) ; L16 « aucune autre que `X` » → 2 (N-3) ; L17 la même
+      note sur un travail sans code changé → 2 (N-3 : X n'est pas perdu) ; L18 fabricant muet → 3, aucune demande
+      (N-4 : le clone de contrôle n'est pas réécrit).
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026 (19h38) et réparation du soir (points C et D).
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     r = []
+    LISTES = {"L4": {"liste": "- `CircuitPublic`\n- `UneEpreuveSansCode`"},
+              "L15": {"liste": "- aucune"},
+              "L16": {"liste": "- aucune autre que `CircuitPublic`"},
+              "L17": {"liste": "- aucune autre que `CircuitPublic`", "code_change": False}}
 
     def nominal(m, p, nom, demandes=1):
         """Vérifie l'état après un lancement qui doit rendre 0 ; rend (vrai, détail).
@@ -574,7 +610,9 @@ def cas_livrer(progs, source):
         ⑨ CE QUI CLOCHE — — ⑩ EFFET — Monde jetable. ⑪ TERMINAISON — Rend la main.
           [sort: non]
         """
-        m = Monde(source, progs, **({"liste": "- `CircuitPublic`\n- `UneEpreuveSansCode`"} if nom == "L4" else {}))
+        if not choisi(nom):
+            return
+        m = Monde(source, progs, **LISTES.get(nom, {}))
         try:
             regler(m)
             p = m.programme("LIVRER.py", "travail-x", *args)
@@ -674,6 +712,17 @@ def cas_livrer(progs, source):
     un("L13", lambda m: m.scenario(pointe_fausse=True),
        lambda m, p: (p.returncode == 3 and "AUTRE POINTE" in m.montrer("travail-x", "echanges/A_RELIRE.md"),
                      f"L13 RESULTAT.json d'une autre pointe → 3 : code {p.returncode}"))
+    un("L15", rien, lambda m, p: (p.returncode == 2 and not m.gh_etat()["vus"] and "(N-3)" in p.stdout,
+                                  f"L15 « aucune » alors que le code change → 2, aucune demande (N-3) : code {p.returncode}"))
+    un("L16", rien, lambda m, p: (p.returncode == 2 and not m.gh_etat()["vus"],
+                                  f"L16 « aucune autre que `X` » → 2, aucune demande (N-3) : code {p.returncode}"))
+    un("L17", rien, lambda m, p: (p.returncode == 2 and not m.gh_etat()["vus"],
+                                  f"L17 « aucune autre que `X` » sans code changé → 2, X n'est pas perdu (N-3) : "
+                                  f"code {p.returncode}"))
+    un("L18", lambda m: m.env.update(FAUX_FAB_MUET="1"),
+       lambda m, p: (p.returncode == 3 and not m.gh_etat()["vus"] and "(N-4)" in p.stdout,
+                     f"L18 fabricant muet : publication non prouvée → 3, aucune demande (N-4) : code {p.returncode}"
+                     + ("" if "(N-4)" in p.stdout else " · " + p.stdout[-400:])))
     un("L14", lambda m: m.env.update(FAUX_FAB_REFUSE="1"),
        lambda m, p: (p.returncode == 3 and not m.gh_etat()["vus"],
                      f"L14 publication refusée → 3, aucune demande (et R0 : clone public effacé) : code {p.returncode}"))
@@ -693,7 +742,9 @@ def cas_installer(progs, source):
       rouge → 1 (M6) ; I8 pointe relue hors de l'histoire → 1 (M5) ; I9 preuve d'une pointe au code différent → 1 ;
       I9b preuve de la pointe jouée par LIVRER, relue une note plus loin → 0 ; I10 plantage après la fusion → 5 ;
       I11 un programme rangé en archives/ après le RELU → 1 (D-2) ; I12 auteur « Claude (pas cowork) » → 1 (D-5) ;
-      I13 branche déjà dans main → 1, rien poussé.
+      I13 branche déjà dans main → 1, rien poussé ; I14 note « aucune » et code changé → 1 (N-3) ; I15 note « aucune »
+      sur un travail sans code changé → 0 ; I16 plantage de l'écriture du registre entre la fusion et le commit → 5,
+      main intacte, worktree de main propre et sans MERGE_HEAD (N-5).
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026, A-818 et réparation du soir (points A et D).
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
@@ -758,6 +809,20 @@ def cas_installer(progs, source):
         preuves(m)
         planter(m, "ÉTAPE 4 — main")
 
+    def preuves_et_registre_bloque(m):
+        """Preuves, et le dossier du registre rendu impossible à créer dans le clone du Chat. ① RÔLE — Régler I16 :
+        `noter` lève entre la fusion et le commit (N-5). ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m`.
+        ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — un FICHIER au chemin du dossier du
+        registre, exclu par .git/info/exclude (le clone reste propre aux yeux de « git status »). ⑦ UNITÉ — —
+        ⑧ POURQUOI — Un plantage réel du système de fichiers, sans crochet dans le code éprouvé. ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Écrit dans le clone. ⑪ TERMINAISON — Rend la main. [sort: non]"""
+        preuves(m)
+        os.makedirs(os.path.join(m.clone, "etudes"), exist_ok=True)
+        with open(os.path.join(m.clone, "etudes", "REGISTRE_DES_TRAVAUX"), "w") as f:
+            f.write("un fichier, pas un dossier\n")
+        with open(os.path.join(m.clone, ".git", "info", "exclude"), "a") as f:
+            f.write("etudes/REGISTRE_DES_TRAVAUX\n")
+
     cas = (
         # nom, code attendu, réglage (avant le RELU), arguments du RELU
         ("I1", 0, preuves, {}),
@@ -775,9 +840,15 @@ def cas_installer(progs, source):
         ("I11", 1, preuves, {"ranger": "programmes/CODE.py"}),
         ("I12", 1, preuves, {"auteur": "Claude (pas cowork)"}),
         ("I13", 1, preuves, {}),
+        ("I14", 1, lambda m: None, {}),
+        ("I15", 0, lambda m: None, {}),
+        ("I16", 5, preuves_et_registre_bloque, {}),
     )
+    mondes = {"I14": {"liste": "- aucune"}, "I15": {"liste": "- aucune", "code_change": False}}
     for nom, attendu, regler, kw in cas:
-        m = Monde(source, progs)
+        if not choisi(nom):
+            continue
+        m = Monde(source, progs, **mondes.get(nom, {}))
         try:
             m.relue = None
             regler(m)
@@ -799,6 +870,9 @@ def cas_installer(progs, source):
             if attendu == 0:
                 ok = (p.returncode == 0 and apres != avant and len(fusion) == 1 and len(installe) == 1
                       and public_apres == public_avant and "public en retard, REPUBLIER s'en charge" in p.stdout)
+            elif attendu == 5 and nom == "I16":   # N-5 : rien poussé, et le worktree de main n'est pas en fusion
+                ok = (p.returncode == 5 and apres == avant and not m.git(m.clone, "status", "--porcelain").strip()
+                      and m.lancer(["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"], m.clone).returncode != 0)
             elif attendu == 5:
                 ok = p.returncode == 5 and apres != avant and len(fusion) == 1
             else:
@@ -820,13 +894,18 @@ def cas_republier(progs, source):
       [rend: 1]
     ⑥ TRAITEMENT — R1 public différent de main → publié (le public porte main) ; R2 relancé sur un public égal → rien
       (aucun --publier, pointe publique inchangée) ; R3 --verifier : égal → 0, clone intact ; R4 --verifier après un
-      commit de code sur main → 1, la commande nommée.
+      commit de code sur main → 1, la commande nommée ; R6 --verifier avec un fabricant muet → 2 (N-4) ; R7 --verifier,
+      fichier écrit par la fabrication mais ignoré par le .gitignore du public → 1 (N-4) ; R8 dans le circuit du soir
+      fabriqué, `public_a_jour` garde « continue-on-error », un pas après le journal du premier job rougit sur son
+      échec, et la collecte garde « !cancelled() » (N-7, N-11).
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026 au soir, point B.
     ⑨ CE QUI CLOCHE — Le faux fabricant ne fabrique que version.txt et code.txt. ⑩ EFFET — Monde jetable.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     r = []
+    if not choisi("R"):
+        return r
     m = Monde(source, progs)
     try:
         log = os.path.join(m.t, "fab.log")
@@ -859,13 +938,46 @@ def cas_republier(progs, source):
         p4 = m.lancer([sys.executable, "-B", os.path.join(progs, "REPUBLIER.py"), "--verifier", priv, pub], m.t)
         r.append(("R4", p4.returncode == 1 and "programmes/REPUBLIER.py" in p4.stdout,
                   f"R4 --verifier sur un public en retard → 1, commande nommée : code {p4.returncode}"))
-        spec = importlib.util.spec_from_file_location("FAB_R5", os.path.join(source, "programmes",
-                                                                             "FABRIQUER_LE_CIRCUIT_PUBLIC.py"))
+        if choisi("R6"):
+            env_muet = dict(m.env, FAUX_FAB_MUET="1")
+            p6 = subprocess.run([sys.executable, "-B", os.path.join(progs, "REPUBLIER.py"), "--verifier", priv, pub],
+                                cwd=m.t, capture_output=True, text=True, timeout=300, env=env_muet)
+            r.append(("R6", p6.returncode == 2,
+                      f"R6 --verifier avec un fabricant muet → 2, jamais « égal » (N-4) : code {p6.returncode}"))
+        if choisi("R7"):
+            m.git(priv, "reset", "-q", "--hard", "HEAD~1")    # le privé redevient égal au public
+            with open(os.path.join(pub, ".gitignore"), "w") as f:
+                f.write("ignore.txt\n")
+            m.git(pub, "add", ".gitignore")
+            m.git(pub, "commit", "-q", "-m", "ignore")
+            env_ign = dict(m.env, FAUX_FAB_IGNORE="1")
+            p7 = subprocess.run([sys.executable, "-B", os.path.join(progs, "REPUBLIER.py"), "--verifier", priv, pub],
+                                cwd=m.t, capture_output=True, text=True, timeout=300, env=env_ign)
+            r.append(("R7", p7.returncode == 1 and "ignore.txt" in p7.stdout,
+                      f"R7 --verifier, fichier écrit mais ignoré par le public → 1 (N-4) : code {p7.returncode}"))
+        spec = importlib.util.spec_from_file_location("FAB_R5", os.path.join(progs, "FABRIQUER_LE_CIRCUIT_PUBLIC.py"))
         F = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(F)
         poser = F.CLONAGES[F.CLONAGES.index("Poser les programmes publics"):F.CLONAGES.index("Le garde du code")]
         r.append(("R5", F.COMMANDE_DE_REPUBLICATION in poser and "REPUBLIER.py --verifier" in F.PUBLIC_A_JOUR,
                   "R5 le circuit du soir nomme la commande au pas « Poser » et vérifie le public (D-3)"))
+        if choisi("R8"):
+            with open(os.path.join(source, F.CIRCUIT_PRIVE), encoding="utf-8") as f:
+                soir = F.fabriquer_le_circuit(f.read())
+            premier = soir[soir.index("  faut_il_tourner:\n"):soir.index("\n  collecte:\n")]
+            collecte = soir[soir.index("\n  collecte:\n"):]
+            pas = premier.split("      - ")
+            rougir = [x for x in pas if re.search(r"if: \$\{\{ always\(\) && .*steps\.public_a_jour\.outcome == 'failure'", x)]
+            verifs = {
+                "N-11 public_a_jour en continue-on-error": "id: public_a_jour\n        continue-on-error: true\n" in premier,
+                "N-7 un pas rougit sur l'échec de public_a_jour": len(rougir) == 1 and "exit 1" in rougir[0],
+                "N-7 ce pas vient après le journal": bool(rougir) and premier.index(rougir[0]) > premier.index("id: journal"),
+                "N-7 la collecte tourne malgré un premier job rouge":
+                    "!cancelled()" in collecte[:collecte.index("runs-on:")],
+            }
+            rates = [k for k, v in verifs.items() if not v]
+            r.append(("R8", not rates, "R8 le retard du public rougit le passage sans arrêter la collecte (N-7, N-11) : "
+                                       + ("ok" if not rates else "RATÉ " + " ; ".join(rates))))
     finally:
         m.fermer()
     return r
@@ -904,6 +1016,8 @@ def cas_qui_fait_quoi(progs, source):
              1, "COWORK AVANT GITHUB"),
             ("Q6", [gh_fini, ("relecture", "travail-x", "Cowork", "abc123", "2026-11-20 10:10:00", "", "EN COURS")],
              2, "exécutant 'Cowork'")):
+        if not choisi(nom):
+            continue
         m = Monde(source, progs)
         try:
             m.scenario(runs=[passage])
@@ -923,6 +1037,8 @@ def cas_qui_fait_quoi(progs, source):
                                + ("" if ok else " · " + p.stdout[-300:])))
         finally:
             m.fermer()
+    if not choisi("Q5"):
+        return r
     m = Monde(source, progs)
     try:
         p = m.programme("QUI_FAIT_QUOI.py", "noter", "epreuve:GardeFou", "travail-x", "cowork", "abc123")
@@ -932,6 +1048,40 @@ def cas_qui_fait_quoi(progs, source):
     finally:
         m.fermer()
     return r
+
+
+def cas_des_fiches(progs, source):
+    """Les cas qui confrontent une fiche au code ; rend la liste des (nom, vrai si passé, détail).
+
+    ① RÔLE — Q7 (N-6 du RELU de Cowork sur 0f18a8d2a) : la fiche de `LIVRER.pousser` nomme, avant « PAS », exactement
+      les programmes qui l'appellent. ② CONTEXTE D'APPEL — `jouer`.
+    ③ ENTRÉE — `progs` : le dossier des programmes · `source`. ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste.
+      [rend: 1]
+    ⑥ TRAITEMENT — L'élément ② de la fiche de `pousser`, coupé au premier « PAS » ; pour chaque programme de
+      PROGRAMMES : appelant si son texte porte « pousser( » hors de « def pousser( » ; nommé si son nom sans « .py »
+      (pour LIVRER : « `main` ») est dans le texte coupé. Appelant et nommé doivent coïncider.
+    ⑦ UNITÉ — — ⑧ POURQUOI — Une fiche qui promet plus que le code trompe le relecteur (N-6).
+    ⑨ CE QUI CLOCHE — Lecture de texte : une fiche reformulée sans « PAS » nomme tout le reste de l'élément.
+    ⑩ EFFET — Lit. ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    if not choisi("Q7"):
+        return []
+    livrer = open(os.path.join(progs, "LIVRER.py"), encoding="utf-8").read()
+    fiche = livrer[livrer.index("def pousser("):]
+    deux = fiche[fiche.index("② CONTEXTE D'APPEL"):fiche.index("③ ENTRÉE")]
+    nommes_texte = deux.split("PAS")[0]
+    ecarts = []
+    for prog in PROGRAMMES:
+        texte = open(os.path.join(progs, prog), encoding="utf-8").read().replace("def pousser(", "")
+        appelle = "pousser(" in texte
+        nom = "`main`" if prog == "LIVRER.py" else prog[:-3]
+        if appelle != (nom in nommes_texte):
+            ecarts.append(f"{prog} {'appelle' if appelle else 'n appelle pas'} mais la fiche "
+                          f"{'ne le nomme pas' if appelle else 'le nomme'}")
+    return [("Q7", not ecarts, "Q7 la fiche de pousser nomme ses vrais appelants (N-6) : "
+             + ("ok" if not ecarts else " ; ".join(ecarts)))]
 
 
 SABOTAGES = (
@@ -1014,6 +1164,29 @@ SABOTAGES = (
     ("P6 REPUBLIER publie un public déjà égal", "REPUBLIER.py", "        if not reste:\n", "        if False:\n"),
     ("P7 REPUBLIER --verifier toujours égal", "REPUBLIER.py", "    if reste:\n        n = len",
      "    if False:\n        n = len"),
+    # Les réparations des défauts N-3 à N-6 du RELU de Cowork sur 0f18a8d2a (21-11-2026) ; N-1 : D13 ci-dessus.
+    ("N3a « aucune » cru sans regarder le code (LIVRER)", "LIVRER.py",
+     "        change = code_change_par(wt, pointe) if not codes else []", "        change = []"),
+    ("N3b « aucune » cru sans regarder le code (INSTALLER)", "INSTALLER.py",
+     '    change = L.code_change_par(racine, relue) if etat == "aucune" else []', "    change = []"),
+    ("N3c « aucune autre que `X` » lu comme « aucune »", "LIVRER.py",
+     "            if nomme:   # « aucune", "            if False:   # « aucune"),
+    ("N4a fabricant muet cru égal (REPUBLIER)", "REPUBLIER.py",
+     "        if r.returncode == 0 and not reecrits:", "        if False:"),
+    ("N4b fichier ignoré écrit non vu", "LIVRER.py",
+     '    reste = "\\n".join([x for x in [reste] if x] + ["!! " + x for x in ecrits_ignores])', "    reste = reste"),
+    ("N4c clone de contrôle muet accepté (LIVRER)", "LIVRER.py",
+     "        if refait.returncode == 0 and not reecrits:", "        if False:"),
+    ("N5 fusion inachevée laissée au worktree de main", "INSTALLER.py",
+     'en fusion inachevée\n        L.git(wt, "merge", "--abort")\n        raise', "en fusion inachevée\n        raise"),
+    ("N6 fiche de pousser qui promet INSTALLER", "LIVRER.py",
+     "② CONTEXTE D'APPEL — `main` (bloc finally) et QUI_FAIT_QUOI « noter ». PAS INSTALLER",
+     "② CONTEXTE D'APPEL — `main` (bloc finally), INSTALLER (commit de fusion), QUI_FAIT_QUOI « noter ». PAS INSTALLER"),
+    # N-7 et N-11 du RELU de Cowork sur 2b62e3f2e (21-11-2026)
+    ("N7 retard du public lu par personne", "FABRIQUER_LE_CIRCUIT_PUBLIC.py",
+     "             + ROUGIR_SI_LE_PUBLIC_EST_EN_RETARD\n", ""),
+    ("N11 continue-on-error retiré de public_a_jour", "FABRIQUER_LE_CIRCUIT_PUBLIC.py",
+     "        id: public_a_jour\n        continue-on-error: true\n", "        id: public_a_jour\n"),
 )
 
 
@@ -1031,7 +1204,7 @@ def jouer(progs, source):
     """
     avant = laisses()
     r = (cas_livrer(progs, source) + cas_installer(progs, source) + cas_republier(progs, source)
-         + cas_qui_fait_quoi(progs, source))
+         + cas_qui_fait_quoi(progs, source) + cas_des_fiches(progs, source))
     restes = sorted(laisses() - avant)
     r.append(("R0", not restes, f"R0 aucun dossier laissé sous /tmp/livrer_ : {len(restes)} laissé(s) {' '.join(restes[:3])}"))
     for d in restes:
@@ -1085,7 +1258,8 @@ def main():
     """Lance les épreuves, et les sabotages avec --saboter ; sort avec le code.
 
     ① RÔLE — Voir l'en-tête. ② CONTEXTE D'APPEL — La ligne de commande.
-    ③ ENTRÉE — sys.argv : la racine, « --saboter ». ④ CONDITIONS D'ENTRÉE — Voir l'en-tête.
+    ③ ENTRÉE — sys.argv : la racine, « --saboter[=noms] », « --cas=noms » (essai restreint à ces cas).
+    ④ CONDITIONS D'ENTRÉE — Voir l'en-tête.
     ⑤ SORTIE — Rien : sort (0 ou 1).
       [rend: rien]
     ⑥ TRAITEMENT — `jouer` sur une copie propre ; avec --saboter, `jouer` sur chaque copie sabotée : au moins un
@@ -1095,6 +1269,9 @@ def main():
     """
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     source = os.path.abspath(args[0] if args else ".")
+    for a in sys.argv[1:]:
+        if a.startswith("--cas="):
+            CHOISIS.update(x for x in a.split("=", 1)[1].split(",") if x)
     t0, ok = time.time(), True
     base = tempfile.mkdtemp(prefix="epreuve_livrer_progs_")
     try:

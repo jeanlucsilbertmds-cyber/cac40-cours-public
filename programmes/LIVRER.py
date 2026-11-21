@@ -725,6 +725,86 @@ def fabriquer(prive, public, publier):
                   dossier=prive, borne=3600)
 
 
+# LA DATE FIGÉE DES FICHIERS AVANT UNE FABRICATION À BLANC (N-4 du RELU de Cowork sur 0f18a8d2a, 21-11-2026) : une
+# date que nul fichier écrit aujourd'hui ne porte (09-09-2001), en secondes depuis 1970.
+DATE_FIGEE = 1_000_000_000
+
+
+def ecart_apres_fabrication(clone, lancer_le_fabricant):
+    """Fige les dates du clone, lance le fabricant, rend (résultat, écart, nombre de fichiers réécrits).
+
+    ① RÔLE — La propriété unique « une fabrication à blanc ne change rien », sans ses deux angles morts : un
+      fabricant MUET (il sort en 0 sans rien écrire, et rien ne change) et un fichier écrit mais IGNORÉ par le
+      .gitignore du clone (git ne le montre pas).
+    ② CONTEXTE D'APPEL — `_publier_dans` (clone de contrôle) et REPUBLIER.ecart_avec_le_public (copie du public).
+    ③ ENTRÉE — `clone` : un dépôt git · `lancer_le_fabricant` : une fonction sans argument qui lance le fabricant
+      sur ce clone et rend son CompletedProcess.
+    ④ CONDITIONS D'ENTRÉE — Le clone peut être écrit (ses dates sont changées).
+    ⑤ SORTIE — TROIS valeurs : le CompletedProcess du fabricant ; l'écart, texte de « git status --porcelain
+      --untracked-files=all » suivi d'une ligne « !! <chemin> » par fichier ignoré que la fabrication a écrit (vide =
+      égal) ; le nombre de fichiers que la fabrication a écrits : suivis réécrits ou supprimés, nouveaux, ignorés.
+      [rend: 3]
+    ⑥ TRAITEMENT — Chaque fichier suivi (« git ls-files ») et chaque fichier ignoré déjà présent (« git status
+      --ignored=matching ») reçoit la date DATE_FIGEE (lien symbolique : sa propre date) ; le fabricant tourne ; un
+      fichier suivi absent ou de date différente est réécrit ; un fichier ignoré de date différente est écrit par
+      la fabrication et compte dans l'écart.
+    ⑦ UNITÉ — Secondes depuis 1970 pour les dates ; un NOMBRE DE FICHIERS.
+    ⑧ POURQUOI — RELU de Cowork sur 0f18a8d2a, N-4 : avec le seul « git status », un fabricant qui sort en 0 sans
+      rien écrire, ou qui écrit un fichier listé au .gitignore du public, rendait « égal ». Mesuré le 21-11-2026
+      sur le vrai fabricant et un clone public : après les dates figées, 250 des 285 fichiers suivis sont réécrits
+      (les 250 qu'il publie), et l'écart est vide.
+    ⑨ CE QUI CLOCHE — Un fabricant qui réécrit un fichier en lui remettant la date DATE_FIGEE passerait pour muet sur
+      ce fichier. Un fabricant qui n'écrit qu'une partie de ce qu'il publie n'est pas vu, s'il écrit au moins un
+      fichier suivi.
+    ⑩ EFFET — Change les dates des fichiers du clone ; lance le fabricant.
+    ⑪ TERMINAISON — Rend la main ; la durée est celle du fabricant, que l'appelant borne.
+      [sort: non]
+    """
+    def chemins_ignores():
+        """Rend les fichiers ignorés présents dans le clone (les dossiers ignorés sont parcourus).
+
+        ① RÔLE — Voir ce que « git status » ordinaire cache.
+        ② CONTEXTE D'APPEL — `ecart_apres_fabrication`, avant et après le fabricant.
+        ③ ENTRÉE — — (le clone de la fonction englobante).
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : la liste des chemins relatifs.
+          [rend: 1]
+        ⑥ TRAITEMENT — « git status --porcelain --ignored=matching --untracked-files=all », lignes « !! ».
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — N-4 du RELU de Cowork sur 0f18a8d2a : un fichier écrit mais ignoré était invisible.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Lance git en lecture.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        rel = []
+        for ligne in git(clone, "status", "--porcelain", "--ignored=matching", "--untracked-files=all").stdout.splitlines():
+            if not ligne.startswith("!! "):
+                continue
+            chemin = os.path.join(clone, ligne[3:].rstrip("/"))
+            if os.path.isdir(chemin) and not os.path.islink(chemin):
+                for d, _sous, fichiers in os.walk(chemin):
+                    rel += [os.path.relpath(os.path.join(d, f), clone) for f in fichiers]
+            else:
+                rel.append(ligne[3:])
+        return rel
+
+    suivis = [x for x in git(clone, "ls-files", "-z").stdout.split("\0") if x]
+    for rel in suivis + chemins_ignores():
+        chemin = os.path.join(clone, rel)
+        if os.path.lexists(chemin):
+            os.utime(chemin, (DATE_FIGEE, DATE_FIGEE), follow_symlinks=False)
+    resultat = lancer_le_fabricant()
+    reecrits = sum(1 for rel in suivis if not os.path.lexists(os.path.join(clone, rel))
+                   or os.lstat(os.path.join(clone, rel)).st_mtime != DATE_FIGEE)
+    ecrits_ignores = [rel for rel in chemins_ignores()
+                      if os.lstat(os.path.join(clone, rel)).st_mtime != DATE_FIGEE]
+    reste = git(clone, "status", "--porcelain", "--untracked-files=all").stdout.strip()
+    nouveaux = [x for x in reste.splitlines() if x.startswith("?? ")]
+    reste = "\n".join([x for x in [reste] if x] + ["!! " + x for x in ecrits_ignores])
+    return resultat, reste, reecrits + len(nouveaux) + len(ecrits_ignores)
+
+
 def publier_au_public(prive, branche):
     """Étape ② (et ④ d'INSTALLER) : publie le code de `prive` sur la branche publique du même nom ; rend le clone.
 
@@ -737,7 +817,8 @@ def publier_au_public(prive, branche):
       apres : pointes publiques ; message du fabricant).
       [rend: 2]
     ⑥ TRAITEMENT — `cloner_le_public` ; puis `_publier_dans` : `fabriquer` à blanc (code 0 exigé) ; `fabriquer`
-      --publier (code 0 exigé) ; second clone neuf, `fabriquer` à blanc, « git status --porcelain » vide exigé ; ce
+      --publier (code 0 exigé) ; second clone neuf, `fabriquer` à blanc par `ecart_apres_fabrication` : au moins un
+      fichier réécrit et un écart vide exigés (N-4 : ni fabricant muet, ni fichier ignoré écrit) ; ce
       second clone est effacé. Si quoi que ce soit lève, le clone de publication est effacé avant de relever.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — 20-11-2026 : une installation non republiée a fait tomber le circuit du soir. La preuve porte sur
@@ -789,8 +870,10 @@ def _publier_dans(prive, branche, public, avant):
     try:
         if git(controle, "rev-parse", "HEAD").stdout.strip() != apres:
             raise Arret(TOMBE, "le clone de contrôle n'est pas à la pointe publique annoncée")
-        refait = fabriquer(prive, controle, False)
-        reste = git(controle, "status", "--porcelain", "--untracked-files=all").stdout.strip()
+        refait, reste, reecrits = ecart_apres_fabrication(controle, lambda: fabriquer(prive, controle, False))
+        if refait.returncode == 0 and not reecrits:
+            raise Arret(TOMBE, "après publication, le fabricant n'a réécrit aucun fichier du clone de contrôle : "
+                               "un fabricant muet ne prouve rien (N-4)")
         if refait.returncode != 0 or reste:
             raise Arret(TOMBE, "après publication, le public ne porte pas exactement le code de la version : "
                                + (reste or refait.stdout.strip()[-200:])[:300])
@@ -833,7 +916,8 @@ def codes_a_jouer(note, table):
       [rend: 3]
     ⑥ TRAITEMENT — Section = titre « # … » contenant A JOUER SUR GITHUB, jusqu'au titre suivant de même niveau ou
       plus haut. Chaque élément de liste (« - », « * », « 1. ») : son premier `texte entre accents graves`, sinon son
-      premier mot. « aucune » en tête d'élément → état « aucune ». Un nom est un code de la table, ou le chemin d'UNE
+      premier mot. « aucune » en tête d'élément → état « aucune », SAUF s'il nomme quelque chose entre accents graves
+      (« aucune autre que `X` ») : l'élément entier va aux noms sans code (N-3). Un nom est un code de la table, ou le chemin d'UNE
       seule entrée ; sinon il est sans code (un chemin porté par deux entrées est ambigu, donc sans code).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Consigne du 20-11-2026, étape ③ : « Un nom sans code fait sortir en code 2 ».
@@ -864,6 +948,10 @@ def codes_a_jouer(note, table):
             continue
         texte = e.group(1).strip()
         if sans_accents(texte).startswith("AUCUNE"):
+            nomme = re.search(r"`([^`]+)`", texte)
+            if nomme:   # « aucune autre que `X` » nomme X : ce n'est pas « aucune » (N-3), et rien ne se devine
+                sans.append(f"« {texte[:60]} » (« aucune » qui nomme {nomme.group(1)})")
+                continue
             aucune = True
             continue
         b = re.search(r"`([^`]+)`", texte)
@@ -877,6 +965,40 @@ def codes_a_jouer(note, table):
         elif code not in codes:
             codes.append(code)
     return codes, sans, ("liste" if codes or sans else "aucune" if aucune else "vide")
+
+
+# CE QUI S'EXÉCUTE (N-3 du RELU de Cowork sur 0f18a8d2a, 21-11-2026) : un travail qui change un fichier sous l'un de ces
+# dossiers change du code qu'un circuit lance ; une note ne peut alors pas déclarer « aucune » épreuve longue.
+DOSSIERS_QUI_S_EXECUTENT = ("programmes/", "tests/outils/", ".github/")
+
+
+def code_change_par(racine, pointe):
+    """Rend les fichiers qui s'exécutent changés par `pointe` depuis sa base commune avec origin/main.
+
+    ① RÔLE — Dire, sans la note, si un travail change du code : « aucune » épreuve longue n'est crue que sinon.
+    ② CONTEXTE D'APPEL — `main` (étape ③) et INSTALLER.prouver_les_epreuves.
+    ③ ENTRÉE — `racine` : un dépôt privé où origin/main est connue (fetch fait) · `pointe` : un commit.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste des chemins (vide : aucun code changé).
+      [rend: 1]
+    ⑥ TRAITEMENT — « git merge-base origin/main <pointe> » ; « git diff --no-renames --name-only <base> <pointe> » ;
+      on garde ce qui commence par un dossier de DOSSIERS_QUI_S_EXECUTENT. Base introuvable → lève Arret(TOMBE).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — RELU de Cowork sur 0f18a8d2a, N-3 : « aucune » dans la note faisait installer sans aucune preuve
+      GitHub, alors que la réparation du soir pose que « la note du Chat ne fait JAMAIS foi ».
+    ⑨ CE QUI CLOCHE — Une épreuve ou une donnée changée hors de ces dossiers ne compte pas ; l'épreuve d'un code changé
+      n'est pas déduite (la note la nomme toujours, et Cowork juge si elle suffit).
+    ⑩ EFFET — Lance git en lecture.
+    ⑪ TERMINAISON — Rend la main, ou lève Arret.
+      [sort: non]
+    """
+    base = git(racine, "merge-base", "origin/main", pointe)
+    if base.returncode != 0:
+        raise Arret(TOMBE, f"base commune de {pointe[:12]} et origin/main introuvable")
+    d = git(racine, "diff", "--no-renames", "--name-only", base.stdout.strip(), pointe)
+    if d.returncode != 0:
+        raise Arret(TOMBE, f"différence de {pointe[:12]} illisible")
+    return [c for c in d.stdout.split("\n") if c.startswith(DOSSIERS_QUI_S_EXECUTENT)]
 
 
 # ── ÉTAPE ④ : LA DEMANDE ────────────────────────────────────────────────────────────────────────────────────────────
@@ -1246,8 +1368,9 @@ def pousser(wt, branche, message, chemins):
     """Commite des chemins s'ils ont changé et pousse sur la branche, sans force, en se rebasant sur un tiers ; rend
     vrai si poussé ou rien à pousser.
 
-    ① RÔLE — La seule poussée privée de LIVRER, d'INSTALLER et de QUI_FAIT_QUOI « noter ».
-    ② CONTEXTE D'APPEL — `main` (bloc finally), INSTALLER (commit de fusion), QUI_FAIT_QUOI « noter ».
+    ① RÔLE — La seule poussée privée de LIVRER et de QUI_FAIT_QUOI « noter » (INSTALLER pousse main lui-même).
+    ② CONTEXTE D'APPEL — `main` (bloc finally) et QUI_FAIT_QUOI « noter ». PAS INSTALLER : il pousse main lui-même,
+      une seule fois et sans rebase (`INSTALLER.fusionner`) — N-6 du RELU de Cowork sur 0f18a8d2a.
     ③ ENTRÉE — `wt` : le worktree nommé · `branche` · `message` · `chemins` : relatifs (fichiers ou dossiers).
     ④ CONDITIONS D'ENTRÉE — `wt` est sur `branche`, sans autre changement que `chemins`.
     ⑤ SORTIE — UNE valeur : vrai, ou faux si le commit est refusé ou si ESSAIS_DE_POUSSEE poussées ont échoué.
@@ -1336,6 +1459,10 @@ def main():
             raise Arret(NOMS, f"section « À JOUER SUR GITHUB » {etat} dans la note (une liste de codes, ou « aucune »)")
         if sans:
             raise Arret(NOMS, "nom(s) sans code dans tests/LANCEMENT_DES_EPREUVES.json : " + ", ".join(sans))
+        change = code_change_par(wt, pointe) if not codes else []
+        if change:
+            raise Arret(NOMS, "la note déclare « aucune » épreuve longue, mais ce travail change du code qui s'exécute : "
+                              + ", ".join(change[:5]) + " (N-3)")
         dire(f"ÉTAPE 3 — épreuves longues : {', '.join(codes) or 'aucune'}")
         if not codes:
             dire("ÉTAPES 4 et 5 — sans objet : la note déclare « aucune » épreuve longue")

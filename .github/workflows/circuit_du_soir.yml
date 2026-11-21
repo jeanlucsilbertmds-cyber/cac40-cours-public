@@ -115,6 +115,12 @@ jobs:
             sleep 5
           done
           echo "journal : POUSSEE REFUSEE 3 FOIS"; exit 1
+      - name: Rougir si le public n est pas celui de main
+        id: rougir_si_le_public_est_en_retard
+        if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (steps.public_a_jour.outcome == 'failure') }}
+        run: |
+          echo "::error::LE PUBLIC N EST PAS CELUI DE MAIN — lancer : python3 -B programmes/REPUBLIER.py"
+          exit 1
   collecte:
     needs: faut_il_tourner
     if: ${{ !cancelled() && needs.faut_il_tourner.outputs.tourner == 'true' }}

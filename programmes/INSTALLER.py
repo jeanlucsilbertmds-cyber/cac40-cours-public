@@ -33,7 +33,8 @@ PREUVE des épreuves longues lue dans les RESULTAT.json de GitHub, jamais dans l
   après la poussée de main, il ne reste que l'affichage et le rangement du worktree.
 ⑨ CE QUI CLOCHE — Entre le regard ③ et la poussée, un passage peut démarrer (quelques secondes). Le public reste en
   retard tant que REPUBLIER n'a pas tourné : le circuit du soir le signale en tête (pas « Le public porte-t-il le code
-  de main ? ») et nomme la commande. Une branche dont la note déclare « aucune » épreuve longue s'installe sans preuve.
+  de main ? ») et nomme la commande. Une branche dont la note déclare « aucune » épreuve longue ne s'installe sans
+  preuve que si elle ne change aucun fichier sous programmes/, tests/outils/ ou .github/ (N-3, 21-11-2026).
 ⑩ EFFET — Pousse sur main au privé. Jamais en force ; jamais au public.
 ⑪ TERMINAISON — Sort du programme par sys.exit.
 """
@@ -169,7 +170,8 @@ def prouver_les_epreuves(racine, relue):
     ② CONTEXTE D'APPEL — `main`, après `juger_le_relu`.
     ③ ENTRÉE — `racine` : le clone privé (fetch fait : les branches origin/epreuves-longues/… sont lues) · `relue`.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : la liste des (code, numéro de passage) ; vide si la note relue déclare « aucune ».
+    ⑤ SORTIE — UNE valeur : la liste des (code, numéro de passage) ; vide si la note relue déclare « aucune » ET que
+      le travail ne change aucun code qui s'exécute (`LIVRER.code_change_par`, N-3) ; sinon refus.
       [rend: 1]
     ⑥ TRAITEMENT — La note et la table à la pointe relue donnent les codes (`LIVRER.codes_a_jouer`, R-708 ; section
       absente, vide ou nom sans code → refus). Pour chaque code : chaque branche
@@ -192,6 +194,10 @@ def prouver_les_epreuves(racine, relue):
     codes, sans, etat = L.codes_a_jouer(note.stdout, json.loads(table.stdout).get("epreuves_longues", {}))
     if etat in ("absente", "vide") or sans:
         raise L.Arret(REFUS, f"la note relue ne dit pas quoi jouer (section {etat}, sans code : {', '.join(sans) or '—'})")
+    change = L.code_change_par(racine, relue) if etat == "aucune" else []
+    if change:
+        raise L.Arret(REFUS, "la note relue déclare « aucune » épreuve longue, mais ce travail change du code qui "
+                             "s'exécute : " + ", ".join(change[:5]) + " (N-3)")
     prouves = []
     for code in codes:
         retenus = []
@@ -277,7 +283,9 @@ def fusionner(wt, branche, relue):
     ⑤ SORTIE — UNE valeur : le commit de fusion poussé.
       [rend: 1]
     ⑥ TRAITEMENT — « git merge --no-ff --no-commit origin/<branche> » ; conflit → « git merge --abort » et refus ;
-      entrée « installation » au registre ; commit ; « git push origin HEAD:refs/heads/main » (une seule fois : main
+      entrée « installation » au registre ; commit — si l'un des deux lève, « git merge --abort » puis l'exception
+      remonte (N-5 : le worktree de main, souvent celui du Chat, ne reste pas en fusion inachevée) ;
+      « git push origin HEAD:refs/heads/main » (une seule fois : main
       ne se rebase pas) ; refusée → main locale remise à son commit d'avant (« git reset --keep ») et refus.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Consigne du 20-11-2026, étape ③. Pas de « pull --rebase » sur main : une fusion rebasée perdrait sa
@@ -293,9 +301,13 @@ def fusionner(wt, branche, relue):
     if m.returncode != 0:
         L.git(wt, "merge", "--abort")
         raise L.Arret(REFUS, f"fusion de {branche} en conflit : " + (m.stdout + m.stderr).strip()[-200:])
-    L.noter(wt, "installation", branche, "chat", relue, debut, L.maintenant(), "fusionnée dans main")
-    L.git(wt, "add", "--", L.REGISTRE)
-    c = L.git(wt, "commit", "-q", "-m", f"Installation de {branche} (pointe relue {relue[:12]}, DÉPLOYABLE par Cowork)")
+    try:
+        L.noter(wt, "installation", branche, "chat", relue, debut, L.maintenant(), "fusionnée dans main")
+        L.git(wt, "add", "--", L.REGISTRE)
+        c = L.git(wt, "commit", "-q", "-m", f"Installation de {branche} (pointe relue {relue[:12]}, DÉPLOYABLE par Cowork)")
+    except BaseException:   # N-5 : un plantage entre la fusion et le commit ne laisse pas main en fusion inachevée
+        L.git(wt, "merge", "--abort")
+        raise
     p = L.git(wt, "push", "-q", "origin", "HEAD:refs/heads/main") if c.returncode == 0 else c
     if p.returncode != 0:
         L.git(wt, "reset", "-q", "--keep", avant)
@@ -366,7 +378,8 @@ def main():
                       + L.commande_de_republication(racine),
             REFUS: "REFUSÉ (code 1) : rien n'est installé",
             REESSAYER: "RÉESSAYER (code 3) : rien n'est installé",
-            PLANTAGE: "PLANTAGE (code 5) : ni verdict ni refus — relire origin/main avant tout autre geste"}[code])
+            PLANTAGE: "PLANTAGE (code 5) : ni verdict ni refus — relire origin/main ET « git status » du worktree de "
+                      "main avant tout autre geste"}[code])
     sys.exit(code)
 
 

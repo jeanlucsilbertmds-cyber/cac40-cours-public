@@ -52,6 +52,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import LIVRER as L
 
 EGAL, DIFFERENT, INVERIFIABLE = 0, 1, 2
+# Le « code » que rend `ecart_avec_le_public` quand le fabricant sort en 0 sans rien réécrire (N-4 du RELU de Cowork
+# sur 0f18a8d2a) : aucun code de sortie de processus n'est négatif, il ne peut donc pas en être confondu.
+MUET = -1
 
 
 def ecart_avec_le_public(prive, public, fabricant):
@@ -62,11 +65,14 @@ def ecart_avec_le_public(prive, public, fabricant):
     ③ ENTRÉE — `prive` : le dépôt privé · `public` : un clone public (dépôt git) · `fabricant` : le chemin du
       fabricant à lancer.
     ④ CONDITIONS D'ENTRÉE — `public` est un dépôt git.
-    ⑤ SORTIE — TROIS valeurs : le code de sortie du fabricant ; la sortie de « git status --porcelain
-      --untracked-files=all » de la copie (vide = égal) ; les dernières lignes du fabricant.
+    ⑤ SORTIE — TROIS valeurs : le code de sortie du fabricant, ou MUET s'il sort en 0 sans avoir réécrit aucun
+      fichier suivi ; l'écart rendu par `LIVRER.ecart_apres_fabrication` (« git status --porcelain
+      --untracked-files=all » de la copie, plus les fichiers ignorés que la fabrication a écrits ; vide = égal) ; les
+      dernières lignes du fabricant, ou la raison du MUET.
       [rend: 3]
     ⑥ TRAITEMENT — copie de `public` (liens gardés) sous un dossier temporaire ; « python3 -B <fabricant> <prive>
-      <copie> » à blanc ; état git de la copie ; copie effacée.
+      <copie> » à blanc, par `LIVRER.ecart_apres_fabrication` (dates figées avant, écart et fichiers réécrits après) ;
+      copie effacée.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — `LIVRER._publier_dans` prouve une publication par la même propriété (fabrication à blanc sur un
       clone neuf, rien ne change) ; ici sur une copie, pour ne jamais salir le clone donné.
@@ -79,8 +85,10 @@ def ecart_avec_le_public(prive, public, fabricant):
     try:
         copie = os.path.join(base, "public")
         shutil.copytree(public, copie, symlinks=True)
-        r = L.lancer([sys.executable, "-B", fabricant, os.path.abspath(prive), copie], dossier=prive, borne=3600)
-        reste = L.git(copie, "status", "--porcelain", "--untracked-files=all").stdout.strip()
+        r, reste, reecrits = L.ecart_apres_fabrication(copie, lambda: L.lancer(
+            [sys.executable, "-B", fabricant, os.path.abspath(prive), copie], dossier=prive, borne=3600))
+        if r.returncode == 0 and not reecrits:
+            return MUET, reste, "le fabricant sort en 0 sans avoir réécrit aucun fichier : un fabricant muet ne prouve rien"
         return r.returncode, reste, (r.stdout + r.stderr).strip()[-300:]
     finally:
         shutil.rmtree(base, ignore_errors=True)

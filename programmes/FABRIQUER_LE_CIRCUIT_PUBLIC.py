@@ -700,6 +700,20 @@ PUBLIC_A_JOUR = """      - name: Le public porte-t-il le code de main ?
           python3 -B programmes/REPUBLIER.py --verifier . "$RUNNER_TEMP/code"
 """
 
+# LE RETARD DU PUBLIC SE LIT (N-7 du RELU de Cowork sur 2b62e3f2e, 21-11-2026) : `PUBLIC_A_JOUR` porte
+# « continue-on-error » (la collecte doit tourner), donc son échec laissait le passage VERT, et personne ne le lisait.
+# Ce pas, DERNIER du premier job, après son journal, rougit ce job quand `public_a_jour` a échoué : le passage entier
+# finit rouge, comme pour « Rougir si la decision… ». Le job « collecte » tourne quand même : sa condition porte
+# « !cancelled() » (JOB_CONDITION), qui remplace la règle « seulement si les jobs requis ont réussi ». Sa condition
+# exige le code public posé, comme tout pas qui tourne après un échec (épreuve du circuit public, E3).
+ROUGIR_SI_LE_PUBLIC_EST_EN_RETARD = """      - name: Rougir si le public n est pas celui de main
+        id: rougir_si_le_public_est_en_retard
+        if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (steps.public_a_jour.outcome == 'failure') }}
+        run: |
+          echo "::error::LE PUBLIC N EST PAS CELUI DE MAIN — lancer : %s"
+          exit 1
+""" % COMMANDE_DE_REPUBLICATION
+
 JOURNAL = """      - name: Enregistrer le journal du passage au depot prive
         id: journal
         if: always()
@@ -4643,6 +4657,7 @@ def fabriquer_le_circuit(texte_prive):
     lignes = [l for l in corps.split("\n") if not l.lstrip().startswith("#")]
     verifier_les_pas("\n".join(lignes))
     texte = (ENTETE + DECISION_ENTETE + POSE_DE_PYTHON + CLONAGES + PUBLIC_A_JOUR + DECISION_PAS + JOURNAL
+             + ROUGIR_SI_LE_PUBLIC_EST_EN_RETARD
              + "\n".join(lignes).rstrip("\n") + "\n" + JOURNAL)
     for interdit in ("secrets.TOKEN_PUBLIC",):
         if interdit in texte:

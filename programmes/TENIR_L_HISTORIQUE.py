@@ -151,6 +151,8 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from CONTRATS_DES_FICHIERS import SOURCES_ADMISES     # déclarées une fois (R-708)
+from CONTRATS_DES_FICHIERS import (dossier_d_etalonnage, EtalonnageIntrouvable, VARIABLE_D_ETALONNAGE,
+                                   ETALON_HISTORIQUE_DE_REFERENCE)   # A-952 : l'étalon désigné
 from CONTROLER_LES_COURS import controler_une_seance    # LE juge des cours, le même que la collecte (R-708)
 from COMMUN import le_plus_recent                       # le même choix de référentiel que la collecte
 from COLLECTER_ABC_GITHUB import HEURE_CLOTURE_PARIS    # l'heure où la séance du jour est complète
@@ -980,6 +982,10 @@ def main():
       il doit porter les huit colonnes du maître, source comprise, et c est sa
       source qui est écrite au maître.
       Exemple réel : le comblement du trou de juillet depuis Euronext (A-473).
+      La variable d'environnement ETALONNAGE_DU_DEPOT (A-952, 20-11-2026) : absente, l'historique de
+      référence est `donnees/cac40_ohlcv.csv` (le circuit) ; posée, c'est `donnees/cac40_ohlcv.csv` DANS le
+      dossier qu'elle désigne (`CONTRATS_DES_FICHIERS.dossier_d_etalonnage`), annoncé sur la sortie. Exemple :
+      l'épreuve de bout en bout, sur un dépôt fabriqué de 2024-2025, désigne <R>/etalonnage.
     ④ CONDITIONS D ENTRÉE — La racine doit exister ; sinon le changement de
       dossier lève. Les trois fichiers de cours peuvent tous manquer : chacun
       est un cas prévu.
@@ -1022,6 +1028,9 @@ def main():
         — trancher entre l'ancienne valeur et la nouvelle appartient à Jean-Luc (A-231), parce que cela touche la reproductibilité des chiffres figés.**
       · `--verifier` : permet de voir ce qui serait fait sans rien écrire, ce
         qui rend le programme rejouable sur un clone.
+      · L'historique de référence désignable (A-952) : le contrôle « le maître ne
+        rétrécit jamais » protège chaque couple valeur-séance de la référence ; sur
+        un dépôt fabriqué, la référence est fabriquée avec lui, le contrôle reste.
     ⑨ CE QUI CLOCHE — **L écriture du maître n est pas atomique** : le fichier
       est ouvert en écriture, donc vidé, puis rempli. Une interruption entre les
       deux laisse un maître tronqué. **Depuis le 24-09-2026 (A-442), le passage
@@ -1039,7 +1048,8 @@ def main():
     ⑪ TERMINAISON — **NE REND JAMAIS LA MAIN : tous les chemins terminent le
       programme.** Code 2 : aucun argument, `--increment` sans chemin, option inconnue ou mal placée · Code 1 : reconstruction qui perdrait des séances enregistrées, ligne refusée par `juger_la_ligne`, ligne que le lecteur commun mettrait à part ou relecture impossible (29-10-2026), référentiel illisible, maître absent sans
       `--premier-remplissage`, maître qui a rétréci, version enregistrée ou
-      historique Google illisibles, incrément vide, ou révisions détectées · Code 3 (30-10-2026) : versement fait SANS
+      historique Google illisibles, dossier d'étalonnage désigné introuvable (A-952), incrément vide, ou
+      révisions détectées · Code 3 (30-10-2026) : versement fait SANS
       les lignes neuves mises à part, nommées à l'écran et dans `rapports/ALERTE_LIGNES_MISES_A_PART.md` ; aussi en
       `--verifier`, sans écriture · Code 0 : versement fait, ou vérification demandée. · Code 1 aussi, sans rien
       écrire, si la sortie du pas ne s'écrit pas (14-11-2026). Le nombre d'anomalies d'identité ne change JAMAIS le
@@ -1085,6 +1095,20 @@ def main():
         print("     Attendu : TENIR_L_HISTORIQUE.py <racine> [--verifier] [--premier-remplissage] "
               "[--increment CHEMIN]")
         sys.exit(2)
+    # L'HISTORIQUE DE RÉFÉRENCE EST DÉSIGNABLE, JAMAIS RETIRÉ (A-952, 20-11-2026). Sans la variable
+    # ETALONNAGE_DU_DEPOT, c'est donnees/cac40_ohlcv.csv, comme toujours. Posée (dépôt fabriqué de 2024
+    # et après, A-945), c'est le même nom DANS le dossier d'étalonnage — et le contrôle « le maître ne
+    # rétrécit jamais » tourne à l'identique sur lui.
+    try:
+        _etalonnage = dossier_d_etalonnage(racine)
+    except EtalonnageIntrouvable as e:
+        print(f"  ❌ ARRÊT : {e} — le contrôle qui empêche le maître de rétrécir ne peut pas tourner.")
+        sys.exit(1)
+    historique_de_reference = HISTORIQUE_GOOGLE
+    if _etalonnage is not None:
+        historique_de_reference = os.path.join(_etalonnage, ETALON_HISTORIQUE_DE_REFERENCE)
+        print(f"  ÉTALONNAGE DÉSIGNÉ (A-952, variable {VARIABLE_D_ETALONNAGE}) : l'historique de référence "
+              f"est {historique_de_reference}")
     os.chdir(racine)
 
     maitre = {}
@@ -1128,11 +1152,11 @@ def main():
             sys.exit(1)
         cles_enregistrees = {(cle_valeur(r["valeur"]), r["date"])
                              for r in csv.DictReader(io.StringIO(enregistre))}
-        cles_google = {(cle_valeur(r["valeur"]), r["date"]) for r in lire(HISTORIQUE_GOOGLE)}
+        cles_google = {(cle_valeur(r["valeur"]), r["date"]) for r in lire(historique_de_reference)}
         if not cles_google:
-            print(f"  ❌ ARRÊT : l'historique Google de référence {HISTORIQUE_GOOGLE} est absent ou vide "
+            print(f"  ❌ ARRÊT : l'historique Google de référence {historique_de_reference} est absent ou vide "
                   f"— le contrôle qui empêche le maître de rétrécir n'a pas pu tourner.")
-            ecrire_l_alerte(f"l'historique Google de référence {HISTORIQUE_GOOGLE} est absent ou vide ; "
+            ecrire_l_alerte(f"l'historique Google de référence {historique_de_reference} est absent ou vide ; "
                             f"le contrôle qui empêche le maître de rétrécir n'a pas pu tourner.", [])
             sys.exit(1)
         perdues = (cles_enregistrees | cles_google) - set(maitre)
@@ -1149,7 +1173,7 @@ def main():
 
     if neuf:
         # PREMIER REMPLISSAGE — le passé Google d'abord, tel quel.
-        for r in lire(HISTORIQUE_GOOGLE):
+        for r in lire(historique_de_reference):
             maitre[(cle_valeur(r["valeur"]), r["date"])] = dict(r, source="google")
         print(f"  premier remplissage · {len(maitre)} lignes depuis l'historique Google")
 
