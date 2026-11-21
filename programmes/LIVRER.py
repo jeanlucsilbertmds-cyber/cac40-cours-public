@@ -746,6 +746,29 @@ def fabricant_de(prive):
     return os.environ.get("LIVRER_FABRICANT", os.path.join(prive, FABRICANT))
 
 
+def est_cowork(auteur):
+    """Rend vrai si un nom d'auteur git est EXACTEMENT « cowork » (casse et blancs aux bords ignorés).
+
+    ① RÔLE — La seule écriture de la règle « ce commit est-il de Cowork ? ».
+    ② CONTEXTE D'APPEL — INSTALLER (`juger_le_relu`, auteur du dernier commit du RELU) ; QUI_FAIT_QUOI (commits de
+      Cowork depuis le lancement d'une relecture).
+    ③ ENTRÉE — `auteur` : un nom d'auteur git (%an), éventuellement vide.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : vrai ou faux.
+      [rend: 1]
+    ⑥ TRAITEMENT — strip, lower, égalité avec « cowork ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — N-26 du RELU de Cowork sur 13988dfbd : la règle était écrite deux fois (INSTALLER et QUI_FAIT_QUOI) ;
+      deux implémentations d'une même chose divergent toujours (R-708). D-5 : « --author=cowork » de git est un
+      motif, « Claude (pas cowork) » y répond ; seul le nom entier compte.
+    ⑨ CE QUI CLOCHE — L'auteur git se déclare : n'importe qui peut écrire « cowork » ; filet contre l'oubli, pas preuve.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return auteur.strip().lower() == "cowork"
+
+
 # LA DATE FIGÉE DES FICHIERS AVANT UNE FABRICATION À BLANC (N-4 du RELU de Cowork sur 0f18a8d2a, 21-11-2026) : une
 # date que nul fichier écrit aujourd'hui ne porte (09-09-2001), en secondes depuis 1970.
 DATE_FIGEE = 1_000_000_000

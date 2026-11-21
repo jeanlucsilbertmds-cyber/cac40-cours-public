@@ -823,7 +823,8 @@ def cas_installer(progs, source):
       0, la vérification prend celui de main (N-21). RELU de Cowork sur e7b230083 : I14b note « aucune », travail qui ne
       change qu'un outil de etudes/outils/ → 1 (N-14) ; I15b note « aucune », travail qui ne change qu'une archive au
       nom accentué → 0 (N-15) ; I21 commit de fusion refusé par un crochet → 1, main intacte, worktree de main propre
-      et sans MERGE_HEAD (N-13).
+      et sans MERGE_HEAD (N-13). RELU de Cowork sur 13988dfbd : I22 REPUBLIER qui publie mais rend 2 (« invérifiable »)
+      en --verifier → 4, main installée (N-24).
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026, A-818 et réparation du soir (points A et D).
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
@@ -944,6 +945,19 @@ def cas_installer(progs, source):
         preuves(m)
         programmes_du_cas(m, "FABRIQUER_LE_CIRCUIT_PUBLIC.py", version_ancienne=True)
 
+    def verification_inverifiable(m):
+        """Preuves, et un REPUBLIER qui publie normalement mais rend 2 (« invérifiable ») en --verifier. ① RÔLE —
+        Régler I22 (N-24) : un public qu'on n'a pas pu vérifier ne sort jamais en 0. ② CONTEXTE D'APPEL — `cas`.
+        ③ ENTRÉE — `m`. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — `programmes_du_cas`
+        sur la garde d'entrée de REPUBLIER.verifier, qui rend alors toujours INVERIFIABLE (2). ⑦ UNITÉ — —
+        ⑧ POURQUOI — Mon C2 du RELU de Cowork sur 13988dfbd : « == 1 » à la place de « != 0 » laissait les 25 cas I
+        verts. ⑨ CE QUI CLOCHE — — ⑩ EFFET — Écrit sous le monde. ⑪ TERMINAISON — Rend la main, ou lève.
+        [sort: non]"""
+        preuves(m)
+        programmes_du_cas(m, "REPUBLIER.py",
+                          '    if not os.path.isdir(os.path.join(public, ".git")) or not os.path.isdir(prive):',
+                          "    if True:")
+
     def commit_de_fusion_refuse(m):
         """Preuves, et un crochet commit-msg du clone du Chat qui refuse le commit « Installation de … ». ① RÔLE —
         Régler I21 (N-13). ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m`. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — Rien.
@@ -983,6 +997,7 @@ def cas_installer(progs, source):
         ("I19", 4, republier_menteur, {}),
         ("I20", 0, fabricant_ancien_dans_le_clone, {}),
         ("I21", 1, commit_de_fusion_refuse, {}),
+        ("I22", 4, verification_inverifiable, {}),
     )
     mondes = {"I14": {"liste": "- aucune"}, "I15": {"liste": "- aucune", "code_change": False},
               "I18": {"liste": "- aucune", "code_change": False},
@@ -1020,6 +1035,10 @@ def cas_installer(progs, source):
             elif attendu == 0:   # décision du 21-11-2026 à 13h27 : 0 seulement si le public porte main
                 ok = (p.returncode == 0 and apres != avant and len(fusion) == 1 and len(installe) == 1
                       and public_apres != public_avant and porte_main and "public à jour" in p.stdout)
+            elif attendu == 4 and nom == "I22":   # N-24 : publié, mais invérifiable → jamais 0
+                ok = (p.returncode == 4 and apres != avant and len(fusion) == 1 and public_apres != public_avant
+                      and porte_main and "REPUBLIER --verifier a rendu 2" in p.stdout
+                      and "python3 -B programmes/REPUBLIER.py" in p.stdout)
             elif attendu == 4:   # REPUBLIER échoue : main installée, public intact, commande exacte nommée
                 ok = (p.returncode == 4 and apres != avant and len(fusion) == 1 and public_apres == public_avant
                       and "main installé, public EN RETARD : lancer REPUBLIER" in p.stdout
@@ -1363,8 +1382,11 @@ SABOTAGES = (
      '            if c.startswith(("programmes/", "tests/outils/", ".github/"))]'),
     ("N15 chemins non ASCII entre guillemets", "LIVRER.py",
      '"--name-only", "-z", avant, apres)', '"--name-only", "-c", avant, apres)'),
-    ("D5q auteur de Cowork lu comme sous-chaîne (QUI_FAIT_QUOI)", "QUI_FAIT_QUOI.py",
-     'l.split("\\t", 1)[1].strip().lower() == "cowork"]', '"cowork" in l.split("\\t", 1)[1].strip().lower()]'),
+    ("D5q auteur de Cowork lu comme sous-chaîne (LIVRER.est_cowork, N-26)", "LIVRER.py",
+     '    return auteur.strip().lower() == "cowork"', '    return "cowork" in auteur.strip().lower()'),
+    # N-24 du RELU de Cowork sur 13988dfbd (21-11-2026) : un --verifier « invérifiable » (2) accepté comme égal
+    ("N24 --verifier invérifiable accepté (INSTALLER)", "INSTALLER.py", "        if v.returncode != 0:\n",
+     "        if v.returncode == 1:\n"),
 )
 
 

@@ -110,7 +110,7 @@ def juger_le_relu(racine, branche):
     if not re.search(r"(?im)^\s*RELU PAR\s*:\s*\**\s*Cowork\b", texte):
         raise L.Arret(REFUS, "le RELU ne porte pas « RELU PAR : Cowork »")
     auteur = L.git(racine, "log", "-1", "--format=%an", ref, "--", RELU).stdout.strip()
-    if auteur.lower() != "cowork":
+    if not L.est_cowork(auteur):
         raise L.Arret(REFUS, f"le dernier commit du RELU n'est pas de Cowork (auteur : {auteur or 'aucun'})")
     verdicts = re.findall(r"(?m)^#+\s*VERDICT\s*:\s*(.+?)\s*$", texte)
     if len(verdicts) != 1:
