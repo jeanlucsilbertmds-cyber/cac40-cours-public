@@ -32,10 +32,13 @@
   P5 LES JOURNAUX PRIMENT — un dossier qui a des journaux ET un fichier aux durées différentes : les journaux sont lus.
   P6 LE FICHIER DU DÉPÔT EST SAIN — s'il existe à la racine, `lire_les_durees_publiees` l'accepte.
   P7 LE CIRCUIT DE NUIT LE REFAIT (A-969, décision de Jean-Luc du 21-11-2026 à 16h09) — dans le circuit de
-  certification FABRIQUÉ par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, la tâche finale (job « reunir ») : a) lance
-  CERTIFIER_LA_VERSION.py « --publier-les-durees » APRÈS « --reunir » et AVANT le dépôt au privé ; b) son dépôt ajoute
-  le fichier, au chemin même du certificateur ; c) ce pas ne masque pas son échec (aucun « continue-on-error », un
-  « ::error:: » et un « exit 1 »). Ses sabotages (F1 à F5) portent sur une copie du FABRICANT.
+  certification FABRIQUÉ par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, la tâche finale (job « reunir ») : a) joue,
+  dans cet ordre, la réunion, le dépôt du certificat, la publication (« --publier-les-durees », qui reprend d'abord les
+  journaux de la nuit, sous la condition décidée), puis le dépôt des durées ; b) le dépôt des durées n'ajoute que le
+  fichier, au chemin même du certificateur, sous une autre identité que « certification-publique », et seulement si
+  la publication a réussi ; le dépôt du certificat ne porte pas ce fichier (I-1 de la relecture de Cowork du
+  21-11-2026) ; c) chaque commande de la publication dit son échec et rend 1, sans « continue-on-error », « || true »
+  ni « exit 0 » (I-2). Ses sabotages (F1 à F5, G1 à G8) portent sur une copie du FABRICANT.
 ⑦ UNITÉ — Des secondes.
 ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 15h34, réponse « 1 » à la question du Chat de 15h33 : « Publier au
   dépôt public les seules durées des épreuves (des chiffres de temps, aucun cours) pour que GitHub juge pour de vrai ».
@@ -51,6 +54,7 @@
 """
 import importlib.util
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -84,14 +88,38 @@ SABOTAGES_DU_FABRICANT = {
     "F1_pas_retire": [('    "publier_les_durees": PUBLIER_LES_DUREES,\n', '    "publier_les_durees": "",\n')],
     "F2_option_retiree": [('CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees \\\\',
                            'CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" \\\\')],
-    "F3_fichier_non_pousse": [('"rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ $DUREES"',
-                               '"rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/"')],
+    "F3_fichier_non_pousse": [('    "deposer_les_durees": pas_de_depot("fichier des durees introuvable", DUREES_PUBLIEES_DU_DEPOT, "",',
+                               '    "deposer_les_durees": pas_de_depot("fichier des durees introuvable", "rapports/autre.csv", "",')],
     "F4_echec_masque": [("        id: publier_les_durees\n", "        id: publier_les_durees\n        continue-on-error: true\n")],
     "F5_chemin_divergent": [('DUREES_PUBLIEES_DU_DEPOT = "rapports/durees_des_epreuves_en_secondes.csv"',
                              'DUREES_PUBLIEES_DU_DEPOT = "rapports/durees.csv"')],
+    # relecture de Cowork du 21-11-2026 (pointe 33915014d) : G1 à G4 sont SES sabotages (I-2), G5 à G8 gardent I-1
+    "G1_condition_jamais_vraie": [("steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'skipped' }}\n",
+                                   "steps.poser_le_code.outcome == 'success' && steps.certifier.outcome == 'skipped' }}\n")],
+    "G2_journaux_de_la_nuit_non_repris": [("          git checkout FETCH_HEAD -- rapports/journal_du_circuit \\\\\n"
+                                           "            || { echo \"::error::JOURNAUX DE LA NUIT ILLISIBLES — durees non publiees\"; exit 1; }\n", "")],
+    "G3_echec_de_publication_rendu_vert": [('NON PUBLIEES — le certificat est depose quand meme\"; exit 1; }',
+                                            'NON PUBLIEES — le certificat est depose quand meme\"; exit 0; }')],
+    "G4_ou_vrai_silencieux": [('--publier-les-durees \\\\\n', '--publier-les-durees || true \\\\\n')],
+    "G5_durees_avec_le_certificat": [('"rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/", ""),',
+                                      '"rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ " + DUREES_PUBLIEES_DU_DEPOT, ""),')],
+    "G6_durees_deposees_avant": [("%(deposer_final)s%(publier_les_durees)s%(deposer_les_durees)s%(verdict)s",
+                                  "%(publier_les_durees)s%(deposer_les_durees)s%(deposer_final)s%(verdict)s")],
+    "G7_durees_signees_certification": [('IDENTITE_DES_DUREES = "durees-publiees"', 'IDENTITE_DES_DUREES = "certification-publique"')],
+    "G8_depot_des_durees_meme_apres_echec": [('condition="${{ !cancelled() && steps.publier_les_durees.outcome == \'success\' }}")',
+                                             'condition="always()")')],
 }
+# les deux conditions décidées, écrites ici une seconde fois à dessein (voir le ⑧ de `p7`)
+CONDITION_DE_LA_PUBLICATION = ("${{ !cancelled() && steps.poser_le_code.outcome == 'success' && "
+                               "steps.certifier.outcome != 'skipped' }}")
+CONDITION_DU_DEPOT_DES_DUREES = "${{ !cancelled() && steps.publier_les_durees.outcome == 'success' }}"
 ATTENDU = {"F1_pas_retire": "P7 a)", "F2_option_retiree": "P7 a)", "F3_fichier_non_pousse": "P7 b)",
            "F4_echec_masque": "P7 c)", "F5_chemin_divergent": "P7 b)",
+           "G1_condition_jamais_vraie": "P7 a) la condition", "G2_journaux_de_la_nuit_non_repris": "P7 a) la publication",
+           "G3_echec_de_publication_rendu_vert": "P7 c)", "G4_ou_vrai_silencieux": "P7 c)",
+           "G5_durees_avec_le_certificat": "P7 b) le dépôt du certificat", "G6_durees_deposees_avant": "P7 a)",
+           "G7_durees_signees_certification": "P7 b) le dépôt des durées signe",
+           "G8_depot_des_durees_meme_apres_echec": "P7 b) la condition",
            "S1_sans_repli": "P4 ", "S2_ligne_a_trois_champs_acceptee": "P2 ligne à trois champs",
            "S3_en_tete_non_verifie": "P2 troisième colonne", "S4_cle_non_verifiee": "P2 clé",
            "S5_secondes_non_verifiees": "P2 secondes", "S6_ecrire_sans_garde": "P3 ",
@@ -294,23 +322,37 @@ def tour(C, k, lancements, delais):
 def p7(F, C):
     """Juge le circuit de certification fabriqué par `F` (P7) et rend la liste des fautes.
 
-    ① RÔLE — Prouver que la tâche finale de la nuit refait et pousse le fichier des durées (A-969).
+    ① RÔLE — Prouver que la tâche finale de la nuit refait et pousse le fichier des durées (A-969), sans jamais
+      empêcher le dépôt du certificat ni taire un échec.
     ② CONTEXTE D'APPEL — `main`, en Z0 avec le fabricant de la racine, puis une fois par sabotage du fabricant.
-    ③ ENTRÉE — `F` : le fabricant chargé (son texte CERTIFICATION et DUREES_PUBLIEES_DU_DEPOT) · `C` : le certificateur
-      sain (son DUREES_PUBLIEES).
+    ③ ENTRÉE — `F` : le fabricant chargé (son texte CERTIFICATION, DUREES_PUBLIEES_DU_DEPOT, IDENTITE_DES_DUREES) ·
+      `C` : le certificateur sain (son DUREES_PUBLIEES).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des fautes (textes commençant par « P7 a) », « P7 b) » ou « P7 c) »).
       [rend: 1]
     ⑥ TRAITEMENT — ① isoler le job « reunir » (de « \\n  reunir:\\n » à la fin) et le couper en pas (« - name: » à six
-      espaces) · ② a) un pas porte « CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees », placé après le
-      pas qui porte « --reunir » et avant « Deposer au depot prive » · ③ b) le chemin du fabricant, « / » remplacé par
-      le séparateur du système, égale DUREES_PUBLIEES du certificateur, et le pas de dépôt l'affecte à DUREES et porte
-      « $DUREES » sur sa ligne « git add » · ④ c) le pas de publication ne porte pas « continue-on-error » et porte
-      « ::error:: » et « exit 1 ».
+      espaces) · ② a) un pas de chaque, DANS CET ORDRE : la réunion (« --reunir »), le dépôt du certificat
+      (« Deposer au depot prive »), la publication (« CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE"
+      --publier-les-durees »), le dépôt des durées (« Deposer les durees au depot prive ») ; la publication porte
+      la ligne « git checkout FETCH_HEAD -- rapports/journal_du_circuit » AVANT son appel, et sa ligne « if: » est
+      EXACTEMENT celle de CONDITION_DE_LA_PUBLICATION · ③ b) le chemin du fabricant, « / » remplacé par le séparateur
+      du système, égale DUREES_PUBLIEES du certificateur ; la ligne « git add » du dépôt des durées n'ajoute QUE ce
+      chemin, celle du dépôt du certificat ne le porte PAS ; l'identité du dépôt des durées n'est pas
+      « certification-publique » ; la ligne « if: » du dépôt des durées est EXACTEMENT CONDITION_DU_DEPOT_DES_DUREES ·
+      ④ c) le pas de publication : ni « continue-on-error », ni « || true », ni « exit 0 » ; ses commandes (une ligne
+      finie par « \\ » se lit avec la suivante) finissent CHACUNE par « || { echo "::error::…"; exit 1; } ».
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 16h09 (« 1 ») : le circuit de nuit refait le fichier chaque nuit,
       pour des prévisions toujours fondées sur des durées récentes. Sans ce pas, rien ne le refaisait (A-968).
-    ⑨ CE QUI CLOCHE — Lecture du texte seulement : l'exécution par GitHub n'est pas prouvée ici.
+      Relecture de Cowork du 21-11-2026 (pointe 33915014d) : I-1 — dans un même commit, un conflit sur ce fichier
+      empêchait le dépôt du certificat (d'où l'ordre et l'identité) ; I-2 — la forme précédente de c) ne cherchait
+      que la PRÉSENCE de « ::error:: » et « exit 1 » quelque part dans le pas : un « exit 0 » ou un « || true » sur la
+      seconde commande restait vert (G3, G4), comme une condition jamais vraie (G1) ou des journaux non repris (G2).
+      Les deux lignes « if: » sont écrites ICI une seconde fois, à dessein : l'épreuve confronte le fabricant à ce
+      qui a été décidé, une condition retournée ne se voit pas autrement.
+    ⑨ CE QUI CLOCHE — Lecture du texte seulement : l'exécution par GitHub n'est pas prouvée ici. Une commande écrite
+      sur plusieurs lignes SANS « \\ » (un « if … fi » de plusieurs lignes) serait lue ligne par ligne et refusée :
+      refus à tort, mais à voix haute.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
@@ -321,23 +363,49 @@ def p7(F, C):
         return ["P7 a) job « reunir » introuvable dans le circuit fabriqué"]
     pas = texte.split("\n  reunir:\n", 1)[1].split("\n      - name: ")
     appel = 'CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees'
-    i_pub = [i for i, p in enumerate(pas) if appel in p]
-    i_reu = [i for i, p in enumerate(pas) if "--reunir" in p]
-    i_dep = [i for i, p in enumerate(pas) if p.startswith("Deposer au depot prive")]
-    if len(i_pub) != 1 or len(i_reu) != 1 or len(i_dep) != 1 or not i_reu[0] < i_pub[0] < i_dep[0]:
-        faux.append(f"P7 a) publication {i_pub}, réunion {i_reu}, dépôt {i_dep} : attendu un pas de chaque, dans cet ordre")
+    rangs = {"réunion": [i for i, p in enumerate(pas) if "--reunir" in p],
+             "dépôt du certificat": [i for i, p in enumerate(pas) if p.startswith("Deposer au depot prive\n")],
+             "publication": [i for i, p in enumerate(pas) if appel in p],
+             "dépôt des durées": [i for i, p in enumerate(pas) if p.startswith("Deposer les durees au depot prive\n")]}
+    if any(len(r) != 1 for r in rangs.values()) or [r[0] for r in rangs.values()] != sorted(r[0] for r in rangs.values()):
+        faux.append(f"P7 a) rangs des pas {rangs} : attendu un pas de chaque, dans cet ordre")
+        return faux
+    pub, dep, dur = (pas[rangs[n][0]] for n in ("publication", "dépôt du certificat", "dépôt des durées"))
+    lignes_pub = [l.strip() for l in pub.split("\n")]
+    reprise = [i for i, l in enumerate(lignes_pub) if l.startswith("git checkout FETCH_HEAD -- rapports/journal_du_circuit")]
+    i_appel = [i for i, l in enumerate(lignes_pub) if appel in l]
+    if len(reprise) != 1 or not reprise[0] < i_appel[0]:
+        faux.append("P7 a) la publication ne reprend pas, avant son appel, les journaux de la nuit "
+                    "(« git checkout FETCH_HEAD -- rapports/journal_du_circuit ») : durées en retard d'une nuit")
+    if "if: " + CONDITION_DE_LA_PUBLICATION not in lignes_pub:
+        faux.append(f"P7 a) la condition de la publication n'est pas « {CONDITION_DE_LA_PUBLICATION} » : "
+                    f"{[l for l in lignes_pub if l.startswith('if:')]}")
     chemin = F.DUREES_PUBLIEES_DU_DEPOT
     if chemin.replace("/", os.sep) != C.DUREES_PUBLIEES:
         faux.append(f"P7 b) chemin du fabricant {chemin} ≠ celui du certificateur {C.DUREES_PUBLIEES}")
-    if len(i_dep) == 1:
-        dep = pas[i_dep[0]]
-        ajout = [l for l in dep.split("\n") if l.strip().startswith("git add ")]
-        if f"DUREES={chemin}" not in dep or len(ajout) != 1 or "$DUREES" not in ajout[0].split():
-            faux.append(f"P7 b) le dépôt n'ajoute pas {chemin} : {ajout}")
-    if len(i_pub) == 1:
-        pub = pas[i_pub[0]]
-        if "continue-on-error" in pub or "::error::" not in pub or "exit 1" not in pub:
-            faux.append("P7 c) le pas de publication masque son échec (continue-on-error, ou sans ::error:: / exit 1)")
+    ajout = lambda p: [l.strip() for l in p.split("\n") if l.strip().startswith("git add ")]
+    if ajout(dur) != [f"git add {chemin} \\"]:
+        faux.append(f"P7 b) le dépôt des durées n'ajoute pas {chemin} seul : {ajout(dur)}")
+    if any(chemin in l or "$DUREES" in l for l in ajout(dep)):
+        faux.append(f"P7 b) le dépôt du certificat ajoute aussi les durées : {ajout(dep)} — un conflit sur ce fichier "
+                    "empêcherait le dépôt du certificat")
+    if "certification-publique" in dur or F.IDENTITE_DES_DUREES == "certification-publique":
+        faux.append("P7 b) le dépôt des durées signe « certification-publique » : il passerait pour un certificat")
+    if "if: " + CONDITION_DU_DEPOT_DES_DUREES not in [l.strip() for l in dur.split("\n")]:
+        faux.append(f"P7 b) la condition du dépôt des durées n'est pas « {CONDITION_DU_DEPOT_DES_DUREES} »")
+    run = pub.split("run: |\n", 1)[1] if "run: |\n" in pub else ""
+    commandes, en_cours = [], ""
+    for l in run.split("\n"):
+        en_cours += " " + l.strip()
+        if not l.rstrip().endswith("\\"):
+            if en_cours.strip():
+                commandes.append(en_cours.replace("\\ ", "").strip())
+            en_cours = ""
+    sans_garde = [c for c in commandes if not re.search(r'\|\| \{ echo "::error::[^"]+"; exit 1; \}$', c)]
+    interdits = [m for m in ("continue-on-error", "|| true", "exit 0") if m in pub]
+    if not commandes or sans_garde or interdits:
+        faux.append(f"P7 c) le pas de publication peut taire un échec : commandes sans « || {{ echo \"::error::…\"; "
+                    f"exit 1; }} » {[c[:60] for c in sans_garde]}, interdits présents {interdits}")
     return faux
 
 

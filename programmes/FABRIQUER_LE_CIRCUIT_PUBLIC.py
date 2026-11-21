@@ -905,7 +905,8 @@ TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inpu
 # « Faire les deux tout de suite (18 morceaux et grosse épreuve découpée), puis étudier la relance sélective ». Le
 # constat mesuré (certification de nuit 44852703801, 21-11-2026, somme des « charges_prevues_secondes » de ses
 # certificats partiels) : la nuit demandait 112 523 s de travail pour 15 tranches × 6 600 s = 99 000 s tenables (le
-# BACKLOG, A-959, écrit 115 523 s : écart non expliqué, la somme relue au certificat partiel fait foi ici). 6 600 s, c'est le TIERS des 330 minutes d'une tranche : les durées d'une
+# BACKLOG, A-959, écrit 115 523 s : faute de recopie, un seul chiffre (2 → 5), écrite à la main au commit 45124e663 ;
+# aucune sortie de programme ne porte 115 523 — relecture de Cowork du 21-11-2026, m-4 ; la somme relue fait foi). 6 600 s, c'est le TIERS des 330 minutes d'une tranche : les durées d'une
 # même épreuve ont varié du simple au double d'une nuit à l'autre, et le tiers laisse cette marge (N5, plus bas).
 # 18 tranches × 6 600 s = 118 800 s tenables. 18 est le plus grand nombre possible sans toucher les 2 places du soir :
 # c'est pourquoi ce nombre N'EST PAS ÉCRIT ICI, il est LU sur la largeur du réservoir (R-708 : une valeur vit à un
@@ -1159,15 +1160,24 @@ VERDICT_DE_LA_CERTIFICATION = """      - name: Rougir si la version n'est pas ce
 # Le chemin est écrit ICI une seconde fois (le fabricant ne charge pas le certificateur) : l'épreuve
 # tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py (P7) le confronte à DUREES_PUBLIEES du certificateur.
 DUREES_PUBLIEES_DU_DEPOT = "rapports/durees_des_epreuves_en_secondes.csv"
-# LE PAS, dans la tâche finale, entre « Reunir les tranches » et le dépôt au privé. Il ① reprend à la pointe de main
-# (FETCH_HEAD, lu par le pas « partiels » juste avant) les journaux que les tranches de CETTE nuit viennent d'y pousser —
-# sans eux, les durées auraient une nuit de retard — puis ② lance la publication. CHOIX FAIT (consigne du Chat du
+IDENTITE_DES_DUREES = "durees-publiees"   # l'auteur du commit des durées : jamais « certification-publique » (I-1)
+# LE PAS, dans la tâche finale, APRÈS le dépôt du certificat au privé, et suivi de son PROPRE dépôt
+# (DEPOSER_LES_DUREES). Il ① reprend à la pointe de main (FETCH_HEAD : posée par le « git pull » du dépôt du
+# certificat, sinon par le pas « partiels ») les journaux que les tranches de CETTE nuit viennent d'y pousser — sans
+# eux, les durées auraient une nuit de retard — puis ② lance la publication. CHOIX FAIT (consigne du Chat du
 # 21-11-2026 : « aucun pas ne masque son échec », sans casser la certification) : PAS de « continue-on-error ». Un
 # échec rend le pas rouge, un « ::error:: » le dit au journal privé (ETAPE_MUETTE ne montre au public que « ÉCHEC »),
-# et le job finit rouge ; mais le dépôt au privé (« if: always() ») et le verdict (« !cancelled() ») tournent quand
-# même : le certificat est déposé, et la certification garde son propre verdict. La condition : seulement si le code a
-# été posé (sinon le code de la version n'a pas à tourner) et si la réunion a tourné (succès OU échec : les durées ne
-# dépendent pas du verdict).
+# et le job finit rouge ; le verdict (« !cancelled() ») tourne quand même, et le certificat est DÉJÀ déposé. La
+# condition : seulement si le code a été posé (sinon le code de la version n'a pas à tourner) et si la réunion a tourné
+# (succès OU échec : les durées ne dépendent pas du verdict).
+# POURQUOI DEUX DÉPÔTS ET CET ORDRE (I-1 de la relecture de Cowork du 21-11-2026, mesuré dans deux dépôts git
+# jetables) : quand le certificat et le fichier des durées partaient dans le MÊME commit, un commit de main qui
+# touchait aussi ce fichier pendant la nuit (le Chat qui le refait à la main sur une branche fusionnée le jour même)
+# faisait échouer le rebasage, les 21 essais, et le CERTIFICAT n'était pas déposé — MESSAGE_DU_SOIR lisait alors
+# l'ancien. Le certificat part maintenant seul, avant toute publication ; les durées partent ensuite dans un commit à
+# elles, sous une AUTRE identité que « certification-publique » (programmes/MESSAGE_DU_SOIR.py juge la certification
+# sur le dernier commit de cette identité : un commit des durées ne doit jamais passer pour un certificat). Si ce
+# second dépôt échoue (conflit sur le fichier, poussées refusées), il le dit et rougit ; le certificat n'y perd rien.
 PUBLIER_LES_DUREES = """      - name: Publier les durees des epreuves
         id: publier_les_durees
         if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'skipped' }}
@@ -1180,7 +1190,8 @@ PUBLIER_LES_DUREES = """      - name: Publier les durees des epreuves
 
 
 def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", message="certificat de la version",
-                 reste="le certificat", branche=None, valeurs=()):
+                 reste="le certificat", branche=None, valeurs=(), nom="Deposer au depot prive", ident="deposer",
+                 condition="always()"):
     """Rend le pas qui pousse au dépôt privé ce qu'une tâche de la certification a écrit.
 
     ① RÔLE — Écrire une fois le dépôt au privé (R-708), pour les tranches et pour la tâche finale.
@@ -1192,7 +1203,9 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
       nom d'une branche À SOI du dépôt privé (une seule poussée, voir ⑥) · `valeurs` (tour 5, seulement avec
       `branche`) : des couples (NOM, expression de GitHub), posés dans le bloc « env: » du pas et vérifiés en tête du
       script ; `avant`, `chemins` et `branche` les lisent alors par « ${NOM} », jamais par « ${{ … }} ». Les valeurs
-      par défaut sont celles de la certification : son texte fabriqué ne change pas d'un octet.
+      par défaut sont celles de la certification : son texte fabriqué ne change pas d'un octet. `nom`, `ident`,
+      `condition` (21-11-2026, I-1 de la relecture de Cowork) : le nom, l'« id » et le « if: » du pas, pour un SECOND
+      dépôt dans un même job (celui des durées) ; leurs valeurs par défaut redonnent le texte d'avant à l'octet.
     ④ CONDITIONS D'ENTRÉE — Avec `branche` : `avant`, `chemins` et `branche` ne portent aucune expression « ${{ » (le
       filet des gabarits, propriété ⑩, refuse sinon le gabarit entier).
     ⑤ SORTIE — UNE valeur : le texte du pas, au format du fichier de circuit.
@@ -1262,9 +1275,9 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
       [sort: non]
     """
     if branche is None:
-        return ("""      - name: Deposer au depot prive
-        id: deposer
-        if: always()
+        return ("""      - name: """ + nom + """
+        id: """ + ident + """
+        if: """ + condition + """
         shell: bash
         run: |
           git config user.name """ + auteur + """
@@ -1492,7 +1505,7 @@ jobs:
         id: certifier
         continue-on-error: true
         run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir %(nombre)d
-%(publier_les_durees)s%(deposer_final)s%(verdict)s""" % {
+%(deposer_final)s%(publier_les_durees)s%(deposer_les_durees)s%(verdict)s""" % {
     # la matrice en liste « à tirets » : le sous-ensemble YAML que lit ce fabricant (SCALAIRE_DE_LISTE) refuse la liste
     # entre crochets, qui commence par un indicateur YAML ; c'est le producteur qui parle la langue du lecteur
     # (superviseur R-759 du 31-10-2026, B1, « DE FOND »)
@@ -1520,15 +1533,18 @@ jobs:
         "          for f in rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log; do\n"
         "            [ -f \"$f\" ] && mv \"$f\" \"${f%.log}_tranche_${{ matrix.tranche }}.log\"\n"
         "          done\n"),
-    # A-969 (décision de Jean-Luc du 21-11-2026 à 16h09, « 1 ») : la tâche finale refait les durées publiées, puis les
-    # pousse avec le certificat — seulement si le fichier existe, pour qu'une publication ratée n'empêche jamais le dépôt
-    # du certificat (l'échec est dit par le pas PUBLIER_LES_DUREES, qui rougit le job)
-    "publier_les_durees": PUBLIER_LES_DUREES,
+    # A-969 (décision de Jean-Luc du 21-11-2026 à 16h09, « 1 ») : la tâche finale refait les durées publiées APRÈS le
+    # dépôt du certificat, et les pousse dans un SECOND dépôt, à elles, sous leur propre identité (I-1 de la relecture
+    # de Cowork du 21-11-2026 : dans le même commit, un conflit sur ce fichier empêchait le dépôt du certificat). Le
+    # second dépôt ne tourne que si la publication a réussi : sinon le fichier n'a pas changé, et l'échec est déjà dit
     "deposer_final": pas_de_depot("certificat ou journal introuvable",
-                                  "rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ $DUREES",
-                                  "          DUREES=\"\"\n"
-                                  "          if [ -f " + DUREES_PUBLIEES_DU_DEPOT + " ]; then DUREES="
-                                  + DUREES_PUBLIEES_DU_DEPOT + "; fi\n")}
+                                  "rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/", ""),
+    "publier_les_durees": PUBLIER_LES_DUREES,
+    "deposer_les_durees": pas_de_depot("fichier des durees introuvable", DUREES_PUBLIEES_DU_DEPOT, "",
+                                       auteur=IDENTITE_DES_DUREES, message="durees des epreuves",
+                                       reste="le fichier des durees", nom="Deposer les durees au depot prive",
+                                       ident="deposer_les_durees",
+                                       condition="${{ !cancelled() && steps.publier_les_durees.outcome == 'success' }}")}
 
 # LE CIRCUIT DES SÉRIES LONGUES DE SABOTAGES, AU DÉPÔT PUBLIC (patch du 04-11-2026, tour 3 après l'avis du superviseur
 # R-759 du 04-11-2026 à 19h59 ; à valider par Jean-Luc ; NON appliqué).

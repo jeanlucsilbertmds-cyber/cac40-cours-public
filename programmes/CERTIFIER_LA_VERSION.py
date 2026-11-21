@@ -101,9 +101,11 @@ import importlib.util
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import types
 import time
 import tokenize
 from datetime import datetime
@@ -710,7 +712,11 @@ def programmes_illisibles(racine):
 # morceau n'est jamais écrite à la main (R-728) : `repartir` prend sa durée relevée, sinon la calcule depuis la durée
 # relevée du lancement entier (`charge_estimee_du_morceau`). Ce qu'on paie : Z0 est rejoué une fois par morceau.
 # LIMITE : le nombre de morceaux est déclaré, pas calculé ; si un morceau dépasse un jour le tiers, N5 rougit, et l'on
-# augmente ce nombre dans la table.
+# augmente ce nombre dans la table. CHANGER CE NOMBRE DEMANDE AUSSI DE RÉÉCRIRE LA RÉFÉRENCE, avec l'accord prévu pour
+# elle, dès qu'elle porte les morceaux (« --morceau=1/3 » … « 3/3 ») : `comparer` ne reconstruit que le lancement
+# ENTIER, et une référence en 3 morceaux face à une nuit en 4 donne trois « épreuve disparue », donc une certification
+# rouge (m-3 de la relecture de Cowork du 21-11-2026, mesuré). Une référence qui porte le lancement entier n'est pas
+# touchée (c'est le cas au 21-11-2026).
 MORCEAUX_DE_LA_NUIT = "morceaux_de_la_nuit"       # le nom de la table, dans tests/LANCEMENT_DES_EPREUVES.json
 ARGUMENT_DU_MORCEAU = "--morceau="                # « --morceau=i/N » : le nom stable du morceau (clé des durées)
 ARGUMENT_DES_SABOTAGES = "--seulement="           # l'option que l'épreuve lit déjà pour ne jouer que ces sabotages
@@ -757,20 +763,44 @@ def sabotages_declares(texte, chemin):
     ② CONTEXTE D'APPEL — `lancements_des_morceaux`, une fois par épreuve déclarée en morceaux.
     ③ ENTRÉE — `texte` : le code de l'épreuve · `chemin` : son chemin, pour le message d'erreur.
     ④ CONDITIONS D'ENTRÉE — Le fichier assigne, au premier niveau, « SABOTAGES = { … } » dont chaque clé est un texte
-      écrit tel quel. Sinon ValueError.
+      écrit tel quel, et c'est la SEULE écriture de SABOTAGES dans tout le fichier : aucune autre affectation
+      (« SABOTAGES = », « SABOTAGES |= », « SABOTAGES[…] = », « del SABOTAGES[…] », même dans une fonction) ni aucun
+      appel d'une méthode qui modifie un dictionnaire (« SABOTAGES.update(…) », « .setdefault », « .pop »…). Sinon
+      ValueError.
     ⑤ SORTIE — UNE valeur : la liste des noms, Z0 exclu.
       [rend: 1]
     ⑥ TRAITEMENT — lecture de l'arbre syntaxique (`ast`), sans rien exécuter.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Importer l'épreuve l'exécuterait : celle de la lecture des cours copie environ 70 Mo à l'import
-      (`depot_fige`). Une clé calculée ne se lit pas sans exécuter : elle est refusée, jamais devinée (R-734).
-    ⑨ CE QUI CLOCHE — Un sabotage ajouté au dictionnaire après coup (« SABOTAGES[...] = ») n'est pas vu ; N14 de
-      l'épreuve de la nuit découpée compte les sabotages par une autre rédaction et le verrait.
+      (`depot_fige`). Une clé calculée ne se lit pas sans exécuter : elle est refusée, jamais devinée (R-734). Une
+      autre écriture de SABOTAGES ajouterait ou retirerait un sabotage que la lecture du seul dictionnaire ne voit pas :
+      la nuit ne le jouerait jamais, en silence (I-1 de la relecture de Cowork du 21-11-2026, mesuré : 122 sabotages
+      comptés avant et après un « SABOTAGES["S999"] = … » ajouté sous le dictionnaire, N14 vert). Elle est donc
+      REFUSÉE, par une propriété (le nom SABOTAGES écrit, ou une méthode qui modifie un dictionnaire), jamais par une
+      liste d'épreuves. Les méthodes qui modifient sont celles de `dict` qu'une vue en lecture seule
+      (`types.MappingProxyType`) n'a pas, sauf `fromkeys`, qui fabrique un dictionnaire neuf.
+    ⑨ CE QUI CLOCHE — Une écriture que l'arbre ne montre pas comme telle passe encore : par un autre nom
+      (« S = SABOTAGES ; S[…] = … »), par « globals()[…] », ou par un module qui modifie l'épreuve à l'import. Aucune
+      épreuve du dépôt ne le fait au 21-11-2026 ; N14 de l'épreuve de la nuit découpée ne le verrait pas non plus (son
+      compte ne lit, lui aussi, que l'intérieur du dictionnaire littéral). Le refus vaut aussi pour une écriture qui ne
+      changerait rien (« SABOTAGES.update({}) ») : refus à tort, mais à voix haute.
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main, ou lève.
       [sort: non]
     """
-    for n in ast.parse(texte, filename=chemin).body:
+    arbre = ast.parse(texte, filename=chemin)
+    modifiantes = set(dir(dict)) - set(dir(types.MappingProxyType)) - {"fromkeys"}
+    ecritures = sorted(
+        n.lineno for n in ast.walk(arbre)
+        if (isinstance(n, ast.Name) and n.id == "SABOTAGES" and not isinstance(n.ctx, ast.Load))
+        or (isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name) and n.value.id == "SABOTAGES"
+            and not isinstance(n.ctx, ast.Load))
+        or (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name)
+            and n.func.value.id == "SABOTAGES" and n.func.attr in modifiantes))
+    if len(ecritures) > 1:
+        raise ValueError(f"{chemin} : SABOTAGES est écrit ailleurs que par son dictionnaire (lignes {ecritures}) : "
+                         f"un sabotage ajouté ou retiré ainsi ne serait jamais joué la nuit")
+    for n in arbre.body:
         if (isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name)
                 and n.targets[0].id == "SABOTAGES" and isinstance(n.value, ast.Dict)):
             if not all(isinstance(k, ast.Constant) and isinstance(k.value, str) for k in n.value.keys):
@@ -1618,6 +1648,11 @@ def fichiers_de_commandes_de_github():
 _COMMANDES_DE_GITHUB = None
 
 
+# Après la coupure d'une épreuve, le temps laissé pour lire ce qui reste dans ses tuyaux (M-1, 21-11-2026) : le
+# groupe est déjà tué, les tuyaux se ferment aussitôt ; la borne ne sert que si un petit-processus a quitté le groupe.
+DELAI_DE_LECTURE_APRES_COUPURE = 30   # secondes
+
+
 def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUREE_MAX_EPREUVE, lectures=None,
           garder=None):
     """Joue une épreuve sous la mesure et rend son code, sa durée et les lignes de sa sortie.
@@ -1640,7 +1675,8 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
     ⑥ TRAITEMENT — lancer `py <épreuve> <arguments>` dans le dossier, avec les variables qui
       arment la mesure et désignent le dossier des empreintes, sans la configuration Git de
       la machine (`SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE`), et sans aucune des variables des fichiers de
-      commandes de GitHub (`fichiers_de_commandes_de_github`).
+      commandes de GitHub (`fichiers_de_commandes_de_github`), dans un groupe de processus à elle, avec un TMPDIR
+      neuf ; à la coupure, SIGKILL au groupe, puis lecture de ce qui reste dans les tuyaux ; le TMPDIR est effacé.
     ⑦ UNITÉ — Des secondes.
     ⑧ POURQUOI — Le même Python pour toutes les épreuves : la mesure les suit toutes. Sans la
       configuration Git de la machine : le 02-10-2026 à 19h37, la machine du Chat signait ses
@@ -1655,14 +1691,22 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
       Garder la sortie d'une épreuve coupée : superviseur R-759 du 15-11-2026 (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/
       SUPERVISEUR_CERT3_Dim_15-11-2026.md, §2, A2, « DE FOND ») — une coupure est justement un rouge à diagnostiquer,
       et la donnée était déjà portée par l'exception ; elle était jetée.
+      LA COUPURE TUE TOUT LE GROUPE ET EFFACE LE DOSSIER JETABLE (M-1 des relectures de Cowork, hérité, encore
+      relevé le 21-11-2026 ; T3-6 du BACKLOG) : avant, `subprocess.run(…, timeout=…)` ne tuait que l'épreuve ; ses
+      petits-processus survivaient et son dossier jetable restait sur la machine. L'épreuve est lancée dans un groupe
+      de processus à elle (`start_new_session`), tué entier à la coupure (`os.killpg`), et son TMPDIR est un dossier
+      neuf, effacé à la fin, coupée ou non.
     ⑨ CE QUI CLOCHE — Une épreuve qui écrit dans la copie peut gêner la suivante ; toutes
       sont écrites pour travailler sur leurs propres copies. La sortie entière est tenue en mémoire : une épreuve
       bavarde (des centaines de milliers de lignes) pèserait d'autant ; aucune n'a été mesurée ainsi. Une épreuve
-      coupée : stdout et stderr sont mis bout à bout, sans leur entrelacement réel ; une épreuve dont des
-      petits-processus tiennent encore les tuyaux après la coupure n'a pas été essayée (THÉORIQUE : sous POSIX,
-      `subprocess.run` ne fait que `wait()` après `kill()`).
-    ⑩ EFFET — Lance un processus.
-    ⑪ TERMINAISON — Rend la main ; l'épreuve est arrêtée à `delai` secondes.
+      coupée : stdout et stderr sont mis bout à bout, sans leur entrelacement réel. Un petit-processus qui quitte
+      lui-même le groupe (« setsid ») échappe à la coupure ; s'il tient les tuyaux, la lecture qui suit la coupure
+      s'arrête à DELAI_DE_LECTURE_APRES_COUPURE s et ne garde que ce que l'exception portait. Un dossier jetable créé
+      HORS de TMPDIR (chemin écrit en dur) n'est pas effacé.
+    ⑩ EFFET — Lance un processus ; crée puis efface un dossier jetable ; à la coupure, tue le groupe de l'épreuve.
+    ⑪ TERMINAISON — Rend la main ; l'épreuve est arrêtée à `delai` secondes, la lecture qui suit à
+      DELAI_DE_LECTURE_APRES_COUPURE s de plus. Aucun de mes appels ne peut ne pas revenir : `communicate` est borné
+      deux fois, et `wait` suit un SIGKILL du processus lui-même.
       [sort: non]
     """
     env = dict(os.environ, COVERAGE_PROCESS_START=reglages, CERTIF_MANIFESTES=manifestes)
@@ -1672,16 +1716,30 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
     if lectures:
         env["CERTIF_LECTURES"] = lectures
     args = [a.replace("{copie}", copie) for a in arguments]
+    jetable = tempfile.mkdtemp(prefix="epreuve_jouee_")   # M-1 : son TMPDIR à elle, effacé quoi qu'il arrive
+    env["TMPDIR"] = jetable
     debut = time.time()
+    p = subprocess.Popen([py, os.path.join(copie, chemin)] + args, cwd=os.path.join(copie, dossier), env=env,
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace",
+                         start_new_session=True)
     try:
-        r = subprocess.run([py, os.path.join(copie, chemin)] + args, cwd=os.path.join(copie, dossier), env=env,
-                           capture_output=True, text=True, errors="replace", timeout=delai)
-        code, sortie = r.returncode, (r.stdout + r.stderr)
+        sortie_std, sortie_err = p.communicate(timeout=delai)
+        code, sortie = p.returncode, (sortie_std + sortie_err)
     except subprocess.TimeoutExpired as e:
+        # M-1 : tout le GROUPE est tué — l'épreuve et ses petits-processus — et non l'épreuve seule ; puis ce qui reste
+        # dans les tuyaux est lu, borné à DELAI_DE_LECTURE_APRES_COUPURE s (un petit-processus sorti du groupe par
+        # « setsid » les tiendrait ouverts : on garde alors ce que l'exception portait)
+        os.killpg(p.pid, signal.SIGKILL)
+        try:
+            e.stdout, e.stderr = p.communicate(timeout=DELAI_DE_LECTURE_APRES_COUPURE)
+        except subprocess.TimeoutExpired:
+            p.wait()
         # ce que l'épreuve coupée a écrit : sous text=True, l'exception le rend en OCTETS, et None si rien n'a été
         # écrit (mesuré, Python 3.13) — décodé ou ignoré, sinon TypeError ici et la tranche tomberait sans partiel
         lu = "".join(x.decode("utf-8", "replace") if isinstance(x, bytes) else x for x in (e.stdout, e.stderr) if x)
         code, sortie = 124, lu + f"\nARRÊTÉE : plus de {delai} s"
+    finally:
+        shutil.rmtree(jetable, ignore_errors=True)
     lignes = [l for l in sortie.strip().splitlines() if l.strip()]
     return code, round(time.time() - debut), (lignes if garder is None else lignes[-garder:])
 

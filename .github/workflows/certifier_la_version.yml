@@ -320,14 +320,6 @@ jobs:
         id: certifier
         continue-on-error: true
         run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir 18
-      - name: Publier les durees des epreuves
-        id: publier_les_durees
-        if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'skipped' }}
-        run: |
-          git checkout FETCH_HEAD -- rapports/journal_du_circuit \
-            || { echo "::error::JOURNAUX DE LA NUIT ILLISIBLES — durees non publiees"; exit 1; }
-          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees \
-            || { echo "::error::DUREES DES EPREUVES NON PUBLIEES — le certificat est depose quand meme"; exit 1; }
       - name: Deposer au depot prive
         id: deposer
         if: always()
@@ -335,9 +327,7 @@ jobs:
         run: |
           git config user.name certification-publique
           git config user.email certification-publique@users.noreply.github.com
-          DUREES=""
-          if [ -f rapports/durees_des_epreuves_en_secondes.csv ]; then DUREES=rapports/durees_des_epreuves_en_secondes.csv; fi
-          git add rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ $DUREES \
+          git add rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ \
             || { echo "::error::certificat ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
           git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
@@ -347,6 +337,31 @@ jobs:
             sleep $((RANDOM % 15 + 1))
           done
           echo "::error::POUSSEE REFUSEE 21 FOIS — le certificat reste sur la machine jetable"; exit 1
+      - name: Publier les durees des epreuves
+        id: publier_les_durees
+        if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'skipped' }}
+        run: |
+          git checkout FETCH_HEAD -- rapports/journal_du_circuit \
+            || { echo "::error::JOURNAUX DE LA NUIT ILLISIBLES — durees non publiees"; exit 1; }
+          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees \
+            || { echo "::error::DUREES DES EPREUVES NON PUBLIEES — le certificat est depose quand meme"; exit 1; }
+      - name: Deposer les durees au depot prive
+        id: deposer_les_durees
+        if: ${{ !cancelled() && steps.publier_les_durees.outcome == 'success' }}
+        shell: bash
+        run: |
+          git config user.name durees-publiees
+          git config user.email durees-publiees@users.noreply.github.com
+          git add rapports/durees_des_epreuves_en_secondes.csv \
+            || { echo "::error::fichier des durees introuvable"; exit 1; }
+          if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
+          git commit -q -m "durees des epreuves, passage public ${GITHUB_RUN_ID} [skip ci]"
+          for i in $(seq 1 21); do
+            git rebase --abort 2>/dev/null || true
+            if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
+            sleep $((RANDOM % 15 + 1))
+          done
+          echo "::error::POUSSEE REFUSEE 21 FOIS — le fichier des durees reste sur la machine jetable"; exit 1
       - name: Rougir si la version n'est pas certifiee
         id: verdict
         if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'success' }}
