@@ -1028,6 +1028,74 @@ FICHIERS_DE_COURS_FIGES = {
         "sha256": "e472c09da5679ec3758912d78e8c96f7a5225f39b84fc9ab02e0449dddfdf24a"},
 }
 
+# L'ÉTALONNAGE DÉSIGNÉ (décision de Jean-Luc du 20-11-2026 à 21h54, BACKLOG A-952, réponse « 1 » : rendre le versement,
+# la moulinette, le juge, le détecteur et la mesure capables de tourner sur un dépôt qui ne porte que 2024 et après,
+# A-945). Quatre contrôles comparent le circuit à un RÉSULTAT CONNU avant de conclure (R-720) : le juge rejoue C5 sur le
+# témoin du golden, le versement exige que l'historique Google de référence reste dans le maître, la mesure retrouve le
+# trade Bureau Veritas, le détecteur retrouve un signal connu par module. Un dépôt FABRIQUÉ n'a ni ces fichiers ni ces
+# trades. Aucun contrôle n'est retiré : la variable d'environnement ci-dessous désigne un DOSSIER D'ÉTALONNAGE, rangé
+# comme un dépôt (donnees/, gouvernance/, temoins/), où chaque programme lit SES fichiers de référence au lieu de la
+# racine. NON POSÉE, RIEN NE CHANGE, À L'OCTET : c'est le cas du circuit (aucun workflow ne la pose). Posée, chaque
+# programme l'ANNONCE sur sa sortie, et un dossier absent ARRÊTE le programme : jamais de repli silencieux.
+VARIABLE_D_ETALONNAGE = "ETALONNAGE_DU_DEPOT"
+# Les fichiers lus DANS le dossier d'étalonnage (chemins relatifs à ce dossier) :
+ETALON_HISTORIQUE_DE_REFERENCE = "donnees/cac40_ohlcv.csv"          # versement : l'historique qui ne doit jamais manquer
+ETALON_REFERENCE_DE_LA_MESURE = "donnees/REFERENCE_DE_LA_MESURE.json"  # mesure : l'opération connue et ses trois chiffres
+ETALON_DES_SIGNAUX = "donnees/ETALONS_DES_SIGNAUX.json"              # détecteur : des étalons AJOUTÉS, par module
+REFERENCE_DE_LA_MESURE = ["motif_de_la_valeur", "libelle", "pnl_net_eur", "pnl_net_convention_eur", "prix_entree"]
+ETALON_D_UN_SIGNAL = ["nom", "valeur", "date", "reglages"]
+# Le juge cherche dans le dossier, par son propre `trouver`, ses fichiers de calibrage habituels (golden_tests_*,
+# TEMOIN_cac40_ohlcv_JEU_DU_GOLDEN*, TABLEAU_100_TRADES_C5E10*, REFERENTIEL_VALEURS*).
+
+
+class EtalonnageIntrouvable(ValueError):
+    """Le dossier d'étalonnage est désigné mais ne se lit pas. ① RÔLE — porter le motif de l'arrêt. ② CONTEXTE D'APPEL —
+    levée par `dossier_d_etalonnage`. ③ ENTRÉE — le motif. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — —. ⑥ TRAITEMENT — —.
+    ⑦ UNITÉ — —. ⑧ POURQUOI — un étalon désigné et absent ne se remplace jamais par l'étalon habituel en silence.
+    ⑨ CE QUI CLOCHE — —. ⑩ EFFET — —. ⑪ TERMINAISON — —."""
+
+
+def dossier_d_etalonnage(racine):
+    """Rend le dossier d'étalonnage désigné par la variable ETALONNAGE_DU_DEPOT, ou None si elle n'est pas posée.
+
+    ① RÔLE — Dire à un programme du circuit OÙ lire ses fichiers de référence (A-952) : None, à la racine comme
+      toujours ; un chemin, dans ce dossier.
+    ② CONTEXTE D'APPEL — `main` de programmes/TENIR_L_HISTORIQUE.py, de programmes/MESURER_LA_PERFORMANCE_*.py, de
+      programmes/DETECTER_LES_SIGNAUX_GITHUB.py et de programmes/JUGE_DES_STRATEGIES.py, une fois chacun, avant toute
+      lecture d'un fichier de référence.
+    ③ ENTRÉE — `racine` : la racine du dépôt reçue sur la ligne de commande ; la variable d'environnement
+      ETALONNAGE_DU_DEPOT (chemin absolu, ou relatif à `racine`). Exemple : l'épreuve de bout en bout pose
+      « etalonnage » pour <R>/etalonnage.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : None si la variable est ABSENTE de l'environnement ; sinon le chemin absolu du dossier.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire la variable · ② absente → None · ③ vide, ou désignant autre chose qu'un dossier → lever
+      EtalonnageIntrouvable · ④ sinon rendre le chemin absolu (relatif → joint à `racine`).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le défaut doit rester le comportement du circuit, à l'octet (condition d'A-952) : seule une
+      variable ABSENTE le donne. Une variable vide ou fausse est une erreur de celui qui lance, jamais un retour
+      discret à l'étalon habituel : le programme qui reçoit l'exception s'arrête et le dit (R-734).
+    ⑨ CE QUI CLOCHE — ① Une variable d'environnement ne se voit pas dans la ligne de commande : chaque appelant
+      l'ANNONCE sur sa sortie. ② Rien n'empêche un workflow de la poser : aucun ne la pose au 20-11-2026 (à
+      surveiller par le radar, BACKLOG). ③ Un étalon FABRIQUÉ ne protège que ce qu'il fabrique : le dossier ne dit
+      rien de la qualité de son contenu.
+    ⑩ EFFET — Aucun (lit l'environnement et l'existence d'un dossier).
+    ⑪ TERMINAISON — Rend la main, ou lève EtalonnageIntrouvable. Aucun appel ne peut ne pas revenir.
+      [sort: non]
+    """
+    import os as _os
+    if VARIABLE_D_ETALONNAGE not in _os.environ:
+        return None
+    v = _os.environ[VARIABLE_D_ETALONNAGE]
+    if not v.strip():
+        raise EtalonnageIntrouvable("la variable %s est posée mais vide : aucun dossier d'étalonnage désigné"
+                                    % VARIABLE_D_ETALONNAGE)
+    chemin = _os.path.abspath(v if _os.path.isabs(v) else _os.path.join(racine, v))
+    if not _os.path.isdir(chemin):
+        raise EtalonnageIntrouvable("le dossier d'étalonnage désigné par %s n'existe pas : %s"
+                                    % (VARIABLE_D_ETALONNAGE, chemin))
+    return chemin
+
 # LES FICHES DONT L'UNIVERS BORNÉ EST ACCEPTÉ SUR LE REGARD UNIQUE — écrit À LA MAIN, sur décision écrite de Jean-Luc
 # seulement : {identifiant de la fiche : « qui, quand, la réponse et la question »}. Le juge refuse une fiche dont l'univers
 # ne voit pas des sociétés sorties de la composition historique dans la fenêtre du regard unique (garde M, superviseur

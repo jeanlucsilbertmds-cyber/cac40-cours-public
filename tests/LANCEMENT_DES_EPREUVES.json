@@ -560,6 +560,55 @@
    ],
    "pourquoi": "décisions de Jean-Luc A-853 (16-11-2026 à 15h18) et A-861 (16-11-2026 à 20h05) : la moulinette des 20 ans s'éprouve sur une fiche d'essai C5 2000-2026 qui ne vit que dans une copie jetable du registre ; programmes/PREPARER_LA_MOULINETTE_D_ESSAI.py prépare la copie du circuit (sans .git) puis, avec --jouer, lance programmes/JOUER_LES_VERSIONS.py sur UNE version (la fiche elle-même) avec --cours= le fichier des 20 ans ; résultats sur la sortie standard, donc au privé seulement (SORTIE.txt, A-835). Durée estimée, non mesurée sur 26 ans : environ 45 s fixes plus environ 13 s par jeu de la fiche, 5 jeux, soit environ 2 min (mesure locale du 16-11-2026 : 1,2 s par version sur 644 séances, × 6864/644 séances) ; 2695 versions en demanderaient environ 574 min, au-delà des 330 d'une machine. ATTENTION, mesuré le 16-11-2026 : sur 2000-2023 le juge refuse la fiche (garde M puis RegardNonInscrit, fenêtre du regard unique) ; l'épreuve rend 1 tant que Jean-Luc n'a pas tranché"
   },
+  "ProprietesChaine": {
+   "chemin": "tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "décisions de Jean-Luc A-923 (19-11-2026 à 19h09, « contrat de stratégie + épreuve par propriétés de toute la chaîne », étape 2 de l'étude etudes/ETUDE_CONTRAT_DE_STRATEGIE_ET_PROPRIETES_2026-11-19_19h16.md) et A-941 (20-11-2026 à 12h45, réponse « 1 ») : l'épreuve par propriétés se joue sur GitHub, deux copies du dépôt ayant été refusées sur la machine du Chat ; maillons ② à ④ bloqués. Passage sans sabotage. Durée non mesurée"
+  },
+  "ProprietesSabot": {
+   "chemin": "tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "décisions de Jean-Luc A-923 (19-11-2026 à 19h09) et A-941 (20-11-2026 à 12h45, réponse « 1 ») : variante « --saboter » de ProprietesChaine, dix sabotages (P1 à P8, P4 en deux variantes, et « ignorée en silence »), chacun doit faire rougir SA propriété (R-731). 260 s mesurées sur GitHub le 20-11-2026 (passage 44732420101, neuf sabotages)"
+  },
+  "ProprietesSuite": {
+   "chemin": "tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--suite-seule"
+   ],
+   "pourquoi": "décision de Jean-Luc A-945 (20-11-2026 à 17h53, réponse « 1 ») : la suite de la chaîne, maillons ② juge, ③ positions, ④ mesure, tourne et s'étalonne sur 2024 et après uniquement. Option « --suite-seule » : six propriétés (A945, ETA, JUG, POS, GAIN, PREUVE) sur un dépôt fabriqué (liens vers programmes/, COPIES des réglages après la preuve qu'aucune ligne n'est un cours, données fabriquées 2024-2025 ; superviseur R-759 du 20-11-2026, D3), une garde d'audit refuse toute lecture du dépôt réel. Passage sans sabotage. 83 s mesurées sur la machine du Chat le 20-11-2026 (2 cœurs, nice 10)"
+  },
+  "ProprietesSuiteSabot": {
+   "chemin": "tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--suite-seule",
+    "--saboter"
+   ],
+   "pourquoi": "décision de Jean-Luc A-945 (20-11-2026 à 17h53) : variante « --saboter » de ProprietesSuite, seize sabotages (SABOTAGES_SUITE de l'épreuve, dont S-A945, S-ETA, S-JUG, S-POS, S-GAIN, S-PREUVE), chacun doit faire rougir SA propriété (R-731). 766 s sur GitHub le 20-11-2026 (passage 44814017661, pointe 3261c1a68). Mesuré sur la machine du Chat le 20-11-2026 en deux tranches : 176 s (passage de base + 3 sabotages) et 312 s (base + 4 sabotages), soit environ 83 + 6 × 80 ≈ 560 s d'un tenant (de 78 à 83 s par passage)"
+  },
+  "ProprietesBout": {
+   "chemin": "tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--bout-en-bout"
+   ],
+   "pourquoi": "décision de Jean-Luc A-923 (19-11-2026 à 19h09) et A-945 (20-11-2026 à 17h53, réponse « 1 » : « la suite de la chaîne tourne et s'étalonne sur 2024 et après, et 2000-2023 n'est jamais lu, même pas les dates ») ; Jean-Luc le 20-11-2026 à 20h58 : « je vois pas la partie Moulinette… vérifie tout à fond ». Option « --bout-en-bout » : la fiche factice PROP-BEB passe, EN LIGNE DE COMMANDE, ⓪ ① ② ③ ④ par programmes/ENCHAINER_LA_MOULINETTE.py puis quatorze soirs (versement, contrôle des valeurs, détecteur, teneur), le cockpit, la mesure, le pilote et le radar, sur un dépôt fabriqué 2024-2025 (liens durs vers programmes/), sous une garde A-945 posée dans chaque processus ; A-952 (Jean-Luc, 20-11-2026 à 21h54, « 1 ») : un dossier d'étalonnage désigné par ETALONNAGE_DU_DEPOT fait JOUER ② JOUER, ③ TRIER, ④ juge, le versement et la mesure ; huit propriétés BEB-* (BEB-SIGNAL ajoutée) ; superviseur R-759 du 20-11-2026 (« RUSTINE, À REPRENDRE ») : plus aucun « blocage connu » — un maillon qui lève (Traceback) ou ne rend pas son code attendu est EN ÉCHEC, tout maillon NON JOUÉ ou EN ÉCHEC rougit et rend le code 1 (R-734), réglages COPIÉS et garde par chemin résolu (D3). Passage sans sabotage. 25 s sur GitHub le 20-11-2026 (passage 44814017661)"
+  },
+  "ProprietesBoutSabot": {
+   "chemin": "tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--bout-en-bout",
+    "--saboter"
+   ],
+   "pourquoi": "variante « --saboter » de ProprietesBout (décisions A-923, A-945, A-952) : vingt-deux sabotages S-BEB1 à S-BEB22 (maillon retiré, fiche perdue entre deux maillons, garde éteinte, retour aux liens symboliques, fiche fautive rendue conforme, valeur qui ne sort jamais de l'indice ; S-BEB11 à 14 : chaque étalon désigné faussé ; S-BEB15 à 22, superviseur R-759 du 20-11-2026 : juge qui lève, détecteur qui lève vu par BEB-PASSE et par BEB-SIGNAL, cockpit sorti en 1 pour une autre raison, radar sorti en 1, réglage relié au réel par un lien symbolique, tri sans version retenue, fiche fautive refusée sur sl au lieu de tp), chacun doit faire rougir SA propriété (R-731). 171 s sur GitHub le 20-11-2026 pour dix sabotages (passage 44814017661) ; avec vingt-deux : NON MESURÉ — 23 passages × (171 s / 11 passages ≈ 15,5 s) ≈ 360 s au moins, davantage depuis que ② ③ ④ jouent (A-952)"
+  },
   "File": {
    "chemin": "tests/EPREUVES_DE_LA_FILE_DES_MACHINES_LONGUES_Ven_20-11-2026.py",
    "arguments": [

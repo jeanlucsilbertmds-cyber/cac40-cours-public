@@ -76,7 +76,9 @@ SAB = {
                                             'passages[v] = [(iso(a), iso(b) if b else None) for a, b in c["dans_l_indice"].get("VIE", [])]'),
     "S15 une valeur sans passage acceptée": ("    if sans:   #", "    if False:   #"),
     "S16 une option mal écrite ignorée": ("    if _mal:\n", "    if False:\n"),
-    "S17 une fiche visée absente ignorée": ('    if cible and not any(f["id"] == cible for f in passees):', "    if False:"),
+    # S17 recalé le 21-11-2026 : la garde a été réécrite au juge le 19-11-2026 (c01e42d43 : comparaison par
+    # `_VC.norme`, puis 7066258c9 : « f is _visee ») ; même visée — la fiche visée absente doit arrêter le juge (M6).
+    "S17 une fiche visée absente ignorée": ('    if cible and not any(f is _visee for f in passees):', "    if False:"),
     "S18 les coupures comptées par morceau": ("    _coupures = sum(len(m) - 1 for m in _morceaux.values())",
                                              "    _coupures = sum(len(m) for m in _morceaux.values())"),
     "S19 toutes les séances sans cours comptées": ('if m[i - 1][-1]["date"] < d < m[i][0]["date"])', "if True)"),
@@ -753,7 +755,15 @@ lignes = ["# Épreuves du juge par le lecteur unique (A-577, étape 1), jouées 
           f"{datetime.datetime.now(zoneinfo.ZoneInfo('Europe/Paris')):%d-%m-%Y à %Hh%M} (Paris) par un programme.",
           "# Le juge tel quel doit passer tous les cas ; un sabotage mord quand au moins un cas échoue (code 1)."]
 fautes = 0
-for nom, (a, b) in [("Z0 juge tel quel", ("", ""))] + list(SAB.items()):
+# 0 SABOTAGE INAPPLICABLE (21-11-2026) : un texte visé qui n'est pas UNE fois dans le juge ne sabote rien. Il est
+# relevé ici, nommé, compté comme faute, et les autres sabotages sont joués — au lieu du Traceback de `copier`, qui
+# arrêtait toute l'épreuve sans dire lequel (passage GitHub 44836965428, S17, texte réécrit au juge le 19-11-2026).
+inapplicables = [(nom, src.count(a)) for nom, (a, _b) in SAB.items() if src.count(a) != 1]
+lignes.append("SABOTAGES INAPPLICABLES : %d (attendu 0)" % len(inapplicables))
+for nom, k in inapplicables:
+    lignes.append("%s : INAPPLICABLE — texte visé présent %d fois dans le juge (attendu 1) — NON CONFORME" % (nom, k))
+fautes += len(inapplicables)
+for nom, (a, b) in [("Z0 juge tel quel", ("", ""))] + [x for x in SAB.items() if x[0] not in dict(inapplicables)]:
     d, p = copier(src, racine, a, b)
     try:
         r = subprocess.run([sys.executable, "-I", "-B", os.path.abspath(__file__), "--un", p, racine],
