@@ -34,8 +34,9 @@ SABOTAGES = {
                                    '    _noms = {(s.get("nom") or "").split(" (")[0].strip() for s in _strats} | '
                                    '{(s.get("id") or "").strip() for s in _strats}')],
     # (la cible a perdu un niveau d'indentation le 05-11-2026 : n°83, le soir lit les fiches au contrat, sans « with »)
-    "S3_soir_recopie_les_noms": [(TEN, "            for k in sorted(noms_d_une_strategie(x)):",
-                                  '            for k in ((x.get("id") or "").strip(), (x.get("nom") or "").split(" (")[0].strip()):')],
+    # (et un second le 20-11-2026 : F3 d'A-924, d2ba76264, la boucle vit dans `reglages_des_fiches`, hors du « if »)
+    "S3_soir_recopie_les_noms": [(TEN, "        for k in sorted(noms_d_une_strategie(x)):",
+                                  '        for k in ((x.get("id") or "").strip(), (x.get("nom") or "").split(" (")[0].strip()):')],
     "S4_radar_sans_repli": [(RAD, "        def _noms_17(s):\n", "        def _pas_de_repli(s):\n")],
     "S6_univers_recopie_la_regle": [(RAD, "            for _cle in (_noms_17(s) if _u else ()):",
                                      '            for _cle in (({(s.get("id") or "").strip(), (s.get("nom") or "").split(" (")[0].strip()} - {""}) if _u else ()):')],

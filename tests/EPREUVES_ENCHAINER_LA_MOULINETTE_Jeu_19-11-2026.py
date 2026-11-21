@@ -14,6 +14,11 @@ de la porte doivent cesser de rougir, sinon ces épreuves ne prouvent rien.
   phases dans l'ordre : avant · passage · sabotages · sabotages2 · sabotages3 · contre · contre2 · contre3 · bilan
   (les sabotages S11 à S17, ajoutés après la relecture du 19-11-2026, forment le lot 2 ; S18 à S21, ajoutés au tour 3
   — superviseur R-759 du 19-11-2026 —, le lot 3 : un lot par appel, chacun sous 10 minutes).
+  D'UN TENANT (21-11-2026) : `python3 -B tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py <source>` — la source
+  sert aussi de vrai dépôt, l'épreuve fabrique son dossier de travail (sous /dev/shm s'il existe), joue les neuf
+  phases dans l'ordre, s'arrête à la première qui ne rend pas 0 et rend son code, puis efface le dossier. Raison : la
+  certification de nuit (programmes/CERTIFIER_LA_VERSION.py, `lister_les_epreuves`) lance chaque tests/*.py avec la
+  seule copie en argument ; sans ce mode, l'épreuve rendait 2 chaque nuit (passage 44852703801).
 ③ ENTRÉE — `<source>` : le worktree copié ; `<vrai_depot>` : le dépôt principal, jamais modifié ; `<travail>` : un
   dossier sous /dev/shm.
 ④ CONDITIONS D'ENTRÉE — `<travail>/depot` n'existe pas à la phase `avant`.
@@ -393,7 +398,42 @@ def jouer_les_sabotages(travail, attendre_rouge, lot):
     return ok
 
 
+PHASES = ["avant", "passage", "sabotages", "sabotages2", "sabotages3", "contre", "contre2", "contre3", "bilan"]
+
+
+def d_un_tenant(source):
+    """Joue les neuf phases dans l'ordre sur un dossier jetable ; rend le code de la première qui échoue, sinon 0.
+    ① RÔLE — Le lancement de la nuit (seule la copie en argument). ② CONTEXTE D'APPEL — `main`, quand la ligne de
+    commande ne porte que la source. ③ ENTRÉE — `source` : la racine copiée, qui sert aussi de vrai dépôt (jamais
+    modifiée : la phase « bilan » le prouve par empreintes). ④ CONDITIONS D'ENTRÉE — celles de l'en-tête.
+    ⑤ SORTIE — UNE valeur, le code : 0, 1 ou 2. [rend: 1] ⑥ TRAITEMENT — un dossier sous /dev/shm (sinon le dossier
+    temporaire du système) ; chaque phase par `main`, la ligne de commande posée comme à la main ; arrêt à la première
+    phase non nulle (les suivantes reposent sur elle) ; le dossier effacé en sortant. ⑦ UNITÉ — —. ⑧ POURQUOI — la nuit
+    ne passe que la copie (`lister_les_epreuves`). ⑨ CE QUI CLOCHE — la durée est la somme des phases (le passage
+    complet seul a pris de 334 s à 784 s sur la machine du Chat le 19-11-2026). ⑩ EFFET — écrit sous le dossier
+    jetable, puis l'efface. ⑪ TERMINAISON — rend la main ; chaque programme lancé est borné à 600 s. [sort: non]"""
+    import tempfile
+    jetable = tempfile.mkdtemp(prefix="enchainer_nuit_", dir="/dev/shm" if os.path.isdir("/dev/shm") else None)
+    travail = os.path.join(jetable, "travail")
+    print("DOSSIER DE TRAVAIL FABRIQUÉ : %s (effacé en sortant)" % travail)
+    argv = sys.argv
+    try:
+        for phase in PHASES:
+            t = time.time()
+            sys.argv = [argv[0], source, source, travail, phase]
+            c = main()
+            print("=== PHASE %s : code %d en %.0f s" % (phase, c, time.time() - t), flush=True)
+            if c:
+                return c
+        return 0
+    finally:
+        sys.argv = argv
+        shutil.rmtree(jetable, ignore_errors=True)
+
+
 def main():
+    if len(sys.argv) == 2 and not sys.argv[1].startswith("--"):
+        return d_un_tenant(os.path.abspath(sys.argv[1]))
     if len(sys.argv) != 5:
         print(__doc__.split("① RÔLE")[0])
         return 2

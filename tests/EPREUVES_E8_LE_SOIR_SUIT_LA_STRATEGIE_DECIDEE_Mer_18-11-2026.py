@@ -327,8 +327,11 @@ SABOTAGES = [
     ("S11 univers vide accepté", CTR,
      '    return etat in ETATS_SUIVIS_PAR_LE_SOIR and bool((fiche.get("univers") or "").strip())',
      '    return etat in ETATS_SUIVIS_PAR_LE_SOIR'),
+    # (cible recalée le 21-11-2026 : la ligne seule vit aussi dans `avis_du_contrat`, posée le 20-11-2026 par le
+    # contrat de stratégie, 38bec5772 ; la ligne suivante, propre à `suivie_par_le_soir`, la rend unique)
     ("S12 état de vie lu sans normalisation", CTR,
-     '    etat = (fiche.get("etat_vie") or "").strip().upper()\n', '    etat = (fiche.get("etat_vie") or "")\n'),
+     '    etat = (fiche.get("etat_vie") or "").strip().upper()\n    return etat in ETATS_SUIVIS_PAR_LE_SOIR',
+     '    etat = (fiche.get("etat_vie") or "")\n    return etat in ETATS_SUIVIS_PAR_LE_SOIR'),
     ("S10 le radar ne compare plus", RAD, "        if abs(tp - pe*(1+tp_f)) > 0.01 or abs(sl - pe*(1-sl_f)) > 0.01:\n",
      "        if False:\n"),
 ]

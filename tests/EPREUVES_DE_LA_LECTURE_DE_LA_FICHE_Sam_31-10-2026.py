@@ -120,10 +120,11 @@ SABOTAGES = {
     # (la cible a perdu un niveau d'indentation le 05-11-2026 : n°83, le soir lit les fiches au contrat, sans « with »)
     # (cible recalée le 12-11-2026, mission VENTE tour 2 : le soir lit la fiche par `lecture_du_soir` du juge ; même
     # intention — le stop relu à sa façon après la lecture du juge)
-    "P4_soir_relit_a_sa_facon": [(SOIR, "                tp, sl, _h = juge.lecture_du_soir(base, x)\n",
-                                  "                tp, sl, _h = juge.lecture_du_soir(base, x)\n"
-                                  "                sl = abs(float(str(x[\"sl\"]).replace(\"%\", \"\")))\n"
-                                  "                sl = sl / 100.0 if sl >= 1 else sl\n")],
+    # (et un second le 20-11-2026 : F3 d'A-924, d2ba76264, la lecture vit dans `reglages_des_fiches`, hors du « if »)
+    "P4_soir_relit_a_sa_facon": [(SOIR, "            tp, sl, _h = juge.lecture_du_soir(base, x)\n",
+                                  "            tp, sl, _h = juge.lecture_du_soir(base, x)\n"
+                                  "            sl = abs(float(str(x[\"sl\"]).replace(\"%\", \"\")))\n"
+                                  "            sl = sl / 100.0 if sl >= 1 else sl\n")],
     # point 5 : la case entree n'est plus lue
     # (cible reprise le 09-11-2026, bloc 3 : le lot S_kk, 2c12a8db, a confié la mise en forme de la case à cle_d_entree)
     "P5_entree_non_lue": [(JUGE, "    elif cle_d_entree(entree) not in ENTREES_JOUABLES:\n",
