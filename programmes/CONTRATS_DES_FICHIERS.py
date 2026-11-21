@@ -1057,8 +1057,21 @@ UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE = {}
 # valeur, e78ed2599b6c9cd2, n'était juste que sous Python 3.13 (3.11, le Python du circuit, rendait 3454ff4942063e7d).
 FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE = {
     "C5E10-QA-V1": ("Jean-Luc, A-853 16-11-2026 15h18 « 1 » ; A-863 16-11-2026 20h46 « 1 » ; A-865 16-11-2026 23h03 « 1 » ; "
-                    "A-873 17-11-2026 07h47 « 1 » (recalcul emp-v2)",
-                    "813e12bed9ff8410"),
+                    "A-873 17-11-2026 07h47 « 1 » (recalcul emp-v2) ; "
+                    "A-957 21-11-2026 00h49 « 1 » (refigée après A-928 D2, sorties de C5 identiques)",
+                    "2373a2d54f9402b3"),
+    # REFIGÉE LE 21-11-2026 (A-957). Avant : 813e12bed9ff8410 (A-873). Cause : le merge d2ba76264 du 20-11-2026 apporte
+    # fcb45343a et 75d53bf56 (A-928 D2, radar aux seuils de la fiche) : `_c5e10_sortie` du module C5 reçoit `tp`, `sl` et
+    # `horizon` en paramètres (None = les constantes de C5). Le CODE du module entre dans l'empreinte, donc elle change ;
+    # emp.py, le registre, l'univers et la période ne changent pas (verrou FORMAT emp-v2 + sha256 d'emp.py tenu).
+    # Décision de Jean-Luc du Sam 21-11-2026 à 00h49 (« 1 » à « Refiger la valeur de référence, après avoir prouvé que
+    # C5 donne les mêmes résultats au centime ») ; critère : mêmes résultats avec le nouveau code = même stratégie.
+    # PREUVE (21-11-2026, sur le témoin du golden 2024-01-02 -> 2026-07-10, aucune donnée d'avant 2024) : module de
+    # 4747de7e8 (dernier vert) contre module de main 508221965 — backtest_c5etendu10 (74 op. jetons illimités,
+    # +66 270,99 EUR ; 38 op. un jeton, +26 228,00 EUR) et `_c5e10_sortie` sur chacune des 5 151 séances de l'univers :
+    # JSON identique à l'octet (sha256 c8d7f9c2c9241613…) ; sabotage (horizon 19) : JSON différent, la comparaison mord.
+    # Calibrage du juge sur C5E10-QA-V1 (124 lignes, 100/100 sorties) : sorties identiques, hors horodatage et
+    # empreinte du module. Valeur mesurée par E-ancre sous Python 3.11, 3.12 et 3.13.
 }
 # LE VERROU DE LA VALEUR FIGÉE (E1, point 4, du superviseur R-759 du 17-11-2026, sur MAJ-1 du relecteur du même jour) :
 # avec QUOI elle a été calculée — l'étiquette FORMAT d'emp.py et le sha256 des OCTETS d'emp.py. Raison : le geste
