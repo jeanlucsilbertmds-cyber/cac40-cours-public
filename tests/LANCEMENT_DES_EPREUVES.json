@@ -211,6 +211,18 @@
   "tests/EPREUVES_DE_LA_FILE_DES_MACHINES_LONGUES_Ven_20-11-2026.py --saboter": {
    "secondes": 300,
    "pourquoi": "Lancement nouveau de l'étape FILE-2 (20-11-2026 ; décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52 : le réservoir de 18 places remplace le refus global du relais), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat le 20-11-2026 : 3 s (5 sabotages) ; 4 fois cette durée reste sous 300 s : le plancher de 300 s des lancements nouveaux s'applique. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py": {
+   "secondes": 3600,
+   "pourquoi": "Lancement de la nuit rendu possible le 21-11-2026 (travail-nuit) : l'épreuve rendait 2 chaque nuit (passage 44852703801), lancée avec la seule copie ; elle fabrique désormais son dossier de travail. La série entière (sonde intacte et 22 sabotages) : 6 min 50 s et 6 min 35 s pour deux moitiés parallèles sur la machine du Chat le 20-11-2026, soit environ 13 min 30 s d'un tenant ; la mesure de couverture ralentit jusqu'à quatre fois (délai de l'épreuve de vérité connue du juge) : environ 54 min, au-delà du délai par défaut de 1 500 s ; 3 600 s le couvrent. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py": {
+   "secondes": 5400,
+   "pourquoi": "Lancement de la nuit rendu possible le 21-11-2026 (travail-nuit) : l'épreuve rendait 2 chaque nuit (passage 44852703801), lancée avec la seule copie ; elle fabrique désormais son dossier de travail. Les neuf phases d'un tenant : le passage complet seul a pris de 334 s à 784 s sur la machine du Chat le 19-11-2026, une tranche de la moulinette 94 s le 21-11-2026 ; d'un tenant, non mesuré. Quatre fois (mesure de couverture) environ 15 minutes : environ 60 min, au-delà du délai par défaut de 1 500 s. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/CHAINE_C5_MOULINETTE_SUR_COPIE_Jeu_19-11-2026.py": {
+   "secondes": 5400,
+   "pourquoi": "Lancement de la nuit rendu possible le 21-11-2026 (travail-nuit) : l'épreuve rendait 2 chaque nuit (passage 44852703801), lancée avec la seule copie ; elle fabrique désormais son dossier de travail. Toutes les étapes d'un tenant, la moulinette en 5 tranches (une tranche : 94 s sur la machine du Chat le 21-11-2026, dans l'épreuve de l'enchaîneur, même chaîne) ; d'un tenant, non mesuré. Même ordre de grandeur que l'épreuve de l'enchaîneur : 5 400 s. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
   }
  },
  "series_hors_de_la_nuit": {
@@ -567,6 +579,43 @@
     "--saboter"
    ],
    "pourquoi": "étape FILE-2 (20-11-2026) : les quatre propriétés du réservoir de 18 places et de la protection fine qui remplace le refus global du relais (décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52), avec leurs cinq sabotages (SF1 refus global remis, SF2 groupe par branche retiré, SF3 essais de poussée retirés, SF4 21 tâches, SF5 boucle qui sort au premier refus) ; 3 s sur la machine du Chat avec --saboter (20-11-2026) ; à jouer sur GitHub pour la relecture de Cowork"
+  },
+  "ContratNuit": {
+   "chemin": "tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT (la seule copie, dossier de travail fabriqué par l'épreuve) ; ContratSabot garde la forme à deux arguments ; environ 13 min 30 s sans mesure de couverture (deux moitiés, 20-11-2026)"
+  },
+  "ChaineC5": {
+   "chemin": "tests/CHAINE_C5_MOULINETTE_SUR_COPIE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT, toutes les étapes d'un tenant ; durée d'un tenant non mesurée"
+  },
+  "Enchainer": {
+   "chemin": "tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT, les neuf phases d'un tenant ; durée d'un tenant non mesurée"
+  },
+  "SoirDecide": {
+   "chemin": "tests/EPREUVES_E8_LE_SOIR_SUIT_LA_STRATEGIE_DECIDEE_Mer_18-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S12 reciblé ; 2 min 31 s sur la machine du Chat le 21-11-2026"
+  },
+  "NomsContrat": {
+   "chemin": "tests/EPREUVES_DES_NOMS_AU_CONTRAT_Lun_28-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S3 reciblé ; 2 min 39 s sur la machine du Chat le 21-11-2026"
   }
  }
 }
