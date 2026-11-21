@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=ContratNuit,ContratSabot,ChaineC5,Enchainer,SoirDecide,NomsContrat,BaremeFrais,LectureFiche,JugeLecteur
+pointe=c19099e1bef0e1c6b0318517f44d040d179d916b
