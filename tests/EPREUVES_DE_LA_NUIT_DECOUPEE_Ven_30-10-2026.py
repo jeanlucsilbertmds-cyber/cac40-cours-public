@@ -62,7 +62,9 @@
   de la lecture des cours : 2 730 s, 4 379 s, 5 028 s les nuits du 23, du 24 et du 30-10-2026).
 ⑨ CE QUI CLOCHE — Le vrai GitHub Actions n'est pas joué : la matrice, « needs », « always() » et la limite sont lus
   dans le YAML, pas observés. Le pas « deposer » (poussée au dépôt privé, renommage du journal de la tranche) n'est
-  pas joué. N5 dépend des journaux présents : sur un dépôt sans journal, chaque lancement compte pour son délai.
+  pas joué. N5 dépend des journaux présents ; sur un dépôt sans journal (la copie jouée sur GitHub), des durées
+  publiées (rapports/durees_des_epreuves_en_secondes.csv, A-968, décision de Jean-Luc du 21-11-2026 à 15h34) : des
+  durées périmées y font une prévision périmée ; sans l'un ni l'autre, chaque lancement compte pour son délai.
 ⑩ EFFET — Écrit dans des dossiers jetables, effacés à la fin.
 ⑪ TERMINAISON — Rend la main ; chaque lancement est borné (120 s pour le fabricant et la tâche finale, 300 s pour
   une tranche du dépôt d'essai) ; sort par sys.exit.
@@ -238,7 +240,9 @@ def copier_le_necessaire(source, cible):
     ⑤ SORTIE — Rien. [rend: rien]
     ⑥ TRAITEMENT — les *.py de chaque emplacement de code publié, lus dans DOSSIERS_DE_CODE du fabricant de la source
       (la racine, programmes/, tests/, etudes/outils/, tests/outils/ au 01-11-2026), tests/*.json, les fiches
-      .github/workflows/*.yml, les journaux de certification de rapports/journal_du_circuit/.
+      .github/workflows/*.yml, les journaux de certification de rapports/journal_du_circuit/, et le fichier des
+      durées publiées (son chemin LU au certificateur de la source, DUREES_PUBLIEES : A-968, 21-11-2026), que
+      `durees_relevees` lit quand les journaux manquent — sur GitHub, la copie jouée n'a pas de journaux.
     ⑦ UNITÉ — — ⑧ POURQUOI — Copier tout le dépôt (des milliers de fichiers) à chaque sabotage serait lent ; le
       fabricant et le certificateur n'en lisent pas davantage ici. Les emplacements sont LUS au fabricant, jamais
       épelés ici : relecture neuve du 01-11-2026 (M8), une seconde liste avait gardé les quatre anciens (R-708).
@@ -248,7 +252,7 @@ def copier_le_necessaire(source, cible):
       (programmes/CERTIFIER_LA_VERSION.py compte rouge tout code non nul), seule l'étiquette est fausse. Mesuré par la
       relecture n° 2 du 04-11-2026 (m6, AttributeError, code 1). Aucun filet « code 2 » dans `main` : il rangerait
       sous « n'a pas pu juger » une vraie panne du fabricant (superviseur R-759 du même jour, tour 3).
-    ⑩ EFFET — Charge le fabricant de la source (il ne fait que définir) ; écrit la copie. ⑪ TERMINAISON — Rend la main. [sort: non]
+    ⑩ EFFET — Charge le fabricant et le certificateur de la source (ils ne font que définir) ; écrit la copie. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     code = [(d, r".*\.(py|json)$" if d == "tests" else r".*\.py$")
             for d in charger(os.path.join(source, FAB)).DOSSIERS_DE_CODE]
@@ -261,6 +265,10 @@ def copier_le_necessaire(source, cible):
         for f in os.listdir(d):
             if re.match(motif, f) and os.path.isfile(os.path.join(d, f)):
                 shutil.copyfile(os.path.join(d, f), os.path.join(cible, dossier, f))
+    publiees = charger(os.path.join(source, CERTIF)).DUREES_PUBLIEES
+    if os.path.isfile(os.path.join(source, publiees)):
+        os.makedirs(os.path.dirname(os.path.join(cible, publiees)), exist_ok=True)
+        shutil.copyfile(os.path.join(source, publiees), os.path.join(cible, publiees))
 
 
 def charger(chemin):

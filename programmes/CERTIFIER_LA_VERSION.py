@@ -942,6 +942,18 @@ JOURNAUX = os.path.join("rapports", "journal_du_circuit")
 JOURNAL_DE_CERTIFICATION = r"^circuit_(\d+)_\d+_certifier(?:_tranche_\d+)?\.log$"   # nom écrit par programmes/ETAPE_MUETTE.py
 PASSAGES_RETENUS = 3            # les trois derniers passages qui ont joué un lancement : on garde la plus longue durée
 PARTIELS = "rapports/certificats_partiels"   # où chaque tranche dépose son certificat partiel (noms fixes)
+# LES DURÉES PUBLIÉES (A-968, décision de Jean-Luc du 21-11-2026 à 15h34, réponse « 1 » : « Publier au dépôt public les
+# seules durées des épreuves (des chiffres de temps, aucun cours) pour que GitHub juge pour de vrai »). La copie jouée
+# sur GitHub exclut rapports/journal_du_circuit (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, SERIES_COPIE) : sans
+# journaux, `durees_relevees` rendait {}, chaque lancement comptait pour son délai, et N5 de la nuit découpée voyait
+# 20 400 s par tranche (passage GitHub 44906050466). Ce fichier, DÉRIVÉ des journaux par `publier_les_durees`, porte la
+# clé de chaque lancement et ses secondes, rien d'autre : `garder_les_durees` refuse tout le reste, à l'écriture comme
+# à la lecture. L'unité est dans le nom du fichier et dans celui de la colonne.
+DUREES_PUBLIEES = os.path.join("rapports", "durees_des_epreuves_en_secondes.csv")
+COLONNES_DES_DUREES = ["cle_du_lancement", "secondes"]
+# une clé publiable : un chemin d'épreuve, puis des mots sans espace ni virgule (calibré le 21-11-2026 sur les 216 clés
+# des journaux : toutes passent ; « tests/x.py ; cat /etc/passwd » et une ligne de cours ne passent pas)
+CLE_PUBLIABLE = r"^(?:tests|programmes)/[A-Za-z0-9_.-]+\.py(?: [A-Za-z0-9_./=-]+)*$"
 
 
 def ligne_du_journal(chemin, arguments, code, duree):
@@ -1001,9 +1013,11 @@ def durees_relevees(racine, passage_exclu=""):
     ③ ENTRÉE — `racine` : le dépôt · `passage_exclu` : le numéro du passage en cours (GITHUB_RUN_ID), dont les
       journaux sont écartés.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : {clé du lancement : secondes} ; vide si aucun journal.
+    ⑤ SORTIE — UNE valeur : {clé du lancement : secondes} ; vide si aucun journal ni fichier de durées publiées.
       [rend: 1]
-    ⑥ TRAITEMENT — chaque fichier de `JOURNAUX` dont le nom répond à `JOURNAL_DE_CERTIFICATION` ; chaque ligne qui
+    ⑥ TRAITEMENT — ① s'il n'existe AUCUN journal de certification (aucun fichier de `JOURNAUX` dont le nom répond à
+      `JOURNAL_DE_CERTIFICATION`, quel que soit son passage) : rendre `lire_les_durees_publiees` (A-968) · ② sinon,
+      chaque fichier de `JOURNAUX` dont le nom répond à `JOURNAL_DE_CERTIFICATION` ; chaque ligne qui
       répond à `LIGNE_DU_JOURNAL` ; par clé, la plus longue durée des `PASSAGES_RETENUS` derniers passages (numéros
       de passage croissants) qui l'ont jouée.
     ⑦ UNITÉ — Des secondes.
@@ -1014,15 +1028,22 @@ def durees_relevees(racine, passage_exclu=""):
       journal, ou relancée seule, ferait sinon une autre répartition que ses sœurs.
     ⑨ CE QUI CLOCHE — Un lancement ROUGE tombé vite (0 s) est compté pour sa durée réelle, donc trop court : la
       plus longue des trois nuits l'atténue sans l'effacer. Un lancement jamais joué n'a pas de durée ici : `repartir`
-      prend alors son délai.
-    ⑩ EFFET — Lit les journaux.
+      prend alors son délai. Le repli sur les durées publiées (①) rend des durées PÉRIMÉES si le fichier n'a pas été
+      refait depuis les dernières nuits : la prévision l'est alors autant (A-968). Le repli se décide sur la présence
+      d'un journal, tous passages compris, et non sur ce qui reste après l'exclusion du passage en cours : sinon deux
+      tranches sœurs, l'une partie avant et l'autre après le dépôt d'un journal, liraient deux sources différentes.
+      Un fichier de durées publiées malformé lève ValueError (`garder_les_durees`) : la certification tombe, en rouge.
+    ⑩ EFFET — Lit les journaux, ou le fichier des durées publiées.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     import re
     par_cle = collections.defaultdict(list)
     dossier = os.path.join(racine, JOURNAUX)
-    for f in (sorted(os.listdir(dossier)) if os.path.isdir(dossier) else []):
+    noms = sorted(os.listdir(dossier)) if os.path.isdir(dossier) else []
+    if not any(re.match(JOURNAL_DE_CERTIFICATION, f) for f in noms):
+        return lire_les_durees_publiees(racine)
+    for f in noms:
         m = re.match(JOURNAL_DE_CERTIFICATION, f)
         if not m or (passage_exclu and m.group(1) == passage_exclu):
             continue
@@ -1034,6 +1055,114 @@ def durees_relevees(racine, passage_exclu=""):
         derniers = sorted({p for p, _ in v})[-PASSAGES_RETENUS:]
         rendu[cle] = max(d for p, d in v if p in derniers)
     return rendu
+
+
+def garder_les_durees(lignes):
+    """Vérifie un tableau de durées publiables et le rend en {clé : secondes} ; lève ValueError sinon.
+
+    ① RÔLE — La garde des durées publiées (A-968) : ne laisser passer que la clé d'un lancement et ses secondes.
+    ② CONTEXTE D'APPEL — `publier_les_durees`, AVANT d'écrire ; `lire_les_durees_publiees`, après avoir lu. Une seule
+      garde pour l'écrivain et le lecteur (R-708 : deux rédactions d'une même règle divergent toujours).
+    ③ ENTRÉE — `lignes` : liste de listes de textes, la première étant l'en-tête.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : {clé du lancement : secondes (entier)}.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① l'en-tête doit valoir exactement `COLONNES_DES_DUREES` · ② chaque ligne suivante a exactement deux
+      champs · ③ la clé répond à `CLE_PUBLIABLE` · ④ les secondes ne sont faites que de chiffres (0 à 9) · ⑤ une
+      clé ne paraît qu'une fois. Le premier manquement lève ValueError, qui le nomme.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Les journaux de la certification portent aussi les sorties des épreuves, qui peuvent citer des cours ;
+      le dépôt public ne doit recevoir que des chiffres de temps (décision de Jean-Luc du 21-11-2026 à 15h34 : « les
+      seules durées des épreuves (des chiffres de temps, aucun cours) »). Une garde par PROPRIÉTÉ (deux colonnes, une
+      forme de clé, un nombre), jamais par liste de clés connues.
+    ⑨ CE QUI CLOCHE — Une clé de la bonne forme peut nommer une épreuve qui n'existe plus : elle est publiée et lue
+      sans dommage (`repartir` ne cherche que les clés de ses lancements).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError.
+      [sort: non]
+    """
+    import re
+    if not lignes or list(lignes[0]) != COLONNES_DES_DUREES:
+        raise ValueError(f"durées publiées : en-tête {list(lignes[0]) if lignes else None}, attendu {COLONNES_DES_DUREES}")
+    rendu = {}
+    for n, l in enumerate(lignes[1:], 2):
+        if len(l) != 2:
+            raise ValueError(f"durées publiées, ligne {n} : {len(l)} champ(s), attendu 2")
+        cle, secondes = l
+        if not re.match(CLE_PUBLIABLE, cle):
+            raise ValueError(f"durées publiées, ligne {n} : clé hors de la forme d'un lancement")
+        if not re.fullmatch(r"[0-9]+", secondes):
+            raise ValueError(f"durées publiées, ligne {n} : secondes non numériques")
+        if cle in rendu:
+            raise ValueError(f"durées publiées, ligne {n} : clé en double")
+        rendu[cle] = int(secondes)
+    return rendu
+
+
+def lire_les_durees_publiees(racine):
+    """Rend les durées publiées du dépôt, {clé : secondes}, vérifiées par `garder_les_durees` ; {} si le fichier manque.
+
+    ① RÔLE — Donner à `durees_relevees` les durées quand les journaux ne sont pas là (la copie jouée sur GitHub).
+    ② CONTEXTE D'APPEL — `durees_relevees`, quand aucun journal de certification n'existe ; les épreuves
+      tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py.
+    ③ ENTRÉE — `racine` : le dépôt.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : {clé du lancement : secondes} ; {} si `DUREES_PUBLIEES` n'existe pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — lire le CSV (module csv), le passer à `garder_les_durees`.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 15h34 (A-968) : que GitHub juge N5 sur de vraies durées.
+      Fichier absent : {} et non une erreur — c'est l'état d'avant A-968, où chaque lancement compte pour son délai.
+    ⑨ CE QUI CLOCHE — Des durées périmées font une prévision périmée : rien ici ne dit de quand elles datent.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError (fichier malformé).
+      [sort: non]
+    """
+    import csv
+    chemin = os.path.join(racine, DUREES_PUBLIEES)
+    if not os.path.isfile(chemin):
+        return {}
+    with open(chemin, encoding="utf-8", newline="") as f:
+        return garder_les_durees([l for l in csv.reader(f)])
+
+
+def publier_les_durees(racine):
+    """Écrit `DUREES_PUBLIEES` à partir des journaux, par `durees_relevees`, et rend le nombre de clés écrites.
+
+    ① RÔLE — Fabriquer le fichier des durées publiables (A-968).
+    ② CONTEXTE D'APPEL — `main`, sur « --publier-les-durees », au dépôt privé où vivent les journaux ; les épreuves
+      tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py.
+    ③ ENTRÉE — `racine` : le dépôt.
+    ④ CONDITIONS D'ENTRÉE — Au moins un journal de certification sous `JOURNAUX` ; sinon ValueError (refaire le fichier
+      à partir de lui-même ne publierait rien de neuf, et le ferait croire).
+    ⑤ SORTIE — UNE valeur : le nombre de clés écrites.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① vérifier qu'un journal existe · ② `durees_relevees(racine)` (aucune durée recopiée : R-708) ·
+      ③ en faire un tableau en-tête + lignes triées par clé · ④ `garder_les_durees` sur ce tableau AVANT d'écrire ·
+      ⑤ écrire dans un fichier voisin puis le renommer (jamais de fichier à moitié écrit).
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 15h34, réponse « 1 » : « Publier au dépôt public les seules
+      durées des épreuves (des chiffres de temps, aucun cours) pour que GitHub juge pour de vrai ». Jamais les
+      journaux eux-mêmes : ils portent aussi les sorties des épreuves.
+    ⑨ CE QUI CLOCHE — Rien ne refait ce fichier chaque nuit tant que le circuit ne l'appelle pas (A-968, reste
+      ouvert) : entre deux publications, ses durées vieillissent.
+    ⑩ EFFET — Écrit `DUREES_PUBLIEES`.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError.
+      [sort: non]
+    """
+    import csv
+    import re
+    dossier = os.path.join(racine, JOURNAUX)
+    if not any(re.match(JOURNAL_DE_CERTIFICATION, f) for f in (os.listdir(dossier) if os.path.isdir(dossier) else [])):
+        raise ValueError(f"aucun journal de certification sous {JOURNAUX} : rien à publier")
+    durees = durees_relevees(racine)
+    lignes = [list(COLONNES_DES_DUREES)] + [[c, str(durees[c])] for c in sorted(durees)]
+    garder_les_durees(lignes)
+    chemin = os.path.join(racine, DUREES_PUBLIEES)
+    with open(chemin + ".en_cours", "w", encoding="utf-8", newline="") as f:
+        csv.writer(f, lineterminator="\n").writerows(lignes)
+    os.replace(chemin + ".en_cours", chemin)
+    return len(lignes) - 1
 
 
 def repartir(lancements, durees, delais, nombre):
@@ -2043,6 +2172,8 @@ def main():
       MODE TRANCHE (« --tranche i/n ») : les lancements sont répartis (`repartir`, durées de `durees_relevees`) ;
       seuls ceux de la tranche i sont joués ; le certificat partiel est écrit (`ecrire_le_partiel`), et non le
       certificat ; rend 2 si la tranche n'a pas pu jouer, 1 si une épreuve est rouge, 0 sinon.
+      MODE PUBLICATION (« --publier-les-durees », seul) : rien n'est joué ; `publier_les_durees` écrit
+      `DUREES_PUBLIEES` ; 0 si écrit, 2 sinon (A-968, décision de Jean-Luc du 21-11-2026 à 15h34).
       MODE RÉUNION (« --reunir n ») : rien n'est joué ; les certificats partiels sont lus et vérifiés
       (`reunir_les_tranches`) ; une tranche absente, rouge d'impossibilité, d'un autre passage ou d'un autre code, ou
       un lancement joué zéro ou deux fois : CERTIFICATION IMPOSSIBLE, code 2 ; sinon la conclusion est celle de la
@@ -2051,15 +2182,26 @@ def main():
     ⑧ POURQUOI — Voir la fiche en tête. Les tranches : décision de Jean-Luc du 30-10-2026 à 19h02 (voir `JOURNAUX`).
     ⑨ CE QUI CLOCHE — Une épreuve rouge d'une tranche fait rougir la tranche ET la réunion : la réunion le dit dans
       le certificat, la tranche dans son job.
-    ⑩ EFFET — Voir la fiche en tête ; en mode tranche, écrit `PARTIELS`/TRANCHE_<i>.json au lieu du certificat.
+    ⑩ EFFET — Voir la fiche en tête ; en mode tranche, écrit `PARTIELS`/TRANCHE_<i>.json au lieu du certificat ; en
+      mode publication, écrit `DUREES_PUBLIEES` et rien d'autre.
     ⑪ TERMINAISON — Rend la main au bloc de lancement ; le dossier jetable est effacé.
       [sort: non]
     """
     racine, ecrire, accord, tranche, reunir, refus = lire_la_ligne_de_commande(sys.argv)
     if racine is None:
         print("CERTIFICATION IMPOSSIBLE — " + refus + " — usage : CERTIFIER_LA_VERSION.py <racine du dépôt> "
-              "[--ecrire-la-reference [--accord \"…\"]] [--tranche i/n | --reunir n]")
+              "[--ecrire-la-reference [--accord \"…\"]] [--tranche i/n | --reunir n | --publier-les-durees]")
         return 2
+    if "--publier-les-durees" in sys.argv:
+        if ecrire or tranche or reunir:
+            print("PUBLICATION IMPOSSIBLE — « --publier-les-durees » se lance seul")
+            return 2
+        try:
+            print(f"DURÉES PUBLIÉES — {publier_les_durees(racine)} clé(s) dans {DUREES_PUBLIEES}")
+            return 0
+        except (OSError, ValueError) as e:
+            print(f"PUBLICATION IMPOSSIBLE — {e}")
+            return 2
     maintenant = datetime.now(ZoneInfo("Europe/Paris"))
     horodatage = ("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim")[maintenant.weekday()] + maintenant.strftime(" %d-%m-%Y %Hh%M")
     passage = os.environ.get("GITHUB_RUN_ID") or "local"
