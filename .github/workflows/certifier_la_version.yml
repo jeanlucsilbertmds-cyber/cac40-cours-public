@@ -17,14 +17,26 @@
 # La tâche finale lit ensuite les certificats partiels à la pointe de main, où les tranches les ont
 # poussés ; le code qu'elle exécute reste celui du commit noté.
 name: Certifier la version
+run-name: "Certifier la version places 1+15"
 on:
   workflow_dispatch:
+    inputs:
+      premiere_place:
+        description: "Premiere place du reservoir, de 1 a 18 (choisie par le relais ; toute autre valeur : 1)"
+        required: false
+        type: string
+        default: "1"
+      nombre_de_places:
+        description: "Nombre de places prevu par le relais (renseignement du titre, jamais lu par les jobs)"
+        required: false
+        type: string
+        default: ""
   # 21h00 en heure universelle : 23h00 à Paris l'été, 22h00 l'hiver, après le circuit du soir
   # (dont des épreuves lisent les données). GitHub peut retarder un réveil de plusieurs heures.
   schedule:
     - cron: "0 21 * * 1-5"
 concurrency:
-  group: series-longues
+  group: certification-de-la-version
   cancel-in-progress: false
   queue: max
 permissions:
@@ -33,6 +45,10 @@ jobs:
   preparer:
     # LE COMMIT DE LA NUIT : la pointe de main du dépôt privé, lue UNE fois, au départ (aucun code n'est exécuté ici).
     runs-on: ubuntu-latest
+    concurrency:
+      group: place-longue-${{ inputs.premiere_place == '18' && '18' || inputs.premiere_place == '17' && '17' || inputs.premiere_place == '16' && '16' || inputs.premiere_place == '15' && '15' || inputs.premiere_place == '14' && '14' || inputs.premiere_place == '13' && '13' || inputs.premiere_place == '12' && '12' || inputs.premiere_place == '11' && '11' || inputs.premiere_place == '10' && '10' || inputs.premiere_place == '9' && '9' || inputs.premiere_place == '8' && '8' || inputs.premiere_place == '7' && '7' || inputs.premiere_place == '6' && '6' || inputs.premiere_place == '5' && '5' || inputs.premiere_place == '4' && '4' || inputs.premiere_place == '3' && '3' || inputs.premiere_place == '2' && '2' || '1' }}
+      cancel-in-progress: false
+      queue: max
     outputs:
       sha: ${{ steps.noter.outputs.sha }}
     steps:
@@ -50,12 +66,17 @@ jobs:
   certifier:
     needs: preparer
     runs-on: ubuntu-latest
+    # la tranche k prend la place k du réservoir (étape FILE-2) ; une tranche au-delà de PLACES_LONGUES prend la place 1
+    concurrency:
+      group: place-longue-${{ matrix.tranche == '18' && '18' || matrix.tranche == '17' && '17' || matrix.tranche == '16' && '16' || matrix.tranche == '15' && '15' || matrix.tranche == '14' && '14' || matrix.tranche == '13' && '13' || matrix.tranche == '12' && '12' || matrix.tranche == '11' && '11' || matrix.tranche == '10' && '10' || matrix.tranche == '9' && '9' || matrix.tranche == '8' && '8' || matrix.tranche == '7' && '7' || matrix.tranche == '6' && '6' || matrix.tranche == '5' && '5' || matrix.tranche == '4' && '4' || matrix.tranche == '3' && '3' || matrix.tranche == '2' && '2' || '1' }}
+      cancel-in-progress: false
+      queue: max
     # 330 minutes PAR TRANCHE : GitHub coupe toute tâche à 6 heures ; chaque tranche a les siennes.
     timeout-minutes: 330
     strategy:
       # une tranche rouge n'arrête pas les autres : la tâche finale doit voir chacune
       fail-fast: false
-      # la file unique (A-896) : jamais plus de tranches en même temps que les circuits longs
+      # le réservoir (étape FILE-2) : jamais plus de tranches en même temps que de places longues
       max-parallel: 18
       matrix:
         tranche:
@@ -210,6 +231,10 @@ jobs:
       - certifier
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    concurrency:
+      group: place-longue-${{ inputs.premiere_place == '18' && '18' || inputs.premiere_place == '17' && '17' || inputs.premiere_place == '16' && '16' || inputs.premiere_place == '15' && '15' || inputs.premiere_place == '14' && '14' || inputs.premiere_place == '13' && '13' || inputs.premiere_place == '12' && '12' || inputs.premiere_place == '11' && '11' || inputs.premiere_place == '10' && '10' || inputs.premiere_place == '9' && '9' || inputs.premiere_place == '8' && '8' || inputs.premiere_place == '7' && '7' || inputs.premiere_place == '6' && '6' || inputs.premiere_place == '5' && '5' || inputs.premiere_place == '4' && '4' || inputs.premiere_place == '3' && '3' || inputs.premiere_place == '2' && '2' || '1' }}
+      cancel-in-progress: false
+      queue: max
     defaults:
       run:
         shell: python3 programmes/ETAPE_MUETTE.py {0}

@@ -38,7 +38,8 @@
   des séries, et refuse ce gabarit privé de « persist-credentials: false », puis d'un « shell: bash » d'un pas qui
   reçoit le jeton ; « max-parallel » du gabarit vaut PARTS_EN_MEME_TEMPS, et la largeur CALCULÉE des circuits
   fabriqués tient dans les tâches simultanées du compte (`refus_de_la_largeur`, A-884, 17-11-2026 ; avant : la
-  part plus une marge écrite à la main, 15-11-2026), celle du circuit des séries valant PARTS_EN_MEME_TEMPS ; le joueur des parts et le rassembleur sont lancés sous
+  part plus une marge écrite à la main, 15-11-2026), celle du circuit des séries étant le réservoir des places
+  (RESERVOIR_DES_PLACES, PLACES_LONGUES, étape FILE-2) ; le joueur des parts et le rassembleur sont lancés sous
   « unshare -rn » · N2 (tour 3, M-2) le filet accepte le gabarit (T0) et refuse F1 à F7 : jeton dans l'env du job,
   du circuit, toJSON(secrets), secrets['…'], un pas bash à jeton qui lance un programme de la version, qui écrit ou
   copie vers $GITHUB_ENV, qui écrit une variable dans un fichier (F5 à F7 ajoutés AVANT le code de la version, pour
@@ -88,8 +89,9 @@
 ⑨ CE QUI CLOCHE — Rien n'est joué sur GitHub : actions/checkout est imité par « git clone », ETAPE_MUETTE par bash ;
   l'adresse du dépôt privé écrite dans le gabarit est remplacée par un dépôt nu local (G, N3, N5) ou par le serveur
   local de `servir` (N4, en HTTP simple et non HTTPS : ce que github.com accepte de l'aide aux identifiants reste
-  THÉORIQUE). N4 exige l'interface locale : lancée sous « unshare -rn », l'épreuve doit d'abord monter « lo », sinon
-  N4 rougit (« serveur local impossible » ou code non nul : rien de prouvé). N3 joue l'ACCIDENT
+  THÉORIQUE). N4 exige l'interface locale : sous « unshare -rn » (le circuit des épreuves longues), `monter_lo` l'allume
+  d'abord (étape FILE-2, 20-11-2026) ; si elle reste éteinte, N4 rougit (« serveur local impossible » ou code non
+  nul : rien de prouvé). N3 joue l'ACCIDENT
   (modèle de menace de Jean-Luc du 05-11-2026, 17h36), pas un code écrit pour nuire ($GITHUB_ENV d'un pas sans jeton,
   /proc, sudo : BACKLOG). P6 exige /dev/shm sur un autre disque : sinon il rougit (rien de prouvé). Le
   pas « version » est extrait du gabarit par lecture d'indentation, pas par un lecteur YAML. P ne joue pas une vraie
@@ -107,6 +109,8 @@ import subprocess
 import sys
 import tempfile
 import threading
+
+NOTES_LO = []   # ce que `monter_lo` a fait, affiché en fin d'épreuve
 
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
 DEPOT = os.path.abspath(_args[0] if _args else ".")
@@ -219,6 +223,46 @@ class ServeurQuiExigeUneIdentification(http.server.BaseHTTPRequestHandler):
     do_GET = do_POST = servir_une_requete
 
 
+def monter_lo():
+    """Allume l'interface locale « lo » si elle est éteinte ; rend une phrase qui dit ce qui a été fait.
+
+    ① RÔLE — Rendre joignable 127.0.0.1 pour le serveur local du cas N4, y compris sous « unshare -rn ».
+    ② CONTEXTE D'APPEL — `tour`, cas N4, juste avant `servir`.
+    ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — Linux (ioctl SIOCGIFFLAGS / SIOCSIFFLAGS sur un socket) ; pour ALLUMER, le droit
+      d'administrer le réseau de l'espace courant (vrai dans l'espace neuf de « unshare -rn », où l'on est root).
+    ⑤ SORTIE — UNE valeur : « déjà allumée », « allumée » ; lève OSError si l'interface reste éteinte.
+      [rend: 1]
+    ⑥ TRAITEMENT — lire les drapeaux de « lo » ; si IFF_UP (0x1) manque, l'écrire, puis relire et lever s'il manque
+      encore.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Étape FILE-2, passage GitHub 44825730750 (et déjà 43755923421 du 15-11-2026) : le circuit des
+      épreuves longues joue cette épreuve sous « unshare -rn » ; « lo » y est éteinte, git rend 128 sans rien
+      contacter, et N4 rougissait sur ses témoins (« l'essai ne prouve rien ») ; la nuit, sans « unshare », N4 était
+      vert (certificat de main : « --saboter | 0 | 892 »). Allumer « lo » n'ouvre aucun réseau EXTÉRIEUR : l'espace
+      neuf n'a que cette interface. Rien n'est affaibli : si elle ne s'allume pas, `servir` ou les témoins rougissent.
+    ⑨ CE QUI CLOCHE — Hors d'un espace neuf, sur une machine où « lo » serait éteinte sans droit de l'allumer, lève
+      OSError : N4 dit alors « serveur local impossible ».
+    ⑩ EFFET — Peut allumer « lo » de l'espace réseau courant.
+    ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]
+    """
+    import fcntl
+    import socket
+    import struct
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        nom = struct.pack("16sH14s", b"lo", 0, b"")
+        drapeaux = struct.unpack("16sH14s", fcntl.ioctl(s, 0x8913, nom))[1]   # SIOCGIFFLAGS
+        if drapeaux & 0x1:
+            return "déjà allumée"
+        fcntl.ioctl(s, 0x8914, struct.pack("16sH14s", b"lo", drapeaux | 0x1, b""))   # SIOCSIFFLAGS
+        if not struct.unpack("16sH14s", fcntl.ioctl(s, 0x8913, nom))[1] & 0x1:
+            raise OSError("« lo » reste éteinte")
+        return "allumée"
+    finally:
+        s.close()
+
+
 def servir(racine, attendu, recus):
     """Démarre ServeurQuiExigeUneIdentification sur 127.0.0.1, à un port libre, dans un fil à part ; rend le serveur.
 
@@ -282,8 +326,9 @@ SABOTAGES = {
     "SGP7_branches_du_prive_au_journal": [(FABRICANT, '''          [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }''',
                                            '''          echo "$tetes" | cut -f2 | grep travail- || true
           [ -n "$pointe" ] || { echo "::error::la version $VERSION n'existe pas au depot prive"; exit 1; }''')],
-    "SN1_parts_au_dela_du_budget": [(FABRICANT, "\nPARTS_EN_MEME_TEMPS = ",
-                                     "\nPARTS_EN_MEME_TEMPS = TACHES_EN_MEME_TEMPS_DU_COMPTE - 1  # ")],
+    # étape FILE-2 : le budget des circuits longs est le réservoir ; à 19 places, le soir perdrait la sienne
+    "SN1_parts_au_dela_du_budget": [(FABRICANT, "\nLARGEUR_DES_CIRCUITS_LONGS = ",
+                                     "\nLARGEUR_DES_CIRCUITS_LONGS = TACHES_EN_MEME_TEMPS_DU_COMPTE - 1  # ")],
     "SG3_pointe_non_comparee": [(FABRICANT, '''          [ -n "$pointe" ] && [ "$(git -C "$GITHUB_WORKSPACE" -c core.hooksPath=/dev/null rev-parse HEAD)" = "$pointe" ] ||''',
                                  '''          true ||''')],
     "SG4_meme_depot_non_compare": [(FABRICANT, '''          [ "$(git rev-parse HEAD)" = "$SHA" ] ||''', '''          true ||''')],
@@ -936,6 +981,7 @@ def tour(racine):
         open(os.path.join(wsh, "rapports", "journal_du_circuit", "circuit_8_1_jouer.log"), "w").write("OK\n")
         recus = []
         try:
+            NOTES_LO.append(f"N4 : interface locale « lo » {monter_lo()}")   # étape FILE-2 : sous « unshare -rn »
             serveur = servir(servi, fictif_b64, recus)
         except OSError as e:
             serveur = None
@@ -986,9 +1032,10 @@ def tour(racine):
         refus_n1, _ = F.refus_de_la_largeur(fiches_n1)
         if refus_n1:
             faux.append(f"N1 (largeur calculée des circuits fabriqués : {refus_n1})")
-        if F.largeur_d_une_fiche(F.SERIES) != (F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS):
+        # étape FILE-2 : chaque job des séries prend une place du réservoir (largeur : les places, pas le passage)
+        if F.largeur_d_une_fiche(F.SERIES) != (F.RESERVOIR_DES_PLACES, F.PLACES_LONGUES):
             faux.append(f"N1 (largeur calculée du circuit des séries {F.largeur_d_une_fiche(F.SERIES)} au lieu de "
-                        f"{(F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS)})")
+                        f"{(F.RESERVOIR_DES_PLACES, F.PLACES_LONGUES)})")
         if F.SERIES.count("max-parallel: %d\n" % F.PARTS_EN_MEME_TEMPS) != 1:
             faux.append("N1 (le gabarit n'écrit pas max-parallel = PARTS_EN_MEME_TEMPS)")
         lances = [l.strip() for l in F.SERIES.split("\n") if '.py "$RUNNER_TEMP/depot"' in l]
@@ -1207,6 +1254,8 @@ def main():
                 shutil.rmtree(d, ignore_errors=True)
             print(f"{nom} {'mord' if f else 'NE MORD PAS'} : {f}")
             code |= 0 if f else 1
+    for n in dict.fromkeys(NOTES_LO):
+        print("NOTE " + n)
     print("VERDICT : tout est conforme" if code == 0 else "VERDICT : NON CONFORME")
     return code
 

@@ -246,7 +246,9 @@ SABOTAGES = {
         '            [ -f "_code/programmes/$n" ] || D="$D $n(absent-du-public)"\n', '            true\n')],
     "S6_lancement_non_compare": [(FAB,
         '          cmp -s _code/tests/LANCEMENT_DES_EPREUVES.json tests/LANCEMENT_DES_EPREUVES.json || D="$D tests/LANCEMENT_DES_EPREUVES.json"\n', '')],
-    "S7_declenchement_sur_proposition": [(FAB, "  workflow_dispatch:\n  # 21h00", "  workflow_dispatch:\n  pull_request:\n  # 21h00")],
+    # S7 reciblé le 20-11-2026 (étape FILE-2) : le bouton de la certification porte maintenant ses entrées de places
+    # (%(entrees_places)s) entre « workflow_dispatch: » et le commentaire de 21h00 ; même propriété, même déclencheur ajouté
+    "S7_declenchement_sur_proposition": [(FAB, "%(entrees_places)s  # 21h00", "%(entrees_places)s  pull_request:\n  # 21h00")],
     "S8_donnees_des_epreuves_publiees": [(FAB, 'if f.endswith(".py") and os.path.isfile(os.path.join(d, f))]',
                                           'if os.path.isfile(os.path.join(d, f))]')],
     "S20_sans_lecteur_de_doc": [(FAB, "          command -v soffice >/dev/null || command -v libreoffice >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-writer-nogui; }\n", "")],
@@ -340,16 +342,20 @@ SABOTAGES = {
     # épreuves longues recopie ces textes du gabarit des séries ; chaque ancre porte désormais un texte qui n'est que
     # dans le gabarit des SÉRIES (la sortie « series » du job preparer, la ligne « series=$series », la clé
     # « depart_version » nommée par CIRCUIT_SERIES).
-    'S125_series_contents_write': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n', 'permissions:\n  contents: write\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n')],
+    # S125 et S129 reciblés le 20-11-2026 (étape FILE-2) : le job « preparer » des séries porte sa place
+    # (%(place_du_passage)s) entre « runs-on » et « timeout-minutes » ; même propriété
+    'S125_series_contents_write': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n%(place_du_passage)s    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n', 'permissions:\n  contents: write\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n%(place_du_passage)s    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n')],
     'S126_series_pousse_sur_main': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/releve",', 'branche="main",')],
     'S127_series_branches_travail': [(FAB, 'SERIES_BRANCHES = "series-longues/"', 'SERIES_BRANCHES = "travail-series/"')],
     'S128_certification_identite_du_soir': [(FAB, 'auteur="certification-publique", message=', 'auteur="circuit-public", message=')],
-    'S129_series_permission_en_ligne': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n', 'permissions: write-all\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n')],
+    'S129_series_permission_en_ligne': [(FAB, 'permissions:\n  contents: read\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n%(place_du_passage)s    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n', 'permissions: write-all\njobs:\n  preparer:\n    runs-on: ubuntu-latest\n%(place_du_passage)s    timeout-minutes: 30\n    outputs:\n      sha: ${{ steps.matrice.outputs.sha }}\n      series: ${{ steps.matrice.outputs.series }}\n')],
     'S130_series_permission_de_job': [(FAB, '          echo "series=$series" >> "$GITHUB_OUTPUT"\n          echo "matrice=$matrice" >> "$GITHUB_OUTPUT"\n  jouer:\n    needs: preparer\n', '          echo "series=$series" >> "$GITHUB_OUTPUT"\n          echo "matrice=$matrice" >> "$GITHUB_OUTPUT"\n  jouer:\n    needs: preparer\n    permissions: write-all\n')],
     'S131_M1_sa_branche_et_main': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}",', 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}\\" \\"HEAD:refs/heads/main",')],
     'S132_N1_cible_courte_main': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}",', 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}\\" \\"HEAD:main",')],
     'S133_N2_seconde_cible_ligne_suivante': [(FAB, 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}",', 'branche=SERIES_BRANCHES + "${GITHUB_RUN_ID}/${SERIE}/part_${PART}\\" \\\\\\n            \\"HEAD:main",')],
-    'S134_N3_git_c_push_vers_main': [(FAB, 'git push -q origin "HEAD:refs/heads/""" + branche + """" \\\\', 'git -c x.y=1 push -q origin "HEAD:refs/heads/main" \\\\')],
+    # S134 reciblé le 20-11-2026 (étape FILE-2) : la poussée sur sa branche est l'essai d'une boucle
+    # (« if git push … ; then … exit 0; fi ») ; même propriété : « git -c … push » vers main est refusé par le filet
+    'S134_N3_git_c_push_vers_main': [(FAB, 'if git push -q origin "HEAD:refs/heads/""" + branche + """"; then', 'if git -c x.y=1 push -q origin "HEAD:refs/heads/main"; then')],
     'S135_N4_force': [(FAB, 'git push -q origin "HEAD:refs/heads/"""', 'git push -q --force origin "HEAD:refs/heads/"""')],
     'S136_N5_plus_refspec': [(FAB, 'git push -q origin "HEAD:refs/heads/"""', 'git push -q origin "+HEAD:refs/heads/"""')],
     # LA VERSION EN ATTENTE (décision de Jean-Luc du 05-11-2026 à 13h36, « 2 ») : la branche du clone public non

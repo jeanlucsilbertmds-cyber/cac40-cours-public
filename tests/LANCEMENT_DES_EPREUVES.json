@@ -203,6 +203,14 @@
   "tests/EPREUVES_DE_LA_LARGEUR_DES_CIRCUITS_Mar_17-11-2026.py --saboter": {
    "secondes": 300,
    "pourquoi": "Lancement nouveau de la décision A-884 de Jean-Luc (17-11-2026, largeur calculée des circuits publics), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat (2 cœurs, sans couverture) le 17-11-2026 : 5 s (13 sabotages) ; 4 fois cette durée reste sous 300 s : le plancher de 300 s des lancements nouveaux s'applique. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVES_DE_LA_FILE_DES_MACHINES_LONGUES_Ven_20-11-2026.py": {
+   "secondes": 300,
+   "pourquoi": "Lancement nouveau de l'étape FILE-2 (20-11-2026 ; décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52 : le réservoir de 18 places remplace le refus global du relais), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat le 20-11-2026 : 1 s ; 4 fois cette durée reste sous 300 s : le plancher de 300 s des lancements nouveaux s'applique. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVES_DE_LA_FILE_DES_MACHINES_LONGUES_Ven_20-11-2026.py --saboter": {
+   "secondes": 300,
+   "pourquoi": "Lancement nouveau de l'étape FILE-2 (20-11-2026 ; décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52 : le réservoir de 18 places remplace le refus global du relais), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat le 20-11-2026 : 3 s (5 sabotages) ; 4 fois cette durée reste sous 300 s : le plancher de 300 s des lancements nouveaux s'applique. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
   }
  },
  "series_hors_de_la_nuit": {
@@ -283,7 +291,7 @@
     "{copie}",
     "--saboter"
    ],
-   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 1 082 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026)"
+   "pourquoi": "exigée par la consigne de l'étape GHUB ② (15-11-2026) ; nommée « à jouer chez Cowork ou sur GitHub » dans la note echanges/A_RELIRE.md de travail-cert (0827e1c0) ; 1 082 s, la plus longue des 3 dernières nuits de certification sur GitHub, avec la mesure de couverture (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/preuves/V7_GHUB/gain_parallele_et_decoupage.log, 15-11-2026) ; MESURE RÉELLE du circuit des épreuves longues, passage VERT 44837494883 (21-11-2026, pointe 48b13b6ac, « lo » allumée sous « unshare -rn ») : 675 s pour Z0 et les 50 sabotages ; le passage ROUGE 44825730750 (pointe 3d248dc42, « lo » éteinte) avait duré 4 742 s, chaque sabotage refaisant l'échec de N4 ; les deux restent sous les 330 min d'un job (DUREE_D_UNE_EPREUVE_LONGUE)"
   },
   "CircuitPublic": {
    "chemin": "tests/EPREUVES_DU_CIRCUIT_PUBLIC_Jeu_15-10-2026.py",
@@ -551,6 +559,14 @@
     "--jouer"
    ],
    "pourquoi": "décisions de Jean-Luc A-853 (16-11-2026 à 15h18) et A-861 (16-11-2026 à 20h05) : la moulinette des 20 ans s'éprouve sur une fiche d'essai C5 2000-2026 qui ne vit que dans une copie jetable du registre ; programmes/PREPARER_LA_MOULINETTE_D_ESSAI.py prépare la copie du circuit (sans .git) puis, avec --jouer, lance programmes/JOUER_LES_VERSIONS.py sur UNE version (la fiche elle-même) avec --cours= le fichier des 20 ans ; résultats sur la sortie standard, donc au privé seulement (SORTIE.txt, A-835). Durée estimée, non mesurée sur 26 ans : environ 45 s fixes plus environ 13 s par jeu de la fiche, 5 jeux, soit environ 2 min (mesure locale du 16-11-2026 : 1,2 s par version sur 644 séances, × 6864/644 séances) ; 2695 versions en demanderaient environ 574 min, au-delà des 330 d'une machine. ATTENTION, mesuré le 16-11-2026 : sur 2000-2023 le juge refuse la fiche (garde M puis RegardNonInscrit, fenêtre du regard unique) ; l'épreuve rend 1 tant que Jean-Luc n'a pas tranché"
+  },
+  "File": {
+   "chemin": "tests/EPREUVES_DE_LA_FILE_DES_MACHINES_LONGUES_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "étape FILE-2 (20-11-2026) : les quatre propriétés du réservoir de 18 places et de la protection fine qui remplace le refus global du relais (décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52), avec leurs cinq sabotages (SF1 refus global remis, SF2 groupe par branche retiré, SF3 essais de poussée retirés, SF4 21 tâches, SF5 boucle qui sort au premier refus) ; 3 s sur la machine du Chat avec --saboter (20-11-2026) ; à jouer sur GitHub pour la relecture de Cowork"
   }
  }
 }

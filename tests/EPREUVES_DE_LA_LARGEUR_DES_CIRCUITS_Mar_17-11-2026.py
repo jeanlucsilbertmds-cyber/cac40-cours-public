@@ -32,15 +32,16 @@ largeur, qui se lit dans son texte.
   (`ce_que_la_publication_ecrit`), plus, avec --public, les fiches du clone public que le fabricant n'écrit pas ;
   `refus_de_la_largeur` ne rend aucun refus ; le détail du calcul est affiché.
   L1 (l'étalonnage, sur les mêmes fiches) : la largeur calculée vaut 1 pour le circuit du soir et pour le relais,
-  le plus petit de TRANCHES_DE_LA_NUIT et PARTS_EN_MEME_TEMPS pour la certification (A-896 : sa matrice est bornée par
-  « max-parallel » ; 12 tâches simultanées avaient été mesurées par l'étude A-884 sur le passage 44009228039),
-  PARTS_EN_MEME_TEMPS pour les séries et pour les épreuves longues ; toute fiche de la famille « longs » porte
-  GROUPE_DES_MACHINES_LONGUES ; et la lecture du fabricant (groupe, « needs », « max-parallel », tailles de matrice,
-  et depuis A-896 « queue » et « cancel-in-progress » du groupe) est celle de PyYAML, fiche par fiche.
+  PLACES_LONGUES pour la certification, les séries et les épreuves longues, qui sont des fiches du réservoir
+  (étape FILE-2, 20-11-2026 : `largeur_d_une_fiche` rend RESERVOIR_DES_PLACES) ; et la lecture du fabricant (groupe,
+  « needs », « max-parallel », tailles de matrice, depuis A-896 « queue » et « cancel-in-progress » du groupe, depuis
+  FILE-2 le groupe de chaque JOB et sa file) est celle de PyYAML, fiche par fiche.
   L2 (le calculateur, sur des fiches écrites ici, chacune avec sa réponse) : jobs sans lien qui s'additionnent, chaîne
   qui ne s'additionne pas, losange, « needs » en ligne, matrice 2 × 3, « max-parallel » qui borne, matrice calculée par
   GitHub bornée, un faux « jobs: » dans un bloc « run: | » ignoré, groupe en ligne, groupe à « ${{ » rendu absent ; et
-  les refus, chacun pour SA raison : matrice calculée sans borne, « uses: », « concurrency: » de job, « needs » vers un
+  la fiche du réservoir (FILE-2) ; les refus, chacun pour SA raison : matrice calculée sans borne, « uses: »,
+  « concurrency: » de job écrit sur sa ligne, un job sans place dans une fiche à places, une place non bornée, une
+  place sans file, une place qui tue le job en cours, un « concurrency: » de job sans « group: », « needs » vers un
   job absent, cycle, « max-parallel » non entier, « include » en clair, élément de matrice qui n'est pas un scalaire,
   chaîne non fermée, ligne hors du sous-ensemble, valeur continuée, tabulation, aucun job.
   L3 (la propriété, sur des fiches ajoutées aux vraies) : une fiche nouvelle non classée → refus « sans famille » ; une
@@ -49,8 +50,12 @@ largeur, qui se lit dans son texte.
   dépassée » ; deux fiches « longs » d'un même groupe, en file, comptent pour une (L3e ; deux « jamais attendre »
   d'un même groupe sont refusées, voir L3j) ; une famille inconnue → refus. Depuis A-896 (la file unique, `refus_de_la_file`) : deux fiches d'un même groupe dont une sans « queue: max »
   → refus ; une fiche « peut attendre » qui porte le groupe des longs → refus ; une seule tâche de trop (total 21) →
-  refus (D3 de la relecture de A-884) ; le circuit du soir (famille « jamais attendre ») mis dans le groupe des longs →
-  refus, et seul dans son groupe → aucun refus (E1 de la relecture de A-896).
+  refus (D3 de la relecture de A-884) ; une fiche « jamais attendre » dont le job prend une place du réservoir →
+  refus, et le circuit du soir seul dans son groupe → aucun refus (E1 de la relecture de A-896).
+  L7 (le réservoir, étape FILE-2) : la somme vaut 1 + 1 + PLACES_LONGUES, au plus TACHES_EN_MEME_TEMPS_DU_COMPTE, et
+  PLACES_LONGUES = TACHES_EN_MEME_TEMPS_DU_COMPTE − 2 (A-888) ; chaque job des fiches « longs » porte une place
+  bornée (« ${{ s == '18' && '18' || … || '1' }} », une seule source, chaque place de 2 à PLACES_LONGUES une fois) en
+  file. Les sabotages SL18 et SL28 retirent ou dénaturent le groupe de passage par branche (la protection fine).
   L6 (les entrées du bouton, E4 de la relecture de A-896) : chaque fiche fabriquée porte au plus
   ENTREES_DU_BOUTON_AU_PLUS entrées ; celle des séries, exactement len(ENTREES_FIXES_DES_SERIES) + len(ENTREES_PAR_SERIE)
   × le nombre de séries (comptées par PyYAML).
@@ -72,6 +77,7 @@ largeur, qui se lit dans son texte.
 """
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -130,6 +136,12 @@ def fiche(jobs, groupe="g", tete="", file=""):
 
 
 UN = "  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n"
+# étape FILE-2 : un job à sa place, écrit ici sans le fabricant (l'expression bornée recopiée de sa forme documentée)
+_BORNE_I = "${{ " + "".join("inputs.premiere_place == '%d' && '%d' || " % (k, k) for k in range(18, 1, -1)) + "'1' }}"
+_BORNE_M = "${{ " + "".join("matrix.place == '%d' && '%d' || " % (k, k) for k in range(18, 1, -1)) + "'1' }}"
+PLACE_I = UN.replace("    runs-on", "    concurrency:\n      group: place-longue-" + _BORNE_I
+                     + "\n      cancel-in-progress: false\n      queue: max\n    runs-on")
+PLACE_M = "    concurrency:\n      group: place-longue-" + _BORNE_M + "\n      cancel-in-progress: false\n      queue: max\n"
 # L2 : (nom, texte, réponse attendue : (groupe, largeur), ou le fragment du refus)
 CAS_DU_CALCULATEUR = [
     ("L2a deux jobs sans lien s'additionnent", fiche(UN + UN.replace("  a:", "  b:")), ("g", 2)),
@@ -151,7 +163,19 @@ CAS_DU_CALCULATEUR = [
     ("L2j matrice calculée sans borne", fiche("  a:\n    strategy:\n      matrix:\n        include: ${{ fromJSON(x) }}\n"
                                              "    runs-on: ubuntu-latest\n"), "largeur sans borne"),
     ("L2k job qui appelle un circuit", fiche("  a:\n    uses: ./.github/workflows/x.yml\n"), "porte « uses: »"),
-    ("L2l job qui porte son groupe", fiche("  a:\n    concurrency: x\n    runs-on: ubuntu-latest\n"), "porte « concurrency: »"),
+    ("L2l job qui porte son groupe sur sa ligne", fiche("  a:\n    concurrency: x\n    runs-on: ubuntu-latest\n"),
+     "porte « concurrency: » sur sa ligne"),
+    # étape FILE-2 : les fiches du réservoir — chaque job sur une place bornée, en file, sinon refus pour SA raison
+    ("L2w fiche du réservoir", fiche(PLACE_I + UN.replace("  a:", "  b:\n    needs: a").replace("    runs-on", PLACE_M + "    runs-on")),
+     ("place-longue-1…18", 18)),
+    ("L2x un job sans place dans une fiche à places", fiche(PLACE_I + UN.replace("  a:", "  b:")), "sans place dans une fiche à places"),
+    ("L2y une place non bornée", fiche(UN.replace("    runs-on", "    concurrency:\n      group: place-longue-${{ matrix.place }}\n"
+                                                  "      queue: max\n    runs-on")), "groupe de job non reconnu"),
+    ("L2z une place sans file", fiche(PLACE_I.replace("      queue: max\n", "")), "n'est pas une file"),
+    ("L2za une place qui tue le job en cours", fiche(PLACE_I.replace("cancel-in-progress: false", "cancel-in-progress: true")),
+     "n'est pas une file"),
+    ("L2zb concurrency de job sans group", fiche(UN.replace("    runs-on", "    concurrency:\n      queue: max\n    runs-on")),
+     "sans « group: »"),
     ("L2m needs vers un job absent", fiche(UN.replace("  a:", "  a:\n    needs: z")), "absent de la fiche"),
     ("L2n cycle de needs", fiche(UN.replace("  a:", "  a:\n    needs: b") + UN.replace("  a:", "  b:\n    needs: a")), "cycle"),
     ("L2o max-parallel non entier", fiche("  a:\n    strategy:\n      max-parallel: ${{ x }}\n      matrix:\n        y: [1, 2]\n"),
@@ -197,12 +221,42 @@ def tour(racine):
         for l in lignes:
             NOTES.append("L0 " + l)
         faux += ["L0 " + r for r in refus]
+        # ---- L7 (étape FILE-2, 20-11-2026) : LE RÉSERVOIR — la somme des fiches fabriquées vaut le soir (1) + le
+        # relais (1) + PLACES_LONGUES, recalculée ici sans le fabricant, et ne dépasse pas la limite du compte (A-888 :
+        # 2 places toujours libres) ; chaque job des trois circuits longs porte une place BORNÉE — « <préfixe>${{ s ==
+        # '18' && '18' || … || s == '2' && '2' || '1' }} », chaque k de 2 à PLACES_LONGUES une fois, rien d'autre
+        # (SL25 : « s || … » ouvrirait un groupe par valeur reçue), avec « queue: max » (SL26)
+        total = next((int(m.group(1)) for l in lignes for m in [re.search(r"sans attendre : .* = ([0-9]+) \(limite", l)] if m),
+                     None)
+        attendu_t = 1 + 1 + F.PLACES_LONGUES
+        if total != attendu_t or attendu_t > F.TACHES_EN_MEME_TEMPS_DU_COMPTE:
+            faux.append(f"L7 somme des circuits qui n'attendent pas : {total}, attendu {attendu_t} (soir 1 + relais 1 + "
+                        f"{F.PLACES_LONGUES} places), limite {F.TACHES_EN_MEME_TEMPS_DU_COMPTE}")
+        if F.PLACES_LONGUES != F.TACHES_EN_MEME_TEMPS_DU_COMPTE - 2:
+            faux.append(f"L7 {F.PLACES_LONGUES} places longues : A-888 en veut {F.TACHES_EN_MEME_TEMPS_DU_COMPTE - 2} "
+                        "(2 places toujours libres)")
+        borne = (r"\$\{\{ (?:(?P<s>matrix\.place|inputs\.premiere_place|matrix\.tranche) == '(?P<k>[0-9]+)' && '(?P=k)' \|\| )*"
+                 r"'1' \}\}")
+        for nom, texte in sorted(fabriquees.items()):
+            if F.FAMILLES_DES_CIRCUITS_PUBLICS.get(nom) != F.LONGS:
+                continue
+            _, jobs_l, _ = F.structure_d_une_fiche(texte)
+            for j, v in sorted(jobs_l.items()):
+                g = v["groupe"] or ""
+                m = re.fullmatch(re.escape(F.PREFIXE_DES_PLACES) + borne, g)
+                ks = [int(k) for k in re.findall(r" == '([0-9]+)'", g)]
+                sources = set(re.findall(r"(matrix\.place|inputs\.premiere_place|matrix\.tranche) ==", g))
+                if not m or sorted(ks) != list(range(2, F.PLACES_LONGUES + 1)) or len(sources) != 1:
+                    faux.append(f"L7 {nom}, job {j} : place absente ou non bornée aux places 1 à {F.PLACES_LONGUES} : {g[:90]}")
+                if (v["file"] or {}).get("queue") != "max" or (v["file"] or {}).get("cancel-in-progress") == "true":
+                    faux.append(f"L7 {nom}, job {j} : sa place n'est pas une file ({v['file']})")
         # ---- L1 : l'étalonnage
-        # A-896 : la certification est bornée par la file unique, au plus PARTS_EN_MEME_TEMPS tranches ensemble
+        # étape FILE-2 : les trois circuits longs sont des fiches du réservoir, chacune de largeur PLACES_LONGUES (leurs
+        # passages ensemble n'occupent jamais plus de places qu'il n'y en a)
         attendu = {os.path.basename(F.CIRCUIT_PUBLIC): 1, os.path.basename(F.CIRCUIT_RELAIS): 1,
-                   os.path.basename(F.CIRCUIT_CERTIFICATION): min(F.TRANCHES_DE_LA_NUIT, F.PARTS_EN_MEME_TEMPS),
-                   os.path.basename(F.CIRCUIT_SERIES): F.PARTS_EN_MEME_TEMPS,
-                   os.path.basename(F.CIRCUIT_EPREUVES): F.PARTS_EN_MEME_TEMPS}
+                   os.path.basename(F.CIRCUIT_CERTIFICATION): F.PLACES_LONGUES,
+                   os.path.basename(F.CIRCUIT_SERIES): F.PLACES_LONGUES,
+                   os.path.basename(F.CIRCUIT_EPREUVES): F.PLACES_LONGUES}
         if sorted(attendu) != sorted(fabriquees):
             faux.append(f"L1 circuits fabriqués {sorted(fabriquees)} au lieu de {sorted(attendu)}")
         for nom, largeur in attendu.items():
@@ -213,8 +267,8 @@ def tour(racine):
                 continue
             if l != largeur:
                 faux.append(f"L1 {nom} : largeur {l} au lieu de {largeur}")
-            if F.FAMILLES_DES_CIRCUITS_PUBLICS.get(nom) == F.LONGS and g != F.GROUPE_DES_MACHINES_LONGUES:
-                faux.append(f"L1 {nom} : groupe {g} au lieu de {F.GROUPE_DES_MACHINES_LONGUES}")
+            if F.FAMILLES_DES_CIRCUITS_PUBLICS.get(nom) == F.LONGS and g != F.RESERVOIR_DES_PLACES:
+                faux.append(f"L1 {nom} : groupe {g} au lieu de {F.RESERVOIR_DES_PLACES}")
         try:
             import yaml
         except ImportError:
@@ -245,8 +299,14 @@ def tour(racine):
                     tailles = [None]
                 else:
                     tailles = sorted((len(v) if isinstance(v, list) else None for v in matrice.values()), key=str)
+                cj = corps.get("concurrency")
                 jy[j] = {"needs": [besoins] if isinstance(besoins, str) else list(besoins),
-                         "max_parallel": strategie.get("max-parallel"), "matrice": tailles}
+                         "max_parallel": strategie.get("max-parallel"), "matrice": tailles,
+                         # étape FILE-2 : le groupe de job et sa file, comparés à PyYAML
+                         "groupe": (cj.get("group") if isinstance(cj, dict) else cj),
+                         "file": None if not isinstance(cj, dict) else
+                         {k: (None if k not in cj else str(cj[k]).lower() if isinstance(cj[k], bool) else str(cj[k]))
+                          for k in ("queue", "cancel-in-progress")}}
             jf = {j: dict(v, matrice=None if v["matrice"] is None else sorted(v["matrice"], key=str)) for j, v in jobs.items()}
             if (groupe, jf) != (gy, jy):
                 faux.append(f"L1 {nom} : lecture du fabricant {groupe, jf} ≠ PyYAML {gy, jy}")
@@ -285,6 +345,7 @@ def tour(racine):
                                                     "jamais_meme_groupe_1.yml": F.LONGS,
                                                     "jamais_meme_groupe_2.yml": F.LONGS,
                                                     "jamais_21.yml": F.JAMAIS_ATTENDRE,
+                                                    "jamais_dans_les_places.yml": F.JAMAIS_ATTENDRE,
                                                     "peut_attendre_dans_la_file.yml": F.PEUT_ATTENDRE,
                                                     "famille_inconnue.yml": "plus tard"})
             soir_texte = fabriquees[os.path.basename(F.CIRCUIT_PUBLIC)]
@@ -299,20 +360,20 @@ def tour(racine):
                     ("L3c peut attendre de 50 tâches", {"peut_attendre.yml": cent}, None),
                     ("L3d jamais attendre de 3 tâches", {"jamais_large.yml": large}, "largeur du compte dépassée"),
                     # deux fiches d'une tâche dans le groupe des longs, en file : le groupe compte pour sa plus large (18)
-                    ("L3e deux fiches d'un même groupe, en file", {"jamais_meme_groupe_1.yml": fiche(UN, groupe=F.GROUPE_DES_MACHINES_LONGUES, file="  queue: max\n"),
-                                                                   "jamais_meme_groupe_2.yml": fiche(UN, groupe=F.GROUPE_DES_MACHINES_LONGUES, file="  queue: max\n")}, None),
+                    ("L3e deux fiches d'un même groupe, en file", {"jamais_meme_groupe_1.yml": fiche(PLACE_I, groupe="longs-commun", file="  queue: max\n"),
+                                                                   "jamais_meme_groupe_2.yml": fiche(PLACE_I, groupe="longs-commun", file="  queue: max\n")}, None),
                     # A-896 : un groupe partagé sans file perd une demande en attente (essai réel du 18-11-2026)
                     ("L3g deux fiches d'un même groupe, sans file", {"jamais_meme_groupe_1.yml": fiche(UN, groupe="commun"),
                                                                      "jamais_meme_groupe_2.yml": fiche(UN, groupe="commun", file="  queue: max\n")},
                      "jamais_meme_groupe_1.yml : groupe « commun » partagé par 2 fiches sans « queue: max »"),
-                    ("L3h peut attendre dans le groupe des longs", {"peut_attendre_dans_la_file.yml": fiche(UN, groupe=F.GROUPE_DES_MACHINES_LONGUES, file="  queue: max\n")},
+                    ("L3h peut attendre dans le réservoir des longs", {"peut_attendre_dans_la_file.yml": fiche(PLACE_I, groupe=None)},
                      "peut_attendre_dans_la_file.yml : classée « peut attendre » mais porte le groupe compté"),
                     # E1 de la relecture de A-896 (superviseur R-759 du 18-11-2026) : la famille « jamais attendre », jamais
                     # un nom ; le vrai circuit du soir mis dans la file des longs → refus ; le soir seul dans son groupe → vert
                     ("L3j jamais attendre dans la file des longs",
-                     {os.path.basename(F.CIRCUIT_PUBLIC): soir_texte.replace("concurrency:\n  group: circuit-du-soir\n",
-                                                                             f"concurrency:\n  group: {F.GROUPE_DES_MACHINES_LONGUES}\n  queue: max\n", 1)},
-                     f"{os.path.basename(F.CIRCUIT_PUBLIC)} : classée « {F.JAMAIS_ATTENDRE} » mais partage son groupe"),
+                     # étape FILE-2 : une fiche « jamais attendre » dont les jobs prennent une place du réservoir
+                     {"jamais_dans_les_places.yml": fiche(PLACE_I, groupe=None)},
+                     f"jamais_dans_les_places.yml : classée « {F.JAMAIS_ATTENDRE} » mais partage son groupe"),
                     ("L3k jamais attendre seul dans son groupe", {}, None),
                     # D3 de la relecture de A-884 : la frontière exacte, un de trop (largeur du soir 1, du relais 1 : 21)
                     ("L3i une tâche de trop, exactement", {"jamais_21.yml": fiche(UN, groupe="vingt_et_un")}, "largeur du compte dépassée"),
@@ -363,8 +424,8 @@ def tour(racine):
 
 SABOTAGES = {
     # la cible (18, décision de Jean-Luc A-888) peut changer : le sabotage la remplace sans lire sa valeur (19 = la limite moins un)
-    "SL1_largeur_cible_19": [(FABRICANT, "\nPARTS_EN_MEME_TEMPS = ",
-                              "\nPARTS_EN_MEME_TEMPS = TACHES_EN_MEME_TEMPS_DU_COMPTE - 1  # ")],
+    "SL1_largeur_cible_19": [(FABRICANT, "\nLARGEUR_DES_CIRCUITS_LONGS = ",
+                              "\nLARGEUR_DES_CIRCUITS_LONGS = TACHES_EN_MEME_TEMPS_DU_COMPTE - 1  # ")],
     "SL2_relais_elargi_a_3": [(FABRICANT, "  relayer:\n    runs-on: ubuntu-latest\n",
                                "  relayer:\n    strategy:\n      matrix:\n        n: [1, 2, 3]\n    runs-on: ubuntu-latest\n")],
     "SL3_non_classee_toleree": [(FABRICANT, "        if famille is None:\n            refus.append(",
@@ -388,15 +449,25 @@ SABOTAGES = {
                                      "            pass\n        pile.append((colonne, cle))")],
     "SL13_rassembler_sans_borne": [(FABRICANT, "      max-parallel: %(series_au_plus)d\n", "")],
     # A-896, la file unique : la certification dans son ancien groupe (15 + 18 + 1 + 1 > 20)
-    "SL14_certification_hors_de_la_file": [(FABRICANT, '    "groupe": GROUPE_DES_MACHINES_LONGUES, "en_meme_temps": PARTS_EN_MEME_TEMPS,\n',
-                                            '    "groupe": "certifier-la-version", "en_meme_temps": PARTS_EN_MEME_TEMPS,\n')],
+    # étape FILE-2 : la tranche de la certification hors du réservoir (sa place retirée) : la fiche n'est plus bornée
+    "SL14_certification_hors_de_la_file": [(FABRICANT, '%(place_de_la_tranche)s    # 330 minutes PAR TRANCHE', '    # 330 minutes PAR TRANCHE')],
     # « queue: max » retiré de la certification : le groupe partagé n'est plus une file
     "SL15_certification_sans_queue_max": [(FABRICANT, "  queue: max\npermissions:\n  contents: read\njobs:\n  preparer:\n    # LE COMMIT DE LA NUIT",
                                            "permissions:\n  contents: read\njobs:\n  preparer:\n    # LE COMMIT DE LA NUIT")],
     # le contrôle de la file neutralisé
     "SL16_file_non_controlee": [(FABRICANT, "            if file[\"queue\"] != \"max\":\n", "            if False:\n")],
     # la porte des « peut attendre » dans un groupe compté retirée
-    "SL17_peut_attendre_dans_la_file_admis": [(FABRICANT, "        if groupe in groupes_comptes:\n", "        if False:\n")],
+    "SL17_peut_attendre_dans_la_file_admis": [(FABRICANT, "        if set(groupes_reels(groupe)) & groupes_comptes:\n",
+                                               "        if False:\n")],
+    # étape FILE-2 (20-11-2026) : le réservoir — compté pour UNE place (la somme oublierait les 17 autres) ; une place
+    # non bornée (« ${{ s || … »), une place sans file, 19 places (A-888 en veut 18)
+    "SL23_places_comptees_une_fois": [(FABRICANT, "    return NOMS_DES_PLACES if groupe == RESERVOIR_DES_PLACES else (groupe,)",
+                                       "    return NOMS_DES_PLACES[:1] if groupe == RESERVOIR_DES_PLACES else (groupe,)")],
+    "SL25_place_non_bornee": [(FABRICANT, '''    return "${{ " + "".join("%s == '%d' && '%d' || " % (source, k, k)''',
+                               '''    return "${{ " + source + " || " + "".join("%s == '%d' && '%d' || " % (source, k, k)''')],
+    "SL26_place_sans_file": [(FABRICANT, '''            + "\\n      cancel-in-progress: false\\n      queue: max\\n")''',
+                              '''            + "\\n      cancel-in-progress: false\\n")''')],
+    "SL27_dix_neuf_places": [(FABRICANT, "\nPLACES_LONGUES = LARGEUR_DES_CIRCUITS_LONGS\n", "\nPLACES_LONGUES = LARGEUR_DES_CIRCUITS_LONGS + 1\n")],
     # E1 : le refus du partage de groupe d'un « jamais attendre » neutralisé
     "SL19_jamais_attendre_partage_admis": [(FABRICANT, "        if autres:\n", "        if False:\n")],
     # E4 : une entrée du bouton des séries écrite à la main, hors des tuples qui le comptent
@@ -406,13 +477,13 @@ SABOTAGES = {
     # fixes, et onze entrées fixes de plus DANS le tuple (le compte du tuple reste juste) : 14 + 2 × 6 = 26 > 25
     "SL21_bouton_au_dela_de_la_limite": [(FABRICANT, "SERIES_AU_PLUS = (ENTREES_DU_BOUTON_AU_PLUS - len(ENTREES_FIXES_DES_SERIES))",
                                           "SERIES_AU_PLUS = (ENTREES_DU_BOUTON_AU_PLUS - 0)"),
-                                         (FABRICANT, '        default: "%(toutes)s"\n"""))\n',
-                                          '        default: "%(toutes)s"\n""")) + tuple(("x%d" % i, "        type: string\\n") for i in range(11))\n')],
-    # la certification sans « max-parallel » : 15 ≤ 18 n'est vrai que tant que TRANCHES_DE_LA_NUIT ≤ 18 ; à 20 tranches,
-    # elle prendrait les places du soir
-    "SL18_certification_sans_borne_a_20": [(FABRICANT, "      max-parallel: %(en_meme_temps)d\n      matrix:\n        tranche:\n",
-                                            "      matrix:\n        tranche:\n"),
-                                           (FABRICANT, "\nTRANCHES_DE_LA_NUIT = ", "\nTRANCHES_DE_LA_NUIT = 20  # ")],
+                                         (FABRICANT, '    ("nombre_de_places", CORPS_DE_L_ENTREE_NOMBRE_DE_PLACES))\n',
+                                          '    ("nombre_de_places", CORPS_DE_L_ENTREE_NOMBRE_DE_PLACES)) + tuple(("x%d" % i, "        type: string\\n") for i in range(11))\n')],
+    # étape FILE-2 : la protection fine — le groupe de passage des épreuves retiré (deux passages d'une même branche
+    # tourneraient ensemble), nommé par le passage au lieu de la branche (aucune protection), ou sans file
+    "SL18_epreuves_sans_groupe_de_passage": [(FABRICANT, '"groupe": GROUPE_DES_EPREUVES,', '"groupe": "",')],
+    "SL28_groupe_par_passage": [(FABRICANT, 'GROUPE_DES_EPREUVES = "epreuves-longues-${{ github.ref_name }}"',
+                                 'GROUPE_DES_EPREUVES = "epreuves-longues-${{ github.run_id }}"')],
 }
 
 
@@ -427,7 +498,7 @@ def main():
     ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     faux = tour(DEPOT)
-    print("Z0 programmes tels quels : " + ("L0 à L6 conformes" if not faux else "FAUX " + " | ".join(faux)))
+    print("Z0 programmes tels quels : " + ("L0 à L7 conformes" if not faux else "FAUX " + " | ".join(faux)))
     for n in dict.fromkeys(NOTES):
         print("NOTE " + n)
     code = 1 if faux else 0
