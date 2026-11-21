@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=EcartDeGain,Calibrage
+pointe=eedf452ac447707ea3ab08489f2cacc23850fb1d
