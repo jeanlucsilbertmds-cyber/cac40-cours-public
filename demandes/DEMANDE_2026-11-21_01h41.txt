@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=ProprietesBout,ProprietesBoutSabot,JugeLecteur
+pointe=694fbc0fa4979501f068bad69392a89296be4b8c
