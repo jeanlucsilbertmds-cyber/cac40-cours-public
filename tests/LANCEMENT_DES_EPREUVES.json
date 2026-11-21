@@ -486,7 +486,7 @@
     "{copie}",
     "--saboter"
    ],
-   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat) : faux dépôt git et faux gh dans un dossier temporaire, cas réels travail-contrat-6, travail-proprietes-7, journal du passage 44846586835 (largeur imprimée par le fabricant) et passages en parallèle du 21-11-2026 à 01h41 (places 1+3, 4+3, 7+2) ; quatorze sabotages S1 à S14 (dont S12 à S14 : places, groupe partagé, journal), de 6 à 12 s chacun mesurés le 21-11-2026 sur une machine chargée, soit environ 1 min 40 s ; option --seuls= pour un essai court"
+   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat) : faux dépôt git et faux gh dans un dossier temporaire, cas réels travail-contrat-6, travail-proprietes-7, journal du passage 44846586835 (largeur imprimée par le fabricant) et passages en parallèle du 21-11-2026 à 01h41 (places 1+3, 4+3, 7+2) ; vingt sabotages S1 à S20 (S15 à S20 : tour 4, RELU Cowork de 02h15, L1 à L4), de 6 à 12 s chacun mesurés le 21-11-2026 sur une machine chargée ; 14 sabotages ont pris 45 s sur GitHub (passage 44847878901), 20 en prendraient environ 65 s ; option --seuls= pour un essai court"
   },
   "Comptabilites": {
    "chemin": "tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py",

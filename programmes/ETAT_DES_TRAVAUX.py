@@ -60,7 +60,11 @@ JOURNAUX = "rapports/journal_du_circuit/"
 # relevée au journal du 21-11-2026 (passage 44846586835).
 MOTIF_LARGEUR = re.compile(r"(?m)^largeur : (\S+\.ya?ml) : famille (.+?) · groupe (.+?) · largeur (\d+)\s*$")
 # Le titre qu'un passage des circuits longs porte depuis l'étape FILE-2 : « … places <première>+<nombre> ».
-MOTIF_PLACES = re.compile(r"places (\d+)\+(\d+)")
+# La ligne de TOTAL que le fabricant imprime après les lignes par fiche : la largeur de CHAQUE GROUPE compté
+# (« … : circuit-du-soir 1 + demande-de-serie 1 + series-longues 18 = 20 (limite du compte : 20) »).
+MOTIF_TOTAL = re.compile(r"(?m)^largeur : circuits qui peuvent tourner ensemble sans attendre : (.+?) = (\d+)\b")
+# Ancré en fin de titre, comme le relais du fabricant le lit (RELU Cowork L3 du 21-11-2026, 02h15).
+MOTIF_PLACES = re.compile(r" places (\d+)\+(\d+)$")
 JOURNAUX_LUS_AU_PLUS = 50
 NOTE, RELU = "echanges/A_RELIRE.md", "echanges/RELU.md"
 ETATS = ("ÉCRITURE", "À ÉPROUVER", "EN ÉPREUVE", "ÉPREUVE ROUGE", "À RELIRE", "DÉPLOYABLE", "INSTALLÉE")
@@ -174,39 +178,57 @@ def largeur_publiee(depot):
     ③ ENTRÉE — `depot` : le clone.
     ④ CONDITIONS D'ENTRÉE — origin/main porte des journaux du circuit public (rapports/journal_du_circuit/) dont l'un
       au moins contient les lignes « largeur : … » imprimées par le fabricant.
-    ⑤ SORTIE — UNE valeur : un dict {largeur, groupe, fiches_longues, journal}.
+    ⑤ SORTIE — UNE valeur : un dict {largeur, groupe, fiches_longues, largeurs_par_fiche, journal}.
       [rend: 1]
     ⑥ TRAITEMENT — Remonter les commits de origin/main qui touchent les journaux (au plus JOURNAUX_LUS_AU_PLUS) ; dans
       le premier qui porte des lignes MOTIF_LARGEUR, regrouper les fiches par groupe ; les circuits longs sont LE
-      groupe que PLUSIEURS fiches partagent (propriété : ils se partagent les places) ; sa largeur est celle que le
-      fabricant a imprimée. Aucun groupe partagé, ou plusieurs, ou des largeurs différentes dans le groupe : Impossible.
+      groupe que PLUSIEURS fiches partagent (propriété : ils se partagent les places) ; sa largeur est celle que la
+      LIGNE DE TOTAL (MOTIF_TOTAL) donne pour ce groupe — le fabricant y compte chaque groupe pour la plus large de
+      ses fiches. Refus (Impossible) : aucun groupe partagé · plusieurs groupes partagés · groupe absent de la ligne
+      de total.
     ⑦ UNITÉ — Des fils (jobs GitHub simultanés).
     ⑧ POURQUOI — R-708. Le 21-11-2026 à 01h41, l'installation de travail-file-2 a supprimé GROUPE_DES_MACHINES_LONGUES
       et fait de PARTS_EN_MEME_TEMPS une expression : la lecture par noms de constantes du tour 2 a rendu « fabricant
       illisible » (passage 44845541079). Ce que le fabricant imprime survit à un renommage interne.
     ⑨ CE QUI CLOCHE — La largeur est celle de la DERNIÈRE PUBLICATION journalisée, pas celle du code de main tant
-      qu'aucun passage n'a publié. Un changement du texte de la ligne imprimée rend Impossible (voulu, R-734).
+      qu'aucun passage n'a publié. Un changement du texte des lignes imprimées rend Impossible (voulu, R-734).
+      Tour 4 (RELU Cowork L1, 21-11-2026, 02h15) : les fiches d'un même groupe n'impriment PAS toutes la même
+      largeur — journal réel 508221965 (20-11-2026, 23h03 UTC) : certifier_la_version.yml 15, les deux autres 18,
+      groupe series-longues compté 18 au total ; l'égalité exigée au tour 3 rendait Impossible sur tout journal
+      d'avant le 21-11-2026 à 01h52.
     ⑩ EFFET — Lance git.
     ⑪ TERMINAISON — Rend la main ou lève Impossible.
       [sort: non]
     """
     commits = git(depot, "log", f"-{JOURNAUX_LUS_AU_PLUS}", "--format=%H", "origin/main", "--", JOURNAUX).split()
     for c in commits:
-        lignes = []
+        lignes, totaux = [], []
         for f in git(depot, "show", "--name-only", "--format=", c).splitlines():
             if f.startswith(JOURNAUX) and f.endswith(".log"):
-                lignes += MOTIF_LARGEUR.findall(git(depot, "show", f"{c}:{f}"))
+                texte = git(depot, "show", f"{c}:{f}")
+                lignes += MOTIF_LARGEUR.findall(texte)
+                totaux += MOTIF_TOTAL.findall(texte)
         if not lignes:
             continue
         par_groupe = {}
         for fiche, _famille, groupe, largeur in lignes:
             par_groupe.setdefault(groupe, {})[fiche] = int(largeur)
         partages = {g: f for g, f in par_groupe.items() if len(f) >= 2}
-        if len(partages) != 1 or len(set(next(iter(partages.values())).values())) != 1:
-            raise Impossible(f"journal {c[:9]} : groupes partagés illisibles {sorted(partages)}")
+        if not partages:
+            raise Impossible(f"journal {c[:9]} : aucun groupe partagé par plusieurs fiches")
+        if len(partages) > 1:
+            raise Impossible(f"journal {c[:9]} : plusieurs groupes partagés {sorted(partages)}")
         groupe, fiches = next(iter(partages.items()))
-        return {"largeur": next(iter(fiches.values())), "groupe": groupe, "fiches_longues": sorted(fiches),
-                "journal": c}
+        largeur_du_groupe = None
+        for detail, _somme in totaux:
+            for morceau in detail.split(" + "):
+                nom, _, n = morceau.strip().rpartition(" ")
+                if nom == groupe and n.isdigit():
+                    largeur_du_groupe = int(n)
+        if largeur_du_groupe is None:
+            raise Impossible(f"journal {c[:9]} : la ligne de total ne donne pas la largeur du groupe « {groupe} »")
+        return {"largeur": largeur_du_groupe, "groupe": groupe, "fiches_longues": sorted(fiches),
+                "largeurs_par_fiche": fiches, "journal": c}
     raise Impossible(f"aucune ligne « largeur : » dans les {len(commits)} derniers journaux de origin/main")
 
 
@@ -299,20 +321,26 @@ def verdict_du_relu(relu):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le texte du verdict, ou "" s'il n'y en a pas.
       [rend: 1]
-    ⑥ TRAITEMENT — Première ligne qui OUVRE par « VERDICT » (précédé ou non de « # » et de « ** ») suivi de « : »
-      ou de la fin de ligne ; le texte après « : », ou, s'il n'y en a pas, la première ligne non vide qui suit.
+    ⑥ TRAITEMENT — Hors des blocs de code (entre deux lignes « ``` »), première ligne qui OUVRE par « VERDICT »
+      (précédé ou non de « # », d'un numéro et de « ** ») suivi de « : » ou de la fin de ligne ; le texte après « : »,
+      ou, s'il n'y en a pas, la première ligne non vide qui suit.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Relevé du 20-11-2026 sur les RELU des branches travail-* : 10 écrivent « ## VERDICT » seul, le
       verdict à la ligne suivante ; celui de travail-file-2 écrit « VERDICT : À REPRENDRE » sans « ## » ; travail-e3b
       « ## 0 · VERDICT : … » ; travail-e4 et travail-livrer « ## VERDICT EN UNE LIGNE », le verdict dessous.
+      Les blocs de code sont sautés (RELU Cowork L4, 21-11-2026, 02h15) : un RELU qui CITE « VERDICT : DÉPLOYABLE »
+      d'un ancien RELU avant son propre verdict était rangé à installer.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    lignes = relu.splitlines()
+    lignes, dans_un_bloc = relu.splitlines(), False
     for i, ligne in enumerate(lignes):
-        if MOTIF_VERDICT.match(ligne):
+        if ligne.lstrip().startswith("```"):
+            dans_un_bloc = not dans_un_bloc
+            continue
+        if not dans_un_bloc and MOTIF_VERDICT.match(ligne):
             reste = ligne.split(":", 1)[1].strip() if ":" in ligne else ""
             if reste:
                 return reste
@@ -423,8 +451,10 @@ def passages_github(gh, public, fiches_longues):
     ⑤ SORTIE — DEUX valeurs : la liste des passages vivants (dicts : passage, circuit, branche, statut, places) · le
       nombre de places occupées (« épreuves en cours »).
       [rend: 2]
-    ⑥ TRAITEMENT — « gh run list --limit 100 » ; vivant = statut autre que « completed » ; un passage vivant dont le
-      titre porte « places p+n » occupe n places (le nouveau relais les a réservées) ; un passage vivant d'une fiche
+    ⑥ TRAITEMENT — « gh run list --limit 100 » ; vivant = statut autre que « completed » ; un passage vivant d'une
+      FICHE LONGUE dont le titre FINIT par « places p+n » occupe n places (le nouveau relais les a réservées ; même
+      lecture que le relais du fabricant : circuits longs seulement, motif ancré — RELU Cowork L3) ; un autre passage
+      vivant n'occupe aucune place ; un passage vivant d'une fiche
       longue sans ce titre (circuit d'avant FILE-2, ou lancé à la main) occupe ses jobs non finis
       (« gh run view --json jobs ») ; la fiche d'un passage se lit par « gh workflow list » (nom → chemin).
     ⑦ UNITÉ — Des places (une place = une machine).
@@ -447,7 +477,7 @@ def passages_github(gh, public, fiches_longues):
     for p in passages:
         if p.get("status") == "completed":
             continue
-        m = MOTIF_PLACES.search(p.get("displayTitle") or "")
+        m = MOTIF_PLACES.search(p.get("displayTitle") or "") if p.get("workflowName") in longs else None
         if m:
             places = int(m.group(2))
         elif p.get("workflowName") in longs:

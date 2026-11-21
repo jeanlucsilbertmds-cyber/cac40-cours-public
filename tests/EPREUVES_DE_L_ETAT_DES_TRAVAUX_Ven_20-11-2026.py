@@ -17,7 +17,8 @@ et que programmes/ALARME_DES_MACHINES_OISIVES.py sonne quand des machines sont o
 ⑥ TRAITEMENT — Fabriquer le faux dépôt (origin/main porte un journal où le fabricant a imprimé la largeur, au format
   réel de main) ; jouer les cas ; avec --saboter, copier les deux programmes, poser un sabotage, rejouer.
 ⑦ UNITÉ — Secondes Unix pour les dates fabriquées (heure de Paris du 20-11-2026, UTC+1).
-⑧ POURQUOI — Tour 3 (21-11-2026) : la largeur se lit dans les lignes que le fabricant imprime (cas réel du passage
+⑧ POURQUOI — Tour 4 (21-11-2026, RELU Cowork de 02h15) : L1 (journal réel 508221965), L2 (les trois refus de la
+  largeur, chacun son cas), L3, L4 ; sabotages S15 à S20. Tour 3 (21-11-2026) : la largeur se lit dans les lignes que le fabricant imprime (cas réel du passage
   44846586835) et les places occupées dans les titres « places p+n » (cas réel de 01h41) ; sabotages S2, S12, S13,
   S14. Réparations du RELU de Cowork du 20-11-2026 à 22h25 (B1, I1, I2, I3, m1, m2), chacune avec son cas et
   son sabotage (S5 à S11). R-731 et R-732 : au moins un cas vient d'une vraie situation — travail-contrat-6 (vert au passage
@@ -44,6 +45,15 @@ largeur : demande_de_serie.yml : famille jamais attendre · groupe demande-de-se
 largeur : epreuves_longues.yml : famille longs · groupe place-longue-1…18 · largeur 18
 largeur : series_longues.yml : famille longs · groupe place-longue-1…18 · largeur 18
 largeur : circuits qui peuvent tourner ensemble sans attendre : circuit-du-soir 1 + demande-de-serie 1 + place-longue-1…18 18 = 20 (limite du compte : 20)
+"""
+# LES LIGNES DU JOURNAL RÉEL 508221965 (passage 44833839903, 20-11-2026 à 23h03 UTC, AVANT le réservoir) : les fiches
+# d'un même groupe n'y impriment PAS la même largeur (certification 15, les deux autres 18) — RELU Cowork L1.
+JOURNAL_ANCIEN = """largeur : certifier_la_version.yml : famille longs · groupe series-longues · largeur 15
+largeur : circuit_du_soir.yml : famille jamais attendre · groupe circuit-du-soir · largeur 1
+largeur : demande_de_serie.yml : famille jamais attendre · groupe demande-de-serie · largeur 1
+largeur : epreuves_longues.yml : famille longs · groupe series-longues · largeur 18
+largeur : series_longues.yml : famille longs · groupe series-longues · largeur 18
+largeur : circuits qui peuvent tourner ensemble sans attendre : circuit-du-soir 1 + demande-de-serie 1 + series-longues 18 = 20 (limite du compte : 20)
 """
 FICHES_REELLES = [{"name": "Certifier la version", "path": ".github/workflows/certifier_la_version.yml"},
                   {"name": "Circuit du soir", "path": ".github/workflows/circuit_du_soir.yml"},
@@ -241,6 +251,21 @@ def fabriquer(racine, tmp, installe):
     return d.d, {"p6": p6, "t6": t6}
 
 
+def largeur_sur(E, tmp, journal):
+    """Rend ce que `largeur_publiee` lit sur un dépôt dont main ne porte que ce journal, ou « Impossible : … ».
+
+    ① à ⑪ : voir `fabriquer` ; rend UNE valeur.
+    """
+    d = Depot(os.path.join(tmp, "journal_%d" % len(os.listdir(tmp))))
+    d.branche("main", d.commit(None, {"rapports/journal_du_circuit/circuit_1_1_x.log": journal}, heure(18, 0)))
+    try:
+        return E.largeur_publiee(d.d)
+    except E.Impossible as e:
+        return "Impossible : " + str(e)
+    except Exception as e:  # une autre exception n'est PAS le refus annoncé : le cas doit rougir, pas lever
+        return f"exception {type(e).__name__} (pas Impossible)"
+
+
 def charger(dossier):
     """Importe les deux programmes depuis `dossier` ; rend (E, A). ① à ⑪ : voir `fabriquer`."""
     sys.path.insert(0, dossier)
@@ -354,6 +379,29 @@ def jouer(racine, dossier_programmes, tmp):
         rendu = "Impossible"
     voir("P3 aucun journal imprimé par le fabricant → Impossible (R-734)", rendu == "Impossible", rendu)
 
+    lu = largeur_sur(E, tmp, JOURNAL_ANCIEN)
+    voir("L1 journal réel 508221965 (certification 15, autres 18) → largeur 18 du groupe series-longues, 3 fiches",
+         isinstance(lu, dict) and lu["largeur"] == 18 and lu["groupe"] == "series-longues"
+         and len(lu["fiches_longues"]) == 3 and lu["largeurs_par_fiche"]["certifier_la_version.yml"] == 15, lu)
+    deux = JOURNAL_ANCIEN + "largeur : a.yml : famille longs · groupe autre · largeur 2\n" \
+                            "largeur : b.yml : famille longs · groupe autre · largeur 2\n"
+    lu = largeur_sur(E, tmp, deux)
+    voir("L2a deux groupes partagés → Impossible « plusieurs »", isinstance(lu, str) and "plusieurs" in lu, lu)
+    lu = largeur_sur(E, tmp, "".join(l + "\n" for l in JOURNAL_ANCIEN.splitlines() if "ensemble" not in l))
+    voir("L2b ligne de total absente → Impossible", isinstance(lu, str) and "ligne de total" in lu, lu)
+    seuls = "largeur : a.yml : famille longs · groupe g1 · largeur 3\nlargeur : b.yml : famille longs · groupe g2 · largeur 3\n"
+    lu = largeur_sur(E, tmp, seuls)
+    voir("L2c aucun groupe partagé → Impossible « aucun »", isinstance(lu, str) and "aucun groupe" in lu, lu)
+    autres = [{"databaseId": 1, "workflowName": "Demande de serie (relais)", "status": "in_progress",
+               "headBranch": "x", "createdAt": "", "displayTitle": "demande : on parle de places 1+3"},
+              {"databaseId": 2, "workflowName": "Circuit du soir", "status": "in_progress",
+               "headBranch": "main", "createdAt": "", "displayTitle": "Circuit du soir places 1+40"}]
+    etat = E.etat_des_travaux(avant, faux_gh(ghd, autres, {}), "x/y", fetch=False)
+    voir("L3 « places p+n » hors des circuits longs → aucune place prise", etat["fils"]["epreuves_en_cours"] == 0,
+         etat["fils"])
+    voir("L4 un verdict cité dans un bloc de code n'est pas le verdict",
+         E.verdict_du_relu("```\nVERDICT : DÉPLOYABLE\n```\n## VERDICT : À REPRENDRE\n") == "À REPRENDRE")
+
     etat = E.etat_des_travaux(avant, gh_plein, "x/y", fetch=False)
     code, phrases = A.alarmes(etat, 30, heure(22, 0))
     voir("F1 18 épreuves en cours → 0 fil libre", etat["fils"]["libres"] == 0, etat["fils"])
@@ -440,6 +488,15 @@ SABOTAGES = [
      "if len(f) >= 2}", "if len(f) >= 1}"),
     ("S14 le journal ignoré : la largeur n'est plus lue", "ETAT_DES_TRAVAUX.py",
      "        if not lignes:\n            continue\n", "        if True:\n            continue\n"),
+    ("S15 (L1) la largeur prise sur une fiche, pas sur la ligne de total", "ETAT_DES_TRAVAUX.py",
+     '"largeur": largeur_du_groupe,', '"largeur": min(fiches.values()),'),
+    ("S16 (L2) deux groupes partagés acceptés", "ETAT_DES_TRAVAUX.py", "if len(partages) > 1:", "if False:"),
+    ("S17 (L2) aucun groupe partagé accepté", "ETAT_DES_TRAVAUX.py", "if not partages:", "if False:"),
+    ("S18 (L2) groupe absent de la ligne de total accepté", "ETAT_DES_TRAVAUX.py",
+     "if largeur_du_groupe is None:", "if False:"),
+    ("S19 (L3) le titre lu pour tout passage", "ETAT_DES_TRAVAUX.py",
+     'if p.get("workflowName") in longs else None', "if True else None"),
+    ("S20 (L4) les blocs de code lus", "ETAT_DES_TRAVAUX.py", 'if ligne.lstrip().startswith("```"):', "if False:"),
     ("S11 (m2) « **DÉPLOYABLE.** » refusé", "ETAT_DES_TRAVAUX.py",
      '    if reste.startswith("."):\n        return True\n', "    if False:\n        return True\n"),
 ]
