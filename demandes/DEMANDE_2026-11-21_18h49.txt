@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=LivrerSabots,CircuitPublic,Relais,CircuitSeries,Certification,MessageDuSoir
+pointe=13988dfbddb8e85277f890ce370ec5360f88b4fe
