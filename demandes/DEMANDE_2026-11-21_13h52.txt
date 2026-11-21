@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=NuitDecoupee,Certification,Relais,File,LectureCours
+pointe=f79a3797660885ccdd00361d7067a40c61240a94
