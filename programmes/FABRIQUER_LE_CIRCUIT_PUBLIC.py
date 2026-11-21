@@ -864,6 +864,7 @@ ENTREES_DES_PLACES = ("      premiere_place:\n" + CORPS_DE_L_ENTREE_PREMIERE_PLA
                       + "      nombre_de_places:\n" + CORPS_DE_L_ENTREE_NOMBRE_DE_PLACES)
 TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inputs.premiere_place, "
                     "inputs.nombre_de_places) || '' }}")
+# (HISTOIRE, garde la trace du choix précédent ; remplacé le 21-11-2026 par le bloc « 18 TRANCHES » juste au-dessous.)
 # 15 TRANCHES ET UNE FILE UNIQUE (A-896, décision de Jean-Luc du 18-11-2026 à 12h25, « si c'est la meilleure solution
 # possible, la plus optimum, ben à ce moment-là, prends le 1, la file unique », pour l'option « Une file unique : 18
 # places au maximum et 2 laissées libres, 15 tranches, après un essai de 10 min de queue: max »). Pourquoi 15 : la mesure
@@ -878,7 +879,73 @@ TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inpu
 # 44295116680, 44295145189, 44295170760 contre 44295116696, 44295145099, 44295170796) : trois poussées en 20 s ; avec
 # « queue: max », trois passages réussis l'un après l'autre, dans l'ordre, ceux en attente sans aucune tâche (aucune
 # place prise) ; sans elle, le deuxième « cancelled ».
-TRANCHES_DE_LA_NUIT = 15
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# 18 TRANCHES, UNE ÉPREUVE DÉCOUPÉE — CE QUI A ÉTÉ DÉCIDÉ, POURQUOI, SES LIMITES, COMMENT LE REMETTRE EN CAUSE
+# (A-961 au BACKLOG ; texte écrit pour être lu seul, dans six mois, sans rien chercher ailleurs)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# À QUOI SERT CE NOMBRE. Chaque nuit, GitHub rejoue TOUTES les épreuves du dépôt pour « certifier » la version (dire
+# qu'aucune n'a reculé). Joué d'un seul tenant, ce travail dépasse les 6 heures qu'une machine de GitHub accorde. On le
+# coupe donc en TRANCHES : chaque tranche est une machine à part, qui joue sa part des épreuves en même temps que les
+# autres ; une tâche finale réunit les résultats et rougit s'il en manque un (décision de Jean-Luc du 30-10-2026).
+# TRANCHES_DE_LA_NUIT est le nombre de ces machines.
+#
+# POURQUOI 20. GitHub, sur un compte gratuit, ne fait jamais tourner plus de 20 tâches à la fois pour tout le compte
+# (« 20 total concurrent jobs », documentation de GitHub lue le 15-11-2026). C'est TACHES_EN_MEME_TEMPS_DU_COMPTE,
+# plus haut. C'est un mur : au-delà, GitHub met les tâches en file d'attente, il ne refuse pas.
+#
+# POURQUOI 2 PLACES LIBRES. Décision de Jean-Luc du 17-11-2026 à 22h30 (A-888) : « 18 calculs en parallèle au plus,
+# et 2 places toujours libres pour le circuit du soir et le relais ». Le circuit du soir lit les cours et calcule les
+# signaux ; une séance non lue le jour même perd ses signaux pour toujours. Il ne doit donc jamais attendre derrière
+# une épreuve de nuit. D'où LARGEUR_DES_CIRCUITS_LONGS = 18, plus haut : les trois circuits longs (séries de
+# sabotages, épreuves longues, certification de nuit) partagent un réservoir de 18 places (PLACES_LONGUES), et GitHub
+# ne leur en donne jamais plus — chaque tâche porte un groupe « place-longue-1 » … « place-longue-18 »
+# (`groupe_de_place`), et la tranche numéro k prend la place k (`place_bornee`, qui ne rend que 1 à 18).
+#
+# POURQUOI 18 TRANCHES. Décision de Jean-Luc du 21-11-2026 à 13h34 (A-961), réponse « 1 » à la question N-10 du Chat :
+# « Faire les deux tout de suite (18 morceaux et grosse épreuve découpée), puis étudier la relance sélective ». Le
+# constat mesuré (certification de nuit 44852703801, 21-11-2026, somme des « charges_prevues_secondes » de ses
+# certificats partiels) : la nuit demandait 112 523 s de travail pour 15 tranches × 6 600 s = 99 000 s tenables (le
+# BACKLOG, A-959, écrit 115 523 s : écart non expliqué, la somme relue au certificat partiel fait foi ici). 6 600 s, c'est le TIERS des 330 minutes d'une tranche : les durées d'une
+# même épreuve ont varié du simple au double d'une nuit à l'autre, et le tiers laisse cette marge (N5, plus bas).
+# 18 tranches × 6 600 s = 118 800 s tenables. 18 est le plus grand nombre possible sans toucher les 2 places du soir :
+# c'est pourquoi ce nombre N'EST PAS ÉCRIT ICI, il est LU sur la largeur du réservoir (R-708 : une valeur vit à un
+# seul endroit ; deux copies d'une même chose divergent toujours). Si la largeur change, les tranches suivent.
+# Mesure du 21-11-2026 sur cette branche, à titre d'exemple et non de seuil (les vraies charges se recalculent chaque
+# nuit) : 224 lancements, 96 508 s prévues, tranche la plus lourde 5 369 s à 18 (sur les journaux présents au dépôt).
+#
+# POURQUOI LA DÉCOUPE D'UNE ÉPREUVE. `repartir` (programmes/CERTIFIER_LA_VERSION.py) range un lancement entier dans
+# UNE tranche. Or « tests/EPREUVES_DE_LA_LECTURE_DES_COURS_Sam_10-10-2026.py --saboter » a duré à lui seul 7 663 s
+# cette nuit-là : plus que le tiers, quel que soit le nombre de tranches. Ses sabotages sont donc joués en 3 morceaux
+# (table « morceaux_de_la_nuit » de tests/LANCEMENT_DES_EPREUVES.json, commentaire de MORCEAUX_DE_LA_NUIT dans le
+# certificateur), chacun rangé dans sa tranche. Aucun sabotage n'est perdu : N14 de
+# tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py les recompte avant et après la découpe et rougit si les comptes
+# diffèrent. La charge d'un morceau n'est jamais écrite à la main : `repartir` la calcule (R-728).
+#
+# LES LIMITES — CE QUI NE TIENDRA PAS.
+#   ① La nuit grossit : environ 35 lancements de plus par semaine (N5, relevé depuis le 10-11-2026 : 126, 161, 170…).
+#      À 431 s par lancement en moyenne (96 508 s ÷ 224, mesure ci-dessus), c'est environ 15 000 s de plus par
+#      semaine. La marge de 18 tranches sur cette mesure : 118 800 − 96 508 = 22 292 s, soit environ une semaine et
+#      demie. Sur la mesure plus lourde de la nuit 44852703801 (112 523 s), elle n'est que de 118 800 − 112 523 =
+#      6 277 s : moins d'une semaine.
+#      18 tranches ACHÈTENT DU TEMPS ; elles ne règlent pas la croissance.
+#   ② 18 est un plafond : on ne peut pas aller au-delà sans prendre les places du soir (interdit par A-888) ou sans
+#      une offre payante de GitHub. Les offres payantes donnent plus de tâches simultanées : NON VÉRIFIÉ — ni le
+#      nombre, ni le prix, ni le compte concerné n'ont été lus à la source. À lire avant de décider.
+#   ③ La vraie réponse à la croissance est de rejouer MOINS : la RELANCE SÉLECTIVE (A-962, à étudier, décision de
+#      Jean-Luc du 21-11-2026 à 13h34) — ne rejouer une épreuve longue la nuit que si l'un des fichiers qu'elle teste a
+#      changé depuis sa dernière réussite. Son risque : une dépendance non déclarée ferait garder un vert périmé.
+#   ④ Les tranches qui ne trouvent pas de place libre (le réservoir est partagé avec les séries et les épreuves
+#      longues) attendent leur tour : la nuit peut finir plus tard, jamais prendre une place du soir.
+#
+# COMMENT LE REMETTRE EN CAUSE — LA MESURE À REGARDER, ET QUI LA DONNE.
+#   • La charge prévue de chaque tranche : « charges_prevues_secondes » dans chaque certificat partiel
+#     (rapports/certificats_partiels/TRANCHE_<k>.json du dépôt privé), écrit chaque nuit par
+#     programmes/CERTIFIER_LA_VERSION.py (`repartir`).
+#   • L'alarme : N5 de tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py rougit dès qu'une tranche dépasse le
+#     tiers (6 600 s). Quand N5 rougit et que les tranches sont déjà à 18, il n'y a plus de nombre à augmenter : il faut
+#     découper une autre épreuve (ajouter une ligne à « morceaux_de_la_nuit ») ou rejouer moins (A-962).
+#   • N15 du même fichier garde la règle : les tranches égalent la largeur du réservoir, qui laisse 2 places au soir.
+TRANCHES_DE_LA_NUIT = LARGEUR_DES_CIRCUITS_LONGS
 # LES ESSAIS DE POUSSÉE D'UNE TÂCHE DE LA CERTIFICATION : le nombre de tranches PLUS TROIS. Choix technique du Chat
 # (31-10-2026), pas une décision de Jean-Luc. Sa raison est une loi, mesurée par le superviseur R-759 du 31-10-2026
 # (simulation `sup_N/course.sh` : six clones poussent vers un même dépôt à la même seconde) : un essai d'une tranche ne

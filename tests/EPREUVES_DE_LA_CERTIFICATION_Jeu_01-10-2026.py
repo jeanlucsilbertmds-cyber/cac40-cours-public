@@ -629,7 +629,8 @@ SABOTAGES = [
        "pires = [\"total\"] if sum(m[cle].values()) > sum(r.get(cle, {}).values()) else []")], "S12"),
     ("outil reconnu à son nom dans un texte",
      [("if f[:-3] in importes:", "if any(f[:-3] in t for g, t in textes.items() if g != f):")], "S14"),
-    ("épreuve disparue non vue", [("if json.dumps(l) not in joues:", "if False:")], "S13"),
+    # 21-11-2026 (A-961) : la comparaison se fait sur la forme sans « --seulement=… » (`comparer`, morceaux)
+    ("épreuve disparue non vue", [("if forme(l) not in joues:", "if False:")], "S13"),
     ("dérive de mesure non reconnue",
      [("if reculs_mesure and not rouges and not disparues and reference.get(\"empreinte_du_code\") == empreinte:",
        "if False:")], "S15"),

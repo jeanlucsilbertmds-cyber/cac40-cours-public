@@ -242,7 +242,7 @@ jobs:
               if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "Debuts" ]; then NOMBRE=$(( NOMBRE + PARTS_DEBUTS )); fi
               if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "Signal" ]; then NOMBRE=$(( NOMBRE + PARTS_SIGNAL )); fi
             else
-              NOMBRE=15
+              NOMBRE=18
             fi
             : > "$D/passages"
             for F in series_longues.yml epreuves_longues.yml certifier_la_version.yml; do

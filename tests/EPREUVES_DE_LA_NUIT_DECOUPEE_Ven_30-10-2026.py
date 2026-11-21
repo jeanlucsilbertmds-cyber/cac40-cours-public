@@ -12,7 +12,7 @@
 ③ ENTRÉE — La racine du dépôt (le fabricant et le certificateur sont pris dans son programmes/, les journaux des
   nuits dans son rapports/journal_du_circuit/).
 ④ CONDITIONS D'ENTRÉE — PyYAML et coverage installés (le circuit les installe) ; sinon code 2.
-⑤ SORTIE — Le code de sortie : 0 si les cas N1 à N13, D1 et F0 à F9 donnent la réponse attendue et, avec --saboter, si
+⑤ SORTIE — Le code de sortie : 0 si les cas N1 à N15, D1 et F0 à F9 donnent la réponse attendue et, avec --saboter, si
   chaque sabotage en fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus ou si un module manque.
   [rend: 1]
 ⑥ TRAITEMENT — Sur une copie restreinte du dépôt (programmes, tests, fiches de circuit, journaux de certification) :
@@ -50,7 +50,10 @@
   superviseur R-759, SUPERVISEUR_CERT3_Dim_15-11-2026.md, même dossier) : N13 la charge prévue d'un lancement est sa
   durée relevée, sinon son délai déclaré, sinon DUREE_MAX_EPREUVE, sur le vrai `repartir` (`n13`) ; N11 éprouve aussi
   une épreuve COUPÉE (sa sortie gardée, « ARRÊTÉE » en dernier) et les codes 2 et 124 ; sabotages Sh et Sv (N13),
-  Sw et Sx (N11).
+  Sw et Sx (N11). Et (21-11-2026, A-961, décision de Jean-Luc du 21-11-2026 à 13h34) : N14 aucun sabotage perdu ni
+  joué deux fois quand une épreuve est jouée en morceaux (`n14`, compte par une autre rédaction) · N15 le nombre de
+  tranches est la largeur du réservoir des places longues, qui laisse 2 places au soir (`n15`) ; sabotages Sy (15
+  tranches), Sz, Sz2, Sz3, Sz4, Sz5 (la découpe, la référence, la charge d'un morceau jamais joué).
 ⑦ UNITÉ — Des minutes (limites des jobs) et des secondes (charges).
 ⑧ POURQUOI — Décision de Jean-Luc du 30-10-2026 à 19h02 (réponse « 1 ») : « Couper la nuit en plusieurs tâches qui
   tournent en même temps, chacune avec ses propres 6 heures, plus une tâche finale qui réunit les résultats et dit
@@ -182,10 +185,26 @@ SABOTAGES = {
     "Sx_seul_le_code_1_garde_tout": [(CERTIF,
         "    return list(lignes) if code != 0 else list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]\n",
         "    return list(lignes) if code == 1 else list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]\n")],
-    "S11_epreuve_coupee_en_deux": [(CERTIF, "        groupes.setdefault(l[0], []).append(l)\n",
+    "S11_epreuve_coupee_en_deux": [(CERTIF, "        groupes.setdefault(unite_de(l), []).append(l)\n",
                                     "        groupes.setdefault(cle_de(l[0], l[2]), []).append(l)\n"),
-                                   (CERTIF, "    return [[l for l in lancements if l[0] in choisies[i]] for i in range(nombre)], charges",
+                                   (CERTIF, "    return [[l for l in lancements if unite_de(l) in choisies[i]] for i in range(nombre)], charges",
                                     "    return [[l for l in lancements if cle_de(l[0], l[2]) in choisies[i]] for i in range(nombre)], charges")],
+    # 21-11-2026 (A-961, décision de Jean-Luc du 21-11-2026 à 13h34) : 15 tranches au lieu de la largeur du réservoir
+    # (18) — N15 doit rougir ; un sabotage perdu à la découpe (le dernier de chaque morceau) — N14 doit rougir ; la
+    # lecture des sabotages amputée du dernier — N14 doit rougir (son compte vient d'une autre rédaction) ; un morceau
+    # retiré (le lancement entier rangé tel quel) — N14 doit rougir.
+    "Sy_quinze_tranches": [(FAB, "\nTRANCHES_DE_LA_NUIT = LARGEUR_DES_CIRCUITS_LONGS\n",
+                            "\nTRANCHES_DE_LA_NUIT = LARGEUR_DES_CIRCUITS_LONGS - 3\n")],
+    "Sz_sabotage_perdu_a_la_decoupe": [(CERTIF, 'ARGUMENT_DES_SABOTAGES + ",".join(codes[i - 1::nombre])',
+                                        'ARGUMENT_DES_SABOTAGES + ",".join(codes[i - 1::nombre][:-1])')],
+    "Sz2_lecture_des_sabotages_amputee": [(CERTIF, '            return [k.value for k in n.value.keys if k.value != "Z0"]\n',
+                                           '            return [k.value for k in n.value.keys if k.value != "Z0"][:-1]\n')],
+    "Sz3_sans_la_decoupe": [(CERTIF, '        if "--saboter" in textes[f] and "tests/" + f in morceaux:\n',
+                             '        if False:\n')],
+    "Sz4_morceau_manquant_non_vu": [(CERTIF, "        if len(n) == 1 and vus == {f\"{i}/{next(iter(n))}\" for i in range(1, int(next(iter(n))) + 1)}:\n",
+                                     "        if True:\n")],
+    "Sz5_charge_sans_z0": [(CERTIF, "    return -(-duree_entiere * (k + 1) // (tous + 1))\n",
+                            "    return -(-duree_entiere * k // tous)\n")],
 }
 # Le texte que doit porter au moins une faute de chacun de ces sabotages : un sabotage qui ne fait tomber qu'un AUTRE cas
 # ne prouve pas que le sien regarde (15-11-2026 : à 6 tranches, seul N5 rougit ; à 1, F1 rougirait aussi).
@@ -197,7 +216,11 @@ ATTENDU = {"Sm_six_tranches_comme_avant": "N5 ", "Sn_sortie_rouge_coupee_a_trois
            "Sp_programme_eprouve_hors_des_dossiers_gardes": "N12 tests/EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS",
            # superviseur R-759 du 15-11-2026 (SUPERVISEUR_CERT3_Dim_15-11-2026.md) : Sh et Sv (§1), Sw (§2), Sx (§3)
            "Sh_prevue_sans_le_delai_declare": "N13 ", "Sv_prevue_priorites_inversees": "N13 ",
-           "Sw_coupee_sans_sa_sortie": "N11 ", "Sx_seul_le_code_1_garde_tout": "N11 "}
+           "Sw_coupee_sans_sa_sortie": "N11 ", "Sx_seul_le_code_1_garde_tout": "N11 ",
+           # A-961 (21-11-2026)
+           "Sy_quinze_tranches": "N15 ", "Sz_sabotage_perdu_a_la_decoupe": "N14 ",
+           "Sz2_lecture_des_sabotages_amputee": "N14 ", "Sz3_sans_la_decoupe": "N14 ",
+           "Sz4_morceau_manquant_non_vu": "N14 ", "Sz5_charge_sans_z0": "N14 "}
 
 # Le petit dépôt d'essai : un programme à trois fonctions, une épreuve par fonction (chacune exécute sa fonction par un
 # sous-processus, comme les vraies épreuves exécutent leurs programmes).
@@ -641,8 +664,134 @@ def n12(C, depot, faux):
                 faux.append(f"N12 {e} nomme {c}, hors des dossiers gardés par le circuit : il y sera effacé")
 
 
+def sabotages_comptes(texte):
+    """Rend les noms des sabotages d'une épreuve, Z0 exclu, lus par une AUTRE rédaction que celle du certificateur.
+
+    ① RÔLE — Compter les sabotages d'une épreuve « avant la découpe », sans passer par `sabotages_declares`.
+    ② CONTEXTE D'APPEL — `n14`, une fois par épreuve déclarée en morceaux.
+    ③ ENTRÉE — `texte` : le code de l'épreuve.
+    ④ CONDITIONS D'ENTRÉE — Le dictionnaire s'ouvre par une ligne « SABOTAGES = { » et se ferme par une ligne « } »
+      seule ; chaque clé commence une ligne, indentée de quatre espaces. Sinon la liste est vide, et `n14` rougit.
+    ⑤ SORTIE — UNE valeur : la liste des noms.
+      [rend: 1]
+    ⑥ TRAITEMENT — expression régulière sur le texte (et non l'arbre syntaxique, que lit le certificateur).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un compte fait par la même fonction que la découpe ne verrait pas une lecture amputée (sabotage
+      Sz2). Calibré le 21-11-2026 sur l'épreuve de la lecture des cours : 122 sabotages, autant que par l'arbre ; une
+      première forme exigeait une espace après « : » et en manquait un (S80, écrit « …sans_code":[ »).
+    ⑨ CE QUI CLOCHE — Une clé écrite sur une ligne qui ne commence pas par quatre espaces n'est pas vue : le compte
+      diffère alors de celui du certificateur, et `n14` rougit — à tort, mais jamais en silence.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    debut = texte.find("\nSABOTAGES = {\n")
+    fin = texte.find("\n}\n", debut)
+    if debut < 0 or fin < 0:
+        return []
+    return [n for n in re.findall(r'^    "([^"]+)":\s*\[', texte[debut:fin], re.M) if n != "Z0"]
+
+
+def n14(C, depot, faux):
+    """N14 — aucun sabotage perdu ni joué deux fois quand une épreuve est jouée en morceaux (A-961).
+
+    ① RÔLE — Compter les sabotages avant et après la découpe, et rougir si les comptes diffèrent.
+    ② CONTEXTE D'APPEL — `tour`, une fois.
+    ③ ENTRÉE — `C` : le certificateur de la copie · `depot` : la copie · `faux` : la liste des fautes, complétée.
+    ④ CONDITIONS D'ENTRÉE — tests/LANCEMENT_DES_EPREUVES.json se lit.
+    ⑤ SORTIE — Rien.
+      [rend: rien]
+    ⑥ TRAITEMENT — pour chaque épreuve de la table « morceaux_de_la_nuit » : ① ses sabotages comptés par
+      `sabotages_comptes` · ② ses lancements rendus par `lister_les_epreuves` : aucun lancement « --saboter » entier
+      ne reste, les morceaux sont exactement 1/N … N/N, et chacun porte « --seulement=… » · ③ chaque code court des
+      morceaux désigne exactement un sabotage compté, aucun code n'est joué deux fois, et le compte des codes égale le
+      compte des sabotages · ④ sur des lancements écrits à la main : `comparer` voit le lancement entier de la
+      référence joué quand tous ses morceaux le sont, disparu s'il en manque un ; `charge_estimee_du_morceau` compte Z0.
+    ⑦ UNITÉ — Des nombres de sabotages ; des secondes (④).
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 13h34 (A-961) : découper la grosse épreuve ; consigne du même
+      jour : « aucun sabotage ne doit être perdu ». Un sabotage perdu à la découpe est une partie du code qu'on croit
+      éprouvée chaque nuit et qui ne l'est plus — et rien d'autre ne le verrait : la morsure de chaque sabotage joué
+      reste verte.
+    ⑨ CE QUI CLOCHE — Le nombre de morceaux lui-même n'est pas jugé ici : c'est N5 qui dit si chaque morceau tient sous
+      le tiers d'une tranche.
+    ⑩ EFFET — Lit des fichiers.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    table = json.load(open(os.path.join(depot, "tests", "LANCEMENT_DES_EPREUVES.json"), encoding="utf-8"))
+    lancements, _ = C.lister_les_epreuves(depot)
+    for chemin, e in (table.get("morceaux_de_la_nuit") or {}).items():
+        avant = sabotages_comptes(open(os.path.join(depot, chemin), encoding="utf-8").read())
+        if not avant:
+            faux.append(f"N14 {chemin} : aucun sabotage compté avant la découpe")
+            continue
+        siens = [l for l in lancements if l[0] == chemin and "--saboter" in l[2]]
+        n = e.get("morceaux") if isinstance(e, dict) else None
+        etiquettes = sorted(a for l in siens for a in l[2] if a.startswith("--morceau="))
+        if any(l[2] == ["{copie}", "--saboter"] for l in siens):
+            faux.append(f"N14 {chemin} : le lancement « --saboter » entier est encore rangé (la découpe n'a pas eu lieu)")
+        if etiquettes != sorted(f"--morceau={i}/{n}" for i in range(1, (n or 0) + 1)):
+            faux.append(f"N14 {chemin} : morceaux {etiquettes}, attendu 1/{n} … {n}/{n}")
+        codes = [c for l in siens for a in l[2] if a.startswith("--seulement=") for c in a.split("=", 1)[1].split(",")]
+        courts = [x.split("_", 1)[0] for x in avant]
+        mal = sorted({c for c in codes if courts.count(c) != 1})
+        doubles = sorted({c for c in codes if codes.count(c) > 1})
+        perdus = sorted(x for x in avant if x.split("_", 1)[0] not in codes)
+        if len(codes) != len(avant) or mal or doubles or perdus:
+            faux.append(f"N14 {chemin} : {len(avant)} sabotages avant la découpe, {len(codes)} après ; perdus "
+                        f"{perdus[:3]} ; joués deux fois {doubles[:3]} ; codes qui ne désignent pas un sabotage {mal[:3]}")
+    # N14 (suite) — sur des lancements écrits à la main : la référence qui porte le lancement entier le voit joué si
+    # TOUS ses morceaux le sont, et « disparu » s'il en manque un (`comparer`) ; la charge d'un morceau jamais joué est
+    # la durée entière × (k + 1) ÷ (K + 1), Z0 compté (`charge_estimee_du_morceau`) : 1 000 s, morceaux de 2 et 1
+    # sabotages → 750 s et 500 s
+    m1 = ["t.py", ".", ["{copie}", "--saboter", "--morceau=1/2", "--seulement=S1,S3"]]
+    m2 = ["t.py", ".", ["{copie}", "--saboter", "--morceau=2/2", "--seulement=S2"]]
+    ref = {"epreuves": [["t.py", ".", ["{copie}", "--saboter"]]]}
+    for joues, voulu in (([m1, m2], 0), ([m1], 1)):
+        disparues = C.comparer({}, joues, ref, {})[1]
+        if len(disparues) != voulu:
+            faux.append(f"N14 comparer : {len(joues)} morceau(x) sur 2 joués, {len(disparues)} épreuve(s) disparue(s), "
+                        f"attendu {voulu}")
+    estimees = [C.charge_estimee_du_morceau(m, [m1, m2], 1000) for m in (m1, m2)]
+    if estimees != [750, 500]:
+        faux.append(f"N14 charge estimée des morceaux : {estimees}, attendu [750, 500]")
+
+
+def n15(depot, k, faux):
+    """N15 — le nombre de tranches est la largeur du réservoir, qui laisse 2 places au circuit du soir (A-961, A-888).
+
+    ① RÔLE — Garder la décision du 21-11-2026 : 18 tranches, jamais une place du soir.
+    ② CONTEXTE D'APPEL — `tour`, une fois, après N2.
+    ③ ENTRÉE — `depot` : la copie (le fabricant y est pris) · `k` : le nombre de tranches lu dans le circuit fabriqué
+      (N2) · `faux` : la liste des fautes, complétée.
+    ④ CONDITIONS D'ENTRÉE — Le fabricant de la copie se charge.
+    ⑤ SORTIE — Rien.
+      [rend: rien]
+    ⑥ TRAITEMENT — trois comparaisons : k = PLACES_LONGUES ; PLACES_LONGUES = TACHES_EN_MEME_TEMPS_DU_COMPTE − 2 ;
+      TRANCHES_DE_LA_NUIT = k.
+    ⑦ UNITÉ — Des tâches de GitHub.
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 13h34 (« 18 morceaux ») et A-888 du 17-11-2026 à 22h30
+      (« 2 places toujours libres pour le circuit du soir et le relais »). Lu sur le circuit FABRIQUÉ (k) et non sur la
+      seule constante : c'est le circuit que GitHub exécute. N5 seul ne suffit pas à garder 18 : sur les journaux
+      présents au 21-11-2026, 15 tranches et la découpe tiendraient sous le tiers (6 439 s mesurés) — N5 ne rougirait
+      pas, et la décision serait défaite sans signal.
+    ⑨ CE QUI CLOCHE — La valeur 2 est relue ici, écrite une seconde fois : elle répète A-888 (la règle « 2 places »
+      n'est portée par aucune constante du fabricant, seulement par LARGEUR_DES_CIRCUITS_LONGS = 18 et un commentaire).
+    ⑩ EFFET — Exécute le fabricant de la copie (chargement).
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    F = charger(os.path.join(depot, FAB))
+    if k != F.PLACES_LONGUES or F.TRANCHES_DE_LA_NUIT != k:
+        faux.append(f"N15 {k} tranches au circuit (constante : {F.TRANCHES_DE_LA_NUIT}), attendu la largeur du "
+                    f"réservoir, {F.PLACES_LONGUES} places (A-961)")
+    if F.PLACES_LONGUES != F.TACHES_EN_MEME_TEMPS_DU_COMPTE - 2:
+        faux.append(f"N15 réservoir de {F.PLACES_LONGUES} places pour {F.TACHES_EN_MEME_TEMPS_DU_COMPTE} tâches du "
+                    "compte : les 2 places du soir ne sont plus libres (A-888)")
+
+
 def tour(depot):
-    """Joue N1 à N13, D1, puis F0 à F9 sur une copie de `depot`, et rend la liste des cas faux.
+    """Joue N1 à N15, D1, puis F0 à F9 sur une copie de `depot`, et rend la liste des cas faux.
 
     ① RÔLE — Un tour d'épreuves. ② CONTEXTE D'APPEL — `main`, une fois tel quel puis une fois par sabotage.
     ③ ENTRÉE — `depot` : la copie restreinte à éprouver. ④ CONDITIONS D'ENTRÉE — —
@@ -767,6 +916,8 @@ def tour(depot):
     n12(C, depot, faux)
     n13(C, faux)
     n10(C, faux)
+    n14(C, depot, faux)
+    n15(depot, k, faux)
     essai(depot, y, faux)
     return faux
 
