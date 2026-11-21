@@ -13,7 +13,7 @@
   leurs délais), son programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py (le nombre de tranches), ses journaux s'il en a, son
   fichier des durées publiées s'il en a un.
 ④ CONDITIONS D'ENTRÉE — —
-⑤ SORTIE — Le code de sortie : 0 si P1 à P6 donnent la réponse attendue et, avec --saboter, si chaque sabotage fait
+⑤ SORTIE — Le code de sortie : 0 si P1 à P7 donnent la réponse attendue et, avec --saboter, si chaque sabotage fait
   tomber le cas qu'il vise (ATTENDU) ; 1 sinon ; 2 si un sabotage ne s'applique plus.
   [rend: 1]
 ⑥ TRAITEMENT — Sur des dossiers jetables, avec le certificateur copié (saboté ou non) :
@@ -31,15 +31,20 @@
   même égalité sur eux, journaux copiés dans un dossier jetable (la racine n'est jamais écrite).
   P5 LES JOURNAUX PRIMENT — un dossier qui a des journaux ET un fichier aux durées différentes : les journaux sont lus.
   P6 LE FICHIER DU DÉPÔT EST SAIN — s'il existe à la racine, `lire_les_durees_publiees` l'accepte.
+  P7 LE CIRCUIT DE NUIT LE REFAIT (A-969, décision de Jean-Luc du 21-11-2026 à 16h09) — dans le circuit de
+  certification FABRIQUÉ par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, la tâche finale (job « reunir ») : a) lance
+  CERTIFIER_LA_VERSION.py « --publier-les-durees » APRÈS « --reunir » et AVANT le dépôt au privé ; b) son dépôt ajoute
+  le fichier, au chemin même du certificateur ; c) ce pas ne masque pas son échec (aucun « continue-on-error », un
+  « ::error:: » et un « exit 1 »). Ses sabotages (F1 à F5) portent sur une copie du FABRICANT.
 ⑦ UNITÉ — Des secondes.
 ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 15h34, réponse « 1 » à la question du Chat de 15h33 : « Publier au
   dépôt public les seules durées des épreuves (des chiffres de temps, aucun cours) pour que GitHub juge pour de vrai ».
   La copie jouée sur GitHub exclut les journaux (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, SERIES_COPIE) : sans eux,
   chaque lancement comptait pour son délai, et N5 voyait 20 400 s par tranche. Les journaux, qui portent aussi les
   sorties des épreuves, ne doivent jamais être publiés : d'où la garde, éprouvée ici des deux côtés.
-⑨ CE QUI CLOCHE — La FRAÎCHEUR du fichier n'est pas jugée : des durées périmées font une prévision périmée, et rien ne
-  refait le fichier chaque nuit tant que le circuit ne l'appelle pas (A-968, reste ouvert). La publication elle-même
-  au dépôt public n'est pas jouée ici.
+⑨ CE QUI CLOCHE — La FRAÎCHEUR du fichier n'est pas jugée : des durées périmées font une prévision périmée. P7 lit le
+  TEXTE du circuit fabriqué : il ne prouve pas que GitHub exécute le pas ni que la poussée réussit (seul un passage
+  réel de la nuit le prouve). La publication elle-même au dépôt public n'est pas jouée ici.
 ⑩ EFFET — Écrit dans des dossiers jetables, effacés à la fin.
 ⑪ TERMINAISON — Rend la main ; aucun processus lancé ; sort par sys.exit.
   [sort: oui]
@@ -74,7 +79,20 @@ SABOTAGES = {
                                         "[[c, str(durees[c] // 2)] for c in sorted(durees)]")],
     "S10_cle_en_double_acceptee": [("        if cle in rendu:\n", "        if False:\n")],
 }
-ATTENDU = {"S1_sans_repli": "P4 ", "S2_ligne_a_trois_champs_acceptee": "P2 ligne à trois champs",
+# les sabotages du FABRICANT (P7, A-969) : chaque texte doit paraître une fois dans programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py
+SABOTAGES_DU_FABRICANT = {
+    "F1_pas_retire": [('    "publier_les_durees": PUBLIER_LES_DUREES,\n', '    "publier_les_durees": "",\n')],
+    "F2_option_retiree": [('CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees \\\\',
+                           'CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" \\\\')],
+    "F3_fichier_non_pousse": [('"rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ $DUREES"',
+                               '"rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/"')],
+    "F4_echec_masque": [("        id: publier_les_durees\n", "        id: publier_les_durees\n        continue-on-error: true\n")],
+    "F5_chemin_divergent": [('DUREES_PUBLIEES_DU_DEPOT = "rapports/durees_des_epreuves_en_secondes.csv"',
+                             'DUREES_PUBLIEES_DU_DEPOT = "rapports/durees.csv"')],
+}
+ATTENDU = {"F1_pas_retire": "P7 a)", "F2_option_retiree": "P7 a)", "F3_fichier_non_pousse": "P7 b)",
+           "F4_echec_masque": "P7 c)", "F5_chemin_divergent": "P7 b)",
+           "S1_sans_repli": "P4 ", "S2_ligne_a_trois_champs_acceptee": "P2 ligne à trois champs",
            "S3_en_tete_non_verifie": "P2 troisième colonne", "S4_cle_non_verifiee": "P2 clé",
            "S5_secondes_non_verifiees": "P2 secondes", "S6_ecrire_sans_garde": "P3 ",
            "S7_repli_meme_avec_journaux": "P5 ", "S8_fichier_absent_non_vide": "P1 ",
@@ -273,6 +291,94 @@ def tour(C, k, lancements, delais):
     return faux
 
 
+def p7(F, C):
+    """Juge le circuit de certification fabriqué par `F` (P7) et rend la liste des fautes.
+
+    ① RÔLE — Prouver que la tâche finale de la nuit refait et pousse le fichier des durées (A-969).
+    ② CONTEXTE D'APPEL — `main`, en Z0 avec le fabricant de la racine, puis une fois par sabotage du fabricant.
+    ③ ENTRÉE — `F` : le fabricant chargé (son texte CERTIFICATION et DUREES_PUBLIEES_DU_DEPOT) · `C` : le certificateur
+      sain (son DUREES_PUBLIEES).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste des fautes (textes commençant par « P7 a) », « P7 b) » ou « P7 c) »).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① isoler le job « reunir » (de « \\n  reunir:\\n » à la fin) et le couper en pas (« - name: » à six
+      espaces) · ② a) un pas porte « CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees », placé après le
+      pas qui porte « --reunir » et avant « Deposer au depot prive » · ③ b) le chemin du fabricant, « / » remplacé par
+      le séparateur du système, égale DUREES_PUBLIEES du certificateur, et le pas de dépôt l'affecte à DUREES et porte
+      « $DUREES » sur sa ligne « git add » · ④ c) le pas de publication ne porte pas « continue-on-error » et porte
+      « ::error:: » et « exit 1 ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 16h09 (« 1 ») : le circuit de nuit refait le fichier chaque nuit,
+      pour des prévisions toujours fondées sur des durées récentes. Sans ce pas, rien ne le refaisait (A-968).
+    ⑨ CE QUI CLOCHE — Lecture du texte seulement : l'exécution par GitHub n'est pas prouvée ici.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    faux = []
+    texte = F.CERTIFICATION
+    if "\n  reunir:\n" not in texte:
+        return ["P7 a) job « reunir » introuvable dans le circuit fabriqué"]
+    pas = texte.split("\n  reunir:\n", 1)[1].split("\n      - name: ")
+    appel = 'CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees'
+    i_pub = [i for i, p in enumerate(pas) if appel in p]
+    i_reu = [i for i, p in enumerate(pas) if "--reunir" in p]
+    i_dep = [i for i, p in enumerate(pas) if p.startswith("Deposer au depot prive")]
+    if len(i_pub) != 1 or len(i_reu) != 1 or len(i_dep) != 1 or not i_reu[0] < i_pub[0] < i_dep[0]:
+        faux.append(f"P7 a) publication {i_pub}, réunion {i_reu}, dépôt {i_dep} : attendu un pas de chaque, dans cet ordre")
+    chemin = F.DUREES_PUBLIEES_DU_DEPOT
+    if chemin.replace("/", os.sep) != C.DUREES_PUBLIEES:
+        faux.append(f"P7 b) chemin du fabricant {chemin} ≠ celui du certificateur {C.DUREES_PUBLIEES}")
+    if len(i_dep) == 1:
+        dep = pas[i_dep[0]]
+        ajout = [l for l in dep.split("\n") if l.strip().startswith("git add ")]
+        if f"DUREES={chemin}" not in dep or len(ajout) != 1 or "$DUREES" not in ajout[0].split():
+            faux.append(f"P7 b) le dépôt n'ajoute pas {chemin} : {ajout}")
+    if len(i_pub) == 1:
+        pub = pas[i_pub[0]]
+        if "continue-on-error" in pub or "::error::" not in pub or "exit 1" not in pub:
+            faux.append("P7 c) le pas de publication masque son échec (continue-on-error, ou sans ::error:: / exit 1)")
+    return faux
+
+
+def fabricant_sabote(nom, d):
+    """Écrit dans `d` une copie du fabricant sabotée par `nom`, entourée du reste du dépôt, et la charge.
+
+    ① RÔLE — Donner à P7 un fabricant saboté, sans jamais écrire dans la racine.
+    ② CONTEXTE D'APPEL — `main`, une fois par sabotage du fabricant.
+    ③ ENTRÉE — `nom` : une clé de SABOTAGES_DU_FABRICANT · `d` : un dossier jetable vide.
+    ④ CONDITIONS D'ENTRÉE — Chaque texte du sabotage paraît une fois dans le fabricant.
+    ⑤ SORTIE — UNE valeur : le module chargé, ou None si un texte ne paraît pas exactement une fois.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① appliquer les remplacements au texte du fabricant · ② poser dans `d` un lien vers chaque entrée de
+      la racine sauf programmes/, et dans `d`/programmes un lien vers chaque fichier sauf le fabricant, écrit saboté ·
+      ③ le charger.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le fabricant lit des fichiers voisins par son propre chemin (__file__) : la copie doit avoir les mêmes
+      voisins. Des liens, pour ne rien recopier ni rien écrire dans la racine.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Écrit dans `d` (effacé par l'appelant).
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    texte = open(os.path.join(DEPOT, FAB), encoding="utf-8").read()
+    for avant, apres in SABOTAGES_DU_FABRICANT[nom]:
+        if texte.count(avant) != 1:
+            print(f"{nom} NE S'APPLIQUE PLUS : texte trouvé {texte.count(avant)} fois")
+            return None
+        texte = texte.replace(avant, apres)
+    for e in os.listdir(DEPOT):
+        if e not in ("programmes", ".git"):
+            os.symlink(os.path.join(DEPOT, e), os.path.join(d, e))
+    os.makedirs(os.path.join(d, "programmes"))
+    for e in os.listdir(os.path.join(DEPOT, "programmes")):
+        if e != os.path.basename(FAB):
+            os.symlink(os.path.join(DEPOT, "programmes", e), os.path.join(d, "programmes", e))
+    chemin = os.path.join(d, FAB)
+    open(chemin, "w", encoding="utf-8").write(texte)
+    return charger(chemin, "FAB_" + nom)
+
+
 def main():
     """Joue Z0, puis, avec --saboter, un tour par sabotage du certificateur copié.
 
@@ -284,7 +390,8 @@ def main():
       [rend: 1]
     ⑥ TRAITEMENT — ① lire, avec le certificateur NON saboté de la racine, les lancements, leurs délais, et au fabricant
       le nombre de tranches · ② pour chaque cas : copier le certificateur dans un dossier jetable, y appliquer le
-      sabotage (chaque texte doit y paraître une fois, sinon code 2), le charger, jouer `tour` · ③ Z0 doit être vert ;
+      sabotage (chaque texte doit y paraître une fois, sinon code 2), le charger, jouer `tour` (et `p7` en Z0) · avec
+      --saboter, d'abord chaque sabotage du FABRICANT (`fabricant_sabote`, puis `p7`) · ③ Z0 doit être vert ;
       chaque sabotage doit produire une faute qui porte son texte ATTENDU.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas une preuve (R-731).
@@ -294,7 +401,8 @@ def main():
       [sort: non]
     """
     sain = charger(os.path.join(DEPOT, CERTIF), "CERTIF_SAIN")
-    k = charger(os.path.join(DEPOT, FAB), "FAB_SAIN").TRANCHES_DE_LA_NUIT
+    fab_sain = charger(os.path.join(DEPOT, FAB), "FAB_SAIN")
+    k = fab_sain.TRANCHES_DE_LA_NUIT
     lancements, _ = sain.lister_les_epreuves(DEPOT)
     delais, _ = sain.options_de_lancement(DEPOT)
     if list(sain.COLONNES_DES_DUREES) != EN_TETE:
@@ -302,6 +410,19 @@ def main():
         return 1
     noms = list(SABOTAGES) if "--saboter" in sys.argv else ["Z0"]
     code = 0
+    for nom in (list(SABOTAGES_DU_FABRICANT) if "--saboter" in sys.argv else []):
+        d = tempfile.mkdtemp(prefix="durees_fab_")
+        try:
+            F = fabricant_sabote(nom, d)
+            if F is None:
+                code = 2
+                continue
+            faux = p7(F, sain)
+            vise = [f for f in faux if ATTENDU[nom] in f]
+            print(f"{nom} " + (f"mord : {vise[0][:140]}" if vise else f"NE MORD PAS : {faux[:2]}"))
+            code = max(code, 0 if vise else 1)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
     for nom in noms:
         d = tempfile.mkdtemp(prefix="durees_certif_")
         try:
@@ -316,6 +437,8 @@ def main():
                 chemin = os.path.join(d, "CERTIFIER_LA_VERSION.py")
                 open(chemin, "w", encoding="utf-8").write(texte)
                 faux = tour(charger(chemin, "CERTIF_" + nom), k, lancements, delais)
+                if nom == "Z0":
+                    faux += p7(fab_sain, sain)
                 if nom == "Z0":
                     print("Z0 " + ("vert" if not faux else "ROUGE : " + " | ".join(faux)))
                     code = max(code, 1 if faux else 0)

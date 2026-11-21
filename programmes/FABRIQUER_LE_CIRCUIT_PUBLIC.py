@@ -1151,6 +1151,34 @@ VERDICT_DE_LA_CERTIFICATION = """      - name: Rougir si la version n'est pas ce
 """
 
 
+# LES DURÉES PUBLIÉES, REFAITES CHAQUE NUIT (A-969). Décision de Jean-Luc du 21-11-2026 à 16h09, réponse « 1 » à la
+# question du Chat de 15h51 : « 1. Oui, le circuit de nuit refait le fichier chaque nuit (recommandé) · 2. Non, on le
+# refait à la main de temps en temps » ; critère donné avec la question : des prévisions toujours fondées sur des durées
+# récentes. Le fichier (A-968) porte la clé de chaque lancement et ses secondes, tirées des journaux de certification
+# par programmes/CERTIFIER_LA_VERSION.py « --publier-les-durees » ; sans ce pas, rien ne le refaisait.
+# Le chemin est écrit ICI une seconde fois (le fabricant ne charge pas le certificateur) : l'épreuve
+# tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py (P7) le confronte à DUREES_PUBLIEES du certificateur.
+DUREES_PUBLIEES_DU_DEPOT = "rapports/durees_des_epreuves_en_secondes.csv"
+# LE PAS, dans la tâche finale, entre « Reunir les tranches » et le dépôt au privé. Il ① reprend à la pointe de main
+# (FETCH_HEAD, lu par le pas « partiels » juste avant) les journaux que les tranches de CETTE nuit viennent d'y pousser —
+# sans eux, les durées auraient une nuit de retard — puis ② lance la publication. CHOIX FAIT (consigne du Chat du
+# 21-11-2026 : « aucun pas ne masque son échec », sans casser la certification) : PAS de « continue-on-error ». Un
+# échec rend le pas rouge, un « ::error:: » le dit au journal privé (ETAPE_MUETTE ne montre au public que « ÉCHEC »),
+# et le job finit rouge ; mais le dépôt au privé (« if: always() ») et le verdict (« !cancelled() ») tournent quand
+# même : le certificat est déposé, et la certification garde son propre verdict. La condition : seulement si le code a
+# été posé (sinon le code de la version n'a pas à tourner) et si la réunion a tourné (succès OU échec : les durées ne
+# dépendent pas du verdict).
+PUBLIER_LES_DUREES = """      - name: Publier les durees des epreuves
+        id: publier_les_durees
+        if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'skipped' }}
+        run: |
+          git checkout FETCH_HEAD -- rapports/journal_du_circuit \\
+            || { echo "::error::JOURNAUX DE LA NUIT ILLISIBLES — durees non publiees"; exit 1; }
+          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees \\
+            || { echo "::error::DUREES DES EPREUVES NON PUBLIEES — le certificat est depose quand meme"; exit 1; }
+"""
+
+
 def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", message="certificat de la version",
                  reste="le certificat", branche=None, valeurs=()):
     """Rend le pas qui pousse au dépôt privé ce qu'une tâche de la certification a écrit.
@@ -1464,7 +1492,7 @@ jobs:
         id: certifier
         continue-on-error: true
         run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir %(nombre)d
-%(deposer_final)s%(verdict)s""" % {
+%(publier_les_durees)s%(deposer_final)s%(verdict)s""" % {
     # la matrice en liste « à tirets » : le sous-ensemble YAML que lit ce fabricant (SCALAIRE_DE_LISTE) refuse la liste
     # entre crochets, qui commence par un indicateur YAML ; c'est le producteur qui parle la langue du lecteur
     # (superviseur R-759 du 31-10-2026, B1, « DE FOND »)
@@ -1492,8 +1520,15 @@ jobs:
         "          for f in rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log; do\n"
         "            [ -f \"$f\" ] && mv \"$f\" \"${f%.log}_tranche_${{ matrix.tranche }}.log\"\n"
         "          done\n"),
+    # A-969 (décision de Jean-Luc du 21-11-2026 à 16h09, « 1 ») : la tâche finale refait les durées publiées, puis les
+    # pousse avec le certificat — seulement si le fichier existe, pour qu'une publication ratée n'empêche jamais le dépôt
+    # du certificat (l'échec est dit par le pas PUBLIER_LES_DUREES, qui rougit le job)
+    "publier_les_durees": PUBLIER_LES_DUREES,
     "deposer_final": pas_de_depot("certificat ou journal introuvable",
-                                  "rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/", "")}
+                                  "rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ $DUREES",
+                                  "          DUREES=\"\"\n"
+                                  "          if [ -f " + DUREES_PUBLIEES_DU_DEPOT + " ]; then DUREES="
+                                  + DUREES_PUBLIEES_DU_DEPOT + "; fi\n")}
 
 # LE CIRCUIT DES SÉRIES LONGUES DE SABOTAGES, AU DÉPÔT PUBLIC (patch du 04-11-2026, tour 3 après l'avis du superviseur
 # R-759 du 04-11-2026 à 19h59 ; à valider par Jean-Luc ; NON appliqué).

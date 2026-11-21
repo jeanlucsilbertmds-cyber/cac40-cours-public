@@ -1144,8 +1144,9 @@ def publier_les_durees(racine):
     ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 15h34, réponse « 1 » : « Publier au dépôt public les seules
       durées des épreuves (des chiffres de temps, aucun cours) pour que GitHub juge pour de vrai ». Jamais les
       journaux eux-mêmes : ils portent aussi les sorties des épreuves.
-    ⑨ CE QUI CLOCHE — Rien ne refait ce fichier chaque nuit tant que le circuit ne l'appelle pas (A-968, reste
-      ouvert) : entre deux publications, ses durées vieillissent.
+    ⑨ CE QUI CLOCHE — Depuis A-969 (décision de Jean-Luc du 21-11-2026 à 16h09), la tâche finale de la certification
+      de nuit l'appelle (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, PUBLIER_LES_DUREES) ; une nuit qui ne tourne pas, ou
+      dont ce pas échoue, laisse le fichier de la veille : ses durées vieillissent jusqu'à la nuit suivante.
     ⑩ EFFET — Écrit `DUREES_PUBLIEES`.
     ⑪ TERMINAISON — Rend la main, ou lève ValueError.
       [sort: non]
