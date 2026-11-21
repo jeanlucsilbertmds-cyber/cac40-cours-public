@@ -4,7 +4,7 @@
 
 LE SENS EN TÊTE. rapports/CALIBRAGE_C5.md (fabriqué par programmes/COMPARER_LE_CALIBRAGE_C5.py) dit que les 100
 opérations de C5-ETENDU-10 du golden se retrouvent aujourd'hui, mêmes dates et mêmes motifs, et que SEUL LE GAIN
-diffère : +111 334,24 € au golden, +82 022,24 € au rejeu. Ce programme teste l'hypothèse du Chat : l'écart vient du
+diffère (les deux totaux sont au rapport du comparateur). Ce programme teste l'hypothèse du Chat : l'écart vient du
 seul régime de frais — forfait de 300 € par opération au golden, barème réel d'aujourd'hui au module (A-550, avec la
 taxe sur les transactions financières). Il remplace le script de mesure rapports/PREUVE_ECART_DE_GAIN_C5.py, qui ne
 tournait que sur le poste de son auteur (relecture Cowork du 21-11-2026, défaut I-1), et fabrique la section qui
@@ -12,7 +12,7 @@ tournait que sur le poste de son auteur (relecture Cowork du 21-11-2026, défaut
 main).
 Corrections du RELU Cowork (pointe fbb5debeb) : D-1, le verdict sortait sur un tableau falsifié de façon cohérente sans
 rien regarder du golden — le tableau est désormais confronté au golden (n, net, réussite, motifs) avant tout calcul, et
-le verdict ne parle plus que du tableau ; m-2, le rapport dit pourquoi son « réel » diffère de celui du rejeu.
+le verdict ne parle plus que du tableau ; m-2 (reprise après le jugement R-759 « rustine »), le rapport dit d'où part son « réel » et n'affirme aucune cause de l'écart avec le rejeu, que personne n'a mesuré.
 
 ① RÔLE — Confronter le tableau des 100 trades au golden, puis recalculer chaque opération du tableau des 100 trades du golden avec `MODULE_POSITIONS.pnl_net` sous trois
   barèmes (forfait « HIST_FORFAIT_300 », courtage sans taxe « HIST_COURTAGE_SANS_TTF », réel = sans argument), dire si
@@ -42,11 +42,10 @@ le verdict ne parle plus que du tableau ; m-2, le rapport dit pourquoi son « r�
   vient de `pnl_net`, le barème de `cout_d_un_ordre`, la liste des valeurs taxées de `valeur_taxee`, la lecture des
   gains de `gain` du comparateur, la fenêtre du contrat. Tout chemin part de la racine : rien ne dépend du poste.
 ⑨ CE QUI CLOCHE — ① Le tableau garde les prix à 4 décimales : le forfait ne retrouve le golden qu'à une tolérance
-  près, calculée par `tolerance` ; un tableau aux prix plus grossiers ferait rougir à tort. ② Le rejeu d'aujourd'hui
-  (82 022,24 €) n'est pas relu ici (il lit les cours) : c'est `COMPARER_LE_CALIBRAGE_C5.py --bareme=HIST_FORFAIT_300`
-  qui le relie au golden (« gain seul 0 »). Le « réel » recalculé ici (82 022,19 € le 21-11-2026) part des prix du
-  tableau, arrondis à 4 décimales ; celui du rejeu (82 022,24 €) part des cours du témoin : ils diffèrent de cet
-  arrondi, du même ordre que l'écart golden − forfait, que le rapport chiffre (relecture Cowork, m-2).
+  près, calculée par `tolerance` ; un tableau aux prix plus grossiers ferait rougir à tort. ② Le rejeu d'aujourd'hui n'est pas relu ici (il lit les cours) : c'est `COMPARER_LE_CALIBRAGE_C5.py --bareme=HIST_FORFAIT_300`
+  qui le relie au golden (« gain seul 0 »). Le « réel » recalculé ici part des prix du tableau, arrondis à 4 décimales ;
+  celui du rejeu part des cours du témoin. L'ÉCART entre les deux n'est PAS mesuré ici et sa cause n'est pas affirmée
+  (jugement R-759 du 21-11-2026 : une cause écrite sans mesure est une rustine) ; aucun des deux totaux n'est recopié.
   ③ Le golden ne garde des trades qu'une empreinte (`hash_trades_jetons_illimites`) dont la recette n'est pas au dépôt :
   la confrontation porte sur n, net, réussite et motifs. Un tableau falsifié qui garde ces quatre chiffres (un gain
   déplacé et compensé ailleurs, prix recalculés à l'identique) passerait encore.
@@ -271,8 +270,7 @@ def ecrire_le_rapport(chemin, res, entete):
           % (res["part_courtage"], pc(res["part_courtage"]), res["part_taxe"], pc(res["part_taxe"])),
           "- écart maximal d'une opération, forfait contre golden : %.2f €" % res["ecart_max"],
           "- le réel ci-dessus part des prix du tableau, arrondis à 4 décimales ; le rejeu de rapports/CALIBRAGE_C5.md "
-          "part des cours du témoin : les deux « réels » diffèrent de cet arrondi, du même ordre que l'écart "
-          "golden − forfait (%.2f €)" % (res["ref"] - res["forfait"]), "",
+          "part des cours du témoin : l'écart entre les deux n'est pas mesuré ici et sa cause n'est pas affirmée", "",
           "## ÉCART FORFAIT − RÉEL PAR ANNÉE D'ENTRÉE ET PAR TAXE", "",
           "année | valeur taxée | opérations | écart €", "--- | --- | --- | ---"]
     t += ["%s | %s | %d | %.2f" % (a, "oui" if tx else "non", n, e) for (a, tx), (n, e) in res["par_groupe"].items()]
