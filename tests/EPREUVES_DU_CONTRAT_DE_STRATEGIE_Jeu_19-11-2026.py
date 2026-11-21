@@ -12,12 +12,16 @@ doivent rougir, et redevenir verts une fois retirés (R-731 : une épreuve qui r
 teste est une décoration).
 
 USAGE
-    python3 -B tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py <source> <travail> [--sabotages=S1,S9b,...]
+    python3 -B tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py <source> [<travail>] [--sabotages=S1,S9b,...]
     --sabotages= (20-11-2026) : ne poser que les sabotages nommés (premier mot de leur nom) ; la sonde intacte est
     toujours jouée. Raison : la série entière approche les dix minutes (mesure dans echanges/A_RELIRE.md) ; deux
     moitiés se jouent chacune sous ce plafond.
     <source> : la racine d'un worktree du dépôt ; <travail> : un dossier qui n'existe pas encore, absolu ou relatif
     au dossier courant (sur GitHub, tests/LANCEMENT_DES_EPREUVES.json le donne relatif à la copie jouée).
+    <travail> omis (21-11-2026) : l'épreuve fabrique elle-même un dossier jetable (sous /dev/shm s'il existe, sinon
+    dans le dossier temporaire du système) et l'efface en sortant. Raison : la certification de nuit
+    (programmes/CERTIFIER_LA_VERSION.py, `lister_les_epreuves`) lance chaque tests/*.py avec la seule copie en
+    argument ; sans ce mode, l'épreuve rendait 2 chaque nuit (passage 44852703801).
 
 ① RÔLE — Prouver que le contrat laisse passer les fiches complètes, refuse les autres en NOMMANT chaque case, donne un
   avis sans refuser sur ce que Jean-Luc n'a pas tranché, et qu'il est branché à ⓪ et à la porte du juge.
@@ -61,6 +65,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 sys.dont_write_bytecode = True
 PREP = "programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py"
@@ -782,7 +787,8 @@ def main(argv):
 
     ① RÔLE — Le déroulé de l'épreuve (⑥ de l'en-tête).
     ② CONTEXTE D'APPEL — `__main__`.
-    ③ ENTRÉE — `argv` : [programme, source, travail], puis facultativement « --sabotages=<noms séparés par « , »> ».
+    ③ ENTRÉE — `argv` : [programme, source], puis facultativement travail, puis facultativement « --sabotages=<noms
+      séparés par « , »> ». Sans travail : un dossier jetable, effacé en sortant (lancement de la nuit, 21-11-2026).
     ④ CONDITIONS D'ENTRÉE — Celles de l'en-tête.
     ⑤ SORTIE — UNE valeur : 0, 1 ou 2. [rend: 1]
     ⑥ TRAITEMENT — ① copies · ② sonde intacte, tout vert · ③ pour chaque sabotage (les seuls nommés par --sabotages=, s'il est donné) : poser, sonder (au moins une
@@ -795,14 +801,22 @@ def main(argv):
     ⑩ EFFET — Écrit sous <travail> ; affiche.
     ⑪ TERMINAISON — Rend la main ; `__main__` passe le code à `sys.exit`. [sort: non]
     """
-    choix = [a.split("=", 1)[1].split(",") for a in argv[3:] if a.startswith("--sabotages=")]
+    choix = [a.split("=", 1)[1].split(",") for a in argv[2:] if a.startswith("--sabotages=")]   # après la source
     inconnus = sorted(set(sum(choix, [])) - {n.split(" ")[0] for n, *_ in SABOTAGES})
-    if len(argv) != 3 + len(choix) or len(choix) > 1 or inconnus:
+    places = len(argv) - 1 - len(choix)          # les arguments de position : source, puis travail s'il est donné
+    if places not in (1, 2) or len(choix) > 1 or inconnus or any(a.startswith("--") for a in argv[1:1 + places]):
         if inconnus:
             print("sabotages inconnus : %s" % inconnus)
         print(__doc__.split("① RÔLE")[0])
         return 2
-    source, travail = os.path.abspath(argv[1]), os.path.abspath(argv[2])
+    source = os.path.abspath(argv[1])
+    jetable = None   # le dossier que l'épreuve fabrique elle-même quand <travail> manque (lancement de la nuit)
+    if places == 2:
+        travail = os.path.abspath(argv[2])
+    else:
+        jetable = tempfile.mkdtemp(prefix="contrat_nuit_", dir="/dev/shm" if os.path.isdir("/dev/shm") else None)
+        travail = os.path.join(jetable, "travail")   # n'existe pas encore : `copier` l'exige
+        print("DOSSIER DE TRAVAIL FABRIQUÉ : %s (effacé en sortant)" % travail)
     try:
         racines = copier(source, travail)
         rouge = 0
@@ -851,6 +865,9 @@ def main(argv):
     except (OSError, RuntimeError, AssertionError, subprocess.TimeoutExpired) as x:
         print("ÉPREUVE IMPOSSIBLE (R-734) : %s: %s" % (type(x).__name__, x))
         return 2
+    finally:
+        if jetable:
+            shutil.rmtree(jetable, ignore_errors=True)
 
 
 if __name__ == "__main__":

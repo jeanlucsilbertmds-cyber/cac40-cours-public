@@ -188,8 +188,6 @@
   },
   "tests/EPREUVES_DE_L_EMPREINTE_STABLE_Mar_17-11-2026.py": {"secondes": 600, "pourquoi": "Épreuve de l'empreinte stable (emp-v2, A-872), sans durée déclarée jusqu'ici (elle aurait compté pour 1 500 s) ; depuis E1 du superviseur R-759 du 17-11-2026 elle joue la propriété de MUTATION sur les 202 fichiers et le contrôle de composition sous trois versions de Python. Règle (relecteur E1 du 12-11-2026, M-2) : la PLUS LONGUE mesure connue, × 4 pour la couverture, + 25 %, arrondi au multiple de 300 s supérieur, plancher 300 s. Mesure sans couverture : 88 s (17-11-2026, machine du Chat, 2 cœurs partagés, 3.11/3.12/3.13 ; environ 19 s de mutation et 6 s de composition par version). Calcul : 88 × 4 × 1,25 = 440 s → 600 s."},
   "tests/EPREUVES_DE_L_EMPREINTE_STABLE_Mar_17-11-2026.py --saboter": {"secondes": 2400, "pourquoi": "Épreuve de l'empreinte stable avec ses 15 sabotages (S1 à S15), chacun sous un seul Python, la mutation arrêtée au premier champ aveugle (E1 du superviseur R-759 du 17-11-2026, point 3) ; sans durée déclarée jusqu'ici. Règle (relecteur E1 du 12-11-2026, M-2) : la PLUS LONGUE mesure connue, × 4 pour la couverture, + 25 %, arrondi au multiple de 300 s supérieur, plancher 300 s. Mesure sans couverture : 433 s (17-11-2026, machine du Chat, 2 cœurs partagés). Calcul : 433 × 4 × 1,25 = 2 165 s → 2 400 s."},
-  "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py": {"secondes": 60, "pourquoi": "Épreuve courte de l'ancre de C5 (A-957, décision de Jean-Luc du 21-11-2026 à 00h49) : E-ancre seule, qui rougit si le code du module C5 change sans que la valeur figée suive. Durée mesurée le 21-11-2026 sur la machine du Chat, sans mesure de couverture : 1 s. Calcul : 1 × 2,2 (couverture) × 4 (machine) × 1,25, arrondi au-dessus à 60 s."},
-  "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py --saboter": {"secondes": 120, "pourquoi": "Épreuve courte de l'ancre de C5 (A-957, décision de Jean-Luc du 21-11-2026 à 00h49) : E-ancre seule, qui rougit si le code du module C5 change sans que la valeur figée suive. Durée mesurée le 21-11-2026 sur la machine du Chat, sans mesure de couverture : 3 s (S1, S2, S3). Calcul : 3 × 2,2 × 4 × 1,25 = 33 s, arrondi au-dessus à 120 s."},
   "tests/EPREUVES_DE_LA_VERSION_DE_PYTHON_Mar_17-11-2026.py": {
    "secondes": 300,
    "pourquoi": "Lancement nouveau de la décision A-874 de Jean-Luc (17-11-2026, version de Python des circuits), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat (2 cœurs, sans couverture) le 17-11-2026 : moins d'une seconde, puis 7 s après la propriété ④ (relecteur neuf du 17-11-2026, D1 et D2 : relevé des modules qu'exécute le soir) ; délai = 4 fois cette durée (la mesure de couverture ralentit jusqu'à quatre fois, relecture du 16-10-2026), arrondi à la minute supérieure, 300 s au moins — même règle que les lancements nouveaux du bloc 3. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
@@ -213,7 +211,21 @@
   "tests/EPREUVES_DE_LA_FILE_DES_MACHINES_LONGUES_Ven_20-11-2026.py --saboter": {
    "secondes": 300,
    "pourquoi": "Lancement nouveau de l'étape FILE-2 (20-11-2026 ; décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52 : le réservoir de 18 places remplace le refus global du relais), jamais joué une nuit : sans durée relevée, il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Durée mesurée sur la machine du Chat le 20-11-2026 : 3 s (5 sabotages) ; 4 fois cette durée reste sous 300 s : le plancher de 300 s des lancements nouveaux s'applique. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
-  }
+  },
+  "tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py": {
+   "secondes": 3600,
+   "pourquoi": "Lancement de la nuit rendu possible le 21-11-2026 (travail-nuit) : l'épreuve rendait 2 chaque nuit (passage 44852703801), lancée avec la seule copie ; elle fabrique désormais son dossier de travail. La série entière (sonde intacte et 22 sabotages) : 6 min 50 s et 6 min 35 s pour deux moitiés parallèles sur la machine du Chat le 20-11-2026, soit environ 13 min 30 s d'un tenant ; la mesure de couverture ralentit jusqu'à quatre fois (délai de l'épreuve de vérité connue du juge) : environ 54 min, au-delà du délai par défaut de 1 500 s ; 3 600 s le couvrent. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py": {
+   "secondes": 5400,
+   "pourquoi": "Lancement de la nuit rendu possible le 21-11-2026 (travail-nuit) : l'épreuve rendait 2 chaque nuit (passage 44852703801), lancée avec la seule copie ; elle fabrique désormais son dossier de travail. Les neuf phases d'un tenant : le passage complet seul a pris de 334 s à 784 s sur la machine du Chat le 19-11-2026, une tranche de la moulinette 94 s le 21-11-2026 ; d'un tenant, non mesuré. Quatre fois (mesure de couverture) environ 15 minutes : environ 60 min, au-delà du délai par défaut de 1 500 s. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/CHAINE_C5_MOULINETTE_SUR_COPIE_Jeu_19-11-2026.py": {
+   "secondes": 5400,
+   "pourquoi": "Lancement de la nuit rendu possible le 21-11-2026 (travail-nuit) : l'épreuve rendait 2 chaque nuit (passage 44852703801), lancée avec la seule copie ; elle fabrique désormais son dossier de travail. Toutes les étapes d'un tenant, la moulinette en 5 tranches (une tranche : 94 s sur la machine du Chat le 21-11-2026, dans l'épreuve de l'enchaîneur, même chaîne) ; d'un tenant, non mesuré. Même ordre de grandeur que l'épreuve de l'enchaîneur : 5 400 s. Dès qu'une nuit l'a joué, sa durée relevée remplace ce délai dans la répartition."
+  },
+  "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py": {"secondes": 60, "pourquoi": "Épreuve courte de l'ancre de C5 (A-957, décision de Jean-Luc du 21-11-2026 à 00h49) : E-ancre seule, qui rougit si le code du module C5 change sans que la valeur figée suive. Durée mesurée le 21-11-2026 sur la machine du Chat, sans mesure de couverture : 1 s. Calcul : 1 × 2,2 (couverture) × 4 (machine) × 1,25, arrondi au-dessus à 60 s."},
+  "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py --saboter": {"secondes": 120, "pourquoi": "Épreuve courte de l'ancre de C5 (A-957, décision de Jean-Luc du 21-11-2026 à 00h49) : E-ancre seule, qui rougit si le code du module C5 change sans que la valeur figée suive. Durée mesurée le 21-11-2026 sur la machine du Chat, sans mesure de couverture : 3 s (S1, S2, S3). Calcul : 3 × 2,2 × 4 × 1,25 = 33 s, arrondi au-dessus à 120 s."}
  },
  "series_hors_de_la_nuit": {
   "tests/EPREUVES_DU_COURS_PROPRE_DE_YAHOO_Jeu_22-10-2026.py": {
@@ -562,14 +574,6 @@
    ],
    "pourquoi": "décisions de Jean-Luc A-853 (16-11-2026 à 15h18) et A-861 (16-11-2026 à 20h05) : la moulinette des 20 ans s'éprouve sur une fiche d'essai C5 2000-2026 qui ne vit que dans une copie jetable du registre ; programmes/PREPARER_LA_MOULINETTE_D_ESSAI.py prépare la copie du circuit (sans .git) puis, avec --jouer, lance programmes/JOUER_LES_VERSIONS.py sur UNE version (la fiche elle-même) avec --cours= le fichier des 20 ans ; résultats sur la sortie standard, donc au privé seulement (SORTIE.txt, A-835). Durée estimée, non mesurée sur 26 ans : environ 45 s fixes plus environ 13 s par jeu de la fiche, 5 jeux, soit environ 2 min (mesure locale du 16-11-2026 : 1,2 s par version sur 644 séances, × 6864/644 séances) ; 2695 versions en demanderaient environ 574 min, au-delà des 330 d'une machine. ATTENTION, mesuré le 16-11-2026 : sur 2000-2023 le juge refuse la fiche (garde M puis RegardNonInscrit, fenêtre du regard unique) ; l'épreuve rend 1 tant que Jean-Luc n'a pas tranché"
   },
-  "AncreC5": {
-   "chemin": "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 00h49 (A-957, « 1 ») : épreuve courte qui rougit si le code du module C5 change sans que la valeur figée de C5E10-QA-V1 (CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE) suive — le cas du merge d2ba76264 du 20-11-2026, vu seulement par MoulinetteEssai ; avec ses sabotages S1 (code changé : rouge), S2 (commentaire seul : vert), S3 (ancienne valeur : rouge) ; 3 s mesurées le 21-11-2026 sur la machine du Chat, sans couverture"
-  },
   "File": {
    "chemin": "tests/EPREUVES_DE_LA_FILE_DES_MACHINES_LONGUES_Ven_20-11-2026.py",
    "arguments": [
@@ -577,6 +581,51 @@
     "--saboter"
    ],
    "pourquoi": "étape FILE-2 (20-11-2026) : les quatre propriétés du réservoir de 18 places et de la protection fine qui remplace le refus global du relais (décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52), avec leurs cinq sabotages (SF1 refus global remis, SF2 groupe par branche retiré, SF3 essais de poussée retirés, SF4 21 tâches, SF5 boucle qui sort au premier refus) ; 3 s sur la machine du Chat avec --saboter (20-11-2026) ; à jouer sur GitHub pour la relecture de Cowork"
+  },
+  "ContratNuit": {
+   "chemin": "tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT (la seule copie, dossier de travail fabriqué par l'épreuve) ; ContratSabot garde la forme à deux arguments ; environ 13 min 30 s sans mesure de couverture (deux moitiés, 20-11-2026)"
+  },
+  "ChaineC5": {
+   "chemin": "tests/CHAINE_C5_MOULINETTE_SUR_COPIE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT, toutes les étapes d'un tenant ; durée d'un tenant non mesurée"
+  },
+  "Enchainer": {
+   "chemin": "tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT, les neuf phases d'un tenant ; durée d'un tenant non mesurée"
+  },
+  "SoirDecide": {
+   "chemin": "tests/EPREUVES_E8_LE_SOIR_SUIT_LA_STRATEGIE_DECIDEE_Mer_18-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S12 reciblé ; 2 min 31 s sur la machine du Chat le 21-11-2026"
+  },
+  "NomsContrat": {
+   "chemin": "tests/EPREUVES_DES_NOMS_AU_CONTRAT_Lun_28-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S3 reciblé ; 2 min 39 s sur la machine du Chat le 21-11-2026"
+  },
+  "AncreC5": {
+   "chemin": "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 00h49 (A-957, « 1 ») : épreuve courte qui rougit si le code du module C5 change sans que la valeur figée de C5E10-QA-V1 (CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE) suive — le cas du merge d2ba76264 du 20-11-2026, vu seulement par MoulinetteEssai ; avec ses sabotages S1 (code changé : rouge), S2 (commentaire seul : vert), S3 (ancienne valeur : rouge) ; 3 s mesurées le 21-11-2026 sur la machine du Chat, sans couverture"
   },
   "EtatTravaux": {
    "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",

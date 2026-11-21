@@ -271,6 +271,12 @@ APPELS_DE_FRAIS = {"frais_aller_retour", "frais_ordre", "pnl_net", "cout_d_un_or
 EPROUVES_AILLEURS = {
     ("JOUER_LES_VERSIONS.py", "main"): "tests/EPREUVES_DE_LA_MOULINETTE_Mar_20-10-2026.py, cas « témoin étiqueté d'un "
                                        "autre barème » (la taxe payée de part et d'autre, C15) et ses sabotages C15",
+    # 21-11-2026 : posée par le contrat de stratégie (38bec5772, A-923). Elle ne CHIFFRE aucun frais : elle demande à
+    # `cout_d_un_ordre` si chaque achat SE chiffre (LookupError → refus de l'univers nommé, année comprise).
+    ("CONTRATS_DES_FICHIERS.py", "manques_du_contrat"): "tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py, "
+                                       "cas E5 (AIR sans ligne VALEURS_TTF 2025 : refus « univers : AIR … 2025 »), E5b "
+                                       "(année sans liste) et E18 (VALEURS_TTF absent : ContratImpossible), et leurs "
+                                       "sabotages S8 (→ E5b) et S11 (→ E18)",
 }
 
 MOTIF = re.compile(r"frais|ttf|courtage", re.I)
