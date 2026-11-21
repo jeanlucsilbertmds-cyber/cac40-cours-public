@@ -176,8 +176,12 @@ def confirmer(racine, d, memo):
             return vu, "GitHub a fini, le registre dit en cours (LIVRER arrêté ?)"
         return vu, ""
     if d["executant"] == "cowork":
-        log = L.git(racine, "log", "-1", "--author=cowork", "--format=%H %ci", f"refs/remotes/origin/{d['branche']}")
-        morceaux = log.stdout.strip().split(" ", 1)
+        # D-5 : « --author » est un motif (« Claude (pas cowork) » y répond) ; seul le nom EXACT compte, comme pour
+        # INSTALLER.juger_le_relu.
+        log = L.git(racine, "log", "--author=cowork", "--format=%H %ci\t%an", f"refs/remotes/origin/{d['branche']}")
+        exacts = [l.split("\t", 1)[0] for l in log.stdout.splitlines()
+                  if "\t" in l and l.split("\t", 1)[1].strip().lower() == "cowork"]
+        morceaux = (exacts[0] if exacts else "").split(" ", 1)
         quand = heure_git(morceaux[1]) if len(morceaux) == 2 else ""
         if quand and quand >= d["lance_le"]:
             return f"Cowork a écrit {morceaux[0][:12]} à {quand}", ""

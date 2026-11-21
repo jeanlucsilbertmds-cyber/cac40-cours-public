@@ -44,8 +44,14 @@ de défense.
 ⑨ CE QUI CLOCHE — Entre le regard ③ et la poussée, un passage peut démarrer (quelques secondes). Sur le code 4, le
   public reste en retard tant que REPUBLIER n'a pas tourné : le circuit du soir le signale en tête (pas « Le public
   porte-t-il le code de main ? ») et nomme la commande. Le REPUBLIER lancé est celui posé à côté de ce programme (le
-  clone du Chat), pas celui de main : un REPUBLIER changé par la branche installée ne sert qu'au passage suivant. Une branche dont la note déclare « aucune » épreuve longue ne s'installe sans
-  preuve que si elle ne change aucun fichier sous programmes/, tests/outils/ ou .github/ (N-3, 21-11-2026).
+  clone du Chat), pas celui de main : un REPUBLIER changé par la branche installée ne sert qu'au passage suivant ; mais
+  publication ET vérification prennent le FABRICANT de main (`LIVRER.fabricant_de`, N-21 du RELU de Cowork sur
+  4e4dc386f). Une branche dont la note déclare « aucune » épreuve longue ne s'installe sans preuve que si elle ne
+  change rien hors de echanges/, archives/ et du registre (`LIVRER.changes_hors_permis` ; N-3, puis N-14 du RELU de
+  Cowork sur e7b230083). Le regard ③ précède la fusion ; l'étape ⑤ peut ensuite publier jusqu'à 7 200 s : une
+  installation lancée peu avant 20h peut pousser au public pendant le circuit du soir, qui garde son pas de défense
+  (N-23 du RELU de Cowork sur 4e4dc386f ; éviter l'heure qui précède 20h est une question posée à Jean-Luc, pas une
+  décision).
 ⑩ EFFET — Pousse sur main au privé, jamais en force. Au public, seulement par REPUBLIER (son fabricant, sans force).
 ⑪ TERMINAISON — Sort du programme par sys.exit.
 """
@@ -63,32 +69,13 @@ RELU = "echanges/RELU.md"
 INSTALLE, REFUS, REESSAYER, PLANTAGE = 0, 1, 3, L.PLANTAGE
 PUBLIC_EN_RETARD = 4   # main installée, public non prouvé à jour (décision de Jean-Luc du 21-11-2026 à 13h27)
 REPUBLIER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "REPUBLIER.py")
-CHANGEMENTS_PERMIS_APRES_RELECTURE = ("echanges/", "archives/", L.REGISTRE)
 BRANCHES_DES_RESULTATS = "refs/remotes/origin/epreuves-longues/"   # le préfixe EPREUVES_BRANCHES du fabricant, au privé
 DOSSIER_DES_RESULTATS = "rapports/epreuves_longues"                 # où le circuit dépose RESULTAT.json sur ces branches
 
 
-def changes_hors_permis(racine, avant, apres):
-    """Rend les fichiers changés entre deux commits hors de CHANGEMENTS_PERMIS_APRES_RELECTURE.
-
-    ① RÔLE — Dire si deux commits portent le MÊME CODE (seuls les échanges, les archives et le registre diffèrent).
-    ② CONTEXTE D'APPEL — `juger_le_relu`, `meme_code`.
-    ③ ENTRÉE — `racine` : le clone privé · `avant`, `apres` : deux commits.
-    ④ CONDITIONS D'ENTRÉE — Les deux commits sont connus du clone.
-    ⑤ SORTIE — UNE valeur : la liste des chemins hors permis.
-      [rend: 1]
-    ⑥ TRAITEMENT — « git diff --no-renames --name-only avant apres », filtré par les préfixes permis. Sans
-      « --no-renames », un programme rangé en archives/ n'apparaît que sous son nouveau chemin, permis (relecture de
-      Cowork du 20-11-2026 à 21h23, D-2, bloquant).
-    ⑦ UNITÉ — —
-    ⑧ POURQUOI — R-708 : une seule écriture de la propriété « même code ».
-    ⑨ CE QUI CLOCHE — —
-    ⑩ EFFET — Lance git en lecture.
-    ⑪ TERMINAISON — Rend la main.
-      [sort: non]
-    """
-    changes = [c for c in L.git(racine, "diff", "--no-renames", "--name-only", avant, apres).stdout.splitlines() if c]
-    return [c for c in changes if not any(c == p or c.startswith(p) for p in CHANGEMENTS_PERMIS_APRES_RELECTURE)]
+# « Même code » : une seule écriture, LIVRER.changes_hors_permis (R-708, N-14 du RELU de Cowork sur e7b230083) ;
+# ce nom la désigne ici pour `juger_le_relu` et `meme_code`.
+changes_hors_permis = L.changes_hors_permis
 
 
 def juger_le_relu(racine, branche):
@@ -110,7 +97,7 @@ def juger_le_relu(racine, branche):
       pas (un RELU écrit par un relecteur neuf du Chat porte aussi « RELU PAR »).
     ⑨ CE QUI CLOCHE — L'auteur git se déclare : n'importe qui peut écrire « cowork » ; c'est un filet contre l'oubli,
       pas une preuve (relecture de Cowork, D-5). Le nom est comparé EN ENTIER (« Claude (pas cowork) » refusé).
-      Le format exigé (« ## VERDICT : … ») n'est pas encore écrit au mode d'emploi des échanges (D-4).
+      Le format exigé est écrit au mode d'emploi des échanges, section « CE QUE LES PROGRAMMES LISENT » (D-4).
     ⑩ EFFET — Lance git en lecture.
     ⑪ TERMINAISON — Rend la main, ou lève Arret.
       [sort: non]
@@ -300,7 +287,11 @@ def fusionner(wt, branche, relue):
       entrée « installation » au registre ; commit — si l'un des deux lève, « git merge --abort » puis l'exception
       remonte (N-5 : le worktree de main, souvent celui du Chat, ne reste pas en fusion inachevée) ;
       « git push origin HEAD:refs/heads/main » (une seule fois : main
-      ne se rebase pas) ; refusée → main locale remise à son commit d'avant (« git reset --keep ») et refus.
+      ne se rebase pas) ; refusée → main locale remise à son commit d'avant (« git reset --keep ») et refus. Un
+      COMMIT refusé (crochet, signature) ne lève rien : « git merge --abort » d'abord, sinon « reset --keep » est
+      refusé au milieu d'une fusion et le worktree de main reste en fusion inachevée (N-13 du RELU de Cowork sur
+      e7b230083). Le code de l'abandon et du retour est lu : s'il échoue, le refus le DIT au lieu de « remise en
+      l'état ».
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Consigne du 20-11-2026, étape ③. Pas de « pull --rebase » sur main : une fusion rebasée perdrait sa
       forme, et un tiers qui a poussé sur main doit faire refaire le regard A-818.
@@ -322,11 +313,17 @@ def fusionner(wt, branche, relue):
     except BaseException:   # N-5 : un plantage entre la fusion et le commit ne laisse pas main en fusion inachevée
         L.git(wt, "merge", "--abort")
         raise
-    p = L.git(wt, "push", "-q", "origin", "HEAD:refs/heads/main") if c.returncode == 0 else c
+    if c.returncode != 0:   # N-13 : un commit refusé laisse la fusion en cours ; seul « merge --abort » la défait
+        a = L.git(wt, "merge", "--abort")
+        etat = "fusion abandonnée, main locale intacte" if a.returncode == 0 else \
+            "ABANDON DE LA FUSION REFUSÉ, worktree de main en fusion inachevée : " + (a.stderr or a.stdout).strip()[:120]
+        raise L.Arret(REFUS, f"commit de fusion refusé ({etat}) : " + (c.stderr or c.stdout).strip()[:200])
+    p = L.git(wt, "push", "-q", "origin", "HEAD:refs/heads/main")
     if p.returncode != 0:
-        L.git(wt, "reset", "-q", "--keep", avant)
-        raise L.Arret(REFUS, "commit ou poussée de main refusés, main locale remise en l'état : "
-                             + (p.stderr or p.stdout).strip()[:200])
+        k = L.git(wt, "reset", "-q", "--keep", avant)
+        etat = "main locale remise en l'état" if k.returncode == 0 else \
+            "MAIN LOCALE NON REMISE EN L'ÉTAT : " + (k.stderr or k.stdout).strip()[:120]
+        raise L.Arret(REFUS, f"poussée de main refusée, {etat} : " + (p.stderr or p.stdout).strip()[:200])
     return L.git(wt, "rev-parse", "HEAD").stdout.strip()
 
 
@@ -342,12 +339,14 @@ def republier_apres_installation(racine):
       [rend: 2]
     ⑥ TRAITEMENT — « python3 -B REPUBLIER.py » dans `racine` (publie si et seulement si le public diffère) ; code
       non nul → 4. Puis fetch, worktree NOMMÉ de main (`LIVRER.worktree_nomme`), clone public neuf
-      (`LIVRER.cloner_le_public`), « REPUBLIER.py --verifier <main> <public> » ; code non nul → 4. Toute exception
+      (`LIVRER.cloner_le_public`), « REPUBLIER.py --verifier --fabricant-du-prive <main> <public> » : le fabricant
+      DU WORKTREE DE MAIN (`LIVRER.fabricant_de`), celui qui a publié (N-21) ; code non nul → 4. Toute exception
       → 4 : main est déjà poussée, un 1 ou un 5 dirait le faux.
     ⑦ UNITÉ — Secondes (bornes : 7 200 pour publier, 3 600 pour vérifier).
     ⑧ POURQUOI — R-708 : REPUBLIER est le seul code qui publie et qui compare ; INSTALLER le lance, il ne le recopie
       pas. Le --verifier séparé prouve le résultat par la même propriété que le circuit du soir.
-    ⑨ CE QUI CLOCHE — Le fabricant de la vérification est celui posé à côté de REPUBLIER.py (ou LIVRER_FABRICANT).
+    ⑨ CE QUI CLOCHE — Le circuit du soir vérifie avec le fabricant PUBLIÉ ; ici, celui de main : les deux sont le même
+      code après une publication prouvée.
     ⑩ EFFET — Peut pousser au public (par REPUBLIER) ; crée puis retire un worktree et un clone sous /tmp.
     ⑪ TERMINAISON — Rend la main ; chaque lancement est borné (LIVRER.lancer).
       [sort: non]
@@ -363,7 +362,8 @@ def republier_apres_installation(racine):
             return PUBLIC_EN_RETARD, "fetch du dépôt privé refusé avant la vérification"
         wt, jetable = L.worktree_nomme(racine, "main")
         public = L.cloner_le_public("main")
-        v = L.lancer([sys.executable, "-B", REPUBLIER, "--verifier", wt, public], dossier=racine, borne=3600)
+        v = L.lancer([sys.executable, "-B", REPUBLIER, "--verifier", "--fabricant-du-prive", wt, public],
+                     dossier=racine, borne=3600)
         for ligne in (v.stdout + v.stderr).strip().splitlines()[-4:]:
             L.dire("  REPUBLIER --verifier │ " + ligne)
         if v.returncode != 0:

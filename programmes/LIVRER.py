@@ -720,9 +720,30 @@ def fabriquer(prive, public, publier):
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    programme = os.environ.get("LIVRER_FABRICANT", os.path.join(prive, FABRICANT))
-    return lancer([sys.executable, "-B", programme, prive, public] + (["--publier"] if publier else []),
+    return lancer([sys.executable, "-B", fabricant_de(prive), prive, public] + (["--publier"] if publier else []),
                   dossier=prive, borne=3600)
+
+
+def fabricant_de(prive):
+    """Rend le chemin du fabricant d'un dépôt privé : LIVRER_FABRICANT, sinon celui que porte ce dépôt.
+
+    ① RÔLE — Le seul choix du fabricant pour publier depuis main ET pour vérifier ce qui a été publié.
+    ② CONTEXTE D'APPEL — `fabriquer` ; REPUBLIER (`publier_si_different`, et `verifier` avec --fabricant-du-prive,
+      que lance INSTALLER à l'étape ⑤).
+    ③ ENTRÉE — `prive` : un dépôt privé (worktree de main).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : un chemin (il peut ne pas exister ; le lancement le dira, code non nul).
+      [rend: 1]
+    ⑥ TRAITEMENT — os.environ, sinon <prive>/FABRICANT.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — N-21 du RELU de Cowork sur 4e4dc386f : INSTALLER publiait avec le fabricant de main et vérifiait avec
+      celui du clone du Chat ; deux fabricants pour une même comparaison (R-708).
+    ⑨ CE QUI CLOCHE — LIVRER_FABRICANT le remplace dans les épreuves.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return os.environ.get("LIVRER_FABRICANT", os.path.join(prive, FABRICANT))
 
 
 # LA DATE FIGÉE DES FICHIERS AVANT UNE FABRICATION À BLANC (N-4 du RELU de Cowork sur 0f18a8d2a, 21-11-2026) : une
@@ -967,13 +988,46 @@ def codes_a_jouer(note, table):
     return codes, sans, ("liste" if codes or sans else "aucune" if aucune else "vide")
 
 
-# CE QUI S'EXÉCUTE (N-3 du RELU de Cowork sur 0f18a8d2a, 21-11-2026) : un travail qui change un fichier sous l'un de ces
-# dossiers change du code qu'un circuit lance ; une note ne peut alors pas déclarer « aucune » épreuve longue.
-DOSSIERS_QUI_S_EXECUTENT = ("programmes/", "tests/outils/", ".github/")
+# CE QUI NE CHANGE PAS LE CODE (N-14 du RELU de Cowork sur e7b230083, 21-11-2026). Une PROPRIÉTÉ, pas une énumération
+# de ce qui s'exécute : l'ancienne liste de trois dossiers ne voyait ni tests/LANCEMENT_DES_EPREUVES.json, qui fabrique
+# les circuits du public, ni les *.py de la racine, de tests/ et de etudes/outils/, que le fabricant publie. Tout
+# chemin HORS de ces préfixes compte comme du code. Une seule écriture (R-708 : deux implémentations d'une même chose
+# divergent toujours) : `changes_hors_permis` la lit, pour INSTALLER (même code avant et après la relecture) et pour
+# `code_change_par` (« aucune » épreuve longue n'est crue que sans code changé).
+CHANGEMENTS_SANS_CODE = ("echanges/", "archives/")   # plus le registre des travaux, ajouté après `charger` (REGISTRE)
+
+
+def changes_hors_permis(racine, avant, apres):
+    """Rend les fichiers changés entre deux commits hors de CHANGEMENTS_SANS_CODE.
+
+    ① RÔLE — Dire si deux commits portent le MÊME CODE (seuls les échanges, les archives et le registre diffèrent).
+    ② CONTEXTE D'APPEL — `code_change_par` ; INSTALLER (`juger_le_relu`, `meme_code`), sous le même nom.
+    ③ ENTRÉE — `racine` : un dépôt · `avant`, `apres` : deux commits.
+    ④ CONDITIONS D'ENTRÉE — Les deux commits sont connus du dépôt.
+    ⑤ SORTIE — UNE valeur : la liste des chemins hors permis (vide : même code).
+      [rend: 1]
+    ⑥ TRAITEMENT — « git diff --no-renames --name-only -z avant apres », filtré par les préfixes permis. Sans
+      « --no-renames », un programme rangé en archives/ n'apparaît que sous son nouveau chemin, permis (relecture de
+      Cowork du 20-11-2026 à 21h23, D-2). Sans « -z », git met entre guillemets un chemin non ASCII
+      (« "archives/\\303\\251.md" ») qui ne commence plus par son préfixe (N-15 du RELU de Cowork sur e7b230083).
+      Différence illisible → lève Arret(TOMBE) : une liste vide dirait « même code » à tort.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — R-708 : une seule écriture de la propriété « même code » (N-14).
+    ⑨ CE QUI CLOCHE — Tout changement hors des préfixes compte, même une donnée ou un document : un travail qui ne
+      touche que le BACKLOG doit nommer une épreuve. Refus du bon côté, voulu.
+    ⑩ EFFET — Lance git en lecture.
+    ⑪ TERMINAISON — Rend la main, ou lève Arret.
+      [sort: non]
+    """
+    d = git(racine, "diff", "--no-renames", "--name-only", "-z", avant, apres)
+    if d.returncode != 0:
+        raise Arret(TOMBE, f"différence de {avant[:12]} à {apres[:12]} illisible")
+    return [c for c in d.stdout.split("\0")
+            if c and not any(c == p or c.startswith(p) for p in CHANGEMENTS_SANS_CODE + (REGISTRE,))]
 
 
 def code_change_par(racine, pointe):
-    """Rend les fichiers qui s'exécutent changés par `pointe` depuis sa base commune avec origin/main.
+    """Rend les fichiers changés par `pointe` hors de CHANGEMENTS_SANS_CODE depuis sa base commune avec origin/main.
 
     ① RÔLE — Dire, sans la note, si un travail change du code : « aucune » épreuve longue n'est crue que sinon.
     ② CONTEXTE D'APPEL — `main` (étape ③) et INSTALLER.prouver_les_epreuves.
@@ -981,13 +1035,13 @@ def code_change_par(racine, pointe):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des chemins (vide : aucun code changé).
       [rend: 1]
-    ⑥ TRAITEMENT — « git merge-base origin/main <pointe> » ; « git diff --no-renames --name-only <base> <pointe> » ;
-      on garde ce qui commence par un dossier de DOSSIERS_QUI_S_EXECUTENT. Base introuvable → lève Arret(TOMBE).
+    ⑥ TRAITEMENT — « git merge-base origin/main <pointe> » ; `changes_hors_permis(base, pointe)` (N-14 : la même
+      propriété qu'INSTALLER, plus une énumération). Base introuvable → lève Arret(TOMBE).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — RELU de Cowork sur 0f18a8d2a, N-3 : « aucune » dans la note faisait installer sans aucune preuve
       GitHub, alors que la réparation du soir pose que « la note du Chat ne fait JAMAIS foi ».
-    ⑨ CE QUI CLOCHE — Une épreuve ou une donnée changée hors de ces dossiers ne compte pas ; l'épreuve d'un code changé
-      n'est pas déduite (la note la nomme toujours, et Cowork juge si elle suffit).
+    ⑨ CE QUI CLOCHE — L'épreuve d'un code changé n'est pas déduite (la note la nomme toujours, et Cowork juge si elle
+      suffit).
     ⑩ EFFET — Lance git en lecture.
     ⑪ TERMINAISON — Rend la main, ou lève Arret.
       [sort: non]
@@ -995,10 +1049,7 @@ def code_change_par(racine, pointe):
     base = git(racine, "merge-base", "origin/main", pointe)
     if base.returncode != 0:
         raise Arret(TOMBE, f"base commune de {pointe[:12]} et origin/main introuvable")
-    d = git(racine, "diff", "--no-renames", "--name-only", base.stdout.strip(), pointe)
-    if d.returncode != 0:
-        raise Arret(TOMBE, f"différence de {pointe[:12]} illisible")
-    return [c for c in d.stdout.split("\n") if c.startswith(DOSSIERS_QUI_S_EXECUTENT)]
+    return changes_hors_permis(racine, base.stdout.strip(), pointe)
 
 
 # ── ÉTAPE ④ : LA DEMANDE ────────────────────────────────────────────────────────────────────────────────────────────

@@ -189,6 +189,67 @@ if "--publier" in sys.argv:
     print("publie : %s = %s" % (bp, g(public, "rev-parse", "HEAD").stdout.strip()[:12]))
 '''
 
+def envelopper(chemin, version_ancienne=False):
+    """Fait d'un fabricant VRAI un fabricant qui, lancé, se conduit comme FAUX_FABRICANT, et, importé, garde ses constantes.
+
+    ① RÔLE — Donner un fabricant porté par main (N-21) sans perdre les constantes que LIVRER lit au fabricant de la
+      racine (`noms_des_circuits`, `commande_de_republication`).
+    ② CONTEXTE D'APPEL — `Monde.__init__` (fabricant_dans_main) ; le réglage de I20 (fabricant ANCIEN du clone).
+    ③ ENTRÉE — `chemin` : un fichier FABRIQUER_LE_CIRCUIT_PUBLIC.py vrai · `version_ancienne` : vrai pour écrire
+      « ancien-<sha> » dans version.txt, comme un fabricant d'avant la fusion qui fabrique autrement.
+    ④ CONDITIONS D'ENTRÉE — Le vrai fabricant n'a pas de « from __future__ » (vérifié : aucun).
+    ⑤ SORTIE — Rien.
+      [rend: rien]
+    ⑥ TRAITEMENT — En tête du fichier : « if __name__ == "__main__": » suivi de FAUX_FABRICANT indenté, puis
+      sys.exit(0) ; le texte vrai suit, intact.
+    ⑦ UNITÉ — — ⑧ POURQUOI — Le monde de I20 retire LIVRER_FABRICANT : sans cela, publier et vérifier prennent le
+      même faux fabricant, et N-21 ne peut pas se voir (RELU de Cowork sur 4e4dc386f, section 5).
+    ⑨ CE QUI CLOCHE — — ⑩ EFFET — Réécrit le fichier. ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    faux = FAUX_FABRICANT.split("\n", 1)[1]
+    if version_ancienne:
+        ancre = 'else sha) + "\\n")'
+        if faux.count(ancre) != 1:
+            raise ValueError("enveloppe : ancre de version absente du faux fabricant")
+        faux = faux.replace(ancre, 'else "ancien-" + sha) + "\\n")')
+    with open(chemin, encoding="utf-8") as f:
+        vrai = f.read()
+    with open(chemin, "w", encoding="utf-8") as f:
+        f.write('if __name__ == "__main__":\n' + "".join("    " + l + "\n" for l in faux.splitlines())
+                + "    sys.exit(0)\n" + vrai)
+
+
+def programmes_du_cas(m, fichier, avant=None, apres=None, version_ancienne=False):
+    """Donne au cas sa propre copie des programmes, avec une seule retouche ; lève ValueError si l'ancre manque.
+
+    ① RÔLE — Mettre à côté d'INSTALLER un programme qui ment (I19) ou un fabricant ancien (I20), sans toucher la copie
+      partagée par les autres cas.
+    ② CONTEXTE D'APPEL — Les réglages de I19, I20.
+    ③ ENTRÉE — `m` · `fichier` : le programme retouché · `avant`, `apres` : l'ancre (une fois) et son remplacement ·
+      `version_ancienne` : envelopper le fabricant de la copie (I20) au lieu de remplacer une ancre.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Rien : m.progs désigne la copie.
+      [rend: rien]
+    ⑥ TRAITEMENT — copytree de m.progs sous le monde ; retouche ; m.progs remplacé.
+    ⑦ UNITÉ — — ⑧ POURQUOI — Une ancre absente ne retoucherait rien : refusée, comme un sabotage.
+    ⑨ CE QUI CLOCHE — — ⑩ EFFET — Écrit sous le monde. ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    d = os.path.join(m.t, "programmes_du_cas")
+    shutil.copytree(m.progs, d)
+    chemin = os.path.join(d, fichier)
+    if version_ancienne:
+        envelopper(chemin, version_ancienne=True)
+    else:
+        texte = open(chemin, encoding="utf-8").read()
+        if texte.count(avant) != 1:
+            raise ValueError(f"ancre du cas trouvée {texte.count(avant)} fois dans {fichier}")
+        with open(chemin, "w", encoding="utf-8") as f:
+            f.write(texte.replace(avant, apres))
+    m.progs = d
+
+
 FAUX_GARDE_FOU = r'''#!/usr/bin/env python3
 import hashlib, re, sys
 p = sys.argv[1]; t = open(p, encoding="utf-8").read()
@@ -234,13 +295,17 @@ class Monde:
     ⑪ TERMINAISON — —
     """
 
-    def __init__(self, source, progs, liste="- `CircuitPublic`\n- `GardeFou`", code_change=True):
+    def __init__(self, source, progs, liste="- `CircuitPublic`\n- `GardeFou`", code_change=True, fichier_change=None,
+                 fabricant_dans_main=False):
         """Bâtit le monde.
 
         ① RÔLE — Dépôts, outils faux, état du faux gh.
         ② CONTEXTE D'APPEL — Chaque cas.
         ③ ENTRÉE — `self` · `source` · `progs` · `liste` : les éléments de la section « à jouer » · `code_change` :
-          faux pour un travail qui ne change que echanges/ (N-3 : « aucune » n'est cru que pour lui).
+          faux pour un travail qui ne change que echanges/ (N-3 : « aucune » n'est cru que pour lui) ·
+          `fichier_change` : le chemin que le travail change, à la place des deux précédents (N-14, N-15) ·
+          `fabricant_dans_main` : vrai pour que main porte le fabricant (`ENVELOPPE_DU_FAUX_FABRICANT`) et que
+          LIVRER_FABRICANT soit retiré : chaque programme prend alors le fabricant que lui désigne son propre code (N-21).
         ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — Rien.
           [rend: rien]
@@ -273,10 +338,14 @@ class Monde:
         dep = os.path.join(self.t, "depart")
         for d in ("programmes", "tests/outils", "echanges"):
             os.makedirs(os.path.join(dep, d))
+        if fabricant_dans_main:
+            self.env.pop("LIVRER_FABRICANT")
         for rel in ("programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py", "programmes/CONTRATS_DES_FICHIERS.py",
                     "tests/LANCEMENT_DES_EPREUVES.json", "tests/outils/rapatrier_les_epreuves_longues.py",
                     ".gitattributes"):
             shutil.copyfile(os.path.join(source, rel), os.path.join(dep, rel))
+        if fabricant_dans_main:
+            envelopper(os.path.join(dep, "programmes", "FABRIQUER_LE_CIRCUIT_PUBLIC.py"))
         with open(os.path.join(dep, "programmes", "CODE.py"), "w") as f:
             f.write("V = 1\n")
         with open(os.path.join(dep, "echanges", "A_RELIRE.md"), "w") as f:
@@ -290,8 +359,9 @@ class Monde:
         self.git(dep, "push", "-q", self.public, "main")
         self.git(dep, "checkout", "-q", "-b", "travail-x")
         self.lancer([sys.executable, os.path.join(self.t, "garde.py"), "echanges/A_RELIRE.md"], dep)
-        with open(os.path.join(dep, "programmes", "CODE.py") if code_change
-                  else os.path.join(dep, "echanges", "TRAVAIL.md"), "w") as f:
+        change = fichier_change or ("programmes/CODE.py" if code_change else "echanges/TRAVAIL.md")
+        os.makedirs(os.path.dirname(os.path.join(dep, change)), exist_ok=True)
+        with open(os.path.join(dep, change), "w") as f:
             f.write("V = 2\n")
         self.git(dep, "add", "-A")
         self.git(dep, "commit", "-q", "-m", "travail")
@@ -748,7 +818,12 @@ def cas_installer(progs, source):
       main intacte, worktree de main propre et sans MERGE_HEAD (N-5). Depuis la décision de Jean-Luc du 21-11-2026 à
       13h27 (N-2, réponse « 1 ») : un code 0 exige le public REPUBLIÉ et portant main (I1, I9b, I15) ; I17 REPUBLIER
       qui échoue (publication refusée) → 4, main installée, public intact, la commande nommée ; I18 public déjà égal
-      à main → 0 sans aucun « --publier ».
+      à main → 0 sans aucun « --publier ». RELU de Cowork sur 4e4dc386f : I19 REPUBLIER (a) qui rend 0 sans publier →
+      4 par le seul contrôle --verifier (N-20) ; I20 fabricant porté par main, fabricant ANCIEN dans le clone du Chat →
+      0, la vérification prend celui de main (N-21). RELU de Cowork sur e7b230083 : I14b note « aucune », travail qui ne
+      change qu'un outil de etudes/outils/ → 1 (N-14) ; I15b note « aucune », travail qui ne change qu'une archive au
+      nom accentué → 0 (N-15) ; I21 commit de fusion refusé par un crochet → 1, main intacte, worktree de main propre
+      et sans MERGE_HEAD (N-13).
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026, A-818 et réparation du soir (points A et D).
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
@@ -850,6 +925,37 @@ def cas_installer(progs, source):
         with open(os.path.join(m.t, "fab.log")) as f:
             m.lignes_du_log = len(f.read().splitlines())
 
+    def republier_menteur(m):
+        """Preuves, et un REPUBLIER qui rend 0 en (a) sans rien publier, son --verifier intact. ① RÔLE — Régler I19
+        (N-20) : seul le contrôle --verifier d'INSTALLER peut voir le public en retard. ② CONTEXTE D'APPEL — `cas`.
+        ③ ENTRÉE — `m`. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — `programmes_du_cas`
+        sur l'aiguillage de REPUBLIER.main. ⑦ UNITÉ — — ⑧ POURQUOI — Mon S-B, RELU de Cowork sur 4e4dc386f.
+        ⑨ CE QUI CLOCHE — — ⑩ EFFET — Écrit sous le monde. ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]"""
+        preuves(m)
+        programmes_du_cas(m, "REPUBLIER.py", "            code = publier_si_different(os.getcwd())",
+                          "            code = 0")
+
+    def fabricant_ancien_dans_le_clone(m):
+        """Preuves, et un fabricant ANCIEN à côté de REPUBLIER dans les programmes du Chat. ① RÔLE — Régler I20
+        (N-21). ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m` (monde `fabricant_dans_main`). ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — `programmes_du_cas` avec `version_ancienne`. ⑦ UNITÉ — —
+        ⑧ POURQUOI — Le scénario du RELU : main a reçu un fabricant que le clone du Chat n'a pas. ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Écrit sous le monde. ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]"""
+        preuves(m)
+        programmes_du_cas(m, "FABRIQUER_LE_CIRCUIT_PUBLIC.py", version_ancienne=True)
+
+    def commit_de_fusion_refuse(m):
+        """Preuves, et un crochet commit-msg du clone du Chat qui refuse le commit « Installation de … ». ① RÔLE —
+        Régler I21 (N-13). ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m`. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — Rien.
+        [rend: rien] ⑥ TRAITEMENT — .git/hooks/commit-msg. ⑦ UNITÉ — — ⑧ POURQUOI — Un refus réel de git (crochet ou
+        signature), sans crochet dans le code éprouvé. ⑨ CE QUI CLOCHE — — ⑩ EFFET — Écrit dans le clone.
+        ⑪ TERMINAISON — Rend la main. [sort: non]"""
+        preuves(m)
+        crochet = os.path.join(m.clone, ".git", "hooks", "commit-msg")
+        with open(crochet, "w") as f:
+            f.write("#!/bin/sh\ngrep -q '^Installation de' \"$1\" && { echo 'refusé par le crochet'; exit 1; }\nexit 0\n")
+        os.chmod(crochet, 0o755)
+
     cas = (
         # nom, code attendu, réglage (avant le RELU), arguments du RELU
         ("I1", 0, preuves, {}),
@@ -872,9 +978,17 @@ def cas_installer(progs, source):
         ("I16", 5, preuves_et_registre_bloque, {}),
         ("I17", 4, preuves_et_publication_refusee, {}),
         ("I18", 0, public_deja_a_jour, {}),
+        ("I14b", 1, lambda m: None, {}),
+        ("I15b", 0, lambda m: None, {}),
+        ("I19", 4, republier_menteur, {}),
+        ("I20", 0, fabricant_ancien_dans_le_clone, {}),
+        ("I21", 1, commit_de_fusion_refuse, {}),
     )
     mondes = {"I14": {"liste": "- aucune"}, "I15": {"liste": "- aucune", "code_change": False},
-              "I18": {"liste": "- aucune", "code_change": False}}
+              "I18": {"liste": "- aucune", "code_change": False},
+              "I14b": {"liste": "- aucune", "fichier_change": "etudes/outils/OUTIL.py"},
+              "I15b": {"liste": "- aucune", "fichier_change": "archives/\u00e9t\u00e9.md"},
+              "I20": {"fabricant_dans_main": True}}
     for nom, attendu, regler, kw in cas:
         if not choisi(nom):
             continue
@@ -910,8 +1024,8 @@ def cas_installer(progs, source):
                 ok = (p.returncode == 4 and apres != avant and len(fusion) == 1 and public_apres == public_avant
                       and "main installé, public EN RETARD : lancer REPUBLIER" in p.stdout
                       and "python3 -B programmes/REPUBLIER.py" in p.stdout)
-            elif attendu == 5 and nom == "I16":   # N-5 : rien poussé, et le worktree de main n'est pas en fusion
-                ok = (p.returncode == 5 and apres == avant and not m.git(m.clone, "status", "--porcelain").strip()
+            elif nom in ("I16", "I21"):   # N-5, N-13 : rien poussé, et le worktree de main n'est pas en fusion
+                ok = (p.returncode == attendu and apres == avant and not m.git(m.clone, "status", "--porcelain").strip()
                       and m.lancer(["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"], m.clone).returncode != 0)
             elif attendu == 5:
                 ok = p.returncode == 5 and apres != avant and len(fusion) == 1
@@ -1033,7 +1147,9 @@ def cas_qui_fait_quoi(progs, source):
     ⑥ TRAITEMENT — Q1 la même épreuve chez GitHub et chez Cowork → DOUBLON, code 1 ; Q2 registre cohérent → 0 ;
       Q3 registre « en cours » pour un passage fini → INCOHÉRENT ; Q4 Cowork lancé avant la fin de GitHub ;
       Q5 « noter » écrit et pousse une entrée lue ensuite ; Q6 une entrée d'exécutant hors contrat (« Cowork ») →
-      ILLISIBLE, code 2 (D-6). Le registre est écrit en fichiers JSON, un par entrée.
+      ILLISIBLE, code 2 (D-6) ; Q8 relecture « finie » au registre, seul commit depuis par « Claude (pas cowork) » →
+      INCOHÉRENT, code 1 (D-5 : le nom d'auteur est comparé EN ENTIER). Le registre est écrit en fichiers JSON, un
+      par entrée.
     ⑦ UNITÉ — — ⑧ POURQUOI — Ajout du 20-11-2026 à 19h40, point 3 : le cas « doublon non vu ».
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
@@ -1055,7 +1171,9 @@ def cas_qui_fait_quoi(progs, source):
             ("Q4", [gh_fini, ("relecture", "travail-x", "cowork", "abc123", "2026-11-20 10:10:00", "", "EN COURS")],
              1, "COWORK AVANT GITHUB"),
             ("Q6", [gh_fini, ("relecture", "travail-x", "Cowork", "abc123", "2026-11-20 10:10:00", "", "EN COURS")],
-             2, "exécutant 'Cowork'")):
+             2, "exécutant 'Cowork'"),
+            ("Q8", [gh_fini, ("relecture", "travail-x", "cowork", "abc123", "2026-11-20 10:40:00",
+                              "2026-11-20 10:50:00", "RELU")], 1, "INCOHÉRENT relecture")):
         if not choisi(nom):
             continue
         m = Monde(source, progs)
@@ -1069,7 +1187,9 @@ def cas_qui_fait_quoi(progs, source):
                 with open(os.path.join(w, "etudes", "REGISTRE_DES_TRAVAUX", nom_f), "w") as f:
                     json.dump(dict(zip(cles, l)), f)
             m.git(w, "add", "-A")
-            m.git(w, "commit", "-q", "-m", "registre")
+            auteur = "Claude (pas cowork)" if nom == "Q8" else "Claude"   # D-5 : le motif « cowork » y répond
+            subprocess.run(["git", "commit", "-q", "-m", "registre"], cwd=w,
+                           env=dict(m.env, GIT_AUTHOR_NAME=auteur, GIT_COMMITTER_NAME=auteur))
             m.git(w, "push", "-q", "origin", "travail-x")
             p = m.programme("QUI_FAIT_QUOI.py")
             ok = p.returncode == attendu and mot in p.stdout
@@ -1152,8 +1272,8 @@ SABOTAGES = (
     ("S12 verdict lu au début seulement", "INSTALLER.py", 'if valeur != "DÉPLOYABLE":',
      'if not valeur.startswith("DÉPLOYABLE"):'),
     ("S13 auteur du RELU non vérifié", "INSTALLER.py", 'if auteur.lower() != "cowork":', 'if False:'),
-    ("D2 renommage suivi : programme rangé en archives/ accepté", "INSTALLER.py", '"diff", "--no-renames", "--name-only"',
-     '"diff", "--name-only"'),
+    ("D2 renommage suivi : programme rangé en archives/ accepté", "LIVRER.py",
+     '"diff", "--no-renames", "--name-only", "-z"', '"diff", "--name-only", "-z"'),
     ("D5 auteur lu comme sous-chaîne", "INSTALLER.py", 'if auteur.lower() != "cowork":',
      'if "cowork" not in auteur.lower():'),
     ("D13 branche déjà dans main réinstallée", "INSTALLER.py", '"--is-ancestor", ref, "origin/main").returncode == 0:',
@@ -1230,6 +1350,21 @@ SABOTAGES = (
      "             + ROUGIR_SI_LE_PUBLIC_EST_EN_RETARD\n", ""),
     ("N11 continue-on-error retiré de public_a_jour", "FABRIQUER_LE_CIRCUIT_PUBLIC.py",
      "        id: public_a_jour\n        continue-on-error: true\n", "        id: public_a_jour\n"),
+    # Les réparations du RELU de Cowork sur 4e4dc386f (N-20, N-21) et sur e7b230083 (N-13, N-14, N-15, D-5), 21-11-2026
+    ("N20 contrôle --verifier d'INSTALLER ignoré", "INSTALLER.py", "        if v.returncode != 0:\n",
+     "        if False:\n"),
+    ("N21 vérification avec le fabricant du clone du Chat", "INSTALLER.py",
+     '"--verifier", "--fabricant-du-prive", wt, public]', '"--verifier", wt, public]'),
+    ("N13 commit de fusion refusé sans abandon de la fusion", "INSTALLER.py",
+     '        a = L.git(wt, "merge", "--abort")\n', '        a = L.git(wt, "status")\n'),
+    ("N14 énumération de ce qui s'exécute revenue", "LIVRER.py",
+     "    return changes_hors_permis(racine, base.stdout.strip(), pointe)",
+     '    return [c for c in changes_hors_permis(racine, base.stdout.strip(), pointe)\n'
+     '            if c.startswith(("programmes/", "tests/outils/", ".github/"))]'),
+    ("N15 chemins non ASCII entre guillemets", "LIVRER.py",
+     '"--name-only", "-z", avant, apres)', '"--name-only", "-c", avant, apres)'),
+    ("D5q auteur de Cowork lu comme sous-chaîne (QUI_FAIT_QUOI)", "QUI_FAIT_QUOI.py",
+     'l.split("\\t", 1)[1].strip().lower() == "cowork"]', '"cowork" in l.split("\\t", 1)[1].strip().lower()]'),
 )
 
 

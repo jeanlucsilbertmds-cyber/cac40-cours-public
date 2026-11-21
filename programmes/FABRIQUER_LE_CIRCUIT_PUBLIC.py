@@ -705,12 +705,14 @@ PUBLIC_A_JOUR = """      - name: Le public porte-t-il le code de main ?
 # Ce pas, DERNIER du premier job, après son journal, rougit ce job quand `public_a_jour` a échoué : le passage entier
 # finit rouge, comme pour « Rougir si la decision… ». Le job « collecte » tourne quand même : sa condition porte
 # « !cancelled() » (JOB_CONDITION), qui remplace la règle « seulement si les jobs requis ont réussi ». Sa condition
-# exige le code public posé, comme tout pas qui tourne après un échec (épreuve du circuit public, E3).
+# exige le code public posé, comme tout pas qui tourne après un échec (épreuve du circuit public, E3). Son message ne
+# tranche pas entre « différent » (REPUBLIER --verifier rend 1) et « invérifiable » (2) : il renvoie à la ligne du pas
+# public_a_jour, qui le dit (N-19 du RELU de Cowork sur e7b230083).
 ROUGIR_SI_LE_PUBLIC_EST_EN_RETARD = """      - name: Rougir si le public n est pas celui de main
         id: rougir_si_le_public_est_en_retard
         if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (steps.public_a_jour.outcome == 'failure') }}
         run: |
-          echo "::error::LE PUBLIC N EST PAS CELUI DE MAIN — lancer : %s"
+          echo "::error::LE PUBLIC N EST PAS CELUI DE MAIN, OU N A PAS PU ETRE VERIFIE — lire la ligne ::error:: du pas public_a_jour : si elle dit N EST PAS CELUI DE MAIN, lancer : %s ; si elle dit NON VERIFIABLE, republier ne repare rien"
           exit 1
 """ % COMMANDE_DE_REPUBLICATION
 

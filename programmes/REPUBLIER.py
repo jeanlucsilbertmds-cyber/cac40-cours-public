@@ -7,15 +7,19 @@ circuit du soir (le pas « Poser les programmes publics » refuse des programmes
 réparation du même soir (relecteur neuf : « NON DÉPLOYABLE » ; superviseur R-759 : « RUSTINE, À REPRENDRE, AVEC
 SIMPLIFICATION ») sépare les deux gestes : programmes/INSTALLER.py s'arrête à la fusion poussée sur main, et CE
 programme amène le public au code de main. Il est IDEMPOTENT : sur un public déjà égal à main, il ne fait rien.
+Depuis la décision de Jean-Luc du 21-11-2026 à 13h27 (réponse « 1 » à N-2 : « INSTALLER enchaîne lui-même la
+republication »), INSTALLER le lance lui-même après la fusion poussée, en (a) puis en (b).
 
 ① RÔLE — Deux usages. (a) PUBLIER : fabriquer le circuit de main, le comparer au public, ne rien faire s'ils sont
   égaux, publier sinon. (b) VÉRIFIER (--verifier) : sans réseau, dire si un clone public porte exactement ce que
   fabrique un dépôt privé ; rougit et nomme la commande (a) sinon.
-② CONTEXTE D'APPEL — (a) À la main par le Chat, depuis la racine de son clone privé, après le code 0 d'INSTALLER :
+② CONTEXTE D'APPEL — (a) Par INSTALLER (étape ⑤, sous-processus, depuis la racine du clone du Chat) ; à la main par
+  le Chat seulement après un code 4 d'INSTALLER, ou sur la ligne « ::error:: » du circuit du soir :
   python3 -B programmes/REPUBLIER.py
   (b) Par le pas « Le public porte-t-il le code de main ? » en tête du circuit du soir fabriqué
   (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, PUBLIC_A_JOUR) :
   python3 -B programmes/REPUBLIER.py --verifier <dépôt privé> <clone public>
+  et par INSTALLER (étape ⑤), avec --fabricant-du-prive : le fabricant du worktree de main, celui qui a publié.
 ③ ENTRÉE — La ligne de commande. Les variables LIVRER_* de programmes/LIVRER.py valent ici aussi (épreuves).
 ④ CONDITIONS D'ENTRÉE — (a) Celles de LIVRER.py ; main n'est extraite dans aucun worktree, ou dans un worktree propre
   à la pointe d'origin/main. (b) Les deux dossiers existent ; le clone public est un dépôt git.
@@ -27,7 +31,8 @@ programme amène le public au code de main. Il est IDEMPOTENT : sur un public d�
   (`LIVRER.cloner_le_public`) ; fabrication à blanc (`LIVRER.fabriquer`) ; « git status --porcelain » vide → rien à
   faire, code 0 ; sinon `LIVRER.publier_au_public` (essai à blanc, --publier, preuve par un second clone neuf), code 0.
   (b) copie du clone public sous un dossier temporaire ; le fabricant posé À CÔTÉ DE CE PROGRAMME (le code publié,
-  dans le circuit) fabrique à blanc depuis le dépôt privé dans la copie ; « git status --porcelain » de la copie.
+  dans le circuit), ou avec --fabricant-du-prive celui du dépôt privé (`LIVRER.fabricant_de`, N-21), fabrique à blanc
+  depuis le dépôt privé dans la copie ; « git status --porcelain » de la copie.
 ⑦ UNITÉ — —
 ⑧ POURQUOI — Voir le sens en tête. TOUT passe par FABRIQUER_LE_CIRCUIT_PUBLIC.py (R-708 : deux implémentations d'une
   même chose divergent toujours) : la comparaison est une fabrication à blanc, jamais une liste de fichiers recopiée.
@@ -94,16 +99,18 @@ def ecart_avec_le_public(prive, public, fabricant):
         shutil.rmtree(base, ignore_errors=True)
 
 
-def verifier(prive, public):
+def verifier(prive, public, fabricant_du_prive=False):
     """Usage (b) : rend 0 si `public` porte exactement ce que fabrique `prive`, 1 sinon, 2 si invérifiable.
 
     ① RÔLE — Le pas du circuit du soir qui dit, en tête, que le public est en retard sur main.
     ② CONTEXTE D'APPEL — `main`, sur --verifier.
-    ③ ENTRÉE — `prive` · `public`.
+    ③ ENTRÉE — `prive` · `public` · `fabricant_du_prive` : vrai pour --fabricant-du-prive.
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : 0, 1 ou 2.
       [rend: 1]
-    ⑥ TRAITEMENT — Fabricant : LIVRER_FABRICANT, sinon celui posé à côté de ce programme ; `ecart_avec_le_public` ;
+    ⑥ TRAITEMENT — Fabricant : avec `fabricant_du_prive`, `LIVRER.fabricant_de(prive)` (celui qui publie depuis main,
+      N-21 du RELU de Cowork sur 4e4dc386f) ; sinon LIVRER_FABRICANT, sinon celui posé à côté de ce programme ;
+      `ecart_avec_le_public` ;
       la ligne « ::error:: » nomme la commande (`LIVRER.commande_de_republication`).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Dans le circuit, le fabricant posé à côté de ce programme est le code PUBLIÉ (après le pas « Poser
@@ -116,8 +123,8 @@ def verifier(prive, public):
     if not os.path.isdir(os.path.join(public, ".git")) or not os.path.isdir(prive):
         L.dire("::error::PUBLIC NON VÉRIFIABLE — dossiers absents ou clone public sans .git")
         return INVERIFIABLE
-    fabricant = os.environ.get("LIVRER_FABRICANT",
-                               os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.basename(L.FABRICANT)))
+    fabricant = L.fabricant_de(prive) if fabricant_du_prive else os.environ.get(
+        "LIVRER_FABRICANT", os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.basename(L.FABRICANT)))
     code, reste, sortie = ecart_avec_le_public(prive, public, fabricant)
     if code != 0:
         L.dire(f"::error::PUBLIC NON VÉRIFIABLE — fabrication à blanc refusée (code {code}) : {sortie}")
@@ -158,8 +165,7 @@ def publier_si_different(racine):
         wt, jetable = L.worktree_nomme(racine, "main")
         pointe = L.git(wt, "rev-parse", "HEAD").stdout.strip()
         public = L.cloner_le_public("main")
-        fabricant = os.environ.get("LIVRER_FABRICANT", os.path.join(wt, L.FABRICANT))
-        code, reste, sortie = ecart_avec_le_public(wt, public, fabricant)
+        code, reste, sortie = ecart_avec_le_public(wt, public, L.fabricant_de(wt))
         if code != 0:
             raise L.Arret(L.TOMBE, f"fabrication à blanc refusée (code {code}) : {sortie}")
         if not reste:
@@ -183,7 +189,7 @@ def main():
 
     ① RÔLE — Voir l'en-tête.
     ② CONTEXTE D'APPEL — La ligne de commande.
-    ③ ENTRÉE — sys.argv : rien, ou « --verifier <privé> <public> ».
+    ③ ENTRÉE — sys.argv : rien, ou « --verifier [--fabricant-du-prive] <privé> <public> ».
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête.
     ⑤ SORTIE — Rien : sort (voir l'en-tête, ⑤).
       [rend: rien]
@@ -202,7 +208,8 @@ def main():
             if len(args) != 2:
                 L.dire("usage : REPUBLIER.py --verifier <dépôt privé> <clone public>")
                 sys.exit(INVERIFIABLE)
-            code = verifier(os.path.abspath(args[0]), os.path.abspath(args[1]))
+            code = verifier(os.path.abspath(args[0]), os.path.abspath(args[1]),
+                            fabricant_du_prive="--fabricant-du-prive" in sys.argv)
         elif args:
             L.dire("usage : REPUBLIER.py   (depuis la racine du clone privé)")
             code = L.TOMBE

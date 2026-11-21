@@ -119,7 +119,7 @@ jobs:
         id: rougir_si_le_public_est_en_retard
         if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (steps.public_a_jour.outcome == 'failure') }}
         run: |
-          echo "::error::LE PUBLIC N EST PAS CELUI DE MAIN — lancer : python3 -B programmes/REPUBLIER.py"
+          echo "::error::LE PUBLIC N EST PAS CELUI DE MAIN, OU N A PAS PU ETRE VERIFIE — lire la ligne ::error:: du pas public_a_jour : si elle dit N EST PAS CELUI DE MAIN, lancer : python3 -B programmes/REPUBLIER.py ; si elle dit NON VERIFIABLE, republier ne repare rien"
           exit 1
   collecte:
     needs: faut_il_tourner
