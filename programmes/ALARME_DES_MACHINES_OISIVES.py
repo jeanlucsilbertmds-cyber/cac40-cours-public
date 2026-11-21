@@ -95,7 +95,8 @@ def main():
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — Le code de sortie décrit au module.
       [rend: rien]
-    ⑥ TRAITEMENT — Options ; E.etat_des_travaux ; `alarmes` ; affichage.
+    ⑥ TRAITEMENT — Options ; E.etat_des_travaux puis `alarmes`, tous deux dans le même « try » (une exception
+      sort en 5 PLANTAGE, jamais en 1) ; affichage.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — —
     ⑨ CE QUI CLOCHE — —
@@ -113,13 +114,14 @@ def main():
     a = p.parse_args()
     try:
         etat = E.etat_des_travaux(a.depot, a.gh, a.public, fetch=not a.sans_fetch)
+        # DANS le try (RELU Cowork m1, 20-11-2026) : un plantage ici sortait en code 1, lu MACHINES OISIVES
+        code, phrases = alarmes(etat, a.minutes, a.maintenant if a.maintenant is not None else int(time.time()))
     except E.Impossible as e:
         print(f"IMPOSSIBLE — {e} — aucune alarme ne peut être jugée (R-734)")
         sys.exit(IMPOSSIBLE)
     except Exception as e:  # PLANTAGE : jamais lu comme un verdict
         print(f"PLANTAGE — {type(e).__name__} : {e}")
         sys.exit(PLANTAGE)
-    code, phrases = alarmes(etat, a.minutes, a.maintenant if a.maintenant is not None else int(time.time()))
     for x in phrases:
         print(x)
     if code == RIEN:

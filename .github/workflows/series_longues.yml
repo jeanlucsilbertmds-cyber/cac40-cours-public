@@ -50,6 +50,7 @@
 # tests/EPREUVES_DES_AJUSTEMENTS_DE_YAHOO_Jeu_08-10-2026.py (liste : INTERDITS de tests/outils/jouer_une_part.py) —
 # retirés de la copie jouée, refusés comme épreuve, cherchés dans l'écoute de chaque part.
 name: Series longues de sabotages
+run-name: "Series longues de sabotages${{ inputs.premiere_place && format(' places {0}+{1}', inputs.premiere_place, inputs.nombre_de_places) || '' }}"
 on:
   workflow_dispatch:
     inputs:
@@ -69,6 +70,16 @@ on:
         type: choice
         options: ["toutes", "Yahoo", "HL", "Boucle", "Signaux", "Debuts", "Signal"]
         default: "toutes"
+      premiere_place:
+        description: "Premiere place du reservoir, de 1 a 18 (choisie par le relais ; toute autre valeur : 1)"
+        required: false
+        type: string
+        default: "1"
+      nombre_de_places:
+        description: "Nombre de places prevu par le relais (renseignement du titre, jamais lu par les jobs)"
+        required: false
+        type: string
+        default: ""
       parts_yahoo:
         description: "Nombre de machines pour la serie Yahoo (1 a 99)"
         type: number
@@ -118,7 +129,7 @@ on:
         type: number
         default: 6
 concurrency:
-  group: series-longues
+  group: series-longues-${{ github.ref_name }}
   cancel-in-progress: false
   queue: max
 permissions:
@@ -126,6 +137,10 @@ permissions:
 jobs:
   preparer:
     runs-on: ubuntu-latest
+    concurrency:
+      group: place-longue-${{ inputs.premiere_place == '18' && '18' || inputs.premiere_place == '17' && '17' || inputs.premiere_place == '16' && '16' || inputs.premiere_place == '15' && '15' || inputs.premiere_place == '14' && '14' || inputs.premiere_place == '13' && '13' || inputs.premiere_place == '12' && '12' || inputs.premiere_place == '11' && '11' || inputs.premiere_place == '10' && '10' || inputs.premiere_place == '9' && '9' || inputs.premiere_place == '8' && '8' || inputs.premiere_place == '7' && '7' || inputs.premiere_place == '6' && '6' || inputs.premiere_place == '5' && '5' || inputs.premiere_place == '4' && '4' || inputs.premiere_place == '3' && '3' || inputs.premiere_place == '2' && '2' || '1' }}
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 30
     outputs:
       sha: ${{ steps.matrice.outputs.sha }}
@@ -229,6 +244,7 @@ jobs:
         id: matrice
         env:
           SERIE: ${{ inputs.serie }}
+          PREMIERE: ${{ inputs.premiere_place }}
           PARTS_YAHOO: ${{ inputs.parts_yahoo }}
           LOT_YAHOO: ${{ inputs.lot_yahoo }}
           PARTS_HL: ${{ inputs.parts_hl }}
@@ -277,12 +293,22 @@ jobs:
             echo "serie $s : $epreuve -> $releve, $n part(s), lots de $l"
           done
           [ "$(jq length <<<"$matrice")" -le 256 ] || echec "plus de 256 jobs : limite d'une matrice chez GitHub"
+          p0=1
+          if [[ "$PREMIERE" =~ ^[1-9][0-9]?$ ]] && [ "$PREMIERE" -le 18 ]; then p0="$PREMIERE"; fi
+          matrice=$(jq -c --argjson p "$p0" --argjson m 18 '[to_entries[] | .value + {place: (((($p - 1) + .key) % $m) + 1 | tostring)}]' <<<"$matrice") || { echo "::error::places de la matrice illisibles"; exit 1; }
+          p0=1
+          if [[ "$PREMIERE" =~ ^[1-9][0-9]?$ ]] && [ "$PREMIERE" -le 18 ]; then p0="$PREMIERE"; fi
+          series=$(jq -c --argjson p "$p0" --argjson m 18 '[to_entries[] | .value + {place: (((($p - 1) + .key) % $m) + 1 | tostring)}]' <<<"$series") || { echo "::error::places de la matrice illisibles"; exit 1; }
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "series=$series" >> "$GITHUB_OUTPUT"
           echo "matrice=$matrice" >> "$GITHUB_OUTPUT"
   jouer:
     needs: preparer
     runs-on: ubuntu-latest
+    concurrency:
+      group: place-longue-${{ matrix.place == '18' && '18' || matrix.place == '17' && '17' || matrix.place == '16' && '16' || matrix.place == '15' && '15' || matrix.place == '14' && '14' || matrix.place == '13' && '13' || matrix.place == '12' && '12' || matrix.place == '11' && '11' || matrix.place == '10' && '10' || matrix.place == '9' && '9' || matrix.place == '8' && '8' || matrix.place == '7' && '7' || matrix.place == '6' && '6' || matrix.place == '5' && '5' || matrix.place == '4' && '4' || matrix.place == '3' && '3' || matrix.place == '2' && '2' || '1' }}
+      cancel-in-progress: false
+      queue: max
     # 330 minutes : sous les 6 heures d'une tâche chez GitHub, comme une tranche de la certification
     timeout-minutes: 330
     strategy:
@@ -433,13 +459,20 @@ jobs:
           AIDE='!f() { echo username=x-access-token; echo "password=$JETON"; }; f'
           A=(-c credential.helper= -c "credential.helper=$AIDE")
           git config --local credential.helper "$AIDE"
-          git push -q origin "HEAD:refs/heads/series-longues/${GITHUB_RUN_ID}/${SERIE}/part_${PART}" \
-            || { echo "::error::POUSSEE REFUSEE — la part reste sur la machine jetable"; exit 1; }
-          echo "depose sur sa branche"
+          for essai in 1 2 3 4 5; do
+            if git push -q origin "HEAD:refs/heads/series-longues/${GITHUB_RUN_ID}/${SERIE}/part_${PART}"; then echo "depose sur sa branche (essai $essai)"; exit 0; fi
+            git pull -q --rebase origin "refs/heads/series-longues/${GITHUB_RUN_ID}/${SERIE}/part_${PART}" || git rebase --abort || true
+            sleep $((RANDOM % 15 + 1))
+          done
+          echo "::error::POUSSEE REFUSEE 5 FOIS — la part reste sur la machine jetable"; exit 1
   rassembler:
     needs: [preparer, jouer]
     if: ${{ !cancelled() && needs.preparer.result == 'success' }}
     runs-on: ubuntu-latest
+    concurrency:
+      group: place-longue-${{ matrix.place == '18' && '18' || matrix.place == '17' && '17' || matrix.place == '16' && '16' || matrix.place == '15' && '15' || matrix.place == '14' && '14' || matrix.place == '13' && '13' || matrix.place == '12' && '12' || matrix.place == '11' && '11' || matrix.place == '10' && '10' || matrix.place == '9' && '9' || matrix.place == '8' && '8' || matrix.place == '7' && '7' || matrix.place == '6' && '6' || matrix.place == '5' && '5' || matrix.place == '4' && '4' || matrix.place == '3' && '3' || matrix.place == '2' && '2' || '1' }}
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -634,6 +667,9 @@ jobs:
           AIDE='!f() { echo username=x-access-token; echo "password=$JETON"; }; f'
           A=(-c credential.helper= -c "credential.helper=$AIDE")
           git config --local credential.helper "$AIDE"
-          git push -q origin "HEAD:refs/heads/series-longues/${GITHUB_RUN_ID}/${SERIE}/releve" \
-            || { echo "::error::POUSSEE REFUSEE — le releve reste sur la machine jetable"; exit 1; }
-          echo "depose sur sa branche"
+          for essai in 1 2 3 4 5; do
+            if git push -q origin "HEAD:refs/heads/series-longues/${GITHUB_RUN_ID}/${SERIE}/releve"; then echo "depose sur sa branche (essai $essai)"; exit 0; fi
+            git pull -q --rebase origin "refs/heads/series-longues/${GITHUB_RUN_ID}/${SERIE}/releve" || git rebase --abort || true
+            sleep $((RANDOM % 15 + 1))
+          done
+          echo "::error::POUSSEE REFUSEE 5 FOIS — le releve reste sur la machine jetable"; exit 1

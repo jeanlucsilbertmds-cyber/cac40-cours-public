@@ -7,9 +7,11 @@
 # LA TABLE : l'entrée « epreuves » ne porte que des CODES ; la commande de chaque code est FIGÉE dans la table
 # « epreuves_longues » de tests/LANCEMENT_DES_EPREUVES.json de la version éprouvée (lue par
 # tests/outils/jouer_une_epreuve_longue.py) ; aucun argument ne vient de la demande.
-# LE GROUPE : le même que le circuit des séries (series-longues) : GitHub ne fait tourner qu'un passage du groupe à la fois,
-# les deux circuits ne dépassent donc jamais ensemble 18 machines ; la place des autres circuits se
-# CALCULE sur leurs fiches (`refus_de_la_largeur` du fabricant, A-884).
+# LES PLACES (étape FILE-2, 20-11-2026) : chaque job prend une place du réservoir commun aux circuits longs
+# (« place-longue-<k> », groupe de JOB, en file) : séries, épreuves longues et certification ensemble ne dépassent jamais
+# le nombre de places, quel que soit le nombre de passages ; au-delà, GitHub met les jobs en file sur leur place. Le
+# groupe du PASSAGE (epreuves-longues-${{ github.ref_name }}) fait se suivre deux passages de ce circuit sur une même branche. La place des autres
+# circuits se CALCULE sur leurs fiches (`refus_de_la_largeur` du fabricant, A-884).
 # CE QU'IL FAIT. ① « preparer » clone la version demandée, vérifie aussitôt, avant tout code de la version, qu'elle est
 # la branche publique lancée, qu'elle existe au privé et que la pointe demandée est exactement sa pointe (A-811 ; la
 # porte est celle du circuit des séries) ; puis il valide la liste contre la table de la version et fabrique la
@@ -26,6 +28,7 @@
 # INTERDITS ICI : les programmes d'INTERDITS de tests/outils/jouer_une_part.py — retirés de la copie jouée ; une épreuve
 # qui les nomme est refusée par le joueur.
 name: Epreuves longues d'un tenant
+run-name: "Epreuves longues d'un tenant${{ inputs.premiere_place && format(' places {0}+{1}', inputs.premiere_place, inputs.nombre_de_places) || '' }}"
 on:
   workflow_dispatch:
     inputs:
@@ -43,8 +46,18 @@ on:
         description: "Codes des epreuves a jouer, separes par des virgules, ou toutes (table epreuves_longues de tests/LANCEMENT_DES_EPREUVES.json)"
         required: true
         type: string
+      premiere_place:
+        description: "Premiere place du reservoir, de 1 a 18 (choisie par le relais ; toute autre valeur : 1)"
+        required: false
+        type: string
+        default: "1"
+      nombre_de_places:
+        description: "Nombre de places prevu par le relais (renseignement du titre, jamais lu par les jobs)"
+        required: false
+        type: string
+        default: ""
 concurrency:
-  group: series-longues
+  group: epreuves-longues-${{ github.ref_name }}
   cancel-in-progress: false
   queue: max
 permissions:
@@ -52,6 +65,10 @@ permissions:
 jobs:
   preparer:
     runs-on: ubuntu-latest
+    concurrency:
+      group: place-longue-${{ inputs.premiere_place == '18' && '18' || inputs.premiere_place == '17' && '17' || inputs.premiere_place == '16' && '16' || inputs.premiere_place == '15' && '15' || inputs.premiere_place == '14' && '14' || inputs.premiere_place == '13' && '13' || inputs.premiere_place == '12' && '12' || inputs.premiere_place == '11' && '11' || inputs.premiere_place == '10' && '10' || inputs.premiere_place == '9' && '9' || inputs.premiere_place == '8' && '8' || inputs.premiere_place == '7' && '7' || inputs.premiere_place == '6' && '6' || inputs.premiere_place == '5' && '5' || inputs.premiere_place == '4' && '4' || inputs.premiere_place == '3' && '3' || inputs.premiere_place == '2' && '2' || '1' }}
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 30
     outputs:
       sha: ${{ steps.matrice.outputs.sha }}
@@ -154,17 +171,25 @@ jobs:
         id: matrice
         env:
           EPREUVES: ${{ inputs.epreuves }}
+          PREMIERE: ${{ inputs.premiere_place }}
         run: |
           set -u -o pipefail
           matrice=$(python3 -B tests/outils/jouer_une_epreuve_longue.py --matrice . "$EPREUVES") || { echo "::error::liste d epreuves refusee"; exit 1; }
           n=$(jq length <<<"$matrice") || { echo "::error::matrice illisible"; exit 1; }
           [ "$n" -ge 1 ] && [ "$n" -le 256 ] || { echo "::error::matrice de $n epreuve(s) : de 1 a 256"; exit 1; }
           echo "$n epreuve(s) : $(jq -r '[.[].code] | join(" ")' <<<"$matrice")"
+          p0=1
+          if [[ "$PREMIERE" =~ ^[1-9][0-9]?$ ]] && [ "$PREMIERE" -le 18 ]; then p0="$PREMIERE"; fi
+          matrice=$(jq -c --argjson p "$p0" --argjson m 18 '[to_entries[] | .value + {place: (((($p - 1) + .key) % $m) + 1 | tostring)}]' <<<"$matrice") || { echo "::error::places de la matrice illisibles"; exit 1; }
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "matrice=$matrice" >> "$GITHUB_OUTPUT"
   jouer:
     needs: preparer
     runs-on: ubuntu-latest
+    concurrency:
+      group: place-longue-${{ matrix.place == '18' && '18' || matrix.place == '17' && '17' || matrix.place == '16' && '16' || matrix.place == '15' && '15' || matrix.place == '14' && '14' || matrix.place == '13' && '13' || matrix.place == '12' && '12' || matrix.place == '11' && '11' || matrix.place == '10' && '10' || matrix.place == '9' && '9' || matrix.place == '8' && '8' || matrix.place == '7' && '7' || matrix.place == '6' && '6' || matrix.place == '5' && '5' || matrix.place == '4' && '4' || matrix.place == '3' && '3' || matrix.place == '2' && '2' || '1' }}
+      cancel-in-progress: false
+      queue: max
     # DUREE_D_UNE_EPREUVE_LONGUE minutes : sous les 6 heures d'une tâche chez GitHub ; le joueur coupe l'épreuve sur le
     # temps qui reste au job, compté depuis le pas « depart », moins MARGE_D_ECRITURE
     timeout-minutes: 330
@@ -333,6 +358,9 @@ jobs:
           AIDE='!f() { echo username=x-access-token; echo "password=$JETON"; }; f'
           A=(-c credential.helper= -c "credential.helper=$AIDE")
           git config --local credential.helper "$AIDE"
-          git push -q origin "HEAD:refs/heads/epreuves-longues/${GITHUB_RUN_ID}/${CODE}" \
-            || { echo "::error::POUSSEE REFUSEE — la sortie de l epreuve reste sur la machine jetable"; exit 1; }
-          echo "depose sur sa branche"
+          for essai in 1 2 3 4 5; do
+            if git push -q origin "HEAD:refs/heads/epreuves-longues/${GITHUB_RUN_ID}/${CODE}"; then echo "depose sur sa branche (essai $essai)"; exit 0; fi
+            git pull -q --rebase origin "refs/heads/epreuves-longues/${GITHUB_RUN_ID}/${CODE}" || git rebase --abort || true
+            sleep $((RANDOM % 15 + 1))
+          done
+          echo "::error::POUSSEE REFUSEE 5 FOIS — la sortie de l epreuve reste sur la machine jetable"; exit 1

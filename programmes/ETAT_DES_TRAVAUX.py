@@ -32,10 +32,10 @@ réduit aux branches : il ne lance rien et n'écrit rien au dépôt.
   à chaque appel, ne dépend d'aucune mémoire.
 ⑨ CE QUI CLOCHE — (a) Un verdict autre que « DÉPLOYABLE » tout court (par exemple « DÉPLOYABLE APRÈS CORRECTIONS »)
   renvoie la branche en ÉCRITURE : règle la plus stricte, choisie ici, non décidée par Jean-Luc. (b) Une branche née de
-  main sans aucun commit a sa pointe dans main : elle est rangée INSTALLÉE. (c) Un passage vivant est rattaché à une
-  branche par son nom (headBranch), pas par sa pointe. (d) Les épreuves jouées valent pour la « pointe d'auteur » :
-  la pointe, moins les commits qui ne touchent que echanges/RELU.md ou archives/ ; un commit de la note seule après
-  la demande d'épreuves invalide les résultats. (e) Le registre etudes/REGISTRE_DES_TRAVAUX/ de travail-livrer-2 est
+  main sans aucun commit, ou qui n'ajoute que la note, le RELU et archives/, est rangée INSTALLÉE. (c) Un passage vivant est rattaché à une
+  branche par son nom (headBranch), pas par sa pointe. (d) Épreuves, relecture et installation valent tant que le
+  CODE est le même (`meme_code` : la différence ne touche que echanges/ et archives/) ; la relecture est rattachée à
+  la « pointe relue » écrite dans l'en-tête du RELU. (e) Le registre etudes/REGISTRE_DES_TRAVAUX/ de travail-livrer-2 est
   un JOURNAL DE LANCEMENTS (étape, branche, exécutant, identifiant, lancé, fini, résultat) : il ne range pas une
   branche, il n'est donc pas lu ici. (f) Le dépôt public est nommé par défaut ici : le fabricant ne l'écrit pas en
   constante.
@@ -62,7 +62,11 @@ ETATS = ("ÉCRITURE", "À ÉPROUVER", "EN ÉPREUVE", "ÉPREUVE ROUGE", "À RELIR
 RENDU, IMPOSSIBLE, PLANTAGE = 0, 2, 5
 MOTIF_POINTE_DU_JOURNAL = re.compile(r"source de la publication : le commit ([0-9a-f]{7,40}) du dépôt privé")
 MOTIF_VERDICT = re.compile(r"^\s*(#{1,6}\s*)?(\d+\s*·\s*)?\**VERDICT( EN UNE LIGNE)?\**\s*(:|$)")
-MOTIF_CODE = re.compile(r"^-\s+`?([A-Za-z][A-Za-z0-9_]*)`?\s*$")
+MOTIF_POINTE_RELUE = re.compile(r"(?i)pointe relue\W{0,12}([0-9a-f]{7,40})")
+# HORS DU CODE : ce que le relecteur et l'auteur écrivent sans changer le programme éprouvé (la note, le RELU, les
+# archives). Une différence limitée à ces dossiers ne rend caduques ni les épreuves, ni la relecture, ni l'installation.
+HORS_CODE = ("echanges/", "archives/")
+TABLE_DES_EPREUVES = "tests/LANCEMENT_DES_EPREUVES.json"
 
 
 class Impossible(Exception):
@@ -200,36 +204,84 @@ def lire_le_fabricant(depot):
             "circuits_longs": sorted(set(circuits)), "prefixe": constantes["EPREUVES_BRANCHES"]}
 
 
-def codes_a_jouer(note):
+def table_des_codes(depot, ref):
+    """Rend les codes d'épreuves longues que la table de la branche connaît.
+
+    ① RÔLE — Donner la liste fermée des codes qu'une note peut demander.
+    ② CONTEXTE D'APPEL — `faits_d_une_branche`.
+    ③ ENTRÉE — `depot` : le clone · `ref` : la branche.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : l'ensemble des clés de « epreuves_longues » de tests/LANCEMENT_DES_EPREUVES.json sur la
+      branche ; vide si la table manque ou ne porte pas cette section.
+      [rend: 1]
+    ⑥ TRAITEMENT — « git cat-file -e » puis « git show », lecture JSON.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un code est ce que la table connaît : une propriété, pas une forme d'écriture (RELU Cowork I1 du
+      20-11-2026, 22h25 : « - **File** — … » n'était pas lu).
+    ⑨ CE QUI CLOCHE — Une table qui n'est pas du JSON est traitée comme vide : la note sera alors « illisible ».
+    ⑩ EFFET — Lance git.
+    ⑪ TERMINAISON — Rend la main ou lève Impossible.
+      [sort: non]
+    """
+    if commande(["git", "-C", depot, "cat-file", "-e", f"{ref}:{TABLE_DES_EPREUVES}"], tolere=True) != 0:
+        return set()
+    try:
+        table = json.loads(git(depot, "show", f"{ref}:{TABLE_DES_EPREUVES}"))
+    except ValueError:
+        return set()
+    longues = table.get("epreuves_longues") if isinstance(table, dict) else None
+    return set(longues) if isinstance(longues, dict) else set()
+
+
+def codes_a_jouer(note, connus):
     """Relève les codes de la section « ## À JOUER SUR GITHUB » d'une note.
 
-    ① RÔLE — Dire quelles épreuves longues la note demande.
-    ② CONTEXTE D'APPEL — `faits_d_une_branche`.
-    ③ ENTRÉE — `note` : le texte de echanges/A_RELIRE.md.
+    ① RÔLE — Dire quelles épreuves longues la note demande, et quelles lignes de la section ne se lisent pas.
+    ② CONTEXTE D'APPEL — `faits_d_une_branche` ; les épreuves.
+    ③ ENTRÉE — `note` : le texte de echanges/A_RELIRE.md · `connus` : les codes de la table de la branche.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : la liste des codes, dans l'ordre, sans doublon.
-      [rend: 1]
+    ⑤ SORTIE — DEUX valeurs : la liste des codes, dans l'ordre, sans doublon · la liste des lignes illisibles.
+      [rend: 2]
     ⑥ TRAITEMENT — Après la ligne « ## À JOUER SUR GITHUB », jusqu'à la prochaine ligne qui commence par « # » :
-      garder les lignes « - CODE » ou « - `CODE` » où CODE est un identifiant seul sur sa ligne.
+      ① une puce (« - … ») : sa TÊTE est le texte avant le premier « — » ; chaque mot de la tête qui est un code
+      connu est retenu (gras, accents graves, virgules tolérés) ; une puce sans code connu dans sa tête est illisible ·
+      ② une ligne de texte hors puce est un commentaire, SAUF si la section n'a aucune puce : alors toute la section
+      est illisible dès qu'elle porte du texte.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Les notes du 20-11-2026 écrivent les deux formes (travail-contrat-6 : « - VenteReglable » ;
-      travail-livrer-2 : « - `Certification` »). Une ligne de prose (« - (aucune …) ») n'est pas un code.
-    ⑨ CE QUI CLOCHE — Un code suivi d'un commentaire sur la même ligne n'est pas relevé.
+    ⑧ POURQUOI — Relevé du 20-11-2026 sur les notes réelles : « - VenteReglable », « - `Certification` »,
+      « - **File** — l'épreuve … », « - **ProprietesChaine, ProprietesSabot, …** — à rejouer », et des listes en
+      prose séparées par « · » (travail-a952). Un silence ne doit jamais passer pour « rien à jouer ».
+    ⑨ CE QUI CLOCHE — Une tête de puce qui cite un code pour dire qu'il ne faut PAS le jouer serait lue comme une
+      demande. Une liste en prose n'est pas lue : elle rend la section illisible.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    codes, dedans = [], False
+    codes, illisibles, texte, puces, dedans = [], [], [], 0, False
     for ligne in note.splitlines():
         if ligne.strip().startswith("## À JOUER SUR GITHUB"):
             dedans = True
             continue
-        if dedans and ligne.startswith("#"):
+        if not dedans:
+            continue
+        if ligne.startswith("#"):
             break
-        m = MOTIF_CODE.match(ligne.strip()) if dedans else None
-        if m and m.group(1) not in codes:
-            codes.append(m.group(1))
-    return codes
+        if not ligne.strip():
+            continue
+        if ligne.lstrip().startswith("- "):
+            puces += 1
+            tete = ligne.lstrip()[2:].split(" — ")[0]
+            trouves = [m for m in re.findall(r"[A-Za-z][A-Za-z0-9_]*", tete) if m in connus]
+            if not trouves:
+                illisibles.append(ligne.strip()[:80])
+            for c in trouves:
+                if c not in codes:
+                    codes.append(c)
+        else:
+            texte.append(ligne.strip()[:80])
+    if texte and not puces:
+        illisibles += texte
+    return codes, illisibles
 
 
 def verdict_du_relu(relu):
@@ -271,9 +323,10 @@ def est_deployable(verdict):
     ③ ENTRÉE — `verdict` : le texte rendu par `verdict_du_relu`.
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : vrai si le verdict est « DÉPLOYABLE » seul, ou suivi seulement de « · CLORE … » ou
-      « — CLORE … ».
+      « — CLORE … », ou fermé par un point (« **DÉPLOYABLE.** Le jeu entier… », RELU de travail-a924-f1f3).
       [rend: 1]
-    ⑥ TRAITEMENT — Expression rationnelle.
+    ⑥ TRAITEMENT — Retirer les « * » de tête ; exiger le mot DÉPLOYABLE ; le reste, privé des « * », doit être
+      vide, commencer par un point, ou être « · CLORE » / « — CLORE ».
     ⑦ UNITÉ — —
     ⑧ POURQUOI — « DÉPLOYABLE APRÈS CORRECTIONS » demande des corrections : la règle la plus stricte prime.
     ⑨ CE QUI CLOCHE — « CONFORME — RIEN DE NEUF QUI BLOQUE » n'est pas reconnu déployable.
@@ -281,7 +334,14 @@ def est_deployable(verdict):
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    return re.match(r"^\**DÉPLOYABLE\**\s*($|[·—-]\s*CLORE)", verdict) is not None
+    v = verdict.lstrip("*").strip()
+    if not v.startswith("DÉPLOYABLE"):
+        return False
+    reste = v[len("DÉPLOYABLE"):]
+    if reste.startswith("."):
+        return True
+    reste = reste.strip("* ")
+    return reste == "" or re.match(r"^[·—-]\s*CLORE", reste) is not None
 
 
 def resultats_github(depot, prefixe):
@@ -390,34 +450,55 @@ def passages_github(gh, public, circuits_longs):
     return vivants, en_cours
 
 
-def pointe_d_auteur(depot, base, pointe):
-    """Rend la pointe de la branche sans les commits de relecture.
+def meme_code(depot, a, b):
+    """Dit si deux commits portent le même code.
 
-    ① RÔLE — Donner le commit auquel les épreuves jouées doivent correspondre.
+    ① RÔLE — La propriété unique qui dit si une épreuve, une relecture ou une installation vaut encore.
     ② CONTEXTE D'APPEL — `faits_d_une_branche`.
-    ③ ENTRÉE — `depot` : le clone · `base` : le point de départ de la branche (merge-base avec origin/main) ·
-      `pointe` : la pointe de la branche.
-    ④ CONDITIONS D'ENTRÉE — `base` est un ancêtre de `pointe`.
-    ⑤ SORTIE — UNE valeur : le premier commit, en remontant la première lignée depuis la pointe, qui touche autre
-      chose que echanges/RELU.md et archives/ ; `base` si aucun commit de la branche ne le fait (la branche ne porte
-      alors que de la relecture : son travail est celui de main).
+    ③ ENTRÉE — `depot` : le clone · `a`, `b` : deux commits.
+    ④ CONDITIONS D'ENTRÉE — Les deux commits existent dans le clone.
+    ⑤ SORTIE — UNE valeur : vrai si « git diff --name-only a b » ne touche que des chemins sous HORS_CODE.
       [rend: 1]
-    ⑥ TRAITEMENT — « git log --first-parent --name-only base..pointe », du plus récent au plus ancien.
+    ⑥ TRAITEMENT — Un appel à git.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Cas réel du 20-11-2026 : travail-contrat-6 jouée sur 0787558b1, puis trois commits de Cowork (RELU,
-      archive) jusqu'à 1bc903007 ; les épreuves restent valables pour la pointe 1bc903007.
-    ⑨ CE QUI CLOCHE — Un commit de fusion (sans fichier listé) arrête la remontée.
+    ⑧ POURQUOI — RELU Cowork du 20-11-2026, 22h25 : B1 (un code changé après le RELU restait DÉPLOYABLE), I2
+      (travail-enchainer, dont seuls la note, le RELU et archives/ diffèrent de main, était « à installer »), I3 (une
+      note réécrite après l'épreuve la rendait caduque). Une seule propriété répond aux trois.
+    ⑨ CE QUI CLOCHE — Un fichier de données ou d'étude hors HORS_CODE compte comme du code.
     ⑩ EFFET — Lance git.
     ⑪ TERMINAISON — Rend la main ou lève Impossible.
       [sort: non]
     """
-    sortie = git(depot, "log", "--first-parent", "--format=%x01%H", "--name-only", f"{base}..{pointe}")
-    for bloc in sortie.split("\x01")[1:]:
-        lignes = [x for x in bloc.splitlines() if x.strip()]
-        sha, fichiers = lignes[0], lignes[1:]
-        if not fichiers or any(f != RELU and not f.startswith("archives/") for f in fichiers):
-            return sha
-    return base
+    if a == b:
+        return True
+    return all(f.startswith(HORS_CODE) for f in git(depot, "diff", "--name-only", a, b).splitlines() if f.strip())
+
+
+def pointe_relue(depot, relu):
+    """Rend la pointe que le RELU déclare avoir relue.
+
+    ① RÔLE — Rattacher une relecture au code qu'elle a lu.
+    ② CONTEXTE D'APPEL — `faits_d_une_branche`.
+    ③ ENTRÉE — `depot` : le clone · `relu` : le texte de echanges/RELU.md.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la pointe complète, ou "" si l'en-tête ne la porte pas ou si le clone ne la connaît pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — Dans les 20 premières lignes, « pointe relue » suivi d'au plus 12 signes puis d'un identifiant
+      hexadécimal ; résolu par « git rev-parse --verify ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Relevé du 20-11-2026 : 116 RELU de travail-* sur 125 l'écrivent (« pointe relue **d9b84bf6e** »,
+      « pointe relue f14bc3e72d33… »). Un RELU qui ne le dit pas ne prouve pas ce qu'il a relu.
+    ⑨ CE QUI CLOCHE — Les 9 RELU sans cette mention sont traités comme non rattachés (À RELIRE).
+    ⑩ EFFET — Lance git.
+    ⑪ TERMINAISON — Rend la main ou lève Impossible.
+      [sort: non]
+    """
+    m = MOTIF_POINTE_RELUE.search("\n".join(relu.splitlines()[:20]))
+    if not m:
+        return ""
+    if commande(["git", "-C", depot, "cat-file", "-e", m.group(1) + "^{commit}"], tolere=True) != 0:
+        return ""
+    return git(depot, "rev-parse", m.group(1) + "^{commit}").strip()
 
 
 def date_du_dernier_commit(depot, base, pointe, chemin):
@@ -446,27 +527,31 @@ def ranger(faits):
 
     ① RÔLE — Le cœur du programme : des faits à l'état, sans rien lire.
     ② CONTEXTE D'APPEL — `etat_des_travaux`, une fois par branche ; les épreuves l'appellent directement.
-    ③ ENTRÉE — `faits` : un dict {installee, note_heure, codes, passages_vivants, resultats, relu_heure, verdict,
-      pointe_auteur}.
-    ④ CONDITIONS D'ENTRÉE — `resultats` ne porte que les résultats de la pointe d'auteur.
+    ③ ENTRÉE — `faits` : un dict {installee, note_heure, codes, illisibles, passages_vivants, resultats, relu_heure,
+      relu_pointe, relu_meme_code, verdict, pointe}.
+    ④ CONDITIONS D'ENTRÉE — `resultats` ne porte que les résultats joués sur un commit de MÊME CODE que la pointe.
     ⑤ SORTIE — DEUX valeurs : l'état (un des ETATS) · la prochaine action, en français.
       [rend: 2]
-    ⑥ TRAITEMENT — Dans cet ordre, le premier qui s'applique : pointe dans main → INSTALLÉE · pas de note écrite sur
-      la branche → ÉCRITURE · un passage GitHub vivant sur la branche → EN ÉPREUVE · un code demandé rendu non nul →
-      ÉPREUVE ROUGE · un code demandé sans résultat → À ÉPROUVER · RELU absent ou plus ancien que la note →
-      À RELIRE · verdict DÉPLOYABLE → DÉPLOYABLE · sinon ÉCRITURE (reprendre selon le RELU).
+    ⑥ TRAITEMENT — Dans cet ordre, le premier qui s'applique : même code que main → INSTALLÉE · pas de note écrite
+      sur la branche → ÉCRITURE · section « À JOUER » illisible → ÉCRITURE (réécrire la section) · un passage GitHub
+      vivant sur la branche → EN ÉPREUVE · un code demandé rendu non nul → ÉPREUVE ROUGE · un code demandé sans
+      résultat → À ÉPROUVER · pas de RELU, RELU sans pointe relue, code changé depuis la pointe relue, ou note plus
+      récente que le RELU → À RELIRE · verdict DÉPLOYABLE → DÉPLOYABLE · sinon ÉCRITURE (reprendre selon le RELU).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Cet ordre suit la conception (§ 2.4 ②) : la relecture Cowork ne devient prête qu'une fois
-      l'épreuve longue de la MÊME pointe verte ; c'est ce qui supprime le doublon du 20-11-2026.
+      l'épreuve longue du MÊME code verte ; c'est ce qui supprime le doublon du 20-11-2026.
     ⑨ CE QUI CLOCHE — Une note sans section « ## À JOUER SUR GITHUB » passe droit à la relecture.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     if faits["installee"]:
-        return "INSTALLÉE", "rien — pointe dans main (branche supprimable sur accord de Jean-Luc)"
+        return "INSTALLÉE", "rien — même code que main (branche supprimable sur accord de Jean-Luc)"
     if faits["note_heure"] is None:
         return "ÉCRITURE", "écrire et pousser echanges/A_RELIRE.md sur la branche"
+    if faits["illisibles"]:
+        return "ÉCRITURE", ("réécrire « ## À JOUER SUR GITHUB » en puces « - Code » : illisible « "
+                            + faits["illisibles"][0] + " »")
     if faits["passages_vivants"]:
         return "EN ÉPREUVE", "attendre la fin du passage " + ", ".join(str(p) for p in faits["passages_vivants"])
     resultats = faits["resultats"]
@@ -476,10 +561,17 @@ def ranger(faits):
             f"{c} (code {resultats[c]['sortie']}, passage {resultats[c]['passage']})" for c in rouges))
     manquants = [c for c in faits["codes"] if c not in resultats]
     if manquants:
-        return "À ÉPROUVER", (f"déposer la demande d'épreuves longues sur {faits['pointe_auteur'][:9]} : "
+        return "À ÉPROUVER", (f"déposer la demande d'épreuves longues sur {faits['pointe'][:9]} : "
                               + ", ".join(manquants))
-    if faits["relu_heure"] is None or faits["relu_heure"] < faits["note_heure"]:
-        return "À RELIRE", "lancer la relecture Cowork (épreuves longues à lire sur GitHub, ne pas les rejouer)"
+    relire = "lancer la relecture Cowork (épreuves longues à lire sur GitHub, ne pas les rejouer)"
+    if faits["relu_heure"] is None:
+        return "À RELIRE", relire
+    if not faits["relu_pointe"]:
+        return "À RELIRE", relire + " — le RELU présent ne nomme pas de pointe relue lisible"
+    elif not faits["relu_meme_code"]:
+        return "À RELIRE", relire + f" — le code a changé depuis la pointe relue {faits['relu_pointe'][:9]}"
+    if faits["relu_heure"] < faits["note_heure"]:
+        return "À RELIRE", relire + " — la note est plus récente que le RELU"
     if est_deployable(faits["verdict"]):
         return "DÉPLOYABLE", "installer sur main, quand rien ne tourne sur GitHub (A-818), puis republier"
     return "ÉCRITURE", f"reprendre selon le RELU (verdict : « {faits['verdict'][:70]} »)"
@@ -493,15 +585,15 @@ def faits_d_une_branche(depot, branche, resultats, vivants):
     ③ ENTRÉE — `depot` : le clone · `branche` : le nom sans « origin/ » · `resultats` : la première valeur de
       `resultats_github` · `vivants` : la première valeur de `passages_github`.
     ④ CONDITIONS D'ENTRÉE — origin/<branche> existe.
-    ⑤ SORTIE — UNE valeur : le dict des faits, plus « branche », « pointe », « pointe_heure », « resultats_tous ».
+    ⑤ SORTIE — UNE valeur : le dict des faits, plus « branche », « pointe », « pointe_heure ».
       [rend: 1]
-    ⑥ TRAITEMENT — pointe ; INSTALLÉE si la pointe est un ancêtre de origin/main, ou si la pointe d'auteur est le
-      départ de la branche (seule de la relecture a été ajoutée après main) — rien d'autre n'est lu alors ; sinon
-      merge-base, dates de la note et du RELU sur la branche, codes, verdict, pointe d'auteur, résultats de
-      cette pointe, passages vivants de même nom de branche.
+    ⑥ TRAITEMENT — pointe ; départ = merge-base avec origin/main ; INSTALLÉE si `meme_code(départ, pointe)` (rien
+      d'autre n'est lu alors) ; sinon dates de la note et du RELU écrits sur la branche, codes lus contre la table de
+      la branche, verdict, pointe relue et `meme_code(pointe relue, pointe)` ; résultats : pour chaque code, le plus
+      récent parmi les commits de départ..pointe de même code que la pointe ; passages vivants de même nom.
     ⑦ UNITÉ — Secondes Unix.
     ⑧ POURQUOI — Séparer la lecture (ici) du rangement (`ranger`), pour éprouver le rangement sans git.
-    ⑨ CE QUI CLOCHE — —
+    ⑨ CE QUI CLOCHE — Une épreuve jouée sur un commit qui n'est pas dans l'histoire de la branche n'est pas comptée.
     ⑩ EFFET — Lance git.
     ⑪ TERMINAISON — Rend la main ou lève Impossible.
       [sort: non]
@@ -509,26 +601,30 @@ def faits_d_une_branche(depot, branche, resultats, vivants):
     ref = "origin/" + branche
     pointe = git(depot, "rev-parse", ref).strip()
     faits = {"branche": branche, "pointe": pointe, "pointe_heure": int(git(depot, "log", "-1", "--format=%ct", ref)),
-             "installee": False, "note_heure": None, "codes": [], "passages_vivants": [], "resultats": {},
-             "relu_heure": None, "verdict": "", "pointe_auteur": pointe}
-    code = commande(["git", "-C", depot, "merge-base", "--is-ancestor", pointe, "origin/main"], tolere=True)
-    if code == 0:
-        faits["installee"] = True
-        return faits
-    if code != 1:
-        raise Impossible(f"merge-base --is-ancestor {branche} : code {code}")
+             "installee": False, "note_heure": None, "codes": [], "illisibles": [], "passages_vivants": [],
+             "resultats": {}, "relu_heure": None, "relu_pointe": "", "relu_meme_code": False, "verdict": ""}
     base = git(depot, "merge-base", pointe, "origin/main").strip()
+    faits["installee"] = meme_code(depot, base, pointe)
+    if faits["installee"]:
+        return faits
     faits["note_heure"] = date_du_dernier_commit(depot, base, pointe, NOTE)
     faits["relu_heure"] = date_du_dernier_commit(depot, base, pointe, RELU)
     if faits["note_heure"] is not None:
-        faits["codes"] = codes_a_jouer(git(depot, "show", f"{ref}:{NOTE}"))
+        faits["codes"], faits["illisibles"] = codes_a_jouer(git(depot, "show", f"{ref}:{NOTE}"),
+                                                            table_des_codes(depot, ref))
     if faits["relu_heure"] is not None:
-        faits["verdict"] = verdict_du_relu(git(depot, "show", f"{ref}:{RELU}"))
-    faits["pointe_auteur"] = pointe_d_auteur(depot, base, pointe)
-    if faits["pointe_auteur"] == base:
-        faits["installee"] = True
-        return faits
-    faits["resultats"] = resultats.get(faits["pointe_auteur"], {})
+        relu = git(depot, "show", f"{ref}:{RELU}")
+        faits["verdict"] = verdict_du_relu(relu)
+        faits["relu_pointe"] = pointe_relue(depot, relu)
+        if faits["relu_pointe"]:
+            faits["relu_meme_code"] = meme_code(depot, faits["relu_pointe"], pointe)
+    histoire = set(git(depot, "rev-list", f"{base}..{pointe}").split())
+    for p in sorted(histoire & set(resultats)):
+        if not meme_code(depot, p, pointe):
+            continue
+        for code, r in resultats[p].items():
+            if code not in faits["resultats"] or r["heure"] >= faits["resultats"][code]["heure"]:
+                faits["resultats"][code] = r
     faits["passages_vivants"] = [v["passage"] for v in vivants if v["branche"] == branche]
     return faits
 

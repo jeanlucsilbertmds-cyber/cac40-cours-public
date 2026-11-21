@@ -36,13 +36,15 @@ rapatriement rend, pour chaque épreuve, le code de sortie et la sortie capturé
   ni programme interdit nommé) ; T2 une table piégée est refusée pour SA raison : code avec une espace, argument avec
   un point-virgule, arguments sans « {copie} », le « --saboter » d'une série, deux codes égaux à la casse près, un
   chemin qui remonte (« .. »).
-  G (le gabarit fabriqué) : G1 EPREUVES est fabriqué sans repère de format non rempli (« %( »), porte le MÊME groupe de
-  concurrence que SERIES (GROUPE_DES_MACHINES_LONGUES) et « max-parallel » = PARTS_EN_MEME_TEMPS, sa largeur CALCULÉE
-  vaut PARTS_EN_MEME_TEMPS, et la largeur calculée des circuits fabriqués tient dans TACHES_EN_MEME_TEMPS_DU_COMPTE
+  G (le gabarit fabriqué) : G1 EPREUVES est fabriqué sans repère de format non rempli (« %( »), porte SON groupe de
+  passage (GROUPE_DES_EPREUVES, par branche ; SERIES le sien, GROUPE_DES_SERIES : étape FILE-2) et « max-parallel » =
+  PARTS_EN_MEME_TEMPS, sa largeur CALCULÉE est celle du réservoir (RESERVOIR_DES_PLACES, PLACES_LONGUES), et la largeur calculée des circuits fabriqués tient dans TACHES_EN_MEME_TEMPS_DU_COMPTE
   (`refus_de_la_largeur`, A-884, 17-11-2026 ; avant : la part plus une marge écrite à la main) ; G2 le filet des gabarits l'accepte, et
   le refuse privé de « persist-credentials: false », poussant vers main, ou signant de l'identité des séries ; G3 le pas
   « Fabriquer la matrice », extrait du gabarit et joué par bash sur une version minuscule, rend la matrice des codes
-  demandés, et refuse un code inconnu ; G4 le pas « Jouer l epreuve », joué avec un faux « unshare » qui note sa ligne
+  demandés, et refuse un code inconnu ; depuis l'étape FILE-2 (20-11-2026), chaque entrée porte sa place du réservoir,
+  à partir de « premiere_place » en tournant après la dernière, 1 si la première place est vide ou hors du réservoir
+  (sabotage SE41 : les places ne sont plus écrites) ; G4 le pas « Jouer l epreuve », joué avec un faux « unshare » qui note sa ligne
   de commande, lance le joueur, réseau coupé, avec la copie, le code et la sortie attendus ; G5 le pas « deposer »,
   joué par bash contre un dépôt privé nu local (l'adresse du privé écrite dans le pas remplacée par lui), pousse la
   sortie et le journal renommé sur epreuves-longues/<passage>/<code>.
@@ -758,7 +760,8 @@ def tour(racine, source_git=None, fragment_p3=None):
         if "%(" in E:
             faux.append("G1 un repère de format non rempli dans le gabarit des épreuves")
         groupes = [re.findall(r"^  group: (.+)$", g, re.M) for g in (E, F.SERIES)]
-        if groupes != [[F.GROUPE_DES_MACHINES_LONGUES]] * 2:
+        # étape FILE-2 : chaque circuit a SON groupe de passage, nommé par la branche (la protection fine)
+        if groupes != [[F.GROUPE_DES_EPREUVES], [F.GROUPE_DES_SERIES]]:
             faux.append(f"G1 groupes de concurrence épreuves / séries : {groupes}")
         if E.count("max-parallel: %d\n" % F.PARTS_EN_MEME_TEMPS) != 1 or len(re.findall("max-parallel", E)) != 1:
             faux.append("G1 « max-parallel » du gabarit des épreuves n'est pas PARTS_EN_MEME_TEMPS")
@@ -770,9 +773,10 @@ def tour(racine, source_git=None, fragment_p3=None):
         refus_g1, _ = F.refus_de_la_largeur(fiches_g1)
         if refus_g1:
             faux.append(f"G1 la largeur calculée des circuits fabriqués dépasse les tâches du compte : {refus_g1}")
-        if F.largeur_d_une_fiche(E) != (F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS):
+        # étape FILE-2 : chaque job du gabarit prend une place du réservoir (largeur : les places, pas le passage)
+        if F.largeur_d_une_fiche(E) != (F.RESERVOIR_DES_PLACES, F.PLACES_LONGUES):
             faux.append(f"G1 largeur calculée du gabarit des épreuves {F.largeur_d_une_fiche(E)} au lieu de "
-                        f"{(F.GROUPE_DES_MACHINES_LONGUES, F.PARTS_EN_MEME_TEMPS)}")
+                        f"{(F.RESERVOIR_DES_PLACES, F.PLACES_LONGUES)}")
 
         def filet(nom, texte, fragment):
             """Juge un cas G2 (fragment None : accepté). ① RÔLE — Un cas du filet. ② CONTEXTE D'APPEL — `tour`.
@@ -830,16 +834,28 @@ def tour(racine, source_git=None, fragment_p3=None):
         if env_m is None:
             faux.append("G3 pas « matrice » introuvable")
         else:
-            for nom, liste, attendu in (("G3 deux codes", "Ok,Mini", ["Ok", "Mini"]), ("G3 code inconnu", "Nul", None)):
+            # étape FILE-2 : la place de chaque entrée — à partir de la première place demandée, en tournant après la
+            # dernière place ; une première place hors de 1 … PLACES_LONGUES vaut 1
+            M = F.PLACES_LONGUES
+            for nom, liste, attendu, premiere, places in (
+                    ("G3 deux codes", "Ok,Mini", ["Ok", "Mini"], "3", ["3", "4"]),
+                    ("G3 deux codes, la dernière place puis la première", "Ok,Mini", ["Ok", "Mini"], str(M), [str(M), "1"]),
+                    ("G3 première place hors du réservoir", "Ok,Mini", ["Ok", "Mini"], str(M + 1), ["1", "2"]),
+                    ("G3 première place vide (bouton sans entrée)", "Ok,Mini", ["Ok", "Mini"], "", ["1", "2"]),
+                    ("G3 code inconnu", "Nul", None, "1", None)):
                 rt = tempfile.mkdtemp(prefix="g3_", dir=d)
                 sortie = os.path.join(rt, "sortie")
-                env = dict(GIT_ENV, GITHUB_OUTPUT=sortie, RUNNER_TEMP=rt, **resoudre(env_m, {"inputs.epreuves": liste}))
+                env = dict(GIT_ENV, GITHUB_OUTPUT=sortie, RUNNER_TEMP=rt,
+                           **resoudre(env_m, {"inputs.epreuves": liste, "inputs.premiere_place": premiere}))
                 c, o = lancer(["bash", "--noprofile", "--norc", "-e", "-c", script_m], env=env, cwd=v)
                 lu = dict(l.split("=", 1) for l in open(sortie).read().split("\n") if "=" in l) \
                     if os.path.exists(sortie) else {}
                 vus = [x["code"] for x in json.loads(lu["matrice"])] if "matrice" in lu else None
+                vues = [x.get("place") for x in json.loads(lu["matrice"])] if "matrice" in lu else None
                 if (attendu is None and (c == 0 or vus is not None)) or (attendu is not None and (c != 0 or vus != attendu)):
                     faux.append(f"{nom} : code {c}, matrice {vus} : {o[-200:]}")
+                if attendu is not None and vues != places:
+                    faux.append(f"{nom} : places {vues} au lieu de {places}")
         # G4 : le pas « Jouer l epreuve »
         env_j, script_j = pas_du_gabarit(E, "jouer_l_epreuve")
         if env_j is None:
@@ -1101,8 +1117,12 @@ SABOTAGES = {
                                                  "        if False:\n")],
     "SE08_epreuves_hors_du_budget": [(FABRICANT, '"en_meme_temps": PARTS_EN_MEME_TEMPS, "branches": EPREUVES_BRANCHES,',
                                       '"en_meme_temps": 16, "branches": EPREUVES_BRANCHES,')],
-    "SE09_epreuves_dans_un_autre_groupe": [(FABRICANT, '"groupe": GROUPE_DES_MACHINES_LONGUES,\n    "entrees": EPREUVES_ENTREES,',
-                                            '"groupe": "epreuves-longues",\n    "entrees": EPREUVES_ENTREES,')],
+    "SE09_epreuves_dans_un_autre_groupe": [(FABRICANT, '"groupe": GROUPE_DES_EPREUVES,',
+                                            '"groupe": "epreuves-longues",')],
+    # étape FILE-2 : les places ne sont plus écrites dans la matrice (toutes les demandes sur les places 1, 2, 3…)
+    "SE41_places_non_ecrites": [(FABRICANT, """          echo "$n epreuve(s) : $(jq -r '[.[].code] | join(" ")' <<<"$matrice")"
+%(placer_matrice)s""", """          echo "$n epreuve(s) : $(jq -r '[.[].code] | join(" ")' <<<"$matrice")"
+""")],
     "SE10_provenance_sans_empreintes": [(FABRICANT, 'hashlib.sha256(open(p, "rb").read()).hexdigest() in empreintes:',
                                          'False:')],
     "SE11_provenance_sans_les_dossiers": [(FABRICANT, '        elif rel in chemins or rel.split("/")[0] in dossiers:\n',
