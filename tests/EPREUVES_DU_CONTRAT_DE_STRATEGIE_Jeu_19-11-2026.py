@@ -16,7 +16,8 @@ USAGE
     --sabotages= (20-11-2026) : ne poser que les sabotages nommés (premier mot de leur nom) ; la sonde intacte est
     toujours jouée. Raison : la série entière approche les dix minutes (mesure dans echanges/A_RELIRE.md) ; deux
     moitiés se jouent chacune sous ce plafond.
-    <source> : la racine d'un worktree du dépôt ; <travail> : un dossier sous /dev/shm qui n'existe pas encore.
+    <source> : la racine d'un worktree du dépôt ; <travail> : un dossier qui n'existe pas encore, absolu ou relatif
+    au dossier courant (sur GitHub, tests/LANCEMENT_DES_EPREUVES.json le donne relatif à la copie jouée).
 
 ① RÔLE — Prouver que le contrat laisse passer les fiches complètes, refuse les autres en NOMMANT chaque case, donne un
   avis sans refuser sur ce que Jean-Luc n'a pas tranché, et qu'il est branché à ⓪ et à la porte du juge.
@@ -785,7 +786,9 @@ def main(argv):
     ④ CONDITIONS D'ENTRÉE — Celles de l'en-tête.
     ⑤ SORTIE — UNE valeur : 0, 1 ou 2. [rend: 1]
     ⑥ TRAITEMENT — ① copies · ② sonde intacte, tout vert · ③ pour chaque sabotage (les seuls nommés par --sabotages=, s'il est donné) : poser, sonder (au moins une
-      épreuve rouge attendue, nommées), retirer à l'octet, sonder (tout vert) · ④ afficher chaque ligne et le bilan.
+      épreuve rouge attendue, nommées), retirer à l'octet, sonder (tout vert) · ④ afficher chaque ligne et le bilan ·
+      ⑤ « SABOTAGES JOUÉS : n sur N » ; sans --sabotages=, n différent de N est un défaut (m1 de Cowork, 21-11-2026 :
+      rien ne garantissait que le lancement sans option joue la série entière).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — R-731.
     ⑨ CE QUI CLOCHE — —
@@ -808,9 +811,11 @@ def main(argv):
         for k, (ok, det) in base.items():
             print("  %s %s\n      %s" % ("✅" if ok else "❌", k, det))
             rouge += not ok
+        joues = 0
         for nom, fichier, avant, apres, attendues in SABOTAGES:
             if choix and nom.split(" ")[0] not in choix[0]:
                 continue
+            joues += 1
             # le fichier saboté l'est dans CHAQUE copie qui le porte (depuis le 20-11-2026 : les sept ; E16, E17 et E19
             # lancent JOUER, PREPARER et le juge de C, D et F) — restitué à l'octet
             cibles = [os.path.join(r, fichier) for r in racines if os.path.isfile(os.path.join(r, fichier))]
@@ -836,6 +841,11 @@ def main(argv):
                 for k in rouges:
                     print("      %s sous sabotage : %s" % (k.split(" ")[0], sab[k][1][:220]))
             rouge += (not pour_sa_raison) + (not verts)
+        attendus = len(set(choix[0])) if choix else len(SABOTAGES)
+        print("SABOTAGES JOUÉS : %d sur %d%s" % (joues, attendus, "" if choix else " (la série entière)"))
+        if joues != attendus:
+            print("  ❌ la série n'a pas été jouée entière")
+            rouge += 1
         print("BILAN : %s" % ("TOUT TIENT" if not rouge else "%d défaut(s)" % rouge))
         return 0 if not rouge else 1
     except (OSError, RuntimeError, AssertionError, subprocess.TimeoutExpired) as x:

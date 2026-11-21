@@ -162,6 +162,51 @@ ETALONS = {
 INDICATEURS_DU_DETAIL = "programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py"
 
 
+def etalons_designes(dossier):
+    """Lit les étalons AJOUTÉS par le dossier d'étalonnage désigné (A-952) ; rend (étalons, motif d'un refus).
+
+    ① RÔLE — Donner un signal connu au module d'une stratégie NOUVELLE sur un dépôt fabriqué de 2024 et après (A-945),
+      sans jamais remplacer ni retirer un étalon de `ETALONS`.
+    ② CONTEXTE D'APPEL — `main`, une fois, quand la variable ETALONNAGE_DU_DEPOT est posée.
+    ③ ENTRÉE — `dossier` : le dossier d'étalonnage (chemin absolu, rendu par
+      `CONTRATS_DES_FICHIERS.dossier_d_etalonnage`) ; on y lit CONTRATS.ETALON_DES_SIGNAUX, un JSON
+      {« <module_signal> · <fonction_signal> » : {nom, valeur, date, reglages}} — exemple de l'épreuve de bout en bout :
+      {"programmes/SIGNAL_FACTICE_DES_PROPRIETES.py · signal": {"nom": "SIGNAL-FACTICE", "valeur": "FABRIQUEE_B",
+      "date": "2025-03-04", "reglages": {"mode": "seuil", "baisse": 0.02}}}.
+    ④ CONDITIONS D'ENTRÉE — programmes/CONTRATS_DES_FICHIERS.py importable.
+    ⑤ SORTIE — DEUX valeurs : le dictionnaire des étalons ajoutés (vide en cas de refus) et le motif du refus ou None.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① lire le JSON · ② exiger un dictionnaire non vide · ③ pour chaque clé : absente de `ETALONS`,
+      cases exactement CONTRATS.ETALON_D_UN_SIGNAL, date AAAA-MM-JJ, réglages en dictionnaire.
+    ⑦ UNITÉ — une date AAAA-MM-JJ.
+    ⑧ POURQUOI — « Reproduire un résultat connu avant d'en produire un nouveau » (R-720) : sans étalon, le module
+      d'une stratégie nouvelle est mis à part. Un étalon AJOUTÉ garde ce contrôle ; un étalon REMPLACÉ effacerait le
+      signal connu du circuit (C5 : Unibail du 20-08-2026), d'où le refus.
+    ⑨ CE QUI CLOCHE — Le signal connu d'un étalon ajouté est choisi par celui qui fabrique le dépôt : il prouve que le
+      module se charge et retrouve SA date, pas qu'il est juste.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main ; aucun appel ne peut ne pas revenir.
+      [sort: non]
+    """
+    import re as _re
+    import CONTRATS_DES_FICHIERS as _C
+    ch = os.path.join(dossier, _C.ETALON_DES_SIGNAUX)
+    try:
+        lus = json.load(open(ch, encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return {}, "les étalons désignés %s ne se lisent pas : %s" % (ch, e)
+    if not isinstance(lus, dict) or not lus:
+        return {}, "les étalons désignés %s ne portent aucun étalon" % ch
+    for cle, e in lus.items():
+        if cle in ETALONS:
+            return {}, "l'étalon du module %s est écrit dans le programme : un étalon désigné ne le remplace pas" % cle
+        if not isinstance(e, dict) or sorted(e) != sorted(_C.ETALON_D_UN_SIGNAL):
+            return {}, "l'étalon désigné %s ne porte pas exactement les cases %s" % (cle, _C.ETALON_D_UN_SIGNAL)
+        if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(e["date"])) or not isinstance(e["reglages"], dict):
+            return {}, "l'étalon désigné %s : date %r ou réglages %r mal formés" % (cle, e["date"], e["reglages"])
+    return lus, None
+
+
 def cle_d_etalon(signal):
     """Rend la clé sous laquelle `ETALONS` range l'étalon du module d'un signal : « <chemin du module> · <fonction> ».
 
@@ -930,6 +975,8 @@ def main():
     ② CONTEXTE D APPEL — Le circuit du soir. **Un signal n est jamais connu avant
       la clôture : ce programme ne tourne qu après elle.**
     ③ ENTRÉE — La ligne de commande : la racine du dépôt, ou `"."` à défaut.
+      La variable d'environnement ETALONNAGE_DU_DEPOT (A-952, 20-11-2026) : absente, rien ne change (le
+      circuit) ; posée, `etalons_designes` AJOUTE à `ETALONS` ceux du dossier désigné, annoncés.
       **Et les fichiers de cours, choisis par le juge des stratégies
       `programmes/JUGE_DES_STRATEGIES.py`, pas par ce programme.**
     ④ CONDITIONS D ENTRÉE — Le chargement doit réussir. Tout le reste est prévu.
@@ -971,8 +1018,8 @@ def main():
     ⑪ TERMINAISON — **NE REND JAMAIS LA MAIN : quatre codes.**
       `0` signaux écrits — Y COMPRIS QUAND DES FICHES SONT MISES À PART (19-11-2026 : le teneur les compte et le
       circuit rougit) —, ou garde du soir publiée (`publier_la_garde`) · `1` **AUCUN groupe ne se calibre, ou le
-      calcul de chaque groupe calibré tombe : RIEN publié** · `2` matériel ou séance manquants, ou sortie du pas
-      impossible · `3` le fichier ne respecte pas le format déclaré dans
+      calcul de chaque groupe calibré tombe : RIEN publié** · `2` matériel ou séance manquants, sortie du pas
+      impossible, ou dossier d'étalonnage désigné introuvable ou mal formé (A-952) · `3` le fichier ne respecte pas le format déclaré dans
       `programmes/CONTRATS_DES_FICHIERS.py`, rien écrit.
       **Et `charger`, qu il appelle en premier, peut terminer en code 2 sans
       revenir.** Le circuit du soir n a pas de tolérance sur ce pas.
@@ -996,6 +1043,24 @@ def main():
 """
     racine = sys.argv[1] if len(sys.argv) > 1 else "."
     maintenant = datetime.now(PARIS)
+    # LES ÉTALONS SONT DÉSIGNABLES EN PLUS, JAMAIS RETIRÉS (A-952, 20-11-2026). Sans la variable ETALONNAGE_DU_DEPOT,
+    # rien ne change. Posée (dépôt fabriqué de 2024 et après, A-945), le dossier qu'elle désigne AJOUTE des étalons
+    # pour des modules qui n'en ont pas ; un dossier absent ou un étalon mal formé arrête en 2, rien publié.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from CONTRATS_DES_FICHIERS import dossier_d_etalonnage, EtalonnageIntrouvable, VARIABLE_D_ETALONNAGE
+    try:
+        _etalonnage = dossier_d_etalonnage(racine)
+    except EtalonnageIntrouvable as _e:
+        print(f"  ❌ ARRÊT : {_e} — rien n'est publié.")
+        sys.exit(2)
+    if _etalonnage is not None:
+        _ajoutes, _refus = etalons_designes(_etalonnage)
+        if _refus:
+            print(f"  ❌ ARRÊT : {_refus} — rien n'est publié.")
+            sys.exit(2)
+        ETALONS.update(_ajoutes)
+        print(f"  ÉTALONNAGE DÉSIGNÉ (A-952, variable {VARIABLE_D_ETALONNAGE}) : {len(_ajoutes)} étalon(s) ajouté(s) "
+              f"depuis {_etalonnage} — {', '.join(sorted(_ajoutes))}")
     B, mod, cours, lecture = charger(racine)
     if mod.garde is not None:
         # LA GARDE DU SOIR N'ARRÊTE PAS LE SOIR (A-706, superviseur R-759 du 10-11-2026) : la séance est publiée sans
