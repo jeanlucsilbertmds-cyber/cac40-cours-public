@@ -10,25 +10,33 @@ taxe sur les transactions financières). Il remplace le script de mesure rapport
 tournait que sur le poste de son auteur (relecture Cowork du 21-11-2026, défaut I-1), et fabrique la section qui
 était écrite à la main dans rapports/CALIBRAGE_C5.md (défaut I-2, R-728 : ce qui se calcule ne s'écrit jamais à la
 main).
+Corrections du RELU Cowork (pointe fbb5debeb) : D-1, le verdict sortait sur un tableau falsifié de façon cohérente sans
+rien regarder du golden — le tableau est désormais confronté au golden (n, net, réussite, motifs) avant tout calcul, et
+le verdict ne parle plus que du tableau ; m-2, le rapport dit pourquoi son « réel » diffère de celui du rejeu.
 
-① RÔLE — Recalculer chaque opération du tableau des 100 trades du golden avec `MODULE_POSITIONS.pnl_net` sous trois
+① RÔLE — Confronter le tableau des 100 trades au golden, puis recalculer chaque opération du tableau des 100 trades du golden avec `MODULE_POSITIONS.pnl_net` sous trois
   barèmes (forfait « HIST_FORFAIT_300 », courtage sans taxe « HIST_COURTAGE_SANS_TTF », réel = sans argument), dire si
   le forfait retrouve chaque gain du golden à l'arrondi des prix près, et écrire rapports/CAUSE_DE_L_ECART_DE_GAIN_C5.md :
-  totaux, part du courtage, part de la taxe, valeurs taxées et non taxées par année, verdict.
+  totaux, part du courtage, part de la taxe, valeurs taxées et non taxées par année, verdict. Le verdict porte sur le
+  TABLEAU : il ne dit rien du rejeu d'aujourd'hui, que ce programme ne voit pas.
 ② CONTEXTE D'APPEL — À la main, par le Chat ou Cowork, depuis n'importe quel dossier ; l'épreuve
-  tests/EPREUVE_DE_L_ECART_DE_GAIN_C5_Sam_21-11-2026.py appelle `lire_le_tableau`, `mesurer` et `ecrire_le_rapport`.
+  tests/EPREUVE_DE_L_ECART_DE_GAIN_C5_Sam_21-11-2026.py appelle `lire_le_tableau`, `confronter_au_golden`, `mesurer`,
+  `tolerance` et `ecrire_le_rapport`.
   Aucune tâche du soir.
 ③ ENTRÉE — La ligne de commande : « --racine=<dossier> » (défaut : le dépôt qui porte ce fichier) ;
   « --sortie=<fichier> » (défaut : <racine>/rapports/CAUSE_DE_L_ECART_DE_GAIN_C5.md).
 ④ CONDITIONS D'ENTRÉE — La racine porte programmes/MODULE_POSITIONS.py, programmes/JUGE_DES_STRATEGIES.py,
-  programmes/CONTRATS_DES_FICHIERS.py, programmes/COMPARER_LE_CALIBRAGE_C5.py et donnees/TABLEAU_100_TRADES_C5E10_*.csv.
+  programmes/CONTRATS_DES_FICHIERS.py, programmes/COMPARER_LE_CALIBRAGE_C5.py, donnees/TABLEAU_100_TRADES_C5E10_*.csv et
+  le golden (gouvernance/golden_tests_*.json, trouvé par `trouver` du juge, comme le fait le comparateur). Le tableau doit
+  rendre les n, net, réussite et motifs de « C5-ETENDU-10 » / « jetons_illimites » du golden : sinon rien n'est calculé.
   TOUTE DATE DU TABLEAU doit être postérieure à la fin de la fenêtre du regard unique
   (CONTRATS.fenetre_du_regard_unique) : sinon rien n'est calculé. Aucun fichier de cours n'est lu.
 ⑤ SORTIE — Le code de sortie : 0 hypothèse confirmée (chaque opération retrouvée au forfait) · 1 hypothèse réfutée
-  (au moins une opération hors tolérance) · 2 le calcul n'a pas pu tourner (R-734). Le rapport écrit, deux lignes
-  affichées.
+  (au moins une opération hors tolérance) · 2 le calcul n'a pas pu tourner (R-734), y compris golden absent ou tableau
+  non conforme au golden. Le rapport écrit, deux lignes affichées.
 ⑥ TRAITEMENT — ① charger les quatre programmes de la racine · ② lire le tableau par `gain` du comparateur · ③ refuser
-  une date dans la fenêtre du regard unique · ④ `mesurer` · ⑤ `ecrire_le_rapport` · ⑥ afficher et sortir.
+  une date dans la fenêtre du regard unique · ④ lire le golden et refuser un tableau qui ne le rend pas
+  (`confronter_au_golden`) · ⑤ `mesurer` · ⑥ `ecrire_le_rapport` · ⑦ afficher et sortir.
 ⑦ UNITÉ — Gains, frais et écarts en EUROS ; prix en euros ; dates AAAA-MM-JJ ; comptes en OPÉRATIONS.
 ⑧ POURQUOI — Aucune formule recopiée (deux implémentations d'une même chose divergent toujours, R-708) : chaque gain
   vient de `pnl_net`, le barème de `cout_d_un_ordre`, la liste des valeurs taxées de `valeur_taxee`, la lecture des
@@ -36,12 +44,18 @@ main).
 ⑨ CE QUI CLOCHE — ① Le tableau garde les prix à 4 décimales : le forfait ne retrouve le golden qu'à une tolérance
   près, calculée par `tolerance` ; un tableau aux prix plus grossiers ferait rougir à tort. ② Le rejeu d'aujourd'hui
   (82 022,24 €) n'est pas relu ici (il lit les cours) : c'est `COMPARER_LE_CALIBRAGE_C5.py --bareme=HIST_FORFAIT_300`
-  qui le relie au golden (« gain seul 0 »).
-⑩ EFFET — Lit le tableau, le barème et la liste des valeurs taxées ; écrit le seul fichier de sortie ; aucun réseau.
+  qui le relie au golden (« gain seul 0 »). Le « réel » recalculé ici (82 022,19 € le 21-11-2026) part des prix du
+  tableau, arrondis à 4 décimales ; celui du rejeu (82 022,24 €) part des cours du témoin : ils diffèrent de cet
+  arrondi, du même ordre que l'écart golden − forfait, que le rapport chiffre (relecture Cowork, m-2).
+  ③ Le golden ne garde des trades qu'une empreinte (`hash_trades_jetons_illimites`) dont la recette n'est pas au dépôt :
+  la confrontation porte sur n, net, réussite et motifs. Un tableau falsifié qui garde ces quatre chiffres (un gain
+  déplacé et compensé ailleurs, prix recalculés à l'identique) passerait encore.
+⑩ EFFET — Lit le tableau, le golden, le barème et la liste des valeurs taxées ; écrit le seul fichier de sortie ; aucun réseau.
 ⑪ TERMINAISON — Sort par sys.exit. Un de mes appels peut-il ne pas revenir ? Non : une boucle par ligne du tableau.
   [sort: oui]
 """
 import csv
+import json
 import importlib.util
 import os
 import sys
@@ -88,9 +102,10 @@ def lire_le_tableau(chemin, gain):
     ① RÔLE — Rendre chaque opération avec ses prix, ses dates et son gain du golden.
     ② CONTEXTE D'APPEL — `main` ; l'épreuve.
     ③ ENTRÉE — `chemin` du tableau (séparateur « ; »), `gain` la lecture des nombres du comparateur.
-    ④ CONDITIONS D'ENTRÉE — Colonnes valeur, date_signal, date_entree, date_sortie, prix_entree, prix_sortie, net_eur.
+    ④ CONDITIONS D'ENTRÉE — Colonnes valeur, date_signal, date_entree, date_sortie, prix_entree, prix_sortie, motif,
+    net_eur.
     ⑤ SORTIE — UNE valeur : une liste de dictionnaires {valeur, date_signal, date_entree, date_sortie, prix_entree,
-    prix_sortie, ref}.
+    prix_sortie, motif, ref}.
     [rend: 1]
     ⑥ TRAITEMENT — lecture ligne à ligne.
     ⑦ UNITÉ — prix et `ref` en EUROS.
@@ -103,8 +118,48 @@ def lire_le_tableau(chemin, gain):
     with open(chemin, encoding="utf-8") as f:
         lignes = list(csv.DictReader(f, delimiter=";"))
     return [{"valeur": r["valeur"], "date_signal": r["date_signal"], "date_entree": r["date_entree"], "date_sortie": r["date_sortie"],
-             "prix_entree": gain(r["prix_entree"]), "prix_sortie": gain(r["prix_sortie"]),
+             "prix_entree": gain(r["prix_entree"]), "prix_sortie": gain(r["prix_sortie"]), "motif": r["motif"],
              "ref": gain(r["net_eur"])} for r in lignes]
+
+
+def confronter_au_golden(operations, golden):
+    """Dit en quoi le tableau ne rend pas les chiffres figés du golden.
+
+    ① RÔLE — Refuser de juger un tableau qui n'est pas celui du golden (relecture Cowork du 21-11-2026, D-1 : une ligne
+    modifiée de façon cohérente, gain recalculé au forfait, rendait « CONFIRMÉE » avec un golden affiché de 103 386,48 €
+    contre 111 334,24 € déclarés).
+    ② CONTEXTE D'APPEL — `main`, avant `mesurer` ; l'épreuve.
+    ③ ENTRÉE — `operations` de `lire_le_tableau` (TOUT le tableau), `golden` le dictionnaire lu du fichier du golden.
+    ④ CONDITIONS D'ENTRÉE — `golden["C5-ETENDU-10"]["jetons_illimites"]` porte n, net, wr, motifs.
+    ⑤ SORTIE — UNE valeur : la liste des écarts, en phrases (vide si le tableau rend le golden).
+    [rend: 1]
+    ⑥ TRAITEMENT — compter les opérations ; sommer les gains au centime ; réussite = part des gains > 0, en %, à une
+    décimale ; compter les motifs ; comparer chacun au golden.
+    ⑦ UNITÉ — n en OPÉRATIONS, net en EUROS, réussite en POURCENTS.
+    ⑧ POURQUOI — Le verdict ne vaut que si le tableau jugé est celui du golden ; ces quatre chiffres sont ceux que le
+    golden fige (R-701), ils sont lus, jamais recopiés (R-708).
+    ⑨ CE QUI CLOCHE — ⑨③ de la fiche en tête : une falsification qui garde les quatre chiffres passe.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève si une clé du golden manque.
+    [sort: non]
+    """
+    g = golden["C5-ETENDU-10"]["jetons_illimites"]
+    n = len(operations)
+    net = round(sum(o["ref"] for o in operations), 2)
+    wr = round(100.0 * sum(1 for o in operations if o["ref"] > 0) / n, 1) if n else 0.0
+    motifs = {}
+    for o in operations:
+        motifs[o["motif"]] = motifs.get(o["motif"], 0) + 1
+    ecarts = []
+    if n != int(g["n"]):
+        ecarts.append("n : tableau %d, golden %s" % (n, g["n"]))
+    if abs(net - float(g["net"])) > DEMI_CENTIME:
+        ecarts.append("net : tableau %.2f, golden %.2f" % (net, float(g["net"])))
+    if abs(wr - float(g["wr"])) > 0.05:
+        ecarts.append("réussite : tableau %.1f %%, golden %.1f %%" % (wr, float(g["wr"])))
+    if motifs != {k: int(v) for k, v in g["motifs"].items()}:
+        ecarts.append("motifs : tableau %s, golden %s" % (dict(sorted(motifs.items())), dict(sorted(g["motifs"].items()))))
+    return ecarts
 
 
 def tolerance(capital, prix_entree, prix_sortie):
@@ -186,7 +241,8 @@ def ecrire_le_rapport(chemin, res, entete):
     ④ CONDITIONS D'ENTRÉE — Le dossier de `chemin` peut être créé.
     ⑤ SORTIE — UNE valeur : le texte écrit.
     [rend: 1]
-    ⑥ TRAITEMENT — hypothèse, totaux, décomposition, groupes, opérations hors tolérance, verdict.
+    ⑥ TRAITEMENT — hypothèse, totaux, décomposition, provenance des deux « réels » (m-2), groupes, opérations hors
+    tolérance, verdict borné au tableau (D-1).
     ⑦ UNITÉ — EUROS au centime.
     ⑧ POURQUOI — Défaut I-2 de la relecture Cowork du 21-11-2026 : la section était écrite à la main dans un rapport
     qu'un autre programme réécrit en entier ; elle vit maintenant dans son propre fichier, fabriqué ici.
@@ -213,7 +269,10 @@ def ecrire_le_rapport(chemin, res, entete):
                                                                          res["ecart_forfait_reel"]),
           "- dont courtage (forfait − sans taxe) : %.2f € (%s) ; dont taxe (sans taxe − réel) : %.2f € (%s)"
           % (res["part_courtage"], pc(res["part_courtage"]), res["part_taxe"], pc(res["part_taxe"])),
-          "- écart maximal d'une opération, forfait contre golden : %.2f €" % res["ecart_max"], "",
+          "- écart maximal d'une opération, forfait contre golden : %.2f €" % res["ecart_max"],
+          "- le réel ci-dessus part des prix du tableau, arrondis à 4 décimales ; le rejeu de rapports/CALIBRAGE_C5.md "
+          "part des cours du témoin : les deux « réels » diffèrent de cet arrondi, du même ordre que l'écart "
+          "golden − forfait (%.2f €)" % (res["ref"] - res["forfait"]), "",
           "## ÉCART FORFAIT − RÉEL PAR ANNÉE D'ENTRÉE ET PAR TAXE", "",
           "année | valeur taxée | opérations | écart €", "--- | --- | --- | ---"]
     t += ["%s | %s | %d | %.2f" % (a, "oui" if tx else "non", n, e) for (a, tx), (n, e) in res["par_groupe"].items()]
@@ -222,9 +281,12 @@ def ecrire_le_rapport(chemin, res, entete):
     t += ["%s | %s | %s | %+.2f | %+.2f" % (o["valeur"], o["date_entree"], o["date_sortie"], o["ref"], o["forfait"])
           for o in res["hors_tolerance"]]
     t += ["", "## VERDICT", "",
-          ("hypothèse CONFIRMÉE : les %d opérations se retrouvent au forfait ; l'écart de gain vient du seul régime de "
-           "frais." % res["n"]) if res["confirmee"] else
-          ("hypothèse RÉFUTÉE : %d opération(s) hors tolérance au forfait." % len(res["hors_tolerance"])), ""]
+          ("hypothèse CONFIRMÉE SUR LE TABLEAU : les %d opérations du tableau du golden (n, net, réussite et motifs "
+           "conformes au golden) se retrouvent au forfait ; entre ce tableau et le barème réel, l'écart vient du seul "
+           "régime de frais." % res["n"]) if res["confirmee"] else
+          ("hypothèse RÉFUTÉE : %d opération(s) hors tolérance au forfait." % len(res["hors_tolerance"])), "",
+          "Ce verdict ne porte pas sur le rejeu d'aujourd'hui, que ce programme ne lit pas : c'est "
+          "`programmes/COMPARER_LE_CALIBRAGE_C5.py --bareme=%s` qui le relie au golden." % FORFAIT, ""]
     texte = "\n".join(t)
     os.makedirs(os.path.dirname(os.path.abspath(chemin)), exist_ok=True)
     with open(chemin, "w", encoding="utf-8") as f:
@@ -267,11 +329,21 @@ def main():
         if not f_tab:
             print("ARRÊT : tableau des 100 trades introuvable sous %s" % racine)
             return 2
+        f_gold = J.trouver(racine, "golden_tests_")
+        if not f_gold:
+            print("ARRÊT : golden introuvable sous %s — rien n'est jugé." % racine)
+            return 2
         operations = lire_le_tableau(f_tab, K.gain)
         _deb, fin_regard = C.fenetre_du_regard_unique()
         dates = [o[k] for o in operations for k in ("date_signal", "date_entree", "date_sortie")]
         if not dates or min(dates) <= fin_regard:
             print("ARRÊT : le tableau porte une date dans la fenêtre du regard unique (ou est vide) — rien n'est calculé.")
+            return 2
+        with open(f_gold, encoding="utf-8") as f:
+            ecarts = confronter_au_golden(operations, json.load(f))
+        if ecarts:
+            print("ARRÊT : le tableau ne rend pas le golden (%s) — %s — rien n'est jugé."
+                  % (os.path.relpath(f_gold, racine), " ; ".join(ecarts)))
             return 2
         res = mesurer(operations, M)
     except Exception as e:  # le calcul n'a pas pu tourner (R-734)
@@ -279,6 +351,7 @@ def main():
         return 2
     rel = lambda x: os.path.relpath(x, racine)
     entete = ["date du rapport : %s" % J.horodatage(), "tableau : %s" % rel(f_tab),
+              "golden : %s — n, net, réussite et motifs du tableau conformes" % rel(f_gold),
               "calcul : `MODULE_POSITIONS.pnl_net`, barèmes %s, %s et réel (sans argument)" % (FORFAIT, SANS_TAXE),
               "lien au rejeu d'aujourd'hui : `programmes/COMPARER_LE_CALIBRAGE_C5.py --bareme=%s` (voir "
               "rapports/CALIBRAGE_C5.md pour le rejeu au barème réel)" % FORFAIT]
