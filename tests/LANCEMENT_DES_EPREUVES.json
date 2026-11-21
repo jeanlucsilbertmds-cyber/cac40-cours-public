@@ -627,6 +627,22 @@
    ],
    "pourquoi": "décision de Jean-Luc du 21-11-2026 à 00h49 (A-957, « 1 ») : épreuve courte qui rougit si le code du module C5 change sans que la valeur figée de C5E10-QA-V1 (CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE) suive — le cas du merge d2ba76264 du 20-11-2026, vu seulement par MoulinetteEssai ; avec ses sabotages S1 (code changé : rouge), S2 (commentaire seul : vert), S3 (ancienne valeur : rouge) ; 3 s mesurées le 21-11-2026 sur la machine du Chat, sans couverture"
   },
+  "Calibrage": {
+   "chemin": "tests/EPREUVE_DU_CALIBRAGE_C5_Sam_21-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 15h11 (« 1 », rail ① du Plan V8, A-967, A-966) : épreuve courte de programmes/COMPARER_LE_CALIBRAGE_C5.py — une opération retirée doit apparaître parmi les DISPARUES (E2, E6), un motif changé parmi les CHANGÉES (E3) ; sabotages S1 (disparues tues) et S2 (famille aveugle) qui doivent rougir ; ne lit que trois lignes du tableau des 100 trades (2024), aucun cours ; moins d'une seconde mesurée le 21-11-2026 sur la machine de l'agent"
+  },
+  "EcartDeGain": {
+   "chemin": "tests/EPREUVE_DE_L_ECART_DE_GAIN_C5_Sam_21-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "relecture Cowork du 21-11-2026 sur travail-calibrage (pointe 68edeafbb), défaut I-1 : la preuve de la cause de l'écart de gain de C5 doit tourner depuis un clone, avec une épreuve — épreuve courte de programmes/EXPLIQUER_L_ECART_DE_GAIN_C5.py : trois vraies lignes du tableau des 100 trades (2024) confirmées au forfait de 300 € (E1), un gain déplacé de 1,00 € réfuté et nommé (E2), courtage + taxe = écart forfait − réel (E3), verdict écrit (E4) ; sabotages S1 (barème ignoré) et S2 (tolérance infinie) qui doivent rougir ; aucun cours ; moins d'une seconde mesurée le 21-11-2026 sur la machine de l'agent"
+  },
   "EtatTravaux": {
    "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",
    "arguments": [
