@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=JugeLecteur,MoulinetteEssai,VeriteJuge,AncreC5
+pointe=8fdb10a979a671112925e84b8ca06139f7d79bbc
