@@ -1874,8 +1874,20 @@ DISTRIBUTIONS_DECIDEES = ["valeur", "date", "montant", "unite"] + list(COLONNES_
 # (même raison que EXEMPTIONS_DU_GARDE_FOU_DES_FRAIS). DÈS QU'UN FICHIER DE CE CHEMIN EXISTE, IL EST CONFRONTÉ par
 # `confronter_tous` ; TANT QU'IL N'EXISTE PAS, LE CONTRAT SE TAIT — c'est la limite (son ⑨) : le lot qui écrit le
 # fichier le fait passer dans CONTRATS_PAR_FICHIER, ou le laisse ici, dans le même geste que son écrivain.
+# LE REGISTRE DES TRAVAUX (20-11-2026, question de Jean-Luc à 19h40 : « comment piloter un graphe d'actions parallèles
+# si tu ne sais pas qui fait quoi ? »). Écrit par les programmes LIVRER et INSTALLER à chaque lancement (une ligne au
+# lancement, une à la fin ; ajout seul), et par QUI_FAIT_QUOI « noter » ; lu par QUI_FAIT_QUOI, qui confronte chaque
+# ligne à GitHub et à git. UN FICHIER JSON PAR ENTRÉE (réparation du 20-11-2026, superviseur R-759 : « RUSTINE, À
+# REPRENDRE, AVEC SIMPLIFICATION ») : chaque entrée est un fichier neuf, jamais un ajout à un fichier existant, pour
+# qu'un « pull --rebase » entre deux poussées ne crée jamais de conflit ; un dossier en « / » est confronté fichier par
+# fichier (`confronter_les_fichiers_a_venir`).
+REGISTRE_DES_TRAVAUX = "etudes/REGISTRE_DES_TRAVAUX/"
+TRAVAUX = ["etape", "branche", "executant", "identifiant", "lance_le", "fini_le", "resultat"]
+EXECUTANTS_DES_TRAVAUX = ("github", "cowork", "chat")
+
 FICHIERS_A_VENIR = {
     "registre_essais/": ("NATURES_DES_ENTREES_D_ESSAI", "TENIR_LE_REGISTRE_DES_ESSAIS", "L4"),
+    REGISTRE_DES_TRAVAUX: ("TRAVAUX", "LIVRER", "LIVRER"),
     "verdicts/": ("VERDICT", "JUGE_DES_STRATEGIES", "JG"),
     "rapports/tableau_de_bord.json": ("TABLEAU_DE_BORD", "RESUMER_POUR_LE_COCKPIT", "CKa"),
     # Le lot DIV demandait ces deux lignes dans CONTRATS_PAR_FICHIER (fragment, §3). Elles sont ici, parce que

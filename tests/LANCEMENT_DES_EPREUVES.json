@@ -567,6 +567,14 @@
     "--saboter"
    ],
    "pourquoi": "étape FILE-2 (20-11-2026) : les quatre propriétés du réservoir de 18 places et de la protection fine qui remplace le refus global du relais (décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52), avec leurs cinq sabotages (SF1 refus global remis, SF2 groupe par branche retiré, SF3 essais de poussée retirés, SF4 21 tâches, SF5 boucle qui sort au premier refus) ; 3 s sur la machine du Chat avec --saboter (20-11-2026) ; à jouer sur GitHub pour la relecture de Cowork"
+  },
+  "LivrerSabots": {
+   "chemin": "tests/EPREUVES_DE_LIVRER_ET_INSTALLER_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "demande de Jean-Luc du 20-11-2026 à 19h38 et ajout de 19h40 (LIVRER, INSTALLER, QUI_FAIT_QUOI) : les 20 cas puis les 18 sabotages, sans réseau, sur des dépôts git jetables ; 45 s sans sabotage et 834 s avec (dont environ 300 s pour le sabotage du plafond, coupé par la borne), mesurés sur la machine du Chat le 20-11-2026 sous nice (note echanges/A_RELIRE.md de travail-livrer)"
   }
  }
 }
