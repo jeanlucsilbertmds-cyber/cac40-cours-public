@@ -38,7 +38,11 @@
   fichier, au chemin même du certificateur, sous une autre identité que « certification-publique », et seulement si
   la publication a réussi ; le dépôt du certificat ne porte pas ce fichier (I-1 de la relecture de Cowork du
   21-11-2026) ; c) chaque commande de la publication dit son échec et rend 1, sans « continue-on-error », « || true »
-  ni « exit 0 » (I-2). Ses sabotages (F1 à F5, G1 à G8) portent sur une copie du FABRICANT.
+  ni « exit 0 » (I-2), et le pas, JOUÉ par « bash -e » avec un faux git et un faux certificateur, rend 0 et publie
+  quand tout réussit, rend non nul avec son « ::error:: » quand l'un échoue (I-4). Le dépôt des durées tourne dès que
+  la publication a tourné (réussie ou non), vide l'index, ajoute le fichier ET le journal de la tâche (I-3) ; les deux
+  dépôts gardent leur commit et n'abandonnent pas un rebasage en plan (m-9). Ses sabotages (F1 à F5, G1 à G12, H1 à
+  H5) portent sur une copie du FABRICANT.
 ⑦ UNITÉ — Des secondes.
 ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 15h34, réponse « 1 » à la question du Chat de 15h33 : « Publier au
   dépôt public les seules durées des épreuves (des chiffres de temps, aucun cours) pour que GitHub juge pour de vrai ».
@@ -46,10 +50,11 @@
   chaque lancement comptait pour son délai, et N5 voyait 20 400 s par tranche. Les journaux, qui portent aussi les
   sorties des épreuves, ne doivent jamais être publiés : d'où la garde, éprouvée ici des deux côtés.
 ⑨ CE QUI CLOCHE — La FRAÎCHEUR du fichier n'est pas jugée : des durées périmées font une prévision périmée. P7 lit le
-  TEXTE du circuit fabriqué : il ne prouve pas que GitHub exécute le pas ni que la poussée réussit (seul un passage
-  réel de la nuit le prouve). La publication elle-même au dépôt public n'est pas jouée ici.
+  TEXTE du circuit fabriqué, sauf la publication, JOUÉE avec des faux : il ne prouve pas que GitHub exécute le pas ni
+  que la poussée réussit (seul un passage réel de la nuit le prouve) ; les deux dépôts ne sont pas joués. La publication elle-même au dépôt public n'est pas jouée ici.
 ⑩ EFFET — Écrit dans des dossiers jetables, effacés à la fin.
-⑪ TERMINAISON — Rend la main ; aucun processus lancé ; sort par sys.exit.
+⑪ TERMINAISON — Rend la main ; lance « bash -e » trois fois par fabricant jugé, chaque fois borné à 30 s ; sort par
+  sys.exit.
   [sort: oui]
 """
 import importlib.util
@@ -88,8 +93,8 @@ SABOTAGES_DU_FABRICANT = {
     "F1_pas_retire": [('    "publier_les_durees": PUBLIER_LES_DUREES,\n', '    "publier_les_durees": "",\n')],
     "F2_option_retiree": [('CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees \\\\',
                            'CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" \\\\')],
-    "F3_fichier_non_pousse": [('    "deposer_les_durees": pas_de_depot("fichier des durees introuvable", DUREES_PUBLIEES_DU_DEPOT, "",',
-                               '    "deposer_les_durees": pas_de_depot("fichier des durees introuvable", "rapports/autre.csv", "",')],
+    "F3_fichier_non_pousse": [('DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,',
+                               '"rapports/autre.csv " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,')],
     "F4_echec_masque": [("        id: publier_les_durees\n", "        id: publier_les_durees\n        continue-on-error: true\n")],
     "F5_chemin_divergent": [('DUREES_PUBLIEES_DU_DEPOT = "rapports/durees_des_epreuves_en_secondes.csv"',
                              'DUREES_PUBLIEES_DU_DEPOT = "rapports/durees.csv"')],
@@ -106,20 +111,43 @@ SABOTAGES_DU_FABRICANT = {
     "G6_durees_deposees_avant": [("%(deposer_final)s%(publier_les_durees)s%(deposer_les_durees)s%(verdict)s",
                                   "%(publier_les_durees)s%(deposer_les_durees)s%(deposer_final)s%(verdict)s")],
     "G7_durees_signees_certification": [('IDENTITE_DES_DUREES = "durees-publiees"', 'IDENTITE_DES_DUREES = "certification-publique"')],
-    "G8_depot_des_durees_meme_apres_echec": [('condition="${{ !cancelled() && steps.publier_les_durees.outcome == \'success\' }}")',
-                                             'condition="always()")')],
+    "G8_depot_des_durees_sans_condition": [('condition="${{ !cancelled() && steps.publier_les_durees.outcome != \'skipped\' }}")',
+                                           'condition="always()")')],
+    # relecture de Cowork du 21-11-2026 (pointe 5602b2271) : G9 et G10 gardent I-3 et le point 2 (b) du superviseur,
+    # G11 et G12 gardent m-9 ; H1 à H5 sont SES façons de taire l'échec de la publication (I-4), jugées en JOUANT le pas
+    "G9_journal_de_la_tache_non_depose": [('DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,',
+                                          'DUREES_PUBLIEES_DU_DEPOT, VIDER_L_INDEX,')],
+    "G10_index_non_vide": [('DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,',
+                           'DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, "",')],
+    "G11_commit_sans_garde": [('[skip ci]" \\\\\n            || { echo \\"::error::COMMIT IMPOSSIBLE — """ + reste + """ reste sur la machine jetable\\"; exit 1; }\n',
+                              '[skip ci]"\n')],
+    "G12_rebasage_laisse_en_plan": [('          done\n          git rebase --abort 2>/dev/null || true\n          echo "::error::POUSSEE REFUSEE """ + str(ESSAIS_DE_POUSSEE)',
+                                    '          done\n          echo "::error::POUSSEE REFUSEE """ + str(ESSAIS_DE_POUSSEE)')],
+    "H1_point_virgule_true": [('--publier-les-durees \\\\\n', '--publier-les-durees ; true \\\\\n')],
+    "H2_ou_deux_points": [('--publier-les-durees \\\\\n', '--publier-les-durees || : \\\\\n')],
+    "H3_echo_devant": [('          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees',
+                        '          echo python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees')],
+    "H4_true_ou_devant": [('          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees',
+                           '          true || python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees')],
+    "H5_commentaire": [('          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees',
+                        '          : # python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees')],
 }
 # les deux conditions décidées, écrites ici une seconde fois à dessein (voir le ⑧ de `p7`)
 CONDITION_DE_LA_PUBLICATION = ("${{ !cancelled() && steps.poser_le_code.outcome == 'success' && "
                                "steps.certifier.outcome != 'skipped' }}")
-CONDITION_DU_DEPOT_DES_DUREES = "${{ !cancelled() && steps.publier_les_durees.outcome == 'success' }}"
+CONDITION_DU_DEPOT_DES_DUREES = "${{ !cancelled() && steps.publier_les_durees.outcome != 'skipped' }}"
 ATTENDU = {"F1_pas_retire": "P7 a)", "F2_option_retiree": "P7 a)", "F3_fichier_non_pousse": "P7 b)",
            "F4_echec_masque": "P7 c)", "F5_chemin_divergent": "P7 b)",
            "G1_condition_jamais_vraie": "P7 a) la condition", "G2_journaux_de_la_nuit_non_repris": "P7 a) la publication",
            "G3_echec_de_publication_rendu_vert": "P7 c)", "G4_ou_vrai_silencieux": "P7 c)",
            "G5_durees_avec_le_certificat": "P7 b) le dépôt du certificat", "G6_durees_deposees_avant": "P7 a)",
            "G7_durees_signees_certification": "P7 b) le dépôt des durées signe",
-           "G8_depot_des_durees_meme_apres_echec": "P7 b) la condition",
+           "G8_depot_des_durees_sans_condition": "P7 b) la condition",
+           "G9_journal_de_la_tache_non_depose": "P7 b) le dépôt des durées n'ajoute pas",
+           "G10_index_non_vide": "P7 b) l'index", "G11_commit_sans_garde": "P7 b) commit",
+           "G12_rebasage_laisse_en_plan": "P7 b) rebasage",
+           "H1_point_virgule_true": "P7 c) joué", "H2_ou_deux_points": "P7 c) joué", "H3_echo_devant": "P7 c) joué",
+           "H4_true_ou_devant": "P7 c) joué", "H5_commentaire": "P7 c) joué",
            "S1_sans_repli": "P4 ", "S2_ligne_a_trois_champs_acceptee": "P2 ligne à trois champs",
            "S3_en_tete_non_verifie": "P2 troisième colonne", "S4_cle_non_verifiee": "P2 clé",
            "S5_secondes_non_verifiees": "P2 secondes", "S6_ecrire_sans_garde": "P3 ",
@@ -384,8 +412,23 @@ def p7(F, C):
     if chemin.replace("/", os.sep) != C.DUREES_PUBLIEES:
         faux.append(f"P7 b) chemin du fabricant {chemin} ≠ celui du certificateur {C.DUREES_PUBLIEES}")
     ajout = lambda p: [l.strip() for l in p.split("\n") if l.strip().startswith("git add ")]
-    if ajout(dur) != [f"git add {chemin} \\"]:
-        faux.append(f"P7 b) le dépôt des durées n'ajoute pas {chemin} seul : {ajout(dur)}")
+    if ajout(dur) != [f"git add {chemin} {F.JOURNAL_DE_LA_TACHE} \\"] or not F.JOURNAL_DE_LA_TACHE.startswith(
+            "rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}"):
+        faux.append(f"P7 b) le dépôt des durées n'ajoute pas {chemin} et le journal de la tâche, seuls : {ajout(dur)}")
+    l_dur = [l.strip() for l in dur.split("\n")]
+    i_add = [i for i, l in enumerate(l_dur) if l.startswith("git add ")]
+    if "git reset -q \\" not in l_dur[:i_add[0] if i_add else 0]:
+        faux.append("P7 b) l'index n'est pas vidé (« git reset -q ») avant l'ajout : les journaux repris de main par la "
+                    "publication partiraient dans le commit des durées")
+    for nom_du_pas, texte_du_pas in (("dépôt du certificat", dep), ("dépôt des durées", dur)):
+        lignes = [l.strip() for l in texte_du_pas.split("\n")]
+        i_c = [i for i, l in enumerate(lignes) if l.startswith("git commit ")]
+        if len(i_c) != 1 or not lignes[i_c[0]].endswith("\\") or not re.match(
+                r'\|\| \{ echo "::error::[^"]+"; exit 1; \}$', lignes[i_c[0] + 1]):
+            faux.append(f"P7 b) commit sans garde dans le {nom_du_pas} : il tomberait sans dire pourquoi (m-9)")
+        i_err = [i for i, l in enumerate(lignes) if l.startswith('echo "::error::POUSSEE REFUSEE')]
+        if len(i_err) != 1 or lignes[i_err[0] - 1] != "git rebase --abort 2>/dev/null || true":
+            faux.append(f"P7 b) rebasage laissé en plan par le {nom_du_pas} après ses essais (m-9)")
     if any(chemin in l or "$DUREES" in l for l in ajout(dep)):
         faux.append(f"P7 b) le dépôt du certificat ajoute aussi les durées : {ajout(dep)} — un conflit sur ce fichier "
                     "empêcherait le dépôt du certificat")
@@ -406,6 +449,70 @@ def p7(F, C):
     if not commandes or sans_garde or interdits:
         faux.append(f"P7 c) le pas de publication peut taire un échec : commandes sans « || {{ echo \"::error::…\"; "
                     f"exit 1; }} » {[c[:60] for c in sans_garde]}, interdits présents {interdits}")
+    faux += jouer_la_publication(run)
+    return faux
+
+
+def jouer_la_publication(run):
+    """Joue le bloc « run » du pas de publication par « bash -e », avec un faux git et un faux certificateur.
+
+    ① RÔLE — Juger le pas de publication par ce qu'il FAIT, et non par la forme de son texte (I-4 de la relecture de
+      Cowork du 21-11-2026, pointe 5602b2271).
+    ② CONTEXTE D'APPEL — `p7`, une fois par fabricant jugé.
+    ③ ENTRÉE — `run` : le texte du bloc « run: | » du pas, tel que le fabricant l'écrit (indenté).
+    ④ CONDITIONS D'ENTRÉE — bash et python3 sur la machine (la nuit tourne sous Linux).
+    ⑤ SORTIE — UNE valeur : la liste des fautes (textes commençant par « P7 c) joué »).
+      [rend: 1]
+    ⑥ TRAITEMENT — Dans un dossier jetable : un « git » qui note son appel et rend GIT_CODE, posé en tête du PATH ; un
+      programmes/CERTIFIER_LA_VERSION.py qui note son appel et ses arguments et rend CERT_CODE. Trois jeux, chacun par
+      « bash -e » (ce que fait programmes/ETAPE_MUETTE.py, le shell des pas du job) : ① git 0, certificateur 0 → code 0
+      ET le certificateur appelé avec « --publier-les-durees » · ② git 0, certificateur 1 → code non nul ET la ligne
+      « ::error::DUREES DES EPREUVES NON PUBLIEES » · ③ git 1 → code non nul ET « ::error::JOURNAUX DE LA NUIT
+      ILLISIBLES », sans appel du certificateur.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — La forme précédente de c) découpait le pas en lignes et vérifiait leur FIN : « ; true », « || : »,
+      « echo » ou « true || » devant l'appel, « : # » le rendaient vert alors que la publication avait échoué ou
+      n'avait pas eu lieu (mesuré par Cowork, H1 à H5). Jouer le pas juge une propriété — il dit son échec, il rend
+      non nul — qui ferme ces formes et leurs cousines d'un coup.
+    ⑨ CE QUI CLOCHE — Les faux ne reproduisent pas le vrai git ni le vrai certificateur : une commande qui ne
+      dépendrait que de leur sortie réelle n'est pas jugée. Le pas est joué par bash, pas par ETAPE_MUETTE lui-même.
+    ⑩ EFFET — Un dossier jetable, effacé.
+    ⑪ TERMINAISON — Chaque jeu est borné à 30 s ; un dépassement est une faute.
+      [sort: non]
+    """
+    import subprocess
+    import textwrap
+    faux = []
+    d = tempfile.mkdtemp(prefix="durees_pas_joue_")
+    try:
+        os.makedirs(os.path.join(d, "bin"))
+        os.makedirs(os.path.join(d, "programmes"))
+        faux_git = os.path.join(d, "bin", "git")
+        open(faux_git, "w", encoding="utf-8").write('#!/bin/sh\necho "FAUX GIT $*"\nexit "${GIT_CODE:-0}"\n')
+        os.chmod(faux_git, 0o755)
+        open(os.path.join(d, "programmes", "CERTIFIER_LA_VERSION.py"), "w", encoding="utf-8").write(
+            "import os, sys\nprint('FAUX CERTIFICATEUR APPELE', ' '.join(sys.argv[1:]))\n"
+            "sys.exit(int(os.environ.get('CERT_CODE', '0')))\n")
+        script = os.path.join(d, "pas.sh")
+        open(script, "w", encoding="utf-8").write(textwrap.dedent(run))
+        jeux = (("① git 0, certificateur 0", "0", "0", lambda c, o: c == 0 and "--publier-les-durees" in "".join(
+                    l for l in o.splitlines() if l.startswith("FAUX CERTIFICATEUR APPELE"))),
+                ("② certificateur 1", "0", "1", lambda c, o: c != 0 and "::error::DUREES DES EPREUVES NON PUBLIEES" in o),
+                ("③ git 1", "1", "0", lambda c, o: c != 0 and "::error::JOURNAUX DE LA NUIT ILLISIBLES" in o
+                    and "FAUX CERTIFICATEUR APPELE" not in o))
+        for nom, git_code, cert_code, juste in jeux:
+            env = dict(os.environ, PATH=os.path.join(d, "bin") + os.pathsep + os.environ.get("PATH", ""),
+                       GIT_CODE=git_code, CERT_CODE=cert_code, GITHUB_WORKSPACE=d)
+            try:
+                r = subprocess.run(["bash", "-e", script], cwd=d, env=env, capture_output=True, text=True, timeout=30)
+                code, sortie = r.returncode, r.stdout + r.stderr
+            except subprocess.TimeoutExpired:
+                code, sortie = None, "plus de 30 s"
+            if not juste(code, sortie):
+                faux.append(f"P7 c) joué, jeu {nom} : code {code}, sortie {sortie.strip().splitlines()[-2:]} — le pas tait "
+                            "un échec ou ne publie pas")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
     return faux
 
 

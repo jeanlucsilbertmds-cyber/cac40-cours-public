@@ -213,12 +213,14 @@ jobs:
           git add rapports/certificats_partiels/ rapports/journal_du_circuit/ \
             || { echo "::error::certificat partiel ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
-          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
+          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]" \
+            || { echo "::error::COMMIT IMPOSSIBLE — le certificat reste sur la machine jetable"; exit 1; }
           for i in $(seq 1 21); do
             git rebase --abort 2>/dev/null || true
             if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
+          git rebase --abort 2>/dev/null || true
           echo "::error::POUSSEE REFUSEE 21 FOIS — le certificat reste sur la machine jetable"; exit 1
       - name: Rougir si la version n'est pas certifiee
         id: verdict
@@ -330,12 +332,14 @@ jobs:
           git add rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ \
             || { echo "::error::certificat ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
-          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
+          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]" \
+            || { echo "::error::COMMIT IMPOSSIBLE — le certificat reste sur la machine jetable"; exit 1; }
           for i in $(seq 1 21); do
             git rebase --abort 2>/dev/null || true
             if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
+          git rebase --abort 2>/dev/null || true
           echo "::error::POUSSEE REFUSEE 21 FOIS — le certificat reste sur la machine jetable"; exit 1
       - name: Publier les durees des epreuves
         id: publier_les_durees
@@ -347,20 +351,24 @@ jobs:
             || { echo "::error::DUREES DES EPREUVES NON PUBLIEES — le certificat est depose quand meme"; exit 1; }
       - name: Deposer les durees au depot prive
         id: deposer_les_durees
-        if: ${{ !cancelled() && steps.publier_les_durees.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.publier_les_durees.outcome != 'skipped' }}
         shell: bash
         run: |
           git config user.name durees-publiees
           git config user.email durees-publiees@users.noreply.github.com
-          git add rapports/durees_des_epreuves_en_secondes.csv \
-            || { echo "::error::fichier des durees introuvable"; exit 1; }
+          git reset -q \
+            || { echo "::error::INDEX ILLISIBLE — durees non deposees"; exit 1; }
+          git add rapports/durees_des_epreuves_en_secondes.csv rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log \
+            || { echo "::error::fichier des durees ou journal de la tache introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
-          git commit -q -m "durees des epreuves, passage public ${GITHUB_RUN_ID} [skip ci]"
+          git commit -q -m "durees des epreuves et journal de la tache, passage public ${GITHUB_RUN_ID} [skip ci]" \
+            || { echo "::error::COMMIT IMPOSSIBLE — le fichier des durees reste sur la machine jetable"; exit 1; }
           for i in $(seq 1 21); do
             git rebase --abort 2>/dev/null || true
             if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
+          git rebase --abort 2>/dev/null || true
           echo "::error::POUSSEE REFUSEE 21 FOIS — le fichier des durees reste sur la machine jetable"; exit 1
       - name: Rougir si la version n'est pas certifiee
         id: verdict

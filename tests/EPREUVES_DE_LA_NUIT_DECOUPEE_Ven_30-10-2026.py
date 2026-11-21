@@ -217,6 +217,15 @@ SABOTAGES = {
     # (son TMPDIR n'est plus posé, il reste sur la machine) — N11 doit rougir
     "Sz9_coupure_sans_le_groupe": [(CERTIF, "        os.killpg(p.pid, signal.SIGKILL)\n", "        p.kill()\n")],
     "Sz10_tmpdir_non_pose": [(CERTIF, '    env["TMPDIR"] = jetable\n', "")],
+    # 21-11-2026 au soir : Sz11 retire la garde de ProcessLookupError (superviseur R-759, 4 (a)) ; Sz12 n'efface le
+    # dossier jetable que si l'épreuve a été coupée (K2 de Cowork, m-8) ; Sz13 laisse passer « dict.update(SABOTAGES, …) »
+    "Sz11_killpg_sans_garde": [(CERTIF, "        except ProcessLookupError:\n", "        except ZeroDivisionError:\n")],
+    "Sz12_effacement_seulement_si_coupee": [(CERTIF, '        code, sortie = 124, lu + f"\\nARRÊTÉE : plus de {delai} s"\n'
+                                                     '    finally:\n        shutil.rmtree(jetable, ignore_errors=True)\n',
+                                             '        code, sortie = 124, lu + f"\\nARRÊTÉE : plus de {delai} s"\n'
+                                             '        shutil.rmtree(jetable, ignore_errors=True)\n')],
+    "Sz13_ecriture_par_argument_acceptee": [(CERTIF, '    par_argument = modifiantes | {f for f in dir(operator) if f.startswith(("set", "del", "__set", "__del"))}\n',
+                                             "    par_argument = set()\n")],
     "Sz8_delai_non_herite": [(CERTIF, "                delais.setdefault(cle_de(chemin, [\"--saboter\", f\"{ARGUMENT_DU_MORCEAU}{i}/{n}\"]), delais[entier])\n",
                               "                pass\n")],
 }
@@ -237,7 +246,9 @@ ATTENDU = {"Sm_six_tranches_comme_avant": "N5 ", "Sn_sortie_rouge_coupee_a_trois
            "Sz4_morceau_manquant_non_vu": "N14 ", "Sz5_charge_sans_z0": "N14 ",
            "Sz6_ecriture_apres_coup_acceptee": "N14 sabotages_declares", "Sz7_cle_du_morceau_avec_seulement": "N14 ",
            "Sz8_delai_non_herite": "N14 ", "Sz9_coupure_sans_le_groupe": "N11 coupure",
-           "Sz10_tmpdir_non_pose": "N11 coupure"}
+           "Sz10_tmpdir_non_pose": "N11 coupure", "Sz11_killpg_sans_garde": "N11 groupe déjà vide",
+           "Sz12_effacement_seulement_si_coupee": "N11 fin normale",
+           "Sz13_ecriture_par_argument_acceptee": "N14 sabotages_declares"}
 
 # Le petit dépôt d'essai : un programme à trois fonctions, une épreuve par fonction (chacune exécute sa fonction par un
 # sous-processus, comme les vraies épreuves exécutent leurs programmes).
@@ -540,7 +551,9 @@ def n11(C, faux):
       lignes · ② `jouer`, LE VRAI, sur un script jetable qui écrit dix lignes sur stdout, « CAS FAUTIF : X » sur
       stderr, puis dort 60 s, joué avec un délai de 3 s : code 124, les dix lignes et « CAS FAUTIF : X » gardés, et
       « ARRÊTÉE : plus de 3 s » en DERNIÈRE ligne (A2) ; ce script a lancé un petit-processus (« sleep 60 ») et créé
-      un dossier jetable par `tempfile` : après la coupure, le premier est mort et le second effacé (M-1) · ③ `jouer_les_lancements` avec un `jouer` témoin qui rend dix
+      un dossier jetable par `tempfile` : après la coupure, le premier est mort et le second effacé (M-1) ; une épreuve
+      qui finit SEULE a eu son dossier jetable à elle, effacé ensuite (m-8) ; un `os.killpg` qui lève
+      ProcessLookupError (groupe déjà vide) laisse `jouer` rendre 124 (superviseur R-759 du 21-11-2026, 4 (a)) · ③ `jouer_les_lancements` avec un `jouer` témoin qui rend dix
       lignes, code 0 pour « v.py », 1 pour « r1.py », 2 pour « r2.py », 124 pour « r124.py » : chaque rouge doit
       porter les dix lignes, la verte les trois dernières (m1).
     ⑦ UNITÉ — Des lignes. ⑧ POURQUOI — Enquête du 15-11-2026, C6 : trois lignes gardées, le cas fautif de
@@ -551,6 +564,8 @@ def n11(C, faux):
       (code 2, le cas de B1) ou une coupure (124) à 3 lignes ; la propriété est « tout code non nul », éprouvée sur
       ses trois classes réelles, pas une liste qu'on allongerait ; sabotage Sx. M-1 des relectures de Cowork (encore
       relevé le 21-11-2026) : la coupure ne tuait que l'épreuve et laissait son dossier jetable ; sabotages Sz9, Sz10.
+      m-8 (même relecture, pointe 5602b2271) : la fin normale n'était pas gardée ; sabotage Sz12. Superviseur R-759 du
+      21-11-2026, 4 (a) : killpg non gardé contre ProcessLookupError ; sabotage Sz11.
     ⑨ CE QUI CLOCHE — L'état du petit-processus est lu dans /proc : Linux seulement (la nuit tourne sous Linux). Le
       certificat partiel et le certificat ne sont pas écrits ici : ils recopient les lignes du
       résultat telles quelles (`ecrire_le_partiel`, `ecrire_le_rapport`). ⑩ EFFET — Un dossier jetable, effacé ;
@@ -567,6 +582,34 @@ def n11(C, faux):
         if code != 1 or lignes != dix:
             faux.append(f"N11 `jouer` sur une épreuve rouge de 10 lignes rend code {code} et {len(lignes)} ligne(s), "
                         "attendu code 1 et les 10")
+        # m-8 (relecture de Cowork du 21-11-2026) : une épreuve qui finit SEULE voit aussi son dossier jetable effacé
+        open(os.path.join(d, "f.py"), "w", encoding="utf-8").write(
+            "import os, tempfile\nprint('JETABLE', tempfile.gettempdir())\n")
+        code, _, lignes = C.jouer(d, sys.executable, "", "", "f.py", ".", [], 60)
+        vus = [l.split()[1] for l in lignes if l.startswith("JETABLE ")]
+        if code != 0 or len(vus) != 1 or os.path.exists(vus[0]) or os.path.realpath(vus[0]) == os.path.realpath(
+                tempfile.gettempdir()):
+            faux.append(f"N11 fin normale : code {code}, dossier jetable {vus} "
+                        f"{'encore là' if vus and os.path.exists(vus[0]) else ''} (attendu un dossier à elle, effacé)")
+            for v in vus:
+                if os.path.realpath(v) != os.path.realpath(tempfile.gettempdir()):
+                    shutil.rmtree(v, ignore_errors=True)
+        # superviseur R-759 du 21-11-2026, 4 (a) : un groupe déjà vide au moment de la coupure (os.killpg lève
+        # ProcessLookupError) ne fait pas tomber `jouer` — simulé par un killpg qui tue le groupe, PUIS lève
+        vrai_killpg = C.os.killpg
+        def killpg_puis_vide(pid, sig):
+            vrai_killpg(pid, sig)
+            raise ProcessLookupError(3, "No such process")
+        open(os.path.join(d, "s.py"), "w", encoding="utf-8").write("import time\nprint('debut', flush=True)\ntime.sleep(60)\n")
+        C.os.killpg = killpg_puis_vide
+        try:
+            code, _, lignes = C.jouer(d, sys.executable, "", "", "s.py", ".", [], 1)
+            if code != 124:
+                faux.append(f"N11 groupe déjà vide : `jouer` rend {code}, attendu 124")
+        except ProcessLookupError as e:
+            faux.append(f"N11 groupe déjà vide : `jouer` tombe sur {e!r} au lieu de rendre 124")
+        finally:
+            C.os.killpg = vrai_killpg
         # A2 : une épreuve coupée garde ce qu'elle a écrit, « ARRÊTÉE » en dernière ligne
         open(os.path.join(d, "c.py"), "w", encoding="utf-8").write(
             "import sys, time\nfor i in range(1, 11):\n    print('ligne %d' % i)\nsys.stdout.flush()\n"
@@ -756,7 +799,9 @@ def n14(C, depot, faux):
       (m-2 de la relecture de Cowork du 21-11-2026 : sans l'héritage du délai, ou si la clé gardait « --seulement= »,
       chaque morceau tombait de 10 800 s à 1 500 s) · ⑥ sur des textes écrits à la main : `sabotages_declares` refuse
       (ValueError) un dictionnaire SABOTAGES complété après coup — « SABOTAGES["S2_b"] = [] », « SABOTAGES.update(…) »
-      — et accepte une simple lecture (I-1 de la même relecture : un sabotage ainsi ajouté n'était jamais joué la nuit).
+      — ou passé en argument, « dict.update(SABOTAGES, …) », « operator.setitem(SABOTAGES, …) » (m-7 de la relecture de
+      Cowork du 21-11-2026, pointe 5602b2271) — et accepte une simple lecture, même en argument (« ", ".join(SABOTAGES) »)
+      (I-1 de la même relecture : un sabotage ainsi ajouté n'était jamais joué la nuit).
     ⑦ UNITÉ — Des nombres de sabotages ; des secondes (④, ⑤).
     ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 13h34 (A-961) : découper la grosse épreuve ; consigne du même
       jour : « aucun sabotage ne doit être perdu ». Un sabotage perdu à la découpe est une partie du code qu'on croit
@@ -811,7 +856,11 @@ def n14(C, depot, faux):
                         f"attendu {voulu}")
     dico = 'SABOTAGES = {\n    "Z0": [],\n    "S1_a": [],\n}\n'
     for ajout, refuse in (("", False), ('for k in SABOTAGES.items():\n    pass\n', False),
-                          ('SABOTAGES["S2_b"] = []\n', True), ('SABOTAGES.update({"S2_b": []})\n', True)):
+                          ('SABOTAGES["S2_b"] = []\n', True), ('SABOTAGES.update({"S2_b": []})\n', True),
+                          # m-7 (relecture de Cowork du 21-11-2026) : la même écriture, SABOTAGES passé en argument
+                          ('dict.update(SABOTAGES, {"S2_b": []})\n', True),
+                          ('import operator\noperator.setitem(SABOTAGES, "S2_b", [])\n', True),
+                          ('x = ", ".join(SABOTAGES)\n', False)):
         try:
             C.sabotages_declares(dico + ajout, "t.py")
             vu = False

@@ -99,6 +99,7 @@ import collections
 import hashlib
 import importlib.util
 import json
+import operator
 import os
 import shutil
 import signal
@@ -780,7 +781,9 @@ def sabotages_declares(texte, chemin):
       liste d'épreuves. Les méthodes qui modifient sont celles de `dict` qu'une vue en lecture seule
       (`types.MappingProxyType`) n'a pas, sauf `fromkeys`, qui fabrique un dictionnaire neuf.
     ⑨ CE QUI CLOCHE — Une écriture que l'arbre ne montre pas comme telle passe encore : par un autre nom
-      (« S = SABOTAGES ; S[…] = … »), par « globals()[…] », ou par un module qui modifie l'épreuve à l'import. Aucune
+      (« S = SABOTAGES ; S[…] = … »), par « globals()[…] », par une fonction du fichier qui reçoit SABOTAGES et
+      l'écrit (son nom ne dit pas qu'elle écrit), ou par un module qui modifie l'épreuve à l'import. Passé en argument
+      à une méthode modifiante de `dict` ou à « operator.setitem/delitem », il est refusé (m-7, 21-11-2026). Aucune
       épreuve du dépôt ne le fait au 21-11-2026 ; N14 de l'épreuve de la nuit découpée ne le verrait pas non plus (son
       compte ne lit, lui aussi, que l'intérieur du dictionnaire littéral). Le refus vaut aussi pour une écriture qui ne
       changerait rien (« SABOTAGES.update({}) ») : refus à tort, mais à voix haute.
@@ -790,13 +793,22 @@ def sabotages_declares(texte, chemin):
     """
     arbre = ast.parse(texte, filename=chemin)
     modifiantes = set(dir(dict)) - set(dir(types.MappingProxyType)) - {"fromkeys"}
+    # m-7 (relecture de Cowork du 21-11-2026, mesuré) : la même écriture, SABOTAGES passé en ARGUMENT — une méthode
+    # modifiante appelée par sa classe (« dict.update(SABOTAGES, …) ») ou une fonction du module operator qui écrit une
+    # clé (« operator.setitem », « operator.delitem » : celles dont `operator` dit le nom par « set »/« del »)
+    par_argument = modifiantes | {f for f in dir(operator) if f.startswith(("set", "del", "__set", "__del"))}
     ecritures = sorted(
         n.lineno for n in ast.walk(arbre)
         if (isinstance(n, ast.Name) and n.id == "SABOTAGES" and not isinstance(n.ctx, ast.Load))
         or (isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name) and n.value.id == "SABOTAGES"
             and not isinstance(n.ctx, ast.Load))
         or (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name)
-            and n.func.value.id == "SABOTAGES" and n.func.attr in modifiantes))
+            and n.func.value.id == "SABOTAGES" and n.func.attr in modifiantes)
+        or (isinstance(n, ast.Call)
+            and (n.func.attr if isinstance(n.func, ast.Attribute) else getattr(n.func, "id", "")) in par_argument
+            and any(isinstance(a, ast.Name) and a.id == "SABOTAGES"
+                    for a in list(n.args) + [k.value for k in n.keywords]
+                    + [a.value for a in n.args if isinstance(a, ast.Starred)])))
     if len(ecritures) > 1:
         raise ValueError(f"{chemin} : SABOTAGES est écrit ailleurs que par son dictionnaire (lignes {ecritures}) : "
                          f"un sabotage ajouté ou retiré ainsi ne serait jamais joué la nuit")
@@ -1729,7 +1741,12 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
         # M-1 : tout le GROUPE est tué — l'épreuve et ses petits-processus — et non l'épreuve seule ; puis ce qui reste
         # dans les tuyaux est lu, borné à DELAI_DE_LECTURE_APRES_COUPURE s (un petit-processus sorti du groupe par
         # « setsid » les tiendrait ouverts : on garde alors ce que l'exception portait)
-        os.killpg(p.pid, signal.SIGKILL)
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            # superviseur R-759 du 21-11-2026, 4 (a), mesuré hors dépôt : le groupe peut être déjà vide (meneur ramassé,
+            # petits-processus partis) ; rien à tuer, la coupure continue au lieu de faire tomber la tranche
+            pass
         try:
             e.stdout, e.stderr = p.communicate(timeout=DELAI_DE_LECTURE_APRES_COUPURE)
         except subprocess.TimeoutExpired:

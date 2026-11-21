@@ -1161,6 +1161,17 @@ VERDICT_DE_LA_CERTIFICATION = """      - name: Rougir si la version n'est pas ce
 # tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py (P7) le confronte à DUREES_PUBLIEES du certificateur.
 DUREES_PUBLIEES_DU_DEPOT = "rapports/durees_des_epreuves_en_secondes.csv"
 IDENTITE_DES_DUREES = "durees-publiees"   # l'auteur du commit des durées : jamais « certification-publique » (I-1)
+# LE JOURNAL DE LA TÂCHE FINALE, au nom que lui donne programmes/ETAPE_MUETTE.py (`chemin_du_journal` : passage,
+# tentative, job). Le dépôt des durées l'ajoute (I-3 de la relecture de Cowork du 21-11-2026, mesuré : sans lui, la
+# raison d'un échec de la publication restait sur la machine jetable). Le même texte est écrit quatre fois plus loin
+# (tranches, séries, épreuves longues) : non unifié ici, consigné au BACKLOG (R-708).
+JOURNAL_DE_LA_TACHE = "rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log"
+# AVANT L'AJOUT, L'INDEX EST VIDÉ (point 2 (b) du superviseur R-759 du 21-11-2026, repris par Cowork) : la publication
+# a repris les journaux de main par « git checkout FETCH_HEAD -- … », qui écrit aussi dans l'INDEX ; si le dépôt du
+# certificat n'a pas tiré main, ces journaux seraient partis dans le commit des durées. Vidé, l'index ne porte que les
+# deux chemins ajoutés ensuite.
+VIDER_L_INDEX = ('          git reset -q \\\n'
+                 '            || { echo "::error::INDEX ILLISIBLE — durees non deposees"; exit 1; }\n')
 # LE PAS, dans la tâche finale, APRÈS le dépôt du certificat au privé, et suivi de son PROPRE dépôt
 # (DEPOSER_LES_DUREES). Il ① reprend à la pointe de main (FETCH_HEAD : posée par le « git pull » du dépôt du
 # certificat, sinon par le pas « partiels ») les journaux que les tranches de CETTE nuit viennent d'y pousser — sans
@@ -1205,7 +1216,8 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
       script ; `avant`, `chemins` et `branche` les lisent alors par « ${NOM} », jamais par « ${{ … }} ». Les valeurs
       par défaut sont celles de la certification : son texte fabriqué ne change pas d'un octet. `nom`, `ident`,
       `condition` (21-11-2026, I-1 de la relecture de Cowork) : le nom, l'« id » et le « if: » du pas, pour un SECOND
-      dépôt dans un même job (celui des durées) ; leurs valeurs par défaut redonnent le texte d'avant à l'octet.
+      dépôt dans un même job (celui des durées) ; leurs valeurs par défaut redonnent le texte d'avant à l'octet
+      (sauf les deux ajouts du 21-11-2026 au soir, m-9, décrits au ⑥).
     ④ CONDITIONS D'ENTRÉE — Avec `branche` : `avant`, `chemins` et `branche` ne portent aucune expression « ${{ » (le
       filet des gabarits, propriété ⑩, refuse sinon le gabarit entier).
     ⑤ SORTIE — UNE valeur : le texte du pas, au format du fichier de circuit.
@@ -1216,7 +1228,9 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
       (15-11-2026 : la certification clone le privé à un commit, en tête détachée, où un « git push » nu ne sait
       pas quelle branche pousser — superviseur R-759 du 15-11-2026, §3) ; après chaque essai
       refusé, le dernier compris, une attente tirée au hasard de 1 à 15 s (jusqu'à 15 s perdues avant le message
-      d'erreur). AVEC `branche` (patch du 04-11-2026, superviseur R-759, R1 ; tour 5, superviseur R-759 du
+      d'erreur). Le commit porte sa garde, et un rebasage resté en plan est abandonné AVANT le message d'erreur final
+      (m-9 de la relecture de Cowork du 21-11-2026, mesuré : sans garde, « git commit » tombait muet au milieu d'un
+      rebasage laissé par le pas précédent ; aucun dépôt ne laisse plus de rebasage derrière lui). AVEC `branche` (patch du 04-11-2026, superviseur R-759, R1 ; tour 5, superviseur R-759 du
       06-11-2026, §4 ①) : SANS_RIEN_DE_LA_VERSION ; chaque valeur de `valeurs` vérifiée (lettres, chiffres, « _ »,
       « - » : ni « : », qui ferait écrire une autre référence, ni « / » ni « .. ») ; `avant` ; les chemins de
       `chemins` qui existent recopiés comme de SIMPLES FICHIERS (tar) du dossier de travail vers le dossier neuf $T
@@ -1285,12 +1299,14 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
 """ + avant + "          git add " + chemins + """ \\
             || { echo \"::error::""" + apres_echec + """\"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
-          git commit -q -m \"""" + message + """, passage public ${GITHUB_RUN_ID} [skip ci]"
+          git commit -q -m \"""" + message + """, passage public ${GITHUB_RUN_ID} [skip ci]" \\
+            || { echo \"::error::COMMIT IMPOSSIBLE — """ + reste + """ reste sur la machine jetable\"; exit 1; }
           for i in $(seq 1 """ + str(ESSAIS_DE_POUSSEE) + """); do
             git rebase --abort 2>/dev/null || true
             if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
+          git rebase --abort 2>/dev/null || true
           echo "::error::POUSSEE REFUSEE """ + str(ESSAIS_DE_POUSSEE) + """ FOIS — """ + reste + """ reste sur la machine jetable"; exit 1
 """)
     # tour 5 : le jeton n'est lu que par AUTORISATION ; git ne tourne que dans le dossier neuf $T, où les résultats
@@ -1536,15 +1552,19 @@ jobs:
     # A-969 (décision de Jean-Luc du 21-11-2026 à 16h09, « 1 ») : la tâche finale refait les durées publiées APRÈS le
     # dépôt du certificat, et les pousse dans un SECOND dépôt, à elles, sous leur propre identité (I-1 de la relecture
     # de Cowork du 21-11-2026 : dans le même commit, un conflit sur ce fichier empêchait le dépôt du certificat). Le
-    # second dépôt ne tourne que si la publication a réussi : sinon le fichier n'a pas changé, et l'échec est déjà dit
+    # second dépôt tourne dès que la publication a TOURNÉ, réussie OU échouée (I-3 de la relecture de Cowork du
+    # 21-11-2026, pointe 5602b2271) : il porte aussi le journal de la tâche, où la publication, jouée sous ETAPE_MUETTE,
+    # a écrit la raison de son échec — le dépôt du certificat, passé AVANT, ne pouvait pas l'emporter. Publication
+    # échouée : le fichier des durées n'a pas changé (écriture par os.replace, `publier_les_durees`), seul le journal part
     "deposer_final": pas_de_depot("certificat ou journal introuvable",
                                   "rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/", ""),
     "publier_les_durees": PUBLIER_LES_DUREES,
-    "deposer_les_durees": pas_de_depot("fichier des durees introuvable", DUREES_PUBLIEES_DU_DEPOT, "",
-                                       auteur=IDENTITE_DES_DUREES, message="durees des epreuves",
+    "deposer_les_durees": pas_de_depot("fichier des durees ou journal de la tache introuvable",
+                                       DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,
+                                       auteur=IDENTITE_DES_DUREES, message="durees des epreuves et journal de la tache",
                                        reste="le fichier des durees", nom="Deposer les durees au depot prive",
                                        ident="deposer_les_durees",
-                                       condition="${{ !cancelled() && steps.publier_les_durees.outcome == 'success' }}")}
+                                       condition="${{ !cancelled() && steps.publier_les_durees.outcome != 'skipped' }}")}
 
 # LE CIRCUIT DES SÉRIES LONGUES DE SABOTAGES, AU DÉPÔT PUBLIC (patch du 04-11-2026, tour 3 après l'avis du superviseur
 # R-759 du 04-11-2026 à 19h59 ; à valider par Jean-Luc ; NON appliqué).
