@@ -487,6 +487,21 @@
    ],
    "pourquoi": "manque n° 2 du RELU de Cowork sur travail-contrat-4 (745639bdb, 20-11-2026 à 20h05) : la série entière des sabotages du contrat de stratégie (A-923) n'avait jamais tourné d'un seul tenant sur GitHub ; sans « --sabotages= » (son USAGE : « <source> <travail> [--sabotages=S1,S9b,...] », l'option ne pose QUE les sabotages nommés), donc la sonde intacte et toute la série SABOTAGES de l'épreuve — elle affiche « SABOTAGES JOUÉS : n sur N » et rougit si, sans « --sabotages= », la série n'est pas jouée entière (m1 de Cowork, 21-11-2026) ; le second argument est le dossier de travail, qui ne doit pas exister, relatif à la copie jouée (ARGUMENT_FIGE de programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py refuse « / ») ; 6 min 50 s et 6 min 35 s mesurées pour deux moitiés parallèles sur la machine du Chat le 20-11-2026 (note archives/A_RELIRE_CONTRAT_DE_STRATEGIE_TOUR6_745639bdb_REMPLACE_PAR_LA_NOTE_RECIBLAGE_T18_VENTE_REGLABLE_Ven_20-11-2026.md), d'un tenant non mesurée"
   },
+  "EtatTravaux": {
+   "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat, 20-11-2026) : faux dépôt git et faux gh fabriqués dans un dossier temporaire, cas réels travail-contrat-6 (passage 44804954374, RELU DÉPLOYABLE 21h16, installée par 38bec5772) et travail-proprietes-7 (EN ÉPREUVE au passage 44814017661) ; consigne du Chat du 20-11-2026 à 22h08 : aucune épreuve ni aucun sabotage sur la machine du Chat, saturée ; jeu sans sabotage, 34 cas depuis le RELU Cowork du 20-11-2026 à 22h25 (B1, I1, I2, I3, m1, m2), 3,3 s mesurées le 20-11-2026"
+  },
+  "EtatTravauxSabot": {
+   "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat) : faux dépôt git et faux gh dans un dossier temporaire, cas réels travail-contrat-6, travail-proprietes-7, journal du passage 44846586835 (largeur imprimée par le fabricant) et passages en parallèle du 21-11-2026 à 01h41 (places 1+3, 4+3, 7+2) ; vingt sabotages S1 à S20 (S15 à S20 : tour 4, RELU Cowork de 02h15, L1 à L4), de 6 à 12 s chacun mesurés le 21-11-2026 sur une machine chargée ; 14 sabotages ont pris 45 s sur GitHub (passage 44847878901), 20 en prendraient environ 65 s ; option --seuls= pour un essai court"
+  },
   "Comptabilites": {
    "chemin": "tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py",
    "arguments": [
@@ -574,74 +589,6 @@
    ],
    "pourquoi": "décisions de Jean-Luc A-853 (16-11-2026 à 15h18) et A-861 (16-11-2026 à 20h05) : la moulinette des 20 ans s'éprouve sur une fiche d'essai C5 2000-2026 qui ne vit que dans une copie jetable du registre ; programmes/PREPARER_LA_MOULINETTE_D_ESSAI.py prépare la copie du circuit (sans .git) puis, avec --jouer, lance programmes/JOUER_LES_VERSIONS.py sur UNE version (la fiche elle-même) avec --cours= le fichier des 20 ans ; résultats sur la sortie standard, donc au privé seulement (SORTIE.txt, A-835). Durée estimée, non mesurée sur 26 ans : environ 45 s fixes plus environ 13 s par jeu de la fiche, 5 jeux, soit environ 2 min (mesure locale du 16-11-2026 : 1,2 s par version sur 644 séances, × 6864/644 séances) ; 2695 versions en demanderaient environ 574 min, au-delà des 330 d'une machine. ATTENTION, mesuré le 16-11-2026 : sur 2000-2023 le juge refuse la fiche (garde M puis RegardNonInscrit, fenêtre du regard unique) ; l'épreuve rend 1 tant que Jean-Luc n'a pas tranché"
   },
-  "File": {
-   "chemin": "tests/EPREUVES_DE_LA_FILE_DES_MACHINES_LONGUES_Ven_20-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "étape FILE-2 (20-11-2026) : les quatre propriétés du réservoir de 18 places et de la protection fine qui remplace le refus global du relais (décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52), avec leurs cinq sabotages (SF1 refus global remis, SF2 groupe par branche retiré, SF3 essais de poussée retirés, SF4 21 tâches, SF5 boucle qui sort au premier refus) ; 3 s sur la machine du Chat avec --saboter (20-11-2026) ; à jouer sur GitHub pour la relecture de Cowork"
-  },
-  "ContratNuit": {
-   "chemin": "tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py",
-   "arguments": [
-    "{copie}"
-   ],
-   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT (la seule copie, dossier de travail fabriqué par l'épreuve) ; ContratSabot garde la forme à deux arguments ; environ 13 min 30 s sans mesure de couverture (deux moitiés, 20-11-2026)"
-  },
-  "ChaineC5": {
-   "chemin": "tests/CHAINE_C5_MOULINETTE_SUR_COPIE_Jeu_19-11-2026.py",
-   "arguments": [
-    "{copie}"
-   ],
-   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT, toutes les étapes d'un tenant ; durée d'un tenant non mesurée"
-  },
-  "Enchainer": {
-   "chemin": "tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py",
-   "arguments": [
-    "{copie}"
-   ],
-   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT, les neuf phases d'un tenant ; durée d'un tenant non mesurée"
-  },
-  "SoirDecide": {
-   "chemin": "tests/EPREUVES_E8_LE_SOIR_SUIT_LA_STRATEGIE_DECIDEE_Mer_18-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S12 reciblé ; 2 min 31 s sur la machine du Chat le 21-11-2026"
-  },
-  "NomsContrat": {
-   "chemin": "tests/EPREUVES_DES_NOMS_AU_CONTRAT_Lun_28-09-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S3 reciblé ; 2 min 39 s sur la machine du Chat le 21-11-2026"
-  },
-  "AncreC5": {
-   "chemin": "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 00h49 (A-957, « 1 ») : épreuve courte qui rougit si le code du module C5 change sans que la valeur figée de C5E10-QA-V1 (CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE) suive — le cas du merge d2ba76264 du 20-11-2026, vu seulement par MoulinetteEssai ; avec ses sabotages S1 (code changé : rouge), S2 (commentaire seul : vert), S3 (ancienne valeur : rouge) ; 3 s mesurées le 21-11-2026 sur la machine du Chat, sans couverture"
-  },
-  "EtatTravaux": {
-   "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",
-   "arguments": [
-    "{copie}"
-   ],
-   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat, 20-11-2026) : faux dépôt git et faux gh fabriqués dans un dossier temporaire, cas réels travail-contrat-6 (passage 44804954374, RELU DÉPLOYABLE 21h16, installée par 38bec5772) et travail-proprietes-7 (EN ÉPREUVE au passage 44814017661) ; consigne du Chat du 20-11-2026 à 22h08 : aucune épreuve ni aucun sabotage sur la machine du Chat, saturée ; jeu sans sabotage, 34 cas depuis le RELU Cowork du 20-11-2026 à 22h25 (B1, I1, I2, I3, m1, m2), 3,3 s mesurées le 20-11-2026"
-  },
-  "EtatTravauxSabot": {
-   "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat) : faux dépôt git et faux gh dans un dossier temporaire, cas réels travail-contrat-6, travail-proprietes-7, journal du passage 44846586835 (largeur imprimée par le fabricant) et passages en parallèle du 21-11-2026 à 01h41 (places 1+3, 4+3, 7+2) ; vingt sabotages S1 à S20 (S15 à S20 : tour 4, RELU Cowork de 02h15, L1 à L4), de 6 à 12 s chacun mesurés le 21-11-2026 sur une machine chargée ; 14 sabotages ont pris 45 s sur GitHub (passage 44847878901), 20 en prendraient environ 65 s ; option --seuls= pour un essai court"
-  },
   "ProprietesChaine": {
    "chemin": "tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py",
    "arguments": [
@@ -690,6 +637,67 @@
     "--saboter"
    ],
    "pourquoi": "variante « --saboter » de ProprietesBout (décisions A-923, A-945, A-952) : les sabotages de SABOTAGES_BEB, dans l'épreuve, qui les affiche un par un (aucun compte écrit ici, R-728) (maillon retiré, fiche perdue entre deux maillons, garde éteinte, retour aux liens symboliques, fiche fautive rendue conforme, valeur qui ne sort jamais de l'indice ; S-BEB11 à 14 : chaque étalon désigné faussé ; S-BEB15 à 22, superviseur R-759 du 20-11-2026 : juge qui lève, détecteur qui lève vu par BEB-PASSE et par BEB-SIGNAL, cockpit sorti en 1 pour une autre raison, radar sorti en 1, réglage relié au réel par un lien symbolique, tri sans version retenue, fiche fautive refusée sur sl sans la phrase exacte de tp ; I1 de Cowork du 21-11-2026 : versement qui écrit une ligne ancienne en double), chacun doit faire rougir SA propriété (R-731). 171 s sur GitHub le 20-11-2026 pour la série d'alors (passage 44814017661) ; la série actuelle : NON MESURÉE ici, plus longue depuis que ② ③ ④ jouent (A-952)"
+  },
+  "File": {
+   "chemin": "tests/EPREUVES_DE_LA_FILE_DES_MACHINES_LONGUES_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "étape FILE-2 (20-11-2026) : les quatre propriétés du réservoir de 18 places et de la protection fine qui remplace le refus global du relais (décisions de Jean-Luc A-884 ②, A-888 et du 20-11-2026 à 20h52), avec leurs cinq sabotages (SF1 refus global remis, SF2 groupe par branche retiré, SF3 essais de poussée retirés, SF4 21 tâches, SF5 boucle qui sort au premier refus) ; 3 s sur la machine du Chat avec --saboter (20-11-2026) ; à jouer sur GitHub pour la relecture de Cowork"
+  },
+  "LivrerSabots": {
+   "chemin": "tests/EPREUVES_DE_LIVRER_ET_INSTALLER_Ven_20-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "demande de Jean-Luc du 20-11-2026 à 19h38 et ajout de 19h40 (LIVRER, INSTALLER, QUI_FAIT_QUOI, REPUBLIER) : les cas sans sabotage puis chaque sabotage (tableau SABOTAGES de l'épreuve), sans réseau, sur des dépôts git jetables. Leur nombre se lit dans l'épreuve, et la durée dans « duree_secondes » du dernier RESULTAT.json (branches epreuves-longues/<passage>/LivrerSabots), jamais ici (R-728) ; repère au 21-11-2026 : 1285 s au passage 44840105836 et 1656 s au passage 44848403184, sur 43 cas et 36 sabotages, avant les cas et sabotages des défauts N-3 à N-11 (non mesurés)"
+  },
+  "ContratNuit": {
+   "chemin": "tests/EPREUVES_DU_CONTRAT_DE_STRATEGIE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT (la seule copie, dossier de travail fabriqué par l'épreuve) ; ContratSabot garde la forme à deux arguments ; environ 13 min 30 s sans mesure de couverture (deux moitiés, 20-11-2026)"
+  },
+  "ChaineC5": {
+   "chemin": "tests/CHAINE_C5_MOULINETTE_SUR_COPIE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT, toutes les étapes d'un tenant ; durée d'un tenant non mesurée"
+  },
+  "Enchainer": {
+   "chemin": "tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT, les neuf phases d'un tenant ; durée d'un tenant non mesurée"
+  },
+  "SoirDecide": {
+   "chemin": "tests/EPREUVES_E8_LE_SOIR_SUIT_LA_STRATEGIE_DECIDEE_Mer_18-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S12 reciblé ; 2 min 31 s sur la machine du Chat le 21-11-2026"
+  },
+  "NomsContrat": {
+   "chemin": "tests/EPREUVES_DES_NOMS_AU_CONTRAT_Lun_28-09-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S3 reciblé ; 2 min 39 s sur la machine du Chat le 21-11-2026"
+  },
+  "AncreC5": {
+   "chemin": "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 00h49 (A-957, « 1 ») : épreuve courte qui rougit si le code du module C5 change sans que la valeur figée de C5E10-QA-V1 (CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE) suive — le cas du merge d2ba76264 du 20-11-2026, vu seulement par MoulinetteEssai ; avec ses sabotages S1 (code changé : rouge), S2 (commentaire seul : vert), S3 (ancienne valeur : rouge) ; 3 s mesurées le 21-11-2026 sur la machine du Chat, sans couverture"
   }
  }
 }

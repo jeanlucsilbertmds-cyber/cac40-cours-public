@@ -12,7 +12,8 @@ seulement, la sortie entière et le code de sortie.
   par des virgules) contre la table de la racine, et écrire la matrice JSON du circuit, [{"code": …}, …]. (b) `<copie>
   <code> --sortie=<dossier>` : jouer l'épreuve de ce code sur la copie, comme la certification de nuit la lance (la
   copie pour racine, sans la configuration Git de la machine, sans les fichiers de commandes de GitHub), et écrire
-  dans <dossier> SORTIE.txt (la sortie entière, erreurs comprises) et RESULTAT.json (code, commande, heures, durée).
+  dans <dossier> SORTIE.txt (la sortie entière, erreurs comprises) et RESULTAT.json (code, commande, heures, durée,
+  pointe jouée lue dans POINTE_JOUEE).
 ② CONTEXTE D'APPEL — Le circuit des épreuves longues fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py : (a) au
   pas « Fabriquer la matrice » du job « preparer », (b) au pas « Jouer l epreuve » du job « jouer », sous
   « unshare -rn » (réseau coupé). Aussi l'épreuve tests/EPREUVES_DU_CIRCUIT_DES_EPREUVES_LONGUES_Dim_15-11-2026.py.
@@ -188,7 +189,11 @@ def jouer(copie, code, sortie):
     ⑦ UNITÉ — Des secondes. ⑧ POURQUOI — Fiche en tête, ⑧. ⑨ CE QUI CLOCHE — Fiche en tête, ⑨.
     ⑩ EFFET — Lance un processus ; écrit deux fichiers. ⑪ TERMINAISON — Rend la main ; DELAI au plus. [sort: non]
     """
-    resultat = {"code_epreuve": code, "delai_secondes": DELAI}
+    # LA POINTE JOUÉE (20-11-2026 au soir, consigne A) : le commit privé que « preparer » a cloné et vérifié, passé
+    # par le circuit (POINTE_JOUEE) ; INSTALLER n'accepte une preuve que si elle porte le code relu par Cowork.
+    pointe = os.environ.get("POINTE_JOUEE", "")
+    resultat = {"code_epreuve": code, "delai_secondes": DELAI,
+                "pointe_jouee": pointe if re.fullmatch(r"[0-9a-f]{40}", pointe) else ""}
     try:
         os.makedirs(sortie, exist_ok=True)
     except OSError as e:

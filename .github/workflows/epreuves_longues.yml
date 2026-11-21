@@ -318,6 +318,7 @@ jobs:
           TMPDIR: ${{ runner.temp }}
           MATRICE: ${{ needs.preparer.outputs.matrice }}
           DEPART_DU_JOB: ${{ steps.depart.outputs.t }}
+          POINTE_JOUEE: ${{ needs.preparer.outputs.sha }}
         run: |
           [[ "$CODE" =~ ^[A-Za-z][A-Za-z0-9]{0,19}$ ]] || { echo "::error::code d epreuve refuse"; exit 1; }
           mkdir -p "$GITHUB_WORKSPACE/rapports/epreuves_longues/$GITHUB_RUN_ID/$CODE"
