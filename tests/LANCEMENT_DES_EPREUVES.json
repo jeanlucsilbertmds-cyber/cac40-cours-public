@@ -486,7 +486,7 @@
     "{copie}",
     "--saboter"
    ],
-   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat, 20-11-2026) : faux dépôt git et faux gh fabriqués dans un dossier temporaire, cas réels travail-contrat-6 (passage 44804954374, RELU DÉPLOYABLE 21h16, installée par 38bec5772) et travail-proprietes-7 (EN ÉPREUVE au passage 44814017661) ; consigne du Chat du 20-11-2026 à 22h08 : aucune épreuve ni aucun sabotage sur la machine du Chat, saturée ; onze sabotages S1 à S11 (état mal rangé, fils libres mal comptés, alarme muette, alarme sur une branche installée, puis un par réparation du RELU Cowork de 22h25 : I3, B1, I1 deux fois, I2, m1, m2), 42,6 s mesurées le 20-11-2026"
+   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat) : faux dépôt git et faux gh dans un dossier temporaire, cas réels travail-contrat-6, travail-proprietes-7, journal du passage 44846586835 (largeur imprimée par le fabricant) et passages en parallèle du 21-11-2026 à 01h41 (places 1+3, 4+3, 7+2) ; quatorze sabotages S1 à S14 (dont S12 à S14 : places, groupe partagé, journal), de 6 à 12 s chacun mesurés le 21-11-2026 sur une machine chargée, soit environ 1 min 40 s ; option --seuls= pour un essai court"
   },
   "Comptabilites": {
    "chemin": "tests/EPREUVES_DES_COMPTABILITES_Dim_27-09-2026.py",

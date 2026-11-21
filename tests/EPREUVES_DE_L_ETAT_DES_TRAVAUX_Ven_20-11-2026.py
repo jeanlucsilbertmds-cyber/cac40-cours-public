@@ -9,15 +9,17 @@ et que programmes/ALARME_DES_MACHINES_OISIVES.py sonne quand des machines sont o
 ① RÔLE — Éprouver les deux programmes (R-731), avec sabotages (--saboter) qui doivent faire rougir au moins un cas.
 ② CONTEXTE D'APPEL — Sur GitHub, par le circuit des épreuves longues (codes EtatTravaux et EtatTravauxSabot de
   tests/LANCEMENT_DES_EPREUVES.json) ; à la main : python3 -B tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py
-  <racine> [--saboter].
+  <racine> [--saboter [--seuls=S2,S12]] (--seuls : les sabotages nommés seulement, pour un essai court).
 ③ ENTRÉE — La racine d'une copie du dépôt (programmes/ y est lu) ; l'option --saboter.
 ④ CONDITIONS D'ENTRÉE — git et python3 ; aucun réseau ; un dossier temporaire inscriptible.
 ⑤ SORTIE — Code 0 : tous les cas tiennent (et, avec --saboter, chaque sabotage fait rougir au moins un cas) ·
   1 : un cas faux ou un sabotage muet · 2 : l'épreuve n'a pas pu tourner.
-⑥ TRAITEMENT — Fabriquer le faux dépôt (origin/main porte le VRAI fabricant de la racine, pour que la largeur soit
-  lue comme en vrai) ; jouer les cas ; avec --saboter, copier les deux programmes, poser un sabotage, rejouer.
+⑥ TRAITEMENT — Fabriquer le faux dépôt (origin/main porte un journal où le fabricant a imprimé la largeur, au format
+  réel de main) ; jouer les cas ; avec --saboter, copier les deux programmes, poser un sabotage, rejouer.
 ⑦ UNITÉ — Secondes Unix pour les dates fabriquées (heure de Paris du 20-11-2026, UTC+1).
-⑧ POURQUOI — Réparations du RELU de Cowork du 20-11-2026 à 22h25 (B1, I1, I2, I3, m1, m2), chacune avec son cas et
+⑧ POURQUOI — Tour 3 (21-11-2026) : la largeur se lit dans les lignes que le fabricant imprime (cas réel du passage
+  44846586835) et les places occupées dans les titres « places p+n » (cas réel de 01h41) ; sabotages S2, S12, S13,
+  S14. Réparations du RELU de Cowork du 20-11-2026 à 22h25 (B1, I1, I2, I3, m1, m2), chacune avec son cas et
   son sabotage (S5 à S11). R-731 et R-732 : au moins un cas vient d'une vraie situation — travail-contrat-6 (vert au passage
   44804954374, RELU DÉPLOYABLE à 21h16, installée par 38bec5772) et travail-proprietes-7 (EN ÉPREUVE au passage
   44814017661, six épreuves).
@@ -33,6 +35,21 @@ import subprocess
 import sys
 import tempfile
 
+# LES LIGNES QUE LE FABRICANT A IMPRIMÉES au passage réel 44846586835 (circuit du soir, 21-11-2026 à 01h51 Paris,
+# après l'installation de travail-file-2 : le réservoir de 18 places), relevées dans
+# rapports/journal_du_circuit/circuit_44846586835_1_faut_il_tourner.log de origin/main (77d5acb1b).
+JOURNAL_REEL = """largeur : certifier_la_version.yml : famille longs · groupe place-longue-1…18 · largeur 18
+largeur : circuit_du_soir.yml : famille jamais attendre · groupe circuit-du-soir · largeur 1
+largeur : demande_de_serie.yml : famille jamais attendre · groupe demande-de-serie · largeur 1
+largeur : epreuves_longues.yml : famille longs · groupe place-longue-1…18 · largeur 18
+largeur : series_longues.yml : famille longs · groupe place-longue-1…18 · largeur 18
+largeur : circuits qui peuvent tourner ensemble sans attendre : circuit-du-soir 1 + demande-de-serie 1 + place-longue-1…18 18 = 20 (limite du compte : 20)
+"""
+FICHES_REELLES = [{"name": "Certifier la version", "path": ".github/workflows/certifier_la_version.yml"},
+                  {"name": "Circuit du soir", "path": ".github/workflows/circuit_du_soir.yml"},
+                  {"name": "Demande de serie (relais)", "path": ".github/workflows/demande_de_serie.yml"},
+                  {"name": "Epreuves longues d'un tenant", "path": ".github/workflows/epreuves_longues.yml"},
+                  {"name": "Series longues de sabotages", "path": ".github/workflows/series_longues.yml"}]
 T0 = 1795194000  # 20-11-2026 18h00 Paris (17h00 UTC)
 
 
@@ -130,6 +147,7 @@ def faux_gh(dossier, passages, jobs, echoue=False):
                 f"if {echoue!r}:\n    sys.stderr.write('gh : refus'); sys.exit(1)\n"
                 "a = sys.argv[1:]\n"
                 "if a[:2] == ['run', 'list']:\n    print(P)\n"
+                f"elif a[:2] == ['workflow', 'list']:\n    print({json.dumps(FICHES_REELLES)!r})\n"
                 "elif a[:2] == ['run', 'view']:\n"
                 "    print(json.dumps({'jobs': [{'status': s} for s in json.loads(J).get(a[2], [])]}))\n"
                 "else:\n    sys.exit(3)\n")
@@ -142,16 +160,16 @@ def fabriquer(racine, tmp, installe):
 
     ① RÔLE — Le monde des cas. ② CONTEXTE D'APPEL — `jouer`. ③ ENTRÉE — `racine` : la copie éprouvée · `tmp` : le
     dossier temporaire · `installe` : vrai pour l'état après 38bec5772 (travail-contrat-6 fusionnée dans main).
-    ④ CONDITIONS D'ENTRÉE — Le fabricant existe dans la racine. ⑤ SORTIE — DEUX valeurs. ⑥ TRAITEMENT — Voir le code.
+    ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — DEUX valeurs. ⑥ TRAITEMENT — Voir le code.
     ⑦ UNITÉ — — ⑧ POURQUOI — R-732. ⑨ CE QUI CLOCHE — — ⑩ EFFET — Écrit sous `tmp`. ⑪ TERMINAISON — Rend la main.
     """
     d = Depot(os.path.join(tmp, "depot_%s" % ("apres" if installe else "avant")))
-    fab = open(os.path.join(racine, "programmes", "FABRIQUER_LE_CIRCUIT_PUBLIC.py"), encoding="utf-8").read()
     connus = ["VenteReglable", "ContratSabot", "ProprietesBout", "ProprietesBoutSabot", "ProprietesChaine",
               "ProprietesSabot", "ProprietesSuite", "ProprietesSuiteSabot", "Tri", "Rouge", "Vert", "Vieux", "Code1",
               "Code2", "Vert4", "File", "Relais"]
     table = json.dumps({"epreuves_longues": {c: {"chemin": "tests/x.py", "arguments": ["{copie}"]} for c in connus}})
-    m0 = d.commit(None, {"programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py": fab, "echanges/A_RELIRE.md": note([]),
+    m0 = d.commit(None, {"rapports/journal_du_circuit/circuit_44846586835_1_faut_il_tourner.log": JOURNAL_REEL,
+                         "echanges/A_RELIRE.md": note([]),
                          "tests/LANCEMENT_DES_EPREUVES.json": table,
                          "echanges/RELU.md": "## VERDICT : DÉPLOYABLE\n"}, heure(18, 0))
     # travail-contrat-6 : 0787558b1 (20h20, code + note) ; vert au passage 44804954374 (fin 20h56) ;
@@ -261,10 +279,19 @@ def jouer(racine, dossier_programmes, tmp):
     gh_six = faux_gh(ghd, proprietes, {44814017661: ["in_progress"] * 6})
     gh_rien = faux_gh(ghd, [], {})
     gh_plein = faux_gh(ghd, proprietes, {44814017661: ["in_progress"] * 18})
+    # Cas réel du 21-11-2026 à 01h41 : trois demandes en parallèle, places 1+3, 4+3 et 7+2 (nouveau relais)
+    trois = [{"databaseId": n, "workflowName": "Epreuves longues d'un tenant", "status": "in_progress",
+              "headBranch": b, "createdAt": "2026-11-21T00:41:00Z",
+              "displayTitle": "Epreuves longues d'un tenant places " + t}
+             for n, b, t in ((44845495544, "travail-a952-4", "1+3"), (44845519476, "travail-empreinte", "4+3"),
+                             (44845541079, "travail-etat", "7+2"))]
+    gh_trois = faux_gh(ghd, trois, {})
 
     etat = E.etat_des_travaux(avant, gh_six, "x/y", fetch=False)
     par = {b["branche"]: b for b in etat["branches"]}
-    voir("R1 largeur lue au fabricant réel = 18", etat["fils"]["largeur"] == 18, etat["fils"])
+    voir("R1 largeur imprimée par le fabricant au passage réel 44846586835 = 18 (groupe partagé place-longue-1…18)",
+         etat["fils"]["largeur"] == 18 and etat["largeur_publiee"]["groupe"] == "place-longue-1…18"
+         and len(etat["largeur_publiee"]["fiches_longues"]) == 3, etat["largeur_publiee"])
     voir("R2 travail-proprietes-7 EN ÉPREUVE (passage 44814017661)",
          par["travail-proprietes-7"]["etat"] == "EN ÉPREUVE" and "44814017661" in par["travail-proprietes-7"]["action"],
          par["travail-proprietes-7"]["etat"])
@@ -311,6 +338,21 @@ def jouer(racine, dossier_programmes, tmp):
          not any("travail-code-non-relu" in p and "INSTALLATION" in p for p in phrases), phrases)
     voir("A3 pas d'installation oubliée quand un passage tourne",
          not any("INSTALLATION OUBLIÉE" in p for p in phrases), phrases)
+
+    etat = E.etat_des_travaux(avant, gh_trois, "x/y", fetch=False)
+    code, phrases = A.alarmes(etat, 30, heure(22, 0))
+    voir("P1 réel 01h41 : places 1+3, 4+3, 7+2 → 8 occupées, 10 libres", etat["fils"]["epreuves_en_cours"] == 8
+         and etat["fils"]["libres"] == 10, etat["fils"])
+    voir("P2 10 places libres et une branche À ÉPROUVER → MACHINES OISIVES", code == A.OISIVES, (code, phrases))
+
+    vide = Depot(os.path.join(tmp, "sans_journal_%d" % len(os.listdir(tmp))))
+    vide.branche("main", vide.commit(None, {"rapports/journal_du_circuit/x.log": "rien\n"}, heure(18, 0)))
+    try:
+        E.etat_des_travaux(vide.d, gh_rien, "x/y", fetch=False)
+        rendu = "rendu"
+    except E.Impossible as e:
+        rendu = "Impossible"
+    voir("P3 aucun journal imprimé par le fabricant → Impossible (R-734)", rendu == "Impossible", rendu)
 
     etat = E.etat_des_travaux(avant, gh_plein, "x/y", fetch=False)
     code, phrases = A.alarmes(etat, 30, heure(22, 0))
@@ -373,7 +415,7 @@ SABOTAGES = [
     ("S1 état mal rangé : un passage vivant ignoré", "ETAT_DES_TRAVAUX.py",
      'if faits["passages_vivants"]:', 'if False and faits["passages_vivants"]:'),
     ("S2 fils libres mal comptés : la largeur seule", "ETAT_DES_TRAVAUX.py",
-     '"libres": max(0, fab["largeur"] - en_cours)', '"libres": fab["largeur"]'),
+     '"libres": max(0, lu["largeur"] - en_cours)', '"libres": lu["largeur"]'),
     ("S3 alarme muette alors que des machines sont oisives", "ALARME_DES_MACHINES_OISIVES.py",
      'if b["etat"] == "À ÉPROUVER" and libres > 0:', 'if b["etat"] == "À ÉPROUVER" and libres < 0:'),
     ("S4 alarme sur une branche installée", "ALARME_DES_MACHINES_OISIVES.py",
@@ -392,6 +434,12 @@ SABOTAGES = [
      'faits["installee"] = meme_code(depot, base, pointe)', 'faits["installee"] = (base == pointe)'),
     ("S10 (m1) plantage de alarmes() non attrapé", "ALARME_DES_MACHINES_OISIVES.py",
      "    except Exception as e:  # PLANTAGE : jamais lu comme un verdict", "    except KeyboardInterrupt as e:"),
+    ("S12 les titres « places p+n » ignorés", "ETAT_DES_TRAVAUX.py",
+     'm = MOTIF_PLACES.search(p.get("displayTitle") or "")', "m = None"),
+    ("S13 un groupe non partagé pris pour celui des circuits longs", "ETAT_DES_TRAVAUX.py",
+     "if len(f) >= 2}", "if len(f) >= 1}"),
+    ("S14 le journal ignoré : la largeur n'est plus lue", "ETAT_DES_TRAVAUX.py",
+     "        if not lignes:\n            continue\n", "        if True:\n            continue\n"),
     ("S11 (m2) « **DÉPLOYABLE.** » refusé", "ETAT_DES_TRAVAUX.py",
      '    if reste.startswith("."):\n        return True\n', "    if False:\n        return True\n"),
 ]
@@ -417,7 +465,9 @@ def main():
             sys.exit(1)
         muets = []
         if saboter:
-            for nom, fichier, avant, apres in SABOTAGES:
+            seuls = [x.split("=", 1)[1].split(",") for x in sys.argv[2:] if x.startswith("--seuls=")]
+            choisis = [t for t in SABOTAGES if not seuls or t[0].split()[0] in seuls[0]]
+            for nom, fichier, avant, apres in choisis:
                 copie = os.path.join(tmp, "sabot_%d" % len(os.listdir(tmp)))
                 os.makedirs(copie)
                 for x in ("ETAT_DES_TRAVAUX.py", "ALARME_DES_MACHINES_OISIVES.py"):
@@ -428,14 +478,17 @@ def main():
                     sys.exit(2)
                 open(os.path.join(copie, fichier), "w", encoding="utf-8").write(texte.replace(avant, apres))
                 print(f"== {nom}")
-                rouges = jouer(racine, copie, tmp)
+                try:
+                    rouges = jouer(racine, copie, tmp)
+                except Exception as e:  # un sabotage qui fait lever le programme est vu : il mord
+                    rouges = [f"le programme saboté lève {type(e).__name__} : {str(e)[:80]}"]
                 print(f"   → {'MORD' if rouges else 'MUET'} : {rouges}")
                 if not rouges:
                     muets.append(nom)
         if muets:
             print(f"VERDICT : NON CONFORME — sabotage(s) muet(s) : {muets}")
             sys.exit(1)
-        print("VERDICT : tout est conforme" + (f" ({len(SABOTAGES)} sabotages mordent)" if saboter else ""))
+        print("VERDICT : tout est conforme" + (f" ({len(choisis)} sabotages mordent)" if saboter else ""))
         sys.exit(0)
     except Exception as e:
         print(f"ÉPREUVE IMPOSSIBLE — {type(e).__name__} : {e}")

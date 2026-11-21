@@ -17,14 +17,14 @@ réduit aux branches : il ne lance rien et n'écrit rien au dépôt.
                                            [--sans-fetch] [--json] [--tout]
 ③ ENTRÉE — Un clone git du dépôt privé (par défaut le dossier parent de programmes/) et le programme gh. Lus :
   les branches origin/travail-* ; sur chacune echanges/A_RELIRE.md (date, codes « ## À JOUER SUR GITHUB ») et
-  echanges/RELU.md (date, ligne « ## VERDICT : … ») ; les branches origin/epreuves-longues/<passage>/<CODE> et leur
-  RESULTAT.json ; dans origin/main, le fabricant programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py (largeur, groupe, noms des
-  circuits longs, préfixe des branches de résultats — LUS, jamais recopiés, R-708) ; les passages GitHub du dépôt
-  public par « gh run list » et « gh run view ».
+  echanges/RELU.md (date, ligne « ## VERDICT : … ») ; les branches de résultats origin/*/<passage>/<CODE> et leur
+  RESULTAT.json ; dans origin/main, le dernier journal du circuit public où le fabricant a IMPRIMÉ la largeur qu'il a
+  calculée (largeur et fiches des circuits longs — LUES, jamais recopiées, R-708) ; les passages GitHub du dépôt
+  public par « gh run list » (titres « places p+n »), « gh workflow list » et « gh run view ».
 ④ CONDITIONS D'ENTRÉE — git et gh lancés sans invite ; gh authentifié pour le dépôt public.
 ⑤ SORTIE — Un tableau lisible, ou du JSON avec --json. Code de sortie : 0 l'état est rendu · 2 IMPOSSIBLE, une source
   n'a pas pu être lue (git ou gh) et RIEN n'est rangé (R-734) · 5 PLANTAGE (exception imprévue, jamais un verdict).
-⑥ TRAITEMENT — fetch (sauf --sans-fetch) · lire le fabricant · relever les résultats d'épreuves longues et la pointe
+⑥ TRAITEMENT — fetch (sauf --sans-fetch) · lire la largeur publiée · relever les résultats d'épreuves longues et la pointe
   jouée de chacun · relever les passages GitHub vivants · pour chaque branche : relever les faits, puis `ranger`.
 ⑦ UNITÉ — Heures de Paris à l'affichage ; secondes depuis l'époque Unix dans le JSON ; des fils (machines GitHub).
 ⑧ POURQUOI — Le 20-11-2026, trois faits : Cowork a rejoué des épreuves que GitHub jouait au même moment ; des étapes
@@ -43,7 +43,6 @@ réduit aux branches : il ne lance rien et n'écrit rien au dépôt.
 ⑪ TERMINAISON — Sort du programme par sys.exit ; chaque appel à git ou gh est borné (DELAI_S secondes).
 """
 import argparse
-import ast
 import json
 import os
 import re
@@ -56,7 +55,13 @@ from zoneinfo import ZoneInfo
 PARIS = ZoneInfo("Europe/Paris")
 DELAI_S = 120
 PUBLIC_PAR_DEFAUT = "jeanlucsilbertmds-cyber/cac40-cours-public"
-FABRICANT = "programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py"
+JOURNAUX = "rapports/journal_du_circuit/"
+# La ligne que le fabricant IMPRIME pour chaque fiche publiée (« largeur : <fiche> : famille … · groupe … · largeur N »),
+# relevée au journal du 21-11-2026 (passage 44846586835).
+MOTIF_LARGEUR = re.compile(r"(?m)^largeur : (\S+\.ya?ml) : famille (.+?) · groupe (.+?) · largeur (\d+)\s*$")
+# Le titre qu'un passage des circuits longs porte depuis l'étape FILE-2 : « … places <première>+<nombre> ».
+MOTIF_PLACES = re.compile(r"places (\d+)\+(\d+)")
+JOURNAUX_LUS_AU_PLUS = 50
 NOTE, RELU = "echanges/A_RELIRE.md", "echanges/RELU.md"
 ETATS = ("ÉCRITURE", "À ÉPROUVER", "EN ÉPREUVE", "ÉPREUVE ROUGE", "À RELIRE", "DÉPLOYABLE", "INSTALLÉE")
 RENDU, IMPOSSIBLE, PLANTAGE = 0, 2, 5
@@ -160,48 +165,49 @@ def heure_paris(secondes):
     return datetime.fromtimestamp(secondes, PARIS).strftime("%d-%m %Hh%M")
 
 
-def lire_le_fabricant(depot):
-    """Lit dans le fabricant de origin/main la largeur et les circuits longs.
+def largeur_publiee(depot):
+    """Lit la largeur des circuits longs que le fabricant a CALCULÉE et IMPRIMÉE à sa dernière publication.
 
-    ① RÔLE — Donner la largeur des circuits longs, leur groupe, le nom de leurs circuits et le préfixe des branches
-      de résultats, tels que le fabricant les écrit.
+    ① RÔLE — Donner la largeur des circuits longs, leur groupe et le nom de leurs fiches, sans recopier un chiffre ni
+      dépendre d'un nom de constante du fabricant.
     ② CONTEXTE D'APPEL — `etat_des_travaux`, une fois.
     ③ ENTRÉE — `depot` : le clone.
-    ④ CONDITIONS D'ENTRÉE — origin/main porte programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py.
-    ⑤ SORTIE — UNE valeur : un dict {largeur, groupe, circuits_longs, prefixe}.
+    ④ CONDITIONS D'ENTRÉE — origin/main porte des journaux du circuit public (rapports/journal_du_circuit/) dont l'un
+      au moins contient les lignes « largeur : … » imprimées par le fabricant.
+    ⑤ SORTIE — UNE valeur : un dict {largeur, groupe, fiches_longues, journal}.
       [rend: 1]
-    ⑥ TRAITEMENT — Lire le fichier par « git show » ; l'analyser par ast SANS l'exécuter ; relever les constantes
-      PARTS_EN_MEME_TEMPS, GROUPE_DES_MACHINES_LONGUES, EPREUVES_BRANCHES ; puis, parmi les affectations de premier
-      niveau dont un dictionnaire porte la clé « groupe » liée à GROUPE_DES_MACHINES_LONGUES, le « name: » de premier
-      niveau du gabarit — ce sont les circuits qui partagent les fils.
+    ⑥ TRAITEMENT — Remonter les commits de origin/main qui touchent les journaux (au plus JOURNAUX_LUS_AU_PLUS) ; dans
+      le premier qui porte des lignes MOTIF_LARGEUR, regrouper les fiches par groupe ; les circuits longs sont LE
+      groupe que PLUSIEURS fiches partagent (propriété : ils se partagent les places) ; sa largeur est celle que le
+      fabricant a imprimée. Aucun groupe partagé, ou plusieurs, ou des largeurs différentes dans le groupe : Impossible.
     ⑦ UNITÉ — Des fils (jobs GitHub simultanés).
-    ⑧ POURQUOI — R-708 : un chiffre qui existe ailleurs ne se recopie pas. Le fabricant n'est pas importé : il écrit.
-    ⑨ CE QUI CLOCHE — Si le fabricant renomme ces constantes, la lecture lève Impossible : voulu.
+    ⑧ POURQUOI — R-708. Le 21-11-2026 à 01h41, l'installation de travail-file-2 a supprimé GROUPE_DES_MACHINES_LONGUES
+      et fait de PARTS_EN_MEME_TEMPS une expression : la lecture par noms de constantes du tour 2 a rendu « fabricant
+      illisible » (passage 44845541079). Ce que le fabricant imprime survit à un renommage interne.
+    ⑨ CE QUI CLOCHE — La largeur est celle de la DERNIÈRE PUBLICATION journalisée, pas celle du code de main tant
+      qu'aucun passage n'a publié. Un changement du texte de la ligne imprimée rend Impossible (voulu, R-734).
     ⑩ EFFET — Lance git.
     ⑪ TERMINAISON — Rend la main ou lève Impossible.
       [sort: non]
     """
-    source = git(depot, "show", "origin/main:" + FABRICANT)
-    arbre = ast.parse(source)
-    constantes, circuits = {}, []
-    for n in arbre.body:
-        if not (isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name)):
+    commits = git(depot, "log", f"-{JOURNAUX_LUS_AU_PLUS}", "--format=%H", "origin/main", "--", JOURNAUX).split()
+    for c in commits:
+        lignes = []
+        for f in git(depot, "show", "--name-only", "--format=", c).splitlines():
+            if f.startswith(JOURNAUX) and f.endswith(".log"):
+                lignes += MOTIF_LARGEUR.findall(git(depot, "show", f"{c}:{f}"))
+        if not lignes:
             continue
-        if isinstance(n.value, ast.Constant):
-            constantes[n.targets[0].id] = n.value.value
-        lie = any(isinstance(k, ast.Constant) and k.value == "groupe" and isinstance(v, ast.Name)
-                  and v.id == "GROUPE_DES_MACHINES_LONGUES"
-                  for d in ast.walk(n.value) if isinstance(d, ast.Dict) for k, v in zip(d.keys, d.values))
-        if lie:
-            texte = "".join(c.value for c in ast.walk(n.value)
-                            if isinstance(c, ast.Constant) and isinstance(c.value, str))
-            circuits += re.findall(r"(?m)^name: (.+)$", texte)[:1]
-    manque = [c for c in ("PARTS_EN_MEME_TEMPS", "GROUPE_DES_MACHINES_LONGUES", "EPREUVES_BRANCHES")
-              if c not in constantes]
-    if manque or not circuits or not isinstance(constantes.get("PARTS_EN_MEME_TEMPS"), int):
-        raise Impossible(f"fabricant illisible : constantes absentes {manque}, circuits longs {circuits}")
-    return {"largeur": constantes["PARTS_EN_MEME_TEMPS"], "groupe": constantes["GROUPE_DES_MACHINES_LONGUES"],
-            "circuits_longs": sorted(set(circuits)), "prefixe": constantes["EPREUVES_BRANCHES"]}
+        par_groupe = {}
+        for fiche, _famille, groupe, largeur in lignes:
+            par_groupe.setdefault(groupe, {})[fiche] = int(largeur)
+        partages = {g: f for g, f in par_groupe.items() if len(f) >= 2}
+        if len(partages) != 1 or len(set(next(iter(partages.values())).values())) != 1:
+            raise Impossible(f"journal {c[:9]} : groupes partagés illisibles {sorted(partages)}")
+        groupe, fiches = next(iter(partages.items()))
+        return {"largeur": next(iter(fiches.values())), "groupe": groupe, "fiches_longues": sorted(fiches),
+                "journal": c}
+    raise Impossible(f"aucune ligne « largeur : » dans les {len(commits)} derniers journaux de origin/main")
 
 
 def table_des_codes(depot, ref):
@@ -344,16 +350,18 @@ def est_deployable(verdict):
     return reste == "" or re.match(r"^[·—-]\s*CLORE", reste) is not None
 
 
-def resultats_github(depot, prefixe):
+def resultats_github(depot):
     """Relève tous les résultats d'épreuves longues rendus au dépôt privé.
 
     ① RÔLE — Dire, pour chaque pointe jouée, le code de sortie de chaque épreuve.
     ② CONTEXTE D'APPEL — `etat_des_travaux`, une fois.
-    ③ ENTRÉE — `depot` : le clone · `prefixe` : le préfixe des branches de résultats, lu au fabricant.
-    ④ CONDITIONS D'ENTRÉE — Les branches origin/<prefixe><passage>/<CODE> portent
-      rapports/epreuves_longues/<passage>/<CODE>/RESULTAT.json.
+    ③ ENTRÉE — `depot` : le clone.
+    ④ CONDITIONS D'ENTRÉE — Une branche de résultat est une référence origin/<x>/<passage>/<CODE> (passage en
+      chiffres) qui porte rapports/epreuves_longues/<passage>/<CODE>/RESULTAT.json : c'est ce fichier qui la désigne,
+      pas le nom <x>.
     ⑤ SORTIE — DEUX valeurs : un dict {pointe complète : {code : {sortie, passage, heure}}} où, pour un même code et
-      une même pointe, le résultat le plus récent l'emporte · la liste des branches de résultats sans pointe lisible.
+      une même pointe, le résultat le plus récent l'emporte · la liste des branches de résultats (RESULTAT.json
+      présent) sans pointe lisible.
       [rend: 2]
     ⑥ TRAITEMENT — Lister les branches ; lire RESULTAT.json ; la pointe jouée vient de son champ « pointe_jouee »
       ou « pointe » s'il existe, sinon de la ligne « source de la publication : le commit … du dépôt privé » du
@@ -366,19 +374,17 @@ def resultats_github(depot, prefixe):
     ⑪ TERMINAISON — Rend la main ou lève Impossible.
       [sort: non]
     """
-    refs = git(depot, "for-each-ref", "--format=%(refname:short) %(committerdate:unix)",
-               "refs/remotes/origin/" + prefixe)
+    refs = git(depot, "for-each-ref", "--format=%(refname:short) %(committerdate:unix)", "refs/remotes/origin/*/*/*")
     par_pointe, sans_pointe = {}, []
     for ligne in refs.splitlines():
         ref, heure = ligne.rsplit(" ", 1)
-        morceaux = ref[len("origin/" + prefixe):].split("/")
-        if len(morceaux) != 2:
+        morceaux = ref.split("/")
+        if len(morceaux) != 4 or not morceaux[2].isdigit():
             continue
-        passage, code = morceaux
+        passage, code = morceaux[2], morceaux[3]
         fichiers = git(depot, "ls-tree", "-r", "--name-only", ref).splitlines()
         chemin = f"rapports/epreuves_longues/{passage}/{code}/RESULTAT.json"
         if chemin not in fichiers:
-            sans_pointe.append(ref)
             continue
         try:
             resultat = json.loads(git(depot, "show", f"{ref}:{chemin}"))
@@ -406,48 +412,56 @@ def resultats_github(depot, prefixe):
     return par_pointe, sans_pointe
 
 
-def passages_github(gh, public, circuits_longs):
-    """Relève les passages GitHub vivants et les fils qu'ils occupent.
+def passages_github(gh, public, fiches_longues):
+    """Relève les passages GitHub vivants et les places qu'ils occupent.
 
-    ① RÔLE — Dire ce qui tourne sur GitHub, et combien de jobs des circuits longs ne sont pas finis.
+    ① RÔLE — Dire ce qui tourne sur GitHub, et combien de places des circuits longs sont prises.
     ② CONTEXTE D'APPEL — `etat_des_travaux`, une fois.
-    ③ ENTRÉE — `gh` : le programme gh · `public` : « propriétaire/nom » du dépôt public · `circuits_longs` : les noms
-      des circuits qui partagent les fils, lus au fabricant.
+    ③ ENTRÉE — `gh` : le programme gh · `public` : « propriétaire/nom » du dépôt public · `fiches_longues` : les noms
+      de fichier des fiches longues, lus au journal du fabricant.
     ④ CONDITIONS D'ENTRÉE — gh authentifié.
-    ⑤ SORTIE — DEUX valeurs : la liste des passages vivants (dicts : passage, circuit, branche, statut, jobs_vivants)
-      · le nombre de jobs non finis des circuits longs (« épreuves en cours »).
+    ⑤ SORTIE — DEUX valeurs : la liste des passages vivants (dicts : passage, circuit, branche, statut, places) · le
+      nombre de places occupées (« épreuves en cours »).
       [rend: 2]
-    ⑥ TRAITEMENT — « gh run list --limit 100 » ; vivant = statut autre que « completed » ; pour chaque passage
-      vivant d'un circuit long, « gh run view --json jobs » et compter les jobs dont le statut n'est pas
-      « completed ». Un passage long vivant dont aucun job n'est encore créé compte pour 0.
-    ⑦ UNITÉ — Des jobs (un job occupe un fil).
-    ⑧ POURQUOI — Les fils libres = largeur − épreuves en cours (demande du Chat du 20-11-2026).
-    ⑨ CE QUI CLOCHE — Au-delà de 100 passages récents, un passage vivant plus ancien ne serait pas vu. Un job
-      « preparer » d'un circuit long compte comme une épreuve.
+    ⑥ TRAITEMENT — « gh run list --limit 100 » ; vivant = statut autre que « completed » ; un passage vivant dont le
+      titre porte « places p+n » occupe n places (le nouveau relais les a réservées) ; un passage vivant d'une fiche
+      longue sans ce titre (circuit d'avant FILE-2, ou lancé à la main) occupe ses jobs non finis
+      (« gh run view --json jobs ») ; la fiche d'un passage se lit par « gh workflow list » (nom → chemin).
+    ⑦ UNITÉ — Des places (une place = une machine).
+    ⑧ POURQUOI — Depuis l'étape FILE-2 (installée le 21-11-2026 à 01h36), le relais choisit les places de chaque
+      demande et les écrit dans le titre ; trois passages tournaient ensemble à 01h41 (places 1+3, 4+3, 7+2).
+    ⑨ CE QUI CLOCHE — Au-delà de 100 passages récents, un passage vivant plus ancien ne serait pas vu. Un passage en
+      file compte ses places comme prises : prudent pour l'alarme (moins de fils libres annoncés).
     ⑩ EFFET — Lance gh.
     ⑪ TERMINAISON — Rend la main ou lève Impossible.
       [sort: non]
     """
     try:
         passages = json.loads(commande([gh, "run", "list", "-R", public, "--limit", "100", "--json",
-                                        "databaseId,workflowName,status,headBranch,createdAt"]))
+                                        "databaseId,workflowName,status,headBranch,createdAt,displayTitle"]))
+        fiches = json.loads(commande([gh, "workflow", "list", "-R", public, "--all", "--json", "name,path"]))
     except ValueError:
-        raise Impossible("gh run list : réponse qui n'est pas du JSON")
-    vivants, en_cours = [], 0
+        raise Impossible("gh run list ou gh workflow list : réponse qui n'est pas du JSON")
+    longs = {f.get("name") for f in fiches if os.path.basename(f.get("path", "")) in fiches_longues}
+    vivants, occupees = [], 0
     for p in passages:
         if p.get("status") == "completed":
             continue
-        jobs = 0
-        if p.get("workflowName") in circuits_longs:
+        m = MOTIF_PLACES.search(p.get("displayTitle") or "")
+        if m:
+            places = int(m.group(2))
+        elif p.get("workflowName") in longs:
             try:
                 vue = json.loads(commande([gh, "run", "view", str(p["databaseId"]), "-R", public, "--json", "jobs"]))
             except ValueError:
                 raise Impossible(f"gh run view {p['databaseId']} : réponse qui n'est pas du JSON")
-            jobs = sum(1 for j in vue.get("jobs", []) if j.get("status") != "completed")
-            en_cours += jobs
+            places = sum(1 for j in vue.get("jobs", []) if j.get("status") != "completed")
+        else:
+            places = 0
+        occupees += places
         vivants.append({"passage": p["databaseId"], "circuit": p.get("workflowName"), "branche": p.get("headBranch"),
-                        "statut": p.get("status"), "jobs_vivants": jobs})
-    return vivants, en_cours
+                        "statut": p.get("status"), "places": places})
+    return vivants, occupees
 
 
 def meme_code(depot, a, b):
@@ -637,10 +651,10 @@ def etat_des_travaux(depot, gh="gh", public=PUBLIC_PAR_DEFAUT, fetch=True):
     ③ ENTRÉE — `depot` : le clone · `gh` : le programme gh · `public` : le dépôt public · `fetch` : faire
       « git fetch origin » d'abord.
     ④ CONDITIONS D'ENTRÉE — Voir le module.
-    ⑤ SORTIE — UNE valeur : un dict {heure, fabricant, fils, passages, branches, resultats_sans_pointe}.
+    ⑤ SORTIE — UNE valeur : un dict {heure, largeur_publiee, fils, passages, branches, resultats_sans_pointe}.
       [rend: 1]
-    ⑥ TRAITEMENT — fetch · fabricant · résultats · passages · faits et rangement de chaque origin/travail-* ·
-      fils libres = largeur − épreuves en cours, jamais sous 0.
+    ⑥ TRAITEMENT — fetch · largeur publiée · résultats · passages · faits et rangement de chaque origin/travail-* ·
+      fils libres = largeur − places occupées, jamais sous 0.
     ⑦ UNITÉ — Fils ; secondes Unix.
     ⑧ POURQUOI — Voir le module.
     ⑨ CE QUI CLOCHE — —
@@ -650,17 +664,17 @@ def etat_des_travaux(depot, gh="gh", public=PUBLIC_PAR_DEFAUT, fetch=True):
     """
     if fetch:
         git(depot, "fetch", "-q", "origin")
-    fab = lire_le_fabricant(depot)
-    resultats, sans_pointe = resultats_github(depot, fab["prefixe"])
-    vivants, en_cours = passages_github(gh, public, fab["circuits_longs"])
+    lu = largeur_publiee(depot)
+    resultats, sans_pointe = resultats_github(depot)
+    vivants, en_cours = passages_github(gh, public, lu["fiches_longues"])
     branches = []
     for ligne in git(depot, "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/travail-*").splitlines():
         faits = faits_d_une_branche(depot, ligne[len("origin/"):], resultats, vivants)
         faits["etat"], faits["action"] = ranger(faits)
         branches.append(faits)
-    return {"heure": int(time.time()), "fabricant": fab,
-            "fils": {"largeur": fab["largeur"], "epreuves_en_cours": en_cours,
-                     "libres": max(0, fab["largeur"] - en_cours)},
+    return {"heure": int(time.time()), "largeur_publiee": lu,
+            "fils": {"largeur": lu["largeur"], "epreuves_en_cours": en_cours,
+                     "libres": max(0, lu["largeur"] - en_cours)},
             "passages": vivants, "branches": branches, "resultats_sans_pointe": len(sans_pointe)}
 
 
@@ -685,11 +699,12 @@ def tableau(etat, tout=False):
     """
     f = etat["fils"]
     out = [f"ÉTAT DES TRAVAUX — {heure_paris(etat['heure'])} (Paris)",
-           f"fils GitHub des circuits longs : largeur {f['largeur']} (lue au fabricant) − épreuves en cours "
+           f"fils GitHub des circuits longs : largeur {f['largeur']} (imprimée par le fabricant, journal "
+           f"{etat['largeur_publiee']['journal'][:9]}) − places occupées "
            f"{f['epreuves_en_cours']} = {f['libres']} libre(s)"]
     for p in etat["passages"]:
         out.append(f"  tourne : passage {p['passage']} · {p['circuit']} · {p['branche']} · {p['statut']}"
-                   f" · {p['jobs_vivants']} job(s) non fini(s)")
+                   f" · {p['places']} place(s)")
     if not etat["passages"]:
         out.append("  rien ne tourne sur GitHub")
     rang = {e: i for i, e in enumerate(ETATS)}
