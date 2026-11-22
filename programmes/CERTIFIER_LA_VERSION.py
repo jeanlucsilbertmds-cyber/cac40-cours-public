@@ -697,7 +697,7 @@ def programmes_illisibles(racine):
     return illisibles
 
 
-# LES MORCEAUX DE LA NUIT (A-961, décision de Jean-Luc du 21-11-2026 à 13h34, réponse « 1 » à la question N-10 :
+# LES MORCEAUX DE LA NUIT (A-972, décision de Jean-Luc du 21-11-2026 à 13h34, réponse « 1 » à la question N-10 :
 # « Faire les deux tout de suite (18 morceaux et grosse épreuve découpée), puis étudier la relance sélective »).
 # LE PROBLÈME, MESURÉ : une tranche de la nuit ne doit pas prévoir plus du tiers de ses 330 minutes, soit 6 600 s (N5 de
 # tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py). Or `repartir` range une épreuve ENTIÈRE dans une seule tranche,
@@ -736,7 +736,7 @@ def morceaux_declares(table):
       [rend: 1]
     ⑥ TRAITEMENT — lecture et contrôle de forme.
     ⑦ UNITÉ — Un nombre de morceaux.
-    ⑧ POURQUOI — Commentaire de MORCEAUX_DE_LA_NUIT (A-961). Une série jouée hors de la nuit ne se découpe pas : sa
+    ⑧ POURQUOI — Commentaire de MORCEAUX_DE_LA_NUIT (A-972). Une série jouée hors de la nuit ne se découpe pas : sa
       vérification lit les fichiers lus par SON lancement normal, dans le même processus (`jouer_les_lancements`).
     ⑨ CE QUI CLOCHE — 50 est une borne de forme, pas une mesure.
     ⑩ EFFET — —
@@ -1040,7 +1040,7 @@ def cle_de(chemin, arguments):
     ⑦ UNITÉ — —
     ⑧ POURQUOI — La forme des clés de « delais » (tests/LANCEMENT_DES_EPREUVES.json, « format_des_options »). La liste
       des sabotages d'un morceau change dès qu'un sabotage est ajouté : dans la clé, elle ferait perdre la durée relevée
-      du morceau à chaque ajout. Le morceau se nomme par « --morceau=i/N », stable (A-961).
+      du morceau à chaque ajout. Le morceau se nomme par « --morceau=i/N », stable (A-972).
     ⑨ CE QUI CLOCHE — Deux lancements d'une même épreuve qui ne différeraient QUE par « --seulement=… » auraient la
       même clé ; seuls les morceaux en portent, et chacun a son « --morceau=i/N ».
     ⑩ EFFET — —
@@ -1309,7 +1309,7 @@ def unite_de(l):
     ⑥ TRAITEMENT — joindre.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Une épreuve reste entière dans une tranche (fiche de `repartir`, ⑧), SAUF ses morceaux : chacun est
-      rangé à part, c'est tout l'objet de la découpe (A-961). Le lancement normal de l'épreuve reste rangé à part
+      rangé à part, c'est tout l'objet de la découpe (A-972). Le lancement normal de l'épreuve reste rangé à part
       lui aussi, sous le seul chemin : aucune série jouée hors de la nuit n'est en morceaux (`morceaux_declares`).
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — —
@@ -1778,7 +1778,7 @@ def comparer(tableau, lancements, reference, sources):
       non examinées supprimées ou modifiées) et les épreuves disparues, en phrases.
       [rend: 2]
     ⑥ TRAITEMENT — ① chaque lancement de la référence doit être encore joué, comparé sans « --seulement=… » ; le
-      lancement entier « --saboter » d'une épreuve est joué si TOUS ses morceaux 1/N … N/N le sont (A-961) · ② pour chaque
+      lancement entier « --saboter » d'une épreuve est joué si TOUS ses morceaux 1/N … N/N le sont (A-972) · ② pour chaque
       programme, et pour chaque texte de ligne ou couple d'embranchement, le nombre de
       non-examinés ne doit pas augmenter ; une fonction non examinée doit être déjà dans la
       liste de la référence ; un programme absent de la référence doit tout avoir examiné ;
@@ -1824,7 +1824,7 @@ def comparer(tableau, lancements, reference, sources):
         ⑥ TRAITEMENT — filtrer les arguments, puis json.dumps.
         ⑦ UNITÉ — —
         ⑧ POURQUOI — Un sabotage ajouté à une épreuve en morceaux change les codes d'un morceau : sans ce filtre, la
-          référence verrait le morceau « disparu » à chaque ajout (A-961).
+          référence verrait le morceau « disparu » à chaque ajout (A-972).
         ⑨ CE QUI CLOCHE — —
         ⑩ EFFET — —
         ⑪ TERMINAISON — Rend la main.

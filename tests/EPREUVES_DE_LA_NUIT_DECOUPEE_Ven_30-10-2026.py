@@ -50,7 +50,7 @@
   superviseur R-759, SUPERVISEUR_CERT3_Dim_15-11-2026.md, même dossier) : N13 la charge prévue d'un lancement est sa
   durée relevée, sinon son délai déclaré, sinon DUREE_MAX_EPREUVE, sur le vrai `repartir` (`n13`) ; N11 éprouve aussi
   une épreuve COUPÉE (sa sortie gardée, « ARRÊTÉE » en dernier) et les codes 2 et 124 ; sabotages Sh et Sv (N13),
-  Sw et Sx (N11). Et (21-11-2026, A-961, décision de Jean-Luc du 21-11-2026 à 13h34) : N14 aucun sabotage perdu ni
+  Sw et Sx (N11). Et (21-11-2026, A-972, décision de Jean-Luc du 21-11-2026 à 13h34) : N14 aucun sabotage perdu ni
   joué deux fois quand une épreuve est jouée en morceaux (`n14`, compte par une autre rédaction) · N15 le nombre de
   tranches est la largeur du réservoir des places longues, qui laisse 2 places au soir (`n15`) ; sabotages Sy (15
   tranches), Sz, Sz2, Sz3, Sz4, Sz5 (la découpe, la référence, la charge d'un morceau jamais joué).
@@ -192,7 +192,7 @@ SABOTAGES = {
                                     "        groupes.setdefault(cle_de(l[0], l[2]), []).append(l)\n"),
                                    (CERTIF, "    return [[l for l in lancements if unite_de(l) in choisies[i]] for i in range(nombre)], charges",
                                     "    return [[l for l in lancements if cle_de(l[0], l[2]) in choisies[i]] for i in range(nombre)], charges")],
-    # 21-11-2026 (A-961, décision de Jean-Luc du 21-11-2026 à 13h34) : 15 tranches au lieu de la largeur du réservoir
+    # 21-11-2026 (A-972, décision de Jean-Luc du 21-11-2026 à 13h34) : 15 tranches au lieu de la largeur du réservoir
     # (18) — N15 doit rougir ; un sabotage perdu à la découpe (le dernier de chaque morceau) — N14 doit rougir ; la
     # lecture des sabotages amputée du dernier — N14 doit rougir (son compte vient d'une autre rédaction) ; un morceau
     # retiré (le lancement entier rangé tel quel) — N14 doit rougir.
@@ -240,7 +240,7 @@ ATTENDU = {"Sm_six_tranches_comme_avant": "N5 ", "Sn_sortie_rouge_coupee_a_trois
            # superviseur R-759 du 15-11-2026 (SUPERVISEUR_CERT3_Dim_15-11-2026.md) : Sh et Sv (§1), Sw (§2), Sx (§3)
            "Sh_prevue_sans_le_delai_declare": "N13 ", "Sv_prevue_priorites_inversees": "N13 ",
            "Sw_coupee_sans_sa_sortie": "N11 ", "Sx_seul_le_code_1_garde_tout": "N11 ",
-           # A-961 (21-11-2026)
+           # A-972 (21-11-2026)
            "Sy_quinze_tranches": "N15 ", "Sz_sabotage_perdu_a_la_decoupe": "N14 ",
            "Sz2_lecture_des_sabotages_amputee": "N14 ", "Sz3_sans_la_decoupe": "N14 ",
            "Sz4_morceau_manquant_non_vu": "N14 ", "Sz5_charge_sans_z0": "N14 ",
@@ -781,7 +781,7 @@ def sabotages_comptes(texte):
 
 
 def n14(C, depot, faux):
-    """N14 — aucun sabotage perdu ni joué deux fois quand une épreuve est jouée en morceaux (A-961).
+    """N14 — aucun sabotage perdu ni joué deux fois quand une épreuve est jouée en morceaux (A-972).
 
     ① RÔLE — Compter les sabotages avant et après la découpe, et rougir si les comptes diffèrent.
     ② CONTEXTE D'APPEL — `tour`, une fois.
@@ -803,7 +803,7 @@ def n14(C, depot, faux):
       Cowork du 21-11-2026, pointe 5602b2271) — et accepte une simple lecture, même en argument (« ", ".join(SABOTAGES) »)
       (I-1 de la même relecture : un sabotage ainsi ajouté n'était jamais joué la nuit).
     ⑦ UNITÉ — Des nombres de sabotages ; des secondes (④, ⑤).
-    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 13h34 (A-961) : découper la grosse épreuve ; consigne du même
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 13h34 (A-972) : découper la grosse épreuve ; consigne du même
       jour : « aucun sabotage ne doit être perdu ». Un sabotage perdu à la découpe est une partie du code qu'on croit
       éprouvée chaque nuit et qui ne l'est plus — et rien d'autre ne le verrait : la morsure de chaque sabotage joué
       reste verte.
@@ -876,7 +876,7 @@ def n14(C, depot, faux):
 
 
 def n15(depot, k, faux):
-    """N15 — le nombre de tranches est la largeur du réservoir, qui laisse 2 places au circuit du soir (A-961, A-888).
+    """N15 — le nombre de tranches est la largeur du réservoir, qui laisse 2 places au circuit du soir (A-972, A-888).
 
     ① RÔLE — Garder la décision du 21-11-2026 : 18 tranches, jamais une place du soir.
     ② CONTEXTE D'APPEL — `tour`, une fois, après N2.
@@ -902,7 +902,7 @@ def n15(depot, k, faux):
     F = charger(os.path.join(depot, FAB))
     if k != F.PLACES_LONGUES or F.TRANCHES_DE_LA_NUIT != k:
         faux.append(f"N15 {k} tranches au circuit (constante : {F.TRANCHES_DE_LA_NUIT}), attendu la largeur du "
-                    f"réservoir, {F.PLACES_LONGUES} places (A-961)")
+                    f"réservoir, {F.PLACES_LONGUES} places (A-972)")
     if F.PLACES_LONGUES != F.TACHES_EN_MEME_TEMPS_DU_COMPTE - 2:
         faux.append(f"N15 réservoir de {F.PLACES_LONGUES} places pour {F.TACHES_EN_MEME_TEMPS_DU_COMPTE} tâches du "
                     "compte : les 2 places du soir ne sont plus libres (A-888)")

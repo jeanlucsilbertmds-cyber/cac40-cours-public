@@ -881,7 +881,7 @@ TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inpu
 # place prise) ; sans elle, le deuxième « cancelled ».
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 # 18 TRANCHES, UNE ÉPREUVE DÉCOUPÉE — CE QUI A ÉTÉ DÉCIDÉ, POURQUOI, SES LIMITES, COMMENT LE REMETTRE EN CAUSE
-# (A-961 au BACKLOG ; texte écrit pour être lu seul, dans six mois, sans rien chercher ailleurs)
+# (A-972 au BACKLOG ; texte écrit pour être lu seul, dans six mois, sans rien chercher ailleurs)
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 # À QUOI SERT CE NOMBRE. Chaque nuit, GitHub rejoue TOUTES les épreuves du dépôt pour « certifier » la version (dire
 # qu'aucune n'a reculé). Joué d'un seul tenant, ce travail dépasse les 6 heures qu'une machine de GitHub accorde. On le
@@ -901,7 +901,7 @@ TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inpu
 # ne leur en donne jamais plus — chaque tâche porte un groupe « place-longue-1 » … « place-longue-18 »
 # (`groupe_de_place`), et la tranche numéro k prend la place k (`place_bornee`, qui ne rend que 1 à 18).
 #
-# POURQUOI 18 TRANCHES. Décision de Jean-Luc du 21-11-2026 à 13h34 (A-961), réponse « 1 » à la question N-10 du Chat :
+# POURQUOI 18 TRANCHES. Décision de Jean-Luc du 21-11-2026 à 13h34 (A-972), réponse « 1 » à la question N-10 du Chat :
 # « Faire les deux tout de suite (18 morceaux et grosse épreuve découpée), puis étudier la relance sélective ». Le
 # constat mesuré (certification de nuit 44852703801, 21-11-2026, somme des « charges_prevues_secondes » de ses
 # certificats partiels) : la nuit demandait 112 523 s de travail pour 15 tranches × 6 600 s = 99 000 s tenables (le
@@ -932,7 +932,7 @@ TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inpu
 #   ② 18 est un plafond : on ne peut pas aller au-delà sans prendre les places du soir (interdit par A-888) ou sans
 #      une offre payante de GitHub. Les offres payantes donnent plus de tâches simultanées : NON VÉRIFIÉ — ni le
 #      nombre, ni le prix, ni le compte concerné n'ont été lus à la source. À lire avant de décider.
-#   ③ La vraie réponse à la croissance est de rejouer MOINS : la RELANCE SÉLECTIVE (A-962, à étudier, décision de
+#   ③ La vraie réponse à la croissance est de rejouer MOINS : la RELANCE SÉLECTIVE (A-973, à étudier, décision de
 #      Jean-Luc du 21-11-2026 à 13h34) — ne rejouer une épreuve longue la nuit que si l'un des fichiers qu'elle teste a
 #      changé depuis sa dernière réussite. Son risque : une dépendance non déclarée ferait garder un vert périmé.
 #   ④ Les tranches qui ne trouvent pas de place libre (le réservoir est partagé avec les séries et les épreuves
@@ -944,7 +944,7 @@ TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inpu
 #     programmes/CERTIFIER_LA_VERSION.py (`repartir`).
 #   • L'alarme : N5 de tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py rougit dès qu'une tranche dépasse le
 #     tiers (6 600 s). Quand N5 rougit et que les tranches sont déjà à 18, il n'y a plus de nombre à augmenter : il faut
-#     découper une autre épreuve (ajouter une ligne à « morceaux_de_la_nuit ») ou rejouer moins (A-962).
+#     découper une autre épreuve (ajouter une ligne à « morceaux_de_la_nuit ») ou rejouer moins (A-973).
 #   • N15 du même fichier garde la règle : les tranches égalent la largeur du réservoir, qui laisse 2 places au soir.
 TRANCHES_DE_LA_NUIT = LARGEUR_DES_CIRCUITS_LONGS
 # LES ESSAIS DE POUSSÉE D'UNE TÂCHE DE LA CERTIFICATION : le nombre de tranches PLUS TROIS. Choix technique du Chat
