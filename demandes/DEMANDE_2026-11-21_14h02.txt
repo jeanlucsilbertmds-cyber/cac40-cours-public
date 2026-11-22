@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=LivrerSabots,CircuitPublic,Relais,CircuitSeries,Certification,MessageDuSoir,File,GardeFou,NuitDecoupee
+pointe=5b0d89752721c6a308d66f51be68976aeb68ada9
