@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Certification,NuitDecoupee
+pointe=73ebc64be2458ae96a45abf88665b4ece870f199
