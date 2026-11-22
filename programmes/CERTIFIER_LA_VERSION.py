@@ -99,11 +99,14 @@ import collections
 import hashlib
 import importlib.util
 import json
+import operator
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import types
 import time
 import tokenize
 from datetime import datetime
@@ -694,6 +697,167 @@ def programmes_illisibles(racine):
     return illisibles
 
 
+# LES MORCEAUX DE LA NUIT (A-972, décision de Jean-Luc du 21-11-2026 à 13h34, réponse « 1 » à la question N-10 :
+# « Faire les deux tout de suite (18 morceaux et grosse épreuve découpée), puis étudier la relance sélective »).
+# LE PROBLÈME, MESURÉ : une tranche de la nuit ne doit pas prévoir plus du tiers de ses 330 minutes, soit 6 600 s (N5 de
+# tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py). Or `repartir` range une épreuve ENTIÈRE dans une seule tranche,
+# et le seul lancement « tests/EPREUVES_DE_LA_LECTURE_DES_COURS_Sam_10-10-2026.py --saboter » a duré 7 663 s à la
+# certification de nuit 44852703801 (21-11-2026) : aucun nombre de tranches ne pouvait le faire tenir.
+# LA RÉPONSE : une épreuve déclarée dans la table « morceaux_de_la_nuit » de tests/LANCEMENT_DES_EPREUVES.json est
+# jouée, pour ses sabotages, en N lancements au lieu d'un. Le morceau i sur N porte « --saboter --morceau=i/N
+# --seulement=<codes> » : il rejoue Z0 (le jeu sans sabotage, nécessaire pour dire qu'un sabotage « mord ») puis les
+# sabotages dont le RANG, dans l'ordre du dictionnaire SABOTAGES de l'épreuve, vaut i − 1 modulo N. Chaque sabotage
+# travaille déjà dans sa propre copie des programmes : les groupes sont indépendants par construction.
+# CE QUI PROTÈGE : aucun sabotage n'est perdu ni joué deux fois — N14 de l'épreuve de la nuit découpée recompte, par une
+# autre rédaction, les sabotages du fichier et ceux des morceaux, et rougit si les comptes diffèrent. La charge d'un
+# morceau n'est jamais écrite à la main (R-728) : `repartir` prend sa durée relevée, sinon la calcule depuis la durée
+# relevée du lancement entier (`charge_estimee_du_morceau`). Ce qu'on paie : Z0 est rejoué une fois par morceau.
+# LIMITE : le nombre de morceaux est déclaré, pas calculé ; si un morceau dépasse un jour le tiers, N5 rougit, et l'on
+# augmente ce nombre dans la table. CHANGER CE NOMBRE DEMANDE AUSSI DE RÉÉCRIRE LA RÉFÉRENCE, avec l'accord prévu pour
+# elle, dès qu'elle porte les morceaux (« --morceau=1/3 » … « 3/3 ») : `comparer` ne reconstruit que le lancement
+# ENTIER, et une référence en 3 morceaux face à une nuit en 4 donne trois « épreuve disparue », donc une certification
+# rouge (m-3 de la relecture de Cowork du 21-11-2026, mesuré). Une référence qui porte le lancement entier n'est pas
+# touchée (c'est le cas au 21-11-2026).
+MORCEAUX_DE_LA_NUIT = "morceaux_de_la_nuit"       # le nom de la table, dans tests/LANCEMENT_DES_EPREUVES.json
+ARGUMENT_DU_MORCEAU = "--morceau="                # « --morceau=i/N » : le nom stable du morceau (clé des durées)
+ARGUMENT_DES_SABOTAGES = "--seulement="           # l'option que l'épreuve lit déjà pour ne jouer que ces sabotages
+
+
+def morceaux_declares(table):
+    """Lit, dans la table de lancement, le nombre de morceaux de chaque épreuve jouée en morceaux la nuit.
+
+    ① RÔLE — Dire quelles épreuves voient leurs sabotages découpés, et en combien de morceaux.
+    ② CONTEXTE D'APPEL — `lister_les_epreuves` et `options_de_lancement`, une fois chacune.
+    ③ ENTRÉE — `table` : le contenu entier de tests/LANCEMENT_DES_EPREUVES.json, déjà lu.
+    ④ CONDITIONS D'ENTRÉE — La clé MORCEAUX_DE_LA_NUIT est facultative ; chaque entrée porte « morceaux », un entier
+      de 2 à 50, et « pourquoi » ; une épreuve déclarée aussi dans « series_hors_de_la_nuit » est refusée. Sinon
+      ValueError (et `main` rend 2).
+    ⑤ SORTIE — UNE valeur : {chemin de l'épreuve : nombre de morceaux}, vide si la table n'en déclare aucun.
+      [rend: 1]
+    ⑥ TRAITEMENT — lecture et contrôle de forme.
+    ⑦ UNITÉ — Un nombre de morceaux.
+    ⑧ POURQUOI — Commentaire de MORCEAUX_DE_LA_NUIT (A-972). Une série jouée hors de la nuit ne se découpe pas : sa
+      vérification lit les fichiers lus par SON lancement normal, dans le même processus (`jouer_les_lancements`).
+    ⑨ CE QUI CLOCHE — 50 est une borne de forme, pas une mesure.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    brut = table.get(MORCEAUX_DE_LA_NUIT) or {}
+    if not isinstance(brut, dict):
+        raise ValueError(f"« {MORCEAUX_DE_LA_NUIT} » n'est pas une table chemin → valeur")
+    rendu = {}
+    for chemin, e in brut.items():
+        n = e.get("morceaux") if isinstance(e, dict) else None
+        if not isinstance(n, int) or isinstance(n, bool) or not 2 <= n <= 50 or not (e.get("pourquoi") or "").strip():
+            raise ValueError(f"morceaux illisibles pour « {chemin} » : il faut un entier de 2 à 50 et un pourquoi")
+        if chemin in (table.get("series_hors_de_la_nuit") or {}):
+            raise ValueError(f"« {chemin} » est une série jouée hors de la nuit : elle ne se découpe pas")
+        rendu[chemin] = n
+    return rendu
+
+
+def sabotages_declares(texte, chemin):
+    """Rend les noms des sabotages d'une épreuve, dans l'ordre de son dictionnaire SABOTAGES, sans Z0.
+
+    ① RÔLE — Connaître les sabotages d'une épreuve sans l'exécuter.
+    ② CONTEXTE D'APPEL — `lancements_des_morceaux`, une fois par épreuve déclarée en morceaux.
+    ③ ENTRÉE — `texte` : le code de l'épreuve · `chemin` : son chemin, pour le message d'erreur.
+    ④ CONDITIONS D'ENTRÉE — Le fichier assigne, au premier niveau, « SABOTAGES = { … } » dont chaque clé est un texte
+      écrit tel quel, et c'est la SEULE écriture de SABOTAGES dans tout le fichier : aucune autre affectation
+      (« SABOTAGES = », « SABOTAGES |= », « SABOTAGES[…] = », « del SABOTAGES[…] », même dans une fonction) ni aucun
+      appel d'une méthode qui modifie un dictionnaire (« SABOTAGES.update(…) », « .setdefault », « .pop »…). Sinon
+      ValueError.
+    ⑤ SORTIE — UNE valeur : la liste des noms, Z0 exclu.
+      [rend: 1]
+    ⑥ TRAITEMENT — lecture de l'arbre syntaxique (`ast`), sans rien exécuter.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Importer l'épreuve l'exécuterait : celle de la lecture des cours copie environ 70 Mo à l'import
+      (`depot_fige`). Une clé calculée ne se lit pas sans exécuter : elle est refusée, jamais devinée (R-734). Une
+      autre écriture de SABOTAGES ajouterait ou retirerait un sabotage que la lecture du seul dictionnaire ne voit pas :
+      la nuit ne le jouerait jamais, en silence (I-1 de la relecture de Cowork du 21-11-2026, mesuré : 122 sabotages
+      comptés avant et après un « SABOTAGES["S999"] = … » ajouté sous le dictionnaire, N14 vert). Elle est donc
+      REFUSÉE, par une propriété (le nom SABOTAGES écrit, ou une méthode qui modifie un dictionnaire), jamais par une
+      liste d'épreuves. Les méthodes qui modifient sont celles de `dict` qu'une vue en lecture seule
+      (`types.MappingProxyType`) n'a pas, sauf `fromkeys`, qui fabrique un dictionnaire neuf.
+    ⑨ CE QUI CLOCHE — Une écriture que l'arbre ne montre pas comme telle passe encore : par un autre nom
+      (« S = SABOTAGES ; S[…] = … »), par « globals()[…] », par une fonction du fichier qui reçoit SABOTAGES et
+      l'écrit (son nom ne dit pas qu'elle écrit), ou par un module qui modifie l'épreuve à l'import. Passé en argument
+      à une méthode modifiante de `dict` ou à « operator.setitem/delitem », il est refusé (m-7, 21-11-2026). Aucune
+      épreuve du dépôt ne le fait au 21-11-2026 ; N14 de l'épreuve de la nuit découpée ne le verrait pas non plus (son
+      compte ne lit, lui aussi, que l'intérieur du dictionnaire littéral). Le refus vaut aussi pour une écriture qui ne
+      changerait rien (« SABOTAGES.update({}) ») : refus à tort, mais à voix haute. Refus à tort aussi, à voix haute,
+      pour SABOTAGES passé en simple LECTURE à une méthode de même nom portée par un AUTRE objet
+      (« ensemble.update(SABOTAGES) », « copie.update(SABOTAGES) », « d.pop(k, SABOTAGES) ») : le nom de la méthode
+      suffit, quel que soit l'objet (m-10 de la relecture de Cowork du 22-11-2026, mesuré). À l'inverse,
+      « getattr(SABOTAGES, "update")(…) » ÉCRIT et passe : de la famille de l'alias, non refusé.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    arbre = ast.parse(texte, filename=chemin)
+    modifiantes = set(dir(dict)) - set(dir(types.MappingProxyType)) - {"fromkeys"}
+    # m-7 (relecture de Cowork du 21-11-2026, mesuré) : la même écriture, SABOTAGES passé en ARGUMENT — une méthode
+    # modifiante appelée par sa classe (« dict.update(SABOTAGES, …) ») ou une fonction du module operator qui écrit une
+    # clé (« operator.setitem », « operator.delitem » : celles dont `operator` dit le nom par « set »/« del »)
+    par_argument = modifiantes | {f for f in dir(operator) if f.startswith(("set", "del", "__set", "__del"))}
+    ecritures = sorted(
+        n.lineno for n in ast.walk(arbre)
+        if (isinstance(n, ast.Name) and n.id == "SABOTAGES" and not isinstance(n.ctx, ast.Load))
+        or (isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name) and n.value.id == "SABOTAGES"
+            and not isinstance(n.ctx, ast.Load))
+        or (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name)
+            and n.func.value.id == "SABOTAGES" and n.func.attr in modifiantes)
+        or (isinstance(n, ast.Call)
+            and (n.func.attr if isinstance(n.func, ast.Attribute) else getattr(n.func, "id", "")) in par_argument
+            and any(isinstance(a, ast.Name) and a.id == "SABOTAGES"
+                    for a in list(n.args) + [k.value for k in n.keywords]
+                    + [a.value for a in n.args if isinstance(a, ast.Starred)])))
+    if len(ecritures) > 1:
+        raise ValueError(f"{chemin} : SABOTAGES est écrit ailleurs que par son dictionnaire (lignes {ecritures}) : "
+                         f"un sabotage ajouté ou retiré ainsi ne serait jamais joué la nuit")
+    for n in arbre.body:
+        if (isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name)
+                and n.targets[0].id == "SABOTAGES" and isinstance(n.value, ast.Dict)):
+            if not all(isinstance(k, ast.Constant) and isinstance(k.value, str) for k in n.value.keys):
+                raise ValueError(f"{chemin} : une clé de SABOTAGES n'est pas un texte écrit tel quel")
+            return [k.value for k in n.value.keys if k.value != "Z0"]
+    raise ValueError(f"{chemin} : aucun dictionnaire « SABOTAGES = {{…}} » au premier niveau")
+
+
+def lancements_des_morceaux(chemin, texte, nombre):
+    """Rend les lancements d'une épreuve dont les sabotages sont joués en `nombre` morceaux.
+
+    ① RÔLE — Couper le lancement « --saboter » d'une épreuve en morceaux qui tiennent chacun dans une tranche.
+    ② CONTEXTE D'APPEL — `lister_les_epreuves`, une fois par épreuve déclarée dans MORCEAUX_DE_LA_NUIT.
+    ③ ENTRÉE — `chemin` : « tests/<fichier> » · `texte` : son code · `nombre` : de `morceaux_declares`.
+    ④ CONDITIONS D'ENTRÉE — Celles de `sabotages_declares` ; chaque code court (le nom jusqu'au premier « _ ») désigne
+      exactement un sabotage, et il y a au moins `nombre` sabotages. Sinon ValueError.
+    ⑤ SORTIE — UNE valeur : la liste de `nombre` lancements [chemin, « . », [« {copie} », « --saboter »,
+      « --morceau=i/N », « --seulement=<codes> »]], i de 1 à N.
+      [rend: 1]
+    ⑥ TRAITEMENT — le sabotage de rang r (0 pour le premier après Z0) va au morceau (r modulo N) + 1.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Commentaire de MORCEAUX_DE_LA_NUIT. L'alternance (et non des blocs qui se suivent) mélange les
+      sabotages anciens et récents dans chaque morceau : leurs durées s'équilibrent sans mesure. L'épreuve exige déjà
+      qu'un code court désigne EXACTEMENT un sabotage (m-a du relecteur du 13-11-2026) : on le vérifie ici, avant la
+      nuit, plutôt que de laisser l'épreuve rendre 2.
+    ⑨ CE QUI CLOCHE — Ajouter un sabotage au milieu du dictionnaire déplace les suivants d'un morceau à l'autre : sans
+      effet sur ce qui est joué, mais les durées relevées d'un morceau changent un peu la nuit suivante.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    noms = sabotages_declares(texte, chemin)
+    codes = [n.split("_", 1)[0] for n in noms]
+    doubles = sorted({c for c in codes if codes.count(c) != 1})
+    if doubles or len(noms) < nombre:
+        raise ValueError(f"{chemin} : codes courts en double {doubles} ou moins de {nombre} sabotages ({len(noms)})")
+    return [[chemin, ".", ["{copie}", "--saboter", f"{ARGUMENT_DU_MORCEAU}{i}/{nombre}",
+                           ARGUMENT_DES_SABOTAGES + ",".join(codes[i - 1::nombre])]]
+            for i in range(1, nombre + 1)]
+
+
 def lister_les_epreuves(copie):
     """Rend la liste des épreuves à jouer, chacune avec son dossier et ses arguments, et les épreuves non déclarées.
 
@@ -701,7 +865,8 @@ def lister_les_epreuves(copie):
     ② CONTEXTE D'APPEL — `main`, une fois.
     ③ ENTRÉE — `copie` : la copie du dépôt.
     ④ CONDITIONS D'ENTRÉE — `tests/LANCEMENT_DES_EPREUVES.json` existe et se lit, et chaque
-      `tests/*.py` est du Python lisible ; sinon la fonction lève, et `main` rend 2.
+      `tests/*.py` est du Python lisible ; une épreuve déclarée en morceaux porte un dictionnaire SABOTAGES
+      littéral ; sinon la fonction lève, et `main` rend 2.
     ⑤ SORTIE — DEUX valeurs : la liste des lancements [chemin, dossier, arguments] ; la liste
       des fichiers de `programmes/` qui sont des épreuves — par leur nom, ou par un mode
       d'épreuve lu sur leur ligne de commande (`modes_d_epreuve`) — sans être déclarés.
@@ -709,7 +874,8 @@ def lister_les_epreuves(copie):
     ⑥ TRAITEMENT — ① chaque fichier `tests/*.py` qu'aucun autre fichier de `tests/` n'IMPORTE
       (un fichier importé par d'autres est un outil d'épreuve, comme `HORLOGE_D_EPREUVE.py`)
       se lance depuis la racine avec la racine en argument, puis une seconde fois avec
-      `--saboter` si son texte l'accepte · ② les épreuves rangées dans `programmes/` se
+      `--saboter` si son texte l'accepte — ou, si la table la déclare dans « morceaux_de_la_nuit », une fois PAR
+      MORCEAU (`lancements_des_morceaux`, commentaire de MORCEAUX_DE_LA_NUIT) · ② les épreuves rangées dans `programmes/` se
       lancent comme la table `tests/LANCEMENT_DES_EPREUVES.json` les déclare · ③ un fichier de `programmes/` nommé
       `EPREUVES_*` ou `TESTS_*`, ou qui lit un mode d'épreuve sur sa ligne de commande, et
       que la table ne déclare pas, est rendu à part.
@@ -725,8 +891,10 @@ def lister_les_epreuves(copie):
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    table = json.load(open(os.path.join(copie, LANCEMENT), encoding="utf-8"))["epreuves"]
+    complete = json.load(open(os.path.join(copie, LANCEMENT), encoding="utf-8"))
+    table = complete["epreuves"]
     declarees = {chemin: (e["dossier"], tuple(e["arguments"])) for chemin, e in table.items()}
+    morceaux = morceaux_declares(complete)
     tests = sorted(f for f in os.listdir(os.path.join(copie, "tests")) if f.endswith(".py"))
     textes = {f: open(os.path.join(copie, "tests", f), encoding="utf-8").read() for f in tests}
     importes = set()
@@ -741,7 +909,9 @@ def lister_les_epreuves(copie):
         if f[:-3] in importes:
             continue
         lancements.append(["tests/" + f, ".", ["{copie}"]])
-        if "--saboter" in textes[f]:
+        if "--saboter" in textes[f] and "tests/" + f in morceaux:
+            lancements += lancements_des_morceaux("tests/" + f, textes[f], morceaux["tests/" + f])
+        elif "--saboter" in textes[f]:
             lancements.append(["tests/" + f, ".", ["{copie}", "--saboter"]])
     for chemin, (dossier, arguments) in declarees.items():
         lancements.append([chemin, dossier, list(arguments)])
@@ -764,7 +934,8 @@ def options_de_lancement(copie):
       d'essais de la série refaits chaque nuit, « portee » : la portée du relevé écrite à la table
       (« portee_du_releve »), ou None si elle n'y est pas}}.
       [rend: 2]
-    ⑥ TRAITEMENT — json ; contrôle de forme. La VALEUR de la portée n'est pas contrôlée ici : programmes/
+    ⑥ TRAITEMENT — json ; contrôle de forme ; chaque morceau d'une épreuve déclarée dans MORCEAUX_DE_LA_NUIT reçoit
+      le délai déclaré de son lancement entier (« <chemin> --saboter »), s'il n'en a pas à lui. La VALEUR de la portée n'est pas contrôlée ici : programmes/
       SERIES_DE_SABOTAGES.py, qui seul connaît les portées (`PORTEES`), refuse une portée inconnue (code 2, la nuit
       même).
     ⑦ UNITÉ — Des secondes.
@@ -790,6 +961,11 @@ def options_de_lancement(copie):
         if not isinstance(sec, int) or isinstance(sec, bool) or not 1 <= sec <= 21600:
             raise ValueError(f"délai illisible pour « {cle} » : {sec!r}")
         delais[cle] = sec
+    for chemin, n in morceaux_declares(table).items():
+        entier = cle_de(chemin, ["--saboter"])
+        for i in range(1, n + 1):
+            if entier in delais:
+                delais.setdefault(cle_de(chemin, ["--saboter", f"{ARGUMENT_DU_MORCEAU}{i}/{n}"]), delais[entier])
     series = {}
     for chemin, e in (table.get("series_hors_de_la_nuit") or {}).items():
         motif = e.get("releve") if isinstance(e, dict) else None
@@ -812,6 +988,18 @@ JOURNAUX = os.path.join("rapports", "journal_du_circuit")
 JOURNAL_DE_CERTIFICATION = r"^circuit_(\d+)_\d+_certifier(?:_tranche_\d+)?\.log$"   # nom écrit par programmes/ETAPE_MUETTE.py
 PASSAGES_RETENUS = 3            # les trois derniers passages qui ont joué un lancement : on garde la plus longue durée
 PARTIELS = "rapports/certificats_partiels"   # où chaque tranche dépose son certificat partiel (noms fixes)
+# LES DURÉES PUBLIÉES (A-968, décision de Jean-Luc du 21-11-2026 à 15h34, réponse « 1 » : « Publier au dépôt public les
+# seules durées des épreuves (des chiffres de temps, aucun cours) pour que GitHub juge pour de vrai »). La copie jouée
+# sur GitHub exclut rapports/journal_du_circuit (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, SERIES_COPIE) : sans
+# journaux, `durees_relevees` rendait {}, chaque lancement comptait pour son délai, et N5 de la nuit découpée voyait
+# 20 400 s par tranche (passage GitHub 44906050466). Ce fichier, DÉRIVÉ des journaux par `publier_les_durees`, porte la
+# clé de chaque lancement et ses secondes, rien d'autre : `garder_les_durees` refuse tout le reste, à l'écriture comme
+# à la lecture. L'unité est dans le nom du fichier et dans celui de la colonne.
+DUREES_PUBLIEES = os.path.join("rapports", "durees_des_epreuves_en_secondes.csv")
+COLONNES_DES_DUREES = ["cle_du_lancement", "secondes"]
+# une clé publiable : un chemin d'épreuve, puis des mots sans espace ni virgule (calibré le 21-11-2026 sur les 216 clés
+# des journaux : toutes passent ; « tests/x.py ; cat /etc/passwd » et une ligne de cours ne passent pas)
+CLE_PUBLIABLE = r"^(?:tests|programmes)/[A-Za-z0-9_.-]+\.py(?: [A-Za-z0-9_./=-]+)*$"
 
 
 def ligne_du_journal(chemin, arguments, code, duree):
@@ -840,7 +1028,7 @@ LIGNE_DU_JOURNAL = r"^  (?:vert |ROUGE) (.+?) · code -?\d+ · (\d+) s$"
 
 
 def cle_de(chemin, arguments):
-    """Rend la clé d'un lancement : son chemin, puis ses arguments sans « {copie} », séparés par une espace.
+    """Rend la clé d'un lancement : son chemin, puis ses arguments sans « {copie} » ni « --seulement=… », séparés par une espace.
 
     ① RÔLE — Nommer un lancement de la même façon partout : délais déclarés, journal, répartition.
     ② CONTEXTE D'APPEL — `main`, `ligne_du_journal`, `repartir`.
@@ -848,15 +1036,18 @@ def cle_de(chemin, arguments):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le texte.
       [rend: 1]
-    ⑥ TRAITEMENT — joindre.
+    ⑥ TRAITEMENT — joindre, en écartant les arguments qui commencent par ARGUMENT_DES_SABOTAGES.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — La forme des clés de « delais » (tests/LANCEMENT_DES_EPREUVES.json, « format_des_options »).
-    ⑨ CE QUI CLOCHE — —
+    ⑧ POURQUOI — La forme des clés de « delais » (tests/LANCEMENT_DES_EPREUVES.json, « format_des_options »). La liste
+      des sabotages d'un morceau change dès qu'un sabotage est ajouté : dans la clé, elle ferait perdre la durée relevée
+      du morceau à chaque ajout. Le morceau se nomme par « --morceau=i/N », stable (A-972).
+    ⑨ CE QUI CLOCHE — Deux lancements d'une même épreuve qui ne différeraient QUE par « --seulement=… » auraient la
+      même clé ; seuls les morceaux en portent, et chacun a son « --morceau=i/N ».
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    return " ".join([chemin] + [a for a in arguments if a != "{copie}"])
+    return " ".join([chemin] + [a for a in arguments if a != "{copie}" and not a.startswith(ARGUMENT_DES_SABOTAGES)])
 
 
 def durees_relevees(racine, passage_exclu=""):
@@ -868,9 +1059,11 @@ def durees_relevees(racine, passage_exclu=""):
     ③ ENTRÉE — `racine` : le dépôt · `passage_exclu` : le numéro du passage en cours (GITHUB_RUN_ID), dont les
       journaux sont écartés.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : {clé du lancement : secondes} ; vide si aucun journal.
+    ⑤ SORTIE — UNE valeur : {clé du lancement : secondes} ; vide si aucun journal ni fichier de durées publiées.
       [rend: 1]
-    ⑥ TRAITEMENT — chaque fichier de `JOURNAUX` dont le nom répond à `JOURNAL_DE_CERTIFICATION` ; chaque ligne qui
+    ⑥ TRAITEMENT — ① s'il n'existe AUCUN journal de certification (aucun fichier de `JOURNAUX` dont le nom répond à
+      `JOURNAL_DE_CERTIFICATION`, quel que soit son passage) : rendre `lire_les_durees_publiees` (A-968) · ② sinon,
+      chaque fichier de `JOURNAUX` dont le nom répond à `JOURNAL_DE_CERTIFICATION` ; chaque ligne qui
       répond à `LIGNE_DU_JOURNAL` ; par clé, la plus longue durée des `PASSAGES_RETENUS` derniers passages (numéros
       de passage croissants) qui l'ont jouée.
     ⑦ UNITÉ — Des secondes.
@@ -881,15 +1074,22 @@ def durees_relevees(racine, passage_exclu=""):
       journal, ou relancée seule, ferait sinon une autre répartition que ses sœurs.
     ⑨ CE QUI CLOCHE — Un lancement ROUGE tombé vite (0 s) est compté pour sa durée réelle, donc trop court : la
       plus longue des trois nuits l'atténue sans l'effacer. Un lancement jamais joué n'a pas de durée ici : `repartir`
-      prend alors son délai.
-    ⑩ EFFET — Lit les journaux.
+      prend alors son délai. Le repli sur les durées publiées (①) rend des durées PÉRIMÉES si le fichier n'a pas été
+      refait depuis les dernières nuits : la prévision l'est alors autant (A-968). Le repli se décide sur la présence
+      d'un journal, tous passages compris, et non sur ce qui reste après l'exclusion du passage en cours : sinon deux
+      tranches sœurs, l'une partie avant et l'autre après le dépôt d'un journal, liraient deux sources différentes.
+      Un fichier de durées publiées malformé lève ValueError (`garder_les_durees`) : la certification tombe, en rouge.
+    ⑩ EFFET — Lit les journaux, ou le fichier des durées publiées.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     import re
     par_cle = collections.defaultdict(list)
     dossier = os.path.join(racine, JOURNAUX)
-    for f in (sorted(os.listdir(dossier)) if os.path.isdir(dossier) else []):
+    noms = sorted(os.listdir(dossier)) if os.path.isdir(dossier) else []
+    if not any(re.match(JOURNAL_DE_CERTIFICATION, f) for f in noms):
+        return lire_les_durees_publiees(racine)
+    for f in noms:
         m = re.match(JOURNAL_DE_CERTIFICATION, f)
         if not m or (passage_exclu and m.group(1) == passage_exclu):
             continue
@@ -903,6 +1103,115 @@ def durees_relevees(racine, passage_exclu=""):
     return rendu
 
 
+def garder_les_durees(lignes):
+    """Vérifie un tableau de durées publiables et le rend en {clé : secondes} ; lève ValueError sinon.
+
+    ① RÔLE — La garde des durées publiées (A-968) : ne laisser passer que la clé d'un lancement et ses secondes.
+    ② CONTEXTE D'APPEL — `publier_les_durees`, AVANT d'écrire ; `lire_les_durees_publiees`, après avoir lu. Une seule
+      garde pour l'écrivain et le lecteur (R-708 : deux rédactions d'une même règle divergent toujours).
+    ③ ENTRÉE — `lignes` : liste de listes de textes, la première étant l'en-tête.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : {clé du lancement : secondes (entier)}.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① l'en-tête doit valoir exactement `COLONNES_DES_DUREES` · ② chaque ligne suivante a exactement deux
+      champs · ③ la clé répond à `CLE_PUBLIABLE` · ④ les secondes ne sont faites que de chiffres (0 à 9) · ⑤ une
+      clé ne paraît qu'une fois. Le premier manquement lève ValueError, qui le nomme.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Les journaux de la certification portent aussi les sorties des épreuves, qui peuvent citer des cours ;
+      le dépôt public ne doit recevoir que des chiffres de temps (décision de Jean-Luc du 21-11-2026 à 15h34 : « les
+      seules durées des épreuves (des chiffres de temps, aucun cours) »). Une garde par PROPRIÉTÉ (deux colonnes, une
+      forme de clé, un nombre), jamais par liste de clés connues.
+    ⑨ CE QUI CLOCHE — Une clé de la bonne forme peut nommer une épreuve qui n'existe plus : elle est publiée et lue
+      sans dommage (`repartir` ne cherche que les clés de ses lancements).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError.
+      [sort: non]
+    """
+    import re
+    if not lignes or list(lignes[0]) != COLONNES_DES_DUREES:
+        raise ValueError(f"durées publiées : en-tête {list(lignes[0]) if lignes else None}, attendu {COLONNES_DES_DUREES}")
+    rendu = {}
+    for n, l in enumerate(lignes[1:], 2):
+        if len(l) != 2:
+            raise ValueError(f"durées publiées, ligne {n} : {len(l)} champ(s), attendu 2")
+        cle, secondes = l
+        if not re.match(CLE_PUBLIABLE, cle):
+            raise ValueError(f"durées publiées, ligne {n} : clé hors de la forme d'un lancement")
+        if not re.fullmatch(r"[0-9]+", secondes):
+            raise ValueError(f"durées publiées, ligne {n} : secondes non numériques")
+        if cle in rendu:
+            raise ValueError(f"durées publiées, ligne {n} : clé en double")
+        rendu[cle] = int(secondes)
+    return rendu
+
+
+def lire_les_durees_publiees(racine):
+    """Rend les durées publiées du dépôt, {clé : secondes}, vérifiées par `garder_les_durees` ; {} si le fichier manque.
+
+    ① RÔLE — Donner à `durees_relevees` les durées quand les journaux ne sont pas là (la copie jouée sur GitHub).
+    ② CONTEXTE D'APPEL — `durees_relevees`, quand aucun journal de certification n'existe ; les épreuves
+      tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py.
+    ③ ENTRÉE — `racine` : le dépôt.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : {clé du lancement : secondes} ; {} si `DUREES_PUBLIEES` n'existe pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — lire le CSV (module csv), le passer à `garder_les_durees`.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 15h34 (A-968) : que GitHub juge N5 sur de vraies durées.
+      Fichier absent : {} et non une erreur — c'est l'état d'avant A-968, où chaque lancement compte pour son délai.
+    ⑨ CE QUI CLOCHE — Des durées périmées font une prévision périmée : rien ici ne dit de quand elles datent.
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError (fichier malformé).
+      [sort: non]
+    """
+    import csv
+    chemin = os.path.join(racine, DUREES_PUBLIEES)
+    if not os.path.isfile(chemin):
+        return {}
+    with open(chemin, encoding="utf-8", newline="") as f:
+        return garder_les_durees([l for l in csv.reader(f)])
+
+
+def publier_les_durees(racine):
+    """Écrit `DUREES_PUBLIEES` à partir des journaux, par `durees_relevees`, et rend le nombre de clés écrites.
+
+    ① RÔLE — Fabriquer le fichier des durées publiables (A-968).
+    ② CONTEXTE D'APPEL — `main`, sur « --publier-les-durees », au dépôt privé où vivent les journaux ; les épreuves
+      tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py.
+    ③ ENTRÉE — `racine` : le dépôt.
+    ④ CONDITIONS D'ENTRÉE — Au moins un journal de certification sous `JOURNAUX` ; sinon ValueError (refaire le fichier
+      à partir de lui-même ne publierait rien de neuf, et le ferait croire).
+    ⑤ SORTIE — UNE valeur : le nombre de clés écrites.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① vérifier qu'un journal existe · ② `durees_relevees(racine)` (aucune durée recopiée : R-708) ·
+      ③ en faire un tableau en-tête + lignes triées par clé · ④ `garder_les_durees` sur ce tableau AVANT d'écrire ·
+      ⑤ écrire dans un fichier voisin puis le renommer (jamais de fichier à moitié écrit).
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 15h34, réponse « 1 » : « Publier au dépôt public les seules
+      durées des épreuves (des chiffres de temps, aucun cours) pour que GitHub juge pour de vrai ». Jamais les
+      journaux eux-mêmes : ils portent aussi les sorties des épreuves.
+    ⑨ CE QUI CLOCHE — Depuis A-969 (décision de Jean-Luc du 21-11-2026 à 16h09), la tâche finale de la certification
+      de nuit l'appelle (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, PUBLIER_LES_DUREES) ; une nuit qui ne tourne pas, ou
+      dont ce pas échoue, laisse le fichier de la veille : ses durées vieillissent jusqu'à la nuit suivante.
+    ⑩ EFFET — Écrit `DUREES_PUBLIEES`.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError.
+      [sort: non]
+    """
+    import csv
+    import re
+    dossier = os.path.join(racine, JOURNAUX)
+    if not any(re.match(JOURNAL_DE_CERTIFICATION, f) for f in (os.listdir(dossier) if os.path.isdir(dossier) else [])):
+        raise ValueError(f"aucun journal de certification sous {JOURNAUX} : rien à publier")
+    durees = durees_relevees(racine)
+    lignes = [list(COLONNES_DES_DUREES)] + [[c, str(durees[c])] for c in sorted(durees)]
+    garder_les_durees(lignes)
+    chemin = os.path.join(racine, DUREES_PUBLIEES)
+    with open(chemin + ".en_cours", "w", encoding="utf-8", newline="") as f:
+        csv.writer(f, lineterminator="\n").writerows(lignes)
+    os.replace(chemin + ".en_cours", chemin)
+    return len(lignes) - 1
+
+
 def repartir(lancements, durees, delais, nombre):
     """Répartit les lancements en `nombre` tranches de charges voisines, chaque épreuve entière dans une seule.
 
@@ -914,8 +1223,9 @@ def repartir(lancements, durees, delais, nombre):
     ⑤ SORTIE — DEUX valeurs : la liste des `nombre` tranches (chacune : ses lancements, dans l'ordre de
       `lancements`) ; la liste de leurs charges prévues, en secondes.
       [rend: 2]
-    ⑥ TRAITEMENT — ① grouper les lancements par épreuve (son chemin) · ② la durée prévue d'un lancement : sa durée
-      relevée, sinon son délai déclaré, sinon `DUREE_MAX_EPREUVE` · ③ ranger les épreuves de la plus longue à la plus
+    ⑥ TRAITEMENT — ① grouper les lancements par épreuve (son chemin), chaque morceau à part (`unite_de`) · ② la durée
+      prévue d'un lancement : sa durée relevée, sinon (morceau) sa part calculée, sinon son délai déclaré, sinon
+      `DUREE_MAX_EPREUVE` · ③ ranger les épreuves de la plus longue à la plus
       courte (à égalité : par chemin), chacune dans la tranche la moins chargée (à égalité : la première).
     ⑦ UNITÉ — Des secondes.
     ⑧ POURQUOI — Une PROPRIÉTÉ, jamais une liste de noms : une épreuve ajoutée est rangée sans qu'on y pense. Une
@@ -932,7 +1242,7 @@ def repartir(lancements, durees, delais, nombre):
     """
     groupes = collections.OrderedDict()
     for l in lancements:
-        groupes.setdefault(l[0], []).append(l)
+        groupes.setdefault(unite_de(l), []).append(l)
 
     def prevue(l):
         """Rend la durée prévue d'un lancement d'épreuve, en secondes.
@@ -941,7 +1251,9 @@ def repartir(lancements, durees, delais, nombre):
         ② CONTEXTE D'APPEL — `repartir`, dans le tri des épreuves et dans le cumul des charges.
         ③ ENTRÉE — `l` : un lancement de `lister_les_epreuves` (l[0] : le chemin de l'épreuve, l[2] : ses arguments).
         ④ CONDITIONS D'ENTRÉE — —
-        ⑤ SORTIE — UNE valeur : la durée relevée de ce lancement, sinon son délai déclaré, sinon `DUREE_MAX_EPREUVE`.
+        ⑤ SORTIE — UNE valeur : la durée relevée de ce lancement, sinon — pour un morceau dont le lancement entier a
+          une durée relevée — sa part calculée (`charge_estimee_du_morceau`), sinon son délai déclaré, sinon
+          `DUREE_MAX_EPREUVE`.
           [rend: 1]
         ⑥ TRAITEMENT — ① la clé du lancement (`cle_de`) · ② la chercher dans `durees`, puis dans `delais`.
         ⑦ UNITÉ — Des secondes.
@@ -952,6 +1264,8 @@ def repartir(lancements, durees, delais, nombre):
           [sort: non]
         """
         cle = cle_de(l[0], l[2])
+        if cle not in durees and cle_de(l[0], ["--saboter"]) in durees and morceau_de(l):
+            return charge_estimee_du_morceau(l, lancements, durees[cle_de(l[0], ["--saboter"])])
         return durees.get(cle, delais.get(cle, DUREE_MAX_EPREUVE))
 
     unites = sorted(groupes, key=lambda c: (-sum(prevue(l) for l in groupes[c]), c))
@@ -960,7 +1274,95 @@ def repartir(lancements, durees, delais, nombre):
         i = min(range(nombre), key=lambda k: (charges[k], k))
         charges[i] += sum(prevue(l) for l in groupes[c])
         choisies[i].add(c)
-    return [[l for l in lancements if l[0] in choisies[i]] for i in range(nombre)], charges
+    return [[l for l in lancements if unite_de(l) in choisies[i]] for i in range(nombre)], charges
+
+
+def morceau_de(l):
+    """Rend « i/N » si le lancement est un morceau (MORCEAUX_DE_LA_NUIT), sinon le texte vide.
+
+    ① RÔLE — Reconnaître un morceau à ses arguments.
+    ② CONTEXTE D'APPEL — `unite_de`, `repartir`, `charge_estimee_du_morceau`, `comparer`.
+    ③ ENTRÉE — `l` : un lancement [chemin, dossier, arguments].
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le texte après ARGUMENT_DU_MORCEAU, ou « ».
+      [rend: 1]
+    ⑥ TRAITEMENT — le premier argument qui commence par ARGUMENT_DU_MORCEAU.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une seule rédaction de la reconnaissance (R-708).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return next((a[len(ARGUMENT_DU_MORCEAU):] for a in l[2] if a.startswith(ARGUMENT_DU_MORCEAU)), "")
+
+
+def unite_de(l):
+    """Rend l'unité de rangement d'un lancement dans les tranches : son épreuve, ou son épreuve et son morceau.
+
+    ① RÔLE — Dire ce que `repartir` garde ensemble dans une même tranche.
+    ② CONTEXTE D'APPEL — `repartir`, deux fois par lancement.
+    ③ ENTRÉE — `l` : un lancement.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le chemin de l'épreuve, suivi de « --morceau=i/N » pour un morceau.
+      [rend: 1]
+    ⑥ TRAITEMENT — joindre.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une épreuve reste entière dans une tranche (fiche de `repartir`, ⑧), SAUF ses morceaux : chacun est
+      rangé à part, c'est tout l'objet de la découpe (A-972). Le lancement normal de l'épreuve reste rangé à part
+      lui aussi, sous le seul chemin : aucune série jouée hors de la nuit n'est en morceaux (`morceaux_declares`).
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    m = morceau_de(l)
+    return l[0] + (" " + ARGUMENT_DU_MORCEAU + m if m else "")
+
+
+def charge_estimee_du_morceau(l, lancements, duree_entiere):
+    """Rend la charge prévue d'un morceau jamais joué, calculée depuis la durée relevée du lancement entier.
+
+    ① RÔLE — Donner à `repartir` le poids d'un morceau la première nuit, sans l'écrire à la main (R-728).
+    ② CONTEXTE D'APPEL — `repartir` (fonction `prevue`), pour un morceau sans durée relevée.
+    ③ ENTRÉE — `l` : le morceau · `lancements` : tous, pour compter les sabotages de ses frères · `duree_entiere` :
+      la durée relevée de « <chemin> --saboter », en secondes.
+    ④ CONDITIONS D'ENTRÉE — `l` est un morceau, et porte ARGUMENT_DES_SABOTAGES.
+    ⑤ SORTIE — UNE valeur : un nombre entier de secondes.
+      [rend: 1]
+    ⑥ TRAITEMENT — k = sabotages du morceau, K = sabotages de tous les morceaux de la même épreuve ; le lancement entier
+      jouait Z0 puis K sabotages, le morceau joue Z0 puis k : durée entière × (k + 1) ÷ (K + 1), arrondie au-dessus.
+    ⑦ UNITÉ — Des secondes.
+    ⑧ POURQUOI — Sans elle, un morceau jamais joué compterait pour son délai (10 800 s, hérité du lancement entier) et
+      N5 rougirait à tort la première nuit. Compter Z0 dans chaque morceau rend la somme des morceaux PLUS grande que la
+      durée entière : l'estimation pèche par excès, jamais par défaut.
+    ⑨ CE QUI CLOCHE — Elle suppose des sabotages de durée égale ; l'alternance des rangs (`lancements_des_morceaux`) le
+      rend vraisemblable, rien ne le garantit. Dès qu'une nuit a joué le morceau, sa durée relevée la remplace.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    def compte(x):
+        """Rend le nombre de sabotages qu'un morceau joue (Z0 non compté).
+
+        ① RÔLE — Compter les codes de « --seulement=… ».
+        ② CONTEXTE D'APPEL — `charge_estimee_du_morceau`, pour le morceau et pour chacun de ses frères.
+        ③ ENTRÉE — `x` : un lancement.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : un entier, 0 si le lancement ne porte pas ARGUMENT_DES_SABOTAGES.
+          [rend: 1]
+        ⑥ TRAITEMENT — découper le texte après « = » sur les virgules.
+        ⑦ UNITÉ — Des sabotages.
+        ⑧ POURQUOI — La part d'un morceau se calcule sur ce qu'il joue vraiment (R-728).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        return sum(len(a[len(ARGUMENT_DES_SABOTAGES):].split(",")) for a in x[2] if a.startswith(ARGUMENT_DES_SABOTAGES))
+    k = compte(l)
+    tous = sum(compte(x) for x in lancements if x[0] == l[0] and morceau_de(x))
+    return -(-duree_entiere * (k + 1) // (tous + 1))
 
 
 def empreinte_de_la_repartition(tranches):
@@ -1262,6 +1664,11 @@ def fichiers_de_commandes_de_github():
 _COMMANDES_DE_GITHUB = None
 
 
+# Après la coupure d'une épreuve, le temps laissé pour lire ce qui reste dans ses tuyaux (M-1, 21-11-2026) : le
+# groupe est déjà tué, les tuyaux se ferment aussitôt ; la borne ne sert que si un petit-processus a quitté le groupe.
+DELAI_DE_LECTURE_APRES_COUPURE = 30   # secondes
+
+
 def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUREE_MAX_EPREUVE, lectures=None,
           garder=None):
     """Joue une épreuve sous la mesure et rend son code, sa durée et les lignes de sa sortie.
@@ -1284,7 +1691,8 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
     ⑥ TRAITEMENT — lancer `py <épreuve> <arguments>` dans le dossier, avec les variables qui
       arment la mesure et désignent le dossier des empreintes, sans la configuration Git de
       la machine (`SANS_LA_CONFIGURATION_GIT_DE_LA_MACHINE`), et sans aucune des variables des fichiers de
-      commandes de GitHub (`fichiers_de_commandes_de_github`).
+      commandes de GitHub (`fichiers_de_commandes_de_github`), dans un groupe de processus à elle, avec un TMPDIR
+      neuf ; à la coupure, SIGKILL au groupe, puis lecture de ce qui reste dans les tuyaux ; le TMPDIR est effacé.
     ⑦ UNITÉ — Des secondes.
     ⑧ POURQUOI — Le même Python pour toutes les épreuves : la mesure les suit toutes. Sans la
       configuration Git de la machine : le 02-10-2026 à 19h37, la machine du Chat signait ses
@@ -1299,14 +1707,22 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
       Garder la sortie d'une épreuve coupée : superviseur R-759 du 15-11-2026 (etudes/PLAN_V7_SOUS_L_OUTIL_PLANNING/rapports_du_11-11-2026/
       SUPERVISEUR_CERT3_Dim_15-11-2026.md, §2, A2, « DE FOND ») — une coupure est justement un rouge à diagnostiquer,
       et la donnée était déjà portée par l'exception ; elle était jetée.
+      LA COUPURE TUE TOUT LE GROUPE ET EFFACE LE DOSSIER JETABLE (M-1 des relectures de Cowork, hérité, encore
+      relevé le 21-11-2026 ; T3-6 du BACKLOG) : avant, `subprocess.run(…, timeout=…)` ne tuait que l'épreuve ; ses
+      petits-processus survivaient et son dossier jetable restait sur la machine. L'épreuve est lancée dans un groupe
+      de processus à elle (`start_new_session`), tué entier à la coupure (`os.killpg`), et son TMPDIR est un dossier
+      neuf, effacé à la fin, coupée ou non.
     ⑨ CE QUI CLOCHE — Une épreuve qui écrit dans la copie peut gêner la suivante ; toutes
       sont écrites pour travailler sur leurs propres copies. La sortie entière est tenue en mémoire : une épreuve
       bavarde (des centaines de milliers de lignes) pèserait d'autant ; aucune n'a été mesurée ainsi. Une épreuve
-      coupée : stdout et stderr sont mis bout à bout, sans leur entrelacement réel ; une épreuve dont des
-      petits-processus tiennent encore les tuyaux après la coupure n'a pas été essayée (THÉORIQUE : sous POSIX,
-      `subprocess.run` ne fait que `wait()` après `kill()`).
-    ⑩ EFFET — Lance un processus.
-    ⑪ TERMINAISON — Rend la main ; l'épreuve est arrêtée à `delai` secondes.
+      coupée : stdout et stderr sont mis bout à bout, sans leur entrelacement réel. Un petit-processus qui quitte
+      lui-même le groupe (« setsid ») échappe à la coupure ; s'il tient les tuyaux, la lecture qui suit la coupure
+      s'arrête à DELAI_DE_LECTURE_APRES_COUPURE s et ne garde que ce que l'exception portait. Un dossier jetable créé
+      HORS de TMPDIR (chemin écrit en dur) n'est pas effacé.
+    ⑩ EFFET — Lance un processus ; crée puis efface un dossier jetable ; à la coupure, tue le groupe de l'épreuve.
+    ⑪ TERMINAISON — Rend la main ; l'épreuve est arrêtée à `delai` secondes, la lecture qui suit à
+      DELAI_DE_LECTURE_APRES_COUPURE s de plus. Aucun de mes appels ne peut ne pas revenir : `communicate` est borné
+      deux fois, et `wait` suit un SIGKILL du processus lui-même.
       [sort: non]
     """
     env = dict(os.environ, COVERAGE_PROCESS_START=reglages, CERTIF_MANIFESTES=manifestes)
@@ -1316,16 +1732,35 @@ def jouer(copie, py, reglages, manifestes, chemin, dossier, arguments, delai=DUR
     if lectures:
         env["CERTIF_LECTURES"] = lectures
     args = [a.replace("{copie}", copie) for a in arguments]
+    jetable = tempfile.mkdtemp(prefix="epreuve_jouee_")   # M-1 : son TMPDIR à elle, effacé quoi qu'il arrive
+    env["TMPDIR"] = jetable
     debut = time.time()
+    p = subprocess.Popen([py, os.path.join(copie, chemin)] + args, cwd=os.path.join(copie, dossier), env=env,
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace",
+                         start_new_session=True)
     try:
-        r = subprocess.run([py, os.path.join(copie, chemin)] + args, cwd=os.path.join(copie, dossier), env=env,
-                           capture_output=True, text=True, errors="replace", timeout=delai)
-        code, sortie = r.returncode, (r.stdout + r.stderr)
+        sortie_std, sortie_err = p.communicate(timeout=delai)
+        code, sortie = p.returncode, (sortie_std + sortie_err)
     except subprocess.TimeoutExpired as e:
+        # M-1 : tout le GROUPE est tué — l'épreuve et ses petits-processus — et non l'épreuve seule ; puis ce qui reste
+        # dans les tuyaux est lu, borné à DELAI_DE_LECTURE_APRES_COUPURE s (un petit-processus sorti du groupe par
+        # « setsid » les tiendrait ouverts : on garde alors ce que l'exception portait)
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            # superviseur R-759 du 21-11-2026, 4 (a), mesuré hors dépôt : le groupe peut être déjà vide (meneur ramassé,
+            # petits-processus partis) ; rien à tuer, la coupure continue au lieu de faire tomber la tranche
+            pass
+        try:
+            e.stdout, e.stderr = p.communicate(timeout=DELAI_DE_LECTURE_APRES_COUPURE)
+        except subprocess.TimeoutExpired:
+            p.wait()
         # ce que l'épreuve coupée a écrit : sous text=True, l'exception le rend en OCTETS, et None si rien n'a été
         # écrit (mesuré, Python 3.13) — décodé ou ignoré, sinon TypeError ici et la tranche tomberait sans partiel
         lu = "".join(x.decode("utf-8", "replace") if isinstance(x, bytes) else x for x in (e.stdout, e.stderr) if x)
         code, sortie = 124, lu + f"\nARRÊTÉE : plus de {delai} s"
+    finally:
+        shutil.rmtree(jetable, ignore_errors=True)
     lignes = [l for l in sortie.strip().splitlines() if l.strip()]
     return code, round(time.time() - debut), (lignes if garder is None else lignes[-garder:])
 
@@ -1342,7 +1777,8 @@ def comparer(tableau, lancements, reference, sources):
     ⑤ SORTIE — DEUX valeurs : les reculs de mesure (lignes, embranchements, fonctions, lignes
       non examinées supprimées ou modifiées) et les épreuves disparues, en phrases.
       [rend: 2]
-    ⑥ TRAITEMENT — ① chaque lancement de la référence doit être encore joué · ② pour chaque
+    ⑥ TRAITEMENT — ① chaque lancement de la référence doit être encore joué, comparé sans « --seulement=… » ; le
+      lancement entier « --saboter » d'une épreuve est joué si TOUS ses morceaux 1/N … N/N le sont (A-972) · ② pour chaque
       programme, et pour chaque texte de ligne ou couple d'embranchement, le nombre de
       non-examinés ne doit pas augmenter ; une fonction non examinée doit être déjà dans la
       liste de la référence ; un programme absent de la référence doit tout avoir examiné ;
@@ -1376,9 +1812,36 @@ def comparer(tableau, lancements, reference, sources):
         if nom not in sources and r.get("lignes_non_examinees"):
             mesure.append(f"{nom} : programme supprimé alors que {sum(r['lignes_non_examinees'].values())} ligne(s) n'y "
                           "étaient exécutées par aucune épreuve — l'éprouver d'abord, ou l'accord de Jean-Luc")
-    joues = {json.dumps(l) for l in lancements}
+    def forme(l):
+        """Rend la forme comparable d'un lancement : le lancement sans ses arguments « --seulement=… », en JSON.
+
+        ① RÔLE — Comparer un lancement de la référence à ceux de la version sans dépendre de la liste des sabotages.
+        ② CONTEXTE D'APPEL — `comparer`, une fois par lancement de la version et de la référence.
+        ③ ENTRÉE — `l` : un lancement [chemin, dossier, arguments].
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : un texte JSON.
+          [rend: 1]
+        ⑥ TRAITEMENT — filtrer les arguments, puis json.dumps.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Un sabotage ajouté à une épreuve en morceaux change les codes d'un morceau : sans ce filtre, la
+          référence verrait le morceau « disparu » à chaque ajout (A-972).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — —
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        return json.dumps([l[0], l[1], [a for a in l[2] if not a.startswith(ARGUMENT_DES_SABOTAGES)]])
+    joues = {forme(l) for l in lancements}
+    morceaux_joues = collections.defaultdict(set)
+    for l in lancements:
+        if morceau_de(l):
+            morceaux_joues[(l[0], l[1])].add(morceau_de(l))
+    for (chemin, dossier), vus in morceaux_joues.items():
+        n = {m.split("/")[1] for m in vus}
+        if len(n) == 1 and vus == {f"{i}/{next(iter(n))}" for i in range(1, int(next(iter(n))) + 1)}:
+            joues.add(json.dumps([chemin, dossier, ["{copie}", "--saboter"]]))
     for l in reference.get("epreuves", []):
-        if json.dumps(l) not in joues:
+        if forme(l) not in joues:
             epreuves.append(f"épreuve disparue : {l[0]} {' '.join(a for a in l[2] if a != '{copie}')}")
     ref = reference.get("programmes", {})
     for nom, m in tableau.items():
@@ -1789,6 +2252,8 @@ def main():
       MODE TRANCHE (« --tranche i/n ») : les lancements sont répartis (`repartir`, durées de `durees_relevees`) ;
       seuls ceux de la tranche i sont joués ; le certificat partiel est écrit (`ecrire_le_partiel`), et non le
       certificat ; rend 2 si la tranche n'a pas pu jouer, 1 si une épreuve est rouge, 0 sinon.
+      MODE PUBLICATION (« --publier-les-durees », seul) : rien n'est joué ; `publier_les_durees` écrit
+      `DUREES_PUBLIEES` ; 0 si écrit, 2 sinon (A-968, décision de Jean-Luc du 21-11-2026 à 15h34).
       MODE RÉUNION (« --reunir n ») : rien n'est joué ; les certificats partiels sont lus et vérifiés
       (`reunir_les_tranches`) ; une tranche absente, rouge d'impossibilité, d'un autre passage ou d'un autre code, ou
       un lancement joué zéro ou deux fois : CERTIFICATION IMPOSSIBLE, code 2 ; sinon la conclusion est celle de la
@@ -1797,15 +2262,26 @@ def main():
     ⑧ POURQUOI — Voir la fiche en tête. Les tranches : décision de Jean-Luc du 30-10-2026 à 19h02 (voir `JOURNAUX`).
     ⑨ CE QUI CLOCHE — Une épreuve rouge d'une tranche fait rougir la tranche ET la réunion : la réunion le dit dans
       le certificat, la tranche dans son job.
-    ⑩ EFFET — Voir la fiche en tête ; en mode tranche, écrit `PARTIELS`/TRANCHE_<i>.json au lieu du certificat.
+    ⑩ EFFET — Voir la fiche en tête ; en mode tranche, écrit `PARTIELS`/TRANCHE_<i>.json au lieu du certificat ; en
+      mode publication, écrit `DUREES_PUBLIEES` et rien d'autre.
     ⑪ TERMINAISON — Rend la main au bloc de lancement ; le dossier jetable est effacé.
       [sort: non]
     """
     racine, ecrire, accord, tranche, reunir, refus = lire_la_ligne_de_commande(sys.argv)
     if racine is None:
         print("CERTIFICATION IMPOSSIBLE — " + refus + " — usage : CERTIFIER_LA_VERSION.py <racine du dépôt> "
-              "[--ecrire-la-reference [--accord \"…\"]] [--tranche i/n | --reunir n]")
+              "[--ecrire-la-reference [--accord \"…\"]] [--tranche i/n | --reunir n | --publier-les-durees]")
         return 2
+    if "--publier-les-durees" in sys.argv:
+        if ecrire or tranche or reunir:
+            print("PUBLICATION IMPOSSIBLE — « --publier-les-durees » se lance seul")
+            return 2
+        try:
+            print(f"DURÉES PUBLIÉES — {publier_les_durees(racine)} clé(s) dans {DUREES_PUBLIEES}")
+            return 0
+        except (OSError, ValueError) as e:
+            print(f"PUBLICATION IMPOSSIBLE — {e}")
+            return 2
     maintenant = datetime.now(ZoneInfo("Europe/Paris"))
     horodatage = ("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim")[maintenant.weekday()] + maintenant.strftime(" %d-%m-%Y %Hh%M")
     passage = os.environ.get("GITHUB_RUN_ID") or "local"

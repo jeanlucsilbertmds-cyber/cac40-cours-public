@@ -17,7 +17,7 @@
 # La tâche finale lit ensuite les certificats partiels à la pointe de main, où les tranches les ont
 # poussés ; le code qu'elle exécute reste celui du commit noté.
 name: Certifier la version
-run-name: "Certifier la version places 1+15"
+run-name: "Certifier la version places 1+18"
 on:
   workflow_dispatch:
     inputs:
@@ -95,6 +95,9 @@ jobs:
           - 13
           - 14
           - 15
+          - 16
+          - 17
+          - 18
     defaults:
       run:
         shell: python3 programmes/ETAPE_MUETTE.py {0}
@@ -195,7 +198,7 @@ jobs:
         continue-on-error: true
         run: |
           python3 -c "import sys; sys.exit(0 if sys.version_info[:2] == (3, 11) else 3)"
-          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/15
+          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --tranche ${{ matrix.tranche }}/18
       - name: Deposer au depot prive
         id: deposer
         if: always()
@@ -210,13 +213,15 @@ jobs:
           git add rapports/certificats_partiels/ rapports/journal_du_circuit/ \
             || { echo "::error::certificat partiel ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
-          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
-          for i in $(seq 1 18); do
+          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]" \
+            || { echo "::error::COMMIT IMPOSSIBLE — le certificat reste sur la machine jetable"; exit 1; }
+          for i in $(seq 1 21); do
             git rebase --abort 2>/dev/null || true
             if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
-          echo "::error::POUSSEE REFUSEE 18 FOIS — le certificat reste sur la machine jetable"; exit 1
+          git rebase --abort 2>/dev/null || true
+          echo "::error::POUSSEE REFUSEE 21 FOIS — le certificat reste sur la machine jetable"; exit 1
       - name: Rougir si la version n'est pas certifiee
         id: verdict
         if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'success' }}
@@ -316,7 +321,7 @@ jobs:
       - name: Reunir les tranches
         id: certifier
         continue-on-error: true
-        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir 15
+        run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir 18
       - name: Deposer au depot prive
         id: deposer
         if: always()
@@ -327,13 +332,42 @@ jobs:
           git add rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/ \
             || { echo "::error::certificat ou journal introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
-          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]"
-          for i in $(seq 1 18); do
+          git commit -q -m "certificat de la version, passage public ${GITHUB_RUN_ID} [skip ci]" \
+            || { echo "::error::COMMIT IMPOSSIBLE — le certificat reste sur la machine jetable"; exit 1; }
+          for i in $(seq 1 21); do
             git rebase --abort 2>/dev/null || true
             if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
-          echo "::error::POUSSEE REFUSEE 18 FOIS — le certificat reste sur la machine jetable"; exit 1
+          git rebase --abort 2>/dev/null || true
+          echo "::error::POUSSEE REFUSEE 21 FOIS — le certificat reste sur la machine jetable"; exit 1
+      - name: Publier les durees des epreuves
+        id: publier_les_durees
+        if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'skipped' }}
+        run: |
+          git checkout FETCH_HEAD -- rapports/journal_du_circuit \
+            || { echo "::error::JOURNAUX DE LA NUIT ILLISIBLES — durees non publiees"; exit 1; }
+          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees \
+            || { echo "::error::DUREES DES EPREUVES NON PUBLIEES — le certificat est depose quand meme"; exit 1; }
+      - name: Deposer les durees au depot prive
+        id: deposer_les_durees
+        if: ${{ !cancelled() && steps.publier_les_durees.outcome != 'skipped' }}
+        shell: bash
+        run: |
+          git config user.name durees-publiees
+          git config user.email durees-publiees@users.noreply.github.com
+          git add rapports/durees_des_epreuves_en_secondes.csv rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log \
+            || { echo "::error::fichier des durees ou journal de la tache introuvable"; exit 1; }
+          if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
+          git commit -q -m "durees des epreuves et journal de la tache, passage public ${GITHUB_RUN_ID} [skip ci]" \
+            || { echo "::error::COMMIT IMPOSSIBLE — le fichier des durees reste sur la machine jetable"; exit 1; }
+          for i in $(seq 1 21); do
+            git rebase --abort 2>/dev/null || true
+            if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
+            sleep $((RANDOM % 15 + 1))
+          done
+          git rebase --abort 2>/dev/null || true
+          echo "::error::POUSSEE REFUSEE 21 FOIS — le fichier des durees reste sur la machine jetable"; exit 1
       - name: Rougir si la version n'est pas certifiee
         id: verdict
         if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'success' }}

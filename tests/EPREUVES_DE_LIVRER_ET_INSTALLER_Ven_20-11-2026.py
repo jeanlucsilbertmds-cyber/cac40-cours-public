@@ -37,6 +37,8 @@ import time
 
 # Les cas choisis par « --cas=I13,L15 » (vide : tous) ; essais courts d'un défaut sans rejouer les 43 cas (21-11-2026).
 CHOISIS = set()
+NOM_DE_L_EPREUVE = "EPREUVES_DE_LIVRER_ET_INSTALLER_Ven_20-11-2026.py"   # son nom au dépôt (le lancement imbriqué s'appelle EPREUVE.py)
+VUS = set()   # les noms de cas que `choisi` a vus pendant le passage (N-31 : de quoi reconnaître un nom inconnu)
 
 
 def choisi(nom):
@@ -48,9 +50,10 @@ def choisi(nom):
       (lettres seules, « R ») est le début de `nom`, ou si `nom` est une famille dont un cas est choisi.
       [rend: 1]
     ⑥ TRAITEMENT — —. ⑦ UNITÉ — — ⑧ POURQUOI — Un sabotage rejoue les 43 cas (plus de 2 minutes).
-    ⑨ CE QUI CLOCHE — Un essai restreint ne dit rien des autres cas. ⑩ EFFET — —. ⑪ TERMINAISON — Rend la main.
+    ⑨ CE QUI CLOCHE — Un essai restreint ne dit rien des autres cas. ⑩ EFFET — Ajoute `nom` à VUS. ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
+    VUS.add(nom)
     return not CHOISIS or any(c == nom or (c.isalpha() and nom.startswith(c)) or (nom.isalpha() and c.startswith(nom))
                               for c in CHOISIS)
 
@@ -827,7 +830,8 @@ def cas_installer(progs, source):
       en --verifier → 4, main installée (N-24). RELU de Cowork sur 6f2775bf3 (N-29) : I27 la vérification lève un
       arrêt prévu (L.Arret) après la publication → 4, main installée, public publié ; I27b elle lève une autre
       exception (OSError) → 4, de même ; I28 RELU commité par « coworker », un auteur qui COMMENCE par « cowork »
-      → 1 (N-30).
+      → 1 (N-30). RELU de Cowork sur ba1340283 (N-32) : I29 RELU commité par « Cowork » (la casse est ignorée) → 0,
+      installé ; I30 « cowork2 » (suffixe) → 1 ; I31 « pas-cowork » (le nom se termine par « cowork ») → 1.
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026, A-818 et réparation du soir (points A et D).
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
@@ -1025,6 +1029,10 @@ def cas_installer(progs, source):
         ("I27", 4, verification_qui_leve('L.Arret(L.TOMBE, "clone public refusé (épreuve I27)")'), {}),
         ("I27b", 4, verification_qui_leve('OSError("disque plein (épreuve I27b)")'), {}),
         ("I28", 1, preuves, {"auteur": "coworker"}),
+        # N-32 (RELU de Cowork sur ba1340283) : ni la casse, ni un suffixe, ni un préfixe ne font un autre auteur
+        ("I29", 0, preuves, {"auteur": "Cowork"}),
+        ("I30", 1, preuves, {"auteur": "cowork2"}),
+        ("I31", 1, preuves, {"auteur": "pas-cowork"}),
     )
     mondes = {"I14": {"liste": "- aucune"}, "I15": {"liste": "- aucune", "code_change": False},
               "I18": {"liste": "- aucune", "code_change": False},
@@ -1295,6 +1303,39 @@ def cas_des_fiches(progs, source):
              + ("ok" if not ecarts else " ; ".join(ecarts)))]
 
 
+def cas_des_arguments(progs, source):
+    """N31 : un nom inconnu dans --saboter= ou --cas= est refusé ; rend la liste des (nom, vrai si passé, détail).
+
+    ① RÔLE — Garder R-734 (un contrôle qui n'a pas pu tourner ne rend jamais 0) pour les arguments de l'épreuve.
+    ② CONTEXTE D'APPEL — `jouer`.
+    ③ ENTRÉE — `progs` : le dossier des programmes, qui porte « EPREUVE.py » (copie, sabotable) · `source`.
+    ④ CONDITIONS D'ENTRÉE — « EPREUVE.py » présent dans `progs` (écrit par `copier_les_programmes`).
+    ⑤ SORTIE — UNE valeur : la liste (vide si N31 n'est pas choisi), un cas N31.
+      [rend: 1]
+    ⑥ TRAITEMENT — Relance « EPREUVE.py » deux fois, avec « --saboter=ZZ99 --ancres » puis « --cas=ZZ99 » (noms qui n'existent
+      pas). Chaque lancement doit rendre le code 2 et nommer au moins un nom connu (« S1 » ; « I1 »).
+    ⑦ UNITÉ — Secondes (délai de 30 s par lancement). ⑧ POURQUOI — N-31 (RELU de Cowork sur ba1340283) : un nom
+      faux rendait « TOUT PASSE » sans rien jouer.
+    ⑨ CE QUI CLOCHE — Le lancement imbriqué rejoue les ancres (A0) ; le délai dépassé compte comme échec.
+    ⑩ EFFET — Deux sous-processus, sans écriture hors /tmp. ⑪ TERMINAISON — Rend la main ; chaque appel est borné (30 s).
+      [sort: non]
+    """
+    if not choisi("N31"):
+        return []
+    ecarts = []
+    for args, connu in ((["--saboter=ZZ99", "--ancres"], "S1"), (["--cas=ZZ99"], "I1")):   # --ancres : sans le garde, sortie vite
+        try:
+            p = subprocess.run([sys.executable, "-B", os.path.join(progs, "EPREUVE.py"), source] + args,
+                               capture_output=True, text=True, timeout=30)
+        except subprocess.TimeoutExpired:
+            ecarts.append(f"{args[0]} : délai dépassé")
+            continue
+        if p.returncode != 2 or connu not in p.stdout:
+            ecarts.append(f"{args[0]} : code {p.returncode} (attendu 2), nom connu {connu} {'présent' if connu in p.stdout else 'absent'}")
+    return [("N31", not ecarts, "N31 un nom inconnu rend 2 et liste les noms connus (N-31) : "
+             + ("ok" if not ecarts else " ; ".join(ecarts)))]
+
+
 SABOTAGES = (
     ("S1 publication sautée", "LIVRER.py",
      "public, pub = publier_au_public(wt, branche)",
@@ -1422,6 +1463,16 @@ SABOTAGES = (
     # N-30 du RELU de Cowork sur 6f2775bf3 (22-11-2026) : un auteur qui commence par « cowork » n'est pas Cowork
     ("N30 auteur de Cowork lu comme préfixe (LIVRER.est_cowork)", "LIVRER.py",
      '    return auteur.strip().lower() == "cowork"', '    return auteur.strip().lower().startswith("cowork")'),
+    # N-32 du RELU de Cowork sur ba1340283 (22-11-2026) : la casse et la fin du nom ne sont plus sans dents
+    ("N32a casse non ignorée (LIVRER.est_cowork, I29)", "LIVRER.py",
+     '    return auteur.strip().lower() == "cowork"', '    return auteur.strip() == "cowork"'),
+    ("N32b auteur de Cowork lu comme fin de nom (LIVRER.est_cowork, I31)", "LIVRER.py",
+     '    return auteur.strip().lower() == "cowork"', '    return auteur.strip().lower().endswith("cowork")'),
+    # N-31 du même RELU : un nom inconnu dans --saboter= ou --cas= rendait « TOUT PASSE » sans rien jouer (R-734)
+    ("N31a nom de sabotage inconnu accepté (N31)", "EPREUVE.py",
+     "        if inconnus_s:   # N-31 " + "/ R-734", "        if False:   # N-31 " + "/ R-734"),
+    ("N31b nom de cas inconnu accepté (N31)", "EPREUVE.py",
+     "        if inconnus_c:   # N-31 " + "/ R-734", "        if False:   # N-31 " + "/ R-734"),
     # N-29 du RELU de Cowork sur 6f2775bf3 (22-11-2026) : un sabotage par `except` de republier_apres_installation
     ("N29a arrêt prévu de la vérification rendu comme 0", "INSTALLER.py",
      '        return PUBLIC_EN_RETARD, f"vérification impossible : {e.args[1]}"', '        return INSTALLE, ""'),
@@ -1437,14 +1488,14 @@ def jouer(progs, source):
     ③ ENTRÉE — `progs` · `source`. ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste.
       [rend: 1]
-    ⑥ TRAITEMENT — Les trois familles de cas, puis R0 : aucun dossier /tmp/livrer_* nouveau (ceux trouvés sont
+    ⑥ TRAITEMENT — Les familles de cas (dont N31, `cas_des_arguments`), puis R0 : aucun dossier /tmp/livrer_* nouveau (ceux trouvés sont
       effacés après le compte). ⑦ UNITÉ — — ⑧ POURQUOI — — ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Mondes jetables. ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
     avant = laisses()
     r = (cas_livrer(progs, source) + cas_installer(progs, source) + cas_republier(progs, source)
-         + cas_qui_fait_quoi(progs, source) + cas_des_fiches(progs, source))
+         + cas_qui_fait_quoi(progs, source) + cas_des_fiches(progs, source) + cas_des_arguments(progs, source))
     restes = sorted(laisses() - avant)
     r.append(("R0", not restes, f"R0 aucun dossier laissé sous /tmp/livrer_ : {len(restes)} laissé(s) {' '.join(restes[:3])}"))
     for d in restes:
@@ -1476,7 +1527,7 @@ def copier_les_programmes(source, dossier, sabotage=None):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — Rien.
       [rend: rien]
-    ⑥ TRAITEMENT — Copie de PROGRAMMES ; le motif « avant » doit exister UNE fois, remplacé par « après ».
+    ⑥ TRAITEMENT — Copie de PROGRAMMES et de l'épreuve (sous « EPREUVE.py ») ; le motif « avant » doit exister UNE fois, remplacé par « après ».
     ⑦ UNITÉ — — ⑧ POURQUOI — Un sabotage dont le motif manque ne mordrait sur rien : il est refusé.
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Écrit des fichiers. ⑪ TERMINAISON — Rend la main, ou lève.
       [sort: non]
@@ -1484,6 +1535,8 @@ def copier_les_programmes(source, dossier, sabotage=None):
     os.makedirs(dossier, exist_ok=True)
     for p in PROGRAMMES:
         shutil.copyfile(os.path.join(source, "programmes", p), os.path.join(dossier, p))
+    # N-31 : l'épreuve elle-même, sabotable comme un programme (fichier « EPREUVE.py »), que le cas N31 relance
+    shutil.copyfile(os.path.join(source, "tests", NOM_DE_L_EPREUVE), os.path.join(dossier, "EPREUVE.py"))
     if sabotage:
         _, fichier, avant, apres = sabotage
         chemin = os.path.join(dossier, fichier)
@@ -1529,9 +1582,9 @@ def main():
     ③ ENTRÉE — sys.argv : la racine, « --saboter[=noms] », « --cas=noms » (essai restreint à ces cas), « --ancres »
       (seulement le compte des ancres, `ancres_perdues`).
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête.
-    ⑤ SORTIE — Rien : sort (0 ou 1).
+    ⑤ SORTIE — Rien : sort (0 ; 1 si un cas tombe ; 2 si un nom de --saboter= ou --cas= est inconnu, avec la liste des noms connus).
       [rend: rien]
-    ⑥ TRAITEMENT — `ancres_perdues` d'abord (A0, toujours) ; `jouer` sur une copie propre ; avec --saboter, `jouer` sur chaque copie sabotée : au moins un
+    ⑥ TRAITEMENT — les noms de --saboter= vérifiés d'abord (inconnu → 2) ; `ancres_perdues` (A0, toujours) ; `jouer` sur une copie propre, puis les noms de --cas= vérifiés contre ceux que `choisi` a vus (inconnu → 2) ; avec --saboter, `jouer` sur chaque copie sabotée : au moins un
       cas doit tomber. ⑦ UNITÉ — Secondes. ⑧ POURQUOI — R-731. ⑨ CE QUI CLOCHE — Voir l'en-tête.
     ⑩ EFFET — Dossiers temporaires. ⑪ TERMINAISON — Sort du programme par sys.exit.
       [sort: oui]
@@ -1542,6 +1595,13 @@ def main():
         if a.startswith("--cas="):
             CHOISIS.update(x for x in a.split("=", 1)[1].split(",") if x)
     t0 = time.time()
+    noms_sabotages = [s[0].split()[0] for s in SABOTAGES]
+    for a in sys.argv[1:]:
+        if a.startswith("--saboter="):
+            inconnus_s = [x for x in a.split("=", 1)[1].split(",") if x not in noms_sabotages]
+            if inconnus_s:   # N-31 / R-734 : un contrôle qui n'a rien joué ne rend jamais 0
+                print(f"❌ ÉCHEC — nom(s) de sabotage inconnu(s) : {' '.join(inconnus_s)} · noms connus : {' '.join(noms_sabotages)}")
+                sys.exit(2)
     perdues = ancres_perdues(source)
     for x in perdues:
         print("❌ A0 ancre perdue : " + x, flush=True)
@@ -1556,6 +1616,10 @@ def main():
         for nom, passe, detail in jouer(os.path.join(base, "propre"), source):
             print(("✅ " if passe else "❌ ") + detail, flush=True)
             ok = ok and passe
+        inconnus_c = sorted(c for c in CHOISIS if not any(c == v or (c.isalpha() and v.startswith(c)) for v in VUS))
+        if inconnus_c:   # N-31 / R-734 : un nom de cas qui n'a rien joué ne rend jamais 0
+            print(f"❌ ÉCHEC — nom(s) de cas inconnu(s) : {' '.join(inconnus_c)} · noms connus : {' '.join(sorted(VUS))}")
+            sys.exit(2)
         if any(a == "--saboter" or a.startswith("--saboter=") for a in sys.argv):
             choisis = next((a.split("=", 1)[1].split(",") for a in sys.argv if a.startswith("--saboter=")), None)
             for s in SABOTAGES:
