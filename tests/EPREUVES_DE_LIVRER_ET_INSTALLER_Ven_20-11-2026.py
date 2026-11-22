@@ -11,7 +11,7 @@ vrai (même garde de branche que `refus_de_branche`) et un faux garde-fou. Le ra
 ① RÔLE — Dire, cas par cas, si les trois programmes font ce que la consigne du 20-11-2026 (19h38, ajout de 19h40)
   demande, et, avec « --saboter », que chaque sabotage fait tomber au moins une épreuve.
 ② CONTEXTE D'APPEL — À la main : python3 -B tests/EPREUVES_DE_LIVRER_ET_INSTALLER_Ven_20-11-2026.py <racine>
-  [--saboter | --saboter=S18,M1,…]. Durée mesurée : voir la note de livraison.
+  [--saboter | --saboter=S18,M1,…] [--cas=I27,L15] [--ancres]. Durée mesurée : voir la note de livraison.
 ③ ENTRÉE — La racine du dépôt à éprouver (ses programmes/ et tests/ sont copiés) ; « --saboter ».
 ④ CONDITIONS D'ENTRÉE — git et python3 installés ; aucun réseau nécessaire.
 ⑤ SORTIE — Code 0 si toutes les épreuves passent (et, avec --saboter, si chaque sabotage mord) ; 1 sinon.
@@ -824,7 +824,10 @@ def cas_installer(progs, source):
       change qu'un outil de etudes/outils/ → 1 (N-14) ; I15b note « aucune », travail qui ne change qu'une archive au
       nom accentué → 0 (N-15) ; I21 commit de fusion refusé par un crochet → 1, main intacte, worktree de main propre
       et sans MERGE_HEAD (N-13). RELU de Cowork sur 13988dfbd : I22 REPUBLIER qui publie mais rend 2 (« invérifiable »)
-      en --verifier → 4, main installée (N-24).
+      en --verifier → 4, main installée (N-24). RELU de Cowork sur 6f2775bf3 (N-29) : I27 la vérification lève un
+      arrêt prévu (L.Arret) après la publication → 4, main installée, public publié ; I27b elle lève une autre
+      exception (OSError) → 4, de même ; I28 RELU commité par « coworker », un auteur qui COMMENCE par « cowork »
+      → 1 (N-30).
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026, A-818 et réparation du soir (points A et D).
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
@@ -958,6 +961,27 @@ def cas_installer(progs, source):
                           '    if not os.path.isdir(os.path.join(public, ".git")) or not os.path.isdir(prive):',
                           "    if True:")
 
+    def verification_qui_leve(exception):
+        """Rend le réglage « preuves, et la vérification de l'étape ⑤ qui lève APRÈS la publication ». ① RÔLE —
+        Régler I27 et I27b (N-29, RELU de Cowork sur 6f2775bf3 : les deux `except` de
+        INSTALLER.republier_apres_installation sans cas). ② CONTEXTE D'APPEL — `cas`.
+        ③ ENTRÉE — `exception` : le texte Python levé à la place du clone public de vérification.
+        ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : la fonction de réglage. [rend: 1]
+        ⑥ TRAITEMENT — `programmes_du_cas` sur INSTALLER.py : « public = L.cloner_le_public("main") », qui n'existe
+          qu'après le REPUBLIER qui publie, devient « raise <exception> ». REPUBLIER, lancé à part, publie normalement.
+        ⑦ UNITÉ — — ⑧ POURQUOI — Un `except` dont on retire le retour 4 laissait tous les cas verts.
+        ⑨ CE QUI CLOCHE — La levée est posée dans INSTALLER, pas provoquée par un vrai refus du réseau.
+        ⑩ EFFET — — ⑪ TERMINAISON — Rend la main. [sort: non]"""
+        def regler(m):
+            """Preuves, puis la retouche. ① RÔLE — Réglage. ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m`.
+            ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — —. ⑦ UNITÉ — — ⑧ POURQUOI — —
+            ⑨ CE QUI CLOCHE — — ⑩ EFFET — Pousse, écrit sous le monde. ⑪ TERMINAISON — Rend la main, ou lève.
+            [sort: non]"""
+            preuves(m)
+            programmes_du_cas(m, "INSTALLER.py", '        public = L.cloner_le_public("main")\n',
+                              "        raise " + exception + "\n")
+        return regler
+
     def commit_de_fusion_refuse(m):
         """Preuves, et un crochet commit-msg du clone du Chat qui refuse le commit « Installation de … ». ① RÔLE —
         Régler I21 (N-13). ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m`. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — Rien.
@@ -998,6 +1022,9 @@ def cas_installer(progs, source):
         ("I20", 0, fabricant_ancien_dans_le_clone, {}),
         ("I21", 1, commit_de_fusion_refuse, {}),
         ("I22", 4, verification_inverifiable, {}),
+        ("I27", 4, verification_qui_leve('L.Arret(L.TOMBE, "clone public refusé (épreuve I27)")'), {}),
+        ("I27b", 4, verification_qui_leve('OSError("disque plein (épreuve I27b)")'), {}),
+        ("I28", 1, preuves, {"auteur": "coworker"}),
     )
     mondes = {"I14": {"liste": "- aucune"}, "I15": {"liste": "- aucune", "code_change": False},
               "I18": {"liste": "- aucune", "code_change": False},
@@ -1038,6 +1065,11 @@ def cas_installer(progs, source):
             elif attendu == 4 and nom == "I22":   # N-24 : publié, mais invérifiable → jamais 0
                 ok = (p.returncode == 4 and apres != avant and len(fusion) == 1 and public_apres != public_avant
                       and porte_main and "REPUBLIER --verifier a rendu 2" in p.stdout
+                      and "python3 -B programmes/REPUBLIER.py" in p.stdout)
+            elif attendu == 4 and nom in ("I27", "I27b"):   # N-29 : publié, puis la vérification lève → 4, jamais 0
+                ok = (p.returncode == 4 and apres != avant and len(fusion) == 1 and public_apres != public_avant
+                      and porte_main and {"I27": "vérification impossible : clone public refusé (épreuve I27)",
+                                          "I27b": "OSError : disque plein (épreuve I27b)"}[nom] in p.stdout
                       and "python3 -B programmes/REPUBLIER.py" in p.stdout)
             elif attendu == 4:   # REPUBLIER échoue : main installée, public intact, commande exacte nommée
                 ok = (p.returncode == 4 and apres != avant and len(fusion) == 1 and public_apres == public_avant
@@ -1290,11 +1322,11 @@ SABOTAGES = (
     ("S10 installation pendant un passage (A-818)", "INSTALLER.py", "            if occupes:\n", "            if False:\n"),
     ("S12 verdict lu au début seulement", "INSTALLER.py", 'if valeur != "DÉPLOYABLE":',
      'if not valeur.startswith("DÉPLOYABLE"):'),
-    ("S13 auteur du RELU non vérifié", "INSTALLER.py", 'if auteur.lower() != "cowork":', 'if False:'),
+    # N-28 (RELU de Cowork sur 6f2775bf3) : depuis N-26, INSTALLER délègue la règle à LIVRER.est_cowork ; l'ancre suit
+    ("S13 auteur du RELU non vérifié", "INSTALLER.py", "    if not L.est_cowork(auteur):", "    if False:"),
     ("D2 renommage suivi : programme rangé en archives/ accepté", "LIVRER.py",
      '"diff", "--no-renames", "--name-only", "-z"', '"diff", "--name-only", "-z"'),
-    ("D5 auteur lu comme sous-chaîne", "INSTALLER.py", 'if auteur.lower() != "cowork":',
-     'if "cowork" not in auteur.lower():'),
+    # D5 retiré (N-28) : la règle vit dans LIVRER.est_cowork, éprouvée par D5q ci-dessous.
     ("D13 branche déjà dans main réinstallée", "INSTALLER.py", '"--is-ancestor", ref, "origin/main").returncode == 0:',
      '"--is-ancestor", ref, "origin/main").returncode == 99:'),
     ("D6 lecteur du registre sans contrôle de l exécutant", "LIVRER.py",
@@ -1387,6 +1419,14 @@ SABOTAGES = (
     # N-24 du RELU de Cowork sur 13988dfbd (21-11-2026) : un --verifier « invérifiable » (2) accepté comme égal
     ("N24 --verifier invérifiable accepté (INSTALLER)", "INSTALLER.py", "        if v.returncode != 0:\n",
      "        if v.returncode == 1:\n"),
+    # N-30 du RELU de Cowork sur 6f2775bf3 (22-11-2026) : un auteur qui commence par « cowork » n'est pas Cowork
+    ("N30 auteur de Cowork lu comme préfixe (LIVRER.est_cowork)", "LIVRER.py",
+     '    return auteur.strip().lower() == "cowork"', '    return auteur.strip().lower().startswith("cowork")'),
+    # N-29 du RELU de Cowork sur 6f2775bf3 (22-11-2026) : un sabotage par `except` de republier_apres_installation
+    ("N29a arrêt prévu de la vérification rendu comme 0", "INSTALLER.py",
+     '        return PUBLIC_EN_RETARD, f"vérification impossible : {e.args[1]}"', '        return INSTALLE, ""'),
+    ("N29b autre exception de la vérification rendue comme 0", "INSTALLER.py",
+     '        return PUBLIC_EN_RETARD, f"{type(e).__name__} : {e}"', '        return INSTALLE, ""'),
 )
 
 
@@ -1454,15 +1494,44 @@ def copier_les_programmes(source, dossier, sabotage=None):
             f.write(texte.replace(avant, apres))
 
 
+def ancres_perdues(source):
+    """Rend la liste des sabotages dont l'ancre n'est pas trouvée exactement une fois, sans jouer aucun cas.
+
+    ① RÔLE — Voir en une seconde qu'un sabotage a perdu son ancre, avant les minutes d'un « --saboter ».
+    ② CONTEXTE D'APPEL — `main`, en tête de tout lancement ; seul avec « --ancres ».
+    ③ ENTRÉE — `source` : la racine du dépôt. ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste des messages « <sabotage> : motif … trouvé N fois » (vide : toutes tiennent).
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chaque ligne de SABOTAGES, `copier_les_programmes` (le seul code qui compte l'ancre, R-708)
+      dans un dossier jetable ; sa ValueError est relevée.
+    ⑦ UNITÉ — — ⑧ POURQUOI — N-28 (RELU de Cowork sur 6f2775bf3) : S13 et D5 sans ancre depuis N-26, vus seulement
+      par le passage LivrerSabots du circuit, rouge sur la pointe ; le compte n'était fait qu'au fil des sabotages.
+    ⑨ CE QUI CLOCHE — Une ancre trouvée une fois peut encore ne pas mordre : seul « --saboter » le dit.
+    ⑩ EFFET — Crée et efface un dossier temporaire. ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    perdues, d = [], tempfile.mkdtemp(prefix="epreuve_livrer_ancres_")
+    try:
+        for i, s in enumerate(SABOTAGES):
+            try:
+                copier_les_programmes(source, os.path.join(d, str(i)), s)
+            except ValueError as e:
+                perdues.append(f"{s[0]} : {e}")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    return perdues
+
+
 def main():
     """Lance les épreuves, et les sabotages avec --saboter ; sort avec le code.
 
     ① RÔLE — Voir l'en-tête. ② CONTEXTE D'APPEL — La ligne de commande.
-    ③ ENTRÉE — sys.argv : la racine, « --saboter[=noms] », « --cas=noms » (essai restreint à ces cas).
+    ③ ENTRÉE — sys.argv : la racine, « --saboter[=noms] », « --cas=noms » (essai restreint à ces cas), « --ancres »
+      (seulement le compte des ancres, `ancres_perdues`).
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête.
     ⑤ SORTIE — Rien : sort (0 ou 1).
       [rend: rien]
-    ⑥ TRAITEMENT — `jouer` sur une copie propre ; avec --saboter, `jouer` sur chaque copie sabotée : au moins un
+    ⑥ TRAITEMENT — `ancres_perdues` d'abord (A0, toujours) ; `jouer` sur une copie propre ; avec --saboter, `jouer` sur chaque copie sabotée : au moins un
       cas doit tomber. ⑦ UNITÉ — Secondes. ⑧ POURQUOI — R-731. ⑨ CE QUI CLOCHE — Voir l'en-tête.
     ⑩ EFFET — Dossiers temporaires. ⑪ TERMINAISON — Sort du programme par sys.exit.
       [sort: oui]
@@ -1472,7 +1541,15 @@ def main():
     for a in sys.argv[1:]:
         if a.startswith("--cas="):
             CHOISIS.update(x for x in a.split("=", 1)[1].split(",") if x)
-    t0, ok = time.time(), True
+    t0 = time.time()
+    perdues = ancres_perdues(source)
+    for x in perdues:
+        print("❌ A0 ancre perdue : " + x, flush=True)
+    print(f"{'✅' if not perdues else '❌'} A0 ancres des {len(SABOTAGES)} sabotages : {len(perdues)} perdue(s)", flush=True)
+    ok = not perdues
+    if "--ancres" in sys.argv:
+        print(f"{'TOUT PASSE' if ok else 'ÉCHEC'} en {time.time() - t0:.0f} s")
+        sys.exit(0 if ok else 1)
     base = tempfile.mkdtemp(prefix="epreuve_livrer_progs_")
     try:
         copier_les_programmes(source, os.path.join(base, "propre"))
