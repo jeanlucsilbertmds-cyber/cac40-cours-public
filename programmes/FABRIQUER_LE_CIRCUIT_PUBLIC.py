@@ -1166,12 +1166,14 @@ IDENTITE_DES_DUREES = "durees-publiees"   # l'auteur du commit des durées : jam
 # raison d'un échec de la publication restait sur la machine jetable). Le même texte est écrit quatre fois plus loin
 # (tranches, séries, épreuves longues) : non unifié ici, consigné au BACKLOG (R-708).
 JOURNAL_DE_LA_TACHE = "rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log"
-# AVANT L'AJOUT, L'INDEX EST VIDÉ (point 2 (b) du superviseur R-759 du 21-11-2026, repris par Cowork) : la publication
-# a repris les journaux de main par « git checkout FETCH_HEAD -- … », qui écrit aussi dans l'INDEX ; si le dépôt du
-# certificat n'a pas tiré main, ces journaux seraient partis dans le commit des durées. Vidé, l'index ne porte que les
-# deux chemins ajoutés ensuite.
-VIDER_L_INDEX = ('          git reset -q \\\n'
-                 '            || { echo "::error::INDEX ILLISIBLE — durees non deposees"; exit 1; }\n')
+# L'INDEX N'EST PAS VIDÉ AVANT L'AJOUT (I-5 de la relecture de Cowork du 22-11-2026, pointe 9bfa7b29d ; plan du
+# superviseur R-759 du 22-11-2026 : la réparation précédente, « git reset -q » avant l'ajout, était une RUSTINE). Le
+# « reset » rendait NON SUIVIS les journaux que la publication reprend de main (« git checkout FETCH_HEAD -- … ») ;
+# quand le dépôt du certificat n'avait pas tiré main (« rien a deposer », conflit), « git pull --rebase --autostash »
+# refusait alors de poser main par-dessus (« error: could not detach HEAD »), à chaque essai : durées et journal de la
+# tâche perdus. Sans lui, mesuré, le rebasage écarte de lui-même les journaux identiques à ceux de main, et le dernier
+# commit ne porte que les deux chemins ajoutés. Ce n'est plus une lecture du texte qui le garde : P7 JOUE les deux
+# dépôts dans des dépôts git jetables (tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py, `jouer_les_depots`).
 # LE PAS, dans la tâche finale, APRÈS le dépôt du certificat au privé, et suivi de son PROPRE dépôt
 # (DEPOSER_LES_DUREES). Il ① reprend à la pointe de main (FETCH_HEAD : posée par le « git pull » du dépôt du
 # certificat, sinon par le pas « partiels ») les journaux que les tranches de CETTE nuit viennent d'y pousser — sans
@@ -1560,7 +1562,7 @@ jobs:
                                   "rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/", ""),
     "publier_les_durees": PUBLIER_LES_DUREES,
     "deposer_les_durees": pas_de_depot("fichier des durees ou journal de la tache introuvable",
-                                       DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,
+                                       DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, "",
                                        auteur=IDENTITE_DES_DUREES, message="durees des epreuves et journal de la tache",
                                        reste="le fichier des durees", nom="Deposer les durees au depot prive",
                                        ident="deposer_les_durees",

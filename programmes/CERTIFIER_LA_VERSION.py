@@ -786,7 +786,11 @@ def sabotages_declares(texte, chemin):
       à une méthode modifiante de `dict` ou à « operator.setitem/delitem », il est refusé (m-7, 21-11-2026). Aucune
       épreuve du dépôt ne le fait au 21-11-2026 ; N14 de l'épreuve de la nuit découpée ne le verrait pas non plus (son
       compte ne lit, lui aussi, que l'intérieur du dictionnaire littéral). Le refus vaut aussi pour une écriture qui ne
-      changerait rien (« SABOTAGES.update({}) ») : refus à tort, mais à voix haute.
+      changerait rien (« SABOTAGES.update({}) ») : refus à tort, mais à voix haute. Refus à tort aussi, à voix haute,
+      pour SABOTAGES passé en simple LECTURE à une méthode de même nom portée par un AUTRE objet
+      (« ensemble.update(SABOTAGES) », « copie.update(SABOTAGES) », « d.pop(k, SABOTAGES) ») : le nom de la méthode
+      suffit, quel que soit l'objet (m-10 de la relecture de Cowork du 22-11-2026, mesuré). À l'inverse,
+      « getattr(SABOTAGES, "update")(…) » ÉCRIT et passe : de la famille de l'alias, non refusé.
     ⑩ EFFET — —
     ⑪ TERMINAISON — Rend la main, ou lève.
       [sort: non]

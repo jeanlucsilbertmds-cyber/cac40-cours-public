@@ -356,8 +356,6 @@ jobs:
         run: |
           git config user.name durees-publiees
           git config user.email durees-publiees@users.noreply.github.com
-          git reset -q \
-            || { echo "::error::INDEX ILLISIBLE — durees non deposees"; exit 1; }
           git add rapports/durees_des_epreuves_en_secondes.csv rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log \
             || { echo "::error::fichier des durees ou journal de la tache introuvable"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi

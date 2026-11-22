@@ -40,9 +40,12 @@
   21-11-2026) ; c) chaque commande de la publication dit son échec et rend 1, sans « continue-on-error », « || true »
   ni « exit 0 » (I-2), et le pas, JOUÉ par « bash -e » avec un faux git et un faux certificateur, rend 0 et publie
   quand tout réussit, rend non nul avec son « ::error:: » quand l'un échoue (I-4). Le dépôt des durées tourne dès que
-  la publication a tourné (réussie ou non), vide l'index, ajoute le fichier ET le journal de la tâche (I-3) ; les deux
-  dépôts gardent leur commit et n'abandonnent pas un rebasage en plan (m-9). Ses sabotages (F1 à F5, G1 à G12, H1 à
-  H5) portent sur une copie du FABRICANT.
+  la publication a tourné (réussie ou non), ajoute le fichier ET le journal de la tâche (I-3), ce journal au chemin
+  ENTIER que rend `chemin_du_journal` de programmes/ETAPE_MUETTE.py (m-11) ; les deux dépôts gardent leur commit et
+  n'abandonnent pas un rebasage en plan (m-9) ; d) les trois pas, JOUÉS avec le vrai git dans des dépôts jetables
+  (`jouer_les_depots`, I-5) : cas « rien a deposer », le dernier commit de main ne porte que le fichier des durées et
+  le journal de la tâche ; cas « conflit », deux échecs bruyants, aucun rebasage en plan. Ses sabotages (F1 à F5, G1
+  à G13, H1 à H5) portent sur une copie du FABRICANT.
 ⑦ UNITÉ — Des secondes.
 ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 15h34, réponse « 1 » à la question du Chat de 15h33 : « Publier au
   dépôt public les seules durées des épreuves (des chiffres de temps, aucun cours) pour que GitHub juge pour de vrai ».
@@ -51,10 +54,12 @@
   sorties des épreuves, ne doivent jamais être publiés : d'où la garde, éprouvée ici des deux côtés.
 ⑨ CE QUI CLOCHE — La FRAÎCHEUR du fichier n'est pas jugée : des durées périmées font une prévision périmée. P7 lit le
   TEXTE du circuit fabriqué, sauf la publication, JOUÉE avec des faux : il ne prouve pas que GitHub exécute le pas ni
-  que la poussée réussit (seul un passage réel de la nuit le prouve) ; les deux dépôts ne sont pas joués. La publication elle-même au dépôt public n'est pas jouée ici.
+  que la poussée réussit (seul un passage réel de la nuit le prouve) ; les deux dépôts sont joués dans des dépôts git
+  jetables, pas sur GitHub (voir le ⑨ de `jouer_les_depots`). La publication elle-même au dépôt public n'est pas jouée
+  ici.
 ⑩ EFFET — Écrit dans des dossiers jetables, effacés à la fin.
-⑪ TERMINAISON — Rend la main ; lance « bash -e » trois fois par fabricant jugé, chaque fois borné à 30 s ; sort par
-  sys.exit.
+⑪ TERMINAISON — Rend la main ; lance « bash -e » trois fois par fabricant jugé, chaque fois borné à 30 s, et deux
+  scénarios git par fabricant jugé, chaque commande bornée à 60 s ; sort par sys.exit.
   [sort: oui]
 """
 import importlib.util
@@ -93,8 +98,8 @@ SABOTAGES_DU_FABRICANT = {
     "F1_pas_retire": [('    "publier_les_durees": PUBLIER_LES_DUREES,\n', '    "publier_les_durees": "",\n')],
     "F2_option_retiree": [('CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees \\\\',
                            'CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" \\\\')],
-    "F3_fichier_non_pousse": [('DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,',
-                               '"rapports/autre.csv " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,')],
+    "F3_fichier_non_pousse": [('DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, "",',
+                               '"rapports/autre.csv " + JOURNAL_DE_LA_TACHE, "",')],
     "F4_echec_masque": [("        id: publier_les_durees\n", "        id: publier_les_durees\n        continue-on-error: true\n")],
     "F5_chemin_divergent": [('DUREES_PUBLIEES_DU_DEPOT = "rapports/durees_des_epreuves_en_secondes.csv"',
                              'DUREES_PUBLIEES_DU_DEPOT = "rapports/durees.csv"')],
@@ -113,12 +118,16 @@ SABOTAGES_DU_FABRICANT = {
     "G7_durees_signees_certification": [('IDENTITE_DES_DUREES = "durees-publiees"', 'IDENTITE_DES_DUREES = "certification-publique"')],
     "G8_depot_des_durees_sans_condition": [('condition="${{ !cancelled() && steps.publier_les_durees.outcome != \'skipped\' }}")',
                                            'condition="always()")')],
-    # relecture de Cowork du 21-11-2026 (pointe 5602b2271) : G9 et G10 gardent I-3 et le point 2 (b) du superviseur,
+    # relecture de Cowork du 21-11-2026 (pointe 5602b2271) : G9 garde I-3 (G10, qui gardait le point 2 (b) du superviseur, est refait plus bas),
     # G11 et G12 gardent m-9 ; H1 à H5 sont SES façons de taire l'échec de la publication (I-4), jugées en JOUANT le pas
-    "G9_journal_de_la_tache_non_depose": [('DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,',
-                                          'DUREES_PUBLIEES_DU_DEPOT, VIDER_L_INDEX,')],
-    "G10_index_non_vide": [('DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, VIDER_L_INDEX,',
-                           'DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, "",')],
+    "G9_journal_de_la_tache_non_depose": [('DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, "",',
+                                          'DUREES_PUBLIEES_DU_DEPOT, "",')],
+    # relecture de Cowork du 22-11-2026 (pointe 9bfa7b29d) : G10 remet le « git reset -q » retiré (I-5), jugé en JOUANT
+    # les deux dépôts ; G13 est SON sabotage Y1 du nom du journal de la tâche (m-11)
+    "G10_index_vide_avant_l_ajout": [('DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, "",',
+                                     'DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, "          git reset -q\\n",')],
+    "G13_journal_mal_nomme": [('JOURNAL_DE_LA_TACHE = "rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log"',
+                              'JOURNAL_DE_LA_TACHE = "rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.txt"')],
     "G11_commit_sans_garde": [('[skip ci]" \\\\\n            || { echo \\"::error::COMMIT IMPOSSIBLE — """ + reste + """ reste sur la machine jetable\\"; exit 1; }\n',
                               '[skip ci]"\n')],
     "G12_rebasage_laisse_en_plan": [('          done\n          git rebase --abort 2>/dev/null || true\n          echo "::error::POUSSEE REFUSEE """ + str(ESSAIS_DE_POUSSEE)',
@@ -144,7 +153,8 @@ ATTENDU = {"F1_pas_retire": "P7 a)", "F2_option_retiree": "P7 a)", "F3_fichier_n
            "G7_durees_signees_certification": "P7 b) le dépôt des durées signe",
            "G8_depot_des_durees_sans_condition": "P7 b) la condition",
            "G9_journal_de_la_tache_non_depose": "P7 b) le dépôt des durées n'ajoute pas",
-           "G10_index_non_vide": "P7 b) l'index", "G11_commit_sans_garde": "P7 b) commit",
+           "G10_index_vide_avant_l_ajout": "P7 b) joué, cas rien",
+           "G13_journal_mal_nomme": "P7 b) journal de la tâche", "G11_commit_sans_garde": "P7 b) commit",
            "G12_rebasage_laisse_en_plan": "P7 b) rebasage",
            "H1_point_virgule_true": "P7 c) joué", "H2_ou_deux_points": "P7 c) joué", "H3_echo_devant": "P7 c) joué",
            "H4_true_ou_devant": "P7 c) joué", "H5_commentaire": "P7 c) joué",
@@ -347,14 +357,15 @@ def tour(C, k, lancements, delais):
     return faux
 
 
-def p7(F, C):
+def p7(F, C, M):
     """Juge le circuit de certification fabriqué par `F` (P7) et rend la liste des fautes.
 
     ① RÔLE — Prouver que la tâche finale de la nuit refait et pousse le fichier des durées (A-969), sans jamais
       empêcher le dépôt du certificat ni taire un échec.
     ② CONTEXTE D'APPEL — `main`, en Z0 avec le fabricant de la racine, puis une fois par sabotage du fabricant.
-    ③ ENTRÉE — `F` : le fabricant chargé (son texte CERTIFICATION, DUREES_PUBLIEES_DU_DEPOT, IDENTITE_DES_DUREES) ·
-      `C` : le certificateur sain (son DUREES_PUBLIEES).
+    ③ ENTRÉE — `F` : le fabricant chargé (son texte CERTIFICATION, DUREES_PUBLIEES_DU_DEPOT, IDENTITE_DES_DUREES,
+      JOURNAL_DE_LA_TACHE, ESSAIS_DE_POUSSEE) · `C` : le certificateur sain (son DUREES_PUBLIEES) · `M` :
+      programmes/ETAPE_MUETTE.py chargé (son `chemin_du_journal`).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des fautes (textes commençant par « P7 a) », « P7 b) » ou « P7 c) »).
       [rend: 1]
@@ -366,9 +377,12 @@ def p7(F, C):
       EXACTEMENT celle de CONDITION_DE_LA_PUBLICATION · ③ b) le chemin du fabricant, « / » remplacé par le séparateur
       du système, égale DUREES_PUBLIEES du certificateur ; la ligne « git add » du dépôt des durées n'ajoute QUE ce
       chemin, celle du dépôt du certificat ne le porte PAS ; l'identité du dépôt des durées n'est pas
-      « certification-publique » ; la ligne « if: » du dépôt des durées est EXACTEMENT CONDITION_DU_DEPOT_DES_DUREES ·
+      « certification-publique » ; la ligne « if: » du dépôt des durées est EXACTEMENT CONDITION_DU_DEPOT_DES_DUREES ;
+      JOURNAL_DE_LA_TACHE égale `M.chemin_du_journal("", "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}")`
+      (m-11) ; chaque dépôt garde son commit et abandonne un rebasage en plan avant son erreur finale (m-9) ·
       ④ c) le pas de publication : ni « continue-on-error », ni « || true », ni « exit 0 » ; ses commandes (une ligne
-      finie par « \\ » se lit avec la suivante) finissent CHACUNE par « || { echo "::error::…"; exit 1; } ».
+      finie par « \\ » se lit avec la suivante) finissent CHACUNE par « || { echo "::error::…"; exit 1; } », puis le pas
+      JOUÉ (`jouer_la_publication`) · ⑤ d) les trois pas JOUÉS dans des dépôts git jetables (`jouer_les_depots`).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 16h09 (« 1 ») : le circuit de nuit refait le fichier chaque nuit,
       pour des prévisions toujours fondées sur des durées récentes. Sans ce pas, rien ne le refaisait (A-968).
@@ -378,7 +392,9 @@ def p7(F, C):
       seconde commande restait vert (G3, G4), comme une condition jamais vraie (G1) ou des journaux non repris (G2).
       Les deux lignes « if: » sont écrites ICI une seconde fois, à dessein : l'épreuve confronte le fabricant à ce
       qui a été décidé, une condition retournée ne se voit pas autrement.
-    ⑨ CE QUI CLOCHE — Lecture du texte seulement : l'exécution par GitHub n'est pas prouvée ici. Une commande écrite
+    ⑨ CE QUI CLOCHE — a) et b) lisent le texte ; c) et d) le jouent hors de GitHub : l'exécution par GitHub n'est pas
+      prouvée ici. L'assemblage du passage (« numéro_tentative_job ») reste écrit ici et dans `main` d'ETAPE_MUETTE,
+      qui n'en fait pas une fonction (R-708, non unifié). Une commande écrite
       sur plusieurs lignes SANS « \\ » (un « if … fi » de plusieurs lignes) serait lue ligne par ligne et refusée :
       refus à tort, mais à voix haute.
     ⑩ EFFET — Aucun.
@@ -412,14 +428,13 @@ def p7(F, C):
     if chemin.replace("/", os.sep) != C.DUREES_PUBLIEES:
         faux.append(f"P7 b) chemin du fabricant {chemin} ≠ celui du certificateur {C.DUREES_PUBLIEES}")
     ajout = lambda p: [l.strip() for l in p.split("\n") if l.strip().startswith("git add ")]
-    if ajout(dur) != [f"git add {chemin} {F.JOURNAL_DE_LA_TACHE} \\"] or not F.JOURNAL_DE_LA_TACHE.startswith(
-            "rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}"):
+    if ajout(dur) != [f"git add {chemin} {F.JOURNAL_DE_LA_TACHE} \\"]:
         faux.append(f"P7 b) le dépôt des durées n'ajoute pas {chemin} et le journal de la tâche, seuls : {ajout(dur)}")
-    l_dur = [l.strip() for l in dur.split("\n")]
-    i_add = [i for i, l in enumerate(l_dur) if l.startswith("git add ")]
-    if "git reset -q \\" not in l_dur[:i_add[0] if i_add else 0]:
-        faux.append("P7 b) l'index n'est pas vidé (« git reset -q ») avant l'ajout : les journaux repris de main par la "
-                    "publication partiraient dans le commit des durées")
+    # m-11 de la relecture de Cowork du 22-11-2026 : le chemin ENTIER, confronté à celui que rend programmes/ETAPE_MUETTE.py
+    # (R-708) ; seul l'assemblage du passage (« numéro_tentative_job », `main` d'ETAPE_MUETTE) est écrit ici
+    attendu = M.chemin_du_journal("", "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}").replace(os.sep, "/")
+    if F.JOURNAL_DE_LA_TACHE != attendu:
+        faux.append(f"P7 b) journal de la tâche {F.JOURNAL_DE_LA_TACHE} ≠ celui qu'écrit ETAPE_MUETTE {attendu}")
     for nom_du_pas, texte_du_pas in (("dépôt du certificat", dep), ("dépôt des durées", dur)):
         lignes = [l.strip() for l in texte_du_pas.split("\n")]
         i_c = [i for i, l in enumerate(lignes) if l.startswith("git commit ")]
@@ -450,6 +465,7 @@ def p7(F, C):
         faux.append(f"P7 c) le pas de publication peut taire un échec : commandes sans « || {{ echo \"::error::…\"; "
                     f"exit 1; }} » {[c[:60] for c in sans_garde]}, interdits présents {interdits}")
     faux += jouer_la_publication(run)
+    faux += jouer_les_depots(F, dep, pub, dur)
     return faux
 
 
@@ -516,6 +532,143 @@ def jouer_la_publication(run):
     return faux
 
 
+def jouer_les_depots(F, dep, pub, dur):
+    """Joue le dépôt du certificat, la publication et le dépôt des durées dans des dépôts git jetables, avec le vrai git.
+
+    ① RÔLE — Juger les deux dépôts de la tâche finale par ce qu'ils déposent, et non par la forme de leur texte (I-5 de
+      la relecture de Cowork du 22-11-2026, pointe 9bfa7b29d ; plan du superviseur R-759 du 22-11-2026).
+    ② CONTEXTE D'APPEL — `p7`, une fois par fabricant jugé.
+    ③ ENTRÉE — `F` : le fabricant chargé (JOURNAL_DE_LA_TACHE, DUREES_PUBLIEES_DU_DEPOT, IDENTITE_DES_DUREES,
+      ESSAIS_DE_POUSSEE) · `dep`, `pub`, `dur` : le texte des trois pas, tel que `p7` les découpe.
+    ④ CONDITIONS D'ENTRÉE — git, bash et python3 sur la machine ; chaque pas porte « run: | ».
+    ⑤ SORTIE — UNE valeur : la liste des fautes (textes commençant par « P7 b) joué »).
+      [rend: 1]
+    ⑥ TRAITEMENT — Pour chacun des deux cas, dans un dossier jetable : ① un dépôt nu « origin » (branche main) qui porte
+      un faux programmes/CERTIFIER_LA_VERSION.py (il réécrit le fichier des durées), le certificat, le fichier des
+      durées et un journal ancien ; ② « travail », clone de la machine de la nuit ; ③ un autre écrivain pousse sur main
+      le journal d'une tranche (cas « conflit » : il change AUSSI le certificat) ; ④ dans « travail » : cas « conflit »,
+      le certificat est réécrit ; « git fetch origin main » (le pas « partiels ») ; le dépôt du certificat ; le
+      journal de la tâche écrit à son chemin (ce que fait ETAPE_MUETTE) ; la publication ; le dépôt des durées. Les pas
+      de dépôt sont joués par « bash --noprofile --norc -eo pipefail » (« shell: bash » de GitHub), la publication par
+      « bash -e » (ETAPE_MUETTE). Jugé : cas « rien » — le dépôt du certificat dit « rien a deposer », le dépôt des
+      durées rend 0 et dit « depose », et le DERNIER commit de main est signé IDENTITE_DES_DUREES et ne porte QUE le
+      fichier des durées et le journal de la tâche ; cas « conflit » — les deux dépôts rendent non nul avec un
+      « ::error:: », aucun rebasage n'est laissé en plan, et main n'a rien reçu de « travail ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le « git reset -q » posé avant l'ajout (point 2 (b) du superviseur R-759 du 21-11-2026) rendait non
+      suivis les journaux repris de main ; dans le cas « rien », « git pull --rebase --autostash » refusait alors chaque
+      essai (« error: could not detach HEAD ») et les durées comme le journal de la tâche restaient sur la machine.
+      G10 de l'époque exigeait la PRÉSENCE du « reset » : il gardait la rustine au lieu de juger le résultat.
+    ⑨ CE QUI CLOCHE — Ce n'est pas GitHub : les essais de poussée sont ramenés de ESSAIS_DE_POUSSEE à 2 (« seq 1 N »
+      réécrit dans le texte joué) et « sleep » ne dort pas ; le pas « partiels » est imité par un « git fetch » ; le
+      journal de la tâche est écrit par l'épreuve, pas par ETAPE_MUETTE. Le cas « conflit » ne juge qu'un échec
+      BRUYANT : la raison d'un échec de la publication ne part pas cette nuit-là (remarque de Cowork du 22-11-2026,
+      non réparée). Le cas « panne » (dépôt injoignable) n'est pas joué.
+    ⑩ EFFET — Des dossiers jetables, effacés.
+    ⑪ TERMINAISON — Chaque commande est bornée à 60 s ; un dépassement est une faute.
+      [sort: non]
+    """
+    import subprocess
+    import textwrap
+    faux = []
+    valeurs = {"GITHUB_RUN_ID": "7", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_JOB": "reunir"}
+    journal = F.JOURNAL_DE_LA_TACHE
+    for k, v in valeurs.items():
+        journal = journal.replace("${" + k + "}", v)
+    certificat = "rapports/CERTIFICAT_DE_LA_VERSION.md"
+    racine = tempfile.mkdtemp(prefix="durees_depots_joues_")
+    try:
+        os.makedirs(os.path.join(racine, "bin"))
+        open(os.path.join(racine, "bin", "sleep"), "w", encoding="utf-8").write("#!/bin/sh\nexit 0\n")
+        os.chmod(os.path.join(racine, "bin", "sleep"), 0o755)
+        env = dict(os.environ, PATH=os.path.join(racine, "bin") + os.pathsep + os.environ.get("PATH", ""),
+                   HOME=racine, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_TERMINAL_PROMPT="0", **valeurs)
+        ident = ["-c", "user.name=essai", "-c", "user.email=essai@exemple.invalid"]
+
+        def git(cwd, *a):
+            r = subprocess.run(["git", *ident, *a], cwd=cwd, env=env, capture_output=True, text=True, timeout=60)
+            if r.returncode:
+                raise RuntimeError(f"git {' '.join(a)} : {r.stderr.strip()[-200:]}")
+            return r.stdout
+
+        def ecrire(base, rel, texte):
+            os.makedirs(os.path.dirname(os.path.join(base, rel)), exist_ok=True)
+            open(os.path.join(base, rel), "w", encoding="utf-8").write(texte)
+
+        def jouer(pas, commande, travail):
+            run = pas.split("run: |\n", 1)[1] if "run: |\n" in pas else ""
+            essais = f"seq 1 {F.ESSAIS_DE_POUSSEE})"
+            if run.count(essais) == 1:
+                run = run.replace(essais, "seq 1 2)")
+            script = os.path.join(racine, "pas.sh")
+            open(script, "w", encoding="utf-8").write(textwrap.dedent(run))
+            try:
+                r = subprocess.run(commande + [script], cwd=travail, env=dict(env, GITHUB_WORKSPACE=travail),
+                                   capture_output=True, text=True, timeout=60)
+                return r.returncode, r.stdout + r.stderr
+            except subprocess.TimeoutExpired:
+                return None, "plus de 60 s"
+
+        en_plan = lambda w: any(os.path.exists(os.path.join(w, ".git", x)) for x in ("rebase-merge", "rebase-apply"))
+        bash_de_github = ["bash", "--noprofile", "--norc", "-eo", "pipefail"]
+        for cas in ("rien", "conflit"):
+            d = os.path.join(racine, cas)
+            origin, graine, travail, autre = (os.path.join(d, n) for n in ("origin.git", "graine", "travail", "autre"))
+            try:
+                os.makedirs(d)
+                git(d, "init", "-q", "--bare", "-b", "main", origin)
+                git(d, "clone", "-q", origin, graine)
+                ecrire(graine, "programmes/CERTIFIER_LA_VERSION.py",
+                       "import os, sys\nopen(os.path.join(sys.argv[1], " + repr(F.DUREES_PUBLIEES_DU_DEPOT) +
+                       "), 'w').write('cle_du_lancement;secondes\\na;2\\n')\n")
+                ecrire(graine, certificat, "certificat d'hier\n")
+                ecrire(graine, F.DUREES_PUBLIEES_DU_DEPOT, "cle_du_lancement;secondes\na;1\n")
+                ecrire(graine, "rapports/journal_du_circuit/circuit_6_1_reunir.log", "hier\n")
+                git(graine, "add", "-A")
+                git(graine, "commit", "-q", "-m", "graine")
+                git(graine, "push", "-q", "origin", "HEAD:refs/heads/main")
+                git(d, "clone", "-q", origin, travail)
+                git(d, "clone", "-q", origin, autre)
+                ecrire(autre, "rapports/journal_du_circuit/circuit_7_1_certifier_tranche_1.log", "tranche 1\n")
+                if cas == "conflit":
+                    ecrire(autre, certificat, "certificat étranger\n")
+                git(autre, "add", "-A")
+                git(autre, "commit", "-q", "-m", "tranche")
+                git(autre, "push", "-q", "origin", "HEAD:refs/heads/main")
+                pointe_autre = git(autre, "rev-parse", "HEAD").strip()
+                if cas == "conflit":
+                    ecrire(travail, certificat, "certificat de cette nuit\n")
+                git(travail, "fetch", "-q", "origin", "main")
+            except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+                faux.append(f"P7 b) joué, cas {cas} : préparation impossible — {e}")
+                continue
+            c_dep, o_dep = jouer(dep, bash_de_github, travail)
+            plan_dep = en_plan(travail)
+            ecrire(travail, journal, "journal de la tache\n")
+            c_pub, o_pub = jouer(pub, ["bash", "-e"], travail)
+            c_dur, o_dur = jouer(dur, bash_de_github, travail)
+            dernier = git(origin, "log", "-1", "--name-only", "--format=%an", "main").split()
+            pointe = git(origin, "rev-parse", "main").strip()
+            dit = lambda o: o.strip().splitlines()[-2:]
+            if cas == "rien":
+                attendu = sorted([F.DUREES_PUBLIEES_DU_DEPOT, journal])
+                if ("rien a deposer" not in o_dep or c_pub != 0 or c_dur != 0 or "depose" not in o_dur.split()
+                        or dernier[:1] != [F.IDENTITE_DES_DUREES] or sorted(dernier[1:]) != attendu):
+                    faux.append(f"P7 b) joué, cas rien : dépôt du certificat {c_dep} {dit(o_dep)}, publication {c_pub}, "
+                                f"dépôt des durées {c_dur} {dit(o_dur)}, dernier commit de main {dernier} — attendu "
+                                f"{F.IDENTITE_DES_DUREES} et {attendu} seuls")
+            else:
+                if (c_dep in (0, None) or "::error::" not in o_dep or c_dur in (0, None) or "::error::" not in o_dur
+                        or plan_dep or en_plan(travail) or pointe != pointe_autre):
+                    faux.append(f"P7 b) joué, cas conflit : dépôt du certificat {c_dep} {dit(o_dep)}, rebasage en plan "
+                                f"après lui {plan_dep}, dépôt des durées {c_dur} {dit(o_dur)}, rebasage en plan à la fin "
+                                f"{en_plan(travail)}, main inchangée {pointe == pointe_autre} — attendu deux échecs "
+                                "bruyants, rien en plan, rien poussé")
+    finally:
+        shutil.rmtree(racine, ignore_errors=True)
+    return faux
+
+
 def fabricant_sabote(nom, d):
     """Écrit dans `d` une copie du fabricant sabotée par `nom`, entourée du reste du dépôt, et la charge.
 
@@ -577,6 +730,7 @@ def main():
     """
     sain = charger(os.path.join(DEPOT, CERTIF), "CERTIF_SAIN")
     fab_sain = charger(os.path.join(DEPOT, FAB), "FAB_SAIN")
+    muette = charger(os.path.join(DEPOT, "programmes", "ETAPE_MUETTE.py"), "MUETTE")
     k = fab_sain.TRANCHES_DE_LA_NUIT
     lancements, _ = sain.lister_les_epreuves(DEPOT)
     delais, _ = sain.options_de_lancement(DEPOT)
@@ -592,7 +746,7 @@ def main():
             if F is None:
                 code = 2
                 continue
-            faux = p7(F, sain)
+            faux = p7(F, sain, muette)
             vise = [f for f in faux if ATTENDU[nom] in f]
             print(f"{nom} " + (f"mord : {vise[0][:140]}" if vise else f"NE MORD PAS : {faux[:2]}"))
             code = max(code, 0 if vise else 1)
@@ -613,7 +767,7 @@ def main():
                 open(chemin, "w", encoding="utf-8").write(texte)
                 faux = tour(charger(chemin, "CERTIF_" + nom), k, lancements, delais)
                 if nom == "Z0":
-                    faux += p7(fab_sain, sain)
+                    faux += p7(fab_sain, sain, muette)
                 if nom == "Z0":
                     print("Z0 " + ("vert" if not faux else "ROUGE : " + " | ".join(faux)))
                     code = max(code, 1 if faux else 0)
