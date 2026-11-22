@@ -63,7 +63,7 @@ jobs:
           done
           for x in programmes/*; do [ -d "$x" ] && D="$D $x(dossier)"; done
           for x in $(find . -path ./_code -prune -o -path ./.git -prune -o \( -name '*.pyc' -o -name '*.so' -o -name '*.pyd' \) -print); do D="$D $x(compile)"; done
-          if [ -n "$D" ]; then echo "::error::PROGRAMMES PUBLICS DIFFERENTS DU DEPOT PRIVE :$D"; exit 1; fi
+          if [ -n "$D" ]; then echo "::error::PROGRAMMES PUBLICS DIFFERENTS DU DEPOT PRIVE :$D — lancer : python3 -B programmes/REPUBLIER.py"; exit 1; fi
           cp _code/programmes/*.py programmes/
           mkdir -p "$RUNNER_TEMP/circuit_public" "$RUNNER_TEMP/garde"
           cp _code/.github/workflows/circuit_du_soir.yml "$RUNNER_TEMP/circuit_public/"
@@ -85,6 +85,11 @@ jobs:
           rm -rf "$RUNNER_TEMP/refait" && mkdir -p "$RUNNER_TEMP/refait"
           python3 programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py . "$RUNNER_TEMP/refait"
           cmp "$RUNNER_TEMP/refait/.github/workflows/circuit_du_soir.yml" "$RUNNER_TEMP/circuit_public/circuit_du_soir.yml"             || { echo "::error::LE CIRCUIT PUBLIC N EST PLUS CELUI DU DEPOT PRIVE — refabriquer et pousser"; exit 1; }
+      - name: Le public porte-t-il le code de main ?
+        id: public_a_jour
+        continue-on-error: true
+        run: |
+          python3 -B programmes/REPUBLIER.py --verifier . "$RUNNER_TEMP/code"
       - name: Faut-il tourner ?
         id: decision
         run: |
@@ -110,6 +115,12 @@ jobs:
             sleep 5
           done
           echo "journal : POUSSEE REFUSEE 3 FOIS"; exit 1
+      - name: Rougir si le public n est pas celui de main
+        id: rougir_si_le_public_est_en_retard
+        if: ${{ always() && steps.poser_les_programmes.outcome == 'success' && (steps.public_a_jour.outcome == 'failure') }}
+        run: |
+          echo "::error::LE PUBLIC N EST PAS CELUI DE MAIN, OU N A PAS PU ETRE VERIFIE — lire la ligne ::error:: du pas public_a_jour : si elle dit N EST PAS CELUI DE MAIN, lancer : python3 -B programmes/REPUBLIER.py ; si elle dit NON VERIFIABLE, republier ne repare rien"
+          exit 1
   collecte:
     needs: faut_il_tourner
     if: ${{ !cancelled() && needs.faut_il_tourner.outputs.tourner == 'true' }}
@@ -149,7 +160,7 @@ jobs:
           done
           for x in programmes/*; do [ -d "$x" ] && D="$D $x(dossier)"; done
           for x in $(find . -path ./_code -prune -o -path ./.git -prune -o \( -name '*.pyc' -o -name '*.so' -o -name '*.pyd' \) -print); do D="$D $x(compile)"; done
-          if [ -n "$D" ]; then echo "::error::PROGRAMMES PUBLICS DIFFERENTS DU DEPOT PRIVE :$D"; exit 1; fi
+          if [ -n "$D" ]; then echo "::error::PROGRAMMES PUBLICS DIFFERENTS DU DEPOT PRIVE :$D — lancer : python3 -B programmes/REPUBLIER.py"; exit 1; fi
           cp _code/programmes/*.py programmes/
           mkdir -p "$RUNNER_TEMP/circuit_public" "$RUNNER_TEMP/garde"
           cp _code/.github/workflows/circuit_du_soir.yml "$RUNNER_TEMP/circuit_public/"
