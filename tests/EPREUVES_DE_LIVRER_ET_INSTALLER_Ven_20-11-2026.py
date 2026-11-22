@@ -832,6 +832,7 @@ def cas_installer(progs, source):
       exception (OSError) → 4, de même ; I28 RELU commité par « coworker », un auteur qui COMMENCE par « cowork »
       → 1 (N-30). RELU de Cowork sur ba1340283 (N-32) : I29 RELU commité par « Cowork » (la casse est ignorée) → 0,
       installé ; I30 « cowork2 » (suffixe) → 1 ; I31 « pas-cowork » (le nom se termine par « cowork ») → 1.
+      RELU de Cowork sur 35f8fde7a (N-35) : I32 « co-work » (ponctuation interne) → 1, refusé par un cas et non par le seul texte (A0).
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026, A-818 et réparation du soir (points A et D).
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
@@ -1033,6 +1034,8 @@ def cas_installer(progs, source):
         ("I29", 0, preuves, {"auteur": "Cowork"}),
         ("I30", 1, preuves, {"auteur": "cowork2"}),
         ("I31", 1, preuves, {"auteur": "pas-cowork"}),
+        # N-35 (RELU de Cowork sur 35f8fde7a) : une règle plus large (ponctuation ignorée) est refusée par un CAS
+        ("I32", 1, preuves, {"auteur": "co-work"}),
     )
     mondes = {"I14": {"liste": "- aucune"}, "I15": {"liste": "- aucune", "code_change": False},
               "I18": {"liste": "- aucune", "code_change": False},
@@ -1304,24 +1307,34 @@ def cas_des_fiches(progs, source):
 
 
 def cas_des_arguments(progs, source):
-    """N31 : un nom inconnu dans --saboter= ou --cas= est refusé ; rend la liste des (nom, vrai si passé, détail).
+    """N31 : un nom inconnu dans --saboter= ou --cas= est refusé ; N34 : une option inconnue l'est aussi ; rend la liste des (nom, vrai si passé, détail).
 
     ① RÔLE — Garder R-734 (un contrôle qui n'a pas pu tourner ne rend jamais 0) pour les arguments de l'épreuve.
     ② CONTEXTE D'APPEL — `jouer`.
     ③ ENTRÉE — `progs` : le dossier des programmes, qui porte « EPREUVE.py » (copie, sabotable) · `source`.
     ④ CONDITIONS D'ENTRÉE — « EPREUVE.py » présent dans `progs` (écrit par `copier_les_programmes`).
-    ⑤ SORTIE — UNE valeur : la liste (vide si N31 n'est pas choisi), un cas N31.
-      [rend: 1]
+    ⑤ SORTIE — UNE valeur : la liste, un cas N31 et un cas N34 (chacun absent s'il n'est pas choisi).
+      [rend: 2]
     ⑥ TRAITEMENT — Relance « EPREUVE.py » deux fois, avec « --saboter=ZZ99 --ancres » puis « --cas=ZZ99 » (noms qui n'existent
-      pas). Chaque lancement doit rendre le code 2 et nommer au moins un nom connu (« S1 » ; « I1 »).
+      pas). Chaque lancement doit rendre le code 2 et nommer au moins un nom connu (« S1 » ; « I1 »). N34 : relance
+      « EPREUVE.py » avec « --sabotr=N31a --ancres » (option mal écrite) ; le code doit être 2.
     ⑦ UNITÉ — Secondes (délai de 30 s par lancement). ⑧ POURQUOI — N-31 (RELU de Cowork sur ba1340283) : un nom
-      faux rendait « TOUT PASSE » sans rien jouer.
+      faux rendait « TOUT PASSE » sans rien jouer ; N-34 (RELU sur 35f8fde7a) : une option fausse de même.
     ⑨ CE QUI CLOCHE — Le lancement imbriqué rejoue les ancres (A0) ; le délai dépassé compte comme échec.
-    ⑩ EFFET — Deux sous-processus, sans écriture hors /tmp. ⑪ TERMINAISON — Rend la main ; chaque appel est borné (30 s).
+    ⑩ EFFET — Deux sous-processus (trois avec N34), sans écriture hors /tmp. ⑪ TERMINAISON — Rend la main ; chaque appel est borné (30 s).
       [sort: non]
     """
+    sortie = []
+    if choisi("N34"):
+        try:
+            p = subprocess.run([sys.executable, "-B", os.path.join(progs, "EPREUVE.py"), source, "--sabotr=N31a", "--ancres"],
+                               capture_output=True, text=True, timeout=30)
+            ecart = "" if p.returncode == 2 else f"code {p.returncode} (attendu 2)"
+        except subprocess.TimeoutExpired:
+            ecart = "délai dépassé"
+        sortie.append(("N34", not ecart, "N34 une option inconnue rend 2 (N-34) : " + (ecart or "ok")))
     if not choisi("N31"):
-        return []
+        return sortie
     ecarts = []
     for args, connu in ((["--saboter=ZZ99", "--ancres"], "S1"), (["--cas=ZZ99"], "I1")):   # --ancres : sans le garde, sortie vite
         try:
@@ -1332,8 +1345,8 @@ def cas_des_arguments(progs, source):
             continue
         if p.returncode != 2 or connu not in p.stdout:
             ecarts.append(f"{args[0]} : code {p.returncode} (attendu 2), nom connu {connu} {'présent' if connu in p.stdout else 'absent'}")
-    return [("N31", not ecarts, "N31 un nom inconnu rend 2 et liste les noms connus (N-31) : "
-             + ("ok" if not ecarts else " ; ".join(ecarts)))]
+    return sortie + [("N31", not ecarts, "N31 un nom inconnu rend 2 et liste les noms connus (N-31) : "
+                      + ("ok" if not ecarts else " ; ".join(ecarts)))]
 
 
 SABOTAGES = (
@@ -1469,6 +1482,12 @@ SABOTAGES = (
     ("N32b auteur de Cowork lu comme fin de nom (LIVRER.est_cowork, I31)", "LIVRER.py",
      '    return auteur.strip().lower() == "cowork"', '    return auteur.strip().lower().endswith("cowork")'),
     # N-31 du même RELU : un nom inconnu dans --saboter= ou --cas= rendait « TOUT PASSE » sans rien jouer (R-734)
+    # N-35 du RELU de Cowork sur 35f8fde7a : une règle d'auteur plus large (ponctuation ignorée) doit faire tomber un cas
+    ("N35 auteur de Cowork lu sans ponctuation (LIVRER.est_cowork, I32)", "LIVRER.py",
+     '    return auteur.strip().lower() == "cowork"', '    return auteur.strip().lower().replace("-", "") == "cowork"'),
+    # N-34 du même RELU : une OPTION inconnue ou un argument en trop rendait « TOUT PASSE » sans rien jouer
+    ("N34 option inconnue acceptée (N34)", "EPREUVE.py",
+     "    if inconnues_o or en_trop:   # N-34 " + "/ R-734", "    if False:   # N-34 " + "/ R-734"),
     ("N31a nom de sabotage inconnu accepté (N31)", "EPREUVE.py",
      "        if inconnus_s:   # N-31 " + "/ R-734", "        if False:   # N-31 " + "/ R-734"),
     ("N31b nom de cas inconnu accepté (N31)", "EPREUVE.py",
@@ -1582,14 +1601,21 @@ def main():
     ③ ENTRÉE — sys.argv : la racine, « --saboter[=noms] », « --cas=noms » (essai restreint à ces cas), « --ancres »
       (seulement le compte des ancres, `ancres_perdues`).
     ④ CONDITIONS D'ENTRÉE — Voir l'en-tête.
-    ⑤ SORTIE — Rien : sort (0 ; 1 si un cas tombe ; 2 si un nom de --saboter= ou --cas= est inconnu, avec la liste des noms connus).
+    ⑤ SORTIE — Rien : sort (0 ; 1 si un cas tombe ; 2 si un nom de --saboter= ou --cas=, une option ou un argument en trop est inconnu, avec la liste des noms connus).
       [rend: rien]
-    ⑥ TRAITEMENT — les noms de --saboter= vérifiés d'abord (inconnu → 2) ; `ancres_perdues` (A0, toujours) ; `jouer` sur une copie propre, puis les noms de --cas= vérifiés contre ceux que `choisi` a vus (inconnu → 2) ; avec --saboter, `jouer` sur chaque copie sabotée : au moins un
+    ⑥ TRAITEMENT — les options et arguments vérifiés en tout premier (inconnu ou en trop → 2, N-34) ; les noms de --saboter= vérifiés ensuite (inconnu → 2) ; `ancres_perdues` (A0, toujours) ; `jouer` sur une copie propre, puis les noms de --cas= vérifiés contre ceux que `choisi` a vus (inconnu → 2) ; avec --saboter, `jouer` sur chaque copie sabotée : au moins un
       cas doit tomber. ⑦ UNITÉ — Secondes. ⑧ POURQUOI — R-731. ⑨ CE QUI CLOCHE — Voir l'en-tête.
     ⑩ EFFET — Dossiers temporaires. ⑪ TERMINAISON — Sort du programme par sys.exit.
       [sort: oui]
     """
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    inconnues_o = [a for a in sys.argv[1:] if a.startswith("--") and not a.startswith(("--cas=", "--saboter="))
+                   and a not in ("--saboter", "--ancres")]
+    en_trop = args[1:]
+    if inconnues_o or en_trop:   # N-34 / R-734 : un contrôle lancé avec une option qu'il ignore ne rend jamais 0
+        print(f"❌ ÉCHEC — option(s) inconnue(s) ou argument(s) en trop : {' '.join(inconnues_o + en_trop)}"
+              " · options connues : --cas= --saboter --saboter= --ancres")
+        sys.exit(2)
     source = os.path.abspath(args[0] if args else ".")
     for a in sys.argv[1:]:
         if a.startswith("--cas="):
