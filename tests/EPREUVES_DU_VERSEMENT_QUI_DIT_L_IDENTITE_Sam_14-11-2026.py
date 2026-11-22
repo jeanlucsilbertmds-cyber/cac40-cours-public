@@ -43,7 +43,7 @@ Simulation uniquement — aucun ordre réel.
 ⑪ TERMINAISON — Chaque versement est borné à 300 secondes.
   [sort: oui]
 """
-import os, shutil, subprocess, sys, tempfile
+import collections, inspect, os, shutil, subprocess, sys, tempfile
 
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
 DEPOT = os.path.abspath(_args[0] if _args else ".")
@@ -74,6 +74,12 @@ SABOTAGES = {
     # remarques de Cowork (RELU 38b7e4a3) : en panne, le geste qui lève l'anomalie, et un texte juste un soir sans anomalie
     "V4_panne_sans_ce_qui_la_leve": [('            print(f"     Ce qui la lève : corriger', '            print(f"     corriger')],
     "V5_panne_parle_d_une_anomalie_absente": [('if anomalies else\n                 "aucune anomalie', 'if True else\n                 "aucune anomalie')],
+    # RELU Cowork du 15-11-2026 (N-12, N-15) : textes de la panne et du soir normal, chacun tenu par son cas
+    "X1_panne_dit_la_seance_versee": [("ce soir la séance N'EST PAS versée : réparer d'abord la sortie du pas.", "la séance du soir est versée.")],
+    "X2_hors_panne_sans_ce_qui_la_leve": [('    if anomalies:\n        print(f"     Ce qui la lève : corriger la ligne de la société nommée dans {IDENTITES_A_CORRIGER} "\n              f"(décision de Jean-Luc) ; la séance du soir est versée.")\n',
+                                           '    if False:\n        pass\n')],
+    "X4_panne_sans_anomalie_dite_comme_sans": [('if anomalies else\n                 "aucune anomalie', 'if False else\n                 "aucune anomalie')],
+    "X5_panne_ce_qui_la_leve_sans_anomalie": [('        if anomalies:\n            print(f"     Ce qui la lève', '        if True:\n            print(f"     Ce qui la lève')],
     "V3_hors_circuit_ligne_tue": [('        print("  " + ligne + "  (GITHUB_OUTPUT absente : sortie du pas affichée seulement)")\n', "        pass\n")],
 }
 MAITRE = "donnees/cours_maitre.csv"
@@ -89,6 +95,45 @@ def sh(c, cwd):
     ⑧ POURQUOI — Un seul endroit pour l'environnement git. ⑨ CE QUI CLOCHE — —. ⑩ EFFET — Celui de la commande.
     ⑪ TERMINAISON — Bornée à 600 secondes. [sort: non]"""
     return subprocess.run(c, cwd=cwd, env=GIT, capture_output=True, text=True, timeout=600)
+
+
+def comparer_les_couples(portes, retires, derniere):
+    """Compare les couples (valeur, date) portés par l'incrément à ceux retirés du maître, et nomme l'écart.
+
+    ① RÔLE — La comparaison de la prémisse (N-5), isolée pour être éprouvée seule (N-40). ② CONTEXTE D APPEL —
+    `copier`, et `cas_n17`. ③ ENTRÉE — deux listes de couples et la date de la séance. ④ CONDITIONS D ENTRÉE — —.
+    ⑤ SORTIE — UNE valeur : un TEXTE nommant les couples en plus et en moins (un doublon compte), ou "" si égaux.
+    [rend: 1] ⑥ TRAITEMENT — `collections.Counter` des deux listes, différences, trois premiers. ⑦ UNITÉ — —.
+    ⑧ POURQUOI — N-17 (RELU Cowork du 15-11-2026) : un set() masquait un doublon. ⑨ CE QUI CLOCHE — —. ⑩ EFFET — —.
+    ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    if sorted(portes) == sorted(retires):
+        return ""
+    cp, cr = collections.Counter(portes), collections.Counter(retires)
+    plus = sorted((cp - cr).elements())[:3]
+    moins = sorted((cr - cp).elements())[:3]
+    return (f"l'incrément ne porte pas exactement les {len(retires)} couple(s) (valeur, date) de la séance {derniere} "
+            f"retirés du maître : {len(portes)} porté(s) ; en plus {plus} ; en moins {moins}")
+
+
+def cas_n17(sabote):
+    """Éprouve N-17 : un doublon dans l'incrément doit être nommé. [rend: 1] Rend "" si tenu, sinon le défaut.
+
+    ① RÔLE — Le cas qui tient la correction N-17 (N-40). ② CONTEXTE D APPEL — `principal`. ③ ENTRÉE — `sabote` :
+    vrai pour rejouer la fonction avec l'ancien set(). ④ CONDITIONS D ENTRÉE — —. ⑤ SORTIE — UNE valeur : texte.
+    ⑥ TRAITEMENT — couples fictifs (A, B ; A en double), appel, recherche du doublon dans le texte. ⑦ UNITÉ — —.
+    ⑧ POURQUOI — Sans lui, défaire N-17 laissait tout vert. ⑨ CE QUI CLOCHE — —. ⑩ EFFET — —. ⑪ TERMINAISON — Rend la main.
+    """
+    f = comparer_les_couples
+    if sabote:
+        src = inspect.getsource(comparer_les_couples).replace(
+            "collections.Counter(portes), collections.Counter(retires)",
+            "collections.Counter(set(portes)), collections.Counter(set(retires))")
+        ns = {"collections": collections}
+        exec(src, ns)
+        f = ns["comparer_les_couples"]
+    t = f([("A", "d"), ("A", "d"), ("B", "d")], [("A", "d"), ("B", "d")], "d")
+    return "" if "en plus [('A', 'd')]" in t else f"doublon non nommé : {t!r}"
 
 
 def copier(d):
@@ -121,11 +166,9 @@ def copier(d):
     retires = sorted(tuple(l.split(",")[:2]) for l in lignes[1:] if l.split(",")[1:2] == [derniere])
     inc = open(os.path.join(d, INCREMENT), encoding="utf-8").read().splitlines()
     portes = sorted(tuple(l.split(",")[:2]) for l in inc[1:] if l.split(",")[1:2] == [derniere])
-    if portes != retires:
-        plus = sorted(set(portes) - set(retires))[:3]
-        moins = sorted(set(retires) - set(portes))[:3]
-        return (f"l'incrément ne porte pas exactement les {len(retires)} couple(s) (valeur, date) de la séance {derniere} "
-                f"retirés du maître : {len(portes)} porté(s) ; en plus {plus} ; en moins {moins}")
+    texte = comparer_les_couples(portes, retires, derniere)
+    if texte:
+        return texte
     return a_verser, derniere, all(sh(c, d).returncode == 0 for c in (["git", "init", "-q"], ["git", "add", "-A"],
                ["git", "-c", "user.name=e", "-c", "user.email=e@e", "commit", "-qm", "copie"]))
 
@@ -196,29 +239,34 @@ def jeu(d, sab):
     n = DERNIERE[1]
     cas = [("P1 la fin de Peugeot « 2021-1-15 » : code 0, anomalies_d_identite=1, dite, « rougira », séance VERSÉE",
             dict(faute=True), lambda r: r["code"] == 0 and r["sortie"] == ["anomalies_d_identite=1"]
-            and TEXTE in r["ecran"] and "le passage rougira" in r["ecran"] and r["maitre_touche"] and r["seance"] == n),
+            and TEXTE in r["ecran"] and "le passage rougira" in r["ecran"] and "Ce qui la lève" in r["ecran"] and r["maitre_touche"] and r["seance"] == n),
            ("P2 la table telle quelle : code 0, anomalies_d_identite=0, rien à l'écran, séance versée",
             dict(faute=False), lambda r: r["code"] == 0 and r["sortie"] == ["anomalies_d_identite=0"]
             and "ANOMALIE D'IDENTITÉ" not in r["ecran"] and r["seance"] == n),
            ("P5 la faute, GITHUB_OUTPUT absente (hors du circuit) : code 0, dite, AUCUN rouge promis",
             dict(faute=True, sortie="absente"), lambda r: r["code"] == 0 and TEXTE in r["ecran"]
             and "le passage rougira" not in r["ecran"] and "RIEN ne rougira" in r["ecran"]
-            and "anomalies_d_identite=1" in r["ecran"] and r["maitre_touche"] and r["seance"] == n),   # N-10
+            and "anomalies_d_identite=1" in r["ecran"] and "Ce qui la lève" in r["ecran"] and r["maitre_touche"] and r["seance"] == n),   # N-10
            ("P6 la faute, GITHUB_OUTPUT posée mais vide : code 1, dite, rien n'est écrit",
             dict(faute=True, sortie="vide"), lambda r: r["code"] == 1 and "posée mais vide" in r["ecran"]
-            and TEXTE in r["ecran"] and "Ce qui la lève" in r["ecran"] and not r["maitre_touche"]),
+            and TEXTE in r["ecran"] and "Ce qui la lève" in r["ecran"] and "N'EST PAS versée" in r["ecran"]
+            and "ces anomalies d'identité ne seraient pas vues" in r["ecran"] and "aucune anomalie" not in r["ecran"]
+            and not r["maitre_touche"]),
            ("P8 la table telle quelle, GITHUB_OUTPUT posée mais vide : code 1, « aucune anomalie », rien n'est écrit",
             dict(faute=False, sortie="vide"), lambda r: r["code"] == 1 and "aucune anomalie d'identité ce soir" in r["ecran"]
-            and "ANOMALIE D'IDENTITÉ :" not in r["ecran"] and not r["maitre_touche"]),
+            and "ANOMALIE D'IDENTITÉ :" not in r["ecran"] and "Ce qui la lève" not in r["ecran"] and not r["maitre_touche"]),
            ("P7 la faute, GITHUB_OUTPUT faite d'espaces : code 1, dite, rien n'est écrit",                 # N-6
             dict(faute=True, sortie="espaces"), lambda r: r["code"] == 1 and "posée mais vide" in r["ecran"]
-            and TEXTE in r["ecran"] and not r["maitre_touche"]),
+            and TEXTE in r["ecran"] and "ces anomalies d'identité ne seraient pas vues" in r["ecran"]
+            and "aucune anomalie" not in r["ecran"] and not r["maitre_touche"]),
            ("P3 la faute en --verifier : code 0, anomalies_d_identite=1",
             dict(faute=True, verifier=True), lambda r: r["code"] == 0 and r["sortie"] == ["anomalies_d_identite=1"]
             and not r["maitre_touche"]),
            ("P4 la faute, sortie du pas impossible à écrire : code 1, rien n'est écrit",
             dict(faute=True, sortie="dossier"), lambda r: r["code"] == 1
-            and "SORTIE DU PAS IMPOSSIBLE" in r["ecran"] and TEXTE in r["ecran"] and not r["maitre_touche"])]
+            and "SORTIE DU PAS IMPOSSIBLE" in r["ecran"] and TEXTE in r["ecran"]
+            and "ces anomalies d'identité ne seraient pas vues" in r["ecran"] and "aucune anomalie" not in r["ecran"]
+            and not r["maitre_touche"])]
     for nom, opt, attendu in cas:
         r = jouer(d, sab, **opt)
         if isinstance(r, str):
@@ -253,6 +301,14 @@ def principal():
         DERNIERE[:] = [c[1], c[0]]
         print(f"  séance à verser : {c[1]}, {c[0]} ligne(s) retirées du maître enregistré de la copie")
         code = 0
+        # N-40 (RELU Cowork du 22-11-2026) : le cas qui tient N-17, et son sabotage (retour à set())
+        r17 = cas_n17(False)
+        print("== N17_doublon_nomme : " + ("vert (attendu)" if not r17 else f"rouge <-- ATTENDU VERT : {r17}"))
+        code = 1 if r17 else code
+        if "--saboter" in sys.argv:
+            r17s = cas_n17(True)
+            print("== X6_doublon_masque_par_set : " + ("1 rouge(s) (attendu)" if r17s else "vert <-- SABOTAGE NON VU"))
+            code = 1 if not r17s else code
         for nom in (SABOTAGES if "--saboter" in sys.argv else ["Z0"]):
             rg = jeu(d, SABOTAGES[nom])
             if isinstance(rg, str):
