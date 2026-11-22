@@ -12,7 +12,7 @@
 ③ ENTRÉE — La racine du dépôt (le fabricant et le certificateur sont pris dans son programmes/, les journaux des
   nuits dans son rapports/journal_du_circuit/).
 ④ CONDITIONS D'ENTRÉE — PyYAML et coverage installés (le circuit les installe) ; sinon code 2.
-⑤ SORTIE — Le code de sortie : 0 si les cas N1 à N13, D1 et F0 à F9 donnent la réponse attendue et, avec --saboter, si
+⑤ SORTIE — Le code de sortie : 0 si les cas N1 à N15, D1 et F0 à F9 donnent la réponse attendue et, avec --saboter, si
   chaque sabotage en fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus ou si un module manque.
   [rend: 1]
 ⑥ TRAITEMENT — Sur une copie restreinte du dépôt (programmes, tests, fiches de circuit, journaux de certification) :
@@ -50,7 +50,10 @@
   superviseur R-759, SUPERVISEUR_CERT3_Dim_15-11-2026.md, même dossier) : N13 la charge prévue d'un lancement est sa
   durée relevée, sinon son délai déclaré, sinon DUREE_MAX_EPREUVE, sur le vrai `repartir` (`n13`) ; N11 éprouve aussi
   une épreuve COUPÉE (sa sortie gardée, « ARRÊTÉE » en dernier) et les codes 2 et 124 ; sabotages Sh et Sv (N13),
-  Sw et Sx (N11).
+  Sw et Sx (N11). Et (21-11-2026, A-972, décision de Jean-Luc du 21-11-2026 à 13h34) : N14 aucun sabotage perdu ni
+  joué deux fois quand une épreuve est jouée en morceaux (`n14`, compte par une autre rédaction) · N15 le nombre de
+  tranches est la largeur du réservoir des places longues, qui laisse 2 places au soir (`n15`) ; sabotages Sy (15
+  tranches), Sz, Sz2, Sz3, Sz4, Sz5 (la découpe, la référence, la charge d'un morceau jamais joué).
 ⑦ UNITÉ — Des minutes (limites des jobs) et des secondes (charges).
 ⑧ POURQUOI — Décision de Jean-Luc du 30-10-2026 à 19h02 (réponse « 1 ») : « Couper la nuit en plusieurs tâches qui
   tournent en même temps, chacune avec ses propres 6 heures, plus une tâche finale qui réunit les résultats et dit
@@ -59,7 +62,9 @@
   de la lecture des cours : 2 730 s, 4 379 s, 5 028 s les nuits du 23, du 24 et du 30-10-2026).
 ⑨ CE QUI CLOCHE — Le vrai GitHub Actions n'est pas joué : la matrice, « needs », « always() » et la limite sont lus
   dans le YAML, pas observés. Le pas « deposer » (poussée au dépôt privé, renommage du journal de la tranche) n'est
-  pas joué. N5 dépend des journaux présents : sur un dépôt sans journal, chaque lancement compte pour son délai.
+  pas joué. N5 dépend des journaux présents ; sur un dépôt sans journal (la copie jouée sur GitHub), des durées
+  publiées (rapports/durees_des_epreuves_en_secondes.csv, A-968, décision de Jean-Luc du 21-11-2026 à 15h34) : des
+  durées périmées y font une prévision périmée ; sans l'un ni l'autre, chaque lancement compte pour son délai.
 ⑩ EFFET — Écrit dans des dossiers jetables, effacés à la fin.
 ⑪ TERMINAISON — Rend la main ; chaque lancement est borné (120 s pour le fabricant et la tâche finale, 300 s pour
   une tranche du dépôt d'essai) ; sort par sys.exit.
@@ -75,6 +80,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 try:
     import yaml
@@ -182,10 +188,46 @@ SABOTAGES = {
     "Sx_seul_le_code_1_garde_tout": [(CERTIF,
         "    return list(lignes) if code != 0 else list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]\n",
         "    return list(lignes) if code == 1 else list(lignes)[-LIGNES_D_UNE_EPREUVE_VERTE:]\n")],
-    "S11_epreuve_coupee_en_deux": [(CERTIF, "        groupes.setdefault(l[0], []).append(l)\n",
+    "S11_epreuve_coupee_en_deux": [(CERTIF, "        groupes.setdefault(unite_de(l), []).append(l)\n",
                                     "        groupes.setdefault(cle_de(l[0], l[2]), []).append(l)\n"),
-                                   (CERTIF, "    return [[l for l in lancements if l[0] in choisies[i]] for i in range(nombre)], charges",
+                                   (CERTIF, "    return [[l for l in lancements if unite_de(l) in choisies[i]] for i in range(nombre)], charges",
                                     "    return [[l for l in lancements if cle_de(l[0], l[2]) in choisies[i]] for i in range(nombre)], charges")],
+    # 21-11-2026 (A-972, décision de Jean-Luc du 21-11-2026 à 13h34) : 15 tranches au lieu de la largeur du réservoir
+    # (18) — N15 doit rougir ; un sabotage perdu à la découpe (le dernier de chaque morceau) — N14 doit rougir ; la
+    # lecture des sabotages amputée du dernier — N14 doit rougir (son compte vient d'une autre rédaction) ; un morceau
+    # retiré (le lancement entier rangé tel quel) — N14 doit rougir.
+    "Sy_quinze_tranches": [(FAB, "\nTRANCHES_DE_LA_NUIT = LARGEUR_DES_CIRCUITS_LONGS\n",
+                            "\nTRANCHES_DE_LA_NUIT = LARGEUR_DES_CIRCUITS_LONGS - 3\n")],
+    "Sz_sabotage_perdu_a_la_decoupe": [(CERTIF, 'ARGUMENT_DES_SABOTAGES + ",".join(codes[i - 1::nombre])',
+                                        'ARGUMENT_DES_SABOTAGES + ",".join(codes[i - 1::nombre][:-1])')],
+    "Sz2_lecture_des_sabotages_amputee": [(CERTIF, '            return [k.value for k in n.value.keys if k.value != "Z0"]\n',
+                                           '            return [k.value for k in n.value.keys if k.value != "Z0"][:-1]\n')],
+    "Sz3_sans_la_decoupe": [(CERTIF, '        if "--saboter" in textes[f] and "tests/" + f in morceaux:\n',
+                             '        if False:\n')],
+    "Sz4_morceau_manquant_non_vu": [(CERTIF, "        if len(n) == 1 and vus == {f\"{i}/{next(iter(n))}\" for i in range(1, int(next(iter(n))) + 1)}:\n",
+                                     "        if True:\n")],
+    "Sz5_charge_sans_z0": [(CERTIF, "    return -(-duree_entiere * (k + 1) // (tous + 1))\n",
+                            "    return -(-duree_entiere * k // tous)\n")],
+    # relecture de Cowork du 21-11-2026 : I-1 (un sabotage ajouté après coup accepté) ; m-2 (la clé du morceau garde
+    # « --seulement= », ou le délai du lancement entier n'est plus hérité) — N14 doit rougir
+    "Sz6_ecriture_apres_coup_acceptee": [(CERTIF, "    if len(ecritures) > 1:\n", "    if False:\n")],
+    "Sz7_cle_du_morceau_avec_seulement": [(CERTIF, ' if a != "{copie}" and not a.startswith(ARGUMENT_DES_SABOTAGES)])\n',
+                                           ' if a != "{copie}"])\n')],
+    # M-1 : la coupure ne tue que l'épreuve (ses petits-processus survivent) ; le dossier jetable n'est plus le sien
+    # (son TMPDIR n'est plus posé, il reste sur la machine) — N11 doit rougir
+    "Sz9_coupure_sans_le_groupe": [(CERTIF, "        os.killpg(p.pid, signal.SIGKILL)\n", "        p.kill()\n")],
+    "Sz10_tmpdir_non_pose": [(CERTIF, '    env["TMPDIR"] = jetable\n', "")],
+    # 21-11-2026 au soir : Sz11 retire la garde de ProcessLookupError (superviseur R-759, 4 (a)) ; Sz12 n'efface le
+    # dossier jetable que si l'épreuve a été coupée (K2 de Cowork, m-8) ; Sz13 laisse passer « dict.update(SABOTAGES, …) »
+    "Sz11_killpg_sans_garde": [(CERTIF, "        except ProcessLookupError:\n", "        except ZeroDivisionError:\n")],
+    "Sz12_effacement_seulement_si_coupee": [(CERTIF, '        code, sortie = 124, lu + f"\\nARRÊTÉE : plus de {delai} s"\n'
+                                                     '    finally:\n        shutil.rmtree(jetable, ignore_errors=True)\n',
+                                             '        code, sortie = 124, lu + f"\\nARRÊTÉE : plus de {delai} s"\n'
+                                             '        shutil.rmtree(jetable, ignore_errors=True)\n')],
+    "Sz13_ecriture_par_argument_acceptee": [(CERTIF, '    par_argument = modifiantes | {f for f in dir(operator) if f.startswith(("set", "del", "__set", "__del"))}\n',
+                                             "    par_argument = set()\n")],
+    "Sz8_delai_non_herite": [(CERTIF, "                delais.setdefault(cle_de(chemin, [\"--saboter\", f\"{ARGUMENT_DU_MORCEAU}{i}/{n}\"]), delais[entier])\n",
+                              "                pass\n")],
 }
 # Le texte que doit porter au moins une faute de chacun de ces sabotages : un sabotage qui ne fait tomber qu'un AUTRE cas
 # ne prouve pas que le sien regarde (15-11-2026 : à 6 tranches, seul N5 rougit ; à 1, F1 rougirait aussi).
@@ -197,7 +239,16 @@ ATTENDU = {"Sm_six_tranches_comme_avant": "N5 ", "Sn_sortie_rouge_coupee_a_trois
            "Sp_programme_eprouve_hors_des_dossiers_gardes": "N12 tests/EPREUVES_DE_L_INVENTAIRE_DES_VINGT_ANS",
            # superviseur R-759 du 15-11-2026 (SUPERVISEUR_CERT3_Dim_15-11-2026.md) : Sh et Sv (§1), Sw (§2), Sx (§3)
            "Sh_prevue_sans_le_delai_declare": "N13 ", "Sv_prevue_priorites_inversees": "N13 ",
-           "Sw_coupee_sans_sa_sortie": "N11 ", "Sx_seul_le_code_1_garde_tout": "N11 "}
+           "Sw_coupee_sans_sa_sortie": "N11 ", "Sx_seul_le_code_1_garde_tout": "N11 ",
+           # A-972 (21-11-2026)
+           "Sy_quinze_tranches": "N15 ", "Sz_sabotage_perdu_a_la_decoupe": "N14 ",
+           "Sz2_lecture_des_sabotages_amputee": "N14 ", "Sz3_sans_la_decoupe": "N14 ",
+           "Sz4_morceau_manquant_non_vu": "N14 ", "Sz5_charge_sans_z0": "N14 ",
+           "Sz6_ecriture_apres_coup_acceptee": "N14 sabotages_declares", "Sz7_cle_du_morceau_avec_seulement": "N14 ",
+           "Sz8_delai_non_herite": "N14 ", "Sz9_coupure_sans_le_groupe": "N11 coupure",
+           "Sz10_tmpdir_non_pose": "N11 coupure", "Sz11_killpg_sans_garde": "N11 groupe déjà vide",
+           "Sz12_effacement_seulement_si_coupee": "N11 fin normale",
+           "Sz13_ecriture_par_argument_acceptee": "N14 sabotages_declares"}
 
 # Le petit dépôt d'essai : un programme à trois fonctions, une épreuve par fonction (chacune exécute sa fonction par un
 # sous-processus, comme les vraies épreuves exécutent leurs programmes).
@@ -215,7 +266,9 @@ def copier_le_necessaire(source, cible):
     ⑤ SORTIE — Rien. [rend: rien]
     ⑥ TRAITEMENT — les *.py de chaque emplacement de code publié, lus dans DOSSIERS_DE_CODE du fabricant de la source
       (la racine, programmes/, tests/, etudes/outils/, tests/outils/ au 01-11-2026), tests/*.json, les fiches
-      .github/workflows/*.yml, les journaux de certification de rapports/journal_du_circuit/.
+      .github/workflows/*.yml, les journaux de certification de rapports/journal_du_circuit/, et le fichier des
+      durées publiées (son chemin LU au certificateur de la source, DUREES_PUBLIEES : A-968, 21-11-2026), que
+      `durees_relevees` lit quand les journaux manquent — sur GitHub, la copie jouée n'a pas de journaux.
     ⑦ UNITÉ — — ⑧ POURQUOI — Copier tout le dépôt (des milliers de fichiers) à chaque sabotage serait lent ; le
       fabricant et le certificateur n'en lisent pas davantage ici. Les emplacements sont LUS au fabricant, jamais
       épelés ici : relecture neuve du 01-11-2026 (M8), une seconde liste avait gardé les quatre anciens (R-708).
@@ -225,7 +278,7 @@ def copier_le_necessaire(source, cible):
       (programmes/CERTIFIER_LA_VERSION.py compte rouge tout code non nul), seule l'étiquette est fausse. Mesuré par la
       relecture n° 2 du 04-11-2026 (m6, AttributeError, code 1). Aucun filet « code 2 » dans `main` : il rangerait
       sous « n'a pas pu juger » une vraie panne du fabricant (superviseur R-759 du même jour, tour 3).
-    ⑩ EFFET — Charge le fabricant de la source (il ne fait que définir) ; écrit la copie. ⑪ TERMINAISON — Rend la main. [sort: non]
+    ⑩ EFFET — Charge le fabricant et le certificateur de la source (ils ne font que définir) ; écrit la copie. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
     code = [(d, r".*\.(py|json)$" if d == "tests" else r".*\.py$")
             for d in charger(os.path.join(source, FAB)).DOSSIERS_DE_CODE]
@@ -238,6 +291,10 @@ def copier_le_necessaire(source, cible):
         for f in os.listdir(d):
             if re.match(motif, f) and os.path.isfile(os.path.join(d, f)):
                 shutil.copyfile(os.path.join(d, f), os.path.join(cible, dossier, f))
+    publiees = charger(os.path.join(source, CERTIF)).DUREES_PUBLIEES
+    if os.path.isfile(os.path.join(source, publiees)):
+        os.makedirs(os.path.dirname(os.path.join(cible, publiees)), exist_ok=True)
+        shutil.copyfile(os.path.join(source, publiees), os.path.join(cible, publiees))
 
 
 def charger(chemin):
@@ -493,7 +550,10 @@ def n11(C, faux):
     ⑥ TRAITEMENT — ① `jouer`, LE VRAI, sur un script jetable qui écrit dix lignes et rend 1 : il doit rendre les dix
       lignes · ② `jouer`, LE VRAI, sur un script jetable qui écrit dix lignes sur stdout, « CAS FAUTIF : X » sur
       stderr, puis dort 60 s, joué avec un délai de 3 s : code 124, les dix lignes et « CAS FAUTIF : X » gardés, et
-      « ARRÊTÉE : plus de 3 s » en DERNIÈRE ligne (A2) · ③ `jouer_les_lancements` avec un `jouer` témoin qui rend dix
+      « ARRÊTÉE : plus de 3 s » en DERNIÈRE ligne (A2) ; ce script a lancé un petit-processus (« sleep 60 ») et créé
+      un dossier jetable par `tempfile` : après la coupure, le premier est mort et le second effacé (M-1) ; une épreuve
+      qui finit SEULE a eu son dossier jetable à elle, effacé ensuite (m-8) ; un `os.killpg` qui lève
+      ProcessLookupError (groupe déjà vide) laisse `jouer` rendre 124 (superviseur R-759 du 21-11-2026, 4 (a)) · ③ `jouer_les_lancements` avec un `jouer` témoin qui rend dix
       lignes, code 0 pour « v.py », 1 pour « r1.py », 2 pour « r2.py », 124 pour « r124.py » : chaque rouge doit
       porter les dix lignes, la verte les trois dernières (m1).
     ⑦ UNITÉ — Des lignes. ⑧ POURQUOI — Enquête du 15-11-2026, C6 : trois lignes gardées, le cas fautif de
@@ -502,8 +562,12 @@ def n11(C, faux):
       perdait toute sa sortie, alors qu'une coupure est justement un rouge à diagnostiquer ; sabotage Sw · m1 (§3) — le
       seul code 1 éprouvé laissait passer « code == 1 » à la place de « code != 0 », qui ne garde plus qu'un arrêt
       (code 2, le cas de B1) ou une coupure (124) à 3 lignes ; la propriété est « tout code non nul », éprouvée sur
-      ses trois classes réelles, pas une liste qu'on allongerait ; sabotage Sx.
-    ⑨ CE QUI CLOCHE — Le certificat partiel et le certificat ne sont pas écrits ici : ils recopient les lignes du
+      ses trois classes réelles, pas une liste qu'on allongerait ; sabotage Sx. M-1 des relectures de Cowork (encore
+      relevé le 21-11-2026) : la coupure ne tuait que l'épreuve et laissait son dossier jetable ; sabotages Sz9, Sz10.
+      m-8 (même relecture, pointe 5602b2271) : la fin normale n'était pas gardée ; sabotage Sz12. Superviseur R-759 du
+      21-11-2026, 4 (a) : killpg non gardé contre ProcessLookupError ; sabotage Sz11.
+    ⑨ CE QUI CLOCHE — L'état du petit-processus est lu dans /proc : Linux seulement (la nuit tourne sous Linux). Le
+      certificat partiel et le certificat ne sont pas écrits ici : ils recopient les lignes du
       résultat telles quelles (`ecrire_le_partiel`, `ecrire_le_rapport`). ⑩ EFFET — Un dossier jetable, effacé ;
       remet `jouer`. ⑪ TERMINAISON — Rend la main ; le premier script jetable est borné à 60 s, le second coupé à
       3 s par `jouer` (qui le tue, puis l'attend). [sort: non]
@@ -518,14 +582,61 @@ def n11(C, faux):
         if code != 1 or lignes != dix:
             faux.append(f"N11 `jouer` sur une épreuve rouge de 10 lignes rend code {code} et {len(lignes)} ligne(s), "
                         "attendu code 1 et les 10")
+        # m-8 (relecture de Cowork du 21-11-2026) : une épreuve qui finit SEULE voit aussi son dossier jetable effacé
+        open(os.path.join(d, "f.py"), "w", encoding="utf-8").write(
+            "import os, tempfile\nprint('JETABLE', tempfile.gettempdir())\n")
+        code, _, lignes = C.jouer(d, sys.executable, "", "", "f.py", ".", [], 60)
+        vus = [l.split()[1] for l in lignes if l.startswith("JETABLE ")]
+        if code != 0 or len(vus) != 1 or os.path.exists(vus[0]) or os.path.realpath(vus[0]) == os.path.realpath(
+                tempfile.gettempdir()):
+            faux.append(f"N11 fin normale : code {code}, dossier jetable {vus} "
+                        f"{'encore là' if vus and os.path.exists(vus[0]) else ''} (attendu un dossier à elle, effacé)")
+            for v in vus:
+                if os.path.realpath(v) != os.path.realpath(tempfile.gettempdir()):
+                    shutil.rmtree(v, ignore_errors=True)
+        # superviseur R-759 du 21-11-2026, 4 (a) : un groupe déjà vide au moment de la coupure (os.killpg lève
+        # ProcessLookupError) ne fait pas tomber `jouer` — simulé par un killpg qui tue le groupe, PUIS lève
+        vrai_killpg = C.os.killpg
+        def killpg_puis_vide(pid, sig):
+            vrai_killpg(pid, sig)
+            raise ProcessLookupError(3, "No such process")
+        open(os.path.join(d, "s.py"), "w", encoding="utf-8").write("import time\nprint('debut', flush=True)\ntime.sleep(60)\n")
+        C.os.killpg = killpg_puis_vide
+        try:
+            code, _, lignes = C.jouer(d, sys.executable, "", "", "s.py", ".", [], 1)
+            if code != 124:
+                faux.append(f"N11 groupe déjà vide : `jouer` rend {code}, attendu 124")
+        except ProcessLookupError as e:
+            faux.append(f"N11 groupe déjà vide : `jouer` tombe sur {e!r} au lieu de rendre 124")
+        finally:
+            C.os.killpg = vrai_killpg
         # A2 : une épreuve coupée garde ce qu'elle a écrit, « ARRÊTÉE » en dernière ligne
         open(os.path.join(d, "c.py"), "w", encoding="utf-8").write(
             "import sys, time\nfor i in range(1, 11):\n    print('ligne %d' % i)\nsys.stdout.flush()\n"
-            "print('CAS FAUTIF : X', file=sys.stderr)\nsys.stderr.flush()\ntime.sleep(60)\n")
+            "print('CAS FAUTIF : X', file=sys.stderr)\nsys.stderr.flush()\n"
+            "import subprocess, tempfile\nj = tempfile.mkdtemp()\n"
+            "f = subprocess.Popen(['sleep', '60'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+            "print('JETABLE', j, 'PETIT', f.pid, file=sys.stderr)\nsys.stderr.flush()\ntime.sleep(60)\n")
         code, _, lignes = C.jouer(d, sys.executable, "", "", "c.py", ".", [], 3)
         if code != 124 or lignes[:10] != dix or "CAS FAUTIF : X" not in lignes or lignes[-1:] != ["ARRÊTÉE : plus de 3 s"]:
             faux.append(f"N11 `jouer` sur une épreuve coupée rend code {code} et {lignes[-4:]}, attendu code 124, les 10 "
                         "lignes, « CAS FAUTIF : X », puis « ARRÊTÉE : plus de 3 s » en dernier")
+        # M-1 (relecture de Cowork, 21-11-2026) : après la coupure, ni le petit-processus ni le dossier jetable de
+        # l'épreuve ne restent ; un processus « zombie » (état Z, déjà mort, pas encore ramassé) compte pour mort
+        vus = [l.split() for l in lignes if l.startswith("JETABLE ")]
+        if len(vus) != 1:
+            faux.append(f"N11 coupure : la ligne « JETABLE … PETIT … » de l'épreuve coupée est absente : {lignes[-4:]}")
+        else:
+            jetable, petit = vus[0][1], vus[0][3]
+            time.sleep(0.2)
+            etat = open(f"/proc/{petit}/stat").read().rsplit(")", 1)[1].split()[0] if os.path.exists(
+                f"/proc/{petit}") else "absent"
+            if etat not in ("absent", "Z", "X") or os.path.exists(jetable):
+                faux.append(f"N11 coupure : petit-processus {petit} dans l'état {etat} (attendu mort), dossier jetable "
+                            f"{'encore là' if os.path.exists(jetable) else 'effacé'} (attendu effacé)")
+                if etat not in ("absent", "Z", "X"):
+                    os.kill(int(petit), 9)
+                shutil.rmtree(jetable, ignore_errors=True)
         # m1 : tout code non nul garde tout — 1 (rouge), 2 (arrêt), 124 (coupure) ; 0 garde 3 lignes
         codes = {"v.py": 0, "r1.py": 1, "r2.py": 2, "r124.py": 124}
         C.jouer = lambda copie, py, reg, man, chemin, dossier, arguments, delai, lectures=None: (
@@ -641,8 +752,164 @@ def n12(C, depot, faux):
                 faux.append(f"N12 {e} nomme {c}, hors des dossiers gardés par le circuit : il y sera effacé")
 
 
+def sabotages_comptes(texte):
+    """Rend les noms des sabotages d'une épreuve, Z0 exclu, lus par une AUTRE rédaction que celle du certificateur.
+
+    ① RÔLE — Compter les sabotages d'une épreuve « avant la découpe », sans passer par `sabotages_declares`.
+    ② CONTEXTE D'APPEL — `n14`, une fois par épreuve déclarée en morceaux.
+    ③ ENTRÉE — `texte` : le code de l'épreuve.
+    ④ CONDITIONS D'ENTRÉE — Le dictionnaire s'ouvre par une ligne « SABOTAGES = { » et se ferme par une ligne « } »
+      seule ; chaque clé commence une ligne, indentée de quatre espaces. Sinon la liste est vide, et `n14` rougit.
+    ⑤ SORTIE — UNE valeur : la liste des noms.
+      [rend: 1]
+    ⑥ TRAITEMENT — expression régulière sur le texte (et non l'arbre syntaxique, que lit le certificateur).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un compte fait par la même fonction que la découpe ne verrait pas une lecture amputée (sabotage
+      Sz2). Calibré le 21-11-2026 sur l'épreuve de la lecture des cours : 122 sabotages, autant que par l'arbre ; une
+      première forme exigeait une espace après « : » et en manquait un (S80, écrit « …sans_code":[ »).
+    ⑨ CE QUI CLOCHE — Une clé écrite sur une ligne qui ne commence pas par quatre espaces n'est pas vue : le compte
+      diffère alors de celui du certificateur, et `n14` rougit — à tort, mais jamais en silence.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    debut = texte.find("\nSABOTAGES = {\n")
+    fin = texte.find("\n}\n", debut)
+    if debut < 0 or fin < 0:
+        return []
+    return [n for n in re.findall(r'^    "([^"]+)":\s*\[', texte[debut:fin], re.M) if n != "Z0"]
+
+
+def n14(C, depot, faux):
+    """N14 — aucun sabotage perdu ni joué deux fois quand une épreuve est jouée en morceaux (A-972).
+
+    ① RÔLE — Compter les sabotages avant et après la découpe, et rougir si les comptes diffèrent.
+    ② CONTEXTE D'APPEL — `tour`, une fois.
+    ③ ENTRÉE — `C` : le certificateur de la copie · `depot` : la copie · `faux` : la liste des fautes, complétée.
+    ④ CONDITIONS D'ENTRÉE — tests/LANCEMENT_DES_EPREUVES.json se lit.
+    ⑤ SORTIE — Rien.
+      [rend: rien]
+    ⑥ TRAITEMENT — pour chaque épreuve de la table « morceaux_de_la_nuit » : ① ses sabotages comptés par
+      `sabotages_comptes` · ② ses lancements rendus par `lister_les_epreuves` : aucun lancement « --saboter » entier
+      ne reste, les morceaux sont exactement 1/N … N/N, et chacun porte « --seulement=… » · ③ chaque code court des
+      morceaux désigne exactement un sabotage compté, aucun code n'est joué deux fois, et le compte des codes égale le
+      compte des sabotages · ④ sur des lancements écrits à la main : `comparer` voit le lancement entier de la
+      référence joué quand tous ses morceaux le sont, disparu s'il en manque un ; `charge_estimee_du_morceau` compte Z0 ·
+      ⑤ chaque morceau est coupé, par `coupure` (sans durée relevée), au plus tôt au délai déclaré du lancement entier
+      (m-2 de la relecture de Cowork du 21-11-2026 : sans l'héritage du délai, ou si la clé gardait « --seulement= »,
+      chaque morceau tombait de 10 800 s à 1 500 s) · ⑥ sur des textes écrits à la main : `sabotages_declares` refuse
+      (ValueError) un dictionnaire SABOTAGES complété après coup — « SABOTAGES["S2_b"] = [] », « SABOTAGES.update(…) »
+      — ou passé en argument, « dict.update(SABOTAGES, …) », « operator.setitem(SABOTAGES, …) » (m-7 de la relecture de
+      Cowork du 21-11-2026, pointe 5602b2271) — et accepte une simple lecture, même en argument (« ", ".join(SABOTAGES) »)
+      (I-1 de la même relecture : un sabotage ainsi ajouté n'était jamais joué la nuit).
+    ⑦ UNITÉ — Des nombres de sabotages ; des secondes (④, ⑤).
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 13h34 (A-972) : découper la grosse épreuve ; consigne du même
+      jour : « aucun sabotage ne doit être perdu ». Un sabotage perdu à la découpe est une partie du code qu'on croit
+      éprouvée chaque nuit et qui ne l'est plus — et rien d'autre ne le verrait : la morsure de chaque sabotage joué
+      reste verte.
+    ⑨ CE QUI CLOCHE — Le nombre de morceaux lui-même n'est pas jugé ici : c'est N5 qui dit si chaque morceau tient sous
+      le tiers d'une tranche.
+    ⑩ EFFET — Lit des fichiers.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    table = json.load(open(os.path.join(depot, "tests", "LANCEMENT_DES_EPREUVES.json"), encoding="utf-8"))
+    lancements, _ = C.lister_les_epreuves(depot)
+    delais = C.options_de_lancement(depot)[0]
+    for chemin, e in (table.get("morceaux_de_la_nuit") or {}).items():
+        entier = delais.get(C.cle_de(chemin, ["--saboter"]))
+        coupures = [C.coupure(C.cle_de(l[0], l[2]), delais, {}) for l in lancements
+                    if l[0] == chemin and any(a.startswith("--morceau=") for a in l[2])]
+        if entier is not None and (not coupures or min(coupures) < entier):
+            faux.append(f"N14 {chemin} : morceaux coupés à {coupures} s, sous le délai déclaré du lancement entier "
+                        f"({entier} s)")
+        avant = sabotages_comptes(open(os.path.join(depot, chemin), encoding="utf-8").read())
+        if not avant:
+            faux.append(f"N14 {chemin} : aucun sabotage compté avant la découpe")
+            continue
+        siens = [l for l in lancements if l[0] == chemin and "--saboter" in l[2]]
+        n = e.get("morceaux") if isinstance(e, dict) else None
+        etiquettes = sorted(a for l in siens for a in l[2] if a.startswith("--morceau="))
+        if any(l[2] == ["{copie}", "--saboter"] for l in siens):
+            faux.append(f"N14 {chemin} : le lancement « --saboter » entier est encore rangé (la découpe n'a pas eu lieu)")
+        if etiquettes != sorted(f"--morceau={i}/{n}" for i in range(1, (n or 0) + 1)):
+            faux.append(f"N14 {chemin} : morceaux {etiquettes}, attendu 1/{n} … {n}/{n}")
+        codes = [c for l in siens for a in l[2] if a.startswith("--seulement=") for c in a.split("=", 1)[1].split(",")]
+        courts = [x.split("_", 1)[0] for x in avant]
+        mal = sorted({c for c in codes if courts.count(c) != 1})
+        doubles = sorted({c for c in codes if codes.count(c) > 1})
+        perdus = sorted(x for x in avant if x.split("_", 1)[0] not in codes)
+        if len(codes) != len(avant) or mal or doubles or perdus:
+            faux.append(f"N14 {chemin} : {len(avant)} sabotages avant la découpe, {len(codes)} après ; perdus "
+                        f"{perdus[:3]} ; joués deux fois {doubles[:3]} ; codes qui ne désignent pas un sabotage {mal[:3]}")
+    # N14 (suite) — sur des lancements écrits à la main : la référence qui porte le lancement entier le voit joué si
+    # TOUS ses morceaux le sont, et « disparu » s'il en manque un (`comparer`) ; la charge d'un morceau jamais joué est
+    # la durée entière × (k + 1) ÷ (K + 1), Z0 compté (`charge_estimee_du_morceau`) : 1 000 s, morceaux de 2 et 1
+    # sabotages → 750 s et 500 s
+    m1 = ["t.py", ".", ["{copie}", "--saboter", "--morceau=1/2", "--seulement=S1,S3"]]
+    m2 = ["t.py", ".", ["{copie}", "--saboter", "--morceau=2/2", "--seulement=S2"]]
+    ref = {"epreuves": [["t.py", ".", ["{copie}", "--saboter"]]]}
+    for joues, voulu in (([m1, m2], 0), ([m1], 1)):
+        disparues = C.comparer({}, joues, ref, {})[1]
+        if len(disparues) != voulu:
+            faux.append(f"N14 comparer : {len(joues)} morceau(x) sur 2 joués, {len(disparues)} épreuve(s) disparue(s), "
+                        f"attendu {voulu}")
+    dico = 'SABOTAGES = {\n    "Z0": [],\n    "S1_a": [],\n}\n'
+    for ajout, refuse in (("", False), ('for k in SABOTAGES.items():\n    pass\n', False),
+                          ('SABOTAGES["S2_b"] = []\n', True), ('SABOTAGES.update({"S2_b": []})\n', True),
+                          # m-7 (relecture de Cowork du 21-11-2026) : la même écriture, SABOTAGES passé en argument
+                          ('dict.update(SABOTAGES, {"S2_b": []})\n', True),
+                          ('import operator\noperator.setitem(SABOTAGES, "S2_b", [])\n', True),
+                          ('x = ", ".join(SABOTAGES)\n', False)):
+        try:
+            C.sabotages_declares(dico + ajout, "t.py")
+            vu = False
+        except ValueError:
+            vu = True
+        if vu != refuse:
+            faux.append(f"N14 sabotages_declares : {ajout.strip() or 'dictionnaire seul'!r} "
+                        + ("accepté, attendu refusé (sabotage ajouté après coup, jamais joué)" if refuse
+                           else "refusé, attendu accepté"))
+    estimees = [C.charge_estimee_du_morceau(m, [m1, m2], 1000) for m in (m1, m2)]
+    if estimees != [750, 500]:
+        faux.append(f"N14 charge estimée des morceaux : {estimees}, attendu [750, 500]")
+
+
+def n15(depot, k, faux):
+    """N15 — le nombre de tranches est la largeur du réservoir, qui laisse 2 places au circuit du soir (A-972, A-888).
+
+    ① RÔLE — Garder la décision du 21-11-2026 : 18 tranches, jamais une place du soir.
+    ② CONTEXTE D'APPEL — `tour`, une fois, après N2.
+    ③ ENTRÉE — `depot` : la copie (le fabricant y est pris) · `k` : le nombre de tranches lu dans le circuit fabriqué
+      (N2) · `faux` : la liste des fautes, complétée.
+    ④ CONDITIONS D'ENTRÉE — Le fabricant de la copie se charge.
+    ⑤ SORTIE — Rien.
+      [rend: rien]
+    ⑥ TRAITEMENT — trois comparaisons : k = PLACES_LONGUES ; PLACES_LONGUES = TACHES_EN_MEME_TEMPS_DU_COMPTE − 2 ;
+      TRANCHES_DE_LA_NUIT = k.
+    ⑦ UNITÉ — Des tâches de GitHub.
+    ⑧ POURQUOI — Décision de Jean-Luc du 21-11-2026 à 13h34 (« 18 morceaux ») et A-888 du 17-11-2026 à 22h30
+      (« 2 places toujours libres pour le circuit du soir et le relais »). Lu sur le circuit FABRIQUÉ (k) et non sur la
+      seule constante : c'est le circuit que GitHub exécute. N5 seul ne suffit pas à garder 18 : sur les journaux
+      présents au 21-11-2026, 15 tranches et la découpe tiendraient sous le tiers (6 439 s mesurés) — N5 ne rougirait
+      pas, et la décision serait défaite sans signal.
+    ⑨ CE QUI CLOCHE — La valeur 2 est relue ici, écrite une seconde fois : elle répète A-888 (la règle « 2 places »
+      n'est portée par aucune constante du fabricant, seulement par LARGEUR_DES_CIRCUITS_LONGS = 18 et un commentaire).
+    ⑩ EFFET — Exécute le fabricant de la copie (chargement).
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    F = charger(os.path.join(depot, FAB))
+    if k != F.PLACES_LONGUES or F.TRANCHES_DE_LA_NUIT != k:
+        faux.append(f"N15 {k} tranches au circuit (constante : {F.TRANCHES_DE_LA_NUIT}), attendu la largeur du "
+                    f"réservoir, {F.PLACES_LONGUES} places (A-972)")
+    if F.PLACES_LONGUES != F.TACHES_EN_MEME_TEMPS_DU_COMPTE - 2:
+        faux.append(f"N15 réservoir de {F.PLACES_LONGUES} places pour {F.TACHES_EN_MEME_TEMPS_DU_COMPTE} tâches du "
+                    "compte : les 2 places du soir ne sont plus libres (A-888)")
+
+
 def tour(depot):
-    """Joue N1 à N13, D1, puis F0 à F9 sur une copie de `depot`, et rend la liste des cas faux.
+    """Joue N1 à N15, D1, puis F0 à F9 sur une copie de `depot`, et rend la liste des cas faux.
 
     ① RÔLE — Un tour d'épreuves. ② CONTEXTE D'APPEL — `main`, une fois tel quel puis une fois par sabotage.
     ③ ENTRÉE — `depot` : la copie restreinte à éprouver. ④ CONDITIONS D'ENTRÉE — —
@@ -767,6 +1034,8 @@ def tour(depot):
     n12(C, depot, faux)
     n13(C, faux)
     n10(C, faux)
+    n14(C, depot, faux)
+    n15(depot, k, faux)
     essai(depot, y, faux)
     return faux
 

@@ -864,6 +864,7 @@ ENTREES_DES_PLACES = ("      premiere_place:\n" + CORPS_DE_L_ENTREE_PREMIERE_PLA
                       + "      nombre_de_places:\n" + CORPS_DE_L_ENTREE_NOMBRE_DE_PLACES)
 TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inputs.premiere_place, "
                     "inputs.nombre_de_places) || '' }}")
+# (HISTOIRE, garde la trace du choix précédent ; remplacé le 21-11-2026 par le bloc « 18 TRANCHES » juste au-dessous.)
 # 15 TRANCHES ET UNE FILE UNIQUE (A-896, décision de Jean-Luc du 18-11-2026 à 12h25, « si c'est la meilleure solution
 # possible, la plus optimum, ben à ce moment-là, prends le 1, la file unique », pour l'option « Une file unique : 18
 # places au maximum et 2 laissées libres, 15 tranches, après un essai de 10 min de queue: max »). Pourquoi 15 : la mesure
@@ -878,7 +879,74 @@ TITRE_DES_PLACES = ("${{ inputs.premiere_place && format(' places {0}+{1}', inpu
 # 44295116680, 44295145189, 44295170760 contre 44295116696, 44295145099, 44295170796) : trois poussées en 20 s ; avec
 # « queue: max », trois passages réussis l'un après l'autre, dans l'ordre, ceux en attente sans aucune tâche (aucune
 # place prise) ; sans elle, le deuxième « cancelled ».
-TRANCHES_DE_LA_NUIT = 15
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# 18 TRANCHES, UNE ÉPREUVE DÉCOUPÉE — CE QUI A ÉTÉ DÉCIDÉ, POURQUOI, SES LIMITES, COMMENT LE REMETTRE EN CAUSE
+# (A-972 au BACKLOG ; texte écrit pour être lu seul, dans six mois, sans rien chercher ailleurs)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# À QUOI SERT CE NOMBRE. Chaque nuit, GitHub rejoue TOUTES les épreuves du dépôt pour « certifier » la version (dire
+# qu'aucune n'a reculé). Joué d'un seul tenant, ce travail dépasse les 6 heures qu'une machine de GitHub accorde. On le
+# coupe donc en TRANCHES : chaque tranche est une machine à part, qui joue sa part des épreuves en même temps que les
+# autres ; une tâche finale réunit les résultats et rougit s'il en manque un (décision de Jean-Luc du 30-10-2026).
+# TRANCHES_DE_LA_NUIT est le nombre de ces machines.
+#
+# POURQUOI 20. GitHub, sur un compte gratuit, ne fait jamais tourner plus de 20 tâches à la fois pour tout le compte
+# (« 20 total concurrent jobs », documentation de GitHub lue le 15-11-2026). C'est TACHES_EN_MEME_TEMPS_DU_COMPTE,
+# plus haut. C'est un mur : au-delà, GitHub met les tâches en file d'attente, il ne refuse pas.
+#
+# POURQUOI 2 PLACES LIBRES. Décision de Jean-Luc du 17-11-2026 à 22h30 (A-888) : « 18 calculs en parallèle au plus,
+# et 2 places toujours libres pour le circuit du soir et le relais ». Le circuit du soir lit les cours et calcule les
+# signaux ; une séance non lue le jour même perd ses signaux pour toujours. Il ne doit donc jamais attendre derrière
+# une épreuve de nuit. D'où LARGEUR_DES_CIRCUITS_LONGS = 18, plus haut : les trois circuits longs (séries de
+# sabotages, épreuves longues, certification de nuit) partagent un réservoir de 18 places (PLACES_LONGUES), et GitHub
+# ne leur en donne jamais plus — chaque tâche porte un groupe « place-longue-1 » … « place-longue-18 »
+# (`groupe_de_place`), et la tranche numéro k prend la place k (`place_bornee`, qui ne rend que 1 à 18).
+#
+# POURQUOI 18 TRANCHES. Décision de Jean-Luc du 21-11-2026 à 13h34 (A-972), réponse « 1 » à la question N-10 du Chat :
+# « Faire les deux tout de suite (18 morceaux et grosse épreuve découpée), puis étudier la relance sélective ». Le
+# constat mesuré (certification de nuit 44852703801, 21-11-2026, somme des « charges_prevues_secondes » de ses
+# certificats partiels) : la nuit demandait 112 523 s de travail pour 15 tranches × 6 600 s = 99 000 s tenables (le
+# BACKLOG, A-959, écrit 115 523 s : faute de recopie, un seul chiffre (2 → 5), écrite à la main au commit 45124e663 ;
+# aucune sortie de programme ne porte 115 523 — relecture de Cowork du 21-11-2026, m-4 ; la somme relue fait foi). 6 600 s, c'est le TIERS des 330 minutes d'une tranche : les durées d'une
+# même épreuve ont varié du simple au double d'une nuit à l'autre, et le tiers laisse cette marge (N5, plus bas).
+# 18 tranches × 6 600 s = 118 800 s tenables. 18 est le plus grand nombre possible sans toucher les 2 places du soir :
+# c'est pourquoi ce nombre N'EST PAS ÉCRIT ICI, il est LU sur la largeur du réservoir (R-708 : une valeur vit à un
+# seul endroit ; deux copies d'une même chose divergent toujours). Si la largeur change, les tranches suivent.
+# Mesure du 21-11-2026 sur cette branche, à titre d'exemple et non de seuil (les vraies charges se recalculent chaque
+# nuit) : 224 lancements, 96 508 s prévues, tranche la plus lourde 5 369 s à 18 (sur les journaux présents au dépôt).
+#
+# POURQUOI LA DÉCOUPE D'UNE ÉPREUVE. `repartir` (programmes/CERTIFIER_LA_VERSION.py) range un lancement entier dans
+# UNE tranche. Or « tests/EPREUVES_DE_LA_LECTURE_DES_COURS_Sam_10-10-2026.py --saboter » a duré à lui seul 7 663 s
+# cette nuit-là : plus que le tiers, quel que soit le nombre de tranches. Ses sabotages sont donc joués en 3 morceaux
+# (table « morceaux_de_la_nuit » de tests/LANCEMENT_DES_EPREUVES.json, commentaire de MORCEAUX_DE_LA_NUIT dans le
+# certificateur), chacun rangé dans sa tranche. Aucun sabotage n'est perdu : N14 de
+# tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py les recompte avant et après la découpe et rougit si les comptes
+# diffèrent. La charge d'un morceau n'est jamais écrite à la main : `repartir` la calcule (R-728).
+#
+# LES LIMITES — CE QUI NE TIENDRA PAS.
+#   ① La nuit grossit : environ 35 lancements de plus par semaine (N5, relevé depuis le 10-11-2026 : 126, 161, 170…).
+#      À 431 s par lancement en moyenne (96 508 s ÷ 224, mesure ci-dessus), c'est environ 15 000 s de plus par
+#      semaine. La marge de 18 tranches sur cette mesure : 118 800 − 96 508 = 22 292 s, soit environ une semaine et
+#      demie. Sur la mesure plus lourde de la nuit 44852703801 (112 523 s), elle n'est que de 118 800 − 112 523 =
+#      6 277 s : moins d'une semaine.
+#      18 tranches ACHÈTENT DU TEMPS ; elles ne règlent pas la croissance.
+#   ② 18 est un plafond : on ne peut pas aller au-delà sans prendre les places du soir (interdit par A-888) ou sans
+#      une offre payante de GitHub. Les offres payantes donnent plus de tâches simultanées : NON VÉRIFIÉ — ni le
+#      nombre, ni le prix, ni le compte concerné n'ont été lus à la source. À lire avant de décider.
+#   ③ La vraie réponse à la croissance est de rejouer MOINS : la RELANCE SÉLECTIVE (A-973, à étudier, décision de
+#      Jean-Luc du 21-11-2026 à 13h34) — ne rejouer une épreuve longue la nuit que si l'un des fichiers qu'elle teste a
+#      changé depuis sa dernière réussite. Son risque : une dépendance non déclarée ferait garder un vert périmé.
+#   ④ Les tranches qui ne trouvent pas de place libre (le réservoir est partagé avec les séries et les épreuves
+#      longues) attendent leur tour : la nuit peut finir plus tard, jamais prendre une place du soir.
+#
+# COMMENT LE REMETTRE EN CAUSE — LA MESURE À REGARDER, ET QUI LA DONNE.
+#   • La charge prévue de chaque tranche : « charges_prevues_secondes » dans chaque certificat partiel
+#     (rapports/certificats_partiels/TRANCHE_<k>.json du dépôt privé), écrit chaque nuit par
+#     programmes/CERTIFIER_LA_VERSION.py (`repartir`).
+#   • L'alarme : N5 de tests/EPREUVES_DE_LA_NUIT_DECOUPEE_Ven_30-10-2026.py rougit dès qu'une tranche dépasse le
+#     tiers (6 600 s). Quand N5 rougit et que les tranches sont déjà à 18, il n'y a plus de nombre à augmenter : il faut
+#     découper une autre épreuve (ajouter une ligne à « morceaux_de_la_nuit ») ou rejouer moins (A-973).
+#   • N15 du même fichier garde la règle : les tranches égalent la largeur du réservoir, qui laisse 2 places au soir.
+TRANCHES_DE_LA_NUIT = LARGEUR_DES_CIRCUITS_LONGS
 # LES ESSAIS DE POUSSÉE D'UNE TÂCHE DE LA CERTIFICATION : le nombre de tranches PLUS TROIS. Choix technique du Chat
 # (31-10-2026), pas une décision de Jean-Luc. Sa raison est une loi, mesurée par le superviseur R-759 du 31-10-2026
 # (simulation `sup_N/course.sh` : six clones poussent vers un même dépôt à la même seconde) : un essai d'une tranche ne
@@ -1084,8 +1152,59 @@ VERDICT_DE_LA_CERTIFICATION = """      - name: Rougir si la version n'est pas ce
 """
 
 
+# LES DURÉES PUBLIÉES, REFAITES CHAQUE NUIT (A-969). Décision de Jean-Luc du 21-11-2026 à 16h09, réponse « 1 » à la
+# question du Chat de 15h51 : « 1. Oui, le circuit de nuit refait le fichier chaque nuit (recommandé) · 2. Non, on le
+# refait à la main de temps en temps » ; critère donné avec la question : des prévisions toujours fondées sur des durées
+# récentes. Le fichier (A-968) porte la clé de chaque lancement et ses secondes, tirées des journaux de certification
+# par programmes/CERTIFIER_LA_VERSION.py « --publier-les-durees » ; sans ce pas, rien ne le refaisait.
+# Le chemin est écrit ICI une seconde fois (le fabricant ne charge pas le certificateur) : l'épreuve
+# tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py (P7) le confronte à DUREES_PUBLIEES du certificateur.
+DUREES_PUBLIEES_DU_DEPOT = "rapports/durees_des_epreuves_en_secondes.csv"
+IDENTITE_DES_DUREES = "durees-publiees"   # l'auteur du commit des durées : jamais « certification-publique » (I-1)
+# LE JOURNAL DE LA TÂCHE FINALE, au nom que lui donne programmes/ETAPE_MUETTE.py (`chemin_du_journal` : passage,
+# tentative, job). Le dépôt des durées l'ajoute (I-3 de la relecture de Cowork du 21-11-2026, mesuré : sans lui, la
+# raison d'un échec de la publication restait sur la machine jetable). Le même texte est écrit quatre fois plus loin
+# (tranches, séries, épreuves longues) : non unifié ici, consigné au BACKLOG (R-708).
+JOURNAL_DE_LA_TACHE = "rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log"
+# L'INDEX N'EST PAS VIDÉ AVANT L'AJOUT (I-5 de la relecture de Cowork du 22-11-2026, pointe 9bfa7b29d ; plan du
+# superviseur R-759 du 22-11-2026 : la réparation précédente, « git reset -q » avant l'ajout, était une RUSTINE). Le
+# « reset » rendait NON SUIVIS les journaux que la publication reprend de main (« git checkout FETCH_HEAD -- … ») ;
+# quand le dépôt du certificat n'avait pas tiré main (« rien a deposer », conflit), « git pull --rebase --autostash »
+# refusait alors de poser main par-dessus (« error: could not detach HEAD »), à chaque essai : durées et journal de la
+# tâche perdus. Sans lui, mesuré, le rebasage écarte de lui-même les journaux identiques à ceux de main, et le dernier
+# commit ne porte que les deux chemins ajoutés. Ce n'est plus une lecture du texte qui le garde : P7 JOUE les deux
+# dépôts dans des dépôts git jetables (tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py, `jouer_les_depots`).
+# LE PAS, dans la tâche finale, APRÈS le dépôt du certificat au privé, et suivi de son PROPRE dépôt
+# (DEPOSER_LES_DUREES). Il ① reprend à la pointe de main (FETCH_HEAD : posée par le « git pull » du dépôt du
+# certificat, sinon par le pas « partiels ») les journaux que les tranches de CETTE nuit viennent d'y pousser — sans
+# eux, les durées auraient une nuit de retard — puis ② lance la publication. CHOIX FAIT (consigne du Chat du
+# 21-11-2026 : « aucun pas ne masque son échec », sans casser la certification) : PAS de « continue-on-error ». Un
+# échec rend le pas rouge, un « ::error:: » le dit au journal privé (ETAPE_MUETTE ne montre au public que « ÉCHEC »),
+# et le job finit rouge ; le verdict (« !cancelled() ») tourne quand même, et le certificat est DÉJÀ déposé. La
+# condition : seulement si le code a été posé (sinon le code de la version n'a pas à tourner) et si la réunion a tourné
+# (succès OU échec : les durées ne dépendent pas du verdict).
+# POURQUOI DEUX DÉPÔTS ET CET ORDRE (I-1 de la relecture de Cowork du 21-11-2026, mesuré dans deux dépôts git
+# jetables) : quand le certificat et le fichier des durées partaient dans le MÊME commit, un commit de main qui
+# touchait aussi ce fichier pendant la nuit (le Chat qui le refait à la main sur une branche fusionnée le jour même)
+# faisait échouer le rebasage, les 21 essais, et le CERTIFICAT n'était pas déposé — MESSAGE_DU_SOIR lisait alors
+# l'ancien. Le certificat part maintenant seul, avant toute publication ; les durées partent ensuite dans un commit à
+# elles, sous une AUTRE identité que « certification-publique » (programmes/MESSAGE_DU_SOIR.py juge la certification
+# sur le dernier commit de cette identité : un commit des durées ne doit jamais passer pour un certificat). Si ce
+# second dépôt échoue (conflit sur le fichier, poussées refusées), il le dit et rougit ; le certificat n'y perd rien.
+PUBLIER_LES_DUREES = """      - name: Publier les durees des epreuves
+        id: publier_les_durees
+        if: ${{ !cancelled() && steps.poser_le_code.outcome == 'success' && steps.certifier.outcome != 'skipped' }}
+        run: |
+          git checkout FETCH_HEAD -- rapports/journal_du_circuit \\
+            || { echo "::error::JOURNAUX DE LA NUIT ILLISIBLES — durees non publiees"; exit 1; }
+          python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --publier-les-durees \\
+            || { echo "::error::DUREES DES EPREUVES NON PUBLIEES — le certificat est depose quand meme"; exit 1; }
+"""
+
+
 def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", message="certificat de la version",
-                 reste="le certificat", branche=None, valeurs=()):
+                 reste="le certificat", branche=None, valeurs=(), nom="Deposer au depot prive", ident="deposer",
+                 condition="always()"):
     """Rend le pas qui pousse au dépôt privé ce qu'une tâche de la certification a écrit.
 
     ① RÔLE — Écrire une fois le dépôt au privé (R-708), pour les tranches et pour la tâche finale.
@@ -1097,7 +1216,10 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
       nom d'une branche À SOI du dépôt privé (une seule poussée, voir ⑥) · `valeurs` (tour 5, seulement avec
       `branche`) : des couples (NOM, expression de GitHub), posés dans le bloc « env: » du pas et vérifiés en tête du
       script ; `avant`, `chemins` et `branche` les lisent alors par « ${NOM} », jamais par « ${{ … }} ». Les valeurs
-      par défaut sont celles de la certification : son texte fabriqué ne change pas d'un octet.
+      par défaut sont celles de la certification : son texte fabriqué ne change pas d'un octet. `nom`, `ident`,
+      `condition` (21-11-2026, I-1 de la relecture de Cowork) : le nom, l'« id » et le « if: » du pas, pour un SECOND
+      dépôt dans un même job (celui des durées) ; leurs valeurs par défaut redonnent le texte d'avant à l'octet
+      (sauf les deux ajouts du 21-11-2026 au soir, m-9, décrits au ⑥).
     ④ CONDITIONS D'ENTRÉE — Avec `branche` : `avant`, `chemins` et `branche` ne portent aucune expression « ${{ » (le
       filet des gabarits, propriété ⑩, refuse sinon le gabarit entier).
     ⑤ SORTIE — UNE valeur : le texte du pas, au format du fichier de circuit.
@@ -1108,7 +1230,9 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
       (15-11-2026 : la certification clone le privé à un commit, en tête détachée, où un « git push » nu ne sait
       pas quelle branche pousser — superviseur R-759 du 15-11-2026, §3) ; après chaque essai
       refusé, le dernier compris, une attente tirée au hasard de 1 à 15 s (jusqu'à 15 s perdues avant le message
-      d'erreur). AVEC `branche` (patch du 04-11-2026, superviseur R-759, R1 ; tour 5, superviseur R-759 du
+      d'erreur). Le commit porte sa garde, et un rebasage resté en plan est abandonné AVANT le message d'erreur final
+      (m-9 de la relecture de Cowork du 21-11-2026, mesuré : sans garde, « git commit » tombait muet au milieu d'un
+      rebasage laissé par le pas précédent ; aucun dépôt ne laisse plus de rebasage derrière lui). AVEC `branche` (patch du 04-11-2026, superviseur R-759, R1 ; tour 5, superviseur R-759 du
       06-11-2026, §4 ①) : SANS_RIEN_DE_LA_VERSION ; chaque valeur de `valeurs` vérifiée (lettres, chiffres, « _ »,
       « - » : ni « : », qui ferait écrire une autre référence, ni « / » ni « .. ») ; `avant` ; les chemins de
       `chemins` qui existent recopiés comme de SIMPLES FICHIERS (tar) du dossier de travail vers le dossier neuf $T
@@ -1167,9 +1291,9 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
       [sort: non]
     """
     if branche is None:
-        return ("""      - name: Deposer au depot prive
-        id: deposer
-        if: always()
+        return ("""      - name: """ + nom + """
+        id: """ + ident + """
+        if: """ + condition + """
         shell: bash
         run: |
           git config user.name """ + auteur + """
@@ -1177,12 +1301,14 @@ def pas_de_depot(apres_echec, chemins, avant, auteur="certification-publique", m
 """ + avant + "          git add " + chemins + """ \\
             || { echo \"::error::""" + apres_echec + """\"; exit 1; }
           if git diff --cached --quiet; then echo "rien a deposer"; exit 0; fi
-          git commit -q -m \"""" + message + """, passage public ${GITHUB_RUN_ID} [skip ci]"
+          git commit -q -m \"""" + message + """, passage public ${GITHUB_RUN_ID} [skip ci]" \\
+            || { echo \"::error::COMMIT IMPOSSIBLE — """ + reste + """ reste sur la machine jetable\"; exit 1; }
           for i in $(seq 1 """ + str(ESSAIS_DE_POUSSEE) + """); do
             git rebase --abort 2>/dev/null || true
             if git pull -q --rebase --autostash origin main && git push -q origin HEAD:refs/heads/main; then echo "depose"; exit 0; fi
             sleep $((RANDOM % 15 + 1))
           done
+          git rebase --abort 2>/dev/null || true
           echo "::error::POUSSEE REFUSEE """ + str(ESSAIS_DE_POUSSEE) + """ FOIS — """ + reste + """ reste sur la machine jetable"; exit 1
 """)
     # tour 5 : le jeton n'est lu que par AUTORISATION ; git ne tourne que dans le dossier neuf $T, où les résultats
@@ -1397,7 +1523,7 @@ jobs:
         id: certifier
         continue-on-error: true
         run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir %(nombre)d
-%(deposer_final)s%(verdict)s""" % {
+%(deposer_final)s%(publier_les_durees)s%(deposer_les_durees)s%(verdict)s""" % {
     # la matrice en liste « à tirets » : le sous-ensemble YAML que lit ce fabricant (SCALAIRE_DE_LISTE) refuse la liste
     # entre crochets, qui commence par un indicateur YAML ; c'est le producteur qui parle la langue du lecteur
     # (superviseur R-759 du 31-10-2026, B1, « DE FOND »)
@@ -1425,8 +1551,22 @@ jobs:
         "          for f in rapports/journal_du_circuit/circuit_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}.log; do\n"
         "            [ -f \"$f\" ] && mv \"$f\" \"${f%.log}_tranche_${{ matrix.tranche }}.log\"\n"
         "          done\n"),
+    # A-969 (décision de Jean-Luc du 21-11-2026 à 16h09, « 1 ») : la tâche finale refait les durées publiées APRÈS le
+    # dépôt du certificat, et les pousse dans un SECOND dépôt, à elles, sous leur propre identité (I-1 de la relecture
+    # de Cowork du 21-11-2026 : dans le même commit, un conflit sur ce fichier empêchait le dépôt du certificat). Le
+    # second dépôt tourne dès que la publication a TOURNÉ, réussie OU échouée (I-3 de la relecture de Cowork du
+    # 21-11-2026, pointe 5602b2271) : il porte aussi le journal de la tâche, où la publication, jouée sous ETAPE_MUETTE,
+    # a écrit la raison de son échec — le dépôt du certificat, passé AVANT, ne pouvait pas l'emporter. Publication
+    # échouée : le fichier des durées n'a pas changé (écriture par os.replace, `publier_les_durees`), seul le journal part
     "deposer_final": pas_de_depot("certificat ou journal introuvable",
-                                  "rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/", "")}
+                                  "rapports/CERTIFICAT_DE_LA_VERSION.md rapports/journal_du_circuit/", ""),
+    "publier_les_durees": PUBLIER_LES_DUREES,
+    "deposer_les_durees": pas_de_depot("fichier des durees ou journal de la tache introuvable",
+                                       DUREES_PUBLIEES_DU_DEPOT + " " + JOURNAL_DE_LA_TACHE, "",
+                                       auteur=IDENTITE_DES_DUREES, message="durees des epreuves et journal de la tache",
+                                       reste="le fichier des durees", nom="Deposer les durees au depot prive",
+                                       ident="deposer_les_durees",
+                                       condition="${{ !cancelled() && steps.publier_les_durees.outcome != 'skipped' }}")}
 
 # LE CIRCUIT DES SÉRIES LONGUES DE SABOTAGES, AU DÉPÔT PUBLIC (patch du 04-11-2026, tour 3 après l'avis du superviseur
 # R-759 du 04-11-2026 à 19h59 ; à valider par Jean-Luc ; NON appliqué).
