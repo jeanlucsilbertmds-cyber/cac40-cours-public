@@ -612,6 +612,13 @@
    ],
    "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; le lancement de la NUIT, toutes les étapes d'un tenant ; durée d'un tenant non mesurée"
   },
+  "Lanceur": {
+   "chemin": "tests/EPREUVES_LANCER_UNE_STRATEGIE_Mer_25-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "RELU Cowork du 25-11-2026 à 14h20 (travail-lanceur, pointe c5a0f4c5b) : le lanceur unique (A-965), la garde de famille à la porte de ④ (L-1, L-2, L-6 et Q4 du superviseur R-759 ; L-11 OUVERT, décision de Jean-Luc demandée le 25-11-2026), la déclaration lue au journal (L-8), le découpage lu au journal (L-3, L-10, L-7), la doublure de JOUER alignée (L-12) ; 27 cas puis 22 sabotages, cours fabriqués de 2024 seulement ; les cas seuls en 16 s sur la machine du Chat le 25-11-2026, chaque sabotage rejoue les cas : environ 6 min d'un tenant, donc au-delà des 2 minutes permises sur la machine du Chat"
+  },
   "Enchainer": {
    "chemin": "tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py",
    "arguments": [
@@ -634,14 +641,6 @@
     "--saboter"
    ],
    "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S3 reciblé ; 2 min 39 s sur la machine du Chat le 21-11-2026"
-  },
-  "Carte": {
-   "chemin": "tests/EPREUVE_DE_LA_CARTE_DU_CIRCUIT_Sam_21-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 14h36 (A-963, « 1 ») : la carte du circuit fabriquée depuis le code (programmes/FABRIQUER_LA_CARTE_DU_CIRCUIT.py) ; cas sur le vrai collecte_abc.yml (R-732) — pas retiré, élément ① absent, programme renommé, source absente — et sabotages S1 à S6 du fabricant (S5 marquage ATTEND JEAN-LUC, S6 étapes de la moulinette, ajoutés le 25-11-2026) ; 6 s mesurées le 25-11-2026 sur la machine du Chat, sans couverture"
   },
   "AncreC5": {
    "chemin": "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py",
