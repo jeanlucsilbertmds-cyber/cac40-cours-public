@@ -2395,9 +2395,13 @@ def romano_wolf_du_gain(versions, debut, fin, seuil=SEUIL_PAR_FAMILLE_DEFAUT, lo
          celle des opérations de chaque version : deux versions aux premières entrées différentes ont le même cercle.
       ③ C5 — LA STATISTIQUE EST CELLE DU JUGE : le t de chaque version est celui du contrôle ⑤ du juge
          (`probabilite_que_le_gain_soit_du_hasard`, décisions de Jean-Luc A-782 et A-786 du 14-11-2026), le même calcul
-         appliqué à l'original et aux tirages. LE n EST DÉCLARÉ FIGÉ : `n_observations` du juge (R-505 ④) n'entre pas
-         dans ce t, la dépendance entre opérations étant portée par les blocs ; il n'est ni recalculé dans les tirages
-         ni changé (choix recommandé par l'arbitre, §4, C5). Avec une seule version, la période de ses propres entrées et
+         appliqué à l'original et aux tirages. ÉCART À LA LETTRE DE C5, À FAIRE ACCEPTER PAR JEAN-LUC : l'arbitrage
+         (§4, C5) demande le n du juge (`n_observations`, R-505 ④) dans le t rééchantillonné, figé à sa valeur réelle ;
+         ce t n'en a AUCUN (n s'y annule : t = Σ écarts ÷ √Σ S_bloc²), comme la statistique du juge depuis la décision de
+         Jean-Luc A-782 (14-11-2026, 16h56 : « OK pour ce nouveau calcul »). Pour UNE version, un n figé multiplierait
+         t et chaque t* par le même nombre et ne changerait pas p ; pour une FAMILLE, un facteur propre à chaque version
+         change le maximum, donc le résultat (relecture Cowork du 25-11-2026, N-42 et S-3 : avec un facteur √n propre à
+         chaque version, le p d'une version passe de 0,0025 à 0,0125). Avec une seule version, la période de ses propres entrées et
          au plus 39 tirages « aussi bien », le p rendu est celui de `probabilite_que_le_gain_soit_du_hasard` à l'octet
          (épreuve E1).
       ④ C13 — LE SEUIL PAR FAMILLE est un paramètre ; sa valeur par défaut, 2,5 %, est celle de l'arbitre ; la valeur
@@ -2413,6 +2417,12 @@ def romano_wolf_du_gain(versions, debut, fin, seuil=SEUIL_PAR_FAMILLE_DEFAUT, lo
       ④ Une dépendance plus longue qu'un bloc n'est pas vue (même limite que `probabilite_que_le_gain_soit_du_hasard`,
          ⑨ ①).
       ⑤ Les années d'examen (C12) ne sont pas choisies ici : la fonction juge la période qu'on lui donne.
+      ⑥ UNE VERSION CLAIRSEMÉE ÔTE TOUTE PUISSANCE À LA FAMILLE : un tirage où une version a moins de 2 opérations vaut
+         +∞ pour elle (⑥ ④), et ce +∞ devient le maximum du tirage pour TOUTES les versions en lice. Mesuré par la
+         relecture Cowork du 25-11-2026 (N-39) : une version forte seule, p 0,002 ; la même avec une version de 3
+         opérations en plus, p 0,3275, plus aucune validée. L'erreur va du côté prudent (aucun faux gagnant) : c'est de
+         la puissance perdue. Le plancher 4d de l'étape 5 de la méthode (au moins 30 observations attendues) n'est
+         programmé nulle part ; refuser ces versions ou les garder revient à Jean-Luc (BACKLOG A-987).
     ⑩ EFFET — Aucun : ni fichier, ni réseau, ni affichage.
     ⑪ TERMINAISON — Rend la main ou lève `ValueError`. Boucles bornées par B, le nombre de versions et le nombre de
       jours ; le pas à pas fait au plus m pas. Aucun appel ne peut ne pas revenir (bibliothèque standard seulement).
@@ -2545,7 +2555,8 @@ def holm_du_hasard(p_par_version, seuil=SEUIL_PAR_FAMILLE_DEFAUT):
       `seuil` (étape 7 de l'ARBITRAGE du 14-11-2026, ⑥ ; C13).
     ② CONTEXTE D'APPEL — Le regard unique sur les 30 %, une fois par mode de l'étalon de hasard ; l'épreuve
       `tests/EPREUVES_DE_LA_METHODE_DES_30_Mer_25-11-2026.py`.
-    ③ ENTRÉE — `p_par_version` : dictionnaire nom → (p, tirages), tels que les rend `p_du_hasard` (p peut être None) ·
+    ③ ENTRÉE — `p_par_version` : dictionnaire nom → (p, tirages), les DEUX PREMIÈRES des trois valeurs que rend
+      `p_du_hasard` (p, tirages, raison) ; le triplet passé tel quel lève `ValueError` (p peut être None) ·
       `seuil` : le risque de la famille, dans ]0, 1[, par défaut `SEUIL_PAR_FAMILLE_DEFAUT`.
     ④ CONDITIONS D'ENTRÉE — Au moins une version ; chaque p None ou dans ]0, 1] ; chaque nombre de tirages un entier
       ≥ 0. Sinon `ValueError`.
