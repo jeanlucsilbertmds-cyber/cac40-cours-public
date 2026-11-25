@@ -164,7 +164,7 @@ def lire_prise(texte):
     ④ CONDITIONS D ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le dictionnaire ; une ligne sans « = » ou une limite illisible lève C.Impossible.
       [rend: 1]
-    ⑥ TRAITEMENT — découpe au premier « = » ; limite lue par C.heure ; chutes entier.
+    ⑥ TRAITEMENT — découpe au premier « = » ; limite lue par C.heure ; chutes en chiffres ASCII.
     ⑦ UNITÉ — heures de Paris.
     ⑧ POURQUOI — Une prise mal lue ferait relancer ou bloquer à tort : mieux vaut ne pas conclure (code 2).
     ⑨ CE QUI CLOCHE — —
@@ -180,7 +180,8 @@ def lire_prise(texte):
             raise C.Impossible(f"prise illisible : « {l} »")
         k, v = l.split("=", 1)
         d[k.strip()] = v.strip()
-    if C.heure(d.get("limite", "")) is None or not d.get("chutes", "0").isdigit():
+    # chiffres ASCII seulement : str.isdigit admet « ² », que int() refuse plus loin (superviseur R-759 du 25-11-2026)
+    if C.heure(d.get("limite", "")) is None or not re.fullmatch(r"[0-9]+", d.get("chutes", "0")):
         raise C.Impossible(f"prise sans limite lisible ou chutes non entières : {d}")
     return d
 
@@ -408,12 +409,14 @@ def lire_tout(dossier, maintenant, reseau=True):
     if reseau:
         code, out, err = git(racine, "ls-remote", "--heads", "origin", b)
         if code != 0:
-            raise C.Impossible(f"git ls-remote origin a échoué ({" ".join(err.split())[:120]})")
+            motif = " ".join(err.split())[:120]       # hors de la f-string : Python 3.11, la version certifiée (B6)
+            raise C.Impossible(f"git ls-remote origin a échoué ({motif})")
         presente = bool(out.strip())
         code, _, err = git(racine, "fetch", "-q", "origin", f"+refs/heads/{b}:refs/remotes/origin/{b}") \
             if presente else (0, "", "")
         if code != 0:
-            raise C.Impossible(f"git fetch de {b} a échoué ({" ".join(err.split())[:120]})")
+            motif = " ".join(err.split())[:120]
+            raise C.Impossible(f"git fetch de {b} a échoué ({motif})")
     code, sha, _ = git(racine, "rev-parse", "-q", "--verify", f"refs/remotes/origin/{b}")
     base = sha.strip() if presente and code == 0 else None
     if reseau and presente and base is None:

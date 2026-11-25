@@ -152,13 +152,15 @@ def preparer(j):
     ⑤ sortie : UNE valeur, le motif d'ARRET (texte, sans l'heure) ou None si la ligne est bonne
       [rend: 1]
     ⑥ traitement : colonne en trop ; champs jalon, echeance, preuve présents ; identifiant sans espace ni « / » ;
-    « RDV » repéré ; chemin absolu ; échéance lue au format AAAA-MM-JJ HH:MM, heure de Paris
+    « RDV » repéré ; chemin absolu ; échéance lue au format AAAA-MM-JJ HH:MM, heure de Paris (date
+    impossible ou autre forme → motif qui cite le texte lu et le jalon : relecture a1e52c568, n1 — « 30/11/2026
+    12:00 » tapé à la main sortait en « erreur imprévue du programme »)
     ⑦ unité : heure de Paris
     ⑧ pourquoi : sortie de passage_unique le 18-11-2026 (étape PANNES) pour que l'ordonnanceur juge les
     preuves avec la même préparation que le veilleur ; motifs et ordre inchangés
-    ⑨ ce qui cloche : une échéance hors format lève ValueError, rattrapée par l'appelant (comme avant)
+    ⑨ ce qui cloche : —
     ⑩ effet : complète `j`
-    ⑪ terminaison : revient toujours ou lève ValueError.
+    ⑪ terminaison : revient toujours.
       [sort: non]
     """
     if None in j:   # une colonne en trop : un « ; » dans un chemin ou un libellé ferait lire un autre fichier (relecture du 28-10-2026, M4)
@@ -174,7 +176,11 @@ def preparer(j):
     j["_chemin"] = j["preuve"][3:].strip() if j["_rdv"] else j["preuve"]
     if j["_chemin"] and not os.path.isabs(j["_chemin"]):
         return f"preuve au chemin relatif (il faut un chemin absolu) : {j['jalon']}"
-    j["_ech"] = datetime.datetime.strptime(j["echeance"].strip(), "%Y-%m-%d %H:%M").replace(tzinfo=P)
+    try:
+        j["_ech"] = datetime.datetime.strptime(j["echeance"].strip(), "%Y-%m-%d %H:%M").replace(tzinfo=P)
+    except ValueError:   # une DONNÉE mal tapée est un motif, jamais une erreur du programme (n1 de la relecture a1e52c568)
+        return (f"échéance hors format AAAA-MM-JJ HH:MM (heure de Paris) : « {j['echeance'].strip()} » "
+                f"(jalon {j['jalon']})")
     return None
 
 

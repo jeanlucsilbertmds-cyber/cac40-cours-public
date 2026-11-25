@@ -74,6 +74,8 @@
      celle de Jean-Luc ou de GitHub, non divisée), jugement (mot entier ; « non raisonnable »
      refusé, « long » et « impossible à juger » signalés), état, dépendances
      connues ·
+  C8bis la somme des délais max (plus l'attente de la remise à zéro) tient
+     dans le calendrier calculable, sinon REFUS et dates non calculées ·
   C9 jugement daté de l'auteur et estimation de l'expert neuf (fichiers
      distincts, datés, expert APRÈS l'auteur, chaque étape non tenue présente
      dans les deux) ·
@@ -90,8 +92,11 @@
      réseau, puis situation, AVEC OU SANS branche d'état — sans elle, comme
      l'ordonnanceur à son premier passage) : il donne à C10 les étapes prêtes
      et occupées, et à C14 les étapes non tenues et le signe de vie ; une
-     lecture ou une situation impossible → ERREUR ÉTAT ILLISIBLE (refus,
-     R-734), et C10 ne dit rien des étapes prêtes ·
+     lecture impossible (C.Impossible, OSError, UnicodeError, csv.Error :
+     une ENTRÉE illisible) → ERREUR ÉTAT ILLISIBLE (refus, R-734), et C10 ne
+     dit rien des étapes prêtes ; toute autre exception (un PROGRAMME faux :
+     SyntaxError, NameError, KeyError…) n'est jamais un refus, elle remonte,
+     et la ligne de commande rend 2 (m12 de la relecture f2ce23138) ·
   C14 signe de vie de la conversation (vie/chat.txt de la branche d'état,
      références locales, age_du_signe) : absent → signal ; plus vieux que
      signe_de_vie_max_min ou daté dans le futur, une étape non TENUE selon
@@ -200,12 +205,17 @@ def lire_table(chemin, colonnes):
       de leurs espaces).
       [rend: 1]
     ⑥ TRAITEMENT — csv.DictReader ; en-tête comparé à `colonnes` ; une ligne qui
-      porte un champ en trop (un « ; » dans un texte) lève Impossible.
+      porte un champ en trop (un « ; » dans un texte), un champ manquant, ou une
+      valeur qui contient un saut de ligne (un guillemet ouvrant non fermé avale
+      les lignes suivantes) lève Impossible.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Un « ; » glissé dans un texte décale toutes les colonnes : mieux
       vaut s'arrêter que lire une charge dans un délai.
-    ⑨ CE QUI CLOCHE — Une colonne manquante dans une ligne courte rend « » :
-      c'est le contrôle des champs, plus loin, qui la refuse.
+    ⑨ CE QUI CLOCHE — Une valeur vide écrite « ; ; » reste une valeur vide : seul
+      le contrôle des champs, plus loin, la juge. Mesuré le 25-11-2026 sur tous
+      les planning/etapes/leviers/jalons/réglages/carte du dépôt et du planning
+      réel du 17-11 : aucune ligne courte, aucun saut de ligne (m9 de la relecture
+      f2ce23138).
     ⑩ EFFET — —
     ⑪ TERMINAISON — Lecture d'un fichier local, revient toujours ou lève.
       [sort: non]
@@ -220,10 +230,20 @@ def lire_table(chemin, colonnes):
                 raise Impossible(f"en-tête de {os.path.basename(chemin)} : {';'.join(entete)} "
                                  f"— attendu {';'.join(colonnes)}")
             lignes = []
-            for n, brut in enumerate(lecteur, start=2):
+            for brut in lecteur:
+                # line_num : la ligne PHYSIQUE où finit l'enregistrement — une ligne vide, que le lecteur saute, ne
+                # décale pas le numéro (n2 de la relecture a1e52c568 : enumerate comptait les enregistrements)
+                n = lecteur.line_num
                 if None in brut:
                     raise Impossible(f"{os.path.basename(chemin)} ligne {n} : colonne en trop "
                                      "(un « ; » dans un texte ?)")
+                # le saut de ligne d'abord : un guillemet non fermé avale la suite ET laisse la ligne courte
+                if any(v is not None and ("\n" in v or "\r" in v) for v in brut.values()):
+                    raise Impossible(f"{os.path.basename(chemin)} enregistrement qui se termine à la ligne {n} : "
+                                     "saut de ligne dans une valeur "
+                                     "(un guillemet ouvrant non fermé ?)")
+                if None in brut.values():
+                    raise Impossible(f"{os.path.basename(chemin)} ligne {n} : colonne manquante")
                 lignes.append({k.strip(): (v or "").strip() for k, v in brut.items()})
             return lignes
     except (UnicodeDecodeError, csv.Error) as e:
@@ -558,6 +578,33 @@ def a_un_cycle(deps):
     return sorted(reste)
 
 
+# La dernière date que les calculs de fin peuvent écrire : la plus grande date de Python, moins un jour pour le
+# passage à l'heure de Paris (montrer ajoute en temps universel PUIS convertit ; à la toute fin, la conversion déborde).
+FIN_DU_CALENDRIER = datetime.datetime.max.replace(tzinfo=datetime.timezone.utc) - datetime.timedelta(days=1)
+
+
+def heures_jusqu_a_la_fin_du_calendrier(debut):
+    """Rend le nombre d'heures entre `debut` et FIN_DU_CALENDRIER.
+
+    ① RÔLE — La seule borne des calculs de fin (C8bis du contrôle) : au-delà, montrer déborderait.
+    ② CONTEXTE D APPEL — Par controler, une fois, juste après la lecture des étapes.
+    ③ ENTRÉE — `debut` : datetime avec fuseau (maintenant).
+    ④ CONDITIONS D ENTRÉE — `debut` antérieur à FIN_DU_CALENDRIER.
+    ⑤ SORTIE — UNE valeur : un nombre d'heures (float).
+      [rend: 1]
+    ⑥ TRAITEMENT — différence en temps universel, en heures.
+    ⑦ UNITÉ — heures.
+    ⑧ POURQUOI — Relecture a1e52c568 (n1) et superviseurs R-759 du 25-11-2026 : delai_h_max = 1e12 levait
+      OverflowError dans montrer ; la borne se compare en nombre, sans fabriquer de timedelta (qui déborde seul).
+    ⑨ CE QUI CLOCHE — Borne de calendrier, pas de vraisemblance : un délai de 5e7 h (~5 700 ans) passe. Une plage
+      plausible est une décision de Jean-Luc (question posée le 25-11-2026, BACKLOG).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Revient toujours.
+      [sort: non]
+    """
+    return (FIN_DU_CALENDRIER - debut.astimezone(datetime.timezone.utc)).total_seconds() / 3600
+
+
 def montrer(debut, heures):
     """Rend une heure de fin lisible : « Jjj JJ-MM-AAAA HHhMM ».
 
@@ -761,7 +808,8 @@ def racine_du_depot(dossier):
 
     ① RÔLE — Trouver la racine du dépôt pour lire les chemins de programmes de
       la carte des pannes, écrits relatifs à elle.
-    ② CONTEXTE D APPEL — Par controler_la_carte.
+    ② CONTEXTE D APPEL — Par controler (bloc C13, la racine qu'il passe à
+      controler_la_carte) et par ORDONNER_UN_PLANNING.
     ③ ENTRÉE — `dossier` : un chemin.
     ④ CONDITIONS D ENTRÉE — —
     ⑤ SORTIE — UNE valeur : le chemin absolu, ou None.
@@ -771,7 +819,9 @@ def racine_du_depot(dossier):
     ⑧ POURQUOI — Une carte vaut pour tout le projet : ses chemins ne dépendent
       pas du dossier du planning.
     ⑨ CE QUI CLOCHE — Un dossier hors de tout dépôt rend None : la carte est
-      alors refusée (chemin invérifiable).
+      alors refusée (chemin invérifiable). Une copie sans « .git » (celle des
+      épreuves longues sur GitHub) n'a pas de racine : un appelant qui CONNAÎT
+      la racine la passe lui-même (B7 de la relecture f2ce23138).
     ⑩ EFFET — —
     ⑪ TERMINAISON — Au plus la profondeur du chemin ; revient toujours.
       [sort: non]
@@ -818,13 +868,18 @@ def age_du_signe(texte, maintenant):
     return (maintenant.astimezone(U) - quand.astimezone(U)).total_seconds() / 60
 
 
-def controler_la_carte(chemin, R, refus, signaux):
+def controler_la_carte(chemin, racine, R, refus, signaux):
     """Contrôle la carte des pannes du projet : présente, chaque catégorie traitée, chaque ligne bien formée.
 
     ① RÔLE — Rendre la carte des pannes obligatoire pour tout planning (A-898),
       UNE carte par projet, partagée par ses plannings.
-    ② CONTEXTE D APPEL — Par controler (bloc C13), une fois.
+    ② CONTEXTE D APPEL — Par controler (bloc C13), une fois, avec
+      racine_du_depot du dossier de la carte ; par l'épreuve k13 avec la racine
+      de l'arbre qui porte le fichier d'épreuves (B7 de la relecture f2ce23138 :
+      la copie jouée sur GitHub n'a pas de « .git », la racine ne s'y devine pas).
     ③ ENTRÉE — `chemin` : la carte (clé carte_des_pannes de planning.csv) ;
+      `racine` : la racine du dépôt, à laquelle les chemins de « detection »
+      sont relatifs, ou None (aucune : toute détection par programme refusée) ;
       `R` : réglages (categories_de_pannes, executants_de_pannes) ; `refus`,
       `signaux` : listes complétées.
     ④ CONDITIONS D ENTRÉE — —
@@ -854,7 +909,6 @@ def controler_la_carte(chemin, R, refus, signaux):
                      "une carte par projet, obligatoire (A-898)")
         return 0
     lignes = lire_table(chemin, COLONNES_PANNES)
-    racine = racine_du_depot(os.path.dirname(chemin))
     vues = set()
     for n, l in enumerate(lignes, start=2):
         quoi = f"CARTE DES PANNES ligne {n} ({l['panne'] or '?'})"
@@ -1094,6 +1148,20 @@ def controler(dossier, maintenant, reglages_chemin=REGLAGES):
         fini = e["etat"] == "tenu"
         dmin[i] = 0.0 if fini or v["delai_h"] is None else v["delai_h"][0]
         dmax[i] = 0.0 if fini or v["delai_h"] is None else v["delai_h"][1]
+    # C8bis — les délais tiennent dans le calendrier. Toute fin calculée plus bas (chemin critique, ou calendrier
+    # repoussé après LA remise à zéro du forfait — une seule fenêtre est calculée) vaut au plus « maintenant + attente
+    # de la remise + somme des délais max ». Comparé en NOMBRE d'heures, sans fabriquer de durée : sinon un délai
+    # de 1e12 h levait OverflowError, et une donnée mal tapée sortait en « erreur imprévue du programme »
+    # (superviseurs R-759 du 25-11-2026, 14h16 et 14h19). Aucune borne « plausible » ici : ce nombre revient à Jean-Luc.
+    if ok_calcul:
+        attente_h = max(0.0, (raz.astimezone(datetime.timezone.utc) - maintenant.astimezone(datetime.timezone.utc)
+                              ).total_seconds() / 3600) if raz is not None else 0.0
+        somme_h = sum(dmax.values())
+        if somme_h + attente_h > heures_jusqu_a_la_fin_du_calendrier(maintenant):
+            refus.append(f"DÉLAIS HORS DU CALENDRIER : {somme_h:g} h de délais max (somme des étapes non tenues), "
+                         f"plus {attente_h:g} h jusqu'à la remise à zéro, dépassent la dernière date calculable "
+                         f"({FIN_DU_CALENDRIER:%Y-%m-%d}) — un délai mal tapé ? Dates non calculées")
+            ok_calcul = False
 
     # C9 — jugement de l'auteur DATÉ, puis estimation de l'expert neuf, fichier séparé daté APRÈS
     f_aut, f_exp = chemin_de(tete, dossier, "jugement_auteur"), chemin_de(tete, dossier, "estimation_expert")
@@ -1132,11 +1200,16 @@ def controler(dossier, maintenant, reglages_chemin=REGLAGES):
     # situation fait ce que fait le premier passage de l'ordonnanceur). Ne pas pouvoir la calculer est un REFUS,
     # jamais un signal (R-734 ; M5 de la relecture 8887e31e : l'ancien rabat en signal laissait le contrôle
     # conclure sur les états déclarés)
+    # Seule une ENTRÉE illisible devient ce refus : les échecs de lecture déclarés (Impossible, des deux exemplaires
+    # du module — le contrôle lancé en ligne de commande s'appelle __main__, l'ordonnanceur importe le sien) et les
+    # erreurs de lecture de fichier. Un programme faux (SyntaxError à l'import, NameError, KeyError…) remonte et la
+    # ligne de commande rend 2 : un bogue n'est jamais un refus (m12 de la relecture f2ce23138 — sous Python 3.11, la
+    # SyntaxError de l'ordonnanceur passait pour un « état illisible » et l'épreuve k15 restait verte)
+    import ORDONNER_UN_PLANNING as O
     try:
-        import ORDONNER_UN_PLANNING as O
         Lo = O.lire_tout(dossier, maintenant, reseau=False)
         vue, ligne_sv = O.situation(Lo, maintenant), Lo["vie"].get("chat")
-    except Exception as e:
+    except (Impossible, O.C.Impossible, OSError, UnicodeError, csv.Error) as e:
         vue, ligne_sv, illisible = None, None, f" — état illisible : {type(e).__name__} {e}"
         refus.append(f"ERREUR ÉTAT ILLISIBLE : la situation de l'ordonnanceur ne se calcule pas ({type(e).__name__} "
                      f"{e}) — ni étapes prêtes, ni signe de vie jugés (R-734)")
@@ -1258,8 +1331,8 @@ def controler(dossier, maintenant, reglages_chemin=REGLAGES):
             pretes = []
         pretes.sort(key=lambda i: (res_max[i][2], i))
         calcul.append("CALCUL étapes prêtes non lancées, la moins de marge d'abord ("
-                      + ("situation de l'ordonnanceur" if vue else "état illisible, non calculées") + ") : "
-                      + (", ".join(pretes) or "aucune"))
+                      + ("situation de l'ordonnanceur) : " + (", ".join(pretes) or "aucune") if vue
+                         else "état illisible) : non calculées"))
         if pretes and plafond is not None and en_cours is not None and en_cours < plafond:
             refus.append(f"RESSOURCES SOUS-EMPLOYÉES : {', '.join(pretes)} prête(s) et non lancée(s), "
                          f"{en_cours:g} agent(s) sur {plafond:g} — lancer d'abord {pretes[0]} (§13.1 règle 4)")
@@ -1290,7 +1363,8 @@ def controler(dossier, maintenant, reglages_chemin=REGLAGES):
                          f"« {' » ou « '.join(R['verdicts_levier'])} » suivi du gain ou de la raison (§13.0quater)")
 
     # C13 — la carte des pannes DU PROJET (A-897, A-898) : une carte, partagée par les plannings du projet
-    controler_la_carte(chemin_de(tete, dossier, "carte_des_pannes"), R, refus, signaux)
+    carte = chemin_de(tete, dossier, "carte_des_pannes")
+    controler_la_carte(carte, racine_du_depot(os.path.dirname(carte)) if carte else None, R, refus, signaux)
 
     # C14 — le signe de vie de la conversation (A-904, A-905) : plus vieux que signe_de_vie_max_min, ou daté dans
     # le futur, alors qu'une étape n'est pas TENUE selon situation = ERREUR (refus). « Non tenue » est lu dans

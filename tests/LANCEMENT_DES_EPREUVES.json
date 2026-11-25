@@ -593,10 +593,9 @@
   "Tunnel": {
   "chemin": "tests/EPREUVES_DU_TUNNEL_DE_PLANIFICATION_Mer_18-11-2026.py",
   "arguments": [
-   "{copie}",
-   "--saboter"
+   "{copie}"
   ],
-  "pourquoi": "Plan V8 rail ②bis.2 (travail-pannes), 25-11-2026 : épreuves du tunnel de planification puis ses 49 sabotages, ~15 min, à jouer sur GitHub et non en local (règle de Jean-Luc du 20-11 : GitHub joue les épreuves longues)."
+  "pourquoi": "Plan V8 rail ②bis.2 (travail-pannes), 25-11-2026 : épreuves du tunnel de planification puis tous ses sabotages (joués par défaut ; « --saboter » retiré le 25-11 à 13h, m13 de la relecture f2ce23138 : l'épreuve ne le lisait pas, et refuse désormais tout argument autre que sa racine), sous Python 3.11 ; 155 s sur GitHub le 25-11-2026 (passage 45601473497) ; à jouer sur GitHub et non en local (règle de Jean-Luc du 20-11 : GitHub joue les épreuves longues)."
  },
  "LivrerSabots": {
    "chemin": "tests/EPREUVES_DE_LIVRER_ET_INSTALLER_Ven_20-11-2026.py",

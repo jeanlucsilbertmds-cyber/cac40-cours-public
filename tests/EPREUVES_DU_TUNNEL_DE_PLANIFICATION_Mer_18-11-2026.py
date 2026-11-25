@@ -6,17 +6,35 @@
   A-900) a programmé, puis saboter chaque garde-fou et exiger qu'une épreuve
   rougisse (R-731 : une épreuve qui reste verte quand on retire ce qu'elle teste
   est une décoration).
-② CONTEXTE D APPEL — `python3 tests/EPREUVES_DU_TUNNEL_DE_PLANIFICATION_Mer_18-11-2026.py`
-  depuis la racine d'un clone ; option --sans-sabotage pour les seules épreuves.
+② CONTEXTE D APPEL — `python3 tests/EPREUVES_DU_TUNNEL_DE_PLANIFICATION_Mer_18-11-2026.py
+  [<racine>] [--sans-sabotage]` depuis la racine d'un clone, ou d'une copie sans
+  .git (épreuve longue « Tunnel » sur GitHub, qui passe la copie en <racine>).
+  <racine>, si donnée, doit être la racine de l'arbre qui porte ce fichier
+  (même dossier) ; tout autre argument → ARRET, code 2 (m13 de la relecture
+  f2ce23138 : un argument accepté puis ignoré est un silence). Les sabotages
+  se jouent par défaut ; --sans-sabotage pour les seules épreuves.
 ③ ENTRÉE — Les programmes de programmes/ : CONTROLER_UN_PLANNING.py,
   TENIR_UN_PLANNING.py, ORDONNER_UN_PLANNING.py, REGLAGES_DU_PLANNING.csv.
-④ CONDITIONS D ENTRÉE — git installé. Aucun réseau : le dépôt d'origine est un
-  dépôt nu local, la branche d'état y est lue. Les épreuves a1 à a4 lisent les
-  quatre sources d'AVANT_DE_DEMANDER telles que sur `origin/main` du clone
-  (l'erratum A-907 n'existe que là) : sans `origin/main`, elles rougissent.
-⑤ SORTIE — Lignes OK / ÉCHEC par épreuve, MORD / NE MORD PAS par sabotage, puis
-  un verdict. Code 0 si tout est vert et que tout sabotage mord, 1 sinon, 2 si un
-  sabotage ne s'applique plus (son texte a disparu du code).
+④ CONDITIONS D ENTRÉE — git installé ; l'interpréteur de la version certifiée
+  (VERSION_DE_PYTHON de programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py, la seule
+  écriture, A-874) : si le Python courant n'est pas cette version, le fichier
+  se RELANCE sous python<VERSION> (B6 de la relecture f2ce23138 : une ligne
+  admise en 3.12 seulement passait sous la 3.13 des machines du Chat et du
+  relecteur) ; introuvable → ARRET, code 2, aucune épreuve jouée (R-734).
+  Aucun réseau : le dépôt d'origine est un dépôt nu local, la branche d'état y est lue. Les épreuves a1 à a4 lisent les
+  quatre sources d'AVANT_DE_DEMANDER DANS L'ARBRE ÉPROUVÉ (RACINE, la racine
+  de l'arbre qui porte ce fichier, la même que celle passée à k13) : aucune
+  épreuve n'exige un .git à cette racine (B7 et B8 de la relecture f2ce23138 :
+  sur la copie sans .git de GitHub, k13 et a1 à a4 rougissaient quoi qu'il
+  arrive ; la lecture par `git show origin/main`, du temps où l'erratum A-907
+  n'existait que sur main, est retirée — main est fusionnée dans la branche).
+⑤ SORTIE — Une ligne « PYTHON <version> <interpréteur> », lignes OK / ÉCHEC par
+  épreuve, MORD / NE MORD PAS par sabotage, puis un verdict. Code 0 si tout est
+  vert et que tout sabotage mord, 1 sinon — et si le passage sur le VRAI est
+  rouge, AUCUN sabotage n'est joué (« SABOTAGES NON JOUÉS », m12 : un « MORD »
+  sur un vrai rouge ne prouve rien) —, 2 si un sabotage ne s'applique plus (son
+  texte a disparu du code), si un argument est refusé ou si la version
+  certifiée de Python est introuvable.
   [rend: 1]
 ⑥ TRAITEMENT — Pour chaque jeu de programmes (le vrai, puis chaque sabotage
   appliqué à une copie) : fabriquer dans un dossier jetable un dépôt nu, un clone,
@@ -31,12 +49,15 @@
   note de livraison, pas éprouvées ici (superviseur R-759, 18-11-2026 16h17 :
   aucun réglage sur de nouveaux cas).
 ⑩ EFFET — Écrit seulement dans des dossiers temporaires, effacés à la fin.
-⑪ TERMINAISON — Chaque sous-processus est borné à 120 s.
+⑪ TERMINAISON — Chaque sous-processus est borné à 120 s. La relance sous la
+  version certifiée remplace le processus (os.execv) une fois au plus : une
+  variable d'environnement la marque, une seconde mauvaise version → ARRET.
   [sort: oui]
 """
 import datetime
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -68,6 +89,15 @@ def sh(cmd, cwd, env=None):
     return p.returncode, p.stdout + p.stderr
 
 
+def sur(cmd, cwd, env=None):
+    """Comme sh, mais une commande de PRÉPARATION qui échoue lève RuntimeError avec sa cause : l'épreuve rougit
+    (m10 de la relecture f2ce23138 : un commit raté laissait l'origine vide et 36 épreuves sur 38 vertes)."""
+    c, o = sh(cmd, cwd, env)
+    if c != 0:
+        raise RuntimeError(f"préparation ratée : {' '.join(cmd[:4])} → {c} {o.strip()[:300]}")
+    return o
+
+
 ETAT = "etat-pl"
 PREFIXE = "/AILLEURS/depot"     # racine_des_preuves des épreuves : les preuves n'existent que rendues relatives au clone
 
@@ -79,17 +109,17 @@ def depot(t, prog, nom="clone", nu=None):
     nu = nu or os.path.join(t, "origine.git")
     cl = os.path.join(t, nom)
     if neuf:
-        sh(["git", "init", "-q", "--bare", nu], t)
-    sh(["git", "clone", "-q", nu, cl], t)
+        sur(["git", "init", "-q", "--bare", nu], t)
+    sur(["git", "clone", "-q", nu, cl], t)
     if not neuf:
-        sh(["git", "checkout", "-q", "main"], cl, env)
+        sur(["git", "checkout", "-q", "main"], cl, env)
     if neuf:
         os.makedirs(os.path.join(cl, "programmes"))
         for n in FICHIERS:
             shutil.copy(os.path.join(prog, n), os.path.join(cl, "programmes", n))
-        sh(["git", "add", "-A"], cl, env)
-        sh(["git", "commit", "-q", "-m", "x"], cl, env)
-        sh(["git", "push", "-q", "origin", "HEAD:refs/heads/main"], cl, env)
+        sur(["git", "add", "-A"], cl, env)
+        sur(["git", "commit", "-q", "-m", "x"], cl, env)
+        sur(["git", "push", "-q", "origin", "HEAD:refs/heads/main"], cl, env)
     return cl, env
 
 
@@ -356,6 +386,7 @@ def o8_panne_reseau_code_2_sans_rien(j):
     sh(["git", "remote", "set-url", "origin", os.path.join(t, "nulle_part.git")], cl, env)   # sonde N1
     c, o = j.ordo(cl, env, d, M1 + datetime.timedelta(hours=5))
     assert c == 2 and o.strip().count("\n") == 0 and o.startswith("ARRET") and "RELANCER" not in o, (c, o)
+    assert "Impossible" in o and "a échoué" in o, o                       # la cause : git, pas un bogue (m12)
     assert distant(t, "prises/A.txt") == avant
 
 
@@ -510,7 +541,9 @@ CARTE_DU_DEPOT = os.path.join(RACINE, "etudes", "CARTE_DES_PANNES_DU_PROJET.csv"
 
 def k13_carte_du_depot_se_lit(j):
     """B4 (relecture 8887e31e) : la VRAIE carte du dépôt se lit, ligne par ligne, et passe le contrôle de forme.
-    Le jeu sabotant porte sa propre copie de la carte (même nom de fichier) ; sinon la carte du dépôt est lue."""
+    Le jeu sabotant porte sa propre copie de la carte (même nom de fichier) ; sinon la carte du dépôt est lue.
+    La racine passée est RACINE, celle de l'arbre qui porte ce fichier : la copie jouée sur GitHub n'a pas de .git
+    (B7 de la relecture f2ce23138)."""
     t, cl, env = j.neuf()
     m = j.module(cl, "CONTROLER_UN_PLANNING")
     R = m.lire_reglages(os.path.join(cl, "programmes", "REGLAGES_DU_PLANNING.csv"))
@@ -518,10 +551,9 @@ def k13_carte_du_depot_se_lit(j):
     carte = propre if os.path.isfile(propre) else CARTE_DU_DEPOT
     attendu = sum(1 for l in open(carte, encoding="utf-8").read().splitlines()[1:] if l.strip())
     refus, signaux = [], []
-    n = m.controler_la_carte(carte, R, refus, signaux)    # une colonne en trop lève Impossible : l'épreuve rougit
+    n = m.controler_la_carte(carte, RACINE, R, refus, signaux)    # une colonne en trop lève Impossible : rouge
     assert n == attendu, (n, attendu)
-    if carte == CARTE_DU_DEPOT:
-        assert refus == [], refus
+    assert refus == [], refus
 
 
 def k14_c14_non_tenue_lue_dans_la_situation(j):
@@ -546,8 +578,9 @@ def k15_situation_illisible_refusee(j):
     x = open(f, encoding="utf-8").read()
     open(f, "w", encoding="utf-8").write(x.replace(f"branche_d_etat;{ETAT}\n", "branche_d_etat;hors-forme\n"))
     c, s, r = j.ctl(cl, d)
-    assert any(x.startswith("ERREUR ÉTAT ILLISIBLE") for x in r), r
+    assert any(x.startswith("ERREUR ÉTAT ILLISIBLE") and "branche_d_etat" in x for x in r), r   # la cause (m12)
     assert not any("SOUS-EMPLOYÉES" in x for x in r), r
+    assert any(x.endswith("(état illisible) : non calculées") for x in c), c                     # m11
 
 
 def k16_sans_branche_la_situation_du_premier_passage(j):
@@ -561,24 +594,141 @@ def k16_sans_branche_la_situation_du_premier_passage(j):
     assert not any("SOUS-EMPLOYÉES" in x for x in r), r
 
 
-SOURCES_AVD = ("BACKLOG_DECISIONS.md", "gouvernance/REGISTRE_REGLES.md", "MODE_EMPLOI_DEPOT.md", "gouvernance/PILOTE.md")
+def k17_bogue_de_l_ordonnanceur_jamais_un_refus(j):
+    """m12 (relecture f2ce23138) : un PROGRAMME faux (ici NameError dans situation) n'est jamais un refus « état
+    illisible » : l'exception remonte du contrôle (la ligne de commande rend alors 2)."""
+    t, cl, env = j.neuf()
+    d = planning(cl, [("A", "", "a_faire")])
+    f = os.path.join(cl, "programmes", "ORDONNER_UN_PLANNING.py")
+    with open(f, "a", encoding="utf-8") as x:
+        x.write("\n\ndef situation(L, maintenant):\n    raise NameError('bogue posé par k17')\n")
+    try:
+        c, s, r = j.ctl(cl, d)
+    except NameError as e:
+        assert "bogue posé par k17" in str(e), e
+        return
+    raise AssertionError(f"le bogue est devenu un refus : {[x for x in r if 'ILLISIBLE' in x]}")
 
 
-def racine_de_main(j):
-    """Les quatre sources d'AVANT_DE_DEMANDER telles que sur origin/main (A-907 n'existe que là)."""
-    d = os.path.join(j.t, "main")
-    if not os.path.isdir(d):
-        for f in SOURCES_AVD:
-            os.makedirs(os.path.dirname(os.path.join(d, f)), exist_ok=True)
-            p = subprocess.run(["git", "show", f"origin/main:{f}"], cwd=RACINE, capture_output=True, timeout=120)
-            if p.returncode == 0:
-                open(os.path.join(d, f), "wb").write(p.stdout)
-    return d
+def k18_ligne_courte_ou_guillemet_non_ferme_refuses(j):
+    """m9 (relecture f2ce23138) : sur une copie de la VRAIE carte, une ligne privée de sa dernière colonne, puis un
+    guillemet ouvrant non fermé, lèvent Impossible avec leur cause — jamais une lecture silencieuse."""
+    t, cl, env = j.neuf()
+    m = j.module(cl, "CONTROLER_UN_PLANNING")
+    propre = os.path.join(j.prog, os.path.basename(CARTE_DU_DEPOT))
+    lignes = open(propre if os.path.isfile(propre) else CARTE_DU_DEPOT, encoding="utf-8").read().splitlines()
+    for cas, l3, motif in (("courte", lignes[2].rsplit(";", 1)[0], "colonne manquante"),
+                           ("guillemet", lignes[2].split(";", 1)[0] + ';"' + lignes[2].split(";", 1)[1], "saut de ligne")):
+        f = os.path.join(t, cas + ".csv")
+        open(f, "w", encoding="utf-8").write("\n".join(lignes[:2] + [l3] + lignes[3:]) + "\n")
+        try:
+            m.lire_table(f, m.COLONNES_PANNES)
+        except m.Impossible as e:
+            fin = "ligne 3 " if cas == "courte" else f"se termine à la ligne {len(lignes)} "
+            assert motif in str(e) and fin in str(e), (cas, str(e))
+            continue
+        raise AssertionError(f"{cas} : lue sans refus")
+
+
+def k20_donnee_hostile_jamais_une_erreur_du_programme(j):
+    """n1 de la relecture a1e52c568 et superviseurs R-759 du 25-11-2026 (14h16, 14h19) : chaque champ de planning.csv,
+    etapes.csv, jalons.csv et leviers.csv (une ligne chacun) reçoit tour à tour une valeur hostile ; le contrôle,
+    sans puis avec branche d'état, ne lève JAMAIS (ni erreur du programme, ni Impossible = code 2) : une valeur de
+    champ fausse est un REFUS (code 1). Exemple réel du relecteur : l'échéance « 30/11/2026 12:00 » tapée à la main."""
+    hostiles = ("", "texte", "²", "1e12", "1e308", "inf", "-inf", "nan", "-1", "30/11/2026 12:00", "2026-02-30 12:00",
+                "9999-12-31 23:59")
+    t, cl, env = j.neuf()
+    d = planning(cl, [("A", "", "a_faire"), ("B", "A", "a_faire")])
+    m = j.module(cl, "CONTROLER_UN_PLANNING")
+    leves, vus = [], 0
+    for avec_etat in (False, True):
+        if avec_etat:
+            j.ordo(cl, env, d)
+            sur(["git", "fetch", "-q", "origin"], cl, env)
+        for nom in ("planning.csv", "etapes.csv", "jalons.csv", "leviers.csv"):
+            f = os.path.join(d, nom)
+            propre = open(f, encoding="utf-8").read()
+            lignes = [l.split(";") for l in propre.splitlines()]
+            cibles = [(r, 1) for r in range(1, len(lignes))] if nom == "planning.csv" else \
+                [(1, c) for c in range(len(lignes[0]))]
+            for r, c in cibles:
+                for v in hostiles:
+                    l2 = [list(x) for x in lignes]
+                    l2[r][c] = v
+                    open(f, "w", encoding="utf-8").write("".join(";".join(x) + "\n" for x in l2))
+                    vus += 1
+                    try:
+                        m.controler(d, M1, os.path.join(cl, "programmes", "REGLAGES_DU_PLANNING.csv"))
+                    except Exception as e:
+                        leves.append(f"{nom}:{lignes[r][0] if nom == 'planning.csv' else lignes[0][c]}={v!r} → "
+                                     f"{type(e).__name__} {str(e)[:80]}")
+            open(f, "w", encoding="utf-8").write(propre)
+    assert vus > 400 and not leves, (vus, leves[:6])
+    # le cas réel, en ligne de commande : code 1 et le refus nomme le jalon et le texte lu
+    f = os.path.join(d, "jalons.csv")
+    x = open(f, encoding="utf-8").read()            # lu AVANT d'ouvrir en écriture (qui vide le fichier)
+    assert x.count("A;2026-11-30 12:00;") == 1, x
+    open(f, "w", encoding="utf-8").write(x.replace("A;2026-11-30 12:00;", "A;30/11/2026 12:00;"))
+    c, o = sh([sys.executable, os.path.join(cl, "programmes", "CONTROLER_UN_PLANNING.py"), d, "--maintenant=2026-11-18 13:00"],
+              cl, env)
+    assert c == 1 and "« 30/11/2026 12:00 » (jalon A)" in o and "imprévue" not in o, (c, o[-600:])
+
+
+def k21_delais_aux_bornes_du_calendrier(j):
+    """Superviseur R-759 du 25-11-2026, 14h19 : la somme des délais max se compare EN NOMBRE à la fin du calendrier ;
+    juste en dessous (une heure), les dates se calculent sans lever ; juste au-dessus, REFUS « HORS DU CALENDRIER ».
+    Le relevé du forfait est frais et la remise à zéro à venir : le calendrier repoussé après la remise est calculé."""
+    t, cl, env = j.neuf()
+    m = j.module(cl, "CONTROLER_UN_PLANNING")
+    d = planning(cl, [("A", "", "a_faire"), ("B", "A", "a_faire")])
+    f = os.path.join(d, "etapes.csv")
+    propre = open(f, encoding="utf-8").read()
+    raz = datetime.datetime(2026, 11, 25, 2, 0, tzinfo=P)
+    borne = m.heures_jusqu_a_la_fin_du_calendrier(M1) - (raz - M1).total_seconds() / 3600
+    for ecart, refuse in ((-1, False), (1, True)):
+        h = (borne + ecart - 4) // 1                     # A garde 4 h ; B porte le reste (entier : la somme tombe juste)
+        open(f, "w", encoding="utf-8").write(propre.replace("B;livre B;A;1;1;2;4;", f"B;livre B;A;1;1;2;{h:.0f};"))
+        c, s, r = j.ctl(cl, d)
+        hors = [x for x in r if x.startswith("DÉLAIS HORS DU CALENDRIER")]
+        assert bool(hors) == refuse, (ecart, h, hors, r)
+        if not refuse:
+            assert any(x.startswith("CALCUL fin réelle (forfait compris) réaliste") for x in c), c
+
+
+def k22_ligne_vide_numero_physique(j):
+    """n2 de la relecture a1e52c568 : une ligne vide (sautée par le lecteur CSV) ne décale pas le numéro annoncé —
+    cas du relecteur : en-tête, « a;1 », ligne vide, « b » → « ligne 4 »."""
+    t, cl, env = j.neuf()
+    m = j.module(cl, "CONTROLER_UN_PLANNING")
+    f = os.path.join(t, "vide.csv")
+    open(f, "w", encoding="utf-8").write("cle;valeur\na;1\n\nb\n")
+    try:
+        m.lire_table(f, ("cle", "valeur"))
+    except m.Impossible as e:
+        assert "ligne 4 " in str(e) and "colonne manquante" in str(e), str(e)
+        return
+    raise AssertionError("ligne courte lue sans refus")
+
+
+def k19_prise_corrompue_refus_etat_illisible(j):
+    """Superviseur R-759 du 25-11-2026 (condition 2) : un ÉTAT corrompu (une prise sans « = » sur la branche d'état)
+    reste un REFUS « ERREUR ÉTAT ILLISIBLE » qui nomme la prise — le resserrement de C9bis ne le change pas en ARRET."""
+    t, cl, env = j.neuf()
+    d = planning(cl, [("A", "", "a_faire")])
+    j.ordo(cl, env, d)
+    w = os.path.join(t, "w")
+    sur(["git", "clone", "-q", "-b", ETAT, os.path.join(t, "origine.git"), w], t)
+    open(os.path.join(w, "prises", "A.txt"), "w", encoding="utf-8").write("ceci n'est pas une prise\n")
+    sur(["git", "commit", "-qam", "corrompue"], w, env)
+    sur(["git", "push", "-q", "origin", ETAT], w, env)
+    sur(["git", "fetch", "-q", "origin"], cl, env)
+    c, s, r = j.ctl(cl, d)
+    assert any(x.startswith("ERREUR ÉTAT ILLISIBLE") and "prise illisible" in x for x in r), r
 
 
 def avant(j, question, racine=None):
     return sh([sys.executable, os.path.join(j.prog, "AVANT_DE_DEMANDER.py"), question,
-               f"--racine={racine or racine_de_main(j)}"], RACINE)
+               f"--racine={racine or RACINE}"], RACINE)          # l'arbre éprouvé, jamais origin/main (B8)
 
 
 def trouves(o):
@@ -619,6 +769,9 @@ EPREUVES = [k1_sans_veilleur_code_2, k2_releve_frais, k3_releve_perime_estime_sa
             k9_signe_de_vie_au_controle, k10_tableau_ecrit_depuis_le_controle, k11_tenue_declaree_sans_preuve_refusee,
             k12_controle_lit_la_situation, k13_carte_du_depot_se_lit, k14_c14_non_tenue_lue_dans_la_situation,
             k15_situation_illisible_refusee, k16_sans_branche_la_situation_du_premier_passage,
+            k17_bogue_de_l_ordonnanceur_jamais_un_refus, k18_ligne_courte_ou_guillemet_non_ferme_refuses,
+            k19_prise_corrompue_refus_etat_illisible, k20_donnee_hostile_jamais_une_erreur_du_programme,
+            k21_delais_aux_bornes_du_calendrier, k22_ligne_vide_numero_physique,
             o1_prise_puis_en_cours, o2_tombee_relancer_puis_decision, o3_tenue_ecrite_jamais_relancee, o4_humain,
             o5_places, o6_github_bloquee_et_prives, o8_panne_reseau_code_2_sans_rien,
             o9_conflit_de_poussee, o10_dependance_inconnue_code_2, o11_bloquees_jamais_muettes,
@@ -641,7 +794,8 @@ SABOTAGES = {
         '            signaux.append(f"FORFAIT {source_forfait} {pct:.1f} % au-delà',
         '            refus.append(f"FORFAIT {source_forfait} {pct:.1f} % au-delà'),
     "S6 carte non exigée": ("CONTROLER_UN_PLANNING.py",
-        '    controler_la_carte(chemin_de(tete, dossier, "carte_des_pannes"), R, refus, signaux)', "    pass"),
+        '    controler_la_carte(carte, racine_du_depot(os.path.dirname(carte)) if carte else None, R, refus, signaux)',
+        "    pass"),
     "S7 catégories non comptées": ("CONTROLER_UN_PLANNING.py",
         "    manque = [c for c in R[\"categories_de_pannes\"] if c not in vues]", "    manque = []"),
     "S8 programme de détection non vérifié": ("CONTROLER_UN_PLANNING.py",
@@ -657,7 +811,7 @@ SABOTAGES = {
     "S12 tableau sans les lignes du contrôle": ("ECRIRE_LE_TABLEAU.py",
         "        m = R.match(l)\n", "        m = None\n"),
     "S13 code 2 qui conclut (ls-remote ignoré)": ("ORDONNER_UN_PLANNING.py",
-        '            raise C.Impossible(f"git ls-remote origin a échoué ({" ".join(err.split())[:120]})")', '            out = ""'),
+        '            raise C.Impossible(f"git ls-remote origin a échoué ({motif})")', '            out = ""'),
     "S14 tenue réévaluée à chaque passage": ("ORDONNER_UN_PLANNING.py",
         '        if p and p.get("tenue"):\n            etat[i] = "tenue"', '        if False:\n            etat[i] = "tenue"'),
     "S15 preuve lue au chemin absolu": ("ORDONNER_UN_PLANNING.py",
@@ -742,14 +896,38 @@ SABOTAGES = {
         '        vue, ligne_sv = O.situation(Lo, maintenant) if Lo["base"] else None, Lo["vie"].get("chat")'),
     "S50 « prête » des états déclarés si la situation manque (M5)": ("CONTROLER_UN_PLANNING.py",
         "            pretes = []", '            pretes = etapes_pretes(ids, deps, etat, R["etats_qui_liberent"])'),
+    # S51 ne mord QUE si les épreuves tournent sous la version certifiée (3.11) : sous 3.12 et plus, la ligne compile.
+    # C'est la preuve que la relance de main a lieu (superviseur R-759 du 25-11-2026).
+    "S51 f-string à guillemets imbriqués, Python 3.12 seulement (B6)": ("ORDONNER_UN_PLANNING.py",
+        'raise C.Impossible(f"git ls-remote origin a échoué ({motif})")',
+        'raise C.Impossible(f"git ls-remote origin a échoué ({" ".join(err.split())[:120]})")'),
+    "S52 tout bogue rabattu en état illisible (m12)": ("CONTROLER_UN_PLANNING.py",
+        "    except (Impossible, O.C.Impossible, OSError, UnicodeError, csv.Error) as e:", "    except Exception as e:"),
+    "S53 ligne courte lue en silence (m9)": ("CONTROLER_UN_PLANNING.py",
+        "                if None in brut.values():\n", "                if False:\n"),
+    "S54 guillemet non fermé lu en silence (m9)": ("CONTROLER_UN_PLANNING.py",
+        '                if any(v is not None and ("\\n" in v or "\\r" in v) for v in brut.values()):\n',
+        "                if False:\n"),
+    "S55 échéance mal tapée remontée en erreur du programme (n1)": ("TENIR_UN_PLANNING.py",
+        "    except ValueError:   # une DONNÉE mal tapée", "    except ZeroDivisionError:   # une DONNÉE mal tapée"),
+    "S56 délais sans borne de calendrier (n1, OverflowError)": ("CONTROLER_UN_PLANNING.py",
+        "        if somme_h + attente_h > heures_jusqu_a_la_fin_du_calendrier(maintenant):",
+        "        if False:"),
+    "S57 jalons invalides en code 2 au lieu d'un refus (superviseur 14h19)": ("CONTROLER_UN_PLANNING.py",
+        '        refus.append("JALONS INVALIDES POUR LE VEILLEUR : " + " | ".join(arrets))',
+        '        raise Impossible("JALONS INVALIDES POUR LE VEILLEUR : " + " | ".join(arrets))'),
+    "S58 numéro d'enregistrement au lieu de ligne (n2)": ("CONTROLER_UN_PLANNING.py",
+        "                n = lecteur.line_num\n", "                n = len(lignes) + 2\n"),
 }
 
 
 def passer(prog, t, dire):
-    """Passe toutes les épreuves sur le jeu `prog` ; rend le nombre d'échecs."""
+    """Passe toutes les épreuves sur le jeu `prog` ; rend le nombre d'échecs. Avec `dire`, le nombre d'épreuves
+    JOUÉES est écrit à la fin (superviseur R-759 du 25-11-2026 : aucune sautée en silence)."""
     j = Jeu(prog, t)
-    echecs = 0
+    echecs = joues = 0
     for f in EPREUVES:
+        joues += 1
         try:
             f(j)
             if dire:
@@ -758,16 +936,116 @@ def passer(prog, t, dire):
             echecs += 1
             if dire:
                 print(f"ÉCHEC {f.__name__} : {type(e).__name__} {str(e)[:400]}", flush=True)
+    if dire:
+        print(f"ÉPREUVES JOUÉES : {joues} sur {len(EPREUVES)}, dont {echecs} en échec", flush=True)
     return echecs
+
+
+MARQUE_DE_RELANCE = "EPREUVES_DU_TUNNEL_RELANCE"
+
+
+def version_certifiee():
+    """Rend la version de Python certifiée (« 3.11 ») lue à sa seule écriture, ou le cas réel qui l'empêche.
+
+    ① RÔLE — Lire VERSION_DE_PYTHON sans la recopier (R-708 : deux écritures d'une même chose divergent toujours).
+    ② CONTEXTE D APPEL — Par sous_la_version_certifiee, une fois.
+    ③ ENTRÉE — Le texte de programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py de l'arbre éprouvé.
+    ④ CONDITIONS D ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : (« X.Y », None), ou (None, le cas réel : fichier illisible, « absente », « écrite N
+      fois (lignes …) », ou « affectée mais pas sous la forme … » avec les lignes d'affectation lues).
+      [rend: 2]
+    ⑥ TRAITEMENT — motif de ligne entière `VERSION_DE_PYTHON = "X.Y"` ; exactement une occurrence exigée ; sinon les
+      lignes qui contiennent le nom disent le cas (n3 de la relecture a1e52c568 : « absente ou écrite plusieurs fois »
+      égarait pour une ligne unique suivie d'un commentaire ; superviseur R-759 du 25-11-2026 : dire le cas réel).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — A-874 (Jean-Luc, 17-11-2026 07h48, « 1 ») : la version des circuits est fixée, écrite là seulement ;
+      superviseur R-759 du 25-11-2026 : zéro ou plusieurs occurrences → ARRET, jamais un second lecteur silencieux.
+    ⑨ CE QUI CLOCHE — Lecture du TEXTE, pas de l'objet Python : une écriture calculée (« VERSION = A + B ») ne serait
+      pas vue — elle rend None, donc ARRET, jamais une fausse version.
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Revient toujours.
+      [sort: non]
+    """
+    try:
+        texte = open(os.path.join(PROG, "FABRIQUER_LE_CIRCUIT_PUBLIC.py"), encoding="utf-8").read()
+    except OSError as e:
+        return None, f"illisible : {e}"
+    v = re.findall(r'^VERSION_DE_PYTHON = "(\d+\.\d+)"$', texte, re.M)
+    if len(v) == 1:
+        return v[0], None
+    # les AFFECTATIONS du nom (ses usages, nombreux dans le fabricant, ne disent rien du cas)
+    lignes = [(n, l.strip()) for n, l in enumerate(texte.splitlines(), 1) if re.match(r"\s*VERSION_DE_PYTHON\s*=[^=]", l)]
+    if len(v) > 1:
+        exactes = [str(n) for n, l in lignes if re.fullmatch(r'VERSION_DE_PYTHON = "[0-9]+[.][0-9]+"', l)]
+        return None, f"écrite {len(v)} fois (lignes {', '.join(exactes)})"   # hors f-string : 3.11 (B6)
+    if not lignes:
+        return None, "absente"
+    return None, ("affectée mais pas sous la forme VERSION_DE_PYTHON = \"X.Y\" seule sur sa ligne — "
+                  + " | ".join(f"ligne {n} : {l}" for n, l in lignes)[:300])
+
+
+def sous_la_version_certifiee():
+    """Vérifie que ce processus tourne sous la version certifiée ; sinon se relance sous python<version>.
+
+    ① RÔLE — Que TOUT ce que les épreuves exécutent (modules importés, ordonnanceur lancé par sys.executable) tourne
+      sous la version certifiée, sur la machine du Chat comme sur GitHub.
+    ② CONTEXTE D APPEL — Par main, avant toute épreuve.
+    ③ ENTRÉE — sys.version_info ; la variable MARQUE_DE_RELANCE ; le PATH.
+    ④ CONDITIONS D ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : None si la version est la bonne, sinon le motif d'ARRET ; ne revient pas quand il se
+      relance (le processus est remplacé).
+      [rend: 1]
+    ⑥ TRAITEMENT — version_certifiee ; égale → None ; marque déjà posée → motif ; shutil.which("python" + version)
+      absent → motif ; sinon marque posée et os.execv vers cet interpréteur, mêmes arguments.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — B6 de la relecture f2ce23138 : une f-string admise depuis la 3.12 seulement passait sous la 3.13 des
+      machines du Chat et du relecteur, et toute la chaîne de l'ordonnanceur tombait sous la 3.11 de GitHub ;
+      superviseur R-759 du 25-11-2026 : « le lanceur des épreuves s'exécute sous python<VERSION_DE_PYTHON> ».
+    ⑨ CE QUI CLOCHE — Ce fichier d'épreuves seulement : les autres épreuves du dépôt tournent sous le Python de
+      la machine (à consigner au BACKLOG). Sur GitHub, python3 est déjà la 3.11 : aucune relance.
+    ⑩ EFFET — Pose la variable MARQUE_DE_RELANCE ; remplace le processus.
+    ⑪ TERMINAISON — Une relance au plus (la marque l'empêche de boucler).
+      [sort: oui]
+    """
+    v, cas = version_certifiee()
+    if v is None:
+        return f"VERSION_DE_PYTHON {cas} dans programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py"
+    if f"{sys.version_info[0]}.{sys.version_info[1]}" == v:
+        return None
+    if os.environ.get(MARQUE_DE_RELANCE):
+        return f"relancé, mais sous Python {sys.version.split()[0]} au lieu de {v}"
+    exe = shutil.which(f"python{v}")
+    if exe is None:
+        return f"Python {v} (version certifiée) introuvable : python{v} absent du PATH"
+    os.environ[MARQUE_DE_RELANCE] = "1"
+    sys.stdout.flush()
+    os.execv(exe, [exe, "-B", os.path.abspath(__file__)] + sys.argv[1:])
 
 
 def main():
     """Épreuves sur le vrai, puis chaque sabotage ; rend le code."""
+    args = sys.argv[1:]
+    for a in args:
+        if a == "--sans-sabotage":
+            continue
+        if a.startswith("-") or not os.path.isdir(a) or not os.path.samefile(a, RACINE):
+            print(f"ARRET argument refusé « {a} » : seuls <racine de ce fichier, {RACINE}> et --sans-sabotage")
+            return 2
+    motif = sous_la_version_certifiee()
+    if motif:
+        print(f"ARRET {motif} — aucune épreuve jouée (R-734)")
+        return 2
+    print(f"PYTHON {sys.version.split()[0]} {sys.executable}", flush=True)
     code = 0
     with tempfile.TemporaryDirectory() as t:
-        if passer(PROG, os.path.join(t, "vrai"), True):
+        rouges = passer(PROG, os.path.join(t, "vrai"), True)
+        if rouges:
             code = 1
-        if "--sans-sabotage" in sys.argv:
+        if "--sans-sabotage" in args:
+            return code
+        if rouges:
+            print(f"SABOTAGES NON JOUÉS : le vrai est rouge ({rouges} épreuve(s)) — un « MORD » n'y prouverait rien")
+            print(f"ÉPREUVES : code {code}")
             return code
         for nom, (cible, a, b) in SABOTAGES.items():
             s = open(os.path.join(PROG, cible), encoding="utf-8").read()
