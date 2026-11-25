@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Lanceur
+pointe=61545bad35a0026d6c8e1039a332109ffbdfaf47
