@@ -947,12 +947,14 @@ def mesurer_forfait(programme, delai):
       None), `verdict` (texte ou None), `pourquoi`.
       [rend: 1]
     ⑥ TRAITEMENT — Si le programme manque : `pourquoi` le dit. Sinon le lancer avec `--etat`, puis lire dans sa
-      sortie « seuil <n> % », « JAUGE ESTIMÉE MAINTENANT : <n> % », « PROJECTION À LA REMISE : <n> % » et
+      sortie « seuil <n> % », « JAUGE PROJETÉE MAINTENANT : <n> % », « PROJECTION À LA REMISE : <n> % » et
       « VERDICT : <texte> ».
     ⑦ UNITÉ — Points de jauge (%).
     ⑧ POURQUOI — A-804 (15-11-2026) : le forfait est une étape obligatoire du plan tenue par un programme ; A-805 le
       met dans le tableau du regard.
-    ⑨ CE QUI CLOCHE — Voir ⑨ ③ du fichier : couplage par le texte de la sortie.
+    ⑨ CE QUI CLOCHE — Voir ⑨ ③ du fichier : couplage par le texte de la sortie. Le libellé de la jauge a changé le
+      25-11-2026 (« ESTIMÉE » devenue « PROJETÉE » au tour 4 du forfait) sans que ce programme le suive : la colonne
+      jauge est restée INCONNUE (C-2 de Cowork, 25-11-2026) ; P10b confronte désormais ce libellé à la vraie sortie.
     ⑩ EFFET — Lance un programme qui, avec `--etat`, n'écrit rien.
     ⑪ TERMINAISON — Rend la main au plus tard après `delai` secondes.
       [sort: non]
@@ -967,7 +969,7 @@ def mesurer_forfait(programme, delai):
         return m
     m["code"] = code
     motifs = {"seuil": r"seuil ([0-9]+(?:[.,][0-9]+)?) %",
-              "jauge": r"JAUGE ESTIMÉE MAINTENANT : ([0-9]+(?:[.,][0-9]+)?) %",
+              "jauge": r"JAUGE PROJETÉE MAINTENANT : ([0-9]+(?:[.,][0-9]+)?) %",
               "projection": r"PROJECTION À LA REMISE : ([0-9]+(?:[.,][0-9]+)?) %"}
     for cle, motif in motifs.items():
         t = re.search(motif, sortie or "")

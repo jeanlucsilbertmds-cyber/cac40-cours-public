@@ -97,6 +97,10 @@ LES ÉPREUVES :
      code 0 projection 50,0 → SOUS-EMPLOYÉ, 84,9 → SOUS-EMPLOYÉ, 85,0 → JUSTE, 105,0 → JUSTE, 105,1 → SATURÉ ·
      84,9 avec un écart de 20 → JUSTE · projection INCONNUE → INCONNU · code 5 → INCONNU · programme qui dort 30 s
      avec un délai de 2 s → INCONNU, et le relevé finit en moins de 20 s.
+  P10b FORFAIT, VRAI PROGRAMME (C-2 de Cowork, 25-11-2026) : TENIR_LE_FORFAIT.py de <racine>, copié, sur un journal
+     fabriqué relatif à l'horloge (10 % il y a 2 h, un agent, 20 % il y a 1 h) → la colonne « utilisé » commence par
+     « jauge 3 » (30,0 % : 20 + 10 points/h × 1 h), jamais « jauge INCONNU ». Sabotage S51 : l'ancien libellé
+     « ESTIMÉE » remis au motif de lecture → « jauge INCONNU ».
   P11 CIRCUITS : 2 fichiers privés (.yml, .yaml ; un .txt ignoré), 2 publics dont series_longues.yml → verdict
      INCONNU, critère « non visible » ; sans clone public → « publics INCONNU ».
   P12 VRAIES DONNÉES ET LECTURE SEULE (R-732 ; D-2 du RELU, N-7 de la seconde relecture) : un clone du vrai dépôt
@@ -122,7 +126,7 @@ RAISON : le détail de l'épreuve rouge doit contenir la marque donnée (un sabo
 compte pas). La liste est dans SABOTAGES, ci-dessous.
 """
 import json, os, shutil, subprocess, sys, tempfile, time
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 PROG = "RELEVER_LE_PERIMETRE.py"
@@ -259,6 +263,8 @@ SABOTAGES = {
                                       "os.path.normpath(w) == os.path.normpath(a) or (True and ", "14 épreuves"),
     "S49_identifiants_du_schema_gardes": ("P9k", '    url = re.sub(r"^([A-Za-z][A-Za-z0-9+.-]*://)[^/@]*@", r"\\1", url)\n', "",
                                           "venu d'ailleurs"),
+    # Relecture de Cowork du 25-11-2026 (travail-forf2, C-2) : l'ancien libellé du forfait remis
+    "S51_jauge_ancien_libelle": ("P10b", 'JAUGE PROJETÉE MAINTENANT : (', 'JAUGE ESTIMÉE MAINTENANT : (', "jauge INCONNU"),
     "S50_identifiants_scp_gardes": ("P9l", '    url = re.sub(r"^[^/:@]+@([^/:]+:)", r"\\1", url)\n', "", "venu d'ailleurs"),
 }
 
@@ -798,6 +804,31 @@ def epreuves(prog, racine, seulement=None):
         faux = {k: x for k, x in vus.items() if x[0] != x[1]}
         return not faux and duree < 20, faux or f"11 cas tenus, relevé du programme endormi en {duree:.1f} s"
     cas("P10", p10)
+
+    def p10b(b, d):
+        # C-2 de Cowork (25-11-2026) : la jauge se lit sur la sortie du VRAI programme du forfait (copié depuis
+        # <racine>, journal fabriqué relatif à l'horloge), et non sur un faux qui recopie le libellé attendu
+        f = os.path.join(d, "forf", "programmes", "TENIR_LE_FORFAIT.py")
+        os.makedirs(os.path.dirname(f))
+        os.makedirs(os.path.join(d, "forf", "donnees"))
+        shutil.copy(os.path.join(racine, "programmes", "TENIR_LE_FORFAIT.py"), f)
+        ecrire(os.path.join(d, "forf", "donnees", "REGLAGES_DU_FORFAIT.csv"),
+               "reglage,valeur,etat,qui_decide,raison\nseuil_d_arret,95,x,x,x\nmarge_d_alerte,10,x,x,x\n"
+               "age_max_de_la_capture,2,x,x,x\nduree_min_d_une_paire,0,x,x,x\n")
+        h = datetime.now(PARIS).replace(second=0, microsecond=0)
+        a = lambda delta: (h + delta).strftime("%Y-%m-%dT%H:%M")
+        for args in (["--remise", a(timedelta(days=3)), "--a", a(timedelta(hours=-3))],
+                     ["--capture", "10", "--a", a(timedelta(hours=-2))],
+                     ["--agent", "x", "1000000", "--a", a(timedelta(hours=-1, minutes=-30))],
+                     ["--capture", "20", "--a", a(timedelta(hours=-1))]):
+            r = subprocess.run([sys.executable, "-I", f] + args, capture_output=True, text=True, timeout=60)
+            if r.returncode != 0:
+                return False, "ajout refusé : " + r.stdout + r.stderr
+        b.forfait = f
+        c = b.lancer()[2].get("Forfait", ["", "", "", ""])
+        # 20 % + rythme de pointe 10 points/h × 1 h = 30,0 % (30,x si une minute passe pendant l'épreuve)
+        return c[1].startswith("jauge 3") and "INCONNU" not in c[1].split(";")[0], ("Forfait", c)
+    cas("P10b", p10b)
 
     def p11(b, d):
         for f in ("a.yml", "b.yaml", "c.txt"):

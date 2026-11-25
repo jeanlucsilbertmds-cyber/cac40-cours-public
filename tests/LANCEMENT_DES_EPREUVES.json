@@ -635,14 +635,6 @@
    ],
    "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S3 reciblé ; 2 min 39 s sur la machine du Chat le 21-11-2026"
   },
-  "Carte": {
-   "chemin": "tests/EPREUVE_DE_LA_CARTE_DU_CIRCUIT_Sam_21-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 14h36 (A-963, « 1 ») : la carte du circuit fabriquée depuis le code (programmes/FABRIQUER_LA_CARTE_DU_CIRCUIT.py) ; cas sur le vrai collecte_abc.yml (R-732) — pas retiré, élément ① absent, programme renommé, source absente — et sabotages S1 à S6 du fabricant (S5 marquage ATTEND JEAN-LUC, S6 étapes de la moulinette, ajoutés le 25-11-2026) ; 6 s mesurées le 25-11-2026 sur la machine du Chat, sans couverture"
-  },
   "AncreC5": {
    "chemin": "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py",
    "arguments": [
@@ -666,6 +658,21 @@
     "--saboter"
    ],
    "pourquoi": "relecture Cowork du 21-11-2026 sur travail-calibrage (pointe 68edeafbb), défaut I-1 : la preuve de la cause de l'écart de gain de C5 doit tourner depuis un clone, avec une épreuve — épreuve courte de programmes/EXPLIQUER_L_ECART_DE_GAIN_C5.py : trois vraies lignes du tableau des 100 trades (2024) confirmées au forfait de 300 € (E1), un gain déplacé de 1,00 € réfuté et nommé (E2), courtage + taxe = écart forfait − réel (E3), verdict écrit (E4) ; sabotages S1 (barème ignoré) et S2 (tolérance infinie) qui doivent rougir ; aucun cours ; moins d'une seconde mesurée le 21-11-2026 sur la machine de l'agent"
+  },
+  "Forfait": {
+   "chemin": "tests/EPREUVES_DU_FORFAIT_Dim_15-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "programmes/TENIR_LE_FORFAIT.py (estimateur du forfait, branche travail-forf2, A-804, A-827) : les épreuves E1 à E34 (liste en tête de l'épreuve, aucun compte écrit ici, R-728) sur un journal et des réglages fabriqués, plus E11 sur le vrai journal, aucun cours ; 18 secondes mesurées le 25-11-2026 sur la machine de l'agent du tour 6 (RELU de Cowork : 14 s sur la sienne)"
+  },
+  "ForfaitSabot": {
+   "chemin": "tests/EPREUVES_DU_FORFAIT_Dim_15-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "les mêmes épreuves, puis chacun des sabotages de SABOTAGES, dans l'épreuve, qui les affiche un par un (aucun compte écrit ici, R-728), sur une copie du programme : chacun doit faire rougir l'épreuve nommée (R-734) ; relecture Cowork du 25-11-2026 12h55 (pointe 8d396574), §5 : le --saboter d'un seul tenant n'avait jamais tourné sur GitHub ; environ 9 min d'un tenant sur la machine du Chat, jouées jusqu'ici en six lots (--lot K/6)"
   },
   "EtatTravaux": {
    "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",
