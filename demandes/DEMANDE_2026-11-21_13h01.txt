@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=CalibrageDes30,MethodeDes30
+pointe=4f47286ca9f8c49093856ed8691b0de3fc1cacca
