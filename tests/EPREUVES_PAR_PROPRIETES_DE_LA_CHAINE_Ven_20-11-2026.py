@@ -633,7 +633,7 @@ def couche(W, valeurs):
                     prop["P6"].append("%s %s séance %s : coupée %s, entière %s" % (i, code, serie[Jr]["date"], coupe,
                                                                                 Jr in entiers))
     rendu = {"proprietes": {p: (["ROUGE" if prop[p] else ("VERT" if mesures[p] else "NON MESURÉE"),
-                                 "%d mesure(s) ; %s" % (mesures[p], " ; ".join(prop[p][:4]) or "aucun défaut")])
+                                 "%d mesure(s) ; %s" % (mesures[p], apercu_des_defauts(prop[p]))])
                             for p in prop},
              "refus": refus, "contrat": contrat, "conformes": conformes}
     print(json.dumps(rendu, ensure_ascii=False))
@@ -1647,6 +1647,31 @@ def accidents_vus(cours, dates):
 SANS_CONTROLE = {a.split("=", 1)[1] for a in sys.argv if a.startswith("--sans-controle=")}
 
 
+def apercu_des_defauts(defauts, debuts=()):
+    """Rend le texte qui montre les défauts d'une propriété : leur TOTAL, les quatre premiers, et le premier de chaque
+    origine qui n'est pas déjà parmi eux.
+    ① RÔLE — l'affichage du détail d'une propriété (N-47 de Cowork, 25-11-2026 à 23h56 : « l'affichage ne montre que
+    les quatre premiers défauts […] un défaut de propriété peut être masqué par des cas connus »). ② CONTEXTE D'APPEL —
+    `couche` (P1 à P8), `suite` (ETA, POS, GAIN…), `bout_en_bout` (BEB-*). ③ ENTRÉE — la liste des défauts (textes) ;
+    `debuts` : des (rang du premier défaut d'une origine, nom de l'origine), posés par l'appelant quand une propriété
+    reçoit des défauts de plusieurs sources (POS : cas connus, cas limites I1-C*, propriétés sur les cours fabriqués).
+    ④ CONDITIONS D'ENTRÉE — les rangs sont croissants. ⑤ SORTIE — UNE valeur : un texte ; « aucun défaut » si la liste
+    est vide. [rend: 1] ⑥ TRAITEMENT — « N défaut(s) : » puis les quatre premiers joints par « ; », puis, pour chaque
+    origine dont le premier défaut est au-delà du quatrième, « [origine] » et ce défaut. ⑦ UNITÉ — —. ⑧ POURQUOI — le
+    détail n'est lu que par un humain et par les sabotages (raison exigée « contenue » dans le texte) : montrer PLUS que
+    les quatre premiers ne retire aucune raison exigée, et le total dit qu'il en reste. ⑨ CE QUI CLOCHE — une origine
+    qui n'est pas posée par l'appelant n'a pas son représentant (seule POS de la suite en pose). ⑩ EFFET — aucun.
+    ⑪ TERMINAISON — rend la main. [sort: non]"""
+    if not defauts:
+        return "aucun défaut"
+    texte = "%d défaut(s) : %s" % (len(defauts), " ; ".join(defauts[:4]))
+    for i, (rang, nom) in enumerate(debuts):
+        fin = debuts[i + 1][0] if i + 1 < len(debuts) else len(defauts)
+        if rang >= 4 and rang < fin:
+            texte += " ; [premier défaut de l'origine « %s »] %s" % (nom, defauts[rang])
+    return texte
+
+
 def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     """Rend les défauts d'UN trade du soir rejoué au regard de SA série, par des PROPRIÉTÉS (inégalités), sans rejouer
     la vente : la sortie est la première séance qui touche un seuil, au bon prix, et rien avant elle.
@@ -1696,7 +1721,12 @@ def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     Dans les deux sens, ce désaccord fait REFUSER une sortie juste (un faux défaut), jamais accepter une sortie fausse
     (un défaut caché) ; 0 cas sur les 15 101 100 comparaisons mesurées. La coupure se mesure par I1-C13 (1e-4 € sous
     l'objectif) et I1-C24 (8e-6 € des deux seuils) : EPS_SEUIL porté à 1e-5 € ou plus fait nommer I1-C24 ; ③ les prix
-    rendus (px) se comparent à EPS_PRIX = 1e-5 € près (une unité de la cinquième décimale, le « %.5f » du journal).
+    rendus (px) se comparent à EPS_PRIX = 1e-5 € près (une unité de la cinquième décimale, le « %.5f » du journal) ;
+    ④ SANS ÉCHÉANCE (horizon HORIZON_AUCUNE), un HORIZON est accepté sur TOUTE séance qui ne touche rien, même la
+    séance d'achat, alors que `vendre` n'en rend jamais (il rend FIN_DES_DONNEES) : trouvé le 26-11-2026 par
+    l'épreuve des mutants, consigné (N-48), non corrigé — la décision revient à Jean-Luc ; ⑤ les branches sont gardées
+    par tests/EPREUVES_DES_MUTANTS_DU_CONTROLE_DES_TRADES_Jeu_26-11-2026.py (mutants de l'arbre, témoins fabriqués
+    depuis `vendre`), qui déclare ses mutants équivalents avec leur raison.
     ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main ; aucun appel ne peut ne pas revenir (comparaisons seulement).
     [sort: non]"""
     EPS_SEUIL = 5e-6
@@ -1843,15 +1873,28 @@ def cas_limites_des_defauts():
     pointe 3cee571f5 de main, avant réparation) ; C6 tient la borne « z − a > h » contre un « >= » (S-I1d) ; C11 et
     C12 tiennent l'égalité côté stop (« p < stop » mis pour « p <= stop » les fait nommer) ; C13 tient la coupure
     contre un élargissement à 1e-4 € ou plus, C24 dès 1e-5 € (la mesure de MESURER_LES_DECIMALES.py trouve le circuit
-    contredit 6 fois à 1e-5 €). C14 à C26 : chaque branche de `defauts_d_un_trade` a un témoin faux qu'elle seule
-    refuse ; MUTATIONS_DE_DEFAUTS.py (etudes/brouillons_chat/A923_ETAPE_B_PROPRIETES_8_Mer_25-11-2026/) joue trente
-    mutations du texte de la fonction et chacune fait nommer au moins un cas (mesuré le 25-11-2026). Les verdicts attendus des cas réels sont ceux de
+    contredit 6 fois à 1e-5 €). C14 à C26 sont des témoins faux écrits à la main, LOIN des seuils : ils ne suffisent
+    PAS à garder chaque branche — la phrase « chaque branche a un témoin faux qu'elle seule refuse », écrite ici le
+    25-11-2026, était fausse à la frontière (N-42 et N-46 de Cowork, 25-11-2026 à 23h53 et 23h56 : neuf mutations
+    survivaient, dont une zone morte rétablie dans UNE branche). Depuis le 26-11-2026 (superviseur R-759 de 00h02 :
+    « réparation par énumération » ; pas de nouvelle liste de cas à la main), la garde des branches est l'épreuve
+    COURTE tests/EPREUVES_DES_MUTANTS_DU_CONTROLE_DES_TRADES_Jeu_26-11-2026.py : chaque nœud mutable de l'arbre de
+    `defauts_d_un_trade` est muté, chaque mutant est joué sur des témoins FABRIQUÉS depuis `MODULE_POSITIONS.vendre`
+    puis sur CES cas, et un survivant non déclaré équivalent rend le code 1. Ces cas restent : C7 à C12 sont de vraies
+    lignes (R-732), et MUTATIONS_DE_DEFAUTS.py (etudes/brouillons_chat/A923_ETAPE_B_PROPRIETES_8_Mer_25-11-2026/) garde
+    ses trente mutations comme étalon. Les verdicts attendus des cas réels sont ceux de
     `MODULE_POSITIONS.vendre` sur les mêmes séances (TP à 150,80 le 14-10 ; TP_GAP à 312,00 le 13-08 ; SL à 24,96 le
     24-08), vérifiés le 25-11-2026.
     ⑨ CE QUI CLOCHE — les cas C1 à C4 sont reconstruits d'après la description de Cowork, son script n'étant pas au
     dépôt ; aucun cas RÉEL n'a une ouverture pile à l'objectif ET un plus bas sous le stop : C5 reste construit ;
     C14 à C26 sont construits ; C24 porte des prix à six décimales, qu'aucun cours réel n'a : il mesure la coupure,
-    pas un cas survenu ; un élargissement de EPS_SEUIL entre 5e-6 € et 8e-6 € n'est vu par aucun cas.
+    pas un cas survenu ; un élargissement de EPS_SEUIL entre 5e-6 € et 8e-6 € n'est vu par aucun cas (K5 de Cowork),
+    ni par les témoins fabriqués (leurs prix sont à 1e-4 € des seuils, ou au seuil arrondi). Les MUTANTS ÉQUIVALENTS
+    que l'épreuve des mutants déclare (liste EQUIVALENTS de ce fichier-là, chacun avec sa raison ; leur nombre
+    se lit dans sa sortie) : « >= » mis pour « > » dans `haut` et « <= » pour « < » dans `egal` (ne diffèrent qu'à un flottant exact
+    qu'aucun prix écrit n'atteint) ; l'ouverture retirée des tests où le plus bas ou le plus haut de la même séance
+    décide déjà (plus bas <= ouverture <= plus haut) ; les deux drapeaux --sans-controle et le refus d'un horizon
+    booléen (sans portée hors des sabotages S-I1a, S-I1b ; `vendre` refuse un horizon booléen).
     ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
     dates = ["2024-01-08", "2024-01-09", "2024-01-10", "2024-01-11", "2024-01-12"]
     calme = [dict(date=x, open=100.0, high=101.0, low=99.0, close=100.5) for x in dates]
@@ -2011,6 +2054,7 @@ def suite(R, racine):
     fiches = {i: f for i, f in CT.fiches_du_registre(os.path.join(R, REG)).items() if i.startswith("PROP-")}
     d = {p: [] for p in PROPRIETES_SUITE}
     n = {p: 0 for p in PROPRIETES_SUITE}
+    debuts = {"POS": []}        # N-47 : le rang du premier défaut de chaque origine de POS, pour `apercu_des_defauts`
     refus = []
     # ② ETA, ET L'ÉTALONNAGE DE POS ET GAIN — LES CAS CONNUS, AUX RÉSULTATS ÉCRITS D'AVANCE (réparation du 20-11-2026 :
     # le rejeu par `vendre`, `frais_aller_retour` et `prix_de_convention` est retiré, il était juge et partie)
@@ -2019,13 +2063,16 @@ def suite(R, racine):
     except Exception as e:  # noqa: BLE001 — l'étalonnage qui tombe est rouge
         dk, nk, ecarts_connus = {"ETA": ["cas connus en échec : %s: %s" % (type(e).__name__, str(e)[:200])],
                                  "POS": [], "GAIN": []}, {"ETA": 0, "POS": 0, "GAIN": 0}, []
+    debuts["POS"].append((len(d["POS"]), "cas connus"))
     for p in ("ETA", "POS", "GAIN"):
         d[p] += dk[p]
         n[p] += nk[p]
     # LE CONTRÔLE DE POS ÉPROUVÉ SUR SES CAS LIMITES (I1 de Cowork) : deux trades faux refusés, deux justes acceptés.
     di, ni = cas_limites_des_defauts()
+    debuts["POS"].append((len(d["POS"]), "cas limites I1-C*"))
     d["POS"] += di
     n["POS"] += ni
+    debuts["POS"].append((len(d["POS"]), "propriétés sur les cours fabriqués"))
     etalonne = not d["ETA"] and n["ETA"] > 0
     # ② JUG ET SA PREUVE — toutes les fiches, puis une case fautive à la fois sur PROP-ORD
     conformes = []
@@ -2216,7 +2263,7 @@ def suite(R, racine):
             etats[p] = ["NON MESURÉE", "instrument non étalonné (ETA) : le juge ne juge pas"]
             continue
         etats[p] = ["ROUGE" if d[p] else ("VERT" if n[p] else "NON MESURÉE"),
-                    "%d mesure(s) ; %s" % (n[p], " ; ".join(d[p][:4]) or "aucun défaut")]
+                    "%d mesure(s) ; %s" % (n[p], apercu_des_defauts(d[p], debuts.get(p, ())))]
     etats["POS"][1] += " · %d fiche(s) suivie(s), %d séance(s), %d position(s), %d trade(s) ; %d fenêtre(s) à " \
         "trou (échéance non jugée, R-112)" % (len(ids), nj, len(ouvertures), len(trades), fenetres_a_trou)
     etats["ACC"][1] += " · accidents vus %s · sorties %s · positions sorties sur double touche %d · traversant un " \
@@ -3182,7 +3229,7 @@ def beb(R, racine, sabotage):
         refus.append({"maillon": "positions TENIR_LES_POSITIONS (composition)", "fiche": BEB_FICHE,
                       "motif": "%d refus, dont : %s" % (len(refus_compo), refus_compo[0][:240])})
     etats = {p: ["ROUGE" if prop[p] else ("VERT" if n[p] else "NON MESURÉE"),
-                 "%d mesure(s) ; %s" % (n[p], " ; ".join(prop[p][:4]) or "aucun défaut")] for p in PROPRIETES_BEB}
+                 "%d mesure(s) ; %s" % (n[p], apercu_des_defauts(prop[p]))] for p in PROPRIETES_BEB}
     etats["BEB-GAIN"][1] += " · %d trade(s) de %s, gain un jeton %s €" % (len(miens), BEB_FICHE,
                                                                           "—" if gain is None else "%.2f" % gain)
     print(json.dumps({"maillons": maillons, "proprietes": etats, "refus": refus}, ensure_ascii=False))
