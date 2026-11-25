@@ -1,0 +1,33 @@
+# ESSAI DU JETON — branche d'essai explicite, sans effet sur main. Simulation uniquement.
+# Question : le secret JETON_DEPOTS peut-il (1) lire le depot prive, (2) pousser au depot public une branche qui
+# CREE un fichier .github/workflows/ (permission « workflow » du jeton) ? La cible est une branche d'essai dediee,
+# dont le seul circuit ne se lance qu'a la main. Le journal ne dit que des codes, jamais le jeton ni un message brut.
+name: Essai du jeton (publication automatique)
+on:
+  push:
+    branches: [essai-publication-auto-jeton]
+permissions:
+  contents: read
+jobs:
+  essai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Lire le prive, pousser un circuit au public
+        env:
+          JETON: ${{ secrets.JETON_DEPOTS }}
+        run: |
+          set -u
+          [ -n "$JETON" ] && echo "secret JETON_DEPOTS : present" || { echo "secret JETON_DEPOTS : ABSENT"; exit 1; }
+          H="Authorization: basic $(printf 'x-access-token:%s' "$JETON" | base64 -w0)"
+          git -c http.extraHeader="$H" ls-remote https://github.com/jeanlucsilbertmds-cyber/Cac-40-signals-sur-git-hub-pour-Claude- refs/heads/main >/dev/null 2>&1 && echo "lecture du prive : OK" || echo "lecture du prive : REFUSEE"
+          mkdir c && cd c && git init -q -b cible
+          mkdir -p .github/workflows
+          printf 'name: Essai cible (inerte)\non: workflow_dispatch\njobs:\n  rien:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo inerte\n' > .github/workflows/essai_cible.yml
+          git add . && git -c user.name=essai -c user.email=essai@users.noreply.github.com commit -q -m "essai : un circuit pousse par JETON_DEPOTS"
+          git -c http.extraHeader="$H" push -q https://github.com/jeanlucsilbertmds-cyber/cac40-cours-public HEAD:refs/heads/essai-publication-auto-cible > ../sortie 2>&1
+          code=$?
+          echo "poussee d'un circuit au public : code $code"
+          grep -qi "workflow" ../sortie && echo "message de refus : mentionne la permission workflow"
+          grep -qi "403\|denied\|permission" ../sortie && echo "message de refus : acces refuse (403 / permission)"
+          exit 0
