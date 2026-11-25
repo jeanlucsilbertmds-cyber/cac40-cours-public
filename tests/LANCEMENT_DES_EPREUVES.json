@@ -617,7 +617,7 @@
    "arguments": [
     "{copie}"
    ],
-   "pourquoi": "RELU Cowork du 25-11-2026 à 14h20 (travail-lanceur, pointe c5a0f4c5b) : le lanceur unique (A-965), la garde de famille à la porte de ④ (L-1, L-2, L-6 et Q4 du superviseur R-759 ; L-11 OUVERT, décision de Jean-Luc demandée le 25-11-2026), la déclaration lue au journal (L-8), le découpage lu au journal (L-3, L-10, L-7), la doublure de JOUER alignée (L-12) ; 27 cas puis 22 sabotages, cours fabriqués de 2024 seulement ; les cas seuls en 16 s sur la machine du Chat le 25-11-2026, chaque sabotage rejoue les cas : environ 6 min d'un tenant, donc au-delà des 2 minutes permises sur la machine du Chat"
+   "pourquoi": "le lanceur unique (A-965) et la garde de famille à la porte de ④ (L-1, L-2, L-6 et Q4 du superviseur R-759 ; L-11 fermé par la décision de Jean-Luc du 25-11-2026 à 15h09 : empreintes du code de C5 figées au contrat) ; cours fabriqués de 2024 seulement ; cas puis sabotages, d'un tenant. Ni compte de cas ou de sabotages ni durée écrits ici (R-728 ; superviseur R-759 du 25-11-2026, après le RELU Cowork de 15h57, défaut N-7) : ils se lisent dans SORTIE.txt et dans RESULTAT.json (duree_secondes) du dernier passage, branche epreuves-longues/<passage>/Lanceur"
   },
   "Enchainer": {
    "chemin": "tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py",
@@ -641,6 +641,14 @@
     "--saboter"
    ],
    "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S3 reciblé ; 2 min 39 s sur la machine du Chat le 21-11-2026"
+  },
+  "Carte": {
+   "chemin": "tests/EPREUVE_DE_LA_CARTE_DU_CIRCUIT_Sam_21-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 14h36 (A-963, « 1 ») : la carte du circuit fabriquée depuis le code (programmes/FABRIQUER_LA_CARTE_DU_CIRCUIT.py) ; cas sur le vrai collecte_abc.yml (R-732) — pas retiré, élément ① absent, programme renommé, source absente — et sabotages S1 à S6 du fabricant (S5 marquage ATTEND JEAN-LUC, S6 étapes de la moulinette, ajoutés le 25-11-2026) ; 6 s mesurées le 25-11-2026 sur la machine du Chat, sans couverture"
   },
   "AncreC5": {
    "chemin": "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py",
@@ -729,6 +737,13 @@
     "--saboter"
    ],
    "pourquoi": "variante « --saboter » de ProprietesBout (décisions A-923, A-945, A-952) : les sabotages de SABOTAGES_BEB, dans l'épreuve, qui les affiche un par un (aucun compte écrit ici, R-728) (maillon retiré, fiche perdue entre deux maillons, garde éteinte, retour aux liens symboliques, fiche fautive rendue conforme, valeur qui ne sort jamais de l'indice ; S-BEB11 à 14 : chaque étalon désigné faussé ; S-BEB15 à 22, superviseur R-759 du 20-11-2026 : juge qui lève, détecteur qui lève vu par BEB-PASSE et par BEB-SIGNAL, cockpit sorti en 1 pour une autre raison, radar sorti en 1, réglage relié au réel par un lien symbolique, tri sans version retenue, fiche fautive refusée sur sl sans la phrase exacte de tp ; I1 de Cowork du 21-11-2026 : versement qui écrit une ligne ancienne en double), chacun doit faire rougir SA propriété (R-731). 171 s sur GitHub le 20-11-2026 pour la série d'alors (passage 44814017661) ; la série actuelle : NON MESURÉE ici, plus longue depuis que ② ③ ④ jouent (A-952)"
+  },
+  "EssaiSansRegard": {
+   "chemin": "tests/EPREUVES_DE_L_ESSAI_SANS_REGARD_Lun_16-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "superviseur R-759 du 25-11-2026 (travail-lanceur, après le RELU Cowork de 15h57) : régression de l'option « --essai-sans-regard » (A-863, A-865 à A-867) après la fermeture de L-11, qui change programmes/CONTRATS_DES_FICHIERS.py et la garde de famille de programmes/VERIFIER_LA_CHAINE.py ; les cas E-ancre, E1 à E11, A1 à A6-bis, sans « --saboter » (ses sabotages visent l'option d'essai, que cette livraison ne change pas) ; lit le témoin des vingt ans et passe par le juge complet ; durée non mesurée : elle se lira dans RESULTAT.json (duree_secondes) du premier passage"
   }
  }
 }
