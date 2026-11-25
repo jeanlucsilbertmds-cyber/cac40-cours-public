@@ -961,19 +961,21 @@ SABOTAGES_SUITE = (
     ("S-ACC2 doubles touches et trous hors des séances du soir", "ACC", "EPREUVE", ["--accidents-avant-le-soir"],
      "aucune position sortie sur double touche"),
     # LES DEUX CONTRÔLES DE `defauts_d_un_trade` AJOUTÉS POUR I1 (Cowork, 20-11-2026), retirés un à un : le cas limite
-    # qu'ils tiennent doit être nommé dans le détail de POS.
+    # qu'ils tiennent doit être nommé dans le détail de POS. LA RAISON D'UN CAS I1-C* SE TERMINE PAR UNE ESPACE (D2 du
+    # relecteur à mandat inversé, 25-11-2026) : « I1-C1 » seul est le début de « I1-C10 » à « I1-C19 », et un détail
+    # qui ne nommerait que I1-C10 passerait pour une morsure de I1-C1 ; chaque écart s'écrit « I1-Cn <libellé> ».
     ("S-I1a contrôle « SL sur une ouverture au-dessus de l'objectif » retiré", "POS", "EPREUVE",
-     ["--sans-controle=saut"], "I1-C1"),
+     ["--sans-controle=saut"], "I1-C1 "),
     ("S-I1b contrôle « sortie sur seuil après l'échéance » retiré", "POS", "EPREUVE",
-     ["--sans-controle=echeance"], "I1-C2"),
+     ["--sans-controle=echeance"], "I1-C2 "),
     # LA COUPURE DES SEUILS ET LA BORNE DE L'ÉCHÉANCE DE `defauts_d_un_trade` (superviseur R-759 du 25-11-2026, I1p, m1,
     # m2 ; pilote V8), sabotées PAR TEXTE dans une COPIE de cette épreuve (cible « EPREUVE-TEXTE », `passage_suite`) :
     # S-I1c rétablit une zone morte de 1e-3 € du côté « pas touché » (un seuil atteint pile n'est plus vu) ; S-I1d
     # compte l'échéance large (« >= »), si bien qu'un TP le jour même de l'échéance est refusé.
     ("S-I1c zone morte rétablie autour des seuils (EPS_SEUIL = -1e-3)", "POS", "EPREUVE-TEXTE",
-     [("    EPS_SEUIL = 5e-6\n", "    EPS_SEUIL = -1e-3\n")], "I1-C5"),
+     [("    EPS_SEUIL = 5e-6\n", "    EPS_SEUIL = -1e-3\n")], "I1-C5 "),
     ("S-I1d échéance comptée large (z - a >= h)", "POS", "EPREUVE-TEXTE",
-     [(" and z - a > h \\\n", " and z - a >= h \\\n")], "I1-C6"),
+     [(" and z - a > h \\\n", " and z - a >= h \\\n")], "I1-C6 "),
 )
 
 # ═══ LES CAS CONNUS : RÉSULTATS ÉCRITS D'AVANCE, À L'ŒIL, SUR DES PRIX RONDS (réparation du 20-11-2026) ═══════════════
@@ -1687,8 +1689,13 @@ def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     SL sur une ouverture pile à l'objectif (I1p).
     ⑨ CE QUI CLOCHE — ① l'échéance d'une fenêtre à trou n'est pas jugée ici (R-112 non appliquée par le code : cas K07) ;
     ② si le seuil exact tombe PILE sur une demi-unité de la cinquième décimale, l'arrondi du circuit (au pair, en
-    binaire) peut le monter, et un prix égal au seuil exact moins 5e-6 € serait vu « touché » ici et « pas touché » par
-    le circuit : un faux défaut, jamais un défaut caché ; 0 cas sur les 15 101 100 comparaisons mesurées ; ③ les prix
+    binaire) le déplace de 5e-6 €, DANS UN SENS OU DANS L'AUTRE. S'il l'ÉLOIGNE (objectif monté, stop descendu), un
+    prix égal au seuil exact moins 5e-6 € (plus 5e-6 € côté stop) est vu « touché » ici et « pas touché » par le
+    circuit. S'il le RAPPROCHE (objectif descendu, stop monté), un prix égal au seuil arrondi est « touché » pour le
+    circuit et tombe ici pile sur la coupure, où l'arrondi binaire de la soustraction peut le laisser « pas touché ».
+    Dans les deux sens, ce désaccord fait REFUSER une sortie juste (un faux défaut), jamais accepter une sortie fausse
+    (un défaut caché) ; 0 cas sur les 15 101 100 comparaisons mesurées. La coupure se mesure par I1-C13 (1e-4 € sous
+    l'objectif) et I1-C24 (8e-6 € des deux seuils) : EPS_SEUIL porté à 1e-5 € ou plus fait nommer I1-C24 ; ③ les prix
     rendus (px) se comparent à EPS_PRIX = 1e-5 € près (une unité de la cinquième décimale, le « %.5f » du journal).
     ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main ; aucun appel ne peut ne pas revenir (comparaisons seulement).
     [sort: non]"""
@@ -1700,23 +1707,37 @@ def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     def haut(p):
         """L'objectif est-il atteint par le prix p ? ① RÔLE — la coupure de l'objectif, égalité comprise.
         ② CONTEXTE D'APPEL — `defauts_d_un_trade`. ③ ENTRÉE — un prix. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE
-        valeur : booléen. [rend: 1] ⑥ TRAITEMENT — p >= objectif − EPS_SEUIL. ⑦ UNITÉ — euros. ⑧ POURQUOI — voir ⑧ de
-        `defauts_d_un_trade`. ⑨ CE QUI CLOCHE — voir ⑨ ②. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+        valeur : booléen. [rend: 1] ⑥ TRAITEMENT — p >= objectif − EPS_SEUIL. ⑦ UNITÉ — euros. ⑧ POURQUOI — le circuit
+        (`MODULE_POSITIONS.tester_seance`) vend quand le prix est « >= » l'objectif arrondi à cinq décimales, donc à au
+        plus 5e-6 € de l'objectif exact : couper à 5e-6 € SOUS l'objectif exact rend sa décision sans recopier son
+        arrondi, et l'égalité compte pour atteint. ⑨ CE QUI CLOCHE — quand l'objectif exact tombe pile sur une
+        demi-unité de la cinquième décimale, l'arrondi du circuit peut le déplacer de 5e-6 € et un prix à la limite
+        est jugé autrement ici : la sortie juste est alors refusée (faux défaut), jamais une fausse acceptée.
+        ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main ; elle n'appelle aucune fonction, aucun appel ne peut donc
+        ne pas revenir. [sort: non]"""
         return p >= obj - EPS_SEUIL
 
     def bas(p):
         """Le stop est-il atteint par le prix p ? ① RÔLE — la coupure du stop, égalité comprise. ② CONTEXTE D'APPEL —
         `defauts_d_un_trade`. ③ ENTRÉE — un prix. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur : booléen.
-        [rend: 1] ⑥ TRAITEMENT — p <= stop + EPS_SEUIL. ⑦ UNITÉ — euros. ⑧ POURQUOI — voir ⑧ de `defauts_d_un_trade`.
-        ⑨ CE QUI CLOCHE — voir ⑨ ②. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+        [rend: 1] ⑥ TRAITEMENT — p <= stop + EPS_SEUIL. ⑦ UNITÉ — euros. ⑧ POURQUOI — le circuit
+        (`MODULE_POSITIONS.tester_seance`) vend quand le prix est « <= » le stop arrondi à cinq décimales, donc à au
+        plus 5e-6 € du stop exact : couper à 5e-6 € AU-DESSUS du stop exact rend sa décision sans recopier son
+        arrondi, et l'égalité compte pour atteint. ⑨ CE QUI CLOCHE — quand le stop exact tombe pile sur une
+        demi-unité de la cinquième décimale, l'arrondi du circuit peut le déplacer de 5e-6 € et un prix à la limite
+        est jugé autrement ici : la sortie juste est alors refusée (faux défaut), jamais une fausse acceptée.
+        ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main ; elle n'appelle aucune fonction, aucun appel ne peut donc
+        ne pas revenir. [sort: non]"""
         return p <= stp + EPS_SEUIL
 
     def egal(p, q):
         """Deux prix sont-ils le même prix écrit ? ① RÔLE — comparer un prix rendu à son attendu. ② CONTEXTE
         D'APPEL — `defauts_d_un_trade`. ③ ENTRÉE — deux prix. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur :
         booléen. [rend: 1] ⑥ TRAITEMENT — |p − q| <= EPS_PRIX. ⑦ UNITÉ — euros. ⑧ POURQUOI — le journal écrit « %.5f »
-        et le seuil rendu est arrondi à cinq décimales (n°311). ⑨ CE QUI CLOCHE — voir ⑨ ③ de `defauts_d_un_trade`.
-        ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+        et le seuil rendu est arrondi à cinq décimales (n°311) : deux écritures du même prix diffèrent d'au plus une
+        unité de la cinquième décimale, 1e-5 €. ⑨ CE QUI CLOCHE — deux prix réellement différents de moins de 1e-5 €
+        sont vus égaux ; aucun prix du circuit n'a plus de cinq décimales, mais un prix fabriqué en aurait. ⑩ EFFET —
+        aucun. ⑪ TERMINAISON — rend la main ; elle n'appelle que `abs`, qui revient toujours. [sort: non]"""
         return abs(p - q) <= EPS_PRIX
 
     dd = [b["date"] for b in serie]
@@ -1780,11 +1801,11 @@ ENGIE_AOU26 = (("2026-08-21", 25.6, 25.75, 25.29, 25.29), ("2026-08-24", 25.25, 
 
 
 def cas_limites_des_defauts():
-    """Rend les écarts de `defauts_d_un_trade` sur TREIZE trades écrits à la main, aux verdicts écrits d'avance.
+    """Rend les écarts de `defauts_d_un_trade` sur VINGT-SIX trades écrits à la main, aux verdicts écrits d'avance.
     ① RÔLE — éprouver le contrôle de POS lui-même (I1 de Cowork, relectures de travail-proprietes-3 et -4, 20-11-2026 ;
-    I1p, m1 et m2 du superviseur R-759, 25-11-2026). ② CONTEXTE D'APPEL — `suite`, juste après les cas connus.
+    I1p, m1 et m2 du superviseur R-759, 25-11-2026 ; D1 du relecteur à mandat inversé, 25-11-2026). ② CONTEXTE D'APPEL — `suite`, juste après les cas connus.
     ③ ENTRÉE — aucune. ④ CONDITIONS D'ENTRÉE — —.
-    ⑤ SORTIE — DEUX valeurs : la liste des écarts (textes préfixés I1-C1 à I1-C13), le nombre de cas joués. [rend: 2]
+    ⑤ SORTIE — DEUX valeurs : la liste des écarts (textes préfixés « I1-Cn » et une espace, n de 1 à 26), le nombre de cas joués. [rend: 2]
     ⑥ TRAITEMENT — cas CONSTRUITS : achat à 100,00 le 2024-01-08, objectif 4 % (104,00), stop 2,5 % (97,50) · I1-C1 :
     SL à 97,50 sur une séance ouverte à 106,00 (R-607 ③ voulait TP_GAP à 106,00) → DOIT être refusé · I1-C2 : horizon
     3, TP à 104,00 sur la QUATRIÈME séance après l'achat (`vendre` vendait à la clôture de la troisième, motif HORIZON)
@@ -1802,17 +1823,35 @@ def cas_limites_des_defauts():
     Cas CONSTRUIT à quatre décimales (128 prix réels ABC 2026 en ont quatre) : I1-C13 : HORIZON juste à la clôture
     100,50, horizon 1, plus haut 103,9999, un dix-millième SOUS l'objectif 104,00 → DOIT passer (la coupure ne
     s'élargit pas : un prix sous le seuil reste « pas touché »).
+    TÉMOINS FAUX PAR BRANCHE (D1 du relecteur à mandat inversé, 25-11-2026 : 18 des 20 mutations de son script
+    survivaient aux 13 cas précédents), mêmes seuils 104,00 / 97,50, chacun DOIT être refusé sauf C24 :
+    I1-C14 : TP à 104,00 le 10-01 alors que le plus haut du 09-01 (104,50) touchait déjà l'objectif (`vendre` : TP le
+    09-01) · I1-C15 : SL à 97,50 le 10-01 alors que le plus bas du 09-01 (97,00) touchait déjà le stop · I1-C16 :
+    prix d'entrée 101,00 sur une séance d'achat ouverte à 100,00 · I1-C17 : SL_GAP à 99,00 sur une ouverture à 99,00
+    AU-DESSUS du stop, plus bas 97,00 (`vendre` : SL à 97,50) · I1-C18 : TP_GAP à 104,00 sur une ouverture à 106,00
+    (R-607 ① : le prix d'ouverture) · I1-C19 : SL à 96,00 (le plus bas) au lieu de 97,50 (le stop) · I1-C20 : SL à
+    97,50 sur une ouverture à 96,00 déjà sous le stop (R-607 ② : SL_GAP à 96,00) · I1-C21 : TP à 104,00 sur une
+    séance ouverte à 100,00 dont le plus haut 104,50 touche l'objectif ET le plus bas 97,00 le stop (R-602 : SL) ·
+    I1-C22 : HORIZON à 100,4999, un dix-millième sous la clôture 100,50 · I1-C23 : HORIZON après deux lignes pour un
+    horizon de 3, sans trou · I1-C24 : témoin JUSTE, HORIZON à 100,50, horizon 1, plus haut 103,999992 et plus bas
+    97,500008, à 8e-6 € des seuils du côté « pas touché » (`vendre` : HORIZON, vérifié le 25-11-2026) → DOIT passer ·
+    I1-C25 : sortie le 09-01 pour une entrée le 10-01 · I1-C26 : motif « VENTE », qui n'existe pas.
     ⑦ UNITÉ — euros ; séances.
     ⑧ POURQUOI — les deux trades faux de Cowork rendaient une liste vide (« C1 SL au lieu de TP_GAP (R-607 ③) : ([],
     False) », « C2 TP après l'échéance (horizon 3) : ([], False) ») ; les témoins justes gardent le contrôle de
     sur-détecter ; C5, C7, C10 et C11 étaient ACCEPTÉS par la zone morte de 1e-3 € (mesuré le 25-11-2026 sur la
     pointe 3cee571f5 de main, avant réparation) ; C6 tient la borne « z − a > h » contre un « >= » (S-I1d) ; C11 et
     C12 tiennent l'égalité côté stop (« p < stop » mis pour « p <= stop » les fait nommer) ; C13 tient la coupure
-    contre un élargissement (EPS_SEUIL = 1e-3 le fait nommer). Les verdicts attendus des cas réels sont ceux de
+    contre un élargissement à 1e-4 € ou plus, C24 dès 1e-5 € (la mesure de MESURER_LES_DECIMALES.py trouve le circuit
+    contredit 6 fois à 1e-5 €). C14 à C26 : chaque branche de `defauts_d_un_trade` a un témoin faux qu'elle seule
+    refuse ; MUTATIONS_DE_DEFAUTS.py (etudes/brouillons_chat/A923_ETAPE_B_PROPRIETES_8_Mer_25-11-2026/) joue trente
+    mutations du texte de la fonction et chacune fait nommer au moins un cas (mesuré le 25-11-2026). Les verdicts attendus des cas réels sont ceux de
     `MODULE_POSITIONS.vendre` sur les mêmes séances (TP à 150,80 le 14-10 ; TP_GAP à 312,00 le 13-08 ; SL à 24,96 le
     24-08), vérifiés le 25-11-2026.
     ⑨ CE QUI CLOCHE — les cas C1 à C4 sont reconstruits d'après la description de Cowork, son script n'étant pas au
-    dépôt ; aucun cas RÉEL n'a une ouverture pile à l'objectif ET un plus bas sous le stop : C5 reste construit.
+    dépôt ; aucun cas RÉEL n'a une ouverture pile à l'objectif ET un plus bas sous le stop : C5 reste construit ;
+    C14 à C26 sont construits ; C24 porte des prix à six décimales, qu'aucun cours réel n'a : il mesure la coupure,
+    pas un cas survenu ; un élargissement de EPS_SEUIL entre 5e-6 € et 8e-6 € n'est vu par aucun cas.
     ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
     dates = ["2024-01-08", "2024-01-09", "2024-01-10", "2024-01-11", "2024-01-12"]
     calme = [dict(date=x, open=100.0, high=101.0, low=99.0, close=100.5) for x in dates]
@@ -1823,6 +1862,16 @@ def cas_limites_des_defauts():
     sch = [dict(date=d, open=o, high=hh, low=l, close=c) for d, o, hh, l, c in SCHNEIDER_AOU26]
     eng = [dict(date=d, open=o, high=hh, low=l, close=c) for d, o, hh, l, c in ENGIE_AOU26]
     sous = [calme[0], dict(date=dates[1], open=100.0, high=103.9999, low=99.0, close=100.5)] + calme[2:]
+    # LES SÉRIES DES TÉMOINS FAUX PAR BRANCHE (I1-C14 à I1-C26, relecteur à mandat inversé du 25-11-2026, D1)
+    deja_h = [calme[0], dict(date=dates[1], open=100.0, high=104.5, low=99.0, close=100.5),
+              dict(date=dates[2], open=100.0, high=104.5, low=99.0, close=103.0)] + calme[3:]
+    deja_b = [calme[0], dict(date=dates[1], open=100.0, high=101.0, low=97.0, close=99.0),
+              dict(date=dates[2], open=100.0, high=101.0, low=97.0, close=98.0)] + calme[3:]
+    glisse = [calme[0], dict(date=dates[1], open=99.0, high=100.0, low=97.0, close=98.0)] + calme[2:]
+    perce = [calme[0], dict(date=dates[1], open=99.0, high=100.0, low=96.0, close=97.0)] + calme[2:]
+    trou_b = [calme[0], dict(date=dates[1], open=96.0, high=97.0, low=95.0, close=96.5)] + calme[2:]
+    double = [calme[0], dict(date=dates[1], open=100.0, high=104.5, low=97.0, close=99.0)] + calme[2:]
+    frole = [calme[0], dict(date=dates[1], open=100.0, high=103.999992, low=97.500008, close=100.5)] + calme[2:]
 
     def tr(motif, px, sortie, entree=dates[0], pe="100.0"):
         """Un trade minimal. ① RÔLE — fabriquer. ② CONTEXTE D'APPEL — `cas_limites_des_defauts`. ③ ENTRÉE — motif,
@@ -1850,7 +1899,33 @@ def cas_limites_des_defauts():
            ("I1-C12 témoin SL pile au stop (réel ENGIE)",
             tr("SL", 24.96, "2026-08-24", "2026-08-21", "25.6"), eng, 20, False),
            ("I1-C13 témoin HORIZON, plus haut un dix-millième sous l'objectif",
-            tr("HORIZON", 100.5, dates[1]), sous, 1, False)]
+            tr("HORIZON", 100.5, dates[1]), sous, 1, False),
+           ("I1-C14 TP après une séance dont le plus haut touchait déjà l'objectif",
+            tr("TP", 104.0, dates[2]), deja_h, 20, True),
+           ("I1-C15 SL après une séance dont le plus bas touchait déjà le stop",
+            tr("SL", 97.5, dates[2]), deja_b, 20, True),
+           ("I1-C16 prix d'entrée qui n'est pas l'ouverture de la séance d'achat",
+            tr("HORIZON", 100.5, dates[1], pe="101.0"), calme, 1, True),
+           ("I1-C17 SL_GAP sur une ouverture au-dessus du stop (plus bas sous le stop)",
+            tr("SL_GAP", 99.0, dates[1]), glisse, 20, True),
+           ("I1-C18 TP_GAP au prix de l'objectif au lieu de l'ouverture",
+            tr("TP_GAP", 104.0, dates[1]), saut, 20, True),
+           ("I1-C19 SL au prix du plus bas au lieu du stop",
+            tr("SL", 96.0, dates[1]), perce, 20, True),
+           ("I1-C20 SL au stop sur une ouverture déjà sous le stop (R-607 ② voulait SL_GAP)",
+            tr("SL", 97.5, dates[1]), trou_b, 20, True),
+           ("I1-C21 TP alors que le plus bas touche aussi le stop (R-602 voulait SL)",
+            tr("TP", 104.0, dates[1]), double, 20, True),
+           ("I1-C22 HORIZON un dix-millième sous la clôture",
+            tr("HORIZON", 100.4999, dates[3]), tard, 3, True),
+           ("I1-C23 HORIZON avant l'échéance (deux lignes, horizon 3)",
+            tr("HORIZON", 100.5, dates[2]), calme, 3, True),
+           ("I1-C24 témoin HORIZON, plus haut et plus bas à 8e-6 du seuil, du côté « pas touché »",
+            tr("HORIZON", 100.5, dates[1]), frole, 1, False),
+           ("I1-C25 sortie avant l'entrée",
+            tr("TP_GAP", 106.0, dates[1], entree=dates[2]), saut, 20, True),
+           ("I1-C26 motif de sortie inconnu",
+            tr("VENTE", 100.5, dates[1]), calme, 20, True)]
     ecarts = []
     for nom, t, serie, h, faux in cas:
         rendu, _trou = defauts_d_un_trade(t, serie, 0.04, 0.025, h, [b["date"] for b in serie])
@@ -2162,7 +2237,11 @@ def passage_suite(racine, base, fiches, sabotage):
     fichier. ⑤ SORTIE — TROIS valeurs : propriétés, refus, écarts
     connus rencontrés. [rend: 3] ⑥ TRAITEMENT — voir ①.
     ⑦ UNITÉ — —. ⑧ POURQUOI — R-731 : un processus neuf par passage, un module saboté ne survit pas au suivant.
-    ⑨ CE QUI CLOCHE — —. ⑩ EFFET — écrit puis efface R (et la copie sabotée de l'épreuve, sous EPREUVE-TEXTE).
+    ⑨ CE QUI CLOCHE — si le processus qui appelle est tué (et non le processus enfant) entre l'écriture de R ou de la
+    copie sabotée et le `finally`, elles restent sous `base` (le dossier temporaire de `main`) ; un sabotage
+    « EPREUVE-TEXTE » saboté sur un texte qui n'est pas dans le code éprouvé mais dans une chaîne (une fiche, un
+    commentaire) passerait le contrôle d'unicité sans rien saboter : sa raison exigée (cinquième champ) est le seul
+    garde-fou. ⑩ EFFET — écrit puis efface R (et la copie sabotée de l'épreuve, sous EPREUVE-TEXTE).
     ⑪ TERMINAISON — rend la main ; lève RuntimeError si un texte de sabotage n'est pas unique. [sort: non]"""
     nom = "base" if sabotage is None else sabotage[0].split(" ")[0]
     R = os.path.join(base, "R_" + nom)

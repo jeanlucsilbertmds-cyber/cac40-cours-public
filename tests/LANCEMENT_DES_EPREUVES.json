@@ -712,7 +712,7 @@
     "--suite-seule",
     "--saboter"
    ],
-   "pourquoi": "décision de Jean-Luc A-945 (20-11-2026 à 17h53) : variante « --saboter » de ProprietesSuite, seize sabotages (SABOTAGES_SUITE de l'épreuve, dont S-A945, S-ETA, S-JUG, S-POS, S-GAIN, S-PREUVE), chacun doit faire rougir SA propriété (R-731). 766 s sur GitHub le 20-11-2026 (passage 44814017661, pointe 3261c1a68). Mesuré sur la machine du Chat le 20-11-2026 en deux tranches : 176 s (passage de base + 3 sabotages) et 312 s (base + 4 sabotages), soit environ 83 + 6 × 80 ≈ 560 s d'un tenant (de 78 à 83 s par passage)"
+   "pourquoi": "décision de Jean-Luc A-945 (20-11-2026 à 17h53) : variante « --saboter » de ProprietesSuite, dix-huit sabotages (compte de SABOTAGES_SUITE mesuré par ast le 25-11-2026, correction tour 2 du pilote V8 ; SABOTAGES_SUITE de l'épreuve, dont S-A945, S-ETA, S-JUG, S-POS, S-GAIN, S-PREUVE), chacun doit faire rougir SA propriété (R-731). 766 s sur GitHub le 20-11-2026 (passage 44814017661, pointe 3261c1a68). Mesuré sur la machine du Chat le 20-11-2026 en deux tranches : 176 s (passage de base + 3 sabotages) et 312 s (base + 4 sabotages), soit environ 83 + 6 × 80 ≈ 560 s d'un tenant (de 78 à 83 s par passage)"
   },
   "ProprietesBout": {
    "chemin": "tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py",
