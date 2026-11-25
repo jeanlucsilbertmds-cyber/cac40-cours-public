@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=SeuilFamille5,SeuilFamille25
+pointe=438e71c859d83866edb8946dc05c66e0e3a9d951
