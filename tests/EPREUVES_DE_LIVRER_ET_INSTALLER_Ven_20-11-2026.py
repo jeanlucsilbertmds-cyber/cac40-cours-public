@@ -546,11 +546,13 @@ def pointe_de(m, ref="travail-x"):
     return m.git(m.prive, "rev-parse", ref).strip()
 
 
-def preuve(m, code, pointe, sortie=0, passage=9500, detail=None):
+def preuve(m, code, pointe, sortie=0, passage=9500, detail=None, brut=None, champs=None):
     """Pousse au privé nu une branche de résultat epreuves-longues/<passage>/<code>, comme le circuit.
 
     ① RÔLE — Donner à INSTALLER une preuve GitHub sans GitHub. ② CONTEXTE D'APPEL — Les cas I.
-    ③ ENTRÉE — `m` · `code` · `pointe` : la pointe jouée écrite · `sortie` : le code de sortie · `passage`.
+    ③ ENTRÉE — `m` · `code` · `pointe` : la pointe jouée écrite · `sortie` : le code de sortie · `passage` ·
+      `detail` : le détail du joueur, ou None · `brut` : un TEXTE écrit tel quel à la place du JSON (un RESULTAT.json
+      illisible, N-47), ou None · `champs` : des champs qui remplacent ceux du RESULTAT.json (code_epreuve…), ou None.
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — Rien.
       [rend: rien]
@@ -567,17 +569,20 @@ def preuve(m, code, pointe, sortie=0, passage=9500, detail=None):
         res = {"code_epreuve": code, "code_de_sortie": sortie, "duree_secondes": 1, "pointe_jouee": pointe}
         if detail is not None:
             res["detail_de_l_epreuve"] = detail
-        json.dump(res, f)
+        res.update(champs or {})
+        f.write(brut if brut is not None else json.dumps(res))
     m.git(w, "add", "-A")
     m.git(w, "commit", "-q", "-m", "resultat")
     m.git(w, "push", "-q", m.prive, f"HEAD:refs/heads/epreuves-longues/{passage}/{code}")
 
 
-def preuve_de_livraison(m, pointe, verdict="VERT"):
+def preuve_de_livraison(m, pointe, verdict="VERT", passage=9500, sortie=0, plus=None, champs=None, brut=None):
     """Pousse une preuve « Livraison » sur `pointe`, son détail portant le sha256 de la note à cette pointe.
 
     ① RÔLE — La preuve du contrôle final (A-995), que INSTALLER exige toujours. ② CONTEXTE D'APPEL — Les cas I.
-    ③ ENTRÉE — `m`, `pointe`, `verdict` du détail. ④ CONDITIONS D'ENTRÉE — La note existe à la pointe.
+    ③ ENTRÉE — `m`, `pointe`, `verdict` du détail, `passage`, `sortie` (le code de sortie), `plus` : des champs qui
+    remplacent ceux du détail (empreinte, sha256…), `champs` et `brut` : ceux de `preuve`.
+    ④ CONDITIONS D'ENTRÉE — La note existe à la pointe.
     ⑤ SORTIE — Rien.
       [rend: rien]
     ⑥ TRAITEMENT — octets de la note par « git cat-file blob », sha256, puis `preuve`. ⑦ UNITÉ — —
@@ -587,8 +592,10 @@ def preuve_de_livraison(m, pointe, verdict="VERT"):
     """
     octets = subprocess.run(["git", "-C", m.prive, "cat-file", "blob", f"{pointe}:echanges/A_RELIRE.md"],
                             capture_output=True).stdout
-    preuve(m, "Livraison", pointe, detail={"verdict": verdict, "pointe": pointe, "empreinte": "0123456789abcdef",
-                                           "sha256_de_la_note": hashlib.sha256(octets).hexdigest()})
+    detail = {"verdict": verdict, "pointe": pointe, "empreinte": "0123456789abcdef",
+              "sha256_de_la_note": hashlib.sha256(octets).hexdigest()}
+    detail.update(plus or {})
+    preuve(m, "Livraison", pointe, sortie=sortie, passage=passage, detail=detail, champs=champs, brut=brut)
 
 
 def relu(m, verdict="DÉPLOYABLE", auteur="cowork", pointe=None, apres=None, avant_relu=None, ranger=None):
@@ -864,6 +871,14 @@ def cas_installer(progs, source):
       A-995 (25-11-2026, superviseur R-759 (b) et point 12) : « Livraison » toujours exigée, sa preuve jugeant la note
       relue — I9b les résultats de LIVRER écrits à part après le passage → 0 ; I9c la note changée après le passage → 1 ;
       I15c note « aucune », sans code changé, sans preuve « Livraison » → 1 ; I33 détail « ROUGE » → 1.
+      N-44 (RELU de Cowork du 25-11-2026) : I34 « code_de_sortie »: false (un booléen JSON) → 1, jamais un succès.
+      N-47 et N-48 (RELU de Cowork du 25-11-2026 à 16h13 ; superviseur R-759 de 17h20, cas C1 à C11) : IL1 vert au
+      passage 9500, rouge au 9600 → 1 · IL2 rouge puis vert → 0 (le témoin positif) · IL3 un IMPOSSIBLE récent, sha256
+      et empreinte vides, joué une note plus tôt (le lien passe par le sha256) → 1 · IL4 un RESULTAT.json récent
+      illisible → 1 · IL4b un récent qui n'est pas un objet → 1 · IL5 empreinte « PAS-HEX » → 1 · IL6 code_epreuve
+      « Autre » sur une branche Livraison → 1 · IL7 code_de_sortie false → 1 · IL10 passages 9 (vert) et 10 (rouge) :
+      le 10 fait foi → 1 · IL11 (R-732) le vrai RESULTAT.json du passage 45640507022 → 1 par INSTALLER ET par
+      « --juger ». C8 du superviseur est I9c, C9 est I9b.
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026, A-818 et réparation du soir (points A et D).
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
@@ -1039,6 +1054,42 @@ def cas_installer(progs, source):
             f.write("#!/bin/sh\ngrep -q '^Installation de' \"$1\" && { echo 'refusé par le crochet'; exit 1; }\nexit 0\n")
         os.chmod(crochet, 0o755)
 
+    def livraisons(*passages):
+        """Rend le réglage « CircuitPublic et GardeFou verts, puis ces passages de Livraison ». ① RÔLE — Régler les
+        cas IL (N-47, N-48 ; superviseur R-759 du 25-11-2026 à 17h20, cas C1 à C11). ② CONTEXTE D'APPEL — `cas`.
+        ③ ENTRÉE — `passages` : des (numéro de passage, arguments de `preuve_de_livraison`). ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : la fonction de réglage. [rend: 1] ⑥ TRAITEMENT — —. ⑦ UNITÉ — — ⑧ POURQUOI — —
+        ⑨ CE QUI CLOCHE — — ⑩ EFFET — — ⑪ TERMINAISON — Rend la main. [sort: non]"""
+        def regler(m):
+            """Les preuves. ① RÔLE — Réglage. ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m`. ④ CONDITIONS D'ENTRÉE — —
+            ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — `preuve` deux fois, `preuve_de_livraison` par passage.
+            ⑦ UNITÉ — — ⑧ POURQUOI — — ⑨ CE QUI CLOCHE — — ⑩ EFFET — Pousse. ⑪ TERMINAISON — Rend la main.
+            [sort: non]"""
+            jouee = pointe_de(m)
+            preuve(m, "CircuitPublic", jouee)
+            preuve(m, "GardeFou", jouee)
+            for passage, k in passages:
+                preuve_de_livraison(m, jouee, passage=passage, **k)
+        return regler
+
+    def resultat_reel(m):
+        """R-732 : le VRAI RESULTAT.json de « Livraison » lu sur la branche origin/epreuves-longues/45640507022/Livraison
+        (passage du 25-11-2026 à 16h07, pointe c5a4b0139, verdict ROUGE), seule la pointe jouée remplacée par celle du
+        monde. ① RÔLE — Régler IL11. ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m`. ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — preuves vertes des deux autres codes ; le texte réel, sa pointe
+        jouée remplacée, poussé au passage 45640507022 et gardé dans m.reel pour « --juger ». ⑦ UNITÉ — —
+        ⑧ POURQUOI — Superviseur R-759 de 17h20, C11 : même verdict par INSTALLER et par « --juger ».
+        ⑨ CE QUI CLOCHE — Le détail réel porte encore « pointe » c5a4b0139 : ni le juge ni INSTALLER ne la lisent.
+        ⑩ EFFET — Pousse. ⑪ TERMINAISON — Rend la main. [sort: non]"""
+        jouee = pointe_de(m)
+        preuve(m, "CircuitPublic", jouee)
+        preuve(m, "GardeFou", jouee)
+        m.reel = RESULTAT_REEL_DE_LIVRAISON.replace("c5a4b0139cc2dccea78545b4223a56cfec414e7e\",\n \"chemin",
+                                                    jouee + "\",\n \"chemin")
+        preuve(m, "Livraison", jouee, passage=45640507022, brut=m.reel)
+
+    vert = {}
+    rouge = {"verdict": "ROUGE", "sortie": 1, "plus": {"empreinte": ""}}
     cas = (
         # nom, code attendu, réglage (avant le RELU), arguments du RELU
         ("I1", 0, preuves, {}),
@@ -1081,6 +1132,22 @@ def cas_installer(progs, source):
         ("I32", 1, preuves, {"auteur": "co-work"}),
         # A-995 : un « Livraison » de code 0 dont le détail ne dit pas VERT ne prouve rien
         ("I33", 1, lambda m: preuves(m, verdict_livraison="ROUGE"), {}),
+        # N-44 (RELU de Cowork du 25-11-2026) : un « code_de_sortie »: false n'est pas un succès (False == 0 en Python)
+        ("I34", 1, lambda m: preuves(m, sortie_gf=False), {}),
+        # N-47 et N-48 (RELU de Cowork du 25-11-2026 à 16h13), cas C1 à C11 du superviseur R-759 de 17h20 : IL1 = C1 …
+        # IL7 = C7, IL10 = C10, IL11 = C11 ; C8 est I9c et C9 est I9b ci-dessus (même réglage, déjà là).
+        ("IL1", 1, livraisons((9500, vert), (9600, rouge)), {}),
+        ("IL2", 0, livraisons((9500, rouge), (9600, vert)), {}),
+        ("IL3", 1, livraisons((9500, vert), (9600, {"verdict": "IMPOSSIBLE", "sortie": 2,
+                                                    "plus": {"empreinte": "", "sha256_de_la_note": ""}})),
+         {"avant_relu": "echanges/RESULTATS_GITHUB.md"}),
+        ("IL4", 1, livraisons((9500, vert), (9600, {"brut": "[1, "})), {}),
+        ("IL4b", 1, livraisons((9500, vert), (9600, {"brut": "[1, 2]"})), {}),
+        ("IL5", 1, livraisons((9500, {"plus": {"empreinte": "PAS-HEX"}})), {}),
+        ("IL6", 1, livraisons((9500, {"champs": {"code_epreuve": "Autre"}})), {}),
+        ("IL7", 1, livraisons((9500, {"sortie": False})), {}),
+        ("IL10", 1, livraisons((9, vert), (10, rouge)), {}),
+        ("IL11", 1, resultat_reel, {}),
     )
     mondes = {"I14": {"liste": "- aucune"}, "I15": {"liste": "- aucune", "code_change": False},
               "I15c": {"liste": "- aucune", "code_change": False},
@@ -1111,7 +1178,15 @@ def cas_installer(progs, source):
             fusion = m.git(m.prive, "log", "--format=%H", "--grep=^Installation de", "main").split()
             installe = [e for e in m.entrees("main") if e["etape"] == "installation"]
             porte_main = m.montrer("main", "version.txt", m.public).strip() in (apres, "constante")
-            if attendu == 0 and nom == "I18":   # public déjà égal : 0, et aucune publication
+            if nom == "IL11":   # C11 : le même verdict par « --juger », sur le même texte réel
+                f = os.path.join(m.t, "reel.json")
+                with open(f, "w") as h:
+                    h.write(m.reel)
+                j = m.lancer([sys.executable, "-B", os.path.join(progs, "CONTROLER_LA_LIVRAISON_SUR_GITHUB.py"),
+                              "--juger", f, pointe_de(m)], m.t)
+                p.stdout += f" · --juger : code {j.returncode} {j.stdout.strip()[-120:]}"
+                ok = p.returncode == 1 and apres == avant and j.returncode == 1
+            elif attendu == 0 and nom == "I18":   # public déjà égal : 0, et aucune publication
                 with open(os.path.join(m.t, "fab.log")) as f:
                     publies = [l for l in f.read().splitlines()[m.lignes_du_log:] if "--publier" in l]
                 ok = (p.returncode == 0 and apres != avant and len(fusion) == 1 and not publies
@@ -1423,9 +1498,8 @@ SABOTAGES = (
     ("S7d note relue non comparée (INSTALLER)", "INSTALLER.py",
      "    return octets.returncode == 0 and hashlib.sha256(octets.stdout).hexdigest() == detail.get(\"sha256_de_la_note\")",
      "    return True"),
-    ("S7e verdict du détail ignoré (INSTALLER)", "INSTALLER.py",
-     '    if detail.get("verdict") != "VERT" or not meme_code(racine, jouee, relue):',
-     '    if not meme_code(racine, jouee, relue):'),
+    # S7e (verdict du détail ignoré) retiré le 25-11-2026 : la ligne qu'il sabotait n'existe plus (N-47) ; le verdict
+    # est jugé par `contenu_vert` du juge, et N47S4 et N47S8 ci-dessous le sabotent.
     ("S7f résultats écrits dans la note (LIVRER)", "LIVRER.py", "RESULTATS = \"echanges/RESULTATS_GITHUB.md\"",
      "RESULTATS = NOTE"),
     ("S8 -B écrase un commit local", "LIVRER.py", "        if en_avance:\n", "        if False:\n"),
@@ -1472,7 +1546,10 @@ SABOTAGES = (
      '    if not relue or L.git(racine, "merge-base", "--is-ancestor", relue, ref).returncode != 0:',
      '    if not relue:'),
     ("M6 code non nul de RESULTAT.json ignoré", "INSTALLER.py",
-     '        if res.get("code_de_sortie") != 0:', '        if False:'),
+     '        elif not nul(res.get("code_de_sortie")):', '        elif False:'),
+    # N-44 (RELU de Cowork du 25-11-2026) : la définition unique remplacée par l'ancienne comparaison « == 0 »
+    ("N44i booléen false pris pour 0 (INSTALLER)", "INSTALLER.py",
+     '    nul = juge.code_de_sortie_nul\n', '    nul = lambda v: v == 0\n'),
     ("P1 plantage lu comme refus (INSTALLER)", "INSTALLER.py",
      "un plantage n'est jamais lu comme un refus\n            code = PLANTAGE",
      "un plantage n'est jamais lu comme un refus\n            code = REFUS"),
@@ -1556,7 +1633,61 @@ SABOTAGES = (
      '        return PUBLIC_EN_RETARD, f"vérification impossible : {e.args[1]}"', '        return INSTALLE, ""'),
     ("N29b autre exception de la vérification rendue comme 0", "INSTALLER.py",
      '        return PUBLIC_EN_RETARD, f"{type(e).__name__} : {e}"', '        return INSTALLE, ""'),
+    # N-47 et N-48 : les sabotages S1 à S8 du superviseur R-759 du 25-11-2026 à 17h20 ; le cas qui doit tomber est
+    # dans ATTENDUS_DES_SABOTAGES
+    ("N47S1 filtre de verdict remis avant le choix", "INSTALLER.py",
+     '            if not meme_code(racine, res.get("pointe_jouee", ""), relue):\n                continue\n',
+     '            if not meme_code(racine, res.get("pointe_jouee", ""), relue) or (code == L.LIVRAISON and '
+     'juge.contenu_vert(res)[0] != 0):\n                continue\n'),
+    ("N47S2 pertinence par le sha256 de la note", "INSTALLER.py",
+     '            if not meme_code(racine, res.get("pointe_jouee", ""), relue):\n                continue\n',
+     '            if not (livraison_de_la_note(racine, res, relue) if code == L.LIVRAISON else '
+     'meme_code(racine, res.get("pointe_jouee", ""), relue)):\n                continue\n'),
+    ("N47S3 résultat illisible sauté", "INSTALLER.py",
+     "                retenus.append((int(morceaux[0]), None))   # illisible", "                pass   # illisible"),
+    ("N47S4 verdict seul au lieu de contenu_vert", "INSTALLER.py", "            vert, raison = juge.contenu_vert(res)\n",
+     '            vert, raison = (0 if (res.get("detail_de_l_epreuve") or {}).get("verdict") == "VERT" else 1), "seul"\n'),
+    ("N47S5 le plus ancien au lieu du plus récent", "INSTALLER.py",
+     "        passage, res = max(retenus, key=lambda x: x[0])", "        passage, res = min(retenus, key=lambda x: x[0])"),
+    ("N47S6 lien à la note retiré", "INSTALLER.py", "            if not livraison_de_la_note(racine, res, relue):\n",
+     "            if False:\n"),
+    ("N47S7 passages triés comme du texte", "INSTALLER.py",
+     "        passage, res = max(retenus, key=lambda x: x[0])", "        passage, res = max(retenus, key=lambda x: str(x[0]))"),
+    ("N47S8 contenu_vert rend 0 en dur (le juge)", "CONTROLER_LA_LIVRAISON_SUR_GITHUB.py",
+     '    d = r.get("detail_de_l_epreuve") if isinstance(r.get("detail_de_l_epreuve"), dict) else {}\n'
+     '    if r.get("code_epreuve") != "Livraison":',
+     '    return 0, "en dur"\n    d = r.get("detail_de_l_epreuve") if isinstance(r.get("detail_de_l_epreuve"), dict) else {}\n'
+     '    if r.get("code_epreuve") != "Livraison":'),
 )
+# LE CAS QUI DOIT TOMBER, par sabotage (superviseur R-759 du 25-11-2026 à 17h20 : « chacun doit faire tomber au moins
+# un cas nommé ») : chaque cas nommé ET joué doit tomber, sinon le sabotage est compté muet.
+ATTENDUS_DES_SABOTAGES = {"N47S1": ("IL1", "IL3"), "N47S2": ("IL3",), "N47S3": ("IL4", "IL4b"),
+                          "N47S4": ("IL5", "IL6"), "N47S5": ("IL1", "IL2"), "N47S6": ("I9c",), "N47S7": ("IL10",),
+                          "N47S8": ("IL5", "IL6", "IL7")}
+# R-732 : le VRAI RESULTAT.json de « Livraison » du passage 45640507022 (25-11-2026, 16h07, pointe c5a4b0139), lu par
+# « git show origin/epreuves-longues/45640507022/Livraison:rapports/epreuves_longues/45640507022/Livraison/RESULTAT.json »
+RESULTAT_REEL_DE_LIVRAISON = """{
+ "code_epreuve": "Livraison",
+ "delai_secondes": 18917,
+ "pointe_jouee": "c5a4b0139cc2dccea78545b4223a56cfec414e7e",
+ "chemin": "programmes/CONTROLER_LA_LIVRAISON_SUR_GITHUB.py",
+ "arguments": [
+  "{copie}"
+ ],
+ "debut": "2026-11-25 16:07:01",
+ "fin": "2026-11-25 16:07:59",
+ "duree_secondes": 58,
+ "detail_de_l_epreuve": {
+  "verdict": "ROUGE",
+  "note": "echanges/A_RELIRE.md",
+  "sha256_de_la_note": "1efbd1bfe5db227092a87006cccd6cf9d9ba51820d1941bf9aef5b070431d3f0",
+  "empreinte": "",
+  "pointe": "c5a4b0139cc2dccea78545b4223a56cfec414e7e",
+  "code_du_controle": 1,
+  "raison": "le contrôle a refusé la livraison (code 1)"
+ },
+ "code_de_sortie": 1
+}"""
 
 
 def jouer(progs, source):
@@ -1718,8 +1849,13 @@ def main():
                     ok = False
                     continue
                 tombes = [n for n, passe, _ in jouer(d, source) if not passe]
-                print((f"✅ {s[0]} → {' '.join(tombes)} tombe(nt)" if tombes else f"❌ {s[0]} NE MORD PAS"), flush=True)
-                ok = ok and bool(tombes)
+                # le cas nommé (ATTENDUS_DES_SABOTAGES), s'il a été joué, doit être parmi ceux qui tombent
+                manquent = [c for c in ATTENDUS_DES_SABOTAGES.get(s[0].split()[0], ()) if c in VUS and choisi(c)
+                            and c not in tombes]
+                print((f"✅ {s[0]} → {' '.join(tombes)} tombe(nt)" if tombes and not manquent
+                       else f"❌ {s[0]} NE MORD PAS" + (f" sur le cas nommé {' '.join(manquent)}" if manquent else "")),
+                      flush=True)
+                ok = ok and bool(tombes) and not manquent
     finally:
         shutil.rmtree(base, ignore_errors=True)
     print(f"{'TOUT PASSE' if ok else 'ÉCHEC'} en {time.time() - t0:.0f} s")

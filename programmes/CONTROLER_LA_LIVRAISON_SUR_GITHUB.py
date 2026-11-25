@@ -36,7 +36,7 @@ rien publier est permis : A-543, A-600, erratum d'A-812) ; mais il joue chaque �
   la copie, qui EMPRUNTE les objets du clone, « alternates », sans les recopier ; les références
   refs/remotes/origin/* du clone ; HEAD détachée sur la pointe ; l'index lu de HEAD) ; empreinte sha256 de la note
   AVANT le contrôle ; lancer le contrôle ; lire la ligne de contrôle qu'il a posée par la fonction du contrôle
-  lui-même (`_marqueur_de_queue`) ; écrire le détail. (b) `juger_un_resultat`.
+  lui-même (`_marqueur_de_queue`) ; écrire le détail. (b) `juger_un_resultat`, qui lit `contenu_vert`.
 ⑦ UNITÉ — Des empreintes : sha256 entier (64 caractères) de la note, et l'empreinte du contrôle (16 caractères).
 ⑧ POURQUOI — Décision A-995 ci-dessus. La table des épreuves longues n'admet que des arguments figés sans « / »
   (ARGUMENT_FIGE du fabricant) : le chemin de la note ne peut pas y être écrit, d'où ce programme, qui le connaît.
@@ -79,6 +79,33 @@ OPTIONS = ("--attendu=livraison",)
 POINTE = r"[0-9a-f]{40}"
 VERT, ROUGE, IMPOSSIBLE = "VERT", "ROUGE", "IMPOSSIBLE"
 DELAI_GIT = 600
+
+
+def code_de_sortie_nul(valeur):
+    """Dit si un « code_de_sortie » lu dans un RESULTAT.json est un succès : strictement l'entier 0.
+
+    ① RÔLE — L'UNIQUE définition, pour tout le dépôt, d'un code de sortie de succès lu dans un RESULTAT.json du circuit
+      des épreuves longues (RELU de Cowork du 25-11-2026, N-44 ; superviseur R-759 : « UNE seule fonction, écrite à un
+      endroit, lue par --juger et par INSTALLER », R-708 : deux écritures d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `contenu_vert` (ici) ; programmes/INSTALLER.py, `prouver_les_epreuves`, qui charge ce
+      fichier par le chemin LIVRER.JUGE.
+    ③ ENTRÉE — `valeur` : ce que le fichier JSON porte sous « code_de_sortie », tel que json.load l'a lu (entier,
+      booléen, texte, None, ou autre).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : vrai si `valeur` est un entier (et pas un booléen) égal à 0, faux sinon.
+      [rend: 1]
+    ⑥ TRAITEMENT — `type(valeur) is int and valeur == 0`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — En Python, `False == 0` est vrai : le test « != 0 » prenait un « code_de_sortie »: false pour un
+      succès (essai J2 de Cowork, 25-11-2026 : « --juger » a répondu « OUI — VERT »). `type(...) is int` refuse le
+      booléen, qui est une sous-classe d'int ; 0.0 et "0" sont refusés aussi.
+    ⑨ CE QUI CLOCHE — tests/outils/rapatrier_les_epreuves_longues.py porte sa propre règle (« int et pas bool »), et
+      programmes/ETAT_DES_TRAVAUX.py compare encore par « != 0 » : deux autres écritures, consignées au BACKLOG.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return type(valeur) is int and valeur == 0
 
 
 def charger(racine, chemin, nom):
@@ -131,7 +158,8 @@ def git(env, racine, *arguments, entree=None):
 
     ① RÔLE — Le seul endroit où ce programme appelle git.
     ② CONTEXTE D'APPEL — `rendre_le_depot_git`.
-    ③ ENTRÉE — `env` : l'environnement (`environnement_git`) ; `racine` ; les arguments, sans le mot git ; `entree` :
+    ③ ENTRÉE — `env` : l'environnement (`environnement_git`) ; `racine` ; `arguments` : les arguments de git, sans le
+      mot git ; `entree` :
       un texte envoyé à git sur son entrée standard, ou None.
     ④ CONDITIONS D'ENTRÉE — git est installé.
     ⑤ SORTIE — UNE valeur : la sortie standard, sans espaces de fin.
@@ -264,6 +292,43 @@ def jouer_le_controle(copie, environ):
     return 1, detail
 
 
+def contenu_vert(r):
+    """Dit si le CONTENU d'un RESULTAT.json est un contrôle « Livraison » VERT ; rend le code et la raison.
+
+    ① RÔLE — L'UNIQUE définition, pour tout le dépôt, d'un « Livraison » vert lu dans un RESULTAT.json, quelle que soit
+      la pointe (superviseur R-759 du 25-11-2026 à 17h20, forme recommandée, point 1 : « il n'y a ainsi qu'UNE
+      définition de Livraison verte, comme pour code_de_sortie_nul » ; R-708 : deux écritures d'une même chose
+      divergent toujours). Le lien à la pointe relue n'est PAS jugé ici : `juger_un_resultat` exige l'égalité,
+      programmes/INSTALLER.py admet un ancêtre de même code.
+    ② CONTEXTE D'APPEL — `juger_un_resultat` (ici) ; programmes/INSTALLER.py, `prouver_les_epreuves`, qui charge ce
+      fichier par le chemin LIVRER.JUGE.
+    ③ ENTRÉE — `r` : le RESULTAT.json lu par json.load.
+    ④ CONDITIONS D'ENTRÉE — `r` est un dictionnaire (chaque appelant refuse avant ce qui n'en est pas un).
+    ⑤ SORTIE — DEUX valeurs : le code (0 oui, 1 non) et la raison (texte).
+      [rend: 2]
+    ⑥ TRAITEMENT — « code_epreuve » vaut « Livraison » ; « code_de_sortie » est l'entier 0 (`code_de_sortie_nul` :
+      un booléen false est refusé, N-44) ; « detail_de_l_epreuve.verdict » vaut VERT ; son « empreinte » est faite
+      d'exactement 16 caractères hexadécimaux (re.fullmatch : un suffixe est refusé).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — RELU de Cowork du 25-11-2026, N-48 : INSTALLER ne vérifiait ni l'empreinte ni « code_epreuve » ;
+      deux jugements du même fichier. Avec cette fonction, INSTALLER et « --juger » lisent la même règle.
+    ⑨ CE QUI CLOCHE — Le détail est écrit par le code de la version jouée : une branche qui affaiblit ce programme se
+      fait juger par lui (point 13 du superviseur, au BACKLOG). « sha256_de_la_note » n'est pas jugé ici (il ne sert
+      qu'au lien d'INSTALLER).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    d = r.get("detail_de_l_epreuve") if isinstance(r.get("detail_de_l_epreuve"), dict) else {}
+    if r.get("code_epreuve") != "Livraison":
+        return 1, f"ce résultat est celui de l'épreuve {r.get('code_epreuve')!r}, pas de « Livraison »"
+    if not code_de_sortie_nul(r.get("code_de_sortie")) or d.get("verdict") != VERT:
+        return 1, f"contrôle non vert : code {r.get('code_de_sortie')!r}, verdict {d.get('verdict')!r}, {d.get('raison', '')}"
+    if not re.fullmatch(r"[0-9a-f]{16}", str(d.get("empreinte", ""))):
+        return 1, "contrôle vert sans empreinte lisible"
+    return 0, f"VERT · empreinte {d['empreinte']} · note sha256 {str(d.get('sha256_de_la_note'))[:16]}"
+
+
 def juger_un_resultat(chemin, pointe):
     """Dit si un RESULTAT.json rapatrié est un contrôle VERT de la pointe relue ; rend le code et la raison.
 
@@ -274,15 +339,16 @@ def juger_un_resultat(chemin, pointe):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — DEUX valeurs : le code (0 oui, 1 non, 2 illisible) et la raison (texte).
       [rend: 2]
-    ⑥ TRAITEMENT — la pointe est bien formée ; le fichier est un objet JSON ; « code_epreuve » vaut « Livraison » ;
-      « code_de_sortie » vaut 0 ; « pointe_jouee » (écrite par le joueur, d'après le circuit) vaut la pointe relue
-      (« detail_de_l_epreuve.pointe » n'est pas comparée : elle vient de la même variable, la comparer serait une
-      tautologie — superviseur R-759 du 25-11-2026, point 4) ;
-      « detail_de_l_epreuve.verdict » vaut VERT et son « empreinte » a 16 caractères hexadécimaux.
+    ⑥ TRAITEMENT — la pointe est bien formée ; le fichier est un objet JSON ; « pointe_jouee » (écrite par le joueur,
+      d'après le circuit) vaut la pointe relue (« detail_de_l_epreuve.pointe » n'est pas comparée : elle vient de la
+      même variable, la comparer serait une tautologie — superviseur R-759 du 25-11-2026, point 4) ; puis le contenu,
+      par `contenu_vert` (la seule définition d'un « Livraison » vert, superviseur R-759 de 17h20, point 1).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Un vert d'une autre pointe, ou d'une autre épreuve, ne dit rien de la version relue.
-    ⑨ CE QUI CLOCHE — Le code « Livraison » est écrit ici ET dans la table : si la table le renomme, ce jugement
-      refuse tout (sur-refus visible, jamais un faux vert).
+    ⑨ CE QUI CLOCHE — Le code « Livraison » est écrit dans `contenu_vert` ET dans la table : si la table le renomme,
+      ce jugement refuse tout (sur-refus visible, jamais un faux vert). Le refus de `contenu_vert` est rendu par un
+      `if` dont le corps rend `code` (une variable) : la fabrication des sabotages de l'épreuve ne le voit pas comme une
+      garde (fiche de `corps_qui_refuse`, ⑨) ; ses gardes sont sabotées dans `contenu_vert` même.
     ⑩ EFFET — Lit un fichier.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
@@ -296,16 +362,12 @@ def juger_un_resultat(chemin, pointe):
         return 2, f"résultat illisible : {type(e).__name__} : {e}"
     if not isinstance(r, dict):
         return 2, "résultat illisible : pas un objet JSON"
-    d = r.get("detail_de_l_epreuve") if isinstance(r.get("detail_de_l_epreuve"), dict) else {}
-    if r.get("code_epreuve") != "Livraison":
-        return 1, f"ce résultat est celui de l'épreuve {r.get('code_epreuve')!r}, pas de « Livraison »"
     if r.get("pointe_jouee") != pointe:
         return 1, f"résultat d'une autre pointe : joué sur {str(r.get('pointe_jouee'))[:12]!r}, relu {pointe[:12]}"
-    if r.get("code_de_sortie") != 0 or d.get("verdict") != VERT:
-        return 1, f"contrôle non vert : code {r.get('code_de_sortie')!r}, verdict {d.get('verdict')!r}, {d.get('raison', '')}"
-    if not re.fullmatch(r"[0-9a-f]{16}", str(d.get("empreinte", ""))):
-        return 1, "contrôle vert sans empreinte lisible"
-    return 0, f"VERT sur la pointe {pointe[:12]} · empreinte {d['empreinte']} · note sha256 {str(d.get('sha256_de_la_note'))[:16]}"
+    code, raison = contenu_vert(r)
+    if code != 0:
+        return code, raison
+    return 0, f"sur la pointe {pointe[:12]} · {raison}"
 
 
 def main():

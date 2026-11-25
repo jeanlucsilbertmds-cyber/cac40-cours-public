@@ -167,32 +167,35 @@ def meme_code(racine, jouee, relue):
 
 
 def livraison_de_la_note(racine, res, relue):
-    """Rend vrai si un RESULTAT.json de « Livraison » a jugé la NOTE relue, et l'a jugée verte.
+    """Rend vrai si un RESULTAT.json de « Livraison » a jugé la NOTE relue (le LIEN à la note, rien d'autre).
 
-    ① RÔLE — Relier le contrôle final (A-995) à la note que Cowork a relue, et non seulement au code.
-    ② CONTEXTE D'APPEL — `prouver_les_epreuves`, pour le seul code « Livraison » (L.LIVRAISON).
+    ① RÔLE — Relier le contrôle final (A-995) à la note que Cowork a relue, et non seulement au code. Ne dit RIEN du
+      verdict : le contenu vert est jugé par `contenu_vert` du juge (superviseur R-759 du 25-11-2026 à 17h20, forme
+      recommandée, étape ③ : « JUGEMENT : contenu_vert(res) doit rendre 0. Ensuite, la note doit être liée »).
+    ② CONTEXTE D'APPEL — `prouver_les_epreuves`, pour le seul code « Livraison » (L.LIVRAISON), APRÈS le choix du
+      passage le plus récent et APRÈS `contenu_vert`.
     ③ ENTRÉE — `racine` · `res` : le RESULTAT.json lu (dictionnaire) · `relue` : la pointe relue (40 caractères).
-    ④ CONDITIONS D'ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — `res` est un dictionnaire dont la pointe jouée porte le même code que `relue`
+      (`meme_code`, vérifié par l'appelant à l'étape de pertinence).
     ⑤ SORTIE — UNE valeur : vrai ou faux.
       [rend: 1]
-    ⑥ TRAITEMENT — le même code (`meme_code`) ; le détail du joueur dit VERT ; et la pointe jouée EST la pointe
-      relue, OU le sha256 de la note dans le détail (« sha256_de_la_note ») est celui de echanges/A_RELIRE.md à la
-      pointe relue (octets lus par « git cat-file blob »).
+    ⑥ TRAITEMENT — la pointe jouée EST la pointe relue, OU le sha256 de la note dans le détail
+      (« sha256_de_la_note ») est celui de echanges/A_RELIRE.md à la pointe relue (octets lus par « git cat-file blob »).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Superviseur R-759 du 25-11-2026, (b) : `meme_code` accepte un résultat joué sur un ancêtre quand
       seuls echanges/ et le registre ont changé, or c'est echanges/A_RELIRE.md que « Livraison » juge ; LIVRER écrit
-      désormais ses résultats à part (echanges/RESULTATS_GITHUB.md), la note reste celle qui a été jugée.
+      désormais ses résultats à part (echanges/RESULTATS_GITHUB.md), la note reste celle qui a été jugée. Le verdict
+      n'entre plus ici (N-47 : appliqué AVANT le choix du plus récent, ce filtre écartait un rouge récent).
     ⑨ CE QUI CLOCHE — Le détail est écrit par le code de la version jouée (programmes/CONTROLER_LA_LIVRAISON_SUR_GITHUB.py
       de la branche) : une branche qui affaiblit ce programme se fait juger par lui (superviseur, point 13, BACKLOG).
+      Si le plus récent est un vert sur une note DIFFÉRENTE, le résultat est un refus : il faut rejouer (prudent et
+      voulu, superviseur de 17h20, point 3).
     ⑩ EFFET — Lance git en lecture.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    jouee = res.get("pointe_jouee", "")
     detail = res.get("detail_de_l_epreuve") if isinstance(res.get("detail_de_l_epreuve"), dict) else {}
-    if detail.get("verdict") != "VERT" or not meme_code(racine, jouee, relue):
-        return False
-    if jouee == relue:
+    if res.get("pointe_jouee", "") == relue:
         return True
     note = L.lancer(["git", "-C", racine, "rev-parse", "--verify", "-q", f"{relue}:{L.NOTE}"])
     if note.returncode != 0:
@@ -215,19 +218,32 @@ def prouver_les_epreuves(racine, relue):
       contrôle final vert) ; une note « aucune » sur un travail qui change du code est refusée (N-3).
       [rend: 1]
     ⑥ TRAITEMENT — La note et la table à la pointe relue donnent les codes (`LIVRER.codes_a_jouer`, R-708 ; section
-      absente, vide ou nom sans code → refus), « Livraison » ajoutée en tête si elle n'y est pas. Pour chaque code :
-      chaque branche
-      origin/epreuves-longues/<passage>/<CODE> ; son RESULTAT.json ; on garde ceux dont « pointe_jouee » porte le même
-      code que la pointe relue (`meme_code`) — pour « Livraison », ceux qui ont jugé la note relue et l'ont dite
-      verte (`livraison_de_la_note`) ; le passage le plus récent (numéro le plus grand) fait foi ; son
-      « code_de_sortie » doit valoir 0 (sabotage M6 du relecteur). Aucun résultat retenu → refus (M1 : une épreuve
-      absente n'est jamais verte).
+      absente, vide ou nom sans code → refus), « Livraison » ajoutée en tête si elle n'y est pas. Pour chaque code,
+      TROIS étapes dans cet ordre (superviseur R-759 du 25-11-2026 à 17h20, forme recommandée, point 2) :
+      ① PERTINENCE — chaque branche origin/epreuves-longues/<passage>/<CODE> ; son RESULTAT.json ; on garde ceux dont
+      « pointe_jouee » porte le même code que la pointe relue (`meme_code`), et RIEN d'autre n'y entre (aucun champ
+      du détail : un IMPOSSIBLE précoce porte un sha256 vide, il doit compter). Un RESULTAT.json illisible, absent
+      ou qui n'est pas un objet COMPTE (sa pointe ne peut pas être lue : il n'est pas écarté).
+      ② CHOIX — le passage le plus grand, en ENTIER (ordre numérique : 10 vient après 9) ; s'il est illisible → refus.
+      ③ JUGEMENT — pour « Livraison » : `contenu_vert` du juge LIVRER.JUGE doit rendre 0 (code_epreuve, code de sortie
+      entier 0, verdict VERT, empreinte de 16 hexadécimaux), puis la note doit être liée (`livraison_de_la_note`) ;
+      pour les autres codes : « code_de_sortie » doit être l'entier 0 (`code_de_sortie_nul` du juge, N-44 : un
+      booléen false est refusé ; sabotage M6 du relecteur). Aucun résultat retenu → refus (M1 : une épreuve absente
+      n'est jamais verte).
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Consigne du 20-11-2026 au soir, point A : « La note écrite par le Chat ne fait JAMAIS foi ».
+    ⑧ POURQUOI — Consigne du 20-11-2026 au soir, point A : « La note écrite par le Chat ne fait JAMAIS foi ». L'ordre
+      des trois étapes répare N-47 (RELU de Cowork du 25-11-2026 à 16h13 : un filtre de verdict appliqué AVANT le choix
+      écartait un « Livraison » ROUGE récent et retenait un VERT ancien) et N-48 (deux jugements du même fichier).
     ⑨ CE QUI CLOCHE — La LISTE des épreuves vient de la note à la pointe relue (relue par Cowork) ; seuls les
-      RÉSULTATS viennent de GitHub. Un passage plus ancien vert ne rattrape pas un plus récent rouge.
-    ⑩ EFFET — Lance git en lecture.
-    ⑪ TERMINAISON — Rend la main, ou lève Arret.
+      RÉSULTATS viennent de GitHub. Un passage plus ancien vert ne rattrape pas un plus récent rouge ni un plus récent
+      illisible : rejouer. La règle « même code » est plus large que la note : un vert le plus récent sur une note
+      différente rend un refus (rejouer). Un RESULTAT.json illisible du passage le plus récent, même d'un autre
+      travail de même code, bloque jusqu'au passage suivant (sa pointe n'est pas lisible : prudence voulue). Le juge
+      (LIVRER.JUGE) absent ou illisible lève une exception qui n'est pas Arret : `main` la rend comme un plantage.
+      INSTALLER charge LIVRER.JUGE, alors que LIVRER honore la variable LIVRER_JUGE (N-48, troisième écart, mineur :
+      consigné au BACKLOG, non réparé ici).
+    ⑩ EFFET — Lance git en lecture ; charge le juge LIVRER.JUGE (son code de tête : imports et constantes).
+    ⑪ TERMINAISON — Rend la main, ou lève Arret (ou l'exception du chargement du juge).
       [sort: non]
     """
     note = L.git(racine, "show", f"{relue}:{L.NOTE}")
@@ -243,6 +259,10 @@ def prouver_les_epreuves(racine, relue):
                              "s'exécute : " + ", ".join(change[:5]) + " (N-3)")
     if L.LIVRAISON not in codes:   # toujours exigée, même absente de la note (A-995 ; superviseur R-759, point 12)
         codes = [L.LIVRAISON] + codes
+    # « Code de sortie nul » et « Livraison verte » : UNE définition chacun, dans le juge posé à côté de LIVRER (R-708 ;
+    # N-44 et N-48 du RELU de Cowork du 25-11-2026 ; superviseur R-759 de 17h20, point 1)
+    juge = L.charger(L.JUGE, "JUGE_POUR_INSTALLER")
+    nul = juge.code_de_sortie_nul
     prouves = []
     for code in codes:
         retenus = []
@@ -256,15 +276,27 @@ def prouver_les_epreuves(racine, relue):
             except ValueError:
                 res = None
             if not isinstance(res, dict):
+                retenus.append((int(morceaux[0]), None))   # illisible : il compte, et refuse s'il est le plus récent
                 continue
-            if (livraison_de_la_note(racine, res, relue) if code == L.LIVRAISON
-                    else meme_code(racine, res.get("pointe_jouee", ""), relue)):
-                retenus.append((int(morceaux[0]), res))
+            # ① PERTINENCE : le même code, et rien d'autre (N-47)
+            if not meme_code(racine, res.get("pointe_jouee", ""), relue):
+                continue
+            retenus.append((int(morceaux[0]), res))
         if not retenus:
             raise L.Arret(REFUS, f"aucune preuve GitHub pour {code} sur le code relu {relue[:12]} "
                                  f"(RESULTAT.json absent, ou d'une autre pointe)")
+        # ② CHOIX : le passage le plus grand, en entier
         passage, res = max(retenus, key=lambda x: x[0])
-        if res.get("code_de_sortie") != 0:
+        if res is None:
+            raise L.Arret(REFUS, f"{code} : RESULTAT.json illisible au passage {passage}, le plus récent (rejouer)")
+        # ③ JUGEMENT
+        if code == L.LIVRAISON:
+            vert, raison = juge.contenu_vert(res)
+            if vert != 0:
+                raise L.Arret(REFUS, f"{code} : non vert au passage {passage} : {raison}")
+            if not livraison_de_la_note(racine, res, relue):
+                raise L.Arret(REFUS, f"{code} : le passage {passage} n'a pas jugé la note relue (sha256 différent : rejouer)")
+        elif not nul(res.get("code_de_sortie")):
             raise L.Arret(REFUS, f"{code} : code {res.get('code_de_sortie')} au passage {passage} (RESULTAT.json)")
         prouves.append((code, passage))
     return prouves
