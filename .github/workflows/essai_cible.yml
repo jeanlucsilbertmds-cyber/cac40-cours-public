@@ -1,0 +1,7 @@
+name: Essai cible (inerte)
+on: workflow_dispatch
+jobs:
+  rien:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo inerte
