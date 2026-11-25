@@ -966,6 +966,14 @@ SABOTAGES_SUITE = (
      ["--sans-controle=saut"], "I1-C1"),
     ("S-I1b contrôle « sortie sur seuil après l'échéance » retiré", "POS", "EPREUVE",
      ["--sans-controle=echeance"], "I1-C2"),
+    # LA COUPURE DES SEUILS ET LA BORNE DE L'ÉCHÉANCE DE `defauts_d_un_trade` (superviseur R-759 du 25-11-2026, I1p, m1,
+    # m2 ; pilote V8), sabotées PAR TEXTE dans une COPIE de cette épreuve (cible « EPREUVE-TEXTE », `passage_suite`) :
+    # S-I1c rétablit une zone morte de 1e-3 € du côté « pas touché » (un seuil atteint pile n'est plus vu) ; S-I1d
+    # compte l'échéance large (« >= »), si bien qu'un TP le jour même de l'échéance est refusé.
+    ("S-I1c zone morte rétablie autour des seuils (EPS_SEUIL = -1e-3)", "POS", "EPREUVE-TEXTE",
+     [("    EPS_SEUIL = 5e-6\n", "    EPS_SEUIL = -1e-3\n")], "I1-C5"),
+    ("S-I1d échéance comptée large (z - a >= h)", "POS", "EPREUVE-TEXTE",
+     [(" and z - a > h \\\n", " and z - a >= h \\\n")], "I1-C6"),
 )
 
 # ═══ LES CAS CONNUS : RÉSULTATS ÉCRITS D'AVANCE, À L'ŒIL, SUR DES PRIX RONDS (réparation du 20-11-2026) ═══════════════
@@ -1631,67 +1639,114 @@ def accidents_vus(cours, dates):
 # RETIRENT PAR LA LIGNE DE COMMANDE, et seulement sous les sabotages S-I1a et S-I1b : « --sans-controle=saut » retire
 # le refus d'un SL sur une séance ouverte au-dessus de l'objectif, « --sans-controle=echeance » celui d'une sortie sur
 # seuil après l'échéance. Raison : un contrôle d'épreuve qu'aucun sabotage ne retire n'est pas prouvé (R-731).
+# Depuis le 25-11-2026 (pilote V8, A-923 étape B), deux sabotages PAR TEXTE de cette épreuve elle-même (S-I1c, S-I1d,
+# cible « EPREUVE-TEXTE ») jouent une COPIE sabotée de ce fichier : ils éprouvent la coupure des seuils (EPS_SEUIL) et
+# la borne de l'échéance (« z - a > h ») sans qu'aucun drapeau de la ligne de commande ne soit lu par le code éprouvé.
 SANS_CONTROLE = {a.split("=", 1)[1] for a in sys.argv if a.startswith("--sans-controle=")}
 
 
 def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     """Rend les défauts d'UN trade du soir rejoué au regard de SA série, par des PROPRIÉTÉS (inégalités), sans rejouer
     la vente : la sortie est la première séance qui touche un seuil, au bon prix, et rien avant elle.
-    ① RÔLE — POS sur les cours fabriqués, sans `vendre` (réparation du 20-11-2026). ② CONTEXTE D'APPEL — `suite`.
-    ③ ENTRÉE — le trade (colonnes du journal), la série de la valeur, tp et sl en fractions, l'horizon (entier ou
-    HORIZON_AUCUNE), le calendrier fabriqué. ④ CONDITIONS D'ENTRÉE — le trade porte ses colonnes (PREUVE l'a vérifié).
+    ① RÔLE — POS sur les cours fabriqués, sans `vendre` (réparation du 20-11-2026). ② CONTEXTE D'APPEL — `suite` (un
+    appel par trade du soir rejoué) et `cas_limites_des_defauts` (ses cas écrits à la main). ③ ENTRÉE — le trade
+    (colonnes du journal), la série de la valeur, tp et sl en fractions, l'horizon (entier ou HORIZON_AUCUNE), le
+    calendrier fabriqué. ④ CONDITIONS D'ENTRÉE — le trade porte ses colonnes (PREUVE l'a vérifié) ; tp et sl sont des
+    nombres (jamais « sans stop » : la lecture du soir le refuse).
     ⑤ SORTIE — DEUX valeurs : la liste des défauts (textes), et vrai si la fenêtre du trade contient un trou (l'échéance
-    n'y est alors pas jugée). [rend: 2] ⑥ TRAITEMENT — objectif ≈ pe×(1+tp), stop ≈ pe×(1−sl), avec une ZONE MORTE de
-    1e-3 € : on n'affirme « touché » ou « pas touché » que hors de cette zone (l'arrondi à cinq décimales du circuit,
-    n°311, n'est pas recopié) · ① l'ouverture de la séance d'achat est pe · ② aucune séance de l'achat à la veille de la
-    sortie ne touche un seuil (ouverture, plus bas, plus haut) · ③ la séance de sortie justifie le motif : SL_GAP
-    ouverture sous le stop et px = ouverture ; TP_GAP ouverture au-dessus de l'objectif et px = ouverture ; SL plus bas
-    sous le stop, px ≈ stop, ET ouverture SOUS l'objectif (sinon R-607 ③ voulait TP_GAP : I1 de Cowork, 20-11-2026) ;
-    TP plus haut au-dessus de l'objectif, plus bas AU-DESSUS du stop (sinon R-602 voulait SL), px ≈ objectif ; HORIZON
-    aucun seuil, px = clôture et, sans trou dans la fenêtre, h lignes après l'achat · ④ une sortie sur seuil (SL_GAP,
-    TP_GAP, SL, TP) d'un horizon entier se fait au plus h LIGNES après l'achat — `vendre` ne teste que serie[j:j+1+h]
-    (I1 de Cowork, 20-11-2026 : une sortie TP après l'échéance passait). Les contrôles ③-SL-ouverture et ④ se retirent
-    par « --sans-controle=saut » et « --sans-controle=echeance » (sabotages S-I1a, S-I1b) ; ils sont éprouvés par
-    `cas_limites_des_defauts`.
-    ⑦ UNITÉ — euros ; séances. ⑧ POURQUOI — le superviseur R-759 du 20-11-2026 refuse un oracle réécrit (R-708) ; une
-    propriété n'est pas une vente : elle dit ce que toute vente correcte respecte (R-602, R-607, R-608). ⑨ CE QUI
-    CLOCHE — ① l'échéance d'une fenêtre à trou n'est pas jugée ici (R-112 non appliquée par le code : cas K07) ; ② la
-    zone morte laisse passer un écart de moins d'un millième d'euro, et elle CACHE L'ÉGALITÉ : un seuil touché pile
-    (plus haut = objectif) n'est ni « touché » ni « pas touché » ici, si bien qu'un « > » mis pour « >= » dans
-    `tester_seance` passe (relecteur neuf du 20-11-2026). La tolérance est gardée ; l'égalité est éprouvée par les cas
-    connus K12 à K15 et les sabotages S-EG1 à S-EG4. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main.
+    n'y est alors pas jugée). [rend: 2]
+    ⑥ TRAITEMENT — objectif = pe×(1+tp), stop = pe×(1−sl) (valeurs exactes, sans l'arrondi du circuit) ; UNE COUPURE
+    PAR SEUIL, sans zone morte (pilote V8, 25-11-2026, superviseur R-759 du même jour, « DE FOND ») : l'objectif est
+    ATTEINT par un prix p quand p >= objectif − EPS_SEUIL, le stop quand p <= stop + EPS_SEUIL ; tout prix est donc
+    « touché » ou « pas touché », jamais entre les deux, et l'ÉGALITÉ compte pour touché, comme les tests « >= » et
+    « <= » de `MODULE_POSITIONS.tester_seance` · ① l'ouverture de la séance d'achat est pe (à EPS_PRIX près) · ② aucune
+    séance de l'achat à la veille de la sortie n'atteint un seuil (ouverture, plus bas, plus haut) · ③ la séance de
+    sortie justifie le motif : SL_GAP ouverture au stop ou dessous, px = ouverture ; TP_GAP ouverture à l'objectif ou
+    dessus, px = ouverture ; SL ouverture au-dessus du stop, plus bas au stop ou dessous, px = stop, ET ouverture SOUS
+    l'objectif (une ouverture à l'objectif ou au-dessus est un TP_GAP : R-607 ①③, et le « >= » du circuit pour
+    l'égalité — I1 de Cowork, 20-11-2026, et I1p du superviseur, 25-11-2026) ; TP ouverture strictement entre les deux
+    seuils, plus bas au-dessus du stop (sinon R-602 voulait SL), plus haut à l'objectif ou dessus, px = objectif ;
+    HORIZON aucun seuil atteint, px = clôture et, sans trou dans la fenêtre, h lignes après l'achat · ④ une sortie sur
+    seuil (SL_GAP, TP_GAP, SL, TP) d'un horizon entier se fait au plus h LIGNES après l'achat (z − a == h passe,
+    z − a == h + 1 est refusé) — `vendre` ne teste que serie[j:j+1+h] (I1 de Cowork, 20-11-2026). Les contrôles
+    ③-SL-ouverture et ④ se retirent par « --sans-controle=saut » et « --sans-controle=echeance » (sabotages S-I1a,
+    S-I1b) ; la coupure et la borne sont éprouvées par S-I1c et S-I1d ; tous par `cas_limites_des_defauts`.
+    ⑦ UNITÉ — euros ; séances (des lignes de la série).
+    ⑧ POURQUOI — le superviseur R-759 du 20-11-2026 refuse un oracle réécrit (R-708) ; une propriété n'est pas une
+    vente : elle dit ce que toute vente correcte respecte (R-602, R-607, R-608). LA COUPURE À 5e-6 €, MESURÉE le
+    25-11-2026 : les prix que voit cette fonction ne sont PAS tous à deux décimales — cours fabriqués de la suite
+    (12 412 prix) : 0 à 4 décimales, dont 11 174 à quatre ; cours réels ABC 2026 (donnees/claude_cours_nouveaux.csv,
+    13 628 prix) : 128 à quatre décimales, 787 à trois ; le journal écrit « %.5f ». Le circuit arrondit chaque seuil à
+    cinq décimales (`seuils_de_vente`, n°311), ce qui le déplace d'au plus 5e-6 € : une coupure à 5e-6 € sous
+    l'objectif (au-dessus du stop) rend la décision du circuit sans recopier son arrondi. Mesure : sur 15 101 100
+    comparaisons prix/seuil (cours fabriqués, 145 couples de seuils des fiches, doublons compris, 21 séances après
+    chaque achat possible ; etudes/brouillons_chat/A923_ETAPE_B_PROPRIETES_8_Mer_25-11-2026/MESURER_LES_DECIMALES.py),
+    la comparaison exacte p >= objectif diffère du circuit 12 fois, la coupure à 5e-6 € 0 fois, une coupure
+    à 1e-5 € 6 fois. La tolérance est ASYMÉTRIQUE : elle n'existe que du côté « touché », si bien qu'un seuil atteint
+    pile est toujours vu ; l'ancienne zone morte de 1e-3 € des deux côtés cachait l'égalité (m1) et laissait passer un
+    SL sur une ouverture pile à l'objectif (I1p).
+    ⑨ CE QUI CLOCHE — ① l'échéance d'une fenêtre à trou n'est pas jugée ici (R-112 non appliquée par le code : cas K07) ;
+    ② si le seuil exact tombe PILE sur une demi-unité de la cinquième décimale, l'arrondi du circuit (au pair, en
+    binaire) peut le monter, et un prix égal au seuil exact moins 5e-6 € serait vu « touché » ici et « pas touché » par
+    le circuit : un faux défaut, jamais un défaut caché ; 0 cas sur les 15 101 100 comparaisons mesurées ; ③ les prix
+    rendus (px) se comparent à EPS_PRIX = 1e-5 € près (une unité de la cinquième décimale, le « %.5f » du journal).
+    ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main ; aucun appel ne peut ne pas revenir (comparaisons seulement).
     [sort: non]"""
-    zm = 1e-3
+    EPS_SEUIL = 5e-6
+    EPS_PRIX = 1e-5
     pe, px, motif = float(t["prix_entree"]), float(t["prix_sortie"]), t["motif_sortie"]
     obj, stp = pe * (1 + tp), pe * (1 - sl)
+
+    def haut(p):
+        """L'objectif est-il atteint par le prix p ? ① RÔLE — la coupure de l'objectif, égalité comprise.
+        ② CONTEXTE D'APPEL — `defauts_d_un_trade`. ③ ENTRÉE — un prix. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE
+        valeur : booléen. [rend: 1] ⑥ TRAITEMENT — p >= objectif − EPS_SEUIL. ⑦ UNITÉ — euros. ⑧ POURQUOI — voir ⑧ de
+        `defauts_d_un_trade`. ⑨ CE QUI CLOCHE — voir ⑨ ②. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+        return p >= obj - EPS_SEUIL
+
+    def bas(p):
+        """Le stop est-il atteint par le prix p ? ① RÔLE — la coupure du stop, égalité comprise. ② CONTEXTE D'APPEL —
+        `defauts_d_un_trade`. ③ ENTRÉE — un prix. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur : booléen.
+        [rend: 1] ⑥ TRAITEMENT — p <= stop + EPS_SEUIL. ⑦ UNITÉ — euros. ⑧ POURQUOI — voir ⑧ de `defauts_d_un_trade`.
+        ⑨ CE QUI CLOCHE — voir ⑨ ②. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+        return p <= stp + EPS_SEUIL
+
+    def egal(p, q):
+        """Deux prix sont-ils le même prix écrit ? ① RÔLE — comparer un prix rendu à son attendu. ② CONTEXTE
+        D'APPEL — `defauts_d_un_trade`. ③ ENTRÉE — deux prix. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur :
+        booléen. [rend: 1] ⑥ TRAITEMENT — |p − q| <= EPS_PRIX. ⑦ UNITÉ — euros. ⑧ POURQUOI — le journal écrit « %.5f »
+        et le seuil rendu est arrondi à cinq décimales (n°311). ⑨ CE QUI CLOCHE — voir ⑨ ③ de `defauts_d_un_trade`.
+        ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+        return abs(p - q) <= EPS_PRIX
+
     dd = [b["date"] for b in serie]
     if t["date_entree"] not in dd or t["date_sortie"] not in dd:
         return ["entrée %s ou sortie %s hors de la série" % (t["date_entree"], t["date_sortie"])], False
     a, z = dd.index(t["date_entree"]), dd.index(t["date_sortie"])
     trou = calendrier.index(dd[z]) - calendrier.index(dd[a]) != z - a
     rendu = []
-    if abs(serie[a]["open"] - pe) > zm:
+    if not egal(serie[a]["open"], pe):
         rendu.append("prix d'entrée %s, ouverture %s" % (pe, serie[a]["open"]))
     if z < a:
         return rendu + ["sortie avant l'entrée"], trou
     for b in serie[a:z]:
-        if b["open"] <= stp - zm or b["low"] <= stp - zm or b["open"] >= obj + zm or b["high"] >= obj + zm:
+        if bas(b["open"]) or bas(b["low"]) or haut(b["open"]) or haut(b["high"]):
             rendu.append("le %s touche déjà un seuil (o %s h %s l %s ; objectif %.4f stop %.4f), sortie %s %s le %s" % (
                 b["date"], b["open"], b["high"], b["low"], obj, stp, motif, px, t["date_sortie"]))
             break
     b = serie[z]
     if motif == "SL_GAP":
-        ok = b["open"] <= stp + zm and abs(px - b["open"]) <= zm
+        ok = bas(b["open"]) and egal(px, b["open"])
     elif motif == "TP_GAP":
-        ok = b["open"] >= obj - zm and abs(px - b["open"]) <= zm
+        ok = haut(b["open"]) and egal(px, b["open"])
     elif motif == "SL":
-        ok = b["open"] > stp - zm and b["low"] <= stp + zm and abs(px - stp) <= zm and \
-            ("saut" in SANS_CONTROLE or b["open"] < obj + zm)
+        ok = not bas(b["open"]) and bas(b["low"]) and egal(px, stp) and \
+            ("saut" in SANS_CONTROLE or not haut(b["open"]))
     elif motif == "TP":
-        ok = stp - zm < b["open"] < obj + zm and b["low"] > stp - zm and b["high"] >= obj - zm and abs(px - obj) <= zm
+        ok = not bas(b["open"]) and not haut(b["open"]) and not bas(b["low"]) and haut(b["high"]) and egal(px, obj)
     elif motif == "HORIZON":
-        ok = b["open"] > stp - zm and b["low"] > stp - zm and b["open"] < obj + zm and b["high"] < obj + zm and \
-            abs(px - b["close"]) <= zm and (trou or not isinstance(h, int) or z - a == h)
+        ok = not bas(b["open"]) and not bas(b["low"]) and not haut(b["open"]) and not haut(b["high"]) and \
+            egal(px, b["close"]) and (trou or not isinstance(h, int) or z - a == h)
     else:
         ok = False
     if not ok:
@@ -1705,38 +1760,100 @@ def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     return rendu, trou
 
 
+# LES TROIS SÉRIES RÉELLES DES CAS LIMITES I1-C7 à I1-C12 (R-732 : un cas au moins vient d'une VRAIE ligne), recopiées
+# de donnees/claude_cours_nouveaux.csv (cours ABC 2026, aucune ligne d'avant 2024), date, ouverture, plus haut, plus
+# bas, clôture. ESSILORLUXOTTICA du 02-10 au 14-10-2026 : achat à 145,00 ; objectif +4 % = 150,80, ATTEINT PILE par le
+# plus haut du 14-10 (huit lignes après l'achat), aucun seuil avant (plus haut max 150,05, plus bas min 141,65 > stop
+# 141,375). SCHNEIDER_ELECTRIC du 07-08 au 13-08-2026 : achat à 300,00 ; objectif 312,00, ATTEINT PILE par
+# l'OUVERTURE du 13-08 (quatre lignes après l'achat), aucun seuil avant (plus haut max 311,80, stop 292,50).
+# ENGIE du 21-08 au 24-08-2026 : achat à 25,60 ; stop −2,5 % = 24,96, ATTEINT PILE par le PLUS BAS du 24-08 (une ligne
+# après l'achat) ; la séance d'achat ne touche rien (plus haut 25,75 < objectif 26,624 ; plus bas 25,29).
+ESSILOR_OCT26 = (("2026-10-02", 145.0, 146.7, 142.75, 142.8), ("2026-10-05", 142.45, 146.45, 141.65, 144.5),
+                 ("2026-10-06", 146.15, 147.9, 144.65, 146.7), ("2026-10-07", 145.3, 146.95, 144.5, 146.65),
+                 ("2026-10-08", 146.0, 146.3, 142.8, 143.0), ("2026-10-09", 144.85, 148.15, 144.85, 146.35),
+                 ("2026-10-12", 147.5, 147.85, 144.8, 146.75), ("2026-10-13", 147.3, 150.05, 144.2, 146.3),
+                 ("2026-10-14", 147.45, 150.8, 146.5, 148.1))
+SCHNEIDER_AOU26 = (("2026-08-07", 300.0, 306.25, 299.4, 303.7), ("2026-08-10", 303.7, 306.25, 302.2, 302.25),
+                   ("2026-08-11", 301.65, 306.8, 301.0, 305.75), ("2026-08-12", 305.0, 311.8, 304.85, 311.0),
+                   ("2026-08-13", 312.0, 312.3, 308.8, 309.25))
+ENGIE_AOU26 = (("2026-08-21", 25.6, 25.75, 25.29, 25.29), ("2026-08-24", 25.25, 25.3, 24.96, 25.13))
+
+
 def cas_limites_des_defauts():
-    """Rend les écarts de `defauts_d_un_trade` sur QUATRE trades écrits à la main, aux verdicts écrits d'avance.
-    ① RÔLE — éprouver le contrôle de POS lui-même (I1 de Cowork, relectures de travail-proprietes-3 et -4, 20-11-2026).
-    ② CONTEXTE D'APPEL — `suite`, juste après les cas connus. ③ ENTRÉE — aucune. ④ CONDITIONS D'ENTRÉE — —.
-    ⑤ SORTIE — DEUX valeurs : la liste des écarts (textes préfixés I1-C1 à I1-C4), le nombre de cas joués. [rend: 2]
-    ⑥ TRAITEMENT — achat à 100,00 le 2024-01-08, objectif 4 % (104,00), stop 2,5 % (97,50) · I1-C1 : SL à 97,50 sur
-    une séance ouverte à 106,00 (R-607 ③ voulait TP_GAP à 106,00) → DOIT être refusé · I1-C2 : horizon 3, TP à 104,00
-    sur la QUATRIÈME séance après l'achat (`vendre` vendait à la clôture de la troisième, motif HORIZON) → DOIT être
-    refusé · I1-C3 : le HORIZON juste de C2 → DOIT passer · I1-C4 : le TP_GAP juste de C1 → DOIT passer.
-    ⑦ UNITÉ — euros ; séances. ⑧ POURQUOI — les deux trades faux de Cowork rendaient une liste vide (« C1 SL au lieu
-    de TP_GAP (R-607 ③) : ([], False) », « C2 TP après l'échéance (horizon 3) : ([], False) ») ; les deux témoins
-    justes gardent le contrôle de sur-détecter. ⑨ CE QUI CLOCHE — les cas sont reconstruits d'après la description de
-    Cowork, son script n'étant pas au dépôt. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+    """Rend les écarts de `defauts_d_un_trade` sur TREIZE trades écrits à la main, aux verdicts écrits d'avance.
+    ① RÔLE — éprouver le contrôle de POS lui-même (I1 de Cowork, relectures de travail-proprietes-3 et -4, 20-11-2026 ;
+    I1p, m1 et m2 du superviseur R-759, 25-11-2026). ② CONTEXTE D'APPEL — `suite`, juste après les cas connus.
+    ③ ENTRÉE — aucune. ④ CONDITIONS D'ENTRÉE — —.
+    ⑤ SORTIE — DEUX valeurs : la liste des écarts (textes préfixés I1-C1 à I1-C13), le nombre de cas joués. [rend: 2]
+    ⑥ TRAITEMENT — cas CONSTRUITS : achat à 100,00 le 2024-01-08, objectif 4 % (104,00), stop 2,5 % (97,50) · I1-C1 :
+    SL à 97,50 sur une séance ouverte à 106,00 (R-607 ③ voulait TP_GAP à 106,00) → DOIT être refusé · I1-C2 : horizon
+    3, TP à 104,00 sur la QUATRIÈME séance après l'achat (`vendre` vendait à la clôture de la troisième, motif HORIZON)
+    → DOIT être refusé (z − a == h + 1) · I1-C3 : le HORIZON juste de C2 → DOIT passer · I1-C4 : le TP_GAP juste de
+    C1 → DOIT passer · I1-C5 : SL à 97,50 sur une séance ouverte PILE à 104,00, plus bas 97,00 (le « >= » du circuit
+    et R-607 ③ veulent TP_GAP à 104,00) → DOIT être refusé (I1p : l'ancienne zone morte l'acceptait) · I1-C6 : horizon
+    4, le TP à 104,00 de C2, sur la quatrième séance (z − a == h) → DOIT passer (m2 : borne de l'échéance). Cas RÉELS
+    (R-732, ESSILOR_OCT26 et SCHNEIDER_AOU26 ci-dessus) : I1-C7 : ESSILORLUXOTTICA, HORIZON à la clôture 148,10 le
+    14-10-2026, horizon 8, alors que le plus haut touche l'objectif PILE (150,80) → DOIT être refusé (m1 : l'ancienne
+    zone morte l'acceptait) · I1-C8 : le TP juste à 150,80 de la même séance, horizon 20 → DOIT passer · I1-C9 :
+    SCHNEIDER_ELECTRIC, TP_GAP à 312,00 le 13-08-2026, ouverture PILE à l'objectif → DOIT passer · I1-C10 : la même
+    séance déclarée TP (au lieu de TP_GAP) → DOIT être refusé (l'ancienne zone morte l'acceptait) · I1-C11 : ENGIE
+    (ENGIE_AOU26), HORIZON à la clôture 25,13 le 24-08-2026, horizon 1, alors que le plus bas touche le stop PILE
+    (24,96) → DOIT être refusé (m1, côté stop) · I1-C12 : le SL juste à 24,96 de la même séance → DOIT passer.
+    Cas CONSTRUIT à quatre décimales (128 prix réels ABC 2026 en ont quatre) : I1-C13 : HORIZON juste à la clôture
+    100,50, horizon 1, plus haut 103,9999, un dix-millième SOUS l'objectif 104,00 → DOIT passer (la coupure ne
+    s'élargit pas : un prix sous le seuil reste « pas touché »).
+    ⑦ UNITÉ — euros ; séances.
+    ⑧ POURQUOI — les deux trades faux de Cowork rendaient une liste vide (« C1 SL au lieu de TP_GAP (R-607 ③) : ([],
+    False) », « C2 TP après l'échéance (horizon 3) : ([], False) ») ; les témoins justes gardent le contrôle de
+    sur-détecter ; C5, C7, C10 et C11 étaient ACCEPTÉS par la zone morte de 1e-3 € (mesuré le 25-11-2026 sur la
+    pointe 3cee571f5 de main, avant réparation) ; C6 tient la borne « z − a > h » contre un « >= » (S-I1d) ; C11 et
+    C12 tiennent l'égalité côté stop (« p < stop » mis pour « p <= stop » les fait nommer) ; C13 tient la coupure
+    contre un élargissement (EPS_SEUIL = 1e-3 le fait nommer). Les verdicts attendus des cas réels sont ceux de
+    `MODULE_POSITIONS.vendre` sur les mêmes séances (TP à 150,80 le 14-10 ; TP_GAP à 312,00 le 13-08 ; SL à 24,96 le
+    24-08), vérifiés le 25-11-2026.
+    ⑨ CE QUI CLOCHE — les cas C1 à C4 sont reconstruits d'après la description de Cowork, son script n'étant pas au
+    dépôt ; aucun cas RÉEL n'a une ouverture pile à l'objectif ET un plus bas sous le stop : C5 reste construit.
+    ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
     dates = ["2024-01-08", "2024-01-09", "2024-01-10", "2024-01-11", "2024-01-12"]
     calme = [dict(date=x, open=100.0, high=101.0, low=99.0, close=100.5) for x in dates]
     saut = [calme[0], dict(date=dates[1], open=106.0, high=107.0, low=97.0, close=98.0)] + calme[2:]
+    pile = [calme[0], dict(date=dates[1], open=104.0, high=104.5, low=97.0, close=98.0)] + calme[2:]
     tard = calme[:4] + [dict(date=dates[4], open=100.0, high=104.5, low=99.0, close=103.0)]
+    ess = [dict(date=d, open=o, high=hh, low=l, close=c) for d, o, hh, l, c in ESSILOR_OCT26]
+    sch = [dict(date=d, open=o, high=hh, low=l, close=c) for d, o, hh, l, c in SCHNEIDER_AOU26]
+    eng = [dict(date=d, open=o, high=hh, low=l, close=c) for d, o, hh, l, c in ENGIE_AOU26]
+    sous = [calme[0], dict(date=dates[1], open=100.0, high=103.9999, low=99.0, close=100.5)] + calme[2:]
 
-    def tr(motif, px, sortie):
+    def tr(motif, px, sortie, entree=dates[0], pe="100.0"):
         """Un trade minimal. ① RÔLE — fabriquer. ② CONTEXTE D'APPEL — `cas_limites_des_defauts`. ③ ENTRÉE — motif,
-        prix, date de sortie. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur : dict. [rend: 1] ⑥ TRAITEMENT — —.
-        ⑦ UNITÉ — euros. ⑧ POURQUOI — —. ⑨ CE QUI CLOCHE — —. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main.
-        [sort: non]"""
-        return {"prix_entree": "100.0", "prix_sortie": str(px), "motif_sortie": motif, "date_entree": dates[0],
+        prix, date de sortie, date et prix d'entrée (par défaut ceux des cas construits). ④ CONDITIONS D'ENTRÉE — —.
+        ⑤ SORTIE — UNE valeur : dict. [rend: 1] ⑥ TRAITEMENT — —. ⑦ UNITÉ — euros. ⑧ POURQUOI — —. ⑨ CE QUI
+        CLOCHE — —. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+        return {"prix_entree": pe, "prix_sortie": str(px), "motif_sortie": motif, "date_entree": entree,
                 "date_sortie": sortie}
     cas = [("I1-C1 SL au lieu de TP_GAP (R-607 ③)", tr("SL", 97.5, dates[1]), saut, 20, True),
            ("I1-C2 TP après l'échéance (horizon 3)", tr("TP", 104.0, dates[4]), tard, 3, True),
            ("I1-C3 témoin HORIZON juste", tr("HORIZON", 100.5, dates[3]), tard, 3, False),
-           ("I1-C4 témoin TP_GAP juste", tr("TP_GAP", 106.0, dates[1]), saut, 20, False)]
+           ("I1-C4 témoin TP_GAP juste", tr("TP_GAP", 106.0, dates[1]), saut, 20, False),
+           ("I1-C5 SL sur une ouverture PILE à l'objectif (R-607 ③, I1p)", tr("SL", 97.5, dates[1]), pile, 20, True),
+           ("I1-C6 témoin TP à l'échéance pile (horizon 4, m2)", tr("TP", 104.0, dates[4]), tard, 4, False),
+           ("I1-C7 HORIZON alors que le plus haut touche l'objectif pile (réel ESSILORLUXOTTICA, m1)",
+            tr("HORIZON", 148.1, "2026-10-14", "2026-10-02", "145.0"), ess, 8, True),
+           ("I1-C8 témoin TP pile à l'objectif (réel ESSILORLUXOTTICA)",
+            tr("TP", 150.8, "2026-10-14", "2026-10-02", "145.0"), ess, 20, False),
+           ("I1-C9 témoin TP_GAP sur une ouverture pile à l'objectif (réel SCHNEIDER_ELECTRIC)",
+            tr("TP_GAP", 312.0, "2026-08-13", "2026-08-07", "300.0"), sch, 20, False),
+           ("I1-C10 TP au lieu de TP_GAP, ouverture pile à l'objectif (réel SCHNEIDER_ELECTRIC, m1)",
+            tr("TP", 312.0, "2026-08-13", "2026-08-07", "300.0"), sch, 20, True),
+           ("I1-C11 HORIZON alors que le plus bas touche le stop pile (réel ENGIE, m1)",
+            tr("HORIZON", 25.13, "2026-08-24", "2026-08-21", "25.6"), eng, 1, True),
+           ("I1-C12 témoin SL pile au stop (réel ENGIE)",
+            tr("SL", 24.96, "2026-08-24", "2026-08-21", "25.6"), eng, 20, False),
+           ("I1-C13 témoin HORIZON, plus haut un dix-millième sous l'objectif",
+            tr("HORIZON", 100.5, dates[1]), sous, 1, False)]
     ecarts = []
     for nom, t, serie, h, faux in cas:
-        rendu, _trou = defauts_d_un_trade(t, serie, 0.04, 0.025, h, dates)
+        rendu, _trou = defauts_d_un_trade(t, serie, 0.04, 0.025, h, [b["date"] for b in serie])
         if faux and not rendu:
             ecarts.append("%s : trade faux ACCEPTÉ par defauts_d_un_trade" % nom)
         if not faux and rendu:
@@ -2039,18 +2156,31 @@ def passage_suite(racine, base, fiches, sabotage):
     détail]} et les refus.
     ① RÔLE — fabriquer R, poser le sabotage, lancer `--suite` en processus neuf, effacer R. ② CONTEXTE D'APPEL — `main`.
     ③ ENTRÉE — racine, dossier de base, fiches, sabotage (ou None) ; un sabotage de cible « EPREUVE » ne touche aucun
-    fichier : ses textes sont des arguments passés à `--suite` (S-ACC : « --sans-accidents »). ④ CONDITIONS D'ENTRÉE —
-    le texte d'un sabotage est présent UNE fois dans son fichier. ⑤ SORTIE — TROIS valeurs : propriétés, refus, écarts
+    fichier : ses textes sont des arguments passés à `--suite` (S-ACC : « --sans-accidents ») ; un sabotage de cible
+    « EPREUVE-TEXTE » (S-I1c, S-I1d, 25-11-2026) remplace ses textes dans une COPIE de cette épreuve écrite sous `base`,
+    et c'est la copie qui est lancée. ④ CONDITIONS D'ENTRÉE — le texte d'un sabotage est présent UNE fois dans son
+    fichier. ⑤ SORTIE — TROIS valeurs : propriétés, refus, écarts
     connus rencontrés. [rend: 3] ⑥ TRAITEMENT — voir ①.
     ⑦ UNITÉ — —. ⑧ POURQUOI — R-731 : un processus neuf par passage, un module saboté ne survit pas au suivant.
-    ⑨ CE QUI CLOCHE — —. ⑩ EFFET — écrit puis efface R. ⑪ TERMINAISON — rend la main ; lève RuntimeError si un texte
-    de sabotage n'est pas unique. [sort: non]"""
+    ⑨ CE QUI CLOCHE — —. ⑩ EFFET — écrit puis efface R (et la copie sabotée de l'épreuve, sous EPREUVE-TEXTE).
+    ⑪ TERMINAISON — rend la main ; lève RuntimeError si un texte de sabotage n'est pas unique. [sort: non]"""
     nom = "base" if sabotage is None else sabotage[0].split(" ")[0]
     R = os.path.join(base, "R_" + nom)
     try:
         fabriquer_r(racine, R, fiches)
         en_plus = list(sabotage[3]) if sabotage is not None and sabotage[2] == "EPREUVE" else []
-        if sabotage is not None and sabotage[2] != "EPREUVE":
+        fichier = ICI
+        if sabotage is not None and sabotage[2] == "EPREUVE-TEXTE":
+            # UNE COPIE SABOTÉE DE CETTE ÉPREUVE, À CÔTÉ DE R (jamais dans le dépôt, jamais dans R) : c'est elle que
+            # `lancer_json` lance ; le fichier du dépôt n'est jamais écrit.
+            texte = open(ICI, encoding="utf-8").read()
+            for avant, apres in sabotage[3]:
+                if texte.count(avant) != 1:
+                    raise RuntimeError("%s : texte à saboter présent %d fois" % (sabotage[0], texte.count(avant)))
+                texte = texte.replace(avant, apres)
+            fichier = os.path.join(base, "EPREUVE_SABOTEE_%s.py" % nom)
+            open(fichier, "w", encoding="utf-8").write(texte)
+        elif sabotage is not None and sabotage[2] != "EPREUVE":
             cible = sabotage[2]
             if cible == "MESURER":
                 cible = os.path.relpath(next(os.path.join(R, "programmes", x) for x in
@@ -2065,10 +2195,12 @@ def passage_suite(racine, base, fiches, sabotage):
                     raise RuntimeError("%s : texte à saboter présent %d fois" % (sabotage[0], texte.count(avant)))
                 texte = texte.replace(avant, apres)
             open(chem, "w", encoding="utf-8").write(texte)
-        r = lancer_json(["--suite", R, racine] + en_plus, 1800)
+        r = lancer_json(["--suite", R, racine] + en_plus, 1800, fichier)
     finally:
         if os.path.isdir(R):
             shutil.rmtree(R, ignore_errors=True)
+        if fichier != ICI and os.path.exists(fichier):
+            os.unlink(fichier)
     if "impossible" in r:
         return {p: ["NON MESURÉE", "suite : IMPOSSIBLE — %s" % r["impossible"]] for p in PROPRIETES_SUITE}, [], []
     return {p: [v[0], "suite : %s" % v[1]] for p, v in r["proprietes"].items()}, r.get("refus", []), \
@@ -3084,6 +3216,10 @@ SABOTAGES_BEB = (
      "refusee-sur-sl"),
     ("S-BEB23 le versement sort en 0 sans rien écrire (la séance est perdue)", "BEB-VERSEMENT", "versement-muet"),
     ("S-BEB24 le versement écrit une ligne ancienne en double (I1 de Cowork)", "BEB-VERSEMENT", "versement-doublon"),
+    # S-BEB25 (pilote V8, 25-11-2026, demande du superviseur R-759 du même jour) : le détecteur EFFONDRÉ EN SILENCE —
+    # code 0, aucun Traceback, rien écrit. `etat_d_un_lancement` le range « JOUÉ » (son ⑨) ; BEB-SIGNAL doit rougir
+    # sur l'étalon non annoncé. S-BEB16 et S-BEB17 couvrent le détecteur qui LÈVE ; celui-ci, celui qui se tait.
+    ("S-BEB25 le détecteur sort en 0 sans rien faire (effondré en silence)", "BEB-SIGNAL", "detecteur-muet"),
 )
 # LES GESTES SUR UN PROGRAMME : {geste: (programme, texte présent UNE fois — ou None : ajouté à la fin —, remplacement)}.
 # Fait par `saboter_un_programme`, dans R, jamais au dépôt.
@@ -3111,6 +3247,8 @@ SABOTAGES_DE_PROGRAMME = {
                           '        w.writerows(lignes)\n    par_source = {}\n',
                           '        w.writerows(lignes + lignes[:1])  # SABOTAGE S-BEB24 : une ligne ancienne en double\n'
                           '    par_source = {}\n'),
+    "detecteur-muet": (DET, 'if __name__ == "__main__":\n    main()\n',
+                       'if __name__ == "__main__":\n    sys.exit(0)  # SABOTAGE S-BEB25 : effondré en silence\n'),
     "radar-sort-1": ("programmes/audit_ecosysteme.py", None,
                      "\nimport sys as _sabotage_s_beb19\n_sabotage_s_beb19.exit(1)\n"),
 }
@@ -3339,14 +3477,17 @@ def signal_du_soir(racine, valeurs_q):
     return None, None, None
 
 
-def lancer_json(args, delai):
-    """Lance ce fichier en processus neuf avec `args`, rend le JSON de sa dernière ligne, ou un rendu « impossible ».
-    ① RÔLE — un processus neuf par couche. ② CONTEXTE D'APPEL — `passage`. ③ ENTRÉE — arguments, délai.
+def lancer_json(args, delai, fichier=ICI):
+    """Lance ce fichier (ou `fichier`, sa copie sabotée) en processus neuf avec `args`, rend le JSON de sa dernière
+    ligne, ou un rendu « impossible ».
+    ① RÔLE — un processus neuf par couche. ② CONTEXTE D'APPEL — `passage`, `passage_suite`, `passage_bout_en_bout`.
+    ③ ENTRÉE — arguments, délai, et le fichier à lancer (ICI par défaut ; la copie sabotée sous « EPREUVE-TEXTE »).
     ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur : dictionnaire. [rend: 1] ⑥ TRAITEMENT — subprocess, json.
     ⑦ UNITÉ — secondes. ⑧ POURQUOI — un module saboté ne survit pas au passage suivant. ⑨ CE QUI CLOCHE — —.
     ⑩ EFFET — celui de la couche. ⑪ TERMINAISON — rend la main dans le délai. [sort: non]"""
     try:
-        p = subprocess.run([sys.executable, "-B", ICI] + list(args), capture_output=True, text=True, timeout=delai)
+        p = subprocess.run([sys.executable, "-B", fichier] + list(args), capture_output=True, text=True,
+                           timeout=delai)
     except subprocess.TimeoutExpired:
         return {"impossible": "délai de %d s dépassé" % delai}
     try:
