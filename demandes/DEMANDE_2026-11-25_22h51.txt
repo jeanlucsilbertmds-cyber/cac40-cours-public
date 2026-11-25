@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=ProprietesSuite,ProprietesSuiteSabot,ProprietesBout,ProprietesBoutSabot
+pointe=ce598b8d2977bbcf5eba3461e11ae34943d9f76d
