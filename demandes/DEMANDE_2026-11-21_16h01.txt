@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Livraison,LivrerSabots,DossierLancement,CircuitPublic,Relais
+pointe=c5a4b0139cc2dccea78545b4223a56cfec414e7e
