@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Lanceur,Enchainer,ChaineC5,AncreC5
+pointe=7acb69cacd422ade7a60aaa0cf2c8eb11248cec7
