@@ -635,6 +635,14 @@
    ],
    "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S3 reciblé ; 2 min 39 s sur la machine du Chat le 21-11-2026"
   },
+  "Carte": {
+   "chemin": "tests/EPREUVE_DE_LA_CARTE_DU_CIRCUIT_Sam_21-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 14h36 (A-963, « 1 ») : la carte du circuit fabriquée depuis le code (programmes/FABRIQUER_LA_CARTE_DU_CIRCUIT.py) ; cas sur le vrai collecte_abc.yml (R-732) — pas retiré, élément ① absent, programme renommé, source absente — et sabotages S1 à S6 du fabricant (S5 marquage ATTEND JEAN-LUC, S6 étapes de la moulinette, ajoutés le 25-11-2026) ; 6 s mesurées le 25-11-2026 sur la machine du Chat, sans couverture"
+  },
   "AncreC5": {
    "chemin": "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py",
    "arguments": [
