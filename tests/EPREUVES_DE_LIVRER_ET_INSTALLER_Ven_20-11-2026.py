@@ -25,6 +25,7 @@ vrai (même garde de branche que `refus_de_branche`) et un faux garde-fou. Le ra
 ⑩ EFFET — Crée et efface des dossiers temporaires ; aucun réseau, aucun dépôt réel touché.
 ⑪ TERMINAISON — Sort du programme par sys.exit ; chaque lancement est borné à 300 s.
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -61,7 +62,9 @@ def choisi(nom):
 PROGRAMMES = ("LIVRER.py", "INSTALLER.py", "QUI_FAIT_QUOI.py", "REPUBLIER.py", "CONTRATS_DES_FICHIERS.py",
               # 21-11-2026 (N-7, N-11) : le fabricant et le module qu'il charge à côté de lui, pour que R5 et R8 lisent
               # la copie, sabotable, et non le dépôt
-              "FABRIQUER_LE_CIRCUIT_PUBLIC.py", "FORME_D_UN_JETON.py")
+              "FABRIQUER_LE_CIRCUIT_PUBLIC.py", "FORME_D_UN_JETON.py",
+              # 25-11-2026 (A-995) : le juge du contrôle final, que LIVRER lance à côté de lui
+              "CONTROLER_LA_LIVRAISON_SUR_GITHUB.py")
 
 FAUX_GH = r'''#!/usr/bin/env python3
 import json, os, subprocess, sys, tempfile
@@ -82,8 +85,12 @@ def resultats(r):
         cs = s.get("codes_de_sortie", {}).get(code, 0)
         jouee = "f" * 40 if s.get("pointe_fausse") else r.get("pointe", "")
         if code not in s.get("sans_resultat", []):
-            json.dump({"code_epreuve": code, "chemin": "tests/X.py", "arguments": [], "duree_secondes": 123,
-                       "code_de_sortie": cs, "pointe_jouee": jouee}, open(os.path.join(base, "RESULTAT.json"), "w"))
+            res = {"code_epreuve": code, "chemin": "tests/X.py", "arguments": [], "duree_secondes": 123,
+                   "code_de_sortie": cs, "pointe_jouee": jouee}
+            if code == "Livraison" and not s.get("livraison_sans_detail"):
+                res["detail_de_l_epreuve"] = {"verdict": "VERT", "pointe": jouee, "empreinte": "0123456789abcdef",
+                                              "sha256_de_la_note": "", "note": "echanges/A_RELIRE.md"}
+            json.dump(res, open(os.path.join(base, "RESULTAT.json"), "w"))
         open(os.path.join(base, "SORTIE.txt"), "w").write("sortie\n")
         g("add", "-A", d=w); g("commit", "-q", "-m", "resultat", d=w)
         g("push", "-q", PRIV, "HEAD:refs/heads/epreuves-longues/%d/%s" % (r["databaseId"], code), d=w)
@@ -539,7 +546,7 @@ def pointe_de(m, ref="travail-x"):
     return m.git(m.prive, "rev-parse", ref).strip()
 
 
-def preuve(m, code, pointe, sortie=0, passage=9500):
+def preuve(m, code, pointe, sortie=0, passage=9500, detail=None):
     """Pousse au privé nu une branche de résultat epreuves-longues/<passage>/<code>, comme le circuit.
 
     ① RÔLE — Donner à INSTALLER une preuve GitHub sans GitHub. ② CONTEXTE D'APPEL — Les cas I.
@@ -557,10 +564,31 @@ def preuve(m, code, pointe, sortie=0, passage=9500):
     base = os.path.join(w, "rapports", "epreuves_longues", str(passage), code)
     os.makedirs(base)
     with open(os.path.join(base, "RESULTAT.json"), "w") as f:
-        json.dump({"code_epreuve": code, "code_de_sortie": sortie, "duree_secondes": 1, "pointe_jouee": pointe}, f)
+        res = {"code_epreuve": code, "code_de_sortie": sortie, "duree_secondes": 1, "pointe_jouee": pointe}
+        if detail is not None:
+            res["detail_de_l_epreuve"] = detail
+        json.dump(res, f)
     m.git(w, "add", "-A")
     m.git(w, "commit", "-q", "-m", "resultat")
     m.git(w, "push", "-q", m.prive, f"HEAD:refs/heads/epreuves-longues/{passage}/{code}")
+
+
+def preuve_de_livraison(m, pointe, verdict="VERT"):
+    """Pousse une preuve « Livraison » sur `pointe`, son détail portant le sha256 de la note à cette pointe.
+
+    ① RÔLE — La preuve du contrôle final (A-995), que INSTALLER exige toujours. ② CONTEXTE D'APPEL — Les cas I.
+    ③ ENTRÉE — `m`, `pointe`, `verdict` du détail. ④ CONDITIONS D'ENTRÉE — La note existe à la pointe.
+    ⑤ SORTIE — Rien.
+      [rend: rien]
+    ⑥ TRAITEMENT — octets de la note par « git cat-file blob », sha256, puis `preuve`. ⑦ UNITÉ — —
+    ⑧ POURQUOI — Ce que le joueur range : verdict, pointe, empreinte, sha256 de la note. ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Pousse. ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    octets = subprocess.run(["git", "-C", m.prive, "cat-file", "blob", f"{pointe}:echanges/A_RELIRE.md"],
+                            capture_output=True).stdout
+    preuve(m, "Livraison", pointe, detail={"verdict": verdict, "pointe": pointe, "empreinte": "0123456789abcdef",
+                                           "sha256_de_la_note": hashlib.sha256(octets).hexdigest()})
 
 
 def relu(m, verdict="DÉPLOYABLE", auteur="cowork", pointe=None, apres=None, avant_relu=None, ranger=None):
@@ -584,7 +612,8 @@ def relu(m, verdict="DÉPLOYABLE", auteur="cowork", pointe=None, apres=None, ava
     if avant_relu:
         with open(os.path.join(w, avant_relu), "a") as f:
             f.write("ajout de LIVRER\n")
-        subprocess.run(["git", "commit", "-q", "-am", "note de LIVRER"], cwd=w, env=m.env)
+        subprocess.run(["git", "add", "--", avant_relu], cwd=w, env=m.env)   # un fichier neuf aussi (I9b, A-995)
+        subprocess.run(["git", "commit", "-q", "-m", "note de LIVRER"], cwd=w, env=m.env)
     tete = m.git(w, "rev-parse", "HEAD").strip()
     with open(os.path.join(w, "echanges", "RELU.md"), "w") as f:
         f.write(f"DÉCIDÉ · Rôle : porter la relecture du travail soumis.\n\nRELU PAR : Cowork · branche travail-x · "
@@ -631,7 +660,8 @@ def cas_livrer(progs, source):
     LISTES = {"L4": {"liste": "- `CircuitPublic`\n- `UneEpreuveSansCode`"},
               "L15": {"liste": "- aucune"},
               "L16": {"liste": "- aucune autre que `CircuitPublic`"},
-              "L17": {"liste": "- aucune autre que `CircuitPublic`", "code_change": False}}
+              "L17": {"liste": "- aucune autre que `CircuitPublic`", "code_change": False},
+              "L19": {"liste": "- aucune", "code_change": False}}
 
     def nominal(m, p, nom, demandes=1):
         """Vérifie l'état après un lancement qui doit rendre 0 ; rend (vrai, détail).
@@ -653,7 +683,8 @@ def cas_livrer(progs, source):
         s = m.gh_etat()
         ep = [x for x in s["runs"] if x["workflowName"] == "epreuves_longues.yml" and x["headBranch"] == "travail-x"
               and x["databaseId"] > 9000]
-        note = m.montrer("travail-x", "echanges/A_RELIRE.md")
+        note = m.montrer("travail-x", "echanges/RESULTATS_GITHUB.md")
+        la_note = m.montrer("travail-x", "echanges/A_RELIRE.md")
         entrees = m.entrees("travail-x")
         version = m.montrer("travail-x", "version.txt", m.public).strip()
         relais = [x for x in s["runs"] if x["workflowName"] == "demande_de_serie.yml"]
@@ -661,12 +692,12 @@ def cas_livrer(progs, source):
             "code 0": p.returncode == 0,
             "publié (version publique = pointe jouée)": bool(version) and f"pointe jouée {version}" in note,
             "un seul passage d'épreuves, fini": len(ep) == 1 and ep[0]["status"] == "completed",
-            "note : résultats lus": "## RÉSULTATS GITHUB" in note and ep and f"Passage {ep[0]['databaseId']}" in note
-                                    and note.count("· 123 s") == 2,
-            "note recontrôlée": re.search(r"<!-- CONTROLE [0-9a-f]{16}", (note.strip().splitlines() or [""])[-1])
-                                is not None,
+            "résultats lus, à part": "## RÉSULTATS GITHUB" in note and ep and f"Passage {ep[0]['databaseId']}" in note
+                                     and note.count("· 123 s") == 3 and "- Livraison : code 0" in note,
+            "note jugée intacte (A-995)": bool(la_note) and "RÉSULTATS GITHUB" not in la_note,
+            "Livraison jouée": bool(ep) and "Livraison" in ep[0].get("codes", []),
             "registre : épreuves finies": len([e for e in entrees if e["executant"] == "github"
-                                               and e["etape"].startswith("epreuve:") and e["resultat"] == "code 0"]) == 2,
+                                               and e["etape"].startswith("epreuve:") and e["resultat"] == "code 0"]) == 3,
             f"{demandes} demande(s)": len(relais) == demandes,
         }
         rates = [k for k, v in verifs.items() if not v]
@@ -708,23 +739,20 @@ def cas_livrer(progs, source):
     un("L2b", lambda m: m.scenario(relais=["occupe", "ok"]),
        lambda m, p: nominal(m, p, "L2b relais qui refuse une fois : redéposer", demandes=2))
     un("L3", lambda m: m.scenario(codes_de_sortie={"GardeFou": 1}),
-       lambda m, p: (p.returncode == 1 and "- GardeFou : code 1" in m.montrer("travail-x", "echanges/A_RELIRE.md"),
+       lambda m, p: (p.returncode == 1 and "- GardeFou : code 1" in m.montrer("travail-x", "echanges/RESULTATS_GITHUB.md"),
                      f"L3 épreuve rouge → 1 : code {p.returncode}"))
     un("L4", rien, lambda m, p: (p.returncode == 2 and not m.gh_etat()["vus"],
                                  f"L4 nom sans code → 2, aucune demande : code {p.returncode}"))
 
-    def note_modifiee(m):
-        """Pousse une note modifiée après son contrôle. ① RÔLE — Régler L5. ② CONTEXTE D'APPEL — L5.
-        ③ ENTRÉE — `m`. ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — clone, ajout, poussée.
-        ⑦ UNITÉ — — ⑧ POURQUOI — — ⑨ CE QUI CLOCHE — — ⑩ EFFET — Pousse. ⑪ TERMINAISON — Rend la main. [sort: non]"""
-        w = os.path.join(m.t, "w5")
-        m.git(None, "clone", "-q", "-b", "travail-x", m.prive, w)
-        with open(os.path.join(w, "echanges", "A_RELIRE.md"), "a") as f:
-            f.write("ajout après contrôle\n")
-        m.git(w, "commit", "-q", "-am", "note modifiée")
-        m.git(w, "push", "-q", "origin", "travail-x")
-    un("L5", note_modifiee, lambda m, p: (p.returncode == 3 and not m.montrer("travail-x", "version.txt", m.public),
-                                          f"L5 note non recontrôlée → 3, rien publié : code {p.returncode}"))
+    un("L5", lambda m: m.scenario(livraison_sans_detail=True),
+       lambda m, p: (p.returncode == 1 and "- Livraison : code NON JUGÉE VERTE"
+                     in m.montrer("travail-x", "echanges/RESULTATS_GITHUB.md"),
+                     f"L5 « Livraison » de code 0 sans détail VERT → le juge refuse, 1 (A-995) : code {p.returncode}"))
+    un("L19", rien, lambda m, p: (p.returncode == 0 and [x.get("codes") for x in m.gh_etat()["runs"]
+                                                          if x["workflowName"] == "epreuves_longues.yml"
+                                                          and x["databaseId"] > 9000] == [["Livraison"]],
+                                  f"L19 « aucune », sans code changé : « Livraison » jouée seule, 0 (A-995) : code "
+                                  f"{p.returncode} · {p.stdout[-300:]}"))
 
     def commit_local(m):
         """Laisse un commit local non poussé sur travail-x. ① RÔLE — Régler L6. ② CONTEXTE D'APPEL — L6.
@@ -749,7 +777,7 @@ def cas_livrer(progs, source):
        lambda m, p: (p.returncode == 3 and not m.gh_etat()["vus"],
                      f"L7 file « queued » jamais libre → 3 au plafond, aucune demande : code {p.returncode}"), "--plafond=0")
     un("L8", lambda m: m.scenario(sans_resultat=["GardeFou"]),
-       lambda m, p: (p.returncode == 3 and "- GardeFou : code ABSENTE" in m.montrer("travail-x", "echanges/A_RELIRE.md"),
+       lambda m, p: (p.returncode == 3 and "- GardeFou : code ABSENTE" in m.montrer("travail-x", "echanges/RESULTATS_GITHUB.md"),
                      f"L8 épreuve sans RESULTAT.json → 3, jamais verte (M1) : code {p.returncode}"))
     un("L9a", lambda m: m.scenario(jumeau=["in_progress"]),
        lambda m, p: (p.returncode == 3 and "2 passages des épreuves" in p.stdout,
@@ -784,7 +812,7 @@ def cas_livrer(progs, source):
         return ok and tiers, d + ("" if tiers else " · fichier du tiers perdu")
     un("L12", lambda m: m.scenario(tiers=True), apres_tiers)
     un("L13", lambda m: m.scenario(pointe_fausse=True),
-       lambda m, p: (p.returncode == 3 and "AUTRE POINTE" in m.montrer("travail-x", "echanges/A_RELIRE.md"),
+       lambda m, p: (p.returncode == 3 and "AUTRE POINTE" in m.montrer("travail-x", "echanges/RESULTATS_GITHUB.md"),
                      f"L13 RESULTAT.json d'une autre pointe → 3 : code {p.returncode}"))
     un("L15", rien, lambda m, p: (p.returncode == 2 and not m.gh_etat()["vus"] and "(N-3)" in p.stdout,
                                   f"L15 « aucune » alors que le code change → 2, aucune demande (N-3) : code {p.returncode}"))
@@ -833,6 +861,9 @@ def cas_installer(progs, source):
       → 1 (N-30). RELU de Cowork sur ba1340283 (N-32) : I29 RELU commité par « Cowork » (la casse est ignorée) → 0,
       installé ; I30 « cowork2 » (suffixe) → 1 ; I31 « pas-cowork » (le nom se termine par « cowork ») → 1.
       RELU de Cowork sur 35f8fde7a (N-35) : I32 « co-work » (ponctuation interne) → 1, refusé par un cas et non par le seul texte (A0).
+      A-995 (25-11-2026, superviseur R-759 (b) et point 12) : « Livraison » toujours exigée, sa preuve jugeant la note
+      relue — I9b les résultats de LIVRER écrits à part après le passage → 0 ; I9c la note changée après le passage → 1 ;
+      I15c note « aucune », sans code changé, sans preuve « Livraison » → 1 ; I33 détail « ROUGE » → 1.
     ⑦ UNITÉ — — ⑧ POURQUOI — Consigne du 20-11-2026, A-818 et réparation du soir (points A et D).
     ⑨ CE QUI CLOCHE — — ⑩ EFFET — Mondes jetables.
     ⑪ TERMINAISON — Rend la main.
@@ -843,12 +874,13 @@ def cas_installer(progs, source):
               "headSha": "0", "event": "schedule", "status": "in_progress", "conclusion": "",
               "createdAt": "2026-11-20T09:00:00Z", "ticks": -10 ** 9}
 
-    def preuves(m, sortie_gf=0, pointe=None):
+    def preuves(m, sortie_gf=0, pointe=None, verdict_livraison="VERT"):
         """Les deux preuves de la note du monde. ① RÔLE — Raccourci. ② CONTEXTE D'APPEL — Les cas I.
         ③ ENTRÉE — `m` · `sortie_gf` : le code de GardeFou · `pointe` : la pointe jouée (défaut : travail-x).
         ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — `preuve` deux fois. ⑦ UNITÉ — —
         ⑧ POURQUOI — — ⑨ CE QUI CLOCHE — — ⑩ EFFET — Pousse. ⑪ TERMINAISON — Rend la main. [sort: non]"""
         jouee = pointe or pointe_de(m)
+        preuve_de_livraison(m, jouee, verdict_livraison)   # A-995 : toujours exigée par INSTALLER
         preuve(m, "CircuitPublic", jouee)
         preuve(m, "GardeFou", jouee, sortie=sortie_gf)
 
@@ -920,6 +952,13 @@ def cas_installer(progs, source):
         preuves(m)
         m.env["FAUX_FAB_REFUSE"] = "1"
 
+    def livraison_seule(m):
+        """La seule preuve « Livraison », sur la pointe. ① RÔLE — Régler I15, I15b (A-995 : même une note « aucune »
+        exige le contrôle final). ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m`. ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — Rien. [rend: rien] ⑥ TRAITEMENT — `preuve_de_livraison`. ⑦ UNITÉ — — ⑧ POURQUOI — —
+        ⑨ CE QUI CLOCHE — — ⑩ EFFET — Pousse. ⑪ TERMINAISON — Rend la main. [sort: non]"""
+        preuve_de_livraison(m, pointe_de(m))
+
     def public_deja_a_jour(m):
         """Le public amené à main AVANT l'installation, par une version qui ne dépend pas du commit. ① RÔLE — Régler
         I18 : un travail sans code changé laisse le public égal. ② CONTEXTE D'APPEL — `cas`. ③ ENTRÉE — `m`.
@@ -927,6 +966,7 @@ def cas_installer(progs, source):
         ⑥ TRAITEMENT — FAUX_FAB_SANS_SHA ; REPUBLIER lancé une fois ; m.lignes_du_log retient la longueur du journal du
         fabricant. ⑦ UNITÉ — — ⑧ POURQUOI — « un public déjà à jour donne 0 sans rien republier ».
         ⑨ CE QUI CLOCHE — — ⑩ EFFET — Pousse au public du monde. ⑪ TERMINAISON — Rend la main. [sort: non]"""
+        preuve_de_livraison(m, pointe_de(m))
         m.env["FAUX_FAB_SANS_SHA"] = "1"
         p = m.programme("REPUBLIER.py")
         if p.returncode != 0:
@@ -1011,18 +1051,21 @@ def cas_installer(progs, source):
         ("I7", 1, lambda m: preuves(m, sortie_gf=1), {}),
         ("I8", 1, hors_histoire, {}),
         ("I9", 1, changer_le_code, {}),
-        ("I9b", 0, preuves, {"avant_relu": "echanges/A_RELIRE.md"}),
+        # A-995 (superviseur R-759, (a) et (b)) : LIVRER écrit ses résultats À PART ; la note jugée ne bouge plus
+        ("I9b", 0, preuves, {"avant_relu": "echanges/RESULTATS_GITHUB.md"}),
+        ("I9c", 1, preuves, {"avant_relu": "echanges/A_RELIRE.md"}),
         ("I10", 5, preuves_et_plantage, {}),
         ("I11", 1, preuves, {"ranger": "programmes/CODE.py"}),
         ("I12", 1, preuves, {"auteur": "Claude (pas cowork)"}),
         ("I13", 1, preuves, {}),
         ("I14", 1, lambda m: None, {}),
-        ("I15", 0, lambda m: None, {}),
+        ("I15", 0, livraison_seule, {}),
+        ("I15c", 1, lambda m: None, {}),
         ("I16", 5, preuves_et_registre_bloque, {}),
         ("I17", 4, preuves_et_publication_refusee, {}),
         ("I18", 0, public_deja_a_jour, {}),
         ("I14b", 1, lambda m: None, {}),
-        ("I15b", 0, lambda m: None, {}),
+        ("I15b", 0, livraison_seule, {}),
         ("I19", 4, republier_menteur, {}),
         ("I20", 0, fabricant_ancien_dans_le_clone, {}),
         ("I21", 1, commit_de_fusion_refuse, {}),
@@ -1036,8 +1079,11 @@ def cas_installer(progs, source):
         ("I31", 1, preuves, {"auteur": "pas-cowork"}),
         # N-35 (RELU de Cowork sur 35f8fde7a) : une règle plus large (ponctuation ignorée) est refusée par un CAS
         ("I32", 1, preuves, {"auteur": "co-work"}),
+        # A-995 : un « Livraison » de code 0 dont le détail ne dit pas VERT ne prouve rien
+        ("I33", 1, lambda m: preuves(m, verdict_livraison="ROUGE"), {}),
     )
     mondes = {"I14": {"liste": "- aucune"}, "I15": {"liste": "- aucune", "code_change": False},
+              "I15c": {"liste": "- aucune", "code_change": False},
               "I18": {"liste": "- aucune", "code_change": False},
               "I14b": {"liste": "- aucune", "fichier_change": "etudes/outils/OUTIL.py"},
               "I15b": {"liste": "- aucune", "fichier_change": "archives/\u00e9t\u00e9.md"},
@@ -1358,7 +1404,7 @@ SABOTAGES = (
      "wt, jetable = worktree_jetable(racine, f'origin/{branche}'), True"),
     ("S3 Cowork avant GitHub (verdict sans attendre le passage)", "LIVRER.py",
      "conclusion = suivre_le_passage(passage, plafond * 60, pas)\n"
-     "            verdict, lignes = lire_les_resultats(racine, branche, passage, codes, pointe)",
+     "        verdict, lignes = lire_les_resultats(racine, branche, passage, codes, pointe)",
      "conclusion, verdict, lignes = '?', 0, [(c, 0, '?', pointe) for c in codes]"),
     ("S4 pas d'attente de la file", "LIVRER.py",
      "        occ = passages_occupes(circuits)\n        if not occ:",
@@ -1367,8 +1413,21 @@ SABOTAGES = (
      '        if "en cours ou en attente" in journal.stdout:', '        if False:'),
     ("S6 nom sans code ignoré", "LIVRER.py", "        if sans:\n            raise Arret(NOMS",
      "        if False:\n            raise Arret(NOMS"),
-    ("S7 note non vérifiée", "LIVRER.py",
-     'dire(f"ÉTAPE 1 — note de {branche} : " + verifier_la_note(racine, branche))', 'dire("ÉTAPE 1 sautée")'),
+    # A-995 (25-11-2026) : l'étape ① ne juge plus la note ; son acceptation est le jugement de « Livraison »
+    ("S7 « Livraison » non jugée (LIVRER)", "LIVRER.py", "                if c == LIVRAISON and sortie == 0:\n",
+     "                if False:\n"),
+    ("S7b « Livraison » non exigée (LIVRER)", "LIVRER.py", "        if LIVRAISON not in codes:   #",
+     "        if False:   #"),
+    ("S7c « Livraison » non exigée (INSTALLER)", "INSTALLER.py", "    if L.LIVRAISON not in codes:   #",
+     "    if False:   #"),
+    ("S7d note relue non comparée (INSTALLER)", "INSTALLER.py",
+     "    return octets.returncode == 0 and hashlib.sha256(octets.stdout).hexdigest() == detail.get(\"sha256_de_la_note\")",
+     "    return True"),
+    ("S7e verdict du détail ignoré (INSTALLER)", "INSTALLER.py",
+     '    if detail.get("verdict") != "VERT" or not meme_code(racine, jouee, relue):',
+     '    if not meme_code(racine, jouee, relue):'),
+    ("S7f résultats écrits dans la note (LIVRER)", "LIVRER.py", "RESULTATS = \"echanges/RESULTATS_GITHUB.md\"",
+     "RESULTATS = NOTE"),
     ("S8 -B écrase un commit local", "LIVRER.py", "        if en_avance:\n", "        if False:\n"),
     ("S9 plafond ignoré", "LIVRER.py",
      "        if time.monotonic() >= fin:\n            raise Arret(TOMBE, f\"plafond atteint : {len(occ)}",

@@ -16,11 +16,14 @@ AVEC SIMPLIFICATION ») : un PLANTAGE (exception imprévue) sort en code 5, jama
 privée refait « pull --rebase » puis retente ; le registre ne s'écrit qu'en fichiers neufs ; un résultat d'épreuve
 n'est cru que si son RESULTAT.json porte la pointe jouée ; une demande qui voit deux passages s'arrête.
 
-① RÔLE — Après chaque livraison poussée sur une branche travail-*, enchaîner : ① la note de la branche est acceptée
-  (CONTROLER_MA_LIVRAISON.py --verifier) · ② le code de la branche est publié sur la branche publique du même nom ·
-  ③ les épreuves longues de la note sont relevées et confrontées à tests/LANCEMENT_DES_EPREUVES.json · ④ leur demande
+① RÔLE — Après chaque livraison poussée sur une branche travail-*, enchaîner : ① la note de la branche existe (son
+  contrôle final se joue sur GitHub, code « Livraison », A-995) · ② le code de la branche est publié sur la branche publique du même nom ·
+  ③ les épreuves longues de la note sont relevées et confrontées à tests/LANCEMENT_DES_EPREUVES.json, « Livraison »
+  ajoutée si elle n'y est pas (toujours jouée, même pour une note « aucune ») · ④ leur demande
   est déposée au relais, avec attente quand un passage occupe la file · ⑤ le passage est suivi jusqu'au bout, ses
-  résultats lus au dépôt privé et résumés dans la note (section « RÉSULTATS GITHUB »), poussée · ⑥ le code de sortie
+  résultats lus au dépôt privé, celui de « Livraison » JUGÉ par `CONTROLER_LA_LIVRAISON_SUR_GITHUB.py --juger` sur la
+  pointe, et résumés dans echanges/RESULTATS_GITHUB.md, un fichier à part (la note jugée n'est jamais touchée),
+  poussé · ⑥ le code de sortie
   dit au Chat s'il peut lancer Cowork.
 ② CONTEXTE D'APPEL — À la main par le Chat, depuis la racine de son clone privé :
   python3 -B programmes/LIVRER.py <branche travail-…> [--plafond=<minutes>]
@@ -29,21 +32,22 @@ n'est cru que si son RESULTAT.json porte la pointe jouée ; une demande qui voit
   temps d'attente permis à CHAQUE attente (file du relais, passage), en minutes, 240 par défaut. Variables
   d'environnement facultatives, pour les épreuves (tests/EPREUVES_DE_LIVRER_ET_INSTALLER_Ven_20-11-2026.py) :
   LIVRER_GH (le programme gh), LIVRER_DEPOT_PUBLIC (l'adresse de clonage du public), LIVRER_REPO_PUBLIC et
-  LIVRER_REPO_PRIVE (« propriétaire/nom » pour gh), LIVRER_FABRICANT, LIVRER_GARDE_FOU, LIVRER_RAPATRIEUR (les
-  programmes lancés), LIVRER_PAS (secondes entre deux regards, 30 par défaut).
+  LIVRER_REPO_PRIVE (« propriétaire/nom » pour gh), LIVRER_FABRICANT, LIVRER_RAPATRIEUR, LIVRER_JUGE (les
+  programmes lancés ; LIVRER_GARDE_FOU n'est plus lu depuis le 25-11-2026), LIVRER_PAS (secondes entre deux regards, 30 par défaut).
 ④ CONDITIONS D'ENTRÉE — Lancé dans un clone git du dépôt privé dont « origin » est le privé ; git et gh installés et
   autorisés ; la branche existe sur origin ; sa note echanges/A_RELIRE.md porte une section dont le titre contient
-  « À JOUER SUR GITHUB » (une liste de codes ou de chemins d'épreuves, ou la ligne « aucune »).
+  « À JOUER SUR GITHUB » (une liste de codes ou de chemins d'épreuves, ou la ligne « aucune ») ; la table porte
+  le code « Livraison ».
 ⑤ SORTIE — Le code de sortie : 0 PRÊT POUR COWORK · 1 ÉPREUVE ROUGE (au moins une épreuve longue rend un code non
-  nul) · 2 LA NOTE NE DIT PAS QUOI JOUER (section absente, ou un nom sans code dans la table) · 3 ÉTAPE TOMBÉE (note
-  refusée, branche locale en avance, publication refusée, relais qui refuse pour une autre raison, plafond dépassé,
+  nul, ou « Livraison » que le juge ne dit pas verte sur la pointe) · 2 LA NOTE NE DIT PAS QUOI JOUER (section absente,
+  un nom sans code dans la table, ou « Livraison » absente de la table) · 3 ÉTAPE TOMBÉE (note absente, branche locale en avance, publication refusée, relais qui refuse pour une autre raison, plafond dépassé,
   deux passages pour une demande, résultat absent ou d'une autre pointe, poussée privée refusée après
-  ESSAIS_DE_POUSSEE essais) · 5 PLANTAGE (une exception imprévue : ni un verdict, ni un refus ; le registre et la note
-  sont quand même poussés). Chaque étape affiche une ligne « ÉTAPE n … ».
+  ESSAIS_DE_POUSSEE essais) · 5 PLANTAGE (une exception imprévue : ni un verdict, ni un refus ; le registre et les
+  résultats sont quand même poussés). Chaque étape affiche une ligne « ÉTAPE n … ».
 ⑥ TRAITEMENT — Les six étapes ci-dessus, dans l'ordre, arrêt au premier échec ; le registre reçoit une ligne au
   lancement de chaque travail et une à sa fin, et il est commité et poussé sur la branche à la sortie, même en échec.
 ⑦ UNITÉ — Des minutes (le plafond), des secondes (le pas), des heures de Paris (le registre).
-⑧ POURQUOI — Voir le sens en tête. Chaque geste RÉUTILISE ce qui existe (R-708) : le garde-fou pour la note, le
+⑧ POURQUOI — Voir le sens en tête. Chaque geste RÉUTILISE ce qui existe (R-708) : le juge du contrôle final pour la note, le
   fabricant pour la publication (avec sa garde `refus_de_branche`), le format de demande et les noms des circuits lus
   dans le fabricant, la table des épreuves longues, le rapatrieur tests/outils/rapatrier_les_epreuves_longues.py
   pour les résultats.
@@ -53,10 +57,11 @@ n'est cru que si son RESULTAT.json porte la pointe jouée ; une demande qui voit
   pointe, que la porte « preparer » du circuit compare à la demande. Un arrêt brutal (machine éteinte) les perd ;
   QUI_FAIT_QUOI.py lit aussi les worktrees locaux. Un tiers qui pousse sur la branche pendant le passage fait
   échouer ce passage côté GitHub (la porte compare la pointe) : LIVRER ne le voit qu'au résultat ; sa propre poussée
-  finale se rebase sur le tiers et ne perd rien. La réécriture de la note à l'étape ⑤ relance le garde-fou en mode
-  écriture (nouvelle ligne de contrôle) : s'il refuse, la sortie est 3 et la note n'est pas poussée.
+  finale se rebase sur le tiers et ne perd rien. Le juge lancé est celui posé à côté de ce programme (le clone du
+  Chat), pas celui de la branche ; mais le contrôle joué sur GitHub est celui de la BRANCHE (superviseur R-759 du
+  25-11-2026, point 13, au BACKLOG). L'étape ① ne juge plus rien avant le passage : une note refusée coûte un passage.
 ⑩ EFFET — Crée et retire des worktrees du dépôt privé, clone le public sous /tmp (jamais /home/claude/pub), pousse
-  sur la branche publique du même nom (par le fabricant, puis la demande) et sur la branche privée (note, registre),
+  sur la branche publique du même nom (par le fabricant, puis la demande) et sur la branche privée (résultats, registre),
   jamais sur main, jamais en force.
 ⑪ TERMINAISON — Sort du programme par sys.exit. Chaque commande lancée est bornée ; les attentes sont bornées par le
   plafond.
@@ -86,6 +91,14 @@ GARDE_FOU = "programmes/CONTROLER_MA_LIVRAISON.py"
 RAPATRIEUR = "tests/outils/rapatrier_les_epreuves_longues.py"
 TITRE_DES_EPREUVES = "A JOUER SUR GITHUB"
 TITRE_DES_RESULTATS = "## RÉSULTATS GITHUB"
+# LE CONTRÔLE FINAL JOUÉ SUR GITHUB (décision de Jean-Luc du 25-11-2026 à 15h21, A-995 ; superviseur R-759 du même
+# jour, réparations (a) et 12) : le code d'épreuve longue « Livraison » est TOUJOURS joué, même absent de la note ; son
+# résultat est jugé par le programme voisin, « --juger <RESULTAT.json> <pointe> » (variable LIVRER_JUGE pour les
+# épreuves) ; les résultats de GitHub s'écrivent dans un fichier À PART, jamais dans la note jugée (un ajout à la note
+# changerait le texte que le contrôle a jugé).
+LIVRAISON = "Livraison"
+JUGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CONTROLER_LA_LIVRAISON_SUR_GITHUB.py")
+RESULTATS = "echanges/RESULTATS_GITHUB.md"
 DEPOT_PUBLIC = "https://github.com/jeanlucsilbertmds-cyber/cac40-cours-public.git"
 REPO_PUBLIC = "jeanlucsilbertmds-cyber/cac40-cours-public"
 INTERDIT_POUR_LE_CLONE_PUBLIC = "/home/claude/pub"
@@ -611,35 +624,29 @@ def retirer_worktree(racine, dossier):
 
 # ── ÉTAPE ① : LA NOTE ───────────────────────────────────────────────────────────────────────────────────────────────
 def verifier_la_note(racine, branche):
-    """Étape ① : la note de la branche est-elle acceptée par le garde-fou, en mode relecture ? Lève Arret(3) sinon.
+    """Étape ① : la note de la branche existe-t-elle ? Son contrôle se joue sur GitHub (« Livraison ») et se juge à
+    l'étape ⑤. Lève Arret(3) si elle manque.
 
-    ① RÔLE — Ne rien publier ni lancer pour une note qui n'a pas été contrôlée ou qui a bougé depuis.
+    ① RÔLE — Ne rien publier ni lancer pour une branche sans note.
     ② CONTEXTE D'APPEL — `main`, en premier.
     ③ ENTRÉE — `racine` : le clone privé · `branche` : la branche.
     ④ CONDITIONS D'ENTRÉE — origin/<branche> lu.
-    ⑤ SORTIE — UNE valeur : la dernière ligne du garde-fou.
+    ⑤ SORTIE — UNE valeur : une ligne qui dit où le contrôle se jouera.
       [rend: 1]
-    ⑥ TRAITEMENT — worktree détaché jetable à origin/<branche> ; « CONTROLER_MA_LIVRAISON.py
-      echanges/A_RELIRE.md --verifier » depuis ce worktree ; retrait.
+    ⑥ TRAITEMENT — « git cat-file -e origin/<branche>:echanges/A_RELIRE.md ».
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — Consigne du 20-11-2026, étape ① ; la relecture n'écrit rien (Q5 de Cowork).
-    ⑨ CE QUI CLOCHE — Le garde-fou relance les commandes citées par la note (bornées à 120 s chacune).
-    ⑩ EFFET — Crée et retire un worktree ; lance le garde-fou.
+    ⑧ POURQUOI — Jusqu'au 25-11-2026, cette étape lançait « CONTROLER_MA_LIVRAISON.py --verifier » dans un worktree
+      local ; le garde-fou exige tout donnees/, que les copies partielles n'ont pas (A-995, décision de Jean-Luc du
+      25-11-2026 à 15h21). Le superviseur R-759 du même jour (a) : l'acceptation de la note devient le jugement du
+      résultat de « Livraison » sur la pointe (`--juger`), fait dans `lire_les_resultats` dès que le passage est fini.
+    ⑨ CE QUI CLOCHE — Rien n'est jugé AVANT la publication et le passage : une note refusée coûte un passage.
+    ⑩ EFFET — Lance git en lecture.
     ⑪ TERMINAISON — Rend la main, ou lève Arret.
       [sort: non]
     """
-    wt = worktree_jetable(racine, f"origin/{branche}")
-    try:
-        if not os.path.isfile(os.path.join(wt, NOTE)):
-            raise Arret(TOMBE, f"{NOTE} absent de origin/{branche}")
-        garde = os.environ.get("LIVRER_GARDE_FOU", os.path.join(wt, GARDE_FOU))
-        r = lancer([sys.executable, "-B", garde, NOTE, "--verifier"], dossier=wt, borne=3600)
-        fin = (r.stdout.strip().splitlines() or [""])[-1]
-        if r.returncode != 0:
-            raise Arret(TOMBE, f"note refusée par le garde-fou (code {r.returncode}) : {fin[:200]}")
-        return fin
-    finally:
-        retirer_worktree(racine, wt)
+    if git(racine, "cat-file", "-e", f"origin/{branche}:{NOTE}").returncode != 0:
+        raise Arret(TOMBE, f"{NOTE} absent de origin/{branche}")
+    return f"présente ; son contrôle final se joue sur GitHub (« {LIVRAISON} »), jugé à l'étape 5"
 
 
 # ── ÉTAPE ② : LA PUBLICATION ────────────────────────────────────────────────────────────────────────────────────────
@@ -1358,9 +1365,11 @@ def lire_les_resultats(racine, branche, passage, codes, pointe):
     ⑥ TRAITEMENT — worktree détaché à origin/<branche> ; tests/outils/rapatrier_les_epreuves_longues.py <wt>
       <passage> ; lecture de chaque RESULTAT.json rangé ; un code demandé sans résultat est ABSENT (code 2, jamais
       vert : sabotage M1) ; un résultat dont « pointe_jouee » n'est pas `pointe` est d'une AUTRE POINTE (code 2) ;
-      retrait du worktree.
+      pour « Livraison » de code 0, le juge (`CONTROLER_LA_LIVRAISON_SUR_GITHUB.py --juger <RESULTAT.json> <pointe>`,
+      LIVRER_JUGE pour les épreuves) doit rendre 0, sinon elle compte rouge (« NON JUGÉE VERTE ») ; retrait du worktree.
     ⑦ UNITÉ — Secondes (durées).
-    ⑧ POURQUOI — R-708 : le rapatrieur sait déjà confronter la liste demandée aux branches (R-D2, R-D5).
+    ⑧ POURQUOI — R-708 : le rapatrieur sait déjà confronter la liste demandée aux branches (R-D2, R-D5). Le juge :
+      A-995 et superviseur R-759 du 25-11-2026 (a), l'acceptation de la note, jugée sur le résultat de GitHub.
     ⑨ CE QUI CLOCHE — Les sorties rangées ne sont pas commitées : elles restent sur les branches du passage.
     ⑩ EFFET — Crée et retire un worktree ; le rapatrieur écrit des références refs/epreuves_lues/….
     ⑪ TERMINAISON — Rend la main.
@@ -1382,6 +1391,12 @@ def lire_les_resultats(racine, branche, passage, codes, pointe):
                     lignes.append((c, "AUTRE POINTE", res.get("duree_secondes", "?"), jouee or "(aucune)"))
                     code = 2
                     continue
+                if c == LIVRAISON and sortie == 0:
+                    juge = os.environ.get("LIVRER_JUGE", JUGE)
+                    j = lancer([sys.executable, "-B", juge, "--juger", chemin, pointe], dossier=wt, borne=120)
+                    if j.returncode != 0:
+                        dire("  « Livraison » non jugée verte : " + (j.stdout.strip() or j.stderr.strip())[-200:])
+                        sortie = f"NON JUGÉE VERTE ({j.returncode})"
                 lignes.append((c, sortie, res.get("duree_secondes", "?"), jouee))
                 if sortie != 0 and code == 0:
                     code = 1
@@ -1394,48 +1409,36 @@ def lire_les_resultats(racine, branche, passage, codes, pointe):
 
 
 def ecrire_les_resultats(wt, passage, pointe, lignes):
-    """Écrit la section « RÉSULTATS GITHUB » dans la note, avant la demande de relecture, et la refait contrôler.
+    """Écrit les « RÉSULTATS GITHUB » dans echanges/RESULTATS_GITHUB.md, un fichier À PART de la note jugée.
 
-    ① RÔLE — Mettre les résultats de GitHub sous les yeux de Cowork, dans la note qu'il relit.
+    ① RÔLE — Mettre les résultats de GitHub sous les yeux de Cowork, sans toucher la note que « Livraison » a jugée.
     ② CONTEXTE D'APPEL — `main`, étape ⑤.
     ③ ENTRÉE — `wt` : le worktree nommé · `passage` · `pointe` : le commit demandé · `lignes` : (code, sortie,
       durée, pointe jouée LUE dans RESULTAT.json).
-    ④ CONDITIONS D'ENTRÉE — La note existe.
-    ⑤ SORTIE — Rien ; lève Arret(3) si le garde-fou refuse la note réécrite (elle est alors remise en l'état).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Rien.
       [rend: rien]
-    ⑥ TRAITEMENT — Retire une section « ## RÉSULTATS GITHUB » précédente et la ligne de contrôle ; insère la section
-      neuve avant le titre « DEMANDE DE RELECTURE PAR COWORK » (sinon à la fin) ; relance le garde-fou en écriture.
+    ⑥ TRAITEMENT — Écrit le fichier entier (le précédent est remplacé) : le titre, la phrase d'origine, une ligne par
+      épreuve.
     ⑦ UNITÉ — Secondes (durées).
-    ⑧ POURQUOI — Consigne du 20-11-2026, étape ⑤ ; une note modifiée sans nouvelle ligne de contrôle serait refusée
-      par la relecture (« EMPREINTE DIFFÉRENTE »).
-    ⑨ CE QUI CLOCHE — Le garde-fou relance les commandes citées par la note.
-    ⑩ EFFET — Réécrit la note.
-    ⑪ TERMINAISON — Rend la main, ou lève Arret.
+    ⑧ POURQUOI — Jusqu'au 25-11-2026, la section était insérée DANS la note, puis la note recontrôlée en local ; le
+      contrôle se joue désormais sur GitHub (A-995) et un ajout à la note changerait le texte jugé (superviseur R-759
+      du 25-11-2026, (a) : « la note jugée et le journal des résultats sont deux fichiers »). Le fichier est dans
+      echanges/ : INSTALLER le compte parmi les changements sans code.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Écrit un fichier du worktree.
+    ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
-    chemin = os.path.join(wt, NOTE)
-    with open(chemin, encoding="utf-8") as f:
-        avant = f.read()
-    texte = re.sub(r"\n<!-- CONTROLE [0-9a-f]{16} · [^>]*-->\s*$", "\n", avant)
-    texte = re.sub(r"(?ms)^## RÉSULTATS GITHUB\b.*?(?=^#{1,2} |\Z)", "", texte)
-    section = [TITRE_DES_RESULTATS,
+    section = [TITRE_DES_RESULTATS, "",
                f"Écrit par programmes/LIVRER.py le {maintenant()} (Paris). Passage {passage} du circuit des épreuves "
                f"longues, pointe demandée {pointe}. Codes et pointe jouée lus dans les RESULTAT.json de "
-               f"origin/epreuves-longues/{passage}/<CODE>, pas dans la couleur du passage. Ne pas les rejouer. Cette "
-               f"section ne fait pas foi pour l'installation : INSTALLER relit les RESULTAT.json eux-mêmes.", ""]
-    section += [f"- {c} : code {s} · {d} s · pointe jouée {j or '(aucune)'}" for c, s, d, j in lignes] + [""]
-    m = re.search(r"(?m)^#+ .*DEMANDE DE RELECTURE PAR COWORK", texte)
-    i = m.start() if m else len(texte.rstrip("\n")) + 1
-    neuf = texte[:i].rstrip("\n") + "\n\n" + "\n".join(section) + "\n" + texte[i:].lstrip("\n")
-    with open(chemin, "w", encoding="utf-8") as f:
-        f.write(neuf.rstrip("\n") + "\n")
-    garde = os.environ.get("LIVRER_GARDE_FOU", os.path.join(wt, GARDE_FOU))
-    r = lancer([sys.executable, "-B", garde, NOTE], dossier=wt, borne=3600)
-    if r.returncode != 0:
-        with open(chemin, "w", encoding="utf-8") as f:
-            f.write(avant)
-        raise Arret(TOMBE, "la note réécrite est refusée par le garde-fou : "
-                           + ((r.stdout.strip().splitlines() or [""])[-1])[:200])
+               f"origin/epreuves-longues/{passage}/<CODE>, pas dans la couleur du passage. Ne pas les rejouer. Ce "
+               f"fichier ne fait pas foi pour l'installation : INSTALLER relit les RESULTAT.json eux-mêmes. La note "
+               f"jugée, {NOTE}, n'est pas touchée.", ""]
+    section += [f"- {c} : code {s} · {d} s · pointe jouée {j or '(aucune)'}" for c, s, d, j in lignes]
+    with open(os.path.join(wt, RESULTATS), "w", encoding="utf-8") as f:
+        f.write("\n".join(section) + "\n")
 
 
 def pousser(wt, branche, message, chemins):
@@ -1537,24 +1540,24 @@ def main():
         if change:
             raise Arret(NOMS, "la note déclare « aucune » épreuve longue, mais ce travail change du code qui s'exécute : "
                               + ", ".join(change[:5]) + " (N-3)")
-        dire(f"ÉTAPE 3 — épreuves longues : {', '.join(codes) or 'aucune'}")
-        if not codes:
-            dire("ÉTAPES 4 et 5 — sans objet : la note déclare « aucune » épreuve longue")
-            code = PRET
-        else:
-            passage = deposer_et_suivre_le_relais(wt, public, branche, codes, pointe, k, plafond * 60, pas)
-            lance_le = maintenant()
-            for c in codes:
-                noter(wt, f"epreuve:{c}", branche, "github", passage, lance_le, "", "EN COURS")
-            dire(f"ÉTAPE 4 — passage {passage} lancé par le relais")
-            conclusion = suivre_le_passage(passage, plafond * 60, pas)
-            verdict, lignes = lire_les_resultats(racine, branche, passage, codes, pointe)
-            for c, s, _, _ in lignes:
-                noter(wt, f"epreuve:{c}", branche, "github", passage, lance_le, maintenant(), f"code {s}")
-            ecrire_les_resultats(wt, passage, pointe, lignes)
-            dire(f"ÉTAPE 5 — passage {passage} fini ({conclusion}) : "
-                 + " · ".join(f"{c} {s}" for c, s, _, _ in lignes))
-            code = {0: PRET, 1: ROUGE}.get(verdict, TOMBE)
+        if LIVRAISON not in table:
+            raise Arret(NOMS, f"le code « {LIVRAISON} » manque à {TABLE} : le contrôle final ne peut pas se jouer (A-995)")
+        if LIVRAISON not in codes:   # toujours joué, même absent de la note (A-995 ; superviseur R-759, point 12)
+            codes.insert(0, LIVRAISON)
+        dire(f"ÉTAPE 3 — épreuves longues : {', '.join(codes)}")
+        passage = deposer_et_suivre_le_relais(wt, public, branche, codes, pointe, k, plafond * 60, pas)
+        lance_le = maintenant()
+        for c in codes:
+            noter(wt, f"epreuve:{c}", branche, "github", passage, lance_le, "", "EN COURS")
+        dire(f"ÉTAPE 4 — passage {passage} lancé par le relais")
+        conclusion = suivre_le_passage(passage, plafond * 60, pas)
+        verdict, lignes = lire_les_resultats(racine, branche, passage, codes, pointe)
+        for c, s, _, _ in lignes:
+            noter(wt, f"epreuve:{c}", branche, "github", passage, lance_le, maintenant(), f"code {s}")
+        ecrire_les_resultats(wt, passage, pointe, lignes)
+        dire(f"ÉTAPE 5 — passage {passage} fini ({conclusion}) : "
+             + " · ".join(f"{c} {s}" for c, s, _, _ in lignes))
+        code = {0: PRET, 1: ROUGE}.get(verdict, TOMBE)
     except Arret as e:
         code = e.args[0]
         dire(f"ARRÊT (code {code}) — {e.args[1]}")
@@ -1565,8 +1568,9 @@ def main():
     finally:
         try:
             if wt:
-                if not pousser(wt, branche, f"LIVRER : note et registre des travaux de {branche}", [NOTE, REGISTRE]):
-                    dire("ARRÊT — la note ou le registre n'ont pas pu être poussés")
+                if not pousser(wt, branche, f"LIVRER : résultats et registre des travaux de {branche}",
+                               [RESULTATS, REGISTRE]):
+                    dire("ARRÊT — les résultats ou le registre n'ont pas pu être poussés")
                     code = code if code != PRET else TOMBE
                 if jetable:
                     retirer_worktree(racine, wt)

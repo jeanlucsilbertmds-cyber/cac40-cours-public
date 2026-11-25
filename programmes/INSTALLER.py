@@ -46,8 +46,9 @@ de défense.
   porte-t-il le code de main ? ») et nomme la commande. Le REPUBLIER lancé est celui posé à côté de ce programme (le
   clone du Chat), pas celui de main : un REPUBLIER changé par la branche installée ne sert qu'au passage suivant ; mais
   publication ET vérification prennent le FABRICANT de main (`LIVRER.fabricant_de`, N-21 du RELU de Cowork sur
-  4e4dc386f). Une branche dont la note déclare « aucune » épreuve longue ne s'installe sans preuve que si elle ne
-  change rien hors de echanges/, archives/ et du registre (`LIVRER.changes_hors_permis` ; N-3, puis N-14 du RELU de
+  4e4dc386f). Une branche dont la note déclare « aucune » épreuve longue ne s'installe que si elle ne
+  change rien hors de echanges/, archives/ et du registre, ET, depuis le 25-11-2026 (A-995), avec la preuve verte de
+  « Livraison », exigée de toute branche (`LIVRER.changes_hors_permis` ; N-3, puis N-14 du RELU de
   Cowork sur e7b230083). Le regard ③ précède la fusion ; l'étape ⑤ peut ensuite publier jusqu'à 7 200 s : une
   installation lancée peu avant 20h peut pousser au public pendant le circuit du soir, qui garde son pas de défense
   (N-23 du RELU de Cowork sur 4e4dc386f ; éviter l'heure qui précède 20h est une question posée à Jean-Luc, pas une
@@ -55,10 +56,12 @@ de défense.
 ⑩ EFFET — Pousse sur main au privé, jamais en force. Au public, seulement par REPUBLIER (son fabricant, sans force).
 ⑪ TERMINAISON — Sort du programme par sys.exit.
 """
+import hashlib
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import traceback
 
@@ -163,6 +166,42 @@ def meme_code(racine, jouee, relue):
     return not changes_hors_permis(racine, jouee, relue)
 
 
+def livraison_de_la_note(racine, res, relue):
+    """Rend vrai si un RESULTAT.json de « Livraison » a jugé la NOTE relue, et l'a jugée verte.
+
+    ① RÔLE — Relier le contrôle final (A-995) à la note que Cowork a relue, et non seulement au code.
+    ② CONTEXTE D'APPEL — `prouver_les_epreuves`, pour le seul code « Livraison » (L.LIVRAISON).
+    ③ ENTRÉE — `racine` · `res` : le RESULTAT.json lu (dictionnaire) · `relue` : la pointe relue (40 caractères).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : vrai ou faux.
+      [rend: 1]
+    ⑥ TRAITEMENT — le même code (`meme_code`) ; le détail du joueur dit VERT ; et la pointe jouée EST la pointe
+      relue, OU le sha256 de la note dans le détail (« sha256_de_la_note ») est celui de echanges/A_RELIRE.md à la
+      pointe relue (octets lus par « git cat-file blob »).
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Superviseur R-759 du 25-11-2026, (b) : `meme_code` accepte un résultat joué sur un ancêtre quand
+      seuls echanges/ et le registre ont changé, or c'est echanges/A_RELIRE.md que « Livraison » juge ; LIVRER écrit
+      désormais ses résultats à part (echanges/RESULTATS_GITHUB.md), la note reste celle qui a été jugée.
+    ⑨ CE QUI CLOCHE — Le détail est écrit par le code de la version jouée (programmes/CONTROLER_LA_LIVRAISON_SUR_GITHUB.py
+      de la branche) : une branche qui affaiblit ce programme se fait juger par lui (superviseur, point 13, BACKLOG).
+    ⑩ EFFET — Lance git en lecture.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    jouee = res.get("pointe_jouee", "")
+    detail = res.get("detail_de_l_epreuve") if isinstance(res.get("detail_de_l_epreuve"), dict) else {}
+    if detail.get("verdict") != "VERT" or not meme_code(racine, jouee, relue):
+        return False
+    if jouee == relue:
+        return True
+    note = L.lancer(["git", "-C", racine, "rev-parse", "--verify", "-q", f"{relue}:{L.NOTE}"])
+    if note.returncode != 0:
+        return False
+    octets = subprocess.run(["git", "-C", racine, "cat-file", "blob", note.stdout.strip()], capture_output=True,
+                            timeout=600)
+    return octets.returncode == 0 and hashlib.sha256(octets.stdout).hexdigest() == detail.get("sha256_de_la_note")
+
+
 def prouver_les_epreuves(racine, relue):
     """Étape ② : les épreuves longues déclarées à la pointe relue ont-elles été jouées par GitHub sur ce code, et
     rendent-elles 0 ? Rend la liste des (code, passage) prouvés, ou lève Arret(1).
@@ -171,13 +210,16 @@ def prouver_les_epreuves(racine, relue):
     ② CONTEXTE D'APPEL — `main`, après `juger_le_relu`.
     ③ ENTRÉE — `racine` : le clone privé (fetch fait : les branches origin/epreuves-longues/… sont lues) · `relue`.
     ④ CONDITIONS D'ENTRÉE — —
-    ⑤ SORTIE — UNE valeur : la liste des (code, numéro de passage) ; vide si la note relue déclare « aucune » ET que
-      le travail ne change aucun code qui s'exécute (`LIVRER.code_change_par`, N-3) ; sinon refus.
+    ⑤ SORTIE — UNE valeur : la liste des (code, numéro de passage) ; elle porte TOUJOURS « Livraison » (depuis le
+      25-11-2026, A-995 : même une note « aucune », sur un travail qui ne change aucun code qui s'exécute, exige le
+      contrôle final vert) ; une note « aucune » sur un travail qui change du code est refusée (N-3).
       [rend: 1]
     ⑥ TRAITEMENT — La note et la table à la pointe relue donnent les codes (`LIVRER.codes_a_jouer`, R-708 ; section
-      absente, vide ou nom sans code → refus). Pour chaque code : chaque branche
+      absente, vide ou nom sans code → refus), « Livraison » ajoutée en tête si elle n'y est pas. Pour chaque code :
+      chaque branche
       origin/epreuves-longues/<passage>/<CODE> ; son RESULTAT.json ; on garde ceux dont « pointe_jouee » porte le même
-      code que la pointe relue (`meme_code`) ; le passage le plus récent (numéro le plus grand) fait foi ; son
+      code que la pointe relue (`meme_code`) — pour « Livraison », ceux qui ont jugé la note relue et l'ont dite
+      verte (`livraison_de_la_note`) ; le passage le plus récent (numéro le plus grand) fait foi ; son
       « code_de_sortie » doit valoir 0 (sabotage M6 du relecteur). Aucun résultat retenu → refus (M1 : une épreuve
       absente n'est jamais verte).
     ⑦ UNITÉ — —
@@ -199,6 +241,8 @@ def prouver_les_epreuves(racine, relue):
     if change:
         raise L.Arret(REFUS, "la note relue déclare « aucune » épreuve longue, mais ce travail change du code qui "
                              "s'exécute : " + ", ".join(change[:5]) + " (N-3)")
+    if L.LIVRAISON not in codes:   # toujours exigée, même absente de la note (A-995 ; superviseur R-759, point 12)
+        codes = [L.LIVRAISON] + codes
     prouves = []
     for code in codes:
         retenus = []
@@ -211,7 +255,10 @@ def prouver_les_epreuves(racine, relue):
                 res = json.loads(lu.stdout) if lu.returncode == 0 else None
             except ValueError:
                 res = None
-            if isinstance(res, dict) and meme_code(racine, res.get("pointe_jouee", ""), relue):
+            if not isinstance(res, dict):
+                continue
+            if (livraison_de_la_note(racine, res, relue) if code == L.LIVRAISON
+                    else meme_code(racine, res.get("pointe_jouee", ""), relue)):
                 retenus.append((int(morceaux[0]), res))
         if not retenus:
             raise L.Arret(REFUS, f"aucune preuve GitHub pour {code} sur le code relu {relue[:12]} "

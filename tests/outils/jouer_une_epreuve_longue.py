@@ -13,7 +13,8 @@ seulement, la sortie entière et le code de sortie.
   <code> --sortie=<dossier>` : jouer l'épreuve de ce code sur la copie, comme la certification de nuit la lance (la
   copie pour racine, sans la configuration Git de la machine, sans les fichiers de commandes de GitHub), et écrire
   dans <dossier> SORTIE.txt (la sortie entière, erreurs comprises) et RESULTAT.json (code, commande, heures, durée,
-  pointe jouée lue dans POINTE_JOUEE).
+  pointe jouée lue dans POINTE_JOUEE, et, depuis le 25-11-2026 (A-995), le détail que l'épreuve a écrit dans le
+  fichier nommé par RESULTAT_DE_L_EPREUVE, sous « detail_de_l_epreuve »).
 ② CONTEXTE D'APPEL — Le circuit des épreuves longues fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py : (a) au
   pas « Fabriquer la matrice » du job « preparer », (b) au pas « Jouer l epreuve » du job « jouer », sous
   « unshare -rn » (réseau coupé). Aussi l'épreuve tests/EPREUVES_DU_CIRCUIT_DES_EPREUVES_LONGUES_Dim_15-11-2026.py.
@@ -56,6 +57,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import zoneinfo
 
@@ -69,6 +71,39 @@ JOUEUR_DES_PARTS = os.path.join("tests", "outils", "jouer_une_part.py")
 DELAI = 320 * 60
 SORTIE = "SORTIE.txt"
 RESULTAT = "RESULTAT.json"
+# Le détail facultatif qu'une épreuve écrit pour RESULTAT.json (25-11-2026, A-995) : la variable qui en donne le chemin,
+# le nom du fichier, et sa taille au plus (au-delà, il n'est pas rangé : RESULTAT.json reste court).
+RESULTAT_DE_L_EPREUVE = "RESULTAT_DE_L_EPREUVE"
+DETAIL = "DETAIL.json"
+DETAIL_AU_PLUS = 64 * 1024
+
+
+def lire_le_detail(chemin, resultat):
+    """Range dans `resultat` le détail qu'une épreuve a écrit, s'il existe.
+
+    ① RÔLE — Porter dans RESULTAT.json ce qu'une épreuve sait dire d'elle-même (pour « Livraison » : verdict, pointe,
+    empreinte). ② CONTEXTE D'APPEL — `jouer`, après l'épreuve. ③ ENTRÉE — `chemin` : le fichier donné à l'épreuve
+    par RESULTAT_DE_L_EPREUVE ; `resultat` : le dictionnaire de RESULTAT.json. ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — Aucune valeur ; `resultat` reçoit « detail_de_l_epreuve » (un objet JSON lu), ou « detail_illisible »
+    (la raison), ou rien si l'épreuve n'a rien écrit. [rend: 0] ⑥ TRAITEMENT — absent : rien ; plus de DETAIL_AU_PLUS
+    octets, JSON illisible ou pas un objet : « detail_illisible ». ⑦ UNITÉ — Des octets. ⑧ POURQUOI — Décision A-995 :
+    le RESULTAT.json du contrôle final porte le verdict, la pointe et l'empreinte ; la plupart des épreuves n'écrivent
+    rien, et leur RESULTAT.json ne change pas. ⑨ CE QUI CLOCHE — Le détail est écrit par le code de la version jouée :
+    il ne prouve rien de plus que la sortie de l'épreuve ; le code de sortie reste celui du processus.
+    ⑩ EFFET — Lit un fichier. ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    if not os.path.lexists(chemin):
+        return
+    try:
+        if os.path.islink(chemin) or os.path.getsize(chemin) > DETAIL_AU_PLUS:
+            raise ValueError(f"lien, ou plus de {DETAIL_AU_PLUS} octets")
+        with open(chemin, encoding="utf-8") as f:
+            d = json.load(f)
+        if not isinstance(d, dict):
+            raise ValueError("pas un objet JSON")
+        resultat["detail_de_l_epreuve"] = d
+    except (OSError, ValueError) as e:
+        resultat["detail_illisible"] = f"{type(e).__name__} : {e}"
 
 
 def charger(racine, chemin, nom):
@@ -235,6 +270,11 @@ def jouer(copie, code, sortie):
         ecrire(2)
         return 2
     args = [sys.executable, "-B", os.path.join(copie, chemin)] + [a.replace("{copie}", copie) for a in arguments]
+    # LE DÉTAIL DE L'ÉPREUVE (25-11-2026, A-995) : un fichier neuf, hors de la copie et du dossier déposé, dont le nom
+    # est donné à l'épreuve par RESULTAT_DE_L_EPREUVE ; si elle y écrit un objet JSON, il est rangé dans RESULTAT.json
+    # sous « detail_de_l_epreuve » (programmes/CONTROLER_LA_LIVRAISON_SUR_GITHUB.py y met verdict, pointe, empreinte).
+    detail = os.path.join(tempfile.mkdtemp(prefix="detail_"), DETAIL)
+    env[RESULTAT_DE_L_EPREUVE] = detail
     delai = delai_restant(F, os.environ.get("DEPART_DU_JOB"), time.time())
     resultat["delai_secondes"] = delai
     debut = time.time()
@@ -251,6 +291,7 @@ def jouer(copie, code, sortie):
             f.write(f"\nARRÊTÉE : plus de {delai} s\n".encode("utf-8"))
     resultat["fin"] = datetime.datetime.now(PARIS).strftime("%Y-%m-%d %H:%M:%S")
     resultat["duree_secondes"] = round(time.time() - debut)
+    lire_le_detail(detail, resultat)
     code_ecrit = ecrire(code_de_sortie)
     print(f"épreuve {code} : code {code_de_sortie}, {resultat['duree_secondes']} s")
     return code_de_sortie if code_ecrit == code_de_sortie else 2
