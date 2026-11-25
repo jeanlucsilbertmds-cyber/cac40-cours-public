@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Moulinette,ProprietesChaine,ProprietesSabot,ProprietesSuite,ProprietesSuiteSabot,ProprietesBout,ProprietesBoutSabot
+pointe=918651a4545404b6918a8be7a40ec7c687caf586
