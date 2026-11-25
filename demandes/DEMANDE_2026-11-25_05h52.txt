@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=JugeLecteur
+pointe=fa2391d5fff5c38b3622496adfb5eb2b2a89089f
