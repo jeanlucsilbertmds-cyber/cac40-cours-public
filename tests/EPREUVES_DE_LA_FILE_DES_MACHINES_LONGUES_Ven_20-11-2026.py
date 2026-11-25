@@ -28,7 +28,8 @@ qui le traduisent, chacune avec un sabotage qui doit la faire rougir.
   [rend: 1]
 ⑥ TRAITEMENT —
   F1 (le relais, joué) : le pas « relayer » du relais fabriqué, joué par bash sur une poussée imitée (un dépôt git
-  jetable : un commit qui AJOUTE demandes/DEMANDE_2026-11-20_21h00.txt, « circuit=epreuve », deux codes de la table),
+  jetable qui porte les fiches publiées : un commit qui AJOUTE demandes/DEMANDE_<heure de Paris>.txt, « circuit=epreuve »,
+  « version=main », deux codes de la table),
   avec un faux gh qui répond trois passages EN COURS, un par circuit long, chacun « places 1+18 » (le réservoir
   plein) : le pas rend 0 et appuie UNE fois sur le bouton des épreuves, avec « premiere_place » et
   « nombre_de_places=2 ».
@@ -74,7 +75,11 @@ JETON = "programmes/FORME_D_UN_JETON.py"     # chargé par le fabricant, à côt
 TABLE = "tests/LANCEMENT_DES_EPREUVES.json"
 CIRCUIT_PRIVE = ".github/workflows/collecte_abc.yml"
 LUS = (FABRICANT, JETON, TABLE, CIRCUIT_PRIVE)
-NOM_DE_DEMANDE = "demandes/DEMANDE_2026-11-20_21h00.txt"
+# Le nom de la demande : l'heure de Paris du lancement de l'épreuve (fusion du 25-11-2026 avec travail-file-demandes :
+# le relais refuse une demande dont le nom a plus de 24 h ; l'ancien nom fixe du 20-11-2026 l'aurait été).
+import datetime as _dt
+import zoneinfo as _zi
+NOM_DE_DEMANDE = "demandes/DEMANDE_" + _dt.datetime.now(_zi.ZoneInfo("Europe/Paris")).strftime("%Y-%m-%d_%Hh%M") + ".txt"
 GIT_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
 GIT_ENV.update(GIT_AUTHOR_NAME="essai", GIT_AUTHOR_EMAIL="essai@local", GIT_COMMITTER_NAME="essai",
                GIT_COMMITTER_EMAIL="essai@local", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
@@ -211,15 +216,20 @@ def tour(racine):
             os.makedirs(os.path.join(r, "demandes"))
             lancer(["git", "init", "-q", "-b", "main", r], env=GIT_ENV)
             open(os.path.join(r, "LISEZMOI"), "w").write("essai\n")
+            # fusion du 25-11-2026 : l'examen lit, au commit de la demande, la fiche du circuit visé et le relais de la
+            # branche (« queue: max », groupe du relais) : la branche imitée porte les fiches publiées
+            os.makedirs(os.path.join(r, ".github", "workflows"))
+            for nom_f, texte_f in fiches.items():
+                open(os.path.join(r, ".github", "workflows", nom_f), "w", encoding="utf-8").write(texte_f)
             lancer(["git", "-C", r, "add", "-A"], env=GIT_ENV)
             lancer(["git", "-C", r, "commit", "-q", "-m", "avant"], env=GIT_ENV)
             avant = lancer(["git", "-C", r, "rev-parse", "HEAD"], env=GIT_ENV)[1].strip()
-            open(os.path.join(r, NOM_DE_DEMANDE), "w").write(f"circuit=epreuve\nepreuves={codes[0]},{codes[1]}\n")
+            open(os.path.join(r, NOM_DE_DEMANDE), "w").write(f"circuit=epreuve\nversion=main\nepreuves={codes[0]},{codes[1]}\n")
             lancer(["git", "-C", r, "add", "-A"], env=GIT_ENV)
             lancer(["git", "-C", r, "commit", "-q", "-m", "demande"], env=GIT_ENV)
             apres = lancer(["git", "-C", r, "rev-parse", "HEAD"], env=GIT_ENV)[1].strip()
             contexte = {"github.event.before": avant, "github.sha": apres, "github.ref_name": "main",
-                        "github.repository": "essai/public", "github.token": "jeton-fictif"}
+                        "github.repository": "essai/public", "github.token": "jeton-fictif", "github.event_name": "push"}
             env = dict(GIT_ENV, PATH=outils + os.pathsep + os.environ["PATH"], RUNNER_TEMP=d,
                        FAUX_GH_JOURNAL=os.path.join(d, "gh.jsonl"),
                        FAUX_GH_PASSAGES=json.dumps([{"status": "in_progress", "displayTitle": "en cours places 1+18"}]))

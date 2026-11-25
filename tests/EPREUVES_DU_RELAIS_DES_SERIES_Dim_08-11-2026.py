@@ -21,7 +21,9 @@ valeurs à chaque passage, et chacun doit la faire rougir.
   tests/outils/rassembler_les_parts.py (leur `lire_les_arguments`).
 ④ CONDITIONS D'ENTRÉE — bash, git et jq installés (comme sur les machines de GitHub) ; aucun réseau.
 ⑤ SORTIE — Le code de sortie : 0 si chaque cas (T, V, P, L, F ci-dessous) donne la réponse attendue et, avec
-  --saboter, si chaque sabotage en fait échouer au moins un ; 1 sinon ; 2 si un sabotage ne s'applique plus.
+  --saboter, si chaque sabotage en fait échouer au moins un, et pour un sabotage dont la faute est nommée
+  (FAUTES_ATTENDUES) celle-là ; 1 sinon ; 2 si un sabotage ne s'applique plus, ou si le TÉMOIN (la copie construite
+  comme celle d'un sabotage, NON sabotée, jouée d'abord) rougit : la copie elle-même serait fausse.
   [rend: 1]
 ⑥ TRAITEMENT — GitHub est imité ainsi : pour chaque demande, un vrai dépôt git (la branche publique), un commit qui
   porte la demande ; le script du pas « relayer » est EXTRAIT du relais fabriqué et joué par « bash -e -o pipefail »
@@ -50,7 +52,7 @@ valeurs à chaque passage, et chacun doit la faire rougir.
   ceux des parts de la même série ; les séries jouées = celles demandées.
   P (demandes piégées, chacune refusée, SANS aucun « gh workflow run », et pour SA raison : un fragment du message) :
   accent, tabulation, retour chariot, DEL, octet nul, valeur trop longue, clé donnée deux fois (NV-2), clé
-  « version » (Q2 : la version est le nom de la branche), « ; », « $( ) », « ${{ }} », série inconnue ou à la mauvaise
+  « version » d'une autre branche (P08), « ; », « $( ) », « ${{ }} », série inconnue ou à la mauvaise
   casse, nombres 0, 100 et 07, clé « serie » absente, « a_blanc » faux, deux fichiers dans le commit, deux commits
   dans la poussée, un nom hors de demandes/SERIE_<date>.txt, un fichier modifié et non ajouté, une branche créée par
   la poussée, une branche qui n'est pas une version, plus de 1 000 octets.
@@ -66,10 +68,34 @@ valeurs à chaque passage, et chacun doit la faire rougir.
   global, S74, S75, S78, S79 faussent le choix ou sa transmission.
   E (l'examen à la demande, décision de Jean-Luc du 08-11-2026 à 18h06) : E0 le circuit de certification a un bouton
   sans entrée obligatoire · E1 « circuit=examen » sur main → un seul « gh workflow run certifier_la_version.yml --ref
-  main », sans réglage, compte des passages pris sur ce circuit · E2 à blanc → rien · E3 depuis une version en attente,
-  E4 avec un réglage de série, E6 circuit inconnu, E7 clé circuit absente → refusés ; E5 un examen en attente → lancé
-  (étape FILE-2 : places 1+TRANCHES_DE_LA_NUIT, la file est celle du groupe de la certification). Les
-  demandes des cas V et P reçoivent « circuit=series » en tête (`relayer`).
+  main », sans réglage de série, sur les places 1+TRANCHES_DE_LA_NUIT · E2 à blanc → rien · E3 depuis une version en
+  attente, E4 avec un réglage de série, E6 circuit inconnu, E7 clé circuit absente → refusés ; E5 un examen en attente
+  → lancé. Les demandes des cas V et P reçoivent « circuit=series » et « version=<branche> » en tête (`relayer`).
+  K (18-11-2026, A-897/A-898, troisième superviseur R-759 « ARRÊTER ET SIMPLIFIER » ; fusionné le 25-11-2026 avec
+  l'étape FILE-2 de main) : le relais n'est jamais refusé pour un passage en cours et lance aussitôt (K1 : un passage
+  des séries en attente, lecture des trois circuits longs puis un lancement) ; K2 au bouton (« workflow_dispatch »), la
+  demande ajoutée par le dernier commit est examinée et lancée ; K3 au bouton sur un commit de code → refusé ; K4 la
+  fiche du circuit visé sans « queue: max » → refusé, rien lancé (essai réel du 18-11-2026 : un passage sans « queue:
+  max » annule celui qui attend) ; K5 « queue: max » écrit hors de « concurrency: » → refusé ; K6 la fiche absente de
+  la branche → refusé ; K7 un lancement refusé par GitHub → rouge ; K8 une demande de plus de 24 h, K9 un nom dans le
+  futur → refusés ; K10 la fiche visée à « cancel-in-progress: true » → refusée (T4 du RELU du 18-11-2026) ; P37 la clé
+  version absente → refusée ; chaque lancement finit par « -f demande=DEMANDE_<heure>@<branche> » (le titre du passage).
+  T (25-11-2026, point T1 du RELU de travail-file-demandes : les anciens relais sans « queue: max », publiés sur des
+  branches publiques, partagent le groupe « demande-de-serie ») : T1a le relais de la branche est l'ANCIEN (groupe
+  demande-de-serie, sans « queue: max », tel que relevé sur travail-t54) → refusé ; T1b le relais à « queue: max »
+  mais sous l'ancien nom → refusé ; T1c le relais du groupe neuf sans « queue: max » → refusé ; T1d le groupe du relais
+  fabriqué n'est pas l'ancien nom ; D9 DEPOSER_UNE_DEMANDE.py sur une branche publique au relais ancien → refusé,
+  rien poussé ; D10 (T5) une poussée refusée par un crochet, la branche n'ayant pas avancé → refus affiché en
+  entier, un seul essai, code 2, sans aucun accès en clair (adresse, forme d'un jeton) ; D11 le module du masque
+  illisible → code 2, refus non affiché, rien poussé. (RELU du 25-11-2026) D12 (C1) une course perdue — un crochet
+  pousse un commit intrus sur la branche puis refuse — → un nouvel essai, déposé au-dessus de l'intrus, code 0 ; D13
+  (C4) une poussée sans réponse dans le délai (crochet lent, délai réduit par DEPOSER_DELAI_DE_GIT_EN_SECONDES) →
+  code 2, « elle a PU aboutir » ; D14 (N3) la branche illisible après un refus → code 2, rien retenté ; D15 (N1, N2)
+  un refus long, deux adresses à accès, l'une au début et l'autre à la fin → affiché du début à la fin, les deux
+  masquées ; K11 (E2) la fiche visée à « cancel-in-progress » autre que « false » (« True », « ${{ true }} », « yes »)
+  → refusée ; D16 (superviseur R-759) l'examen sans réponse dans le délai → code 2, rien poussé. G5 le gabarit du relais : groupe FIXE GROUPE_DU_RELAIS, « queue: max », « cancel-in-progress: false » ;
+  G1 déclencheurs push sur demandes/ et bouton, rien d'autre. D0 à D16 : programmes/DEPOSER_UNE_DEMANDE.py (nom, pointe
+  lue au privé, examen du relais avant la poussée ; D2 : la demande déposée est lancée par le relais).
   L (lecture du joueur et du rassembleur) : L1 « --lot » donné deux fois → refusé (NV-2) · L2 « --lot » absent →
   refusé (plus de valeur cachée) · L3 « --depuis » deux fois au rassembleur → refusé.
   F (le filet du fabricant) : F0 il accepte les gabarits fabriqués · F1 relais + une ligne qui porte la clé · F2
@@ -100,12 +126,12 @@ valeurs à chaque passage, et chacun doit la faire rougir.
 ⑧ POURQUOI — Méthode du bloc 2, action 5 (« UNE épreuve qui suit chaque valeur de la demande jusqu'au joueur ») ;
   décision n°309 ; le lot 262 arrêté (n°298). Une épreuve qui reste verte quand on retire ce qu'elle teste n'est pas
   une preuve : d'où un sabotage par passage, qui intervertit deux valeurs.
-⑨ CE QUI CLOCHE — Rien n'est joué sur GitHub : le déclencheur « push », le filtre « paths », la permission
+⑨ CE QUI CLOCHE — Rien n'est joué sur GitHub (la file « queue: max » de GitHub a été mesurée à part, le 18-11-2026,
+  sur les branches publiques essai-queue-refs-*-18-11-2026 ; commentaire de GROUPE_DU_RELAIS du fabricant) : le déclencheur « push », le filtre « paths », la permission
   « actions: write », le vrai « gh », la conversion par GitHub des entrées « number » et de la matrice JSON en texte
   sont IMITÉS (niveau 1 et 2 de la méthode, action 7). Le pas matrice tourne sous bash et non sous ETAPE_MUETTE.
   « LC_ALL=C » du relais n'est pas éprouvé seul : le contrôle ASCII le précède et refuse tout octet hors de l'ASCII
-  (seule la locale « C.utf8 » existe sur la machine du Chat). La course entre deux relais (le premier lance, le
-  passage n'est pas encore listé quand le second regarde) n'est pas éprouvée : THÉORIQUE.
+  (seule la locale « C.utf8 » existe sur la machine du Chat).
 ⑩ EFFET — Écrit dans des dossiers jetables, effacés à la fin.
 ⑪ TERMINAISON — Rend la main ; chaque lancement est borné à 120 secondes ; sort par sys.exit.
   [sort: oui]
@@ -126,6 +152,11 @@ TABLE = "tests/LANCEMENT_DES_EPREUVES.json"
 JOUEUR = "tests/outils/jouer_une_part.py"
 RASSEMBLEUR = "tests/outils/rassembler_les_parts.py"
 JOUEUR_D_EPREUVE = "tests/outils/jouer_une_epreuve_longue.py"   # 15-11-2026 (GHUB ②) : la matrice des épreuves longues
+DEPOSEUR = "programmes/DEPOSER_UNE_DEMANDE.py"     # 18-11-2026 (A-897/A-898) : le dépôt d'une demande
+JETON = "programmes/FORME_D_UN_JETON.py"     # 25-11-2026 (T5) : le motif de jeton que DEPOSER charge par son chemin
+# (via le fabricant, forme_d_un_jeton) pour masquer un refus de poussée. Copié avec les autres dans chaque copie
+# sabotée : sans lui, D10 tombe sur FileNotFoundError dans TOUTE copie, et chaque sabotage « mord » pour cette
+# seule raison (mesuré le 25-11-2026 sur S107 : « No such file or directory: …/FORME_D_UN_JETON.py »).
 GIT_ENV = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="essai",
                GIT_AUTHOR_EMAIL="essai@exemple.invalid", GIT_COMMITTER_NAME="essai",
                GIT_COMMITTER_EMAIL="essai@exemple.invalid")
@@ -135,8 +166,22 @@ GIT_ENV = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1"
 # table où deux séries ont échangé leur épreuve ou leurs réglages (la table seule ne peut pas se contredire).
 TEMOIN = {"HL": ("tests/EPREUVES_DE_L_HISTORIQUE_LONG_Dim_04-10-2026.py", 18, 6),
           "Yahoo": ("tests/EPREUVES_DU_COURS_PROPRE_DE_YAHOO_Jeu_22-10-2026.py", 2, 21)}
+# LE TÉMOIN DU RELAIS ANCIEN (25-11-2026, point T1 du RELU de travail-file-demandes ; R-732, une vraie ligne) : le nom
+# du groupe de concurrence du relais publié AVANT ce travail, encore présent sur des branches publiques (relevé du
+# relecteur, 18-11-2026 : « group: demande-de-serie | cancel-in-progress: false | » sur travail-t54 et dix autres ;
+# 26 branches hors main au relevé du 25-11-2026 à 13h23, BACKLOG A-988). Recopié VOLONTAIREMENT : c'est la référence
+# fixe qui fait rougir un relais fabriqué qui reprendrait ce nom (T1d) ; le lire dans le fabricant ne prouverait rien.
+ANCIEN_GROUPE_DU_RELAIS = "demande-de-serie"
 HORODATAGE = r"(?:Lun|Mar|Mer|Jeu|Ven|Sam|Dim)_[0-9]{2}-[0-9]{2}-[0-9]{4}_[0-9]{2}h[0-9]{2}"
-NOM = "demandes/DEMANDE_2026-11-08_17h00.txt"
+# Le nom des demandes des cas : l'heure de Paris du lancement de l'épreuve (18-11-2026 : une demande dont le nom a
+# plus de 24 h est refusée ; l'ancien nom fixe du 08-11-2026 l'aurait été).
+import datetime as _dt
+import zoneinfo as _zi
+_MAINTENANT = _dt.datetime.now(_zi.ZoneInfo("Europe/Paris"))
+HEURE = _MAINTENANT.strftime("%Y-%m-%d_%Hh%M")
+NOM = f"demandes/DEMANDE_{HEURE}.txt"
+NOM_PERIME = "demandes/DEMANDE_" + (_MAINTENANT - _dt.timedelta(hours=25)).strftime("%Y-%m-%d_%Hh%M") + ".txt"
+NOM_FUTUR = "demandes/DEMANDE_" + (_MAINTENANT + _dt.timedelta(hours=2)).strftime("%Y-%m-%d_%Hh%M") + ".txt"
 # Le faux gh (tour 2, relecture de Cowork du 08-11-2026, N1) : à « run list », il rend la LISTE JSON des passages
 # imités (FAUX_GH_PASSAGES) passée par le filtre « --jq » qu'il a reçu, appliqué par jq, comme le vrai gh ; avant,
 # il imprimait un compte tout fait et le filtre du relais n'était jamais éprouvé.
@@ -145,6 +190,8 @@ import json, os, subprocess, sys
 a = sys.argv[1:]
 with open(os.environ["FAUX_GH_JOURNAL"], "a", encoding="utf-8") as f:
     f.write(json.dumps({"args": a, "repo": os.environ.get("GH_REPO"), "jeton": os.environ.get("GH_TOKEN")}) + "\\n")
+if a[:2] == ["workflow", "run"] and os.environ.get("FAUX_GH_REFUS") == "1":
+    sys.exit("faux gh : lancement refuse")
 if a[:2] == ["run", "list"]:
     # étape FILE-2 (20-11-2026) : le relais lit l'état et le titre (qui porte les places) de chaque passage
     if "--jq" not in a or "--json" not in a or a[a.index("--json") + 1] != "status,displayTitle":
@@ -187,7 +234,7 @@ PIEGEES = [
     ("P05 octet nul", "serie=Yahoo\x00\n", "ASCII"),
     ("P06 valeur de 21 caractères", "serie=" + "A" * 21 + "\n", "illisible"),
     ("P07 clé donnée deux fois (NV-2)", "serie=HL\nlot_hl=13\nlot_hl=11\n", "deux fois"),
-    ("P08 clé version (Q2)", "serie=HL\nversion=main\n", "inconnue"),
+    ("P08 version d'une autre branche", "serie=HL\nversion=travail-x\n", "n'est pas la branche"),
     ("P09 point-virgule", "serie=HL;id\n", "illisible"),
     ("P10 substitution", "serie=$(id)\n", "illisible"),
     ("P11 expression de GitHub", "serie=${{github.token}}\n", "illisible"),
@@ -412,12 +459,17 @@ def tour(racine):
                            "jouer_la_part, rassembler)"]
         compteur = [0]
 
-        def depot(branche, fichiers, autres_commits=0, nouvelle_branche=False, modifier=False):
+        # les fiches des circuits que le relais lance, telles que le fabricant les écrit (18-11-2026), et le relais
+        # lui-même (25-11-2026, T1 : l'examen exige que le relais de la branche soit une file du groupe GROUPE_DU_RELAIS)
+        FICHES = {F.CIRCUIT_SERIES: F.SERIES, F.CIRCUIT_EPREUVES: F.EPREUVES, F.CIRCUIT_CERTIFICATION: F.CERTIFICATION,
+                  F.CIRCUIT_RELAIS: F.RELAIS}
+
+        def depot(branche, fichiers, autres_commits=0, nouvelle_branche=False, modifier=False, fiches=None):
             """Rend (avant, après, dossier) d'une poussée imitée : un dépôt, sa pointe d'avant, le commit poussé.
 
             ① RÔLE — Fabriquer la branche publique et la poussée que le relais reçoit.
             ② CONTEXTE D'APPEL — `relayer`, une fois par cas.
-            ③ ENTRÉE — `branche` ; `fichiers` : [(chemin, octets)] du commit poussé ; `autres_commits` : commits de code avant lui ; `nouvelle_branche` : pointe d'avant nulle ; `modifier` : la demande existe déjà à la base.
+            ③ ENTRÉE — `branche` ; `fichiers` : [(chemin, octets)] du commit poussé ; `autres_commits` : commits de code avant lui ; `nouvelle_branche` : pointe d'avant nulle ; `modifier` : la demande existe déjà à la base ; `fiches` : {chemin : texte} des circuits du commit de base (FICHES par défaut).
             ④ CONDITIONS D'ENTRÉE — —
             ⑤ SORTIE — TROIS valeurs : pointe d'avant (40 zéros si nouvelle branche), commit poussé, dossier. [rend: 3]
             ⑥ TRAITEMENT — git init, un commit de base, les commits demandés.
@@ -427,10 +479,14 @@ def tour(racine):
             ⑩ EFFET — Écrit dans le dossier jetable du tour.
             ⑪ TERMINAISON — Rend la main. [sort: non]
             """
+            fiches = FICHES if fiches is None else fiches
             compteur[0] += 1
             r = os.path.join(d, f"public_{compteur[0]}")
             lancer(["git", "init", "-q", "-b", branche, r])
             open(os.path.join(r, "LISEZMOI.txt"), "w").write("base\n")
+            for chemin, texte in fiches.items():
+                os.makedirs(os.path.dirname(os.path.join(r, chemin)), exist_ok=True)
+                open(os.path.join(r, chemin), "w", encoding="utf-8").write(texte)
             if modifier:
                 os.makedirs(os.path.join(r, "demandes"))
                 open(os.path.join(r, NOM), "w").write("serie=HL\n")
@@ -449,33 +505,61 @@ def tour(racine):
             return avant, lancer(["git", "-C", r, "rev-parse", "HEAD"])[1].strip(), r
 
         def relayer(branche, fichiers, en_cours='[{"status": "completed"}, {"status": "completed"}]', circuit=True,
-                    **forme):
+                    version=True, evenement="push", refus_gh=False, **forme):
             """Joue le relais sur une poussée imitée ; rend (code, sortie, appels de gh).
 
             ① RÔLE — Jouer le pas « relayer » du relais fabriqué comme GitHub le jouerait sur cette poussée.
-            ② CONTEXTE D'APPEL — `tour`, pour chaque cas V et P.
-            ③ ENTRÉE — `branche`, `fichiers`, `en_cours` (ce que le faux gh répond au compte des passages en cours), `forme` (passé à `depot`).
+            ② CONTEXTE D'APPEL — `tour`, pour chaque cas V, P, E, X et K.
+            ③ ENTRÉE — `branche`, `fichiers` ; `en_cours` : ce que le faux gh répond à « run list » (les passages
+              imités, étape FILE-2) ; `circuit`, `version` : ajouter « circuit=series » et « version=<branche> »
+              s'ils manquent ; `evenement` : push ou workflow_dispatch ; `refus_gh` : le faux gh refuse tout lancement ;
+              `forme` (passé à `depot`).
             ④ CONDITIONS D'ENTRÉE — —
             ⑤ SORTIE — TROIS valeurs : code du pas, sa sortie, la liste des appels de gh ({args, repo, jeton}). [rend: 3]
             ⑥ TRAITEMENT — contexte github.* imité ; environnement du bloc « env: » résolu ; bash -e -o pipefail ; le faux gh en tête du PATH.
             ⑦ UNITÉ — —
             ⑧ POURQUOI — Fiche en tête, ⑥.
-            ⑨ CE QUI CLOCHE — Le PATH réel suit le faux : une commande absente de la machine manquerait comme sur GitHub, pas davantage.
+            ⑨ CE QUI CLOCHE — Le PATH réel suit le faux : une commande absente de la machine manquerait comme sur GitHub, pas
+              davantage. Au bouton, GitHub ne fournit pas « github.event.before » : il est imité vide.
             ⑩ EFFET — Écrit dans le dossier jetable du tour.
             ⑪ TERMINAISON — Rend la main. [sort: non]
             """
             # le circuit (ajout du 08-11-2026, 18h06) : une demande sans « circuit= » reçoit « circuit=series » en tête,
-            # sauf `circuit=False` (cas P32) — les demandes des séries écrites avant l'ajout restent lisibles ici
+            # sauf `circuit=False` (cas E7) ; la version (18-11-2026) : « version=<branche> » sauf `version=False` (P37)
+            # ou si la demande la porte déjà (P08)
+            dem = lambda c: c.startswith("demandes/DEMANDE_")
             if circuit:
-                fichiers = [(c, o if c != NOM or b"circuit=" in o else b"circuit=series\n" + o) for c, o in fichiers]
+                fichiers = [(c, o if not dem(c) or b"circuit=" in o else b"circuit=series\n" + o) for c, o in fichiers]
+            if version:
+                fichiers = [(c, o if not dem(c) or b"version=" in o else b"version=" + branche.encode() + b"\n" + o)
+                            for c, o in fichiers]
             avant, apres, r = depot(branche, fichiers, **forme)
+            return jouer_le_relais(r, "" if evenement == "workflow_dispatch" else avant, apres, branche, evenement,
+                                   refus_gh, en_cours)
+
+        def jouer_le_relais(r, avant, apres, branche, evenement, refus_gh=False,
+                            en_cours='[{"status": "completed"}, {"status": "completed"}]'):
+            """Joue le pas « relayer » dans le dépôt `r` ; rend (code, sortie, appels de gh).
+
+            ① RÔLE — Le geste commun de `relayer` et du cas D2 (une demande déposée par DEPOSER_UNE_DEMANDE.py).
+            ② CONTEXTE D'APPEL — `relayer` ; le cas D2.
+            ③ ENTRÉE — `r` : le dépôt ; `avant`, `apres` : github.event.before et github.sha ; `branche` ; `evenement` ;
+              `refus_gh` ; `en_cours` (fiche de `relayer`).
+            ④ CONDITIONS D'ENTRÉE — `apres` est la copie de travail de `r` (le relais lit le commit, pas la copie).
+            ⑤ SORTIE — TROIS valeurs : code, sortie, appels de gh. [rend: 3]
+            ⑥ TRAITEMENT — Fiche de `relayer`, ⑥. ⑦ UNITÉ — — ⑧ POURQUOI — R-708 : un seul endroit imite GitHub.
+            ⑨ CE QUI CLOCHE — — ⑩ EFFET — Écrit dans le dossier jetable du tour. ⑪ TERMINAISON — Rend la main. [sort: non]
+            """
+            compteur[0] += 1
             rt = os.path.join(d, f"rt_{compteur[0]}")
             os.makedirs(rt)
             journal = os.path.join(rt, "gh.jsonl")
             contexte = {"github.event.before": avant, "github.sha": apres, "github.ref_name": branche,
-                        "github.repository": "essai/public", "github.token": "jeton-fictif-du-passage"}
+                        "github.repository": "essai/public", "github.token": "jeton-fictif-du-passage",
+                        "github.event_name": evenement}
             env = dict(GIT_ENV, PATH=outils + os.pathsep + os.environ["PATH"], RUNNER_TEMP=rt,
-                       FAUX_GH_JOURNAL=journal, FAUX_GH_PASSAGES=en_cours, **resoudre(env_relais, contexte))
+                       FAUX_GH_JOURNAL=journal, FAUX_GH_REFUS="1" if refus_gh else "0", FAUX_GH_PASSAGES=en_cours,
+                       **resoudre(env_relais, contexte))
             c, o = lancer(["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script_relais], env=env, cwd=r)
             appels = [json.loads(l) for l in open(journal, encoding="utf-8")] if os.path.exists(journal) else []
             return c, o, appels
@@ -538,6 +622,8 @@ def tour(racine):
             lu = dict(l.split("=", 1) for l in demande.split("\n") if l and not l.startswith("#"))
             if boutons.get("version") != branche:
                 ecarts.append(f"{nom} : version {boutons.get('version')}, attendue {branche}")
+            if appel.get("demande", True) and donnees.get("demande") != f"DEMANDE_{HEURE}@{branche}":
+                ecarts.append(f"{nom} : demande {donnees.get('demande')!r}, attendue DEMANDE_{HEURE}@{branche}")
             # A-811 (15-11-2026) : la pointe de la demande arrive telle quelle à l'entrée « pointe » du bouton
             if boutons.get("pointe", "") != lu.get("pointe", ""):
                 ecarts.append(f"{nom} : pointe {boutons.get('pointe')!r}, attendue {lu.get('pointe', '')!r}")
@@ -649,9 +735,10 @@ def tour(racine):
                 if "A BLANC" not in o or "parts_hl 5 ; lot_hl 9" not in o:
                     faux.append(f"{nom} : le journal à blanc ne dit pas les valeurs : {o[-300:]}")
                 continue
-            if lances(appels)[0]["args"][-4:-2] != ["-f", "premiere_place=1"]:
+            # fusion du 25-11-2026 : « … -f premiere_place=<p> -f nombre_de_places=<n> -f demande=<identifiant> »
+            if lances(appels)[0]["args"][-6:-4] != ["-f", "premiere_place=1"]:
                 faux.append(f"{nom} : aucun passage en cours, la première place lancée n'est pas la 1 : "
-                            f"{lances(appels)[0]['args'][-4:]}")
+                            f"{lances(appels)[0]['args'][-6:]}")
             faux += suivre(nom, branche, demande, lances(appels)[0])
         # V0 (tour 2, I-1) : le bouton « Run workflow » appuyé SANS relais, aucune entrée donnée sauf la version : les
         # valeurs par défaut DÉCLARÉES par le circuit des séries doivent mener le joueur aux valeurs de la table (et T0
@@ -659,7 +746,8 @@ def tour(racine):
         # n'étaient jamais exercés.
         faux += suivre("V0 bouton sans relais", "main", "serie=" + str(entrees.get("serie", {}).get("default")),
                        {"args": ["workflow", "run", os.path.basename(F.CIRCUIT_SERIES), "--ref", "main", "-f",
-                                 "version=main"], "repo": "essai/public", "jeton": "jeton-fictif-du-passage"})
+                                 "version=main"], "repo": "essai/public", "jeton": "jeton-fictif-du-passage",
+                        "demande": False})
         # P : les demandes piégées, chacune refusée pour sa raison, rien de lancé
         M = F.PLACES_LONGUES
 
@@ -700,7 +788,8 @@ def tour(racine):
             ④ CONDITIONS D'ENTRÉE — —
             ⑤ SORTIE — Aucune valeur : ajoute à `faux`. [rend: rien]
             ⑥ TRAITEMENT — faux si code non nul, ou pas exactement un lancement, ou s'il ne finit pas par
-              « -f premiere_place=<premiere> -f nombre_de_places=<nombre> ».
+              « -f premiere_place=<premiere> -f nombre_de_places=<nombre> -f demande=DEMANDE_… » (l'identifiant de la
+              demande en dernier depuis la fusion du 25-11-2026).
             ⑦ UNITÉ — —
             ⑧ POURQUOI — Une demande n'est JAMAIS refusée pour un passage en cours (A-884 ②, décision du 20-11-2026 à
               20h52) : elle part, sur les places les moins chargées.
@@ -709,9 +798,11 @@ def tour(racine):
             ⑪ TERMINAISON — Rend la main. [sort: non]
             """
             l = lances(appels)
-            if c != 0 or len(l) != 1 or l[0]["args"][-4:] != ["-f", f"premiere_place={premiere}", "-f",
-                                                               f"nombre_de_places={nombre}"]:
-                faux.append(f"{nom} : code {c}, lancements {[x['args'][-4:] for x in l]}, places attendues "
+            # fusion du 25-11-2026 : le relais lance « … <places> -f demande=<identifiant> » ; les places précèdent la demande
+            if (c != 0 or len(l) != 1 or l[0]["args"][-6:-2] != ["-f", f"premiere_place={premiere}", "-f",
+                                                                  f"nombre_de_places={nombre}"]
+                    or l[0]["args"][-2] != "-f" or not l[0]["args"][-1].startswith("demande=DEMANDE_")):
+                faux.append(f"{nom} : code {c}, lancements {[x['args'][-6:] for x in l]}, places attendues "
                             f"{premiere}+{nombre} : {o[-200:]}")
 
         def refus(nom, attendu, c, o, appels):
@@ -805,14 +896,15 @@ def tour(racine):
                          os.path.basename(F.CIRCUIT_CERTIFICATION): [passage("c places 11+3", "queued")]})))
         # Q5bis : le titre de la certification porte ses places, même lancée à l'heure (sans entrée) : ses tranches
         # occupent toujours les places 1 … TRANCHES_DE_LA_NUIT
-        if f'\nrun-name: "Certifier la version places 1+{F.TRANCHES_DE_LA_NUIT}"\n' not in (F.CERTIFICATION or ""):
+        if (f'\nrun-name: "Certifier la version {F.TITRE_DU_PASSAGE} places 1+{F.TRANCHES_DE_LA_NUIT}"\n'
+                not in (F.CERTIFICATION or "")):
             faux.append("Q5bis le titre de la certification ne dit pas ses places")
         # Q7 : la propriété du réservoir dans le fabricant — chaque fiche longue est une fiche du réservoir
         for g in (F.SERIES, F.EPREUVES, F.CERTIFICATION):
             if F.largeur_d_une_fiche(g or "")[0] != F.RESERVOIR_DES_PLACES:
                 faux.append("Q7 une fiche longue n'est pas une fiche du réservoir des places")
         # (tour 3, C3 de Cowork) une demande d'exactement 1 000 octets passe
-        mille = b"circuit=series\nserie=HL\n"
+        mille = b"circuit=series\nversion=main\nserie=HL\n"
         mille += b"#" * (1000 - len(mille) - 1) + b"\n"
         c, o, appels = relayer("main", [(NOM, mille)])
         if len(mille) != 1000 or c != 0 or len(lances(appels)) != 1:
@@ -820,16 +912,28 @@ def tour(racine):
         # G (tour 3, N5, N6, N7 de Cowork) : les réglages du GABARIT du relais, que l'empreinte ne garde pas (elle dit
         # seulement « publié = fabriqué ») : déclencheur unique sur demandes/, machine de GitHub, clonage à deux commits
         # sans jeton gardé, et gh employé seulement pour « run list » et « workflow run »
-        for nom, motif in (("G1 déclencheur push sur demandes/ seulement", r'\non:\n  push:\n    paths:\n      - "demandes/\*\*"\nconcurrency:'),
+        for nom, motif in (("G1 déclencheurs : push sur demandes/ et le bouton, rien d'autre",
+                            r'\non:\n  push:\n    paths:\n      - "demandes/\*\*"\n  workflow_dispatch:\nconcurrency:'),
+                           ("G5 groupe FIXE commun, en file (A-896)", r"\nconcurrency:\n  group: "
+                            + re.escape(F.GROUPE_DU_RELAIS) + r"\n  cancel-in-progress: false\n  queue: max\npermissions:"),
                            ("G2 machine de GitHub", r"\n    runs-on: ubuntu-latest\n"),
                            ("G3 clonage à deux commits, sans jeton gardé", r"\n          fetch-depth: 2\n          persist-credentials: false\n")):
             if len(re.findall(motif, F.RELAIS)) != 1:
                 faux.append(f"{nom} : le gabarit du relais ne porte plus ce réglage")
-        if len(re.findall(r"\nconcurrency:\n  group: demande-de-serie\n  cancel-in-progress: false\n  queue: max\n", F.RELAIS)) != 1:
-            faux.append("G5 le relais ne fait pas file de ses propres passages (« queue: max ») : une demande serait annulée")
+        # T1d (25-11-2026, point T1 du RELU) : le groupe du relais n'est PAS celui des relais anciens encore publiés.
+        # LE TÉMOIN (R-732, une vraie ligne) : le bloc « concurrency: » de .github/workflows/demande_de_serie.yml sur la
+        # branche publique travail-t54, relevé par le relecteur le 18-11-2026 (« group: demande-de-serie |
+        # cancel-in-progress: false | », sans queue) ; recopié ici VOLONTAIREMENT : c'est la référence fixe.
+        if F.GROUPE_DU_RELAIS == ANCIEN_GROUPE_DU_RELAIS or ("\n  group: " + ANCIEN_GROUPE_DU_RELAIS + "\n") in F.RELAIS:
+            faux.append(f"T1d le relais fabriqué porte le groupe des relais anciens ({ANCIEN_GROUPE_DU_RELAIS}) : un ancien "
+                        "relais sans « queue: max » y annulerait en silence une demande en attente")
         usages = sorted(set(re.findall(r"\bgh ([a-z]+ [a-z]+)", F.RELAIS)))
         if usages != ["run list", "workflow run"] or len(re.findall(r"runs-on:", F.RELAIS)) != 1:
             faux.append(f"G4 gh employé autrement que « run list » et « workflow run », ou plus d'un job : {usages}")
+        # le relais est dans la famille JAMAIS_ATTENDRE de la largeur : son groupe fixe se compte (refus_de_la_largeur)
+        refus_l, _ = F.refus_de_la_largeur({os.path.basename(F.CIRCUIT_RELAIS): F.RELAIS})
+        if refus_l:
+            faux.append(f"G6 le relais fabriqué refusé par la largeur : {refus_l}")
         # E : l'examen de certification à la demande (décision de Jean-Luc du 08-11-2026 à 18h06, « Ok vas y ») — une
         # ligne de plus dans CIRCUITS_DU_RELAIS ; la valeur « circuit=examen » doit arriver au bouton de l'examen, et à
         # lui seul, depuis main seulement, sans réglage
@@ -843,7 +947,10 @@ def tour(racine):
             attendus = [] if a_blanc else [["workflow", "run", certification, "--ref", "main", "-f", "premiere_place=1",
                                             "-f", f"nombre_de_places={F.TRANCHES_DE_LA_NUIT}"]]
             listes = [x["args"][2:4] for x in appels if x["args"][:2] == ["run", "list"]]
-            if c != 0 or [x["args"] for x in lances(appels)] != attendus or listes != [["--workflow", w] for w in LONGS]:
+            # fusion du 25-11-2026 : chaque lancement finit par « -f demande=<identifiant> », retiré avant la comparaison
+            vus = [x["args"][:-2] for x in lances(appels)]
+            if (c != 0 or vus != attendus or listes != [["--workflow", w] for w in LONGS]
+                    or any(x["args"][-1] != f"demande=DEMANDE_{HEURE}@main" for x in lances(appels))):
                 faux.append(f"{nom} : code {c}, lancements {[x['args'] for x in lances(appels)]}, run list {listes} : {o[-200:]}")
         refus("E3 examen depuis une version en attente", "ne se lance pas depuis",
               *relayer("travail-essai", [(NOM, b"circuit=examen\n")]))
@@ -878,8 +985,8 @@ def tour(racine):
                                                 "-f", f"pointe={pointe}", "-f", f"epreuves={liste}", "-f", "premiere_place=1",
                                                 "-f", f"nombre_de_places={len(codes) if liste == 'toutes' else len(liste.split(','))}"]]
                 listes = [x["args"][2:4] for x in appels if x["args"][:2] == ["run", "list"]]
-                if (c != 0 or [x["args"] for x in lances(appels)] != attendus
-                        or sorted(listes) != sorted([["--workflow", w] for w in LONGS])):
+                vus = [x["args"][:-2] for x in lances(appels)]   # sans « -f demande=… » (fusion du 25-11-2026)
+                if c != 0 or vus != attendus or sorted(listes) != sorted([["--workflow", w] for w in LONGS]):
                     faux.append(f"{nom} : code {c}, lancements {[x['args'] for x in lances(appels)]}, run list {listes} : "
                                 f"{o[-200:]}")
                     continue
@@ -897,22 +1004,21 @@ def tour(racine):
                 vus = [x.get("code") for x in json.loads(lu.get("matrice", "[]"))]
                 if c != 0 or vus != (codes if liste == "toutes" else liste.split(",")):
                     faux.append(f"{nom} : matrice {vus}, code {c} : {o[-200:]}")
-            for nom, attendu, branche, demande, en_cours in (
-                    ("X4 épreuve inconnue", "epreuve inconnue", "main", "circuit=epreuve\nepreuves=Inconnue\n", None),
+            for nom, attendu, branche, demande in (
+                    ("X4 épreuve inconnue", "epreuve inconnue", "main", "circuit=epreuve\nepreuves=Inconnue\n"),
                     ("X5 épreuve demandée deux fois", "deux fois", "main",
-                     f"circuit=epreuve\nepreuves={codes[0]},{codes[0]}\n", None),
+                     f"circuit=epreuve\nepreuves={codes[0]},{codes[0]}\n"),
                     ("X6 version en attente sans pointe", "pointe manque", "travail-essai",
-                     f"circuit=epreuve\nepreuves={codes[0]}\n", None),
+                     f"circuit=epreuve\nepreuves={codes[0]}\n"),
                     ("X7 épreuve avec un réglage de série", "ne prend que", "main",
-                     f"circuit=epreuve\nepreuves={codes[0]}\nserie=HL\n", None),
-                    ("X8 série avec une liste d'épreuves", "ne vaut que", "main", f"serie=HL\nepreuves={codes[0]}\n", None),
+                     f"circuit=epreuve\nepreuves={codes[0]}\nserie=HL\n"),
+                    ("X8 série avec une liste d'épreuves", "ne vaut que", "main", f"serie=HL\nepreuves={codes[0]}\n"),
                     ("X11 liste avec un point-virgule", "codes separes", "main",
-                     f"circuit=epreuve\nepreuves={codes[0]};id\n", None),
-                    ("X12 clé epreuves absente", "epreuves manque", "main", "circuit=epreuve\n", None),
+                     f"circuit=epreuve\nepreuves={codes[0]};id\n"),
+                    ("X12 clé epreuves absente", "epreuves manque", "main", "circuit=epreuve\n"),
                     ("X13 liste donnée deux fois", "deux fois", "main",
-                     f"circuit=epreuve\nepreuves={codes[0]}\nepreuves={codes[1]}\n", None)):
-                refus(nom, attendu, *relayer(branche, [(NOM, demande.encode())],
-                                             **({"en_cours": en_cours} if en_cours else {})))
+                     f"circuit=epreuve\nepreuves={codes[0]}\nepreuves={codes[1]}\n")):
+                refus(nom, attendu, *relayer(branche, [(NOM, demande.encode())]))
         # X9, X10 (étape FILE-2) : un passage de l'AUTRE circuit long : la demande part, sur les places libres
         if len(codes) >= 1:
             accepte("X9 épreuves pendant une série en attente (places 1+4)", attendu_premiere(["s places 1+4"], 1), "1",
@@ -921,6 +1027,304 @@ def tour(racine):
             accepte("X10 série pendant des épreuves en cours (places 2+3)", attendu_premiere(["e places 2+3"], int(hl)), hl,
                     *relayer("main", [(NOM, DHL)],
                              en_cours=json.dumps({epreuves: [{"status": "in_progress", "displayTitle": "e places 2+3"}]})))
+        # K (18-11-2026, A-897/A-898, troisième superviseur R-759) : la file est celle de GitHub ; le relais lance
+        # aussitôt, au push comme au bouton, et refuse une fiche visée qui ne porte pas « queue: max »
+        c, o, appels = relayer("main", [(NOM, b"serie=HL\n")], en_cours=json.dumps(
+            {os.path.basename(F.CIRCUIT_SERIES): [{"status": "queued", "displayTitle": "x places 1+2"}]}))
+        if c != 0 or [x["args"][:2] for x in appels] != [["run", "list"]] * len(LONGS) + [["workflow", "run"]]:
+            faux.append(f"K1 un passage des séries en attente : le relais doit lire les trois circuits longs puis lancer "
+                        f"aussitôt : code {c}, {[x['args'] for x in appels]}")
+        c, o, appels = relayer("main", [(NOM, b"serie=HL\n")], evenement="workflow_dispatch")
+        if c != 0 or len(lances(appels)) != 1 or lances(appels)[0]["args"][-1] != f"demande=DEMANDE_{HEURE}@main":
+            faux.append(f"K2 au bouton, la demande du dernier commit : code {c}, {[x['args'] for x in appels]} : {o[-200:]}")
+        refus("K3 au bouton sur un commit de code", "nom refuse",
+              *relayer("main", [("programmes/X.py", b"x = 1\n")], evenement="workflow_dispatch"))
+        serie_f = F.SERIES
+        if serie_f.count("\n  queue: max\n") != 1:
+            faux.append("K0 la fiche des séries ne porte pas une fois « queue: max »")
+        sans_file = serie_f.replace("\n  queue: max\n", "\n", 1)
+        refus("K4 fiche visée sans queue: max", "queue: max",
+              *relayer("main", [(NOM, b"serie=HL\n")], fiches=dict(FICHES, **{F.CIRCUIT_SERIES: sans_file})))
+        ailleurs = sans_file.replace("\npermissions:\n", "\npermissions:\n  queue: max\n", 1)
+        refus("K5 queue: max écrit hors de concurrency:", "queue: max",
+              *relayer("main", [(NOM, b"serie=HL\n")], fiches=dict(FICHES, **{F.CIRCUIT_SERIES: ailleurs})))
+        refus("K6 fiche visée absente de la branche", "absente",
+              *relayer("main", [(NOM, b"serie=HL\n")],
+                       fiches={k: v for k, v in FICHES.items() if k != F.CIRCUIT_SERIES}))
+        # K10 (T4 du RELU du 18-11-2026, mesuré par le relecteur sur une variante) : « queue: max » ET
+        # « cancel-in-progress: true » annulerait le passage EN COURS du groupe
+        annule = serie_f.replace("\n  cancel-in-progress: false\n  queue: max\n", "\n  cancel-in-progress: true\n  queue: max\n", 1)
+        if annule == serie_f:
+            faux.append("K10 la fiche des séries n'a plus le bloc attendu (« cancel-in-progress: false » puis « queue: max »)")
+        refus("K10 fiche visée à cancel-in-progress: true", "n'est pas une file",
+              *relayer("main", [(NOM, b"serie=HL\n")], fiches=dict(FICHES, **{F.CIRCUIT_SERIES: annule})))
+        # K11 (E2 du RELU du 25-11-2026) : toute valeur de « cancel-in-progress » autre que « false » exact est refusée ;
+        # GitHub lit « ${{ true }} » comme vrai (les majuscules : THÉORIQUE), une telle fiche annulerait le passage en cours
+        for valeur in ("True", "${{ true }}", "yes"):
+            autre = serie_f.replace("\n  cancel-in-progress: false\n  queue: max\n",
+                                    f"\n  cancel-in-progress: {valeur}\n  queue: max\n", 1)
+            refus(f"K11 fiche visée à cancel-in-progress: {valeur}", "n'est pas une file",
+                  *relayer("main", [(NOM, b"serie=HL\n")], fiches=dict(FICHES, **{F.CIRCUIT_SERIES: autre})))
+        # T1a à T1c (25-11-2026, point T1 du RELU) : le relais DE LA BRANCHE doit être une file du groupe GROUPE_DU_RELAIS.
+        # T1a : le relais ancien tel que publié (bloc du témoin ANCIEN_GROUPE_DU_RELAIS, sans « queue: max »)
+        bloc_neuf = f"\nconcurrency:\n  group: {F.GROUPE_DU_RELAIS}\n  cancel-in-progress: false\n  queue: max\n"
+        if F.RELAIS.count(bloc_neuf) != 1:
+            faux.append("T1 le relais fabriqué n'a pas une fois le bloc de file attendu")
+        for nom, bloc in (
+                ("T1a relais ancien sur la branche (groupe ancien, sans queue: max)",
+                 f"\nconcurrency:\n  group: {ANCIEN_GROUPE_DU_RELAIS}\n  cancel-in-progress: false\n"),
+                ("T1b relais en file sous le nom ancien",
+                 f"\nconcurrency:\n  group: {ANCIEN_GROUPE_DU_RELAIS}\n  cancel-in-progress: false\n  queue: max\n"),
+                ("T1c relais du groupe neuf sans queue: max",
+                 f"\nconcurrency:\n  group: {F.GROUPE_DU_RELAIS}\n  cancel-in-progress: false\n")):
+            refus(nom, "relais de cette branche n'est pas une file",
+                  *relayer("main", [(NOM, b"serie=HL\n")],
+                           fiches=dict(FICHES, **{F.CIRCUIT_RELAIS: F.RELAIS.replace(bloc_neuf, bloc, 1)})))
+        c, o, appels = relayer("main", [(NOM, b"serie=HL\n")], refus_gh=True)
+        if c == 0 or "LANCEMENT REFUSE PAR GITHUB" not in o:
+            faux.append(f"K7 lancement refusé par GitHub : code {c} : {o[-200:]}")
+        refus("K8 nom de plus de 24 h", "plus de 24", *relayer("main", [(NOM_PERIME, b"serie=HL\n")]))
+        refus("K9 nom dans le futur", "futur", *relayer("main", [(NOM_FUTUR, b"serie=HL\n")]))
+        refus("P37 clé version absente", "version manque", *relayer("main", [(NOM, b"serie=HL\n")], version=False))
+        # D (18-11-2026) : programmes/DEPOSER_UNE_DEMANDE.py — nom à l'horloge, pointe lue au privé, examen du relais
+        # joué avant la poussée, un commit d'un seul fichier dont le parent est la pointe publique
+        depose = os.path.join(racine, DEPOSEUR)
+        if not os.path.exists(depose):
+            faux.append(f"D0 {DEPOSEUR} absent")
+        else:
+            prive = os.path.join(d, "prive_d")
+            lancer(["git", "init", "-q", "-b", "main", prive])
+            lancer(["git", "-C", prive, "commit", "-q", "--allow-empty", "-m", "v1"])
+            lancer(["git", "-C", prive, "checkout", "-q", "-b", "travail-z"])
+            lancer(["git", "-C", prive, "commit", "-q", "--allow-empty", "-m", "v2"])
+            pointe_z = lancer(["git", "-C", prive, "rev-parse", "travail-z"])[1].strip()
+            nu = os.path.join(d, "public_d.git")
+            lancer(["git", "init", "-q", "--bare", nu])
+            graine = os.path.join(d, "graine_d")
+            lancer(["git", "init", "-q", "-b", "main", graine])
+            for chemin, texte in dict(FICHES, **{F.CIRCUIT_RELAIS: F.RELAIS}).items():
+                os.makedirs(os.path.dirname(os.path.join(graine, chemin)), exist_ok=True)
+                open(os.path.join(graine, chemin), "w", encoding="utf-8").write(texte)
+            lancer(["git", "-C", graine, "add", "-A"])
+            lancer(["git", "-C", graine, "commit", "-q", "-m", "base"])
+            lancer(["git", "-C", graine, "push", "-q", nu, "main:main", "main:travail-z"])
+            # D9 (25-11-2026, T1 ②) : une branche publique travail-y dont le relais est l'ANCIEN (bloc du témoin)
+            lancer(["git", "-C", graine, "checkout", "-q", "-b", "travail-y"])
+            open(os.path.join(graine, F.CIRCUIT_RELAIS), "w", encoding="utf-8").write(F.RELAIS.replace(
+                f"\n  group: {F.GROUPE_DU_RELAIS}\n  cancel-in-progress: false\n  queue: max\n",
+                f"\n  group: {ANCIEN_GROUPE_DU_RELAIS}\n  cancel-in-progress: false\n", 1))
+            lancer(["git", "-C", graine, "commit", "-q", "-am", "relais ancien"])
+            lancer(["git", "-C", graine, "push", "-q", nu, "travail-y:travail-y"])
+            lancer(["git", "-C", prive, "branch", "-q", "travail-y", "travail-z"])
+            clone_d = os.path.join(d, "clone_d")
+            lancer(["git", "clone", "-q", nu, clone_d])
+
+            def deposer(*args):
+                """Lance le programme de dépôt sur le clone d'essai ; rend (code, sortie).
+
+                ① RÔLE — Un lancement du programme éprouvé. ② CONTEXTE D'APPEL — `tour`, cas D.
+                ③ ENTRÉE — `args` : branche et réglages. ④ CONDITIONS D'ENTRÉE — —
+                ⑤ SORTIE — DEUX valeurs : code, sortie. [rend: 2] ⑥ TRAITEMENT — python3 -B, --prive= le dépôt d'essai.
+                ⑦ UNITÉ — — ⑧ POURQUOI — — ⑨ CE QUI CLOCHE — — ⑩ EFFET — Peut pousser au dépôt nu d'essai.
+                ⑪ TERMINAISON — Rend la main. [sort: non]
+                """
+                return lancer([sys.executable, "-B", depose, clone_d] + list(args) + ["--prive=" + prive])
+
+            def pointe_publique(branche):
+                """Rend la pointe d'une branche du dépôt nu d'essai.
+
+                ① RÔLE — Voir ce qui a été poussé. ② CONTEXTE D'APPEL — `tour`, cas D. ③ ENTRÉE — `branche`.
+                ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — UNE valeur : le commit. [rend: 1] ⑥ TRAITEMENT — rev-parse.
+                ⑦ UNITÉ — — ⑧ POURQUOI — — ⑨ CE QUI CLOCHE — — ⑩ EFFET — Aucun. ⑪ TERMINAISON — Rend la main.
+                [sort: non]
+                """
+                return lancer(["git", "-C", nu, "rev-parse", branche])[1].strip()
+
+            avant_z = pointe_publique("travail-z")
+            c, o = deposer("travail-z", "circuit=series", "serie=HL", "--pousser")
+            apres_z = pointe_publique("travail-z")
+            m = re.search(r"DEPOSEE : DEMANDE_(" + F.HEURE_DE_DEMANDE + r")@travail-z$", o.strip())
+            if c != 0 or not m:
+                faux.append(f"D1 dépôt d'une série sur une version en attente : code {c} : {o[-300:]}")
+            else:
+                nom_d = f"demandes/DEMANDE_{m.group(1)}.txt"
+                changes = lancer(["git", "-C", nu, "diff-tree", "--no-commit-id", "-r", "--name-status", avant_z,
+                                  apres_z])[1].strip().split("\n")
+                parent = lancer(["git", "-C", nu, "rev-parse", apres_z + "^1"])[1].strip()
+                texte = lancer(["git", "-C", nu, "show", f"{apres_z}:{nom_d}"])[1]
+                if (changes != ["A\t" + nom_d] or parent != avant_z
+                        or texte != f"circuit=series\nversion=travail-z\npointe={pointe_z}\nserie=HL\n"):
+                    faux.append(f"D1 commit déposé : changements {changes}, parent {parent == avant_z}, texte {texte!r}")
+                # D2 : le relais, sur la branche après la poussée, examine la demande déposée et la lance
+                r2 = os.path.join(d, "relais_d")
+                lancer(["git", "clone", "-q", "-b", "travail-z", nu, r2])
+                c2, o2, ap2 = jouer_le_relais(r2, avant_z, apres_z, "travail-z", "push")
+                if c2 != 0 or [x["args"][-1] for x in lances(ap2)] != [f"demande=DEMANDE_{m.group(1)}@travail-z"]:
+                    faux.append(f"D2 la demande déposée n'est pas lancée par le relais : code {c2} : {o2[-300:]}")
+            for nom, args, raison in (
+                    ("D3 clé inconnue : refusée par l'examen du relais, rien poussé",
+                     ("main", "circuit=series", "serie=HL", "couleur=rouge", "--pousser"), "cle inconnue"),
+                    ("D4 pointe donnée à la main : refusée", ("main", "circuit=series", "serie=HL",
+                                                              "pointe=" + "a" * 40, "--pousser"), "pointe n'est pas"),
+                    ("D5 version donnée à la main : refusée", ("main", "circuit=examen", "version=main", "--pousser"),
+                     "version n'est pas"),
+                    ("D6 examen avec un réglage de série : refusé par l'examen du relais",
+                     ("main", "circuit=examen", "serie=HL", "--pousser"), "aucun reglage"),
+                    ("D7 série inconnue : refusée par l'examen du relais",
+                     ("main", "circuit=series", "serie=Inconnue", "--pousser"), "serie inconnue")):
+                avant_m = pointe_publique("main")
+                c, o = deposer(*args)
+                if c != 1 or raison not in o or pointe_publique("main") != avant_m:
+                    faux.append(f"{nom} : code {c}, poussé {pointe_publique('main') != avant_m} : {o[-300:]}")
+            avant_y = pointe_publique("travail-y")
+            c, o = deposer("travail-y", "circuit=series", "serie=HL", "--pousser")
+            if c != 1 or "relais de cette branche n'est pas une file" not in o or pointe_publique("travail-y") != avant_y:
+                faux.append(f"D9 dépôt sur une branche au relais ancien : code {c}, poussé "
+                            f"{pointe_publique('travail-y') != avant_y} : {o[-300:]}")
+            # D10 (25-11-2026, T5 du RELU, partie sans décision) : une poussée refusée par un crochet du clone, alors que la
+            # branche n'a pas avancé, n'est PAS une course : le refus s'affiche en entier, une seule fois, code 2, rien poussé
+            crochet = os.path.join(clone_d, ".git", "hooks", "pre-push")
+            # le refus porte aussi deux accès FACTICES (fabriqués ici, jamais un vrai) : une adresse « https://<accès>@ »
+            # sans préfixe de jeton, et une chaîne de la forme d'un jeton ; aucun ne doit ressortir en clair (masque)
+            faux_jeton = "gh" + "p_" + "Z" * 36
+            open(crochet, "w").write("#!/bin/sh\necho 'REFUS DU CROCHET D ESSAI' >&2\necho 'adresse https://ACCESFACTICE@exemple.invalid/d " + faux_jeton
+                                     + "' >&2\necho '" + "x" * 300 + "' >&2\nexit 1\n")
+            os.chmod(crochet, 0o755)
+            avant_m = pointe_publique("main")
+            c, o = deposer("main", "circuit=examen", "--pousser")
+            os.remove(crochet)
+            # le diagnostic nomme CHAQUE sous-condition manquée (superviseur R-759 du 25-11-2026, point 5 : la queue de la
+            # sortie, noyée par les 300 « x » du crochet, ne disait pas laquelle) ; aucune sortie recopiée (accès factices)
+            manque = [n for n, ko in (
+                (f"code {c} au lieu de 2", c != 2),
+                ("motif du crochet absent", "REFUS DU CROCHET D ESSAI" not in o),
+                (f"{o.count('poussée refusée (essai')} essai(s) au lieu de 1", o.count("poussée refusée (essai") != 1),
+                ("« n'a pas avancé » absent", "n'a pas avancé" not in o),
+                ("poussé au public", pointe_publique("main") != avant_m),
+                ("adresse à accès en clair", "ACCESFACTICE" in o),
+                ("forme de jeton en clair", faux_jeton in o),
+                ("adresse masquée absente", "https://***@exemple.invalid" not in o)) if ko]
+            if manque:
+                faux.append("D10 refus du crochet : " + " ; ".join(manque))
+            # D11 (25-11-2026, superviseur R-759 point 4 : la branche « code 2 » sans sabotage propre) : le module du
+            # masque illisible (copie du programme SANS programmes/FORME_D_UN_JETON.py) → rien de conclu, code 2, le refus
+            # n'est PAS affiché (il pourrait montrer un accès), rien poussé
+            sans = os.path.join(d, "sans_masque")
+            for f_ in (FABRICANT, TABLE, JOUEUR, RASSEMBLEUR, JOUEUR_D_EPREUVE, DEPOSEUR):
+                os.makedirs(os.path.dirname(os.path.join(sans, f_)), exist_ok=True)
+                shutil.copyfile(os.path.join(racine, f_), os.path.join(sans, f_))
+            open(crochet, "w").write("#!/bin/sh\necho 'REFUS DU CROCHET D ESSAI https://ACCESFACTICE@exemple.invalid/d' >&2\nexit 1\n")
+            os.chmod(crochet, 0o755)
+            avant_m = pointe_publique("main")
+            c, o = lancer([sys.executable, "-B", os.path.join(sans, DEPOSEUR), clone_d, "main", "circuit=examen",
+                           "--pousser", "--prive=" + prive])
+            os.remove(crochet)
+            manque = [n for n, ko in (
+                (f"code {c} au lieu de 2", c != 2),
+                ("« masque des accès illisible » absent", "masque des accès illisible" not in o),
+                ("refus affiché sans masque", "REFUS DU CROCHET" in o or "ACCESFACTICE" in o),
+                ("poussé au public", pointe_publique("main") != avant_m)) if ko]
+            if manque:
+                faux.append("D11 masque illisible : " + " ; ".join(manque))
+            # D12 (C1 du RELU du 25-11-2026) : une COURSE PERDUE. Le crochet, à son premier passage, pousse un commit
+            # intrus sur la branche du dépôt nu, s'efface et refuse : la branche a avancé, DEPOSER doit retenter et
+            # déposer au-dessus de l'intrus. Branche à elle (travail-course) : une demande déposée sur main ferait
+            # attendre la minute suivante au dépôt de D8.
+            lancer(["git", "-C", nu, "branch", "-q", "travail-course", "main"])
+            lancer(["git", "-C", prive, "branch", "-q", "travail-course", "travail-z"])   # circuit examen : main seule
+            trace = os.path.join(d, "intrus")
+            open(crochet, "w").write(
+                "#!/bin/sh\nNU='" + nu + "'\n"
+                "TIP=$(git --git-dir=\"$NU\" rev-parse refs/heads/travail-course) || exit 3\n"
+                "NEW=$(git -c user.name=essai -c user.email=essai@exemple.invalid --git-dir=\"$NU\" commit-tree "
+                "\"$TIP^{tree}\" -p \"$TIP\" -m intrus) || exit 3\n"
+                "git --git-dir=\"$NU\" update-ref refs/heads/travail-course \"$NEW\" \"$TIP\" || exit 3\n"
+                "echo \"$NEW\" > '" + trace + "'\nrm -f \"$0\"\necho 'REFUS DE COURSE' >&2\nexit 1\n")
+            os.chmod(crochet, 0o755)
+            c, o = deposer("travail-course", "circuit=series", "serie=HL", "--pousser")
+            if os.path.exists(crochet):
+                os.remove(crochet)
+            intrus = open(trace).read().strip() if os.path.exists(trace) else ""
+            apres = pointe_publique("travail-course")
+            parent = lancer(["git", "-C", nu, "rev-parse", apres + "^1"])[1].strip() if intrus else ""
+            manque = [n for n, ko in (
+                (f"code {c} au lieu de 0", c != 0),
+                ("intrus non poussé par le crochet", not intrus),
+                (f"{o.count('poussée refusée (essai')} refus affiché(s) au lieu de 1", o.count("poussée refusée (essai") != 1),
+                ("« DEPOSEE » absent", "DEPOSEE : DEMANDE_" not in o),
+                ("la demande n'est pas au-dessus de l'intrus", bool(intrus) and parent != intrus)) if ko]
+            if manque:
+                faux.append("D12 course perdue : " + " ; ".join(manque))
+            # D13 (C4 du RELU du 25-11-2026) : une poussée SANS RÉPONSE dans le délai (crochet qui dort 4 s, délai réduit
+            # à 2 s) a pu aboutir : code 2, et le dire ; jamais code 1 (« refusée, rien n'est poussé »).
+            lancer(["git", "-C", nu, "branch", "-q", "travail-lent", "main"])
+            lancer(["git", "-C", prive, "branch", "-q", "travail-lent", "travail-z"])
+            open(crochet, "w").write("#!/bin/sh\nsleep 4\nexit 0\n")
+            os.chmod(crochet, 0o755)
+            c, o = lancer([sys.executable, "-B", depose, clone_d, "travail-lent", "circuit=series", "serie=HL", "--pousser",
+                           "--prive=" + prive], env=dict(GIT_ENV, DEPOSER_DELAI_DE_GIT_EN_SECONDES="2"))
+            os.remove(crochet)
+            manque = [n for n, ko in (
+                (f"code {c} au lieu de 2", c != 2),
+                ("« PU aboutir » absent", "PU aboutir" not in o)) if ko]
+            if manque:
+                faux.append("D13 poussée sans réponse : " + " ; ".join(manque))
+            # D14 (N3 du RELU du 25-11-2026) : après un refus, la branche ne se lit plus (le crochet rend l'adresse de
+            # « origin » fausse) : rien ne dit si c'est une course → code 2, rien retenté, rien poussé.
+            adresse = lancer(["git", "-C", clone_d, "config", "remote.origin.url"])[1].strip()
+            open(crochet, "w").write("#!/bin/sh\ngit config remote.origin.url '" + os.path.join(d, "absent")
+                                     + "'\necho 'REFUS AVANT PANNE' >&2\nexit 1\n")
+            os.chmod(crochet, 0o755)
+            avant_m = pointe_publique("main")
+            c, o = deposer("main", "circuit=examen", "--pousser")
+            os.remove(crochet)
+            lancer(["git", "-C", clone_d, "config", "remote.origin.url", adresse])
+            manque = [n for n, ko in (
+                (f"code {c} au lieu de 2", c != 2),
+                ("« rien ne dit si c'est une course » absent", "rien ne dit si c'est une course" not in o),
+                (f"{o.count('poussée refusée (essai')} refus affiché(s) au lieu de 1", o.count("poussée refusée (essai") != 1),
+                ("poussé au public", pointe_publique("main") != avant_m)) if ko]
+            if manque:
+                faux.append("D14 branche illisible après le refus : " + " ; ".join(manque))
+            # D15 (N1, N2 du RELU du 25-11-2026) : un refus LONG, une adresse à accès FACTICE au début et une autre à la
+            # fin : affiché du début à la fin (une coupe d'un côté ou de l'autre se voit), et les DEUX adresses masquées.
+            open(crochet, "w").write("#!/bin/sh\necho 'DEBUT DU REFUS https://ACCESUN@a.invalid/d' >&2\necho '"
+                                     + "y" * 300 + "' >&2\necho 'https://ACCESDEUX@b.invalid/d FIN DU REFUS' >&2\nexit 1\n")
+            os.chmod(crochet, 0o755)
+            c, o = deposer("main", "circuit=examen", "--pousser")
+            os.remove(crochet)
+            manque = [n for n, ko in (
+                ("début du refus absent", "DEBUT DU REFUS" not in o),
+                ("fin du refus absente", "FIN DU REFUS" not in o),
+                ("première adresse en clair", "ACCESUN" in o),
+                ("seconde adresse en clair", "ACCESDEUX" in o),
+                ("première adresse masquée absente", "https://***@a.invalid" not in o),
+                ("seconde adresse masquée absente", "https://***@b.invalid" not in o),
+                (f"code {c} au lieu de 2", c != 2)) if ko]
+            if manque:
+                faux.append("D15 refus long : " + " ; ".join(manque))
+            # D16 (superviseur R-759 du 25-11-2026, point 6) : l'examen SANS RÉPONSE dans le délai → rien de conclu,
+            # code 2, rien poussé ; jamais code 1 (« demande refusée »). L'examen lance « git » sans « -C » ; DEPOSER
+            # toujours avec : un « git » d'essai placé en tête du PATH ne ralentit (4 s, délai 2 s) que l'examen.
+            lent = os.path.join(d, "git_lent")
+            os.makedirs(lent, exist_ok=True)
+            open(os.path.join(lent, "git"), "w").write("#!/bin/sh\n[ \"$1\" = \"-C\" ] || sleep 4\nexec '"
+                                                       + shutil.which("git") + "' \"$@\"\n")
+            os.chmod(os.path.join(lent, "git"), 0o755)
+            avant_m = pointe_publique("main")
+            c, o = lancer([sys.executable, "-B", depose, clone_d, "main", "circuit=examen", "--pousser",
+                           "--prive=" + prive], env=dict(GIT_ENV, DEPOSER_DELAI_DE_GIT_EN_SECONDES="2",
+                                                         PATH=lent + os.pathsep + GIT_ENV.get("PATH", "")))
+            manque = [n for n, ko in (
+                (f"code {c} au lieu de 2", c != 2),
+                ("« examen sans réponse » absent", "examen sans réponse" not in o),
+                ("poussé au public", pointe_publique("main") != avant_m)) if ko]
+            if manque:
+                faux.append("D16 examen sans réponse : " + " ; ".join(manque))
+            avant_m = pointe_publique("main")
+            c, o = deposer("main", "circuit=examen")
+            if c != 0 or "EXAMINEE, NON POUSSEE" not in o or pointe_publique("main") != avant_m:
+                faux.append(f"D8 sans --pousser : rien ne doit partir : code {c} : {o[-300:]}")
         # L : la lecture des arguments par le joueur et le rassembleur
         base = ["r", "tests/E.py", "tests/resultats/R.txt", "--part=0", "--nb-parts=2", "--travail=t"]
         for nom, args in (("L1 --lot donné deux fois (NV-2)", base + ["--lot=13", "--lot=11"]),
@@ -959,7 +1363,7 @@ def tour(racine):
             if (raison is None and vu != "accepté") or (raison is not None and raison not in vu):
                 faux.append(f"{nom} : {vu[:160]}")
 
-        tous = {"certification": F.CERTIFICATION, "series": F.SERIES, "relais": F.RELAIS}
+        tous = {"certification": F.CERTIFICATION, "series": F.SERIES, "relais": F.RELAIS, "epreuves": F.EPREUVES}
         filet("F0 gabarits fabriqués", tous, None)
         cle = "          GH_TOKEN: ${{ github.token }}\n"
         for nom, ancien, nouveau, raison in (
@@ -1116,6 +1520,8 @@ SABOTAGES = {
         (FABRICANT, '''          [ "$(printf '%s\\\\n' "$changes" | grep -c .)" = "1" ] ||''', '''          true ||''')],
     "S18_relais_sans_controle_un_seul_commit": [(FABRICANT, '''          [ "$parent" = "$AVANT" ] ||''',
                                                  '''          true ||''')],
+    "S20_relais_a_blanc_ignore": [(FABRICANT, '''if [ "$(cat "$D/demande/a_blanc")" = "oui" ]; then''',
+                                   '''if [ "$(cat "$D/demande/a_blanc")" = "jamais" ]; then''')],
     # étape FILE-2 (20-11-2026) : S19 REMET LE REFUS GLOBAL (l'état d'avant : refuser dès qu'un passage long est en
     # cours) ; S74, S75 et S78, les règles du choix des places ; S77, la file propre du relais
     "S19_relais_remet_le_refus_global": [
@@ -1125,19 +1531,20 @@ SABOTAGES = {
             M=""" + str(PLACES_LONGUES) + """''')],
     "S74_relais_toujours_premiere_place_1": [
         (FABRICANT, '''if [ -z "$meilleure" ] || [ "$somme" -lt "$meilleure" ]; then''', '''if [ -z "$meilleure" ]; then''')],
+    # S75 reciblé le 25-11-2026 (fusion) : les places passent par un tableau commun aux trois circuits
     "S75_relais_places_non_transmises_aux_series": [
-        (FABRICANT, '''+ """ -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit des series''',
-         '''+ """ || { echo "::error::le circuit des series''')],
+        (FABRICANT, '''            PLACES=(-f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE")''',
+         '''            PLACES=()''')],
     # D-2 de Cowork : le motif du titre qui laisse passer « 08 » (lu en octal, le compte de charge s'arrête)
     "S79_relais_titre_a_zero_de_tete": [(FABRICANT, '''places\\\\ ([1-9][0-9]?)\\\\+([1-9][0-9]{0,2})$''',
                                          '''places\\\\ ([0-9]{1,2})\\\\+([0-9]{1,3})$''')],
-    "S77_relais_sans_file_propre": [(FABRICANT, '''  group: demande-de-serie
+    # S77 reciblé le 25-11-2026 : le groupe du relais est écrit par GROUPE_DU_RELAIS
+    "S77_relais_sans_file_propre": [(FABRICANT, '''  group: """ + GROUPE_DU_RELAIS + """
   cancel-in-progress: false
-  queue: max''', '''  group: demande-de-serie
+  queue: max''', '''  group: """ + GROUPE_DU_RELAIS + """
   cancel-in-progress: false''')],
     "S78_relais_fenetre_sans_tour": [(FABRICANT, '''somme=$(( somme + charge[(p - 1 + i) % M + 1] ))''',
                                       '''somme=$(( somme + charge[p + i] ))''')],
-    "S20_relais_a_blanc_ignore": [(FABRICANT, '''if [ "$A_BLANC" = "oui" ]; then''', '''if [ "$A_BLANC" = "jamais" ]; then''')],
     "S21_filet_actions_write_sans_condition": [(FABRICANT, "                verifier_un_relais(nom, texte)    #",
                                                 "                pass    #")],
     "S22_filet_sans_les_souches_NV1": [(FABRICANT, "            if souche in texte:\n", "            if False:\n")],
@@ -1192,16 +1599,107 @@ SABOTAGES = {
     "S41_relais_1000_octets_refuses_C3": [(FABRICANT, '[ "$taille" -le """', '[ "$taille" -lt """')],
     "S42_relais_un_seul_commit_clone_C5": [(FABRICANT, "          fetch-depth: 2\n          persist-credentials: false\n",
                                             "          fetch-depth: 1\n          persist-credentials: false\n")],
-    "S43_relais_ne_regarde_que_le_dernier_passage_C7": [(FABRICANT, "--limit 100 --json status", "--limit 1 --json status")],
     "S44_relais_sur_pull_request_target_N5": [(FABRICANT, 'on:\n  push:\n    paths:\n      - "demandes/**"',
                                                'on:\n  pull_request_target:\n    paths:\n      - "demandes/**"')],
-    "S45_relais_emploie_gh_api_N6": [(FABRICANT, '          if [ "$A_BLANC" = "oui" ]; then',
-                                       '          gh api repos/x/y/actions/runs\n          if [ "$A_BLANC" = "oui" ]; then')],
+    "S45_relais_emploie_gh_api_N6": [(FABRICANT, '          mapfile -t ARGS < "$D/demande/args"\n',
+                                       '          gh api repos/x/y/actions/runs\n          mapfile -t ARGS < "$D/demande/args"\n')],
     "S46_circuit_sans_permissions_admis_N9": [(FABRICANT, '        if not re.search(r"^permissions:", texte, re.M):   # N9',
                                                '        if False:   # N9')],
     "S47_casse_de_la_permission_non_vue_N11": [(FABRICANT, 'write\\b|\\bwrite-all\\b""", re.I)', 'write\\b|\\bwrite-all\\b""")')],
-    "S37_relais_ne_compte_que_in_progress_C1_de_Cowork": [
-        (FABRICANT, 'select(.status != "completed")', 'select(.status == "in_progress")')],
+    # 18-11-2026 (A-897/A-898, troisième superviseur R-759) : la clé version, l'âge du nom, le lancement, la file de
+    # GitHub (groupe fixe, « queue: max » du relais et de la fiche visée), le bouton, l'identifiant dans le titre
+    "S80_version_non_exigee": [(FABRICANT, '''          [ -n "$VERSION" ] ||''', '''          true ||''')],
+    "S81_version_d_une_autre_branche_admise": [(FABRICANT, '''          [ "$VERSION" = "$BRANCHE" ] ||''', '''          true ||''')],
+    "S82_age_non_controle": [(FABRICANT, '''          [ $(( $(date +%s) - quand )) -le """''', '''          true || [ $(( $(date +%s) - quand )) -le """''')],
+    "S83_futur_admis": [(FABRICANT, '''          [ $(( quand - $(date +%s) )) -le """''', '''          true || [ $(( quand - $(date +%s) )) -le """''')],
+    "S84_lancement_refuse_vert": [(FABRICANT, '''gh workflow run "${ARGS[@]}" "${PLACES[@]}" -f "demande=$id" || {''',
+                                   '''gh workflow run "${ARGS[@]}" "${PLACES[@]}" -f "demande=$id" || true || {''')],
+    "S85_groupe_par_branche": [(FABRICANT, '''  group: """ + GROUPE_DU_RELAIS + """''',
+                                '''  group: """ + GROUPE_DU_RELAIS + """-${{ github.ref_name }}''')],
+    "S86_queue_max_retiree_du_relais": [(FABRICANT, '''  cancel-in-progress: false
+  queue: max
+permissions:
+  contents: read
+  actions: write''', '''  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: write''')],
+    "S87_queue_max_de_la_fiche_visee_non_lue": [(FABRICANT, '''"$S/fiche" || { echo "::error::DEMANDE REFUSEE : la fiche du circuit $FICHIER sur cette branche n'est pas une file''',
+                                                 '''"$S/fiche" || true || { echo "::error::DEMANDE REFUSEE : la fiche du circuit $FICHIER sur cette branche n'est pas une file''')],
+    "S88_queue_max_lue_hors_de_concurrency": [(FABRICANT, '''dans && /^  queue: max[[:space:]]*$/''', '''/^  queue: max[[:space:]]*$/''')],
+    "S89_bouton_sans_le_parent": [(FABRICANT, '''            AVANT=$(git rev-parse -q --verify "$APRES^1") ||''', '''            AVANT="$APRES" ||''')],
+    "S90_titre_sans_l_identifiant": [(FABRICANT, '''-f "demande=$id" || {''', '''-f "demande=$BRANCHE" || {''')],
+    "S91_fiche_absente_admise": [(FABRICANT, '''git show "$APRES:.github/workflows/$FICHIER" > "$S/fiche" 2>/dev/null || {''',
+                                  '''git show "$APRES:.github/workflows/$FICHIER" > "$S/fiche" 2>/dev/null || true || {''')],
+    # 25-11-2026 (point T1 du RELU de travail-file-demandes) : le groupe neuf du relais, et l'examen du relais de la
+    # branche ; (T4) « cancel-in-progress: true » refusé
+    "S102_ancien_nom_de_groupe_remis": [(FABRICANT, '''GROUPE_DU_RELAIS = "demande-de-serie-en-file"''',
+                                         '''GROUPE_DU_RELAIS = "demande-de-serie"''')],
+    "S103_relais_sans_file_accepte": [(FABRICANT, '''"$S/relais" || { echo "::error::DEMANDE REFUSEE : le relais de cette branche''',
+                                       '''"$S/relais" || true || { echo "::error::DEMANDE REFUSEE : le relais de cette branche''')],
+    "S104_groupe_du_relais_non_lu": [(FABRICANT, '''(groupe == \\"\\" || nomme)''', '''(1 || nomme)''')],
+    "S105_cancel_in_progress_true_admis": [(FABRICANT, '''file && !annule &&''', '''file &&''')],
+    "S106_relais_de_la_branche_non_lu": [(FABRICANT, '''git show "$APRES:""" + CIRCUIT_RELAIS.replace(os.sep, "/") + """" > "$S/relais"''',
+                                          '''git show "$APRES:""" + CIRCUIT_RELAIS.replace(os.sep, "/") + """" > "$S/relais"; cp "$S/fiche" "$S/relais"''')],
+    # programmes/DEPOSER_UNE_DEMANDE.py
+    "S96_deposer_sans_examen": [(DEPOSEUR, "        if not accepte:\n", "        if False:\n")],
+    "S97_deposer_pointe_de_main": [(DEPOSEUR, """["git", "ls-remote", prive, "refs/heads/" + branche]""",
+                                    """["git", "ls-remote", prive, "refs/heads/main"]""")],
+    "S98_deposer_pointe_a_la_main_admise": [(DEPOSEUR, """    if "pointe" in cles:""", """    if False:""")],
+    "S99_deposer_pousse_sans_option": [(DEPOSEUR, "        if not pousser:\n", "        if False:\n")],
+    "S101_deposer_sans_version": [(DEPOSEUR, """f"version={branche}"]""", """]""")],
+    # 25-11-2026 (T5, partie sans décision) : le refus tronqué, ou retenté alors que la branche n'a pas avancé
+    "S107_deposer_retente_sans_course": [(DEPOSEUR, """        if code_f == 0 and git(clone, "rev-parse", f"refs/remotes/origin/{branche}")[1] == tip:""",
+                                          """        if False:""")],
+    "S108_deposer_refus_tronque": [(DEPOSEUR, """masquer_les_acces(err)""", """masquer_les_acces(err[-200:])""")],
+    # 25-11-2026 (superviseur R-759, point 3) : le refus affiché ne montre aucun accès ; le masque vit dans
+    # programmes/FORME_D_UN_JETON.py (masquer_les_acces), jamais dans DEPOSER
+    "S109_deposer_adresse_non_masquee": [(JETON, """    return ACCES_DANS_UNE_ADRESSE.sub(b"://***@", octets).decode(""",
+                                          """    return octets.decode(""")],
+    "S110_deposer_jeton_non_masque": [(JETON, """    octets = MOTIF_DE_JETON.sub(b"***", texte.encode("utf-8", "replace"))""",
+                                       """    octets = texte.encode("utf-8", "replace")""")],
+    # 25-11-2026 (superviseur R-759, point 4) : la branche « code 2 » du masque illisible
+    "S111_deposer_masque_illisible_affiche_en_clair": [(DEPOSEUR, """            return 2\n        print(f"poussée refusée (essai""",
+                                                        """            masque = err\n        print(f"poussée refusée (essai""")],
+    # 25-11-2026 (RELU du 25-11, C1, C4, N3, N1, N2, E2) : chacun avec son cas (D12 à D15, K11) et sa faute nommée
+    "S112_deposer_jamais_retente_meme_en_course": [(DEPOSEUR, """        if code_f == 0 and git(clone, "rev-parse", f"refs/remotes/origin/{branche}")[1] == tip:""",
+                                                    """        if True:""")],
+    "S113_deposer_poussee_sans_reponse_non_rattrapee": [(DEPOSEUR, """        except subprocess.TimeoutExpired:   # poussée sans réponse (C4)""",
+                                                         """        except ZeroDivisionError:   # poussée sans réponse (C4)""")],
+    "S114_deposer_branche_illisible_ignoree": [(DEPOSEUR, """        if code_f != 0:   # N3""", """        if False:   # N3""")],
+    "S115_deposer_refus_coupe_a_la_fin": [(DEPOSEUR, """masquer_les_acces(err)""", """masquer_les_acces(err[:200])""")],
+    "S116_masque_une_seule_adresse": [(JETON, """ACCES_DANS_UNE_ADRESSE.sub(b"://***@", octets)""",
+                                       """ACCES_DANS_UNE_ADRESSE.sub(b"://***@", octets, count=1)""")],
+    "S117_garde_epelle_true": [(FABRICANT, """/^  cancel-in-progress:/ && !/^  cancel-in-progress:[[:space:]]*false[[:space:]]*$/ { annule = 1 }""",
+                                """/^  cancel-in-progress:[[:space:]]*true/ { annule = 1 }""")],
+    # 25-11-2026 (superviseur R-759, point 6) : l'examen sans réponse dans le délai
+    "S118_deposer_examen_sans_reponse_non_rattrape": [(DEPOSEUR, """        except subprocess.TimeoutExpired:   # examen sans réponse""",
+                                                       """        except ZeroDivisionError:   # examen sans réponse""")],
+}
+
+# LA FAUTE ATTENDUE DE CHAQUE SABOTAGE (superviseur R-759 du 25-11-2026, point 6 ; forme de
+# tests/EPREUVES_DU_CIRCUIT_PUBLIC_Jeu_15-10-2026.py, MOTIFS_ATTENDUS) : le début de la faute que le sabotage DOIT
+# produire ; une autre faute seule = « ROUGE POUR UNE AUTRE RAISON », code 1. Nommées ici : celles MESURÉES le
+# 25-11-2026 (sortie de chaque sabotage lancé seul). Les autres sabotages ne sont pas encore nommés : leur ligne le dit
+# (« faute attendue NON NOMMÉE ») ; les nommer demande la sortie d'un passage complet de --saboter (à jouer sur GitHub).
+FAUTES_ATTENDUES = {
+    "S102_ancien_nom_de_groupe_remis": "T1d le relais fabriqué porte le groupe des relais anciens",
+    "S103_relais_sans_file_accepte": "T1a relais ancien sur la branche",
+    "S104_groupe_du_relais_non_lu": "T1b relais en file sous le nom ancien",
+    "S105_cancel_in_progress_true_admis": "K10 fiche visée à cancel-in-progress: true",
+    "S106_relais_de_la_branche_non_lu": "V1 la demande réelle du premier passage",
+    "S107_deposer_retente_sans_course": "D10 refus du crochet : 3 essai(s) au lieu de 1",
+    "S108_deposer_refus_tronque": "D10 refus du crochet : motif du crochet absent",
+    "S109_deposer_adresse_non_masquee": "D10 refus du crochet : adresse à accès en clair",
+    "S110_deposer_jeton_non_masque": "D10 refus du crochet : forme de jeton en clair",
+    "S111_deposer_masque_illisible_affiche_en_clair": "D11 masque illisible : refus affiché sans masque",
+    "S112_deposer_jamais_retente_meme_en_course": "D12 course perdue : code 2 au lieu de 0",
+    "S113_deposer_poussee_sans_reponse_non_rattrapee": "D13 poussée sans réponse : code 1 au lieu de 2",
+    "S114_deposer_branche_illisible_ignoree": "D14 branche illisible après le refus : « rien ne dit si c'est une course » absent",
+    "S115_deposer_refus_coupe_a_la_fin": "D15 refus long : fin du refus absente",
+    "S116_masque_une_seule_adresse": "D15 refus long : seconde adresse en clair",
+    "S117_garde_epelle_true": "K11 fiche visée à cancel-in-progress: True",
+    "S118_deposer_examen_sans_reponse_non_rattrape": "D16 examen sans réponse : code 1 au lieu de 2",
 }
 
 
@@ -1216,20 +1714,37 @@ def main():
     ⑦ UNITÉ — — ⑧ POURQUOI — Fiche en tête. ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — Fiche en tête. ⑪ TERMINAISON — Rend la main. [sort: non]
     """
+    choix = [a.split("=", 1)[1].split(",") for a in sys.argv[1:] if a.startswith("--saboter=")]
+    # R1 du RELU du 25-11-2026 : un nom demandé qui ne désigne aucun sabotage (faute de frappe : « S1O7 ») ne jouait
+    # AUCUN sabotage et rendait « tout est conforme », code 0. Désormais : rien de conclu, code 2, avant tout tour.
+    # « AUCUN » est le mot réservé pour « le témoin seul ».
+    inconnus_demandes = [x for x in (choix[0] if choix else []) if x != "AUCUN"
+                         and not any(x == n or x == n.split("_")[0] for n in SABOTAGES)]
+    if inconnus_demandes:
+        print(f"RIEN DE CONCLU : --saboter= nomme des sabotages inconnus : {inconnus_demandes}")
+        return 2
     faux = tour(DEPOT)
-    print("Z0 programmes tels quels : " + ("T0, V0 à V5, V7, P01 à P28, P30, P31, P33, P34, P36, E0 à E8, X0 à X13, Q1 à Q9, G5, L1 à L3, F0 à F14, A0 à A14, R1 à R8, V6, P29, G1 à G4 conformes" if not faux else
+    print("Z0 programmes tels quels : " + ("T0, V0 à V5, V7, P01 à P28, P30, P31, P33, P34, P36, P37, E0 à E8, X0 à X13, Q1 à Q9, K0 à K11, T1a à T1d, D0 à D16, L1 à L3, F0 à F14, A0 à A14, R1 à R8, V6, P29, G1 à G6 conformes" if not faux else
                                             "FAUX " + " | ".join(faux)))
     code = 1 if faux else 0
-    choix = [a.split("=", 1)[1].split(",") for a in sys.argv[1:] if a.startswith("--saboter=")]
     if "--saboter" in sys.argv or choix:
         noms = [n for n in SABOTAGES if not choix or n in choix[0] or n.split("_")[0] in choix[0]]
-        for nom in noms:
+        inconnus = sorted(set(FAUTES_ATTENDUES) - set(SABOTAGES))
+        if inconnus:   # une faute nommée pour un sabotage qui n'existe pas ne serait jamais jugée
+            print(f"RIEN DE CONCLU : FAUTES_ATTENDUES nomme des sabotages inconnus : {inconnus}")
+            return 2
+        # LE TÉMOIN (superviseur R-759 du 25-11-2026, point 2) : la copie construite EXACTEMENT comme celle d'un
+        # sabotage, mais NON sabotée, est jouée d'abord ; elle doit être verte. Sinon la copie elle-même est fausse (un
+        # fichier que les programmes chargent n'y est pas) et chaque sabotage « mordrait » pour cette seule raison :
+        # rien de conclu, code 2. Cas fondateur : D10 tombait en FileNotFoundError dans toute copie sabotée (mesuré le
+        # 25-11-2026 sur S107), FORME_D_UN_JETON.py n'étant pas copié.
+        for nom in [None] + noms:
             d = tempfile.mkdtemp(prefix="relais_series_sab_")
             try:
-                for f in (FABRICANT, TABLE, JOUEUR, RASSEMBLEUR, JOUEUR_D_EPREUVE):
+                for f in (FABRICANT, TABLE, JOUEUR, RASSEMBLEUR, JOUEUR_D_EPREUVE, DEPOSEUR, JETON):
                     os.makedirs(os.path.dirname(os.path.join(d, f)), exist_ok=True)
                     shutil.copyfile(os.path.join(DEPOT, f), os.path.join(d, f))
-                for fichier, a, b in SABOTAGES[nom]:
+                for fichier, a, b in SABOTAGES.get(nom, []):
                     t = open(os.path.join(d, fichier), encoding="utf-8").read()
                     if t.count(a) != 1:
                         print(f"{nom} NE S'APPLIQUE PLUS : texte cible trouvé {t.count(a)} fois dans {fichier}")
@@ -1238,8 +1753,21 @@ def main():
                 f = tour(d)
             finally:
                 shutil.rmtree(d, ignore_errors=True)
-            print(f"{nom} {'mord' if f else 'NE MORD PAS'} : {f[:3]}")
-            code |= 0 if f else 1
+            if nom is None:
+                if f:
+                    print(f"RIEN DE CONCLU : le témoin (copie NON sabotée) rougit, la copie est fausse : {f[:3]}")
+                    return 2
+                print("témoin (copie non sabotée) : vert")
+                continue
+            attendu = FAUTES_ATTENDUES.get(nom)
+            if not f:
+                print(f"{nom} NE MORD PAS")
+                code |= 1
+            elif attendu is not None and not any(x.startswith(attendu) for x in f):
+                print(f"{nom} ROUGE POUR UNE AUTRE RAISON (attendu : « {attendu} ») : {f[:3]}")
+                code |= 1
+            else:
+                print(f"{nom} mord{'' if attendu else ' (faute attendue NON NOMMÉE)'} : {f[:3]}")
     print("VERDICT : tout est conforme" if code == 0 else "VERDICT : NON CONFORME")
     return code
 

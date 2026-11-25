@@ -17,10 +17,15 @@
 # La tâche finale lit ensuite les certificats partiels à la pointe de main, où les tranches les ont
 # poussés ; le code qu'elle exécute reste celui du commit noté.
 name: Certifier la version
-run-name: "Certifier la version places 1+18"
+run-name: "Certifier la version ${{ inputs.demande || github.event_name }} places 1+18"
 on:
   workflow_dispatch:
     inputs:
+      demande:
+        description: "Demande servie, posee par le relais (DEMANDE_AAAA-MM-JJ_HHhMM@branche) ; vide au bouton"
+        required: false
+        type: string
+        default: ""
       premiere_place:
         description: "Premiere place du reservoir, de 1 a 18 (choisie par le relais ; toute autre valeur : 1)"
         required: false

@@ -28,7 +28,7 @@
 # INTERDITS ICI : les programmes d'INTERDITS de tests/outils/jouer_une_part.py — retirés de la copie jouée ; une épreuve
 # qui les nomme est refusée par le joueur.
 name: Epreuves longues d'un tenant
-run-name: "Epreuves longues d'un tenant${{ inputs.premiere_place && format(' places {0}+{1}', inputs.premiere_place, inputs.nombre_de_places) || '' }}"
+run-name: "Epreuves longues d'un tenant ${{ inputs.demande || github.event_name }}${{ inputs.premiere_place && format(' places {0}+{1}', inputs.premiere_place, inputs.nombre_de_places) || '' }}"
 on:
   workflow_dispatch:
     inputs:
@@ -39,6 +39,11 @@ on:
         default: "main"
       pointe:
         description: "Pointe exacte de la version au depot prive, 40 caracteres hexadecimaux (obligatoire pour travail-... ; vide sur main : la pointe actuelle)"
+        required: false
+        type: string
+        default: ""
+      demande:
+        description: "Demande servie, posee par le relais (DEMANDE_AAAA-MM-JJ_HHhMM@branche) ; vide au bouton"
         required: false
         type: string
         default: ""

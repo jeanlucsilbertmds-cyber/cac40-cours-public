@@ -19,7 +19,8 @@
   Jamais lancé seul.
 ③ ENTRÉE — Aucune ligne de commande ; voir la fonction.
 ④ CONDITIONS D'ENTRÉE — —
-⑤ SORTIE — Le module rend MOTIF_DE_JETON (une expression rationnelle sur des octets) et une fonction.
+⑤ SORTIE — Le module rend MOTIF_DE_JETON (une expression rationnelle sur des octets), ACCES_DANS_UNE_ADRESSE, et deux
+  fonctions : `porte_une_forme_de_jeton` (juger) et `masquer_les_acces` (afficher sans montrer).
 ⑥ TRAITEMENT — Voir la fonction.
 ⑦ UNITÉ — —
 ⑧ POURQUOI — Défaut M5 (relecture de Cowork du 04-11-2026 à 21h17, I1) : le fabricant du dépôt public publiait un
@@ -47,6 +48,9 @@
   (etudes/JOURNEE_31-10-2026/inscription_backlog/, etudes/JOURNEE_01-11-2026/inscription_backlog_2/) sont des
   copies qui ne lisent pas ce module : copies connues, laissées telles quelles (traces datées, ou shell), à
   aligner si elles resservent (BACKLOG).
+  · Le masquage (`masquer_les_acces`, 25-11-2026) masque PLUS large que le motif ne refuse : toute partie « <…>@ »
+  d'une adresse, y compris « ssh://git@ », devient « ***@ ». C'est voulu : afficher un refus de git sans rien montrer
+  qui puisse être un accès ; MOTIF_DE_JETON, lui, n'est PAS élargi (il ferait refuser « ssh://git@… » à la publication).
 ⑩ EFFET — Aucun : ni lecture ni écriture.
 ⑪ TERMINAISON — —
 """
@@ -81,3 +85,44 @@ def porte_une_forme_de_jeton(donnee):
     if isinstance(donnee, str):
         donnee = donnee.encode("utf-8")
     return MOTIF_DE_JETON.search(donnee) is not None
+
+
+# TOUT ACCÈS ÉCRIT DANS UNE ADRESSE, avant « @ » (« https://<accès>@hôte », « ssh://git@hôte ») : servi UNIQUEMENT au
+# masquage, jamais au refus (superviseur R-759 du 25-11-2026, point 3 : le masquage vit DANS ce module, sous une fonction
+# distincte ; MOTIF_DE_JETON n'est pas élargi). Cas fondateur : DEPOSER_UNE_DEMANDE.py compilait ce motif lui-même
+# (ligne 371 depuis 9bc157ee0), seconde écriture d'un motif de jeton que l'épreuve E8 ② signale.
+ACCES_DANS_UNE_ADRESSE = re.compile(rb"://[^/@\s]*@")
+
+
+def masquer_les_acces(texte):
+    """Rend `texte` où chaque forme de jeton et chaque accès écrit dans une adresse est remplacé par « *** ».
+
+    ① RÔLE — Afficher un message venu d'ailleurs (un refus de git) en entier, sans y laisser un accès en clair.
+    ② CONTEXTE D'APPEL — programmes/DEPOSER_UNE_DEMANDE.py, sur le refus d'une poussée (point T5 du RELU de
+      travail-file-demandes) et sur l'erreur d'un fetch (E3 du RELU du 25-11-2026) ; éprouvé par D10 et D15 de
+      tests/EPREUVES_DU_RELAIS_DES_SERIES_Dim_08-11-2026.py.
+    ③ ENTRÉE — `texte` : un texte (str).
+    ④ CONDITIONS D'ENTRÉE — `texte` est de type str.
+    ⑤ SORTIE — UNE valeur : le texte masqué (str) ; un caractère non encodable devient « ? » (encodage UTF-8 avec
+      remplacement), sans effet sur un texte venu de git.
+      [rend: 1]
+    ⑥ TRAITEMENT — encoder en UTF-8 ; remplacer chaque MOTIF_DE_JETON par « *** », puis chaque
+      ACCES_DANS_UNE_ADRESSE par « ://***@ » ; décoder.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un refus de git cite l'adresse de « origin », qui peut porter un accès ; le motif seul ne voit pas
+      « https://<accès>@ » sans « : » ni préfixe de jeton. R-708 : les motifs de jeton vivent ici et nulle part ailleurs.
+    ⑨ CE QUI CLOCHE — Les limites de MOTIF_DE_JETON (fiche du module) ; un accès écrit hors d'une adresse et hors des
+      quatre formes passe en clair (« Authorization: Bearer <x> » sans préfixe de jeton, « token <40 hexadécimaux> »,
+      « utilisateur:secret@hote:depot » sans « :// »). Mesuré par les relecteurs du 25-11-2026 (C3 et constat de C4),
+      sur des chaînes FACTICES (non recopiées ici : ce fichier ne doit porter aucune forme de jeton) : un « / » dans
+      l'accès arrête ACCES_DANS_UNE_ADRESSE, qui ne masque rien ; un « @ » littéral dans l'accès laisse ressortir ce
+      qui suit le premier « @ » ; un blanc dans l'accès (tabulation) le laisse en clair. Ces trois adresses sont invalides pour git (ces
+      caractères s'y écrivent encodés), et les jetons GitHub n'en portent pas : risque bas. Le schéma « https:// »
+      d'une adresse peut être mangé par MOTIF_DE_JETON (cosmétique). Une entrée `bytes` lève AttributeError :
+      DEPOSER la rattrape (sens prudent).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; deux remplacements en mémoire.
+      [sort: non]
+    """
+    octets = MOTIF_DE_JETON.sub(b"***", texte.encode("utf-8", "replace"))
+    return ACCES_DANS_UNE_ADRESSE.sub(b"://***@", octets).decode("utf-8", "replace")

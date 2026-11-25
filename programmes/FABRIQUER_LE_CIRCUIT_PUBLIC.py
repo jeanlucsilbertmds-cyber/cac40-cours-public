@@ -314,11 +314,15 @@ MODULE_DU_JETON = "FORME_D_UN_JETON.py"
 def forme_d_un_jeton():
     """Rend le module de la forme d'un jeton, chargé depuis le dossier de ce programme.
 
-    ① RÔLE — Donner à `refus_avant_publication` le seul motif de jeton du dépôt (programmes/FORME_D_UN_JETON.py).
-    ② CONTEXTE D'APPEL — `refus_avant_publication`, une fois par appel.
+    ① RÔLE — Donner le seul motif de jeton du dépôt (programmes/FORME_D_UN_JETON.py) à `refus_avant_publication`, et
+      sa fonction `masquer_les_acces` à programmes/DEPOSER_UNE_DEMANDE.py.
+    ② CONTEXTE D'APPEL — `refus_avant_publication`, une fois par appel ; programmes/DEPOSER_UNE_DEMANDE.py (par le
+      fabricant qu'il charge), à chaque message de git qu'il affiche (C2 du RELU du 25-11-2026 : ce second appelant
+      n'était pas dit).
     ③ ENTRÉE — — (le nom du module est MODULE_DU_JETON).
-    ④ CONDITIONS D'ENTRÉE — Le module existe à côté de ce fichier. Sinon l'exception de lecture remonte : `main`
-      l'arrête (code 1, rien n'est écrit).
+    ④ CONDITIONS D'ENTRÉE — Le module existe à côté de ce fichier. Sinon l'exception de lecture remonte : `main` de ce
+      fabricant l'arrête (code 1, rien n'est écrit) ; DEPOSER_UNE_DEMANDE.py la rattrape (code 2 pour un refus de
+      poussée, message non affiché pour une erreur de fetch).
     ⑤ SORTIE — UNE valeur : le module chargé.
       [rend: 1]
     ⑥ TRAITEMENT — Construire le chemin à partir de celui de ce fichier, charger et exécuter le module.
@@ -1459,6 +1463,23 @@ def depart_pour(fiche, nom, ref=None, apres_le_clonage="", aussi=(), jeton_garde
     return texte
 
 
+# L'IDENTIFIANT DE LA DEMANDE, DANS LE TITRE DU PASSAGE (A-897/A-898, 18-11-2026 ; gardé par le troisième superviseur
+# R-759 du 18-11-2026, « gardés : titres »). Les trois circuits que lance le relais (séries, épreuves longues, examen)
+# reçoivent une entrée facultative « demande », que le relais remplit avec l'identifiant de la demande
+# (DEMANDE_AAAA-MM-JJ_HHhMM@<branche>), et la portent dans le titre du passage (« run-name: »). Elle sert à LIRE la file
+# de GitHub (quel passage sert quelle demande) et à retirer une demande en attente (« gh run cancel » sur le passage qui
+# porte son nom). Un passage lancé au bouton ou par le réveil planifié porte le nom de l'événement à la place.
+# Le texte de l'entrée vit une fois : ENTREE_DE_LA_DEMANDE (circuits à bouton écrit à la main) et le tuple
+# ENTREES_FIXES_DES_SERIES (le bouton des séries, compté par SERIES_AU_PLUS) le lisent tous deux (R-708).
+TEXTE_DE_L_ENTREE_DEMANDE = """        description: "Demande servie, posee par le relais (DEMANDE_AAAA-MM-JJ_HHhMM@branche) ; vide au bouton"
+        required: false
+        type: string
+        default: ""
+"""
+ENTREE_DE_LA_DEMANDE = "      demande:\n" + TEXTE_DE_L_ENTREE_DEMANDE
+TITRE_DU_PASSAGE = "${{ inputs.demande || github.event_name }}"
+
+
 # Le commit que jouent les parts et le rassemblement : celui de la préparation (clonage à « ref: », `depart_pour`). Ce
 # pas vérifie que le clonage l'a bien posé : sinon les parts ne joueraient pas la même version (le rassemblement s'en
 # apercevrait par les empreintes du départ, mais plus tard et moins clairement). Depuis le tour 3 il compare HEAD au
@@ -1490,11 +1511,11 @@ CERTIFICATION = """# CERTIFIER LA VERSION — FICHIER FABRIQUÉ, NE PAS ÉCRIRE 
 # La tâche finale lit ensuite les certificats partiels à la pointe de main, où les tranches les ont
 # poussés ; le code qu'elle exécute reste celui du commit noté.
 name: Certifier la version
-run-name: "Certifier la version places 1+%(nombre)d"
+run-name: "Certifier la version %(titre)s places 1+%(nombre)d"
 on:
   workflow_dispatch:
     inputs:
-%(entrees_places)s  # 21h00 en heure universelle : 23h00 à Paris l'été, 22h00 l'hiver, après le circuit du soir
+%(demande)s%(entrees_places)s  # 21h00 en heure universelle : 23h00 à Paris l'été, 22h00 l'hiver, après le circuit du soir
   # (dont des épreuves lisent les données). GitHub peut retarder un réveil de plusieurs heures.
   schedule:
     - cron: "0 21 * * 1-5"
@@ -1561,6 +1582,7 @@ jobs:
         continue-on-error: true
         run: python3 -B programmes/CERTIFIER_LA_VERSION.py "$GITHUB_WORKSPACE" --reunir %(nombre)d
 %(deposer_final)s%(publier_les_durees)s%(deposer_les_durees)s%(verdict)s""" % {
+    "demande": ENTREE_DE_LA_DEMANDE, "titre": TITRE_DU_PASSAGE,
     # la matrice en liste « à tirets » : le sous-ensemble YAML que lit ce fabricant (SCALAIRE_DE_LISTE) refuse la liste
     # entre crochets, qui commence par un indicateur YAML ; c'est le producteur qui parle la langue du lecteur
     # (superviseur R-759 du 31-10-2026, B1, « DE FOND »)
@@ -1867,6 +1889,7 @@ ENTREES_FIXES_DES_SERIES = (
         default: ""
 """),
     # %(options)s : les choix du bouton, remplis par SERIES_ENTREES quand la table est lue
+    ("demande", TEXTE_DE_L_ENTREE_DEMANDE),   # A-897/A-898 : l'identifiant de la demande, pour le titre du passage
     ("serie", """        description: "Serie a jouer (%(toutes)s : chaque serie de la table)"
         required: true
         type: choice
@@ -2132,7 +2155,7 @@ SERIES = """# SERIES LONGUES DE SABOTAGES, EN PARALLELE — FICHIER FABRIQUÉ, N
 # tests/EPREUVES_DES_AJUSTEMENTS_DE_YAHOO_Jeu_08-10-2026.py (liste : INTERDITS de tests/outils/jouer_une_part.py) —
 # retirés de la copie jouée, refusés comme épreuve, cherchés dans l'écoute de chaque part.
 name: Series longues de sabotages
-run-name: "Series longues de sabotages%(titre_places)s"
+run-name: "Series longues de sabotages %(titre)s%(titre_places)s"
 on:
   workflow_dispatch:
     inputs:
@@ -2264,7 +2287,7 @@ jobs:
     "defaults": DEFAULTS, "installer": INSTALLER_LA_MESURE, "en_meme_temps": PARTS_EN_MEME_TEMPS,
     "series_au_plus": max(1, min(len(SERIES_DU_CIRCUIT), PARTS_EN_MEME_TEMPS)),
     "branches": SERIES_BRANCHES, "groupe": GROUPE_DES_SERIES,
-    "entrees": SERIES_ENTREES, "titre_places": TITRE_DES_PLACES, "env_matrice": SERIES_ENV_MATRICE, "toutes": TOUTES,
+    "entrees": SERIES_ENTREES, "titre": TITRE_DU_PASSAGE, "titre_places": TITRE_DES_PLACES, "env_matrice": SERIES_ENV_MATRICE, "toutes": TOUTES,
     "place_du_passage": groupe_de_place("inputs.premiere_place"), "place_de_l_entree": groupe_de_place("matrix.place"),
     "placer_matrice": placer_la_matrice("matrice"), "placer_series": placer_la_matrice("series"),
     "codes": " ".join(s[0] for s in SERIES_DU_CIRCUIT),
@@ -2355,7 +2378,7 @@ EPREUVES = ("""# EPREUVES LONGUES D'UN TENANT, EN PARALLELE — FICHIER FABRIQU�
 # INTERDITS ICI : les programmes d'INTERDITS de tests/outils/jouer_une_part.py — retirés de la copie jouée ; une épreuve
 # qui les nomme est refusée par le joueur.
 name: Epreuves longues d'un tenant
-run-name: "Epreuves longues d'un tenant%(titre_places)s"
+run-name: "Epreuves longues d'un tenant %(titre)s%(titre_places)s"
 on:
   workflow_dispatch:
     inputs:
@@ -2432,7 +2455,8 @@ jobs:
 %(deposer)s""") % {
     "defaults": DEFAULTS, "installer": INSTALLER_LA_MESURE, "logiciels": LOGICIELS_DE_LA_CERTIFICATION,
     "en_meme_temps": PARTS_EN_MEME_TEMPS, "branches": EPREUVES_BRANCHES, "groupe": GROUPE_DES_EPREUVES,
-    "entrees": EPREUVES_ENTREES + ENTREES_DES_PLACES, "titre_places": TITRE_DES_PLACES, "duree": DUREE_D_UNE_EPREUVE_LONGUE,
+    "entrees": ENTREE_DE_LA_DEMANDE + EPREUVES_ENTREES + ENTREES_DES_PLACES, "titre": TITRE_DU_PASSAGE,
+    "titre_places": TITRE_DES_PLACES, "duree": DUREE_D_UNE_EPREUVE_LONGUE,
     "place_du_passage": groupe_de_place("inputs.premiere_place"), "place_de_l_entree": groupe_de_place("matrix.place"),
     "placer_matrice": placer_la_matrice("matrice"),
     "depart_version": depart_pour(os.path.basename(CIRCUIT_EPREUVES), "des epreuves longues",
@@ -2473,7 +2497,9 @@ jobs:
 #   parts_yahoo=2
 #   a_blanc=oui
 CIRCUIT_RELAIS = os.path.join(".github", "workflows", "demande_de_serie.yml")
-NOM_DE_DEMANDE = r"^demandes/DEMANDE_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}[.]txt$"
+# L'heure d'une demande, dans son nom : heure de Paris, à la minute (programmes/DEPOSER_UNE_DEMANDE.py l'écrit).
+HEURE_DE_DEMANDE = r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}"
+NOM_DE_DEMANDE = r"^demandes/DEMANDE_" + HEURE_DE_DEMANDE + r"[.]txt$"
 # LES CIRCUITS QUE LE RELAIS PEUT LANCER — une ligne par circuit : (son nom dans la demande, « circuit=… » ; son fichier ;
 # le motif des branches d'où il se lance). Ajout du 08-11-2026 à 18h06, décision de Jean-Luc (« Ok vas y ») : le
 # relais lance aussi l'examen de certification à la demande, parce que, prévu à 22h, GitHub le démarre entre 1h et
@@ -2520,63 +2546,58 @@ def _relais_par_serie(modele):
                    for c, _, n, l in SERIES_DU_CIRCUIT)
 
 
-RELAIS = """# DEMANDE DE SERIE — LE RELAIS — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
-# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement.
-# À QUOI IL SERT. Lancer le circuit des séries longues (series_longues.yml), ou l'examen de certification
-# (certifier_la_version.yml, depuis main, ajout du 08-11-2026 décidé par Jean-Luc à 18h06), sans que Jean-Luc clique
-# sur « Run workflow » : le Chat dépose un fichier de demande (« circuit=series » ou « circuit=examen »), ce relais le
-# lit, le valide et appuie sur le bouton du circuit demandé à sa place (table CIRCUITS_DU_RELAIS du fabricant).
-# CE QU'IL FAIT, DANS L'ORDRE : ① la poussée doit porter UN commit, dont le parent est la pointe d'avant, qui AJOUTE UN
-# seul fichier, demandes/DEMANDE_<AAAA-MM-JJ_HHhMM>.txt (une publication de code ne lance donc jamais rien) ; ② le fichier
-# est lu en ASCII strict, une clé par ligne, clés connues seulement, valeurs validées par des motifs tirés de la table
-# des séries (tests/LANCEMENT_DES_EPREUVES.json) ; ③ pour un circuit long (séries, épreuves, examen), il CHOISIT LES
-# PLACES (étape FILE-2, 20-11-2026) : il compte les jobs prévus, lit la charge de chaque place du réservoir dans le
-# titre des passages en cours ou en attente des trois circuits (« … places <p>+<n> »), et prend la fenêtre de places
-# consécutives la moins chargée ; il ne refuse JAMAIS pour un passage en cours : la demande part, et ses jobs attendent
-# sur leur place si elle est prise (« queue: max ») ; ses propres passages font file aussi (« queue: max » ci-dessous) ;
-# ④ « a_blanc=oui » : il écrit au journal ce qu'il aurait lancé et s'arrête ; sinon il lance le circuit des séries
-# sur CETTE branche, version = nom de la branche, pointe = la pointe demandée (obligatoire depuis travail-…, A-811),
-# chaque valeur passée explicitement (celles absentes de la demande prennent la valeur de la table).
-# « circuit=epreuve » (étape GHUB ②, 15-11-2026) : « epreuves=<code>,<code>… » ou « epreuves=""" + TOUTES + """ » (codes
-# de la table epreuves_longues), « pointe » obligatoire depuis travail-… ; il lance epreuves_longues.yml. Les séries et
-# les épreuves et la certification partagent le réservoir des places : le choix des places lit les TROIS circuits.
-# CE QU'IL N'A PAS : aucune clé du dépôt privé, aucun clonage du privé, aucun programme de la version lancé (seulement
-# des commandes du système et gh) ; permissions : lire le dépôt, lancer un circuit. Ce texte a été relu ; le
-# fabricant refuse de publier un relais qui n'est pas ce texte, octet pour octet (empreinte), et tout autre circuit
-# qui porterait la permission de lancer.
-name: Demande de serie (relais)
-on:
-  push:
-    paths:
-      - "demandes/**"
-concurrency:
-  group: demande-de-serie
-  cancel-in-progress: false
-  queue: max
-permissions:
-  contents: read
-  actions: write
-jobs:
-  relayer:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 2
-          persist-credentials: false
-      - name: Lire la demande, la valider, appuyer sur le bouton
-        id: relayer
-        shell: bash
-        env:
-          AVANT: ${{ github.event.before }}
-          APRES: ${{ github.sha }}
-          BRANCHE: ${{ github.ref_name }}
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -u -o pipefail
-          export LC_ALL=C
+# LES DEMANDES ET LA FILE DE GITHUB (A-897/A-898, 18-11-2026). Décision de Jean-Luc A-896 du 18-11-2026 à 12h25 (« prends
+# le 1, la file unique ») : séries, épreuves longues et certification partagent une file tenue par GitHub (« queue:
+# max ») ; depuis l'étape FILE-2 de main (20-11-2026, commentaire de PLACES_LONGUES), cette file est le réservoir des
+# places (un groupe de job par place) et le relais CHOISIT les places (CIRCUITS_DU_GROUPE_LONG, plus haut) ; la fusion
+# du 25-11-2026 garde ce choix tel quel, APRÈS l'examen. Troisième superviseur R-759 du 18-11-2026 (16h25), verdict « ARRÊTER ET
+# SIMPLIFIER » : la file maison (états SERVIE / EN ATTENTE / BLOQUEE, réveil planifié, workflow_run, « annulé n'est pas
+# servi », relevé des passages, date de bascule, apres=) est retirée ; chaque branche garde son relais, déclenché par la
+# poussée d'une demande ou par le bouton ; il examine la SEULE demande ajoutée par le commit et lance aussitôt
+# « gh workflow run <circuit> --ref <branche> » ; un refus ou une demande invalide rougit le passage, une fois, sans
+# relance. Retirer une demande en attente : « gh run cancel » sur le passage qui porte son nom dans son titre.
+# Essai réel du 18-11-2026 (dépôt public, branches essai-queue-refs-18-11-2026, -b- et -c-) : trois lancements au bouton
+# depuis deux branches dans un même groupe à « queue: max » passent l'un après l'autre (passages 44337256084,
+# 44337282116, 44337311232) ; un passage SANS « queue: max » lancé dans le groupe pendant qu'un passage à « queue: max »
+# attend ANNULE celui qui attend (44336474909 « cancelled » à l'arrivée de 44336529077). D'où le refus de l'examen :
+# une fiche de circuit cible qui ne porte pas « queue: max » sous « concurrency: » n'est pas lancée (propriété lue dans
+# la fiche de la branche, au commit de la demande, jamais un nom).
+DUREE_DE_VIE_D_UNE_DEMANDE_EN_HEURES = 24  # au-delà (heure du nom), une demande est refusée
+AVANCE_ADMISE_D_UNE_DEMANDE_EN_MINUTES = 10  # un nom plus avancé que l'horloge du relais est refusé
+# LE GROUPE DU RELAIS — FIXE, commun à toutes les branches : une place (famille JAMAIS_ATTENDRE).
+# NOUVEAU NOM le 25-11-2026 (point T1 du RELU de travail-file-demandes, parade ① du relecteur). Raison : l'ANCIEN
+# relais (sans « queue: max ») reste publié sur des branches publiques (26 hors main au relevé du 25-11-2026 à 13h23,
+# BACKLOG A-988) et portait le nom « demande-de-serie » ; un passage sans « queue: max » qui arrive dans un groupe où un
+# passage à « queue: max » attend ANNULE celui qui attend, en gris, sans message (mesure (b) du 18-11-2026, ci-dessus).
+# Sous un autre nom, les relais anciens ne partagent plus le groupe : ils ne peuvent plus rien annuler. Coût : pendant
+# la transition, un passage d'ancien relais peut tourner en même temps qu'un neuf (une machine de plus, quelques
+# secondes). Le nom ancien est refusé par l'examen (PROPRIETE_D_UNE_FILE, appelée avec ce nom sur le relais de la
+# branche) : une demande déposée sur une branche dont le relais n'est pas celui-ci ne part pas (parade ②).
+GROUPE_DU_RELAIS = "demande-de-serie-en-file"
+# LA PROPRIÉTÉ « CETTE FICHE EST UNE FILE », écrite UNE fois (R-708 : deux écritures d'une même chose divergent
+# toujours), jouée deux fois par l'examen : sur la fiche du circuit visé, et sur le relais de la branche de la demande.
+# Un programme awk ; « -v groupe=<nom> » exige en plus que le groupe soit ce nom (vide : groupe libre). Il lit le bloc
+# « concurrency: » de premier niveau (les « concurrency: » de job, indentés, ne comptent pas) et rend 0 si ce bloc porte
+# « queue: max » et dont la clé « cancel-in-progress », si elle est écrite, vaut EXACTEMENT « false » (toute autre
+# valeur — « true », « True », « ${{ true }} », une expression — fait refuser : E2 du RELU du 25-11-2026, la garde
+# n'épelait que « true » et acceptait « ${{ true }} », que GitHub lit comme vrai). Raison du second terme (point T4 du même RELU, mesuré par
+# le relecteur sur une variante) : une fiche à « queue: max » ET « cancel-in-progress: true » annulerait le passage EN
+# COURS du groupe ; la propriété « aucun passage ne disparaît » demande les deux. Écritures YAML admises : celles que
+# le fabricant écrit (« queue: max » nu) ; un commentaire ou des guillemets font REFUSER (faux refus, sens prudent).
+PROPRIETE_D_UNE_FILE = ("/^concurrency:/ { dans = 1; next } "
+                        "dans && /^[^ #]/ { dans = 0 } "
+                        "dans && /^  queue: max[[:space:]]*$/ { file = 1 } "
+                        "dans && /^  cancel-in-progress:/ && !/^  cancel-in-progress:[[:space:]]*false[[:space:]]*$/ { annule = 1 } "
+                        "dans && $0 == \"  group: \" groupe { nomme = 1 } "
+                        "END { exit !(file && !annule && (groupe == \"\" || nomme)) }")
+
+
+EXAMEN_D_UNE_DEMANDE = """          examiner() {
+          AVANT="$1"
+          APRES="$2"
+          BRANCHE="$3"
+          S="$4"
+          mkdir -p "$S" || { echo "::error::DEMANDE REFUSEE : dossier de travail impossible"; exit 1; }
           [[ "$BRANCHE" =~ """ + MOTIF_DE_VERSION + """ ]] || { echo "::error::DEMANDE REFUSEE : branche hors de la forme permise (main, ou une version en attente travail-...)"; exit 1; }
           [[ "$AVANT" =~ ^[0-9a-f]{40}$ ]] && [[ "$AVANT" =~ [1-9a-f] ]] || { echo "::error::DEMANDE REFUSEE : pas de pointe d'avant (branche creee par cette poussee ?) : publier le code d'abord, puis la demande seule"; exit 1; }
           parent=$(git rev-parse -q --verify "$APRES^1") || { echo "::error::DEMANDE REFUSEE : commit sans parent lisible"; exit 1; }
@@ -2588,11 +2609,16 @@ jobs:
           fichier=$(printf '%s\\n' "$changes" | cut -f2-)
           [ "$statut" = "A" ] || { echo "::error::DEMANDE REFUSEE : le fichier n'est pas ajoute (etat $statut)"; exit 1; }
           [[ "$fichier" =~ """ + NOM_DE_DEMANDE + """ ]] || { echo "::error::DEMANDE REFUSEE : nom refuse (demandes/DEMANDE_AAAA-MM-JJ_HHhMM.txt)"; exit 1; }
+          HEURE_DU_NOM="${fichier#demandes/DEMANDE_}"
+          HEURE_DU_NOM="${HEURE_DU_NOM%.txt}"
+          quand=$(TZ=Europe/Paris date -d "${HEURE_DU_NOM:0:10} ${HEURE_DU_NOM:11:2}:${HEURE_DU_NOM:14:2}" +%s 2>/dev/null) || quand=""
+          [[ "$quand" =~ ^[0-9]+$ ]] || { echo "::error::DEMANDE REFUSEE : heure du nom illisible"; exit 1; }
+          [ $(( $(date +%s) - quand )) -le """ + str(DUREE_DE_VIE_D_UNE_DEMANDE_EN_HEURES * 3600) + """ ] || { echo "::error::DEMANDE REFUSEE : nom de plus de """ + str(DUREE_DE_VIE_D_UNE_DEMANDE_EN_HEURES) + """ h (heure de Paris)"; exit 1; }
+          [ $(( quand - $(date +%s) )) -le """ + str(AVANCE_ADMISE_D_UNE_DEMANDE_EN_MINUTES * 60) + """ ] || { echo "::error::DEMANDE REFUSEE : nom dans le futur (heure de Paris)"; exit 1; }
           taille=$(git cat-file -s "$APRES:$fichier") || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
           [[ "$taille" =~ ^[0-9]{1,4}$ ]] && [ "$taille" -le """ + str(TAILLE_DE_DEMANDE) + """ ] || { echo "::error::DEMANDE REFUSEE : plus de """ + str(TAILLE_DE_DEMANDE) + """ octets"; exit 1; }
-          D=$(mktemp -d)
-          git cat-file blob "$APRES:$fichier" > "$D/demande.txt" || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
-          hors=$(tr -d ' -~\\n' < "$D/demande.txt" | wc -c)
+          git cat-file blob "$APRES:$fichier" > "$S/demande.txt" || { echo "::error::DEMANDE REFUSEE : fichier illisible"; exit 1; }
+          hors=$(tr -d ' -~\\n' < "$S/demande.txt" | wc -c)
           [ "$hors" = "0" ] || { echo "::error::DEMANDE REFUSEE : $hors octet(s) hors de l'ASCII imprimable (accent, tabulation, retour chariot, caractere de controle)"; exit 1; }
           vus=" "
           CIRCUIT=""
@@ -2600,10 +2626,19 @@ jobs:
           POINTE=""
           EPREUVES=""
           A_BLANC="non"
+          VERSION=""
 """ + _relais_par_serie("""          PARTS_%(M)s=%(n)d
           LOT_%(M)s=%(l)d
 """) + """          while IFS= read -r ligne || [ -n "$ligne" ]; do
             [ -n "$ligne" ] && [[ "$ligne" != "#"* ]] || continue
+            if [[ "$ligne" == version=* ]]; then
+              valeur="${ligne#version=}"
+              [[ "$valeur" =~ """ + MOTIF_DE_VERSION + """ ]] || { echo "::error::DEMANDE REFUSEE : version hors de la forme permise (main, ou une version en attente travail-...)"; exit 1; }
+              [[ "$vus" != *" version "* ]] || { echo "::error::DEMANDE REFUSEE : cle donnee deux fois : version"; exit 1; }
+              vus="${vus}version "
+              VERSION="$valeur"
+              continue
+            fi
             if [[ "$ligne" == pointe=* ]]; then
               valeur="${ligne#pointe=}"
               [[ "$valeur" =~ """ + MOTIF_DE_POINTE + """ ]] || { echo "::error::DEMANDE REFUSEE : pointe de 40 caracteres hexadecimaux en minuscules (${#valeur} caractere(s) recus)"; exit 1; }
@@ -2652,7 +2687,9 @@ jobs:
               echo "::error::DEMANDE REFUSEE : cle inconnue : $cle"
               exit 1
             fi
-          done < "$D/demande.txt"
+          done < "$S/demande.txt"
+          [ -n "$VERSION" ] || { echo "::error::DEMANDE REFUSEE : la cle version manque (le nom de la branche de la demande)"; exit 1; }
+          [ "$VERSION" = "$BRANCHE" ] || { echo "::error::DEMANDE REFUSEE : la version n'est pas la branche de la demande"; exit 1; }
           [ -n "$CIRCUIT" ] || { echo "::error::DEMANDE REFUSEE : la cle circuit manque (""" + " ou ".join(c[0] for c in CIRCUITS_DU_RELAIS) + """)"; exit 1; }
           FICHIER=""
 """ + "".join("""          if [ "$CIRCUIT" = "%s" ]; then
@@ -2661,11 +2698,13 @@ jobs:
           fi
 """ % (c, f, m, c) for c, f, m in CIRCUITS_DU_RELAIS) + """          [ -n "$FICHIER" ] || { echo "::error::DEMANDE REFUSEE : circuit sans fichier : $CIRCUIT"; exit 1; }
           if [ "$CIRCUIT" = "examen" ]; then
-            [ "$vus" = " circuit " ] || [ "$vus" = " circuit a_blanc " ] || [ "$vus" = " a_blanc circuit " ] || { echo "::error::DEMANDE REFUSEE : le circuit $CIRCUIT ne prend aucun reglage (seulement circuit et a_blanc) :$vus"; exit 1; }
+            for k in $vus; do
+              [[ " circuit version a_blanc " == *" $k "* ]] || { echo "::error::DEMANDE REFUSEE : le circuit $CIRCUIT ne prend aucun reglage (seulement circuit, version et a_blanc) :$vus"; exit 1; }
+            done
           fi
           if [ "$CIRCUIT" = "epreuve" ]; then
             for k in $vus; do
-              [[ " circuit epreuves pointe a_blanc " == *" $k "* ]] || { echo "::error::DEMANDE REFUSEE : le circuit epreuve ne prend que circuit, epreuves, pointe et a_blanc : $k"; exit 1; }
+              [[ " circuit version epreuves pointe a_blanc " == *" $k "* ]] || { echo "::error::DEMANDE REFUSEE : le circuit epreuve ne prend que circuit, version, epreuves, pointe et a_blanc : $k"; exit 1; }
             done
             [ -n "$EPREUVES" ] || { echo "::error::DEMANDE REFUSEE : la cle epreuves manque"; exit 1; }
             [ "$BRANCHE" = "main" ] || [ -n "$POINTE" ] || { echo "::error::DEMANDE REFUSEE : la cle pointe manque (obligatoire depuis une version en attente, A-811)"; exit 1; }
@@ -2677,22 +2716,114 @@ jobs:
             echo "::error::DEMANDE REFUSEE : elle regle la serie %(c)s, qu'elle ne joue pas (serie $SERIE)"
             exit 1
           fi
-""") + """          PREMIERE=""
-          NOMBRE=""
+""") + """          git show "$APRES:.github/workflows/$FICHIER" > "$S/fiche" 2>/dev/null || { echo "::error::DEMANDE REFUSEE : la fiche du circuit $FICHIER est absente de cette branche"; exit 1; }
+          awk -v groupe="" '""" + PROPRIETE_D_UNE_FILE + """' "$S/fiche" || { echo "::error::DEMANDE REFUSEE : la fiche du circuit $FICHIER sur cette branche n'est pas une file (queue: max, sans cancel-in-progress: true) ; lancee, elle annulerait un passage du groupe"; exit 1; }
+          git show "$APRES:""" + CIRCUIT_RELAIS.replace(os.sep, "/") + """" > "$S/relais" 2>/dev/null || { echo "::error::DEMANDE REFUSEE : le relais est absent de cette branche"; exit 1; }
+          awk -v groupe='""" + GROUPE_DU_RELAIS + """' '""" + PROPRIETE_D_UNE_FILE + """' "$S/relais" || { echo "::error::DEMANDE REFUSEE : le relais de cette branche n'est pas une file du groupe """ + GROUPE_DU_RELAIS + """ (relais ancien ? une demande y annulerait en silence une demande en attente) : publier d'abord le relais neuf sur cette branche"; exit 1; }
+          if [ "$CIRCUIT" = "epreuve" ]; then
+            if [ "$EPREUVES" = \"""" + TOUTES + """\" ]; then NOMBRE=""" + str(len(EPREUVES_DU_CIRCUIT)) + """; else IFS=, read -ra liste <<<"$EPREUVES"; NOMBRE=${#liste[@]}; fi
+          elif [ "$CIRCUIT" = "series" ]; then
+            NOMBRE=0
+""" + _relais_par_serie("""            if [ "$SERIE" = "%(t)s" ] || [ "$SERIE" = "%(c)s" ]; then NOMBRE=$(( NOMBRE + PARTS_%(M)s )); fi
+""") + """          else
+            NOMBRE=""" + str(TRANCHES_DE_LA_NUIT) + """
+          fi
+          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; jobs $NOMBRE ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE""" + _relais_par_serie(" ; parts_%(m)s $PARTS_%(M)s ; lot_%(m)s $LOT_%(M)s") + """ ; epreuves $EPREUVES ; a blanc $A_BLANC"
+          printf '%s\\n' "$fichier" > "$S/fichier"
+          printf '%s\\n' "$FICHIER" > "$S/circuit"
+          printf '%s\\n' "$CIRCUIT" > "$S/nom_du_circuit"
+          printf '%s\\n' "$NOMBRE" > "$S/nombre"
+          printf '%s\\n' "$A_BLANC" > "$S/a_blanc"
+          if [ "$CIRCUIT" = "epreuve" ]; then
+            printf '%s\\n' "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "epreuves=$EPREUVES" > "$S/args"
+          elif [ "$CIRCUIT" != "series" ]; then
+            printf '%s\\n' "$FICHIER" --ref "$BRANCHE" > "$S/args"
+          else
+            printf '%s\\n' "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE\"""" + _relais_par_serie(""" -f "parts_%(m)s=$PARTS_%(M)s" -f "lot_%(m)s=$LOT_%(M)s\"""") + """ > "$S/args"
+          fi
+          }
+"""
+
+
+
+
+RELAIS = """# DEMANDE DE SERIE — LE RELAIS — FICHIER FABRIQUÉ, NE PAS ÉCRIRE À LA MAIN.
+# Fabriqué par programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py. Simulation uniquement.
+# À QUOI IL SERT. Lancer le circuit des séries longues (series_longues.yml), les épreuves longues d'un tenant
+# (epreuves_longues.yml) ou l'examen de certification (certifier_la_version.yml, depuis main), sans que Jean-Luc clique
+# sur « Run workflow » : le Chat dépose un fichier de demande (programmes/DEPOSER_UNE_DEMANDE.py), ce relais l'examine
+# et appuie AUSSITÔT sur le bouton du circuit demandé (table CIRCUITS_DU_RELAIS du fabricant). La file d'attente est
+# celle de GitHub (« queue: max » des places du réservoir, décision A-896, étape FILE-2) : le relais ne garde rien, ne
+# relance rien. Le passage lancé porte l'identifiant de la demande dans son titre.
+# CE QU'IL FAIT, DANS L'ORDRE : ① la poussée (ou, au bouton, le dernier commit de la branche) porte UN commit, dont le
+# parent est la pointe d'avant, qui AJOUTE UN seul fichier, demandes/DEMANDE_<AAAA-MM-JJ_HHhMM>.txt, de moins de
+# """ + str(DUREE_DE_VIE_D_UNE_DEMANDE_EN_HEURES) + """ h ; ② le fichier est lu en ASCII strict, une clé par ligne, clés connues seulement, « version » égale
+# à la branche ; ③ la fiche du circuit visé, sur cette branche, est une file (« queue: max », sans « cancel-in-progress:
+# true »), et le relais de la branche est une file du groupe """ + GROUPE_DU_RELAIS + """ ; ④ pour un circuit long, il CHOISIT
+# LES PLACES (étape FILE-2, 20-11-2026) : la charge de chaque place lue dans le titre des passages en cours ou en attente
+# des trois circuits (« … places <p>+<n> »), la fenêtre de places consécutives la moins chargée ; jamais un refus pour
+# un passage en cours ; ⑤ « a_blanc=oui » : il écrit au journal ce qu'il aurait lancé et s'arrête ; sinon il lance le
+# circuit. Un refus rougit le passage.
+# CE QU'IL N'A PAS : aucune clé du dépôt privé, aucun clonage du privé, aucun programme de la version lancé (seulement
+# des commandes du système et gh) ; permissions : lire le dépôt, lancer un circuit. Ce texte a été relu ; le
+# fabricant refuse de publier un relais qui n'est pas ce texte, octet pour octet (empreinte), et tout autre circuit
+# qui porterait la permission de lancer.
+name: Demande de serie (relais)
+on:
+  push:
+    paths:
+      - "demandes/**"
+  workflow_dispatch:
+concurrency:
+  group: """ + GROUPE_DU_RELAIS + """
+  cancel-in-progress: false
+  queue: max
+permissions:
+  contents: read
+  actions: write
+jobs:
+  relayer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Lire la demande, la valider, appuyer sur le bouton
+        id: relayer
+        shell: bash
+        env:
+          EVENEMENT: ${{ github.event_name }}
+          AVANT: ${{ github.event.before }}
+          APRES: ${{ github.sha }}
+          BRANCHE: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u -o pipefail
+          export LC_ALL=C
+          D=$(mktemp -d)
+          # EXAMINER LA DEMANDE (la forme du commit qui l'ajoute, son nom et son âge, son contenu, la fiche du circuit
+          # visé), en sous-shell : un refus sort par « exit 1 » avec son message ; une demande valide écrit dans $S les
+          # arguments de « gh workflow run » (un par ligne). Le même texte est joué par programmes/DEPOSER_UNE_DEMANDE.py.
+""" + EXAMEN_D_UNE_DEMANDE + """          # au bouton : la demande examinée est celle qu'ajoute le dernier commit de la branche
+          if [ "$EVENEMENT" = "workflow_dispatch" ]; then
+            AVANT=$(git rev-parse -q --verify "$APRES^1") || { echo "::error::DEMANDE REFUSEE : le dernier commit de la branche n'a pas de parent lisible"; exit 1; }
+          fi
+          ( examiner "$AVANT" "$APRES" "$BRANCHE" "$D/demande" ) || exit 1
+          f=$(cat "$D/demande/fichier")
+          h="${f#demandes/DEMANDE_}"
+          id="DEMANDE_${h%.txt}@${BRANCHE}"
+          FICHIER=$(cat "$D/demande/circuit")
+          CIRCUIT=$(cat "$D/demande/nom_du_circuit")
+          NOMBRE=$(cat "$D/demande/nombre")
+          declare -a PLACES=()
           if [[ " """ + " ".join(CIRCUITS_DU_GROUPE_LONG) + """ " == *" $FICHIER "* ]]; then
-            # ETAPE FILE-2 : LES PLACES de cette demande, jamais un refus. Le nombre de jobs prevus ; la charge de chaque
-            # place lue dans le titre des passages en cours ou en attente des trois circuits longs (un titre sans places,
-            # passage lance a la main avant l'etape FILE-2, est ignore : charger toutes les places a la fois ne changerait
-            # pas le choix) ; la fenetre de places consecutives la moins chargee.
-            # Le reservoir est borne par les groupes de job, pas par ce choix : ce choix ne fait que repartir.
-            if [ "$CIRCUIT" = "epreuve" ]; then
-              if [ "$EPREUVES" = \"""" + TOUTES + """\" ]; then NOMBRE=""" + str(len(EPREUVES_DU_CIRCUIT)) + """; else IFS=, read -ra liste <<<"$EPREUVES"; NOMBRE=${#liste[@]}; fi
-            elif [ "$CIRCUIT" = "series" ]; then
-              NOMBRE=0
-""" + _relais_par_serie("""              if [ "$SERIE" = "%(t)s" ] || [ "$SERIE" = "%(c)s" ]; then NOMBRE=$(( NOMBRE + PARTS_%(M)s )); fi
-""") + """            else
-              NOMBRE=""" + str(TRANCHES_DE_LA_NUIT) + """
-            fi
+            # ETAPE FILE-2 (main, 20-11-2026) : LES PLACES de cette demande, jamais un refus. La charge de chaque place
+            # lue dans le titre des passages en cours ou en attente des trois circuits longs (un titre sans places,
+            # passage lance a la main avant l'etape FILE-2, est ignore) ; la fenetre de places consecutives la moins
+            # chargee. Le reservoir est borne par les groupes de job, pas par ce choix : ce choix ne fait que repartir.
             : > "$D/passages"
             for F in """ + " ".join(CIRCUITS_DU_GROUPE_LONG) + """; do
               gh run list --workflow "$F" --limit 100 --json status,displayTitle --jq '.[] | select(.status != "completed") | .displayTitle' >> "$D/passages" 2>"$D/erreur_gh" || {
@@ -2720,24 +2851,15 @@ jobs:
               done
             fi
             echo "places $PREMIERE+$NOMBRE (jobs en cours ou en attente par place :$(for (( k = 1; k <= M; k++ )); do printf ' %s=%s' "$k" "${charge[k]}"; done)) ; un job attend sur sa place si elle est occupee"
+            PLACES=(-f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE")
           fi
-          echo "demande $fichier : circuit $CIRCUIT ($FICHIER) ; places ${PREMIERE:-aucune}+${NOMBRE:-0} ; version $BRANCHE ; pointe ${POINTE:-actuelle} ; serie $SERIE""" + _relais_par_serie(" ; parts_%(m)s $PARTS_%(M)s ; lot_%(m)s $LOT_%(M)s") + """ ; epreuves $EPREUVES ; a blanc $A_BLANC"
-          if [ "$A_BLANC" = "oui" ]; then
-            echo "A BLANC : rien n'est lance"
+          if [ "$(cat "$D/demande/a_blanc")" = "oui" ]; then
+            echo "A BLANC : rien n'est lance ($id)"
             exit 0
           fi
-          if [ "$CIRCUIT" = "epreuve" ]; then
-            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "epreuves=$EPREUVES" -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit des epreuves n'a pas pu etre lance"; exit 1; }
-            echo "LANCE : $FICHIER sur $BRANCHE"
-            exit 0
-          fi
-          if [ "$CIRCUIT" != "series" ]; then
-            gh workflow run "$FICHIER" --ref "$BRANCHE" -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit $FICHIER n'a pas pu etre lance"; exit 1; }
-            echo "LANCE : $FICHIER sur $BRANCHE"
-            exit 0
-          fi
-          gh workflow run "$FICHIER" --ref "$BRANCHE" -f "version=$BRANCHE" -f "pointe=$POINTE" -f "serie=$SERIE\"""" + _relais_par_serie(""" -f "parts_%(m)s=$PARTS_%(M)s" -f "lot_%(m)s=$LOT_%(M)s\"""") + """ -f "premiere_place=$PREMIERE" -f "nombre_de_places=$NOMBRE" || { echo "::error::le circuit des series n'a pas pu etre lance"; exit 1; }
-          echo "LANCE : $FICHIER sur $BRANCHE"
+          mapfile -t ARGS < "$D/demande/args"
+          gh workflow run "${ARGS[@]}" "${PLACES[@]}" -f "demande=$id" || { echo "::error::LANCEMENT REFUSE PAR GITHUB : $(head -1 "$D/demande/args") ($id)"; exit 1; }
+          echo "LANCE : $(head -1 "$D/demande/args") sur $BRANCHE ($id) ; GitHub le met en file s'il le faut"
 """
 if ERREUR_DE_LA_TABLE:
     SERIES = RELAIS = EPREUVES = None
@@ -4595,7 +4717,7 @@ def refus_de_la_file(fiches, membres):
       attendrait derrière elle (une séance non lue le jour même perd ses signaux pour toujours), et le compte par groupe
       le ferait disparaître de la somme (mesuré par la relecture : 19 au lieu de 20, aucun refus).
     ⑨ CE QUI CLOCHE — Un groupe qui ne compte qu'une fiche n'est pas obligé d'être une file : deux passages rapprochés
-      d'un même circuit peuvent encore s'annuler. Le relais des demandes (`demande-de-serie`) porte « queue: max »
+      d'un même circuit peuvent encore s'annuler. Le relais des demandes (GROUPE_DU_RELAIS) porte « queue: max »
       depuis l'étape FILE (20-11-2026, épreuve G5 du relais), mais rien ICI ne l'exige d'un groupe à une seule fiche. Au-delà de 100 passages en attente, GitHub annule aussi (documentation) : rien ne le compte ici.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
