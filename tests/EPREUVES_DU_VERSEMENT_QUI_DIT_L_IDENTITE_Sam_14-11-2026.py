@@ -29,6 +29,10 @@ Simulation uniquement — aucun ordre réel.
   `--verifier` → code 0, `anomalies_d_identite=1`, maître inchangé · P4 la faute, `GITHUB_OUTPUT` désignant un dossier
   → code 1, « SORTIE DU PAS IMPOSSIBLE », l'anomalie dite, maître inchangé (N-10). Les sabotages T8, V1, V2, V3
   (RELU 38b7e4a3 de Cowork, 15-11-2026) survivaient au jeu d'avant ; V4, V5 tiennent les deux remarques : chacun mord désormais pour sa propre raison.
+  P1 et P5 exigent aussi « la séance du soir est versée » et l'absence de « N'EST PAS versée » ; le sabotage X7 inverse
+  cette phrase dans le versement copié (N-41 de Cowork, RELU du 23-11-2026 : l'inversion passait verte).
+  P6, P7 et P4 (la panne) refusent « la séance du soir est versée » ; le sabotage X8 fait dire les deux phrases en
+  panne (N-43 de Cowork, RELU du 25-11-2026 : la panne qui disait aussi « est versée » passait verte).
 ⑦ UNITÉ — Des codes de sortie, des nombres d'anomalies.
 ⑧ POURQUOI — K-1 de Cowork (14-11-2026) : sur fabd8224, le versement avec cette faute sortait à l'identique d'un soir
   sans faute (« SORTIES_IDENTIQUES »). R-731 et R-732 : épreuve sur une vraie ligne, sabotages qui mordent. Le chemin
@@ -80,6 +84,11 @@ SABOTAGES = {
                                            '    if False:\n        pass\n')],
     "X4_panne_sans_anomalie_dite_comme_sans": [('if anomalies else\n                 "aucune anomalie', 'if False else\n                 "aucune anomalie')],
     "X5_panne_ce_qui_la_leve_sans_anomalie": [('        if anomalies:\n            print(f"     Ce qui la lève', '        if True:\n            print(f"     Ce qui la lève')],
+    # N-41 (RELU Cowork du 23-11-2026) : hors panne, la phrase inversée (« N'EST PAS versée » quand elle l'est) passait verte
+    "X7_hors_panne_dit_la_seance_non_versee": [("; la séance du soir est versée.\")", "; la séance du soir N'EST PAS versée.\")")],
+    # N-43 (RELU Cowork du 25-11-2026) : en panne, la phrase « est versée » ajoutée à « N'EST PAS versée » passait verte
+    "X8_panne_dit_aussi_la_seance_versee": [("ce soir la séance N'EST PAS versée : réparer",
+                                             "ce soir la séance N'EST PAS versée ; la séance du soir est versée : réparer")],
     "V3_hors_circuit_ligne_tue": [('        print("  " + ligne + "  (GITHUB_OUTPUT absente : sortie du pas affichée seulement)")\n', "        pass\n")],
 }
 MAITRE = "donnees/cours_maitre.csv"
@@ -239,18 +248,21 @@ def jeu(d, sab):
     n = DERNIERE[1]
     cas = [("P1 la fin de Peugeot « 2021-1-15 » : code 0, anomalies_d_identite=1, dite, « rougira », séance VERSÉE",
             dict(faute=True), lambda r: r["code"] == 0 and r["sortie"] == ["anomalies_d_identite=1"]
-            and TEXTE in r["ecran"] and "le passage rougira" in r["ecran"] and "Ce qui la lève" in r["ecran"] and r["maitre_touche"] and r["seance"] == n),
+            and TEXTE in r["ecran"] and "le passage rougira" in r["ecran"] and "Ce qui la lève" in r["ecran"] and r["maitre_touche"] and r["seance"] == n
+            and "la séance du soir est versée" in r["ecran"] and "N'EST PAS versée" not in r["ecran"]),   # N-41
            ("P2 la table telle quelle : code 0, anomalies_d_identite=0, rien à l'écran, séance versée",
             dict(faute=False), lambda r: r["code"] == 0 and r["sortie"] == ["anomalies_d_identite=0"]
             and "ANOMALIE D'IDENTITÉ" not in r["ecran"] and r["seance"] == n),
            ("P5 la faute, GITHUB_OUTPUT absente (hors du circuit) : code 0, dite, AUCUN rouge promis",
             dict(faute=True, sortie="absente"), lambda r: r["code"] == 0 and TEXTE in r["ecran"]
             and "le passage rougira" not in r["ecran"] and "RIEN ne rougira" in r["ecran"]
-            and "anomalies_d_identite=1" in r["ecran"] and "Ce qui la lève" in r["ecran"] and r["maitre_touche"] and r["seance"] == n),   # N-10
+            and "anomalies_d_identite=1" in r["ecran"] and "Ce qui la lève" in r["ecran"] and r["maitre_touche"] and r["seance"] == n
+            and "la séance du soir est versée" in r["ecran"] and "N'EST PAS versée" not in r["ecran"]),   # N-10, N-41
            ("P6 la faute, GITHUB_OUTPUT posée mais vide : code 1, dite, rien n'est écrit",
             dict(faute=True, sortie="vide"), lambda r: r["code"] == 1 and "posée mais vide" in r["ecran"]
             and TEXTE in r["ecran"] and "Ce qui la lève" in r["ecran"] and "N'EST PAS versée" in r["ecran"]
             and "ces anomalies d'identité ne seraient pas vues" in r["ecran"] and "aucune anomalie" not in r["ecran"]
+            and "la séance du soir est versée" not in r["ecran"]                                          # N-43
             and not r["maitre_touche"]),
            ("P8 la table telle quelle, GITHUB_OUTPUT posée mais vide : code 1, « aucune anomalie », rien n'est écrit",
             dict(faute=False, sortie="vide"), lambda r: r["code"] == 1 and "aucune anomalie d'identité ce soir" in r["ecran"]
@@ -258,7 +270,8 @@ def jeu(d, sab):
            ("P7 la faute, GITHUB_OUTPUT faite d'espaces : code 1, dite, rien n'est écrit",                 # N-6
             dict(faute=True, sortie="espaces"), lambda r: r["code"] == 1 and "posée mais vide" in r["ecran"]
             and TEXTE in r["ecran"] and "ces anomalies d'identité ne seraient pas vues" in r["ecran"]
-            and "aucune anomalie" not in r["ecran"] and not r["maitre_touche"]),
+            and "aucune anomalie" not in r["ecran"] and "la séance du soir est versée" not in r["ecran"]   # N-43
+            and not r["maitre_touche"]),
            ("P3 la faute en --verifier : code 0, anomalies_d_identite=1",
             dict(faute=True, verifier=True), lambda r: r["code"] == 0 and r["sortie"] == ["anomalies_d_identite=1"]
             and not r["maitre_touche"]),
@@ -266,6 +279,7 @@ def jeu(d, sab):
             dict(faute=True, sortie="dossier"), lambda r: r["code"] == 1
             and "SORTIE DU PAS IMPOSSIBLE" in r["ecran"] and TEXTE in r["ecran"]
             and "ces anomalies d'identité ne seraient pas vues" in r["ecran"] and "aucune anomalie" not in r["ecran"]
+            and "la séance du soir est versée" not in r["ecran"]                                          # N-43
             and not r["maitre_touche"])]
     for nom, opt, attendu in cas:
         r = jouer(d, sab, **opt)
