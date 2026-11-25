@@ -635,14 +635,6 @@
    ],
    "pourquoi": "à rejouer avant l'installation de travail-nuit (21-11-2026), régression de la nuit du passage 44852703801 ; S3 reciblé ; 2 min 39 s sur la machine du Chat le 21-11-2026"
   },
-  "Carte": {
-   "chemin": "tests/EPREUVE_DE_LA_CARTE_DU_CIRCUIT_Sam_21-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "décision de Jean-Luc du 21-11-2026 à 14h36 (A-963, « 1 ») : la carte du circuit fabriquée depuis le code (programmes/FABRIQUER_LA_CARTE_DU_CIRCUIT.py) ; cas sur le vrai collecte_abc.yml (R-732) — pas retiré, élément ① absent, programme renommé, source absente — et sabotages S1 à S6 du fabricant (S5 marquage ATTEND JEAN-LUC, S6 étapes de la moulinette, ajoutés le 25-11-2026) ; 6 s mesurées le 25-11-2026 sur la machine du Chat, sans couverture"
-  },
   "AncreC5": {
    "chemin": "tests/EPREUVE_DE_L_ANCRE_DE_C5_Sam_21-11-2026.py",
    "arguments": [
@@ -730,6 +722,41 @@
     "--saboter"
    ],
    "pourquoi": "variante « --saboter » de ProprietesBout (décisions A-923, A-945, A-952) : les sabotages de SABOTAGES_BEB, dans l'épreuve, qui les affiche un par un (aucun compte écrit ici, R-728) (maillon retiré, fiche perdue entre deux maillons, garde éteinte, retour aux liens symboliques, fiche fautive rendue conforme, valeur qui ne sort jamais de l'indice ; S-BEB11 à 14 : chaque étalon désigné faussé ; S-BEB15 à 22, superviseur R-759 du 20-11-2026 : juge qui lève, détecteur qui lève vu par BEB-PASSE et par BEB-SIGNAL, cockpit sorti en 1 pour une autre raison, radar sorti en 1, réglage relié au réel par un lien symbolique, tri sans version retenue, fiche fautive refusée sur sl sans la phrase exacte de tp ; I1 de Cowork du 21-11-2026 : versement qui écrit une ligne ancienne en double), chacun doit faire rougir SA propriété (R-731). 171 s sur GitHub le 20-11-2026 pour la série d'alors (passage 44814017661) ; la série actuelle : NON MESURÉE ici, plus longue depuis que ② ③ ④ jouent (A-952)"
+  },
+  "MethodeDes30": {
+   "chemin": "tests/EPREUVES_DE_LA_METHODE_DES_30_Mer_25-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "Plan V8, rail ② (A-775), ARBITRAGE_METHODE_DE_SELECTION_Sam_14-11-2026 §4 et §8 : corrections de fond C1 à C5 et C13 programmées dans programmes/MODULE_JUGEMENT.py (romano_wolf_du_gain, holm_du_hasard, tirages_exiges_par_holm, SEUIL_PAR_FAMILLE_DEFAUT, PORTEE_DU_VERDICT_DES_30) et les dents du calibrage C6 ; cas E1 à E8 et sabotages S1 à S9 de l'épreuve (chacun doit faire rougir un cas, R-731) ; données fabriquées, 2024 et après ; 7 s mesurées le 25-11-2026 sur la machine de l'agent avec --saboter"
+  },
+  "CalibrageDes30": {
+   "chemin": "programmes/CALIBRER_LA_METHODE_DES_30.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "ARBITRAGE_METHODE_DE_SELECTION_Sam_14-11-2026, étape 6 et correction C6 : mesure, sur 1 000 familles sans talent par case (10 versions, 50 et 250 opérations, gains +1/-3 et +4/-2,5, opérations indépendantes ou liées par paquets de 10, versions indépendantes ou ressemblantes à 0,96), le risque d'au moins un faux gagnant de romano_wolf_du_gain au seuil par famille par défaut ; code 1 si une case exigée le dépasse de façon démontrée. Données fabriquées (dates à partir du 2024-01-01), aucun cours lu. Durée NON MESURÉE en entier : un essai à 50 mondes par case a fait 22 cases sur 24 en 110 s sur la machine de l'agent le 25-11-2026, d'où une estimation de l'ordre de 40 minutes à 1 000 mondes"
+  },
+  "SeuilFamille5": {
+   "chemin": "programmes/CALIBRER_LA_METHODE_DES_30.py",
+   "arguments": [
+    "{copie}",
+    "--famille",
+    "9605",
+    "0.05"
+   ],
+   "pourquoi": "décision de Jean-Luc du 25-11-2026 à 15h36 (« 1 ») : avant de fixer C13 (SEUIL_PAR_FAMILLE_DEFAUT), mesurer le taux de FAUSSES GAGNANTES d'une famille jugée par ⑤ (romano_wolf_du_gain) ET ⑥ (holm_du_hasard) au seuil de 5 % PAR CONTRÔLE, au pire cas de l'ARBITRAGE du 14-11-2026 §5 (10 versions à gain nul qui battent sûrement le hasard + 10 à gain sûr pas mieux que le hasard ; arbitre : 9,45 % à 5 %, 4,9 % à 2,5 %) ; deux cases (opérations et versions indépendantes ; paquets de 10 liés et versions ressemblantes à 0,96), 9 605 mondes par case = ⌊1,96² × 0,5 × 0,5 ÷ 0,01²⌋ + 1, intervalle à 95 % plus étroit que ±1 point quel que soit le taux ; code 1 si une case dépasse de façon démontrée la borne prouvée 2 × seuil. Données fabriquées (dates à partir du 2024-01-01), aucun cours lu. Durée NON MESURÉE en entier : 100 mondes en 23 s de calcul sur la machine de l'agent le 25-11-2026, d'où une estimation de l'ordre de 75 minutes"
+  },
+  "SeuilFamille25": {
+   "chemin": "programmes/CALIBRER_LA_METHODE_DES_30.py",
+   "arguments": [
+    "{copie}",
+    "--famille",
+    "9605",
+    "0.025"
+   ],
+   "pourquoi": "décision de Jean-Luc du 25-11-2026 à 15h36 (« 1 ») : avant de fixer C13 (SEUIL_PAR_FAMILLE_DEFAUT), mesurer le taux de FAUSSES GAGNANTES d'une famille jugée par ⑤ (romano_wolf_du_gain) ET ⑥ (holm_du_hasard) au seuil de 2,5 % PAR CONTRÔLE, au pire cas de l'ARBITRAGE du 14-11-2026 §5 (10 versions à gain nul qui battent sûrement le hasard + 10 à gain sûr pas mieux que le hasard ; arbitre : 9,45 % à 5 %, 4,9 % à 2,5 %) ; deux cases (opérations et versions indépendantes ; paquets de 10 liés et versions ressemblantes à 0,96), 9 605 mondes par case = ⌊1,96² × 0,5 × 0,5 ÷ 0,01²⌋ + 1, intervalle à 95 % plus étroit que ±1 point quel que soit le taux ; code 1 si une case dépasse de façon démontrée la borne prouvée 2 × seuil. Données fabriquées (dates à partir du 2024-01-01), aucun cours lu. Durée NON MESURÉE en entier : 100 mondes en 23 s de calcul sur la machine de l'agent le 25-11-2026, d'où une estimation de l'ordre de 75 minutes"
   }
  }
 }

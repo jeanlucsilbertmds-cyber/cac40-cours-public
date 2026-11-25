@@ -2124,7 +2124,7 @@ def probabilite_que_le_gain_soit_du_hasard(ops, seuil, longueur_des_blocs_jours=
       ④ La période est mesurée du premier au DERNIER JOUR D'ENTRÉE, en jours de calendrier : les week-ends et jours
          fériés sont des jours vides ; les tirages ne sont donc pas les mêmes pour deux versions dont les dates
          extrêmes diffèrent (la méthode des 30 % veut les mêmes tirages pour toutes les versions, ARBITRAGE du 14-11,
-         C4 : non fait ici, à faire dans le tri de Romano-Wolf).
+         C4 : non fait ici ; fait pour une famille de versions par `romano_wolf_du_gain`, 25-11-2026).
       ⑤ Le p rendu dépend du seuil reçu dès qu'il est petit (sa précision est réglée pour ce seuil) : le comparer à un
          seuil PLUS STRICT que celui reçu n'a pas de sens.
       ⑥ La RÉFUTATION de R-505 et les époques (⑦) calculent encore leur p par Student (`probabilite_epoque_perdante`) :
@@ -2242,6 +2242,376 @@ def probabilite_que_le_gain_soit_du_hasard(ops, seuil, longueur_des_blocs_jours=
         if aussi_bien >= DEPASSEMENTS_POUR_CONCLURE and l < tirages:
             return DEPASSEMENTS_POUR_CONCLURE / l
     return (aussi_bien + 1) / (tirages + 1)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# LE REGARD SUR LES 30 % — une FAMILLE de versions jugée d'un coup (ARBITRAGE du 14-11-2026, corrections C1 à C5, C13)
+# ─────────────────────────────────────────────────────────────────────
+# Le seuil de CHAQUE famille, ⑤ (« le gain bat zéro ») et ⑥ (« bat le hasard »), quand m versions sont jugées ensemble
+# sur les 30 %. Valeur par défaut : 2,5 % (α/2), RECOMMANDÉE PAR L'ARBITRE (ARBITRAGE_METHODE_DE_SELECTION_Sam_14-11-2026,
+# §5 et §8 décision n°3, option ①) : une version est un faux gagnant si l'une OU l'autre de ses deux hypothèses nulles
+# est vraie, donc le risque d'ensemble est au plus α₅ + α₆ ; 2,5 % chacune le tient à 5 % (pire cas mesuré par
+# l'arbitre : 4,9 % avec Holm, contre 9,45 % à 5 % chacune). LA VALEUR REVIENT À JEAN-LUC (décision n°3, non prise au
+# 25-11-2026) : chaque fonction de ce bloc la reçoit en paramètre `seuil` ; ce nombre n'est que la valeur par défaut.
+SEUIL_PAR_FAMILLE_DEFAUT = 0.025
+# Ce que prouve un verdict des 30 % (corrections C1, C2, C3 de l'ARBITRAGE, §1 et §4), rendu avec chaque résultat de
+# famille pour que le verdict le recopie tel quel. C1 : on prouve un gain sur les années d'examen, pas sa durée.
+# C2 : la marche en avant réelle est la seule preuve de durée. C3 : la limite de ⑥.
+PORTEE_DU_VERDICT_DES_30 = (
+    "CE QUE CE VERDICT PROUVE : la version a gagné, frais et taxe payés, sur des années d'examen qui n'ont pas servi à "
+    "la régler, plus que zéro et plus que le hasard les mêmes jours. CE QU'IL NE PROUVE PAS : que cet avantage durera ; "
+    "un gain réel sur ces années peut venir d'une prime propre au signal qui paie à certaines époques et pas à d'autres. "
+    "SEULE PREUVE DE DURÉE : la marche en avant réelle, en direct, à partir de la date du verdict, avec l'alarme de "
+    "R-505. LIMITE DU CONTRÔLE ⑥ (battre le hasard) : il retire l'exposition que la version partage avec le hasard — "
+    "le marché, le secteur, les mêmes jours —, pas une prime propre au signal.")
+
+
+def _operations_d_une_version(nom, ops, premier_jour, dernier_jour):
+    """Lit les opérations d'une version et les place dans la période d'examen déclarée.
+
+    ① RÔLE — Contrôler et convertir les opérations d'une version pour `romano_wolf_du_gain`.
+    ② CONTEXTE D'APPEL — `romano_wolf_du_gain`, une fois par version.
+    ③ ENTRÉE — `nom` : le nom de la version (pour les messages) · `ops` : ses opérations, chacune un dictionnaire dont
+      `net`, `date_entree`, `date_sortie` sont lus · `premier_jour`, `dernier_jour` : les bornes de la période
+      d'examen, en numéros de jour (`toordinal`).
+    ④ CONDITIONS D'ENTRÉE — Au moins 2 opérations ; `net` un nombre fini (pas un booléen) ; dates « AAAA-MM-JJ »
+      lisibles ; sortie pas avant l'entrée ; entrée dans la période. Sinon `ValueError` qui nomme la version.
+    ⑤ SORTIE — TROIS valeurs : la liste des gains, la liste des jours d'entrée (numéros), la liste des durées de
+      détention en jours (sortie − entrée + 1).
+      [rend: 3]
+    ⑥ TRAITEMENT — Pour chaque opération : contrôler, convertir, ranger.
+    ⑦ UNITÉ — Gains en EUROS ; jours de CALENDRIER.
+    ⑧ POURQUOI — Les mêmes contrôles d'entrée que `probabilite_que_le_gain_soit_du_hasard` (④), plus un : une
+      opération entrée hors de la période d'examen déclarée n'a pas sa place dans le calendrier commun (C4).
+    ⑨ CE QUI CLOCHE — Les contrôles sont écrits une seconde fois (ceux de `probabilite_que_le_gain_soit_du_hasard`) :
+      une divergence n'est attrapée que par l'épreuve E1 de `tests/EPREUVES_DE_LA_METHODE_DES_30_Mer_25-11-2026.py`.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ou lève `ValueError`. Une boucle bornée par le nombre d'opérations ; aucun appel ne
+      peut ne pas revenir.
+      [sort: non]
+    """
+    import datetime
+    import math
+    liste = list(ops) if isinstance(ops, (list, tuple)) else None
+    if liste is None or len(liste) < 2:
+        raise ValueError("version %s : il faut une liste d'au moins 2 opérations" % nom)
+    gains, entrees, durees = [], [], []
+    for rang, op in enumerate(liste):
+        valeur = op.get("net") if isinstance(op, dict) else None
+        if isinstance(valeur, bool) or not isinstance(valeur, (int, float)) or not math.isfinite(valeur):
+            raise ValueError("version %s, opération n°%d : gain net %r, pas un nombre fini" % (nom, rang, valeur))
+        try:
+            jour_e = datetime.date.fromisoformat(op["date_entree"]).toordinal()
+            jour_s = datetime.date.fromisoformat(op["date_sortie"]).toordinal()
+        except (KeyError, TypeError, ValueError):
+            raise ValueError("version %s, opération n°%d : date d'entrée ou de sortie absente ou illisible" % (nom, rang))
+        if jour_s < jour_e:
+            raise ValueError("version %s, opération n°%d : sortie avant l'entrée" % (nom, rang))
+        if not premier_jour <= jour_e <= dernier_jour:
+            raise ValueError("version %s, opération n°%d : entrée hors de la période d'examen déclarée" % (nom, rang))
+        gains.append(float(valeur))
+        entrees.append(jour_e)
+        durees.append(jour_s - jour_e + 1)
+    return gains, entrees, durees
+
+
+def _sommes_circulaires(par_jour, nb_jours, taille_bloc):
+    """Rend, pour chaque jour de la période, la somme des `taille_bloc` jours qui le suivent, sur le cercle des jours.
+
+    ① RÔLE — Préparer les sommes de chaque bloc possible, pour qu'un tirage de `romano_wolf_du_gain` se calcule par
+      simple addition.
+    ② CONTEXTE D'APPEL — `romano_wolf_du_gain`, deux fois par version (nombres d'opérations, écarts au gain moyen).
+    ③ ENTRÉE — `par_jour` : liste de `nb_jours` nombres, un par jour · `nb_jours` : entier ≥ 1 · `taille_bloc` :
+      entier, 1 ≤ taille_bloc ≤ nb_jours.
+    ④ CONDITIONS D'ENTRÉE — Celles de ③, garanties par l'appelant (contrôle des 5 blocs).
+    ⑤ SORTIE — UNE valeur : la liste des `nb_jours` sommes.
+      [rend: 1]
+    ⑥ TRAITEMENT — doubler la liste (le cercle), cumuler, différence de deux cumuls distants de `taille_bloc`.
+    ⑦ UNITÉ — Celle des valeurs reçues (opérations ou euros).
+    ⑧ POURQUOI — Blocs circulaires (Politis et Romano 1992) : chaque jour peut ouvrir un bloc. Même calcul, dans le
+      même ordre, que `fenetres` de `probabilite_que_le_gain_soit_du_hasard`, pour que les flottants soient les mêmes
+      à l'octet (épreuve E1).
+    ⑨ CE QUI CLOCHE — Seconde écriture de `fenetres` (R-708) : voir `romano_wolf_du_gain`, ⑨ ①.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; deux boucles bornées par 2 × nb_jours. Aucun appel ne peut ne pas revenir.
+      [sort: non]
+    """
+    repete = par_jour + par_jour
+    cumul = [0.0] * (2 * nb_jours + 1)
+    for i, v in enumerate(repete):
+        cumul[i + 1] = cumul[i] + v
+    return [cumul[a + taille_bloc] - cumul[a] for a in range(nb_jours)]
+
+
+def romano_wolf_du_gain(versions, debut, fin, seuil=SEUIL_PAR_FAMILLE_DEFAUT, longueur_des_blocs_jours=None,
+                        graine=GRAINE_DU_HASARD_DES_GAINS):
+    """Juge le contrôle ⑤ (« le gain bat zéro ») d'une FAMILLE de versions sur les 30 %, par le maximum pas à pas de
+    Romano et Wolf, avec les mêmes tirages de dates d'entrée pour toutes les versions.
+
+    ① RÔLE — Dire quelles versions d'une famille battent zéro sur les années d'examen, en tenant le risque d'au moins
+      un faux gagnant dans la famille sous `seuil` (étape 7 de l'ARBITRAGE du 14-11-2026, ⑤).
+    ② CONTEXTE D'APPEL — Le regard unique sur les 30 % d'une famille (cas 2 de R-505), une fois ; l'épreuve
+      `tests/EPREUVES_DE_LA_METHODE_DES_30_Mer_25-11-2026.py` ; l'épreuve de calibrage
+      `programmes/CALIBRER_LA_METHODE_DES_30.py` (C6). Aucun programme du circuit ne l'appelle au 25-11-2026.
+    ③ ENTRÉE — `versions` : un dictionnaire nom → liste d'opérations (chacune : `net` en euros, `date_entree`,
+      `date_sortie`, textes « AAAA-MM-JJ ») · `debut`, `fin` : la période d'examen déclarée, textes « AAAA-MM-JJ »,
+      bornes comprises · `seuil` : le risque de la famille, dans ]0, 1[, par défaut `SEUIL_PAR_FAMILLE_DEFAUT` ·
+      `longueur_des_blocs_jours` : entier ≥ 1 ou `None` · `graine` : entier.
+    ④ CONDITIONS D'ENTRÉE — Au moins une version ; chaque version au moins 2 opérations valables, toutes entrées dans
+      la période ; la période d'au moins `BLOCS_MINIMUM` blocs ; une incertitude par blocs non nulle pour chaque
+      version ; 40 ÷ seuil au plus `TIRAGES_MAXIMUM`. Sinon `ValueError` qui nomme le défaut (l'appelant en fait un
+      INCONNU, jamais un PASSE).
+    ⑤ SORTIE — UNE valeur : un dictionnaire — `validees` (noms, dans l'ordre de validation), `t` (nom → t observé),
+      `p_au_pas` (nom → (1 + tirages dont le maximum des versions en lice atteint son t) ÷ (1 + tirages), au dernier
+      pas où elle était en lice), `etapes` (liste de {`en_lice`, `barre_t`, `validees`}), `tirages`,
+      `longueur_des_blocs_jours`, `periode_jours`, `seuil`, `m`, `ce_que_prouve` (`PORTEE_DU_VERDICT_DES_30`).
+      [rend: 1]
+    ⑥ TRAITEMENT —
+      ① Lire chaque version (`_operations_d_une_version`) dans la période déclarée : D = fin − début + 1 jours.
+      ② Longueur des blocs L : celle reçue, sinon la plus grande de 28 jours et de la plus longue détention de TOUTE
+         la famille — la même pour toutes les versions (C4).
+      ③ Pour chaque version : recentrer ses gains sur son propre gain moyen (hypothèse « gain nul » imposée à chacune),
+         les ranger dans leur jour d'entrée sur le cercle des D jours, calculer son t studentisé par blocs consécutifs
+         et les sommes de chaque bloc possible — exactement le calcul de `probabilite_que_le_gain_soit_du_hasard`, ⑥ ②
+         à ⑥ ⑤ (C5).
+      ④ Tirer B = le plus grand de `TIRAGES_MINIMUM` et de ⌈40 ÷ seuil⌉ périodes rejouées, chacune de ⌈D ÷ L⌉ débuts de
+         blocs tirés avec remise, LES MÊMES POUR TOUTES LES VERSIONS (C4) ; dans chacune, le t* de chaque version, par
+         la même règle (un tirage de moins de 2 opérations, ou d'erreur nulle et de gain recentré ≥ 0, vaut +∞ ; d'erreur
+         nulle et de gain < 0, −∞).
+      ⑤ Pas à pas : avec les versions en lice, prendre dans chaque tirage le plus grand t* ; une version est validée si
+         (1 + nombre de tirages dont ce maximum atteint son t) ÷ (1 + B) ≤ seuil ; retirer les validées et recommencer ;
+         s'arrêter quand un pas n'en valide aucune ou qu'il n'en reste plus.
+    ⑦ UNITÉ — Gains en EUROS (sans effet sur le résultat) ; jours de CALENDRIER ; t sans unité ; p et seuil sont des
+      probabilités.
+    ⑧ POURQUOI —
+      ① LE MAXIMUM PAS À PAS (Romano et Wolf, « Stepwise Multiple Testing as Formalized Data Snooping », Econometrica
+         73(4), 2005, 1237-1282, algorithmes 4.1 et 4.2) tient le risque de la famille sans faire payer deux fois des
+         versions qui se ressemblent : leurs t* montent et descendent ensemble, le maximum le voit (ARBITRAGE §5 ; méthode
+         « au carré », étape 6).
+      ② C4 — ON REJOUE LES DATES D'ENTRÉE, PAS DES SÉANCES : une stratégie à objectif et stop ne se rejoue pas sur des
+         séances mélangées (ses sorties dépendent du chemin). On tire des morceaux du calendrier commun et on emporte
+         les opérations entières qui y sont entrées ; les mêmes tirages pour toutes les versions, sinon la ressemblance
+         entre versions disparaît (contre-expertise du 14-11-2026, C4). Le calendrier est la période DÉCLARÉE, pas
+         celle des opérations de chaque version : deux versions aux premières entrées différentes ont le même cercle.
+      ③ C5 — LA STATISTIQUE EST CELLE DU JUGE : le t de chaque version est celui du contrôle ⑤ du juge
+         (`probabilite_que_le_gain_soit_du_hasard`, décisions de Jean-Luc A-782 et A-786 du 14-11-2026), le même calcul
+         appliqué à l'original et aux tirages. ÉCART À LA LETTRE DE C5, À FAIRE ACCEPTER PAR JEAN-LUC : l'arbitrage
+         (§4, C5) demande le n du juge (`n_observations`, R-505 ④) dans le t rééchantillonné, figé à sa valeur réelle ;
+         ce t n'en a AUCUN (n s'y annule : t = Σ écarts ÷ √Σ S_bloc²), comme la statistique du juge depuis la décision de
+         Jean-Luc A-782 (14-11-2026, 16h56 : « OK pour ce nouveau calcul »). Pour UNE version, un n figé multiplierait
+         t et chaque t* par le même nombre et ne changerait pas p ; pour une FAMILLE, un facteur propre à chaque version
+         change le maximum, donc le résultat (relecture Cowork du 25-11-2026, N-42 et S-3 : avec un facteur √n propre à
+         chaque version, le p d'une version passe de 0,0025 à 0,0125). Avec une seule version, la période de ses propres entrées et
+         au plus 39 tirages « aussi bien », le p rendu est celui de `probabilite_que_le_gain_soit_du_hasard` à l'octet
+         (épreuve E1).
+      ④ C13 — LE SEUIL PAR FAMILLE est un paramètre ; sa valeur par défaut, 2,5 %, est celle de l'arbitre ; la valeur
+         revient à Jean-Luc (décision n°3 de l'ARBITRAGE, §8).
+    ⑨ CE QUI CLOCHE —
+      ① Le calcul du t et des fenêtres est écrit une seconde fois, à côté de `probabilite_que_le_gain_soit_du_hasard`
+         (les épreuves de cette fonction-là visent son texte mot pour mot, qu'un partage aurait déplacé) : deux
+         implémentations d'une même chose divergent toujours (R-708) ; la divergence n'est attrapée que par l'épreuve
+         E1. À fondre en une seule fonction en réécrivant les sabotages de `tests/EPREUVES_DU_HASARD_DES_GAINS_Sam_14-11-2026.py`.
+      ② Pas d'arrêt de Besag et Clifford : le pas à pas a besoin de tous les tirages ; B ≥ 1 999.
+      ③ La tenue du risque avec des opérations liées, à nos tailles, n'est prouvée qu'en théorie (grand échantillon) :
+         c'est le rôle de l'épreuve de calibrage C6 (`programmes/CALIBRER_LA_METHODE_DES_30.py`), à jouer sur GitHub.
+      ④ Une dépendance plus longue qu'un bloc n'est pas vue (même limite que `probabilite_que_le_gain_soit_du_hasard`,
+         ⑨ ①).
+      ⑤ Les années d'examen (C12) ne sont pas choisies ici : la fonction juge la période qu'on lui donne.
+      ⑥ UNE VERSION CLAIRSEMÉE ÔTE TOUTE PUISSANCE À LA FAMILLE : un tirage où une version a moins de 2 opérations vaut
+         +∞ pour elle (⑥ ④), et ce +∞ devient le maximum du tirage pour TOUTES les versions en lice. Mesuré par la
+         relecture Cowork du 25-11-2026 (N-39) : une version forte seule, p 0,002 ; la même avec une version de 3
+         opérations en plus, p 0,3275, plus aucune validée. L'erreur va du côté prudent (aucun faux gagnant) : c'est de
+         la puissance perdue. Le plancher 4d de l'étape 5 de la méthode (au moins 30 observations attendues) n'est
+         programmé nulle part ; refuser ces versions ou les garder revient à Jean-Luc (BACKLOG A-987).
+    ⑩ EFFET — Aucun : ni fichier, ni réseau, ni affichage.
+    ⑪ TERMINAISON — Rend la main ou lève `ValueError`. Boucles bornées par B, le nombre de versions et le nombre de
+      jours ; le pas à pas fait au plus m pas. Aucun appel ne peut ne pas revenir (bibliothèque standard seulement).
+      [sort: non]
+    ⑫ DÉFINITIONS
+      une famille : les m versions envoyées au jugement des 30 % (« le nombre envoyé », A-775)
+      un faux gagnant : une version validée alors que son gain moyen vrai est nul ou négatif
+      t* : le t d'une version dans une période rejouée, gains recentrés
+    """
+    import datetime
+    import math
+    import random
+    from operator import itemgetter
+    if isinstance(seuil, bool) or not isinstance(seuil, (int, float)) or not (0.0 < seuil < 1.0):
+        raise ValueError("seuil = %r : il faut un nombre dans ]0, 1[" % (seuil,))
+    if longueur_des_blocs_jours is not None and (isinstance(longueur_des_blocs_jours, bool)
+                                                 or not isinstance(longueur_des_blocs_jours, int)
+                                                 or longueur_des_blocs_jours < 1):
+        raise ValueError("longueur des blocs = %r : il faut un entier >= 1 ou None" % (longueur_des_blocs_jours,))
+    if isinstance(graine, bool) or not isinstance(graine, int):
+        raise ValueError("graine = %r : il faut un entier" % (graine,))
+    if not isinstance(versions, dict) or not versions:
+        raise ValueError("il faut au moins une version (un dictionnaire nom → opérations)")
+    try:
+        premier = datetime.date.fromisoformat(debut).toordinal()
+        dernier = datetime.date.fromisoformat(fin).toordinal()
+    except (TypeError, ValueError):
+        raise ValueError("période d'examen illisible : %r → %r (attendu AAAA-MM-JJ)" % (debut, fin))
+    nb_jours = dernier - premier + 1
+    if nb_jours < 1:
+        raise ValueError("période d'examen vide : %s → %s" % (debut, fin))
+    lues = [(nom, _operations_d_une_version(nom, ops, premier, dernier)) for nom, ops in versions.items()]
+    plus_longue = max(max(durees) for _, (_, _, durees) in lues)
+    taille_bloc = longueur_des_blocs_jours or max(LONGUEUR_MINIMALE_DES_BLOCS_JOURS, plus_longue)
+    if nb_jours < BLOCS_MINIMUM * taille_bloc:
+        raise ValueError("période de %d jours pour des blocs de %d jours : moins de %d blocs"
+                         % (nb_jours, taille_bloc, BLOCS_MINIMUM))
+
+    noms, t_vrais, sommes = [], [], []
+    for nom, (gains, entrees, _durees) in lues:
+        effectif = len(gains)
+        moyenne = math.fsum(gains) / effectif
+        nombre_du_jour, ecart_du_jour = [0] * nb_jours, [0.0] * nb_jours
+        for gain, jour in zip(gains, entrees):
+            nombre_du_jour[jour - premier] += 1
+            ecart_du_jour[jour - premier] += gain - moyenne
+        carre = math.fsum(math.fsum(ecart_du_jour[a:a + taille_bloc]) ** 2 for a in range(0, nb_jours, taille_bloc))
+        if carre <= 0.0:
+            raise ValueError("version %s : incertitude par blocs nulle, le t n'a pas de sens" % nom)
+        noms.append(nom)
+        t_vrais.append(moyenne / (math.sqrt(carre) / effectif))
+        f_n = _sommes_circulaires(nombre_du_jour, nb_jours, taille_bloc)
+        f_s = _sommes_circulaires(ecart_du_jour, nb_jours, taille_bloc)
+        sommes.append((f_n, f_s, [x * x for x in f_s], [x * y for x, y in zip(f_s, f_n)], [y * y for y in f_n]))
+    nb_tirages = max(TIRAGES_MINIMUM, math.ceil(float(DEPASSEMENTS_POUR_CONCLURE) / seuil))   # même nombre que le juge
+    if nb_tirages > TIRAGES_MAXIMUM:
+        raise ValueError("seuil %r : %d tirages, plus que le maximum de %d" % (seuil, nb_tirages, TIRAGES_MAXIMUM))
+    nb_blocs = -(-nb_jours // taille_bloc)
+    tireur = random.Random(graine).random
+    t_des_tirages = []
+    for _ in range(nb_tirages):
+        choix = itemgetter(*[int(tireur() * nb_jours) for _ in range(nb_blocs)])    # LES MÊMES pour toutes (C4)
+        ligne = []
+        for f_n, f_s, f_ss, f_sc, f_cc in sommes:
+            n_tir = sum(choix(f_n))
+            s_tir = sum(choix(f_s))
+            if n_tir < 2:
+                ligne.append(math.inf)
+                continue
+            moy_tir = s_tir / n_tir
+            var_tir = sum(choix(f_ss)) - 2.0 * moy_tir * sum(choix(f_sc)) + moy_tir * moy_tir * sum(choix(f_cc))
+            if var_tir <= 1e-12 * (s_tir * s_tir + 1e-300):
+                ligne.append(math.inf if moy_tir >= 0.0 else -math.inf)
+            else:
+                ligne.append(moy_tir / (math.sqrt(var_tir) / n_tir))
+        t_des_tirages.append(ligne)
+    en_lice = list(range(len(noms)))
+    validees, etapes, p_au_pas = [], [], {}
+    autorises = math.floor(seuil * (nb_tirages + 1) + 1e-9) - 1      # tirages « aussi bien » admis pour valider
+    while en_lice:
+        maximums = [max(ligne[i] for i in en_lice) for ligne in t_des_tirages]
+        ordonnes = sorted(maximums, reverse=True)
+        barre = ordonnes[autorises] if 0 <= autorises < nb_tirages else math.inf
+        du_pas = []
+        for i in en_lice:
+            atteints = sum(1 for x in maximums if x >= t_vrais[i])
+            p_au_pas[noms[i]] = (1 + atteints) / (1 + nb_tirages)
+            if p_au_pas[noms[i]] <= seuil:
+                du_pas.append(i)
+        etapes.append({"en_lice": [noms[i] for i in en_lice], "barre_t": barre, "validees": [noms[i] for i in du_pas]})
+        if not du_pas:
+            break
+        validees.extend(noms[i] for i in du_pas)
+        en_lice = [i for i in en_lice if i not in du_pas]
+    return {"validees": validees, "t": dict(zip(noms, t_vrais)), "p_au_pas": p_au_pas, "etapes": etapes,
+            "tirages": nb_tirages, "longueur_des_blocs_jours": taille_bloc, "periode_jours": nb_jours,
+            "seuil": seuil, "m": len(noms), "ce_que_prouve": PORTEE_DU_VERDICT_DES_30}
+
+
+def tirages_exiges_par_holm(m, seuil=SEUIL_PAR_FAMILLE_DEFAUT):
+    """Rend le nombre de tirages au hasard qu'il faut, par mode, pour que ⑥ puisse passer la première barre de Holm.
+
+    ① RÔLE — Le minimum de tirages de l'étalon de hasard quand m versions sont jugées ensemble (ARBITRAGE, N2).
+    ② CONTEXTE D'APPEL — `holm_du_hasard` ; l'appelant de `etalon_hasard` au regard des 30 %, pour régler `n_tirages`.
+    ③ ENTRÉE — `m` : le nombre de versions envoyées, entier ≥ 1 · `seuil` : le risque de la famille ⑥, dans ]0, 1[.
+    ④ CONDITIONS D'ENTRÉE — Sinon `ValueError`.
+    ⑤ SORTIE — UNE valeur : un entier, le plus petit nombre de tirages T tel que 1 ÷ T < seuil ÷ m.
+      [rend: 1]
+    ⑥ TRAITEMENT — T = partie entière de m ÷ seuil (arrondie à 9 décimales, contre l'écart des flottants) + 1.
+    ⑦ UNITÉ — Un NOMBRE DE TIRAGES, par mode de l'étalon.
+    ⑧ POURQUOI — Le juge rend ⑥ INCONNU si 1 ÷ tirages ≥ seuil (DÉL-D38) ; la première barre de Holm vaut seuil ÷ m.
+      Exemple de l'arbitre : m = 15 et 2,5 % → 601 tirages, contre 120 passés aujourd'hui par l'appelant.
+    ⑨ CE QUI CLOCHE — Un minimum, pas une précision : au seuil, le p a peu de tirages « aussi bien ».
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ou lève `ValueError`. Aucun appel ne peut ne pas revenir.
+      [sort: non]
+    """
+    import math
+    if isinstance(m, bool) or not isinstance(m, int) or m < 1:
+        raise ValueError("m = %r : il faut un entier >= 1" % (m,))
+    if isinstance(seuil, bool) or not isinstance(seuil, (int, float)) or not (0.0 < seuil < 1.0):
+        raise ValueError("seuil = %r : il faut un nombre dans ]0, 1[" % (seuil,))
+    return math.floor(round(m / seuil, 9)) + 1
+
+
+def holm_du_hasard(p_par_version, seuil=SEUIL_PAR_FAMILLE_DEFAUT):
+    """Juge le contrôle ⑥ (« bat le hasard ») d'une FAMILLE de versions par la méthode de Holm.
+
+    ① RÔLE — Dire quelles versions d'une famille battent l'achat au hasard, en tenant le risque de la famille ⑥ sous
+      `seuil` (étape 7 de l'ARBITRAGE du 14-11-2026, ⑥ ; C13).
+    ② CONTEXTE D'APPEL — Le regard unique sur les 30 %, une fois par mode de l'étalon de hasard ; l'épreuve
+      `tests/EPREUVES_DE_LA_METHODE_DES_30_Mer_25-11-2026.py`.
+    ③ ENTRÉE — `p_par_version` : dictionnaire nom → (p, tirages), les DEUX PREMIÈRES des trois valeurs que rend
+      `p_du_hasard` (p, tirages, raison) ; le triplet passé tel quel lève `ValueError` (p peut être None) ·
+      `seuil` : le risque de la famille, dans ]0, 1[, par défaut `SEUIL_PAR_FAMILLE_DEFAUT`.
+    ④ CONDITIONS D'ENTRÉE — Au moins une version ; chaque p None ou dans ]0, 1] ; chaque nombre de tirages un entier
+      ≥ 0. Sinon `ValueError`.
+    ⑤ SORTIE — UNE valeur : un dictionnaire — `etats` (nom → « PASSE », « BLOQUE » ou « INCONNU »), `raisons`
+      (nom → texte, pour INCONNU), `barres` (nom → barre de Holm à son rang, pour les versions connues), `m`,
+      `seuil`, `tirages_exiges`.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① m = nombre de versions, INCONNUES comprises · ② une version sans p, ou avec moins de
+      `tirages_exiges_par_holm(m, seuil)` tirages, est INCONNUE (elle ne peut pas être validée) · ③ ranger les p
+      connus du plus petit au plus grand ; au rang r (0, 1, …), barre = seuil ÷ (m − r) ; PASSE tant que p ≤ barre ; au
+      premier échec, celle-ci et toutes les suivantes BLOQUE.
+    ⑦ UNITÉ — Probabilités sans unité ; tirages en NOMBRE.
+    ⑧ POURQUOI — Holm (« A simple sequentially rejective multiple test procedure », Scandinavian Journal of Statistics
+      6(2), 1979, 65-70) tient le risque de la famille quelle que soit la dépendance, à condition que les p soient
+      justes : ceux de ⑥ sont des p de tirage, valides quelle que soit la dépendance (ARBITRAGE §5). Une version
+      INCONNUE compte dans m et ne passe jamais : c'est la prudence du juge (R-505, « un contrôle INCONNU ne valide
+      jamais »). Exemple de la méthode (§A.4) : p = 0,001 ; 0,010 ; 0,020 ; 0,300 à 5 % → 3 validées ; à 2,5 %, 1.
+    ⑨ CE QUI CLOCHE — ① L'étalon de hasard tire ses dates sur toute la période, pas dans la même année (DÉL-D38 ;
+      `p_du_hasard`, ⑨ ; écart N1 de l'ARBITRAGE, consigné au BACKLOG). ② ⑥ retire l'exposition partagée avec le
+      hasard, pas une prime propre au signal (C3, `PORTEE_DU_VERDICT_DES_30`).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ou lève `ValueError`. Boucles bornées par m. Aucun appel ne peut ne pas revenir.
+      [sort: non]
+    """
+    if not isinstance(p_par_version, dict) or not p_par_version:
+        raise ValueError("il faut au moins une version (un dictionnaire nom → (p, tirages))")
+    m = len(p_par_version)
+    exiges = tirages_exiges_par_holm(m, seuil)
+    etats, raisons, barres, connus = {}, {}, {}, []
+    for nom, couple in p_par_version.items():
+        try:
+            p, tirages = couple
+        except (TypeError, ValueError):
+            raise ValueError("version %s : il faut un couple (p, tirages)" % nom)
+        if p is not None and (isinstance(p, bool) or not isinstance(p, (int, float)) or not (0.0 < p <= 1.0)):
+            raise ValueError("version %s : p = %r hors de ]0, 1]" % (nom, p))
+        if isinstance(tirages, bool) or not isinstance(tirages, int) or tirages < 0:
+            raise ValueError("version %s : tirages = %r, il faut un entier >= 0" % (nom, tirages))
+        if p is None:
+            etats[nom], raisons[nom] = "INCONNU", "p du hasard absent"
+        elif tirages < exiges:
+            etats[nom] = "INCONNU"
+            raisons[nom] = "%d tirages, il en faut au moins %d pour %d versions au seuil %r" % (tirages, exiges, m, seuil)
+        else:
+            connus.append((p, nom))
+    connus.sort()
+    echec = False
+    for rang, (p, nom) in enumerate(connus):
+        barres[nom] = seuil / (m - rang)
+        if not echec and p <= barres[nom]:
+            etats[nom] = "PASSE"
+        else:
+            echec = True
+            etats[nom] = "BLOQUE"
+    return {"etats": etats, "raisons": raisons, "barres": barres, "m": m, "seuil": seuil, "tirages_exiges": exiges}
 
 
 def minimum_d_observations(gains_eur, seuil):
@@ -3724,6 +4094,9 @@ def p_du_hasard(net_strategie, hasard):
     ⑨ CE QUI CLOCHE — Le tirage de l'étalon se fait sur toute la période, pas « dans la même année » (DÉL-D38) ; un
       tirage qui joue moins d'opérations que la stratégie a une somme plus petite, ce qui avantage la stratégie :
       écarts consignés dans la note de B, la mécanique du tirage est dans `etalon_hasard`.
+      LIMITE (ARBITRAGE du 14-11-2026, C3) : battre le hasard les mêmes jours retire l'exposition que la stratégie
+      partage avec lui — marché, secteur, volatilité — mais pas une prime propre au signal dont le rendement varie
+      d'une époque à l'autre ; ce contrôle ne prouve donc pas la durée (`PORTEE_DU_VERDICT_DES_30`).
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
