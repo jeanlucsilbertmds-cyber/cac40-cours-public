@@ -141,6 +141,43 @@ def u(d):
     return d.astimezone(datetime.timezone.utc)
 
 
+def preparer(j):
+    """Contrôle une ligne lue du fichier de jalons et lui ajoute `_rdv`, `_chemin` et `_ech`.
+
+    ① rôle : LA préparation d'une ligne de jalon, la seule (R-708 : deux implémentations d'une même chose
+    divergent toujours) — passage_unique et programmes/ORDONNER_UN_PLANNING.py l'appellent
+    ② contexte : une fois par ligne, avant etat_de_la_preuve
+    ③ entrée : `j`, une ligne rendue par `lire` (dictionnaire)
+    ④ conditions : —
+    ⑤ sortie : UNE valeur, le motif d'ARRET (texte, sans l'heure) ou None si la ligne est bonne
+      [rend: 1]
+    ⑥ traitement : colonne en trop ; champs jalon, echeance, preuve présents ; identifiant sans espace ni « / » ;
+    « RDV » repéré ; chemin absolu ; échéance lue au format AAAA-MM-JJ HH:MM, heure de Paris
+    ⑦ unité : heure de Paris
+    ⑧ pourquoi : sortie de passage_unique le 18-11-2026 (étape PANNES) pour que l'ordonnanceur juge les
+    preuves avec la même préparation que le veilleur ; motifs et ordre inchangés
+    ⑨ ce qui cloche : une échéance hors format lève ValueError, rattrapée par l'appelant (comme avant)
+    ⑩ effet : complète `j`
+    ⑪ terminaison : revient toujours ou lève ValueError.
+      [sort: non]
+    """
+    if None in j:   # une colonne en trop : un « ; » dans un chemin ou un libellé ferait lire un autre fichier (relecture du 28-10-2026, M4)
+        return f"colonne en trop (un « ; » dans un chemin ou un libellé ?) : {j.get('jalon')}"
+    if not all((j.get(c) or "").strip() for c in ("jalon", "echeance", "preuve")):
+        return f"ligne incomplète : {j}"
+    j["jalon"] = j["jalon"].strip()
+    if any(c.isspace() or c == "/" for c in j["jalon"]):   # la liste .vus se coupe aux espaces (relecture du 28-10-2026, M7)
+        return f"identifiant de jalon avec une espace ou un « / » : « {j['jalon']} »"
+    j["preuve"] = j["preuve"].strip()
+    # un rendez-vous s'écrit « RDV <chemin absolu de sa preuve> » ; « RDV » nu reste lisible, mais n'est jamais tenu (A-632, 28-10-2026)
+    j["_rdv"] = j["preuve"] == "RDV" or j["preuve"].startswith("RDV ")
+    j["_chemin"] = j["preuve"][3:].strip() if j["_rdv"] else j["preuve"]
+    if j["_chemin"] and not os.path.isabs(j["_chemin"]):
+        return f"preuve au chemin relatif (il faut un chemin absolu) : {j['jalon']}"
+    j["_ech"] = datetime.datetime.strptime(j["echeance"].strip(), "%Y-%m-%d %H:%M").replace(tzinfo=P)
+    return None
+
+
 def passage_unique(chemin, maintenant):
     """Fait un passage : annonce, compte, et dit si tout est tenu — sans rien écrire.
 
@@ -168,20 +205,9 @@ def passage_unique(chemin, maintenant):
         if not lignes:
             return [f"ARRET {h} aucun jalon dans le fichier (fichier vide ou tronqué)"], None, []
         for j in lignes:
-            if None in j:   # une colonne en trop : un « ; » dans un chemin ou un libellé ferait lire un autre fichier (relecture du 28-10-2026, M4)
-                return [f"ARRET {h} colonne en trop (un « ; » dans un chemin ou un libellé ?) : {j.get('jalon')}"], None, []
-            if not all((j.get(c) or "").strip() for c in ("jalon", "echeance", "preuve")):
-                return [f"ARRET {h} ligne incomplète : {j}"], None, []
-            j["jalon"] = j["jalon"].strip()
-            if any(c.isspace() or c == "/" for c in j["jalon"]):   # la liste .vus se coupe aux espaces (relecture du 28-10-2026, M7)
-                return [f"ARRET {h} identifiant de jalon avec une espace ou un « / » : « {j['jalon']} »"], None, []
-            j["preuve"] = j["preuve"].strip()
-            # un rendez-vous s'écrit « RDV <chemin absolu de sa preuve> » ; « RDV » nu reste lisible, mais n'est jamais tenu (A-632, 28-10-2026)
-            j["_rdv"] = j["preuve"] == "RDV" or j["preuve"].startswith("RDV ")
-            j["_chemin"] = j["preuve"][3:].strip() if j["_rdv"] else j["preuve"]
-            if j["_chemin"] and not os.path.isabs(j["_chemin"]):
-                return [f"ARRET {h} preuve au chemin relatif (il faut un chemin absolu) : {j['jalon']}"], None, []
-            j["_ech"] = datetime.datetime.strptime(j["echeance"].strip(), "%Y-%m-%d %H:%M").replace(tzinfo=P)
+            motif = preparer(j)
+            if motif:
+                return [f"ARRET {h} {motif}"], None, []
         ids = [j["jalon"] for j in lignes]
         if len(ids) != len(set(ids)):
             return [f"ARRET {h} identifiant de jalon en double"], None, []
