@@ -42,8 +42,10 @@ USAGE
   (`JOUER_LES_VERSIONS.empreinte_des_cours_jusqu_a`, la fonction qui l'a écrite) ; la PÉRIODE de la fiche est dans
   l'empreinte des réglages (les bornes, par `lecture_de_jeu`) · ⑥ter LA FAMILLE (A-777, C12 ; L-1, L-2 du RELU Cowork
   du 25-11-2026) : une version visée dont la stratégie est d'une famille déjà jouée sur 2000-2023 (même CODE de module
-  de signal qu'une fiche de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE, `famille_deja_jouee`) est refusée, sauf
-  déclaration explicite au journal (`declarer_la_famille`) · ⑦ sous --juge-fait, le témoin ④.
+  de signal qu'une fiche de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE, `famille_deja_jouee` ; ce code de
+  référence est l'ensemble FIGÉ de CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES, jamais lu au registre de la copie —
+  décision de Jean-Luc du 25-11-2026 à 15h09, L-11) est refusée, sauf déclaration explicite au journal
+  (`declarer_la_famille`) · ⑦ sous --juge-fait, le témoin ④.
 ⑦ UNITÉ — —
 ⑧ POURQUOI — A-919 et A-921 (décisions de Jean-Luc du 19-11-2026) ; superviseur R-759 du 19-11-2026 : la porte dans
   le juge, la marque sur la fiche, les réglages confrontés à ② ; superviseur R-759 du 19-11-2026, tour 3 : une seule
@@ -289,41 +291,43 @@ def famille_deja_jouee(racine, sid, J=None, version=None, module=None):
       registre de la racine
       (`fiche_du_registre`, n°83 : la dernière ligne d'un identifiant fait foi), colonne module_signal ; le CODE de
       chaque module nommé, sous la racine ; CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE (« la famille de ces
-      fiches a déjà été jouée sur 2000-2023 (A-777) », texte du contrat).
-    ④ CONDITIONS D'ENTRÉE — `sid` est au registre avec un module_signal lisible ; chaque fiche déjà vue présente au
-      registre aussi.
+      fiches a déjà été jouée sur 2000-2023 (A-777) », texte du contrat) et CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES (le
+      module de référence et l'ENSEMBLE FIGÉ des empreintes de son code). La référence n'est JAMAIS lue au registre.
+    ④ CONDITIONS D'ENTRÉE — `sid` est au registre avec un module_signal lisible ; chaque fiche déjà vue a son entrée
+      dans CODE_DES_FAMILLES_DEJA_JOUEES.
     ⑤ SORTIE — UNE liste de textes, un par fiche déjà vue de la même famille.
     [rend: 1]
     ⑥ TRAITEMENT — ① « mes » empreintes du CODE : celle du module de `sid`, celle du module de `version` si elle est
       au registre, celle de `module` s'il est donné (`J.lire_module_du_jour`, qui passe par `J.empreinte_d_un_module` :
       l'arbre syntaxique privé de ses textes explicatifs ; la seule mesure, R-708) ; module_signal vide, fichier absent
       ou illisible → Impossible (on ne sait pas, R-734) · ② pour chaque fiche déjà vue : `sid` ou `version` elle-même
-      (après `norme`), ou une empreinte de code parmi les miennes → un motif qui la nomme.
+      (après `norme`) → un motif ; sinon son entrée au contrat (absente → Impossible) ; AUTO-VÉRIFICATION : le module
+      de référence présent sous la racine et son empreinte HORS de l'ensemble figé → Impossible (refiger, A-957) ;
+      une de mes empreintes DANS l'ensemble figé → un motif qui la nomme.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — DECISION_FAMILLE. L-1 du RELU Cowork du 25-11-2026 : l'ancienne garde comparait le TEXTE du chemin ;
       « ./programmes/… », « programmes/./… » ou une copie du module C5 sous un autre nom passaient sans déclaration.
       Critère : si je renomme le module, ce contrôle ne change pas d'avis — il mesure le code, pas le nom. L-6 du RELU
       Cowork du 25-11-2026 (14h20) : seule la ligne ACTUELLE de `sid` était lue ; une ligne de version sur le module C5
       (la fiche que le juge lirait) passait. Superviseur R-759 du 25-11-2026 (R2 « de fond pour la version visée », Q4
-      « passer aussi fiche["module_signal"] ») : la version visée et le module de la fiche jugée comptent.
+      « passer aussi fiche["module_signal"] ») : la version visée et le module de la fiche jugée comptent. L-11 et C13
+      du même RELU, FERMÉS par la décision de Jean-Luc du 25-11-2026 à 15h09 (« 1 » à « graver au contrat les
+      empreintes du code de C5 », forme du superviseur R-759 de 14h36) : la référence lue dans le registre de la copie
+      se changeait d'une ligne ; elle est désormais figée au contrat.
     ⑨ CE QUI CLOCHE — ① LA DÉFINITION DE LA FAMILLE (« même code de module de signal » qu'une fiche déjà vue) est
       celle de l'écrivain, NON DÉCIDÉE par Jean-Luc (L-5 du même RELU) ; une copie du module C5 dont UNE instruction
       change (un seuil, un nom de variable) n'a plus la même empreinte et passe ; un module qui CHARGE le module C5 par
       son chemin a sa propre empreinte et passe (même trou que N7, `J.empreinte_d_un_module` ⑨ ①). ② Seules les
       fiches de FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE sont vues (aujourd'hui une, C5E10-QA-V1) ; une famille jouée sur
       2000-2023 qui n'y est pas inscrite passe (L-5). ③ Le code est lu AU JOUR sous la racine, pas à la date de la
-      fiche déjà vue. ④ OUVERT — DÉCISION DE JEAN-LUC DEMANDÉE LE 25-11-2026 (L-11 du RELU Cowork de 14h20) : la
-      RÉFÉRENCE de la famille est le module de la DERNIÈRE ligne de la fiche déjà vue, lue dans le registre DE LA
-      COPIE ; UNE ligne C5E10-QA-V1 ajoutée qui nomme un autre module fait juger C5 sans déclaration (cas A3). Le
-      superviseur R-759 du 25-11-2026 a refusé la réparation par l'historique (« arrêter et simplifier ») ; la forme
-      proposée à Jean-Luc : un ensemble d'empreintes du CODE de C5 FIGÉ au contrat. TROU VOISIN, MÊME DÉCISION : une
-      fiche déjà vue ABSENTE du registre de la racine n'est pas comparée (sa colonne
-      module_signal n'existe pas) ; une copie dont on a retiré C5E10-QA-V1 du registre laisse passer C5. Choisi
-      plutôt que « contrôle impossible » parce que les racines fabriquées des épreuves (exemple réel :
-      tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py, registre réduit à ses fiches PROP-) n'en portent
-      pas ; même nature que la limite acceptée par Jean-Luc pour l'essai sans regard (A-867 : une copie modifiée
-      exprès n'est pas gardée). Une fiche déjà vue PRÉSENTE dont le module est illisible → Impossible.
-    ⑩ EFFET — lit le registre et des modules.
+      fiche déjà vue. ④ FERMÉ — L-11 et C13 du RELU Cowork du 25-11-2026, par la décision de Jean-Luc du 25-11-2026 à
+      15h09 : la RÉFÉRENCE de la famille était le module de la dernière ligne de la fiche déjà vue, lue dans le
+      registre DE LA COPIE (une ligne C5E10-QA-V1 ajoutée sur un autre module, ou ses lignes retirées, faisaient juger
+      C5 sans déclaration) ; elle est désormais l'ensemble figé de CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES. ⑤ Un module
+      de référence ABSENT sous la racine (racines fabriquées des épreuves) n'est pas auto-vérifié ; la comparaison à
+      l'ensemble figé se fait quand même. ⑥ L'auto-vérification fait lever « contrôle impossible » à TOUTE chaîne
+      dès que le code de C5 change, même pour une stratégie saine : c'est voulu (forcer à refiger, A-957).
+    ⑩ EFFET — lit le registre (le module de `sid` et de `version` seulement) et des modules.
     ⑪ TERMINAISON — rend la main, ou lève Impossible.
     [sort: non]
     """
@@ -336,7 +340,8 @@ def famille_deja_jouee(racine, sid, J=None, version=None, module=None):
         """Rend (chemin, empreinte du code) du module de signal de `ident`.
 
         ① RÔLE — Lire le module de signal d'une fiche du registre.
-        ② CONTEXTE D'APPEL — `famille_deja_jouee`, pour `sid` puis pour chaque fiche déjà vue présente au registre.
+        ② CONTEXTE D'APPEL — `famille_deja_jouee`, pour `sid` et pour la version visée (jamais pour une fiche déjà
+          vue : sa référence est figée au contrat).
         ③ ENTRÉE — `ident` : un identifiant du registre de la racine ; exemple réel C5E10-QA-V1.
         ④ CONDITIONS D'ENTRÉE — —
         ⑤ SORTIE — DEUX valeurs : le chemin écrit au registre, l'empreinte du code (16 hexadécimaux).
@@ -382,11 +387,23 @@ def famille_deja_jouee(racine, sid, J=None, version=None, module=None):
     for f in sorted(C.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE):
         if norme(f) in moi:
             m.append("%s : c'est la fiche elle-même" % f)
-        elif fiche_du_registre(racine, f, absente_permise=True) is None:
-            continue        # absente du registre de la racine : rien à comparer (⑨ ④)
-        elif module_de(f)[1] in mien:
-            ref = module_de(f)
-            m.append("%s : même code de module de signal (%s et %s, empreinte %s)" % (f, ref[0], mien[ref[1]], ref[1]))
+            continue
+        if f not in C.CODE_DES_FAMILLES_DEJA_JOUEES:
+            raise Impossible("famille de %s inconnue : aucun code figé au contrat (CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES)"
+                             % f)
+        chemin_ref, ensemble = C.CODE_DES_FAMILLES_DEJA_JOUEES[f]
+        try:
+            emp_ref = lire_module(chemin_ref)
+        except (ValueError, ImportError, OSError) as e:
+            raise Impossible("module de référence de %s illisible : %s (%s: %s)" % (f, chemin_ref, type(e).__name__, e))
+        if emp_ref is not None and emp_ref not in ensemble:      # AUTO-VÉRIFICATION (A-957) : forcer à refiger
+            raise Impossible("le code du module de référence de %s a changé : %s a l'empreinte %s, absente de l'ensemble "
+                             "figé au contrat (CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES) — refiger, sur décision de "
+                             "Jean-Luc (A-957)" % (f, chemin_ref, emp_ref))
+        touches = sorted(e for e in mien if e in ensemble)
+        if touches:
+            m.append("%s : même code de module de signal (%s, empreinte %s, figée au contrat)" % (f, mien[touches[0]],
+                                                                                              touches[0]))
     return m
 
 

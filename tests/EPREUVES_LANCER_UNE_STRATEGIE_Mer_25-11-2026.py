@@ -17,6 +17,10 @@ est refusée avant ⓪ (L-4). Depuis le RELU Cowork du 25-11-2026 à 14h20 (poin
 du même jour : la garde compte aussi la VERSION visée et le module de la fiche jugée (L-6, cas C15, C15c) ; la doublure
 de JOUER lit la tranche par la vraie fonction (L-12, cas C16) ; l'enchaîneur refuse une tranche écrite avec un zéro de
 tête ou hors du découpage (L-10, L-7, cas C17) ; la déclaration se lit au journal, pas au fichier seul (L-8, cas C18).
+Depuis le RELU Cowork du 25-11-2026 à 15h03 et la décision de Jean-Luc du même jour à 15h09 : la VRAIE porte du juge
+passe le module de la fiche jugée à la garde (N-1, cas C19, juge factice) ; « jouer 3 3 » est refusé (N-2, C17) ; la
+version visée « fiche elle-même » et le module vide ont leurs cas (N-4, C20, C21) ; la référence de la famille est
+FIGÉE au contrat (L-11, C13 fermés : C13, C13b) et s'auto-vérifie (C22).
 
 USAGE
     python3 -B tests/EPREUVES_LANCER_UNE_STRATEGIE_Mer_25-11-2026.py <source> [--sans-sabotages]
@@ -30,7 +34,7 @@ USAGE
 ④ CONDITIONS D'ENTRÉE — `<source>/programmes/LANCER_UNE_STRATEGIE.py` existe.
 ⑤ SORTIE — UNE valeur, le code : 0 tout tient · 1 un cas tombe ou un sabotage ne mord pas · 2 l'épreuve n'a pas pu
   tourner (ancre de sabotage absente, usage faux — R-734).
-⑥ TRAITEMENT — ① un dossier de travail sous /dev/shm (sinon /tmp) · ② les cas C1 à C12 sur les vrais programmes ·
+⑥ TRAITEMENT — ① un dossier de travail sous /dev/shm (sinon /tmp) · ② les cas C1 à C22 sur les vrais programmes ·
   ③ chaque sabotage : une copie du dossier des programmes faite de liens (et emp.py lié à côté, que LIRE_LE_CODE
   cherche au-dessus de programmes/), le programme visé remplacé par son texte saboté, les cas rejoués, au moins un doit
   tomber · ④ le dossier de travail effacé.
@@ -44,10 +48,13 @@ USAGE
   JOUER découpe par la VRAIE fonction `JOUER_LES_VERSIONS.tranche` de la source, et sa doublure d'assemblage refuse un
   doublon ou un manque comme la vraie (MINEUR de L-3) ; elle LIT la tranche par la VRAIE
   `JOUER_LES_VERSIONS.lire_la_tranche` (L-12). C16 n'a PAS de sabotage propre : la doublure vit dans l'épreuve, pas
-  dans programmes/ (accepté par le superviseur R-759 du 25-11-2026, Q5). ⑥ C13 reste VERT EXPRÈS et L-11 est OUVERT —
-  DÉCISION DE JEAN-LUC DEMANDÉE LE 25-11-2026 : la référence de la famille se lit encore dans le registre de la copie,
-  à sa dernière ligne ; une ligne C5E10-QA-V1 ajoutée sur un autre module, ou ses lignes retirées, laissent passer C5.
-  ⑦ `porte_du_juge` elle-même n'est pas jouée : C15c appelle `V.motifs` avec le module comme elle le passe.
+  dans programmes/ (accepté par le superviseur R-759 du 25-11-2026, Q5). ⑥ L-11 et C13 FERMÉS par la décision de Jean-Luc
+  du 25-11-2026 à 15h09 (« 1 » à « graver au contrat les empreintes du code de C5 ») : la référence de la famille est
+  l'ensemble FIGÉ de CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES ; C13 (lignes C5E10-QA-V1 retirées) et C13b (une ligne
+  C5E10-QA-V1 ajoutée sur un autre module) REFUSENT désormais, C22 prouve l'auto-vérification (code de C5 changé sous
+  la racine → code 2). Les modules « C5 » de la copie fabriquée portent donc le VRAI code de C5, lu dans la source
+  (jamais exécuté ici : seule son empreinte compte). ⑦ `porte_du_juge` est jouée par C19 avec un juge FACTICE
+  (`porte_du_juge_factice`, ⑨ ①) : le VRAI juge ne l'est pas.
 ⑩ EFFET — Écrit sous le dossier de travail seulement.
 ⑪ TERMINAISON — Chaque lancement est borné à 120 s. [sort: oui — code]
 """
@@ -138,15 +145,24 @@ print("doublure du juge : %s jugée (aucun cours lu)" % ident)
 
 
 # LES MODULES DE SIGNAL FACTICES — du CODE (la famille se lit à l'empreinte du code, sans les textes explicatifs).
-MODULE_C5 = '''"""Module factice de la famille déjà vue (rôle de C5 dans l'épreuve)."""
-def signal(cours):
-    return [c > 100 for c in cours]
-'''
-MODULE_C5_RECOPIE = '''"""Le même code sous un autre nom, texte explicatif et commentaire changés (L-1, A1c du RELU Cowork)."""
-def signal(cours):
-    # un commentaire qui n'est pas du code
-    return [c > 100 for c in cours]
-'''
+def code_de_c5():
+    """Rend (chemin de référence, texte du VRAI module C5) lus dans la source. [rend: 2]
+
+    ①–⑪ : ① la famille déjà vue de l'épreuve est C5 elle-même, depuis que sa référence est FIGÉE au contrat (L-11,
+    décision de Jean-Luc du 25-11-2026 à 15h09) · ② `fabriquer` · ③ — (SOURCE_DES_PROGRAMMES) · ④ la source porte le
+    contrat et le module · ⑤ DEUX valeurs · ⑥ le chemin vient de CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES de la source
+    (jamais recopié, R-708), le texte du fichier de la source · ⑦ — · ⑧ le code n'est jamais exécuté : seule son
+    empreinte compte · ⑨ — · ⑩ lit · ⑪ rend la main. [sort: non]
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("contrats_de_la_source",
+                                                  os.path.join(SOURCE_DES_PROGRAMMES, "CONTRATS_DES_FICHIERS.py"))
+    C = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(C)
+    chemin = C.CODE_DES_FAMILLES_DEJA_JOUEES["C5E10-QA-V1"][0]
+    return chemin, open(os.path.join(os.path.dirname(SOURCE_DES_PROGRAMMES), chemin), encoding="utf-8").read()
+
+
 MODULE_NEUF = '''"""Module factice d'une famille neuve."""
 def signal(cours):
     return [c < 100 for c in cours]
@@ -159,8 +175,8 @@ def fabriquer(dossier, valide=True, module="programmes/MODULE_FAUX_NEUF.py"):
     ① RÔLE — La copie jetable : fiche factice, réglages, cours de 2024, doublures, modules de signal factices.
     ② CONTEXTE D'APPEL — chaque cas.
     ③ ENTRÉE — `dossier` (absent) ; `valide` : la mention de validation est-elle écrite ? `module` : le module de
-      signal de la fiche factice, tel qu'écrit au registre (celui de la fiche déjà vue C5E10-QA-V1, recopiée en
-      factice, fait une famille déjà jouée ; « ./programmes/… » ou la copie MODULE_COPIE_DU_C5.py aussi).
+      signal de la fiche factice, tel qu'écrit au registre (programmes/MODULE_FAUX_C5.py porte le VRAI code de C5,
+      `code_de_c5`, et fait donc une famille déjà jouée ; « ./programmes/… » ou la copie MODULE_COPIE_DU_C5.py aussi).
     ④ CONDITIONS D'ENTRÉE — SOURCE_DES_PROGRAMMES est posé par `main`.
     ⑤ SORTIE — UNE valeur : le chemin. ⑥ TRAITEMENT — fichiers écrits. ⑦ UNITÉ — —
     ⑧ POURQUOI — aucun cours réel, aucune date d'avant 2024 (consigne du 25-11-2026). ⑨ CE QUI CLOCHE — —
@@ -171,7 +187,11 @@ def fabriquer(dossier, valide=True, module="programmes/MODULE_FAUX_NEUF.py"):
     for nom, texte in DOUBLURES.items():
         with open(os.path.join(dossier, "programmes", nom), "w", encoding="utf-8") as fh:
             fh.write(texte.lstrip().replace("SOURCE_DES_PROGRAMMES", repr(SOURCE_DES_PROGRAMMES)))
-    for nom, texte in (("MODULE_FAUX_C5.py", MODULE_C5), ("MODULE_COPIE_DU_C5.py", MODULE_C5_RECOPIE),
+    ref, c5 = code_de_c5()
+    # Le VRAI code de C5 : au chemin de référence (l'auto-vérification le lit), sous un autre nom (MODULE_FAUX_C5.py),
+    # et recopié avec un commentaire de plus (MODULE_COPIE_DU_C5.py : L-1, A1c du RELU Cowork).
+    for nom, texte in ((os.path.basename(ref), c5), ("MODULE_FAUX_C5.py", c5),
+                       ("MODULE_COPIE_DU_C5.py", "# un commentaire qui n'est pas du code\n" + c5),
                        ("MODULE_FAUX_NEUF.py", MODULE_NEUF)):
         with open(os.path.join(dossier, "programmes", nom), "w", encoding="utf-8") as fh:
             fh.write(texte)
@@ -226,6 +246,75 @@ def motifs_de_la_porte(prog, racine, version, module=None):
     code = ("import sys; sys.path.insert(0, %r); import VERIFIER_LA_CHAINE as V; "
             "print(V.motifs(%r, %r, %r, len(V.ORDRE), %r, module=%r))" % (os.path.dirname(prog), racine, SID, ESSAI,
                                                                            version, module))
+    p = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=120, cwd=racine)
+    return p.stdout + p.stderr
+
+
+def porte_du_juge_factice(prog, racine, version, module):
+    """Rend la sortie de la VRAIE `V.porte_du_juge`, appelée avec un juge factice ; rend le texte affiché. [rend: 1]
+
+    ① RÔLE — C19 : faire passer un cas par la ligne de `porte_du_juge` qui donne à la garde le module de la fiche jugée
+      (Q4 du superviseur R-759 du 25-11-2026), que C15c ne traverse pas (N-1 du RELU Cowork du 25-11-2026, 14h58).
+    ② CONTEXTE D'APPEL — `les_cas`, C19.
+    ③ ENTRÉE — `prog` : le lanceur (la garde est sa voisine) ; `racine` : une copie fabriquée dont la chaîne est faite
+      jusqu'à ③ ; `version` : l'identifiant de la fiche jugée, ABSENT du registre de la copie (la branche « version
+      visée », L-6, ne voit donc rien : seul le module passé par la porte peut refuser) ; `module` : sa case
+      module_signal. Exemple : version FAUX-LANCEUR-V1-E01-0007, module programmes/MODULE_FAUX_C5.py.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : le texte affiché (la liste des motifs, ou la trace d'une exception).
+    ⑥ TRAITEMENT — un python neuf importe la garde voisine, puis NEUTRALISE ce que la copie fabriquée ne porte pas :
+      le juge est un espace de noms factice (lecture des modules : la VRAIE `lire_module_du_jour` ; empreinte des
+      réglages et nom du barème : des constantes) ; `JOUER_LES_VERSIONS.empreinte_du_bareme` et
+      `CONTRATS_DES_FICHIERS.manques_du_contrat` : des constantes ; `V.motifs` est enveloppée pour recevoir
+      empreinte=None et bareme=None (la doublure de ② n'écrit pas ces colonnes) — TOUT LE RESTE, dont l'argument
+      `module`, est passé tel que `porte_du_juge` l'a écrit. Puis `V.porte_du_juge(racine, fiche, J=…, mod_pos=…)`
+      sur une fiche marquée « MOULINETTE (A-919) <SID> <ESSAI> ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — R-731 : une épreuve qui reste verte quand on retire ce qu'elle teste est une décoration ; le RELU de
+      14h58 (mutation M2) a retiré l'argument `module` de la porte sans qu'aucun cas ne tombe.
+    ⑨ CE QUI CLOCHE — ① le VRAI juge n'est pas joué : son empreinte des réglages, son barème et le contrat sont
+      neutralisés ; ce cas ne prouve QUE le passage du module par la porte à la garde. ② Le texte des neutralisations
+      suppose les noms `empreinte_des_reglages`, `lire_module_du_jour`, `bareme_des_verdicts`, `empreinte_du_bareme`,
+      `manques_du_contrat` : un renommage fait tomber C19 en trace (rouge), pas en vert.
+    ⑩ EFFET — lit.
+    ⑪ TERMINAISON — bornée à 120 s. [sort: non]
+    """
+    code = "\n".join([
+        "import sys, types",
+        "sys.path.insert(0, %r)" % os.path.dirname(prog),
+        "import VERIFIER_LA_CHAINE as V, JOUER_LES_VERSIONS as JOUER, CONTRATS_DES_FICHIERS as C",
+        "import JUGE_DES_STRATEGIES as VRAI",
+        "J = types.SimpleNamespace(lire_module_du_jour=VRAI.lire_module_du_jour,",
+        "                          empreinte_des_reglages=lambda f, l: ('neutralisee',),",
+        "                          bareme_des_verdicts=lambda *a: 'bareme-factice')",
+        "JOUER.empreinte_du_bareme = lambda *a: 'neutralisee'",
+        "C.manques_du_contrat = lambda *a, **k: []",
+        "vrai = V.motifs",
+        "import inspect",
+        "def enveloppe(*a, **k):",
+        "    b = inspect.signature(vrai).bind(*a, **k)",
+        "    b.arguments['empreinte'], b.arguments['bareme'] = None, None",
+        "    return vrai(*b.args, **b.kwargs)",
+        "V.motifs = enveloppe",
+        "fiche = {'id': %r, C.COLONNE_DE_LA_MARQUE_DE_MOULINETTE: C.MARQUE_DE_MOULINETTE + ' %s %s', "
+        "'module_signal': %r}" % (version, SID, ESSAI, module),
+        "print(V.porte_du_juge(%r, fiche, J=J, mod_pos=object()))" % racine,
+    ])
+    p = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=120, cwd=racine)
+    return p.stdout + p.stderr
+
+
+def famille_directe(prog, racine, version, module=None):
+    """Rend la sortie de `V.famille_deja_jouee(racine, SID, None, version, module)`. [rend: 1]
+
+    ①–⑪ : ① C20 · ② `les_cas` · ③ `prog` : le lanceur (la garde est sa voisine), `racine`, `version`, `module` · ④ — ·
+    ⑤ UNE valeur : le texte affiché · ⑥ un python neuf importe VERIFIER_LA_CHAINE voisin et affiche le résultat, ou la
+      trace d'une exception · ⑦ — · ⑧ N-4 du RELU Cowork du 25-11-2026 : la branche « version visée = la fiche déjà vue
+      elle-même » n'est atteinte par aucun cas passant par `motifs` (une version hors du tri ③ y est refusée avant) ·
+      ⑨ — · ⑩ lit · ⑪ bornée à 120 s. [sort: non]
+    """
+    code = ("import sys; sys.path.insert(0, %r); import VERIFIER_LA_CHAINE as V; "
+            "print(V.famille_deja_jouee(%r, %r, None, %r, %r))" % (os.path.dirname(prog), racine, SID, version, module))
     p = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=120, cwd=racine)
     return p.stdout + p.stderr
 
@@ -386,16 +475,34 @@ def les_cas(prog, travail):
               "2-tranche-3" not in journal(m), "code %d" % code))
     code, out = lancer(prog, m, "--tranches=3")
     r.append(("C12c le lanceur dans le même découpage finit", code == 0 and FIN in out, "code %d" % code))
-    # C13 — LE TROU NOMMÉ (⑨ ④ de V.famille_deja_jouee), OUVERT — DÉCISION DE JEAN-LUC DEMANDÉE LE 25-11-2026 (L-11) :
-    # la fiche déjà vue retirée du registre de la copie, la famille C5 n'est plus vue et passe. Vert tant que le trou existe ; il rougira le jour où il sera bouché (comme S17 de
-    # tests/EPREUVES_ENCHAINER_LA_MOULINETTE_Jeu_19-11-2026.py).
+    # C13 — L-11 et C13 du RELU Cowork du 25-11-2026, FERMÉS par la décision de Jean-Luc du 25-11-2026 à 15h09 : la
+    # fiche déjà vue retirée du registre de la copie, la famille C5 est TOUJOURS vue (référence figée au contrat) :
+    # refus avant ⓪. Sous l'ancien code (référence lue au registre), ce cas passait (code 0).
     q = fabriquer(os.path.join(travail, "c13"), module="programmes/MODULE_FAUX_C5.py")
     reg = os.path.join(q, "donnees", "cac40_strategies.csv")
     lignes = open(reg, encoding="utf-8").read().splitlines()
     open(reg, "w", encoding="utf-8").write("\n".join(l for l in lignes if not l.startswith("C5E10-QA-V1,")) + "\n")
     code, out = lancer(prog, q, "--tranches=%d" % N)
-    r.append(("C13 TROU MONTRÉ : fiche déjà vue retirée du registre, C5 passe", code == 0 and FIN in out,
+    r.append(("C13 fiche déjà vue retirée du registre : C5 refusée avant ⓪ (L-11 fermé)", refuse_avant_zero(code, out, q),
               "code %d" % code))
+    # C13b — le cas X3 du RELU Cowork de 15h03 : une ligne C5E10-QA-V1 AJOUTÉE sur le module neuf (la dernière ligne
+    # faisait foi) ; refus avant ⓪ quand même.
+    q = fabriquer(os.path.join(travail, "c13b"), module="programmes/MODULE_FAUX_C5.py")
+    with open(os.path.join(q, "donnees", "cac40_strategies.csv"), "a", encoding="utf-8") as fh:
+        fh.write("C5E10-QA-V1,4,2,10,CAC40,LABO,ligne ajoutée (X3),,programmes/MODULE_FAUX_NEUF.py\n")
+    code, out = lancer(prog, q, "--tranches=%d" % N)
+    r.append(("C13b ligne C5E10-QA-V1 ajoutée sur un autre module : C5 refusée avant ⓪ (L-11 fermé)",
+              refuse_avant_zero(code, out, q), "code %d" % code))
+    # C22 — AUTO-VÉRIFICATION (A-957) : le code du module de référence de C5 changé sous la racine (une instruction
+    # ajoutée), empreinte absente de l'ensemble figé : contrôle impossible, code 2, rien de lancé — même pour une
+    # famille neuve, pour forcer à refiger.
+    q = fabriquer(os.path.join(travail, "c22"))
+    ref = os.path.join(q, code_de_c5()[0])
+    with open(ref, "a", encoding="utf-8") as fh:
+        fh.write("\n_INSTRUCTION_AJOUTEE_PAR_L_EPREUVE = 1\n")
+    code, out = lancer(prog, q, "--tranches=%d" % N)
+    r.append(("C22 code de C5 changé sous la racine, hors de l'ensemble figé : code 2 (A-957)",
+              code == 2 and "A-957" in out and not journal(q), "code %d" % code))
     # C15 — L-6 : stratégie sur un module NEUF, chaîne faite à la main jusqu'à ③ ; puis une ligne de VERSION ajoutée
     # sur le module C5 : la garde (`V.motifs`, version visée) refuse. C15c : sans ligne de version, le module C5 passé
     # comme la porte du juge passe celui de la fiche jugée : refus aussi (Q4 du superviseur R-759 du 25-11-2026).
@@ -416,13 +523,14 @@ def les_cas(prog, travail):
                         "--tranche=5/3"], capture_output=True, text=True, timeout=120, cwd=q)
     r.append(("C16 doublure de JOUER, --tranche=5/3 : refus comme le vrai (L-12)", p.returncode == 2,
               "code %d" % p.returncode))
-    # C17 — L-10, L-7 : « jouer 00 3 » et « jouer 5 3 » refusés par l'enchaîneur (usage, code 2), aucun témoin écrit.
+    # C17 — L-10, L-7 : « jouer 00 3 », « jouer 5 3 » et « jouer 3 3 » (la borne exacte k < N, N-2 du RELU Cowork de
+    # 14h58) refusés par l'enchaîneur (usage, code 2), aucun témoin écrit.
     q = fabriquer(os.path.join(travail, "c17"))
     codes = [ench(prog, q, *x)[0] for x in (["preparer"], ["decliner"], ["jouer", "0", "3"], ["jouer", "00", "3"],
-                                            ["jouer", "5", "3"])]
+                                            ["jouer", "5", "3"], ["jouer", "3", "3"])]
     j = journal(q)
-    r.append(("C17 « jouer 00 3 » et « jouer 5 3 » refusés (L-10, L-7)", codes == [0, 0, 0, 2, 2] and
-              "2-tranche-00" not in j and "2-tranche-5" not in j, "codes %s" % codes))
+    r.append(("C17 « jouer 00 3 », « jouer 5 3 » et « jouer 3 3 » refusés (L-10, L-7)", codes == [0, 0, 0, 2, 2, 2] and
+              "2-tranche-00" not in j and "2-tranche-5" not in j and "2-tranche-3" not in j, "codes %s" % codes))
     # C18 — L-8 : famille C5, chaîne faite à la main jusqu'à ③, le FICHIER de déclaration écrit à la main SANS témoin
     # au journal : juger refusé (la garde lit le journal, pas le fichier).
     q = fabriquer(os.path.join(travail, "c18"), module="programmes/MODULE_FAUX_C5.py")
@@ -432,6 +540,33 @@ def les_cas(prog, travail):
     code, out = ench(prog, q, "juger", "%s-%s-0007" % (SID, ESSAI))
     r.append(("C18 fichier de déclaration sans témoin au journal (L-8) : juger refusé", codes == [0] * 5 and
               code == 1 and "REFUS ④" in out, "codes %s puis %d" % (codes, code)))
+    # C19 — N-1 du RELU Cowork du 25-11-2026 (14h58) : la VRAIE `porte_du_juge` (juge factice, ⑨ ① de
+    # `porte_du_juge_factice`), stratégie sur un module NEUF, chaîne faite à la main jusqu'à ③, fiche jugée ABSENTE du
+    # registre (la version visée ne voit rien) : sa case module_signal sur C5 → refus ; sur le module neuf → rien.
+    # Seule la ligne Q4 de la porte peut faire ce refus.
+    q = fabriquer(os.path.join(travail, "c19"))
+    codes = [ench(prog, q, *x)[0] for x in (["preparer"], ["decliner"], ["jouer", "0", "1"], ["assembler"], ["trier"])]
+    version = "%s-%s-0007" % (SID, ESSAI)
+    c5 = porte_du_juge_factice(prog, q, version, "programmes/MODULE_FAUX_C5.py")
+    neuf = porte_du_juge_factice(prog, q, version, "programmes/MODULE_FAUX_NEUF.py")
+    r.append(("C19 porte_du_juge, fiche jugée sur C5 hors registre (Q4, N-1) : refus ; module neuf : rien",
+              codes == [0] * 5 and "REFUS ④" in c5 and "A-777" in c5 and neuf.strip() == "[]",
+              "codes %s, porte %s | %s" % (codes, c5.strip()[:60], neuf.strip()[:40])))
+    # C21 — N-4 (M4) : module de la fiche jugée vide ou blanc → contrôle impossible, jamais accepté en silence.
+    vides = [motifs_de_la_porte(prog, q, version, m) for m in ("", "   ")]
+    r.append(("C21 module de la fiche jugée vide ou blanc (N-4) : contrôle impossible",
+              all("Impossible" in v and "famille de la fiche jugée inconnue" in v for v in vides),
+              "%d sur 2 : « famille de la fiche jugée inconnue »" % sum("famille de la fiche jugée inconnue" in v
+                                                                        for v in vides)))
+    # C20 — N-4 (M3) : la version visée EST la fiche déjà vue, absente du registre de la copie : « c'est la fiche
+    # elle-même » — la seule branche qui la voit, puisque l'absente du registre n'est pas comparée (⑨ ④ de la garde).
+    q = fabriquer(os.path.join(travail, "c20"))
+    reg = os.path.join(q, "donnees", "cac40_strategies.csv")
+    lignes = open(reg, encoding="utf-8").read().splitlines()
+    open(reg, "w", encoding="utf-8").write("\n".join(l for l in lignes if not l.startswith("C5E10-QA-V1,")) + "\n")
+    out = famille_directe(prog, q, "C5E10-QA-V1")
+    r.append(("C20 version visée = la fiche déjà vue, hors registre (N-4) : « c'est la fiche elle-même »",
+              "C5E10-QA-V1 : c'est la fiche elle-même" in out, out.strip()[:80]))
     return r
 
 
@@ -472,7 +607,8 @@ SABOTAGES = [
     ("S12", "échec du juge ignoré", L,
      "        if code != 0 or temoin not in V.temoins(ch):", "        if False:"),
     ("S13", "famille vue au TEXTE du chemin, pas au code (L-1)", V,
-     "        elif module_de(f)[1] in mien:", "        elif module_de(f)[0] in mien.values():"),
+     "        touches = sorted(e for e in mien if e in ensemble)",
+     "        touches = sorted(e for e, ch in mien.items() if ch == chemin_ref)"),
     ("S14", "garde de famille retirée de la porte de ④ (L-2)", V,
      "        m += garde_de_famille(racine, sid, essai, version=version, module=module)", "        pass"),
     ("S15", "déclaration au journal ignorée par la garde", V,
@@ -492,6 +628,23 @@ SABOTAGES = [
     ("S20", "la garde croit le fichier de déclaration, pas le journal (L-8, SC1 du RELU de 14h12)", V,
      "    if TEMOIN_DE_FAMILLE in temoins(dossier(racine, sid, essai)):\n        return []\n    deja",
      "    if os.path.exists(os.path.join(dossier(racine, sid, essai), FICHIER_DE_FAMILLE)):\n        return []\n    deja"),
+    ("S24", "ensemble figé vidé (L-11)", V,
+     "        chemin_ref, ensemble = C.CODE_DES_FAMILLES_DEJA_JOUEES[f]",
+     "        chemin_ref, ensemble = C.CODE_DES_FAMILLES_DEJA_JOUEES[f][0], frozenset()"),
+    ("S25", "la garde relit la référence au registre de la copie (L-11, l'ancien code)", V,
+     "        chemin_ref, ensemble = C.CODE_DES_FAMILLES_DEJA_JOUEES[f]",
+     "        chemin_ref, ensemble = C.CODE_DES_FAMILLES_DEJA_JOUEES[f][0], {module_de(f)[1]}"),
+    ("S26", "auto-vérification retirée : code de C5 changé sans refiger (A-957)", V,
+     "        if emp_ref is not None and emp_ref not in ensemble:", "        if False:"),
+    ("S19c", "borne k <= N au lieu de k < N, « jouer 3 3 » accepté (N-2 du RELU Cowork de 14h58)", EN,
+     "0 <= int(argv[5]) < int(argv[6])", "0 <= int(argv[5]) <= int(argv[6])"),
+    ("S21", "porte du juge : module de la fiche jugée non passé à la garde (Q4, N-1 du RELU Cowork de 14h58)", V,
+     '                      module=fiche.get("module_signal") or "", bareme=', "                      bareme="),
+    ("S22", "version visée retirée de « moi » (N-4, M3 du RELU Cowork de 14h58)", V,
+     "    moi = {norme(sid)} | ({norme(version)} if version else set())", "    moi = {norme(sid)}"),
+    ("S23", "module de la fiche jugée vide accepté en silence (N-4, M4 du RELU Cowork de 14h58)", V,
+     "        if emp is None:\n            raise Impossible(\"famille de la fiche jugée inconnue",
+     "        if emp is None and chemin:\n            raise Impossible(\"famille de la fiche jugée inconnue"),
 ]
 
 

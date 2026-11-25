@@ -70,7 +70,8 @@ USAGE
   lanceur soit branché, il s'arrête en code 2 plutôt que de jouer en local en silence. ③ L'avancement n'est pas publié
   (aucune écriture au dépôt public ici). ④ « Le soir » (le circuit du soir après ④) n'est pas enchaîné. ⑤ La mention de validation ne prouve qu'une ligne écrite (⑨ ① de
   VERIFIER_LA_CHAINE). ⑥ LA FAMILLE est lue comme « même CODE de module de signal » (empreinte du code sans ses
-  textes, `V.famille_deja_jouee`) qu'une fiche de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE : définition de
+  textes, `V.famille_deja_jouee`, comparée à l'ensemble FIGÉ de CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES — décision de
+  Jean-Luc du 25-11-2026 à 15h09) qu'une fiche de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE : définition de
   l'écrivain, NON décidée par Jean-Luc (question dans la note, L-5) ; une copie du code C5 changée d'une instruction,
   ou un module qui charge C5 par son chemin, passe ; elle ne voit pas une famille jouée sur 2000-2023 qui n'y est pas
   inscrite, ni le registre des essais (lu au dépôt distant, injoignable d'une copie sans .git) : le juge garde de toute
