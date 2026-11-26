@@ -344,9 +344,10 @@ def genres_que_sait_faire_appliquer(arbre):
     ① RÔLE — l'étalon de `genres_sans_mutant`. ② CONTEXTE D'APPEL — `principal`. ③ ENTRÉE — l'arbre de CE fichier.
     ④ CONDITIONS D'ENTRÉE — `appliquer` y est défini. ⑤ SORTIE — UNE valeur : ensemble de textes. ⑥ TRAITEMENT — chaque
     comparaison « g[0] == "<genre>" » du corps de `appliquer`. ⑦ UNITÉ — —. ⑧ POURQUOI — la liste ne s'écrit pas une
-    seconde fois (R-708) : elle se lit là où les mutations se font. ⑨ CE QUI CLOCHE — un genre retiré À LA FOIS de
-    `genres` et de `appliquer` n'est pas vu ici ; s'il était seul sur son espèce, le complément le voit. ⑩ EFFET —
-    aucun. ⑪ TERMINAISON — rend la main ; lève StopIteration si `appliquer` manque (code 2). [sort: non]"""
+    seconde fois (R-708) : elle se lit là où les mutations se font. ⑨ CE QUI CLOCHE — un genre retiré de `appliquer`
+    seul est vu par la propriété des mutations sans effet (`mutants`) ; un genre retiré de `genres` seul est vu ici ;
+    une VARIANTE retirée de `genres` n'est vue nulle part : les variantes sont la spécification (N-97, limite
+    assumée). ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main ; lève StopIteration si `appliquer` manque (code 2). [sort: non]"""
     f = next(n for n in arbre.body if isinstance(n, ast.FunctionDef) and n.name == "appliquer")
     sortie = set()
     for n in ast.walk(f):
@@ -448,22 +449,34 @@ def appliquer(fn, k, g):
 
 
 def mutants(fn):
-    """Rend la liste (clé, genre, description, fonction mutée) de tous les mutants. [rend: 1]
-    ① RÔLE — le mutateur. ② CONTEXTE D'APPEL — `principal`. ③ ENTRÉE — la fonction. ④ CONDITIONS D'ENTRÉE — —.
-    ⑤ SORTIE — UNE valeur : liste. ⑥ TRAITEMENT — `sites_par_recursion` puis `appliquer` ; un mutant dont le texte est
-    celui de l'original est omis. ⑦ UNITÉ — —. ⑧ POURQUOI — voir le sens en tête. ⑨ CE QUI CLOCHE — —. ⑩ EFFET —
-    aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+    """Rend les mutants (clé, genre, description, fonction mutée) et les mutations SANS EFFET (genre, description).
+    ① RÔLE — le mutateur. ② CONTEXTE D'APPEL — `principal`, `saboter` (S-M5). ③ ENTRÉE — la fonction.
+    ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — DEUX valeurs : la liste des mutants, la liste des mutations sans effet.
+    [rend: 2] ⑥ TRAITEMENT — `sites_par_recursion` puis `appliquer` ; un site dont la mutation rend le texte de
+    l'original n'est PAS un mutant : il va dans la seconde liste, que `principal` affiche « ❌ MUTATION SANS EFFET » et
+    qui fait rougir. ⑦ UNITÉ — —. ⑧ POURQUOI — N-96 (RELU Cowork, 26-11-2026, cas C12) : la branche « plus_un » retirée
+    de `appliquer`, `genres` annonçait toujours ses 14 sites, `appliquer` ne faisait plus rien, et ce fichier omettait
+    ces mutants EN SILENCE — l'épreuve restait verte (superviseur R-759 du 26-11-2026 ~08h40 : DE FOND). Un site que
+    `genres` annonce et qui ne change rien est une erreur du mutateur, pas un omis. ⑨ CE QUI CLOCHE — un genre retiré de
+    `appliquer` seul est vu par la propriété des mutations sans effet (ici) ; un genre retiré de `genres` seul est vu
+    par `genres_sans_mutant` ou le complément ; une VARIANTE retirée de `genres` n'est vue nulle part : les variantes
+    sont la spécification (N-97, limite assumée, BACKLOG A-1042 ④). Une mutation qui rendrait PAR COÏNCIDENCE le texte
+    de l'original fera rougir : faux rouge qui dit son nom ; aucune aujourd'hui (0 mesuré le 26-11-2026).
+    ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
     ref = ast.unparse(fn)
     sortie = []
+    sans_effet = []
     vus = {}
     for k, g in sites_par_recursion(fn):
         f, texte = appliquer(fn, k, g)
-        if ast.unparse(f) != ref:
-            vus[texte] = vus.get(texte, 0) + 1
-            if vus[texte] > 1:                      # deux sites au même lieu et au même texte : numérotés
-                texte += " #%d" % vus[texte]
-            sortie.append((k, g, texte, f))
-    return sortie
+        if ast.unparse(f) == ref:                   # N-96 : jamais omis en silence
+            sans_effet.append((g, texte))
+            continue
+        vus[texte] = vus.get(texte, 0) + 1
+        if vus[texte] > 1:                          # deux sites au même lieu et au même texte : numérotés
+            texte += " #%d" % vus[texte]
+        sortie.append((k, g, texte, f))
+    return sortie, sans_effet
 
 
 def charger(racine, texte):
@@ -690,7 +703,7 @@ def principal(racine):
         rouge = True
     else:
         print("✅ intacte : concorde avec vendre sur les %d témoins et les cas I1-C*" % (n,))
-    ms = mutants(fn)
+    ms, sans_effet = mutants(fn)
     mutes = {k for k, _g, _t, _f in ms}
     attendus = noeuds_mutables(fn)
     if mutes != attendus:
@@ -719,6 +732,12 @@ def principal(racine):
         print("✅ complétude des genres : les %d genre(s) que sait faire `appliquer` (lus dans son arbre) produisent "
               "chacun au moins un mutant : %s" % (len(par_genre), ", ".join("%s %d" % x for x in sorted(
                   par_genre.items()))))
+    for g, texte in sans_effet:             # N-96 : un site annoncé dont la mutation ne change rien
+        print("❌ MUTATION SANS EFFET : %s : %s" % ("/".join(str(x) for x in g), texte))
+    if sans_effet:
+        rouge = True
+    else:
+        print("✅ mutations sans effet : aucune (chaque site annoncé par `genres` change le texte de la fonction)")
     tues, equiv, survivants, attente = 0, [], [], []
     if "--sans-mutants" in sys.argv:        # sous --saboter seulement (S-M1, S-M3, S-M4) : l'intacte et la complétude
         print("mutants non joués (--sans-mutants)")
@@ -796,7 +815,7 @@ def saboter(racine):
     racine. ④ CONDITIONS D'ENTRÉE — les textes « avant » existent une fois. ⑤ SORTIE — UNE valeur : le code.
     [rend: 1] ⑥ TRAITEMENT — copie de tests/ (ce fichier et l'épreuve) et de programmes/ sous un dossier temporaire,
     remplacement, lancement de ce fichier en processus neuf, code 1 et mot attendu exigés. ⑦ UNITÉ — secondes.
-    ⑧ POURQUOI — sabotages ① à ④ de la consigne, et S-M5 (un par genre produit). ⑨ CE QUI CLOCHE — S-M3 vise la branche TP par son texte : renommer
+    ⑧ POURQUOI — sabotages ① à ④ de la consigne, S-M5 (un par genre produit) et S-N96 (une branche d'`appliquer`). ⑨ CE QUI CLOCHE — S-M3 vise la branche TP par son texte : renommer
     le motif la fait chercher en vain (code 2, dit). ⑩ EFFET — écrit sous un dossier temporaire, l'efface.
     ⑪ TERMINAISON — chaque lancement a un délai de 600 s ; rend la main. [sort: non]"""
     code = 0
@@ -805,13 +824,19 @@ def saboter(racine):
     # PRODUITS par le dépôt intact — jamais d'une liste écrite ici. Le mot attendu est « COMPLÉTUDE » : le complément
     # ou la complétude des genres doit le voir.
     _t, _a, fn = lire_la_cible(racine)
-    produits = sorted({g[0] for _k, g, _x, _f in mutants(fn)})
+    produits = sorted({g[0] for _k, g, _x, _f in mutants(fn)[0]})
     tous = dict(SABOTAGES)
     for genre in produits:
         tous["S-M5 genre « %s » retiré de `genres`" % genre] = (
             moi, "def genres(n, parent, exclus):\n",
             "def genres(n, parent, exclus):\n    return [x for x in _genres_intacts(n, parent, exclus) if x[0] != %r]"
             "\n\n\ndef _genres_intacts(n, parent, exclus):\n" % genre, "COMPLÉTUDE")
+    # S-N96 (RELU Cowork du 26-11-2026, cas C12 ; superviseur R-759 du 26-11-2026 ~08h40) : la branche « plus_un »
+    # retirée de `appliquer` SEULE → ses sites rendent le texte de l'original → « MUTATION SANS EFFET : plus_un ».
+    tous["S-N96 branche « plus_un » retirée de `appliquer`"] = (
+        moi, '    elif g[0] == "plus_un":\n'
+             '        cible.comparators[g[1]] = ast.BinOp(cible.comparators[g[1]], ast.Add(), ast.Constant(g[2]))\n',
+        "", "MUTATION SANS EFFET : plus_un")
     print("S-M5 : %d genre(s) tiré(s) des mutants produits : %s" % (len(produits), ", ".join(produits)))
     for nom, (fichier, avant, apres, mot) in tous.items():
         d = tempfile.mkdtemp(prefix="mutants_sabot_")
