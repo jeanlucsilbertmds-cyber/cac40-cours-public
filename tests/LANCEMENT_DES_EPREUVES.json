@@ -307,6 +307,14 @@
  },
  "format_des_epreuves_longues": "code (lettres et chiffres, commence par une lettre, 20 au plus : le nom de l'épreuve dans une demande « circuit=epreuve ») → chemin (tests/<nom>.py ou programmes/<nom>.py), arguments (mots figés ; « {copie} » désigne la racine de la copie jouée), pourquoi (d'où vient l'épreuve, et sa durée mesurée quand on l'a). Ajouté le 15-11-2026 (étape GHUB ②, décisions de Jean-Luc A-809, A-811, A-816) : la table des épreuves longues d'un tenant que le circuit .github/workflows/epreuves_longues.yml du dépôt public joue sur GitHub, une machine par épreuve. Une demande ne porte que des codes : la commande est celle de CETTE table, dans la version éprouvée. Lu par epreuves_du_circuit (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py), seul lecteur, et par tests/outils/jouer_une_epreuve_longue.py, qui l'appelle. Exclues : une épreuve qui nomme un programme interdit (INTERDITS de tests/outils/jouer_une_part.py), et le « --saboter » d'une série de « series_hors_de_la_nuit » (son circuit est series_longues.yml).",
  "epreuves_longues": {
+  "Pilotage": {
+   "chemin": "tests/EPREUVES_DU_PROGRAMME_DE_PILOTAGE_Mer_25-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--mutations"
+   ],
+   "pourquoi": "programme de pilotage (étape A1, A-1016 ; décision de Jean-Luc A-1042 du 26-11-2026 à 08h35 : installer avec ses défauts écrits). INSTALLER.py (l.198-200) refuse « aucune » épreuve longue pour un travail qui change du code (N-3, mesuré par le pilote V8 à 09h56, A-1047) : la suite de la branche est donc déclarée ici. Elle ignore « {copie} » et lit ses fichiers à côté d'elle (ICI) ; « --mutations » joue aussi les mutants, qui doivent tous être tués. 71 s, code 0, sur la machine du pilote V8 le 26-11-2026 à 10h12"
+  },
   "CircuitSeries": {
    "chemin": "tests/EPREUVES_DU_CIRCUIT_DES_SERIES_Jeu_05-11-2026.py",
    "arguments": [
