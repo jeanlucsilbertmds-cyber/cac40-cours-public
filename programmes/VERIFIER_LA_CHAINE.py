@@ -40,7 +40,12 @@ USAGE
   CONTENU (`JOUER_LES_VERSIONS.empreinte_du_bareme`) celle de la colonne `empreinte_du_bareme` ; les cours que ② a joués
   (colonne `cours_joues`) ont encore, jusqu'à `fin_ecrite_dans_la_fiche`, l'empreinte que JOUER a écrite
   (`JOUER_LES_VERSIONS.empreinte_des_cours_jusqu_a`, la fonction qui l'a écrite) ; la PÉRIODE de la fiche est dans
-  l'empreinte des réglages (les bornes, par `lecture_de_jeu`) · ⑦ sous --juge-fait, le témoin ④.
+  l'empreinte des réglages (les bornes, par `lecture_de_jeu`) · ⑥ter LA FAMILLE (A-777, C12 ; L-1, L-2 du RELU Cowork
+  du 25-11-2026) : une version visée dont la stratégie est d'une famille déjà jouée sur 2000-2023 (même CODE de module
+  de signal qu'une fiche de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE, `famille_deja_jouee` ; ce code de
+  référence est l'ensemble FIGÉ de CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES, jamais lu au registre de la copie —
+  décision de Jean-Luc du 25-11-2026 à 15h09, L-11) est refusée, sauf déclaration explicite au journal
+  (`declarer_la_famille`) · ⑦ sous --juge-fait, le témoin ④.
 ⑦ UNITÉ — —
 ⑧ POURQUOI — A-919 et A-921 (décisions de Jean-Luc du 19-11-2026) ; superviseur R-759 du 19-11-2026 : la porte dans
   le juge, la marque sur la fiche, les réglages confrontés à ② ; superviseur R-759 du 19-11-2026, tour 3 : une seule
@@ -76,6 +81,14 @@ sys.dont_write_bytecode = True
 JOURNAL = "JOURNAL_DE_LA_CHAINE.csv"
 CHAMPS = ["etape", "fichier", "sha256", "ecrit_le"]
 ORDRE = ["0-variables-validees", "0-proposition", "1-decliner", "2-assembler", "3-trier"]
+# LA GARDE DE FAMILLE (A-777, C12 ; défauts L-1 et L-2 du RELU Cowork du 25-11-2026 sur c83732b53) : le témoin d'une
+# déclaration explicite, et le fichier qui en porte le texte, relatif au dossier de la chaîne.
+TEMOIN_DE_FAMILLE = "0-famille-declaree"
+FICHIER_DE_FAMILLE = "famille_declaree.txt"
+DECISION_FAMILLE = ("A-777 (Jean-Luc, 14-11-2026 15h55 : « D'abord une autre famille de stratégies, jamais jouée sur "
+                    "2000-2023 […] et C5 attend ») et C12 (Jean-Luc, 25-11-2026 12h40, rapporté par le Chat "
+                    "coordinateur : « la première vraie traversée se fait avec une famille de stratégies jamais jouée "
+                    "sur 2000-2023, et C5 reste jugée en direct »)")
 
 
 class Impossible(Exception):
@@ -264,18 +277,261 @@ def marque_de(fiche):
     return mots[0], mots[1]
 
 
-def motifs(racine, sid, essai, exigees, version=None, juge_fait=False, empreinte=None, bareme=None):
+def famille_deja_jouee(racine, sid, J=None, version=None, module=None):
+    """Rend la liste des motifs qui disent la famille de `sid` déjà jouée sur 2000-2023 (vide : famille neuve).
+
+    ① RÔLE — LA définition de « même famille », une fois, pour la garde de ④ (`garde_de_famille`) et pour le lanceur
+      (programmes/LANCER_UNE_STRATEGIE.py, qui la lit avant ⓪).
+    ② CONTEXTE D'APPEL — `garde_de_famille` (avec la version visée, et le module de la fiche jugée quand c'est la
+      porte du juge) ; `LANCER_UNE_STRATEGIE.executer`, avant ⓪ (sans eux).
+    ③ ENTRÉE — `racine` : la copie ; `sid` : exemple réel C5E10-OBS-V1 (refusée : même code que C5E10-QA-V1),
+      IND-001-RETEST (passe) ; `J` : le module du juge, ou None (importé ici) ; `version` : la version visée par
+      l'étape juger (exemple : FAUX-LANCEUR-V1-E01-0007), ou None — absente du registre permise (l'enchaîneur garde AVANT d'ajouter
+      la fiche) ; `module` : le module_signal de la fiche que le juge va lire (`porte_du_juge`), ou None. Lus : le
+      registre de la racine
+      (`fiche_du_registre`, n°83 : la dernière ligne d'un identifiant fait foi), colonne module_signal ; le CODE de
+      chaque module nommé, sous la racine ; CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE (« la famille de ces
+      fiches a déjà été jouée sur 2000-2023 (A-777) », texte du contrat) et CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES (le
+      module de référence et l'ENSEMBLE FIGÉ des empreintes de son code). La référence n'est JAMAIS lue au registre.
+    ④ CONDITIONS D'ENTRÉE — `sid` est au registre avec un module_signal lisible ; chaque fiche déjà vue a son entrée
+      dans CODE_DES_FAMILLES_DEJA_JOUEES.
+    ⑤ SORTIE — UNE liste de textes, un par fiche déjà vue de la même famille.
+    [rend: 1]
+    ⑥ TRAITEMENT — ① « mes » empreintes du CODE : celle du module de `sid`, celle du module de `version` si elle est
+      au registre, celle de `module` s'il est donné (`J.lire_module_du_jour`, qui passe par `J.empreinte_d_un_module` :
+      l'arbre syntaxique privé de ses textes explicatifs ; la seule mesure, R-708) ; module_signal vide, fichier absent
+      ou illisible → Impossible (on ne sait pas, R-734) · ② pour chaque fiche déjà vue : `sid` ou `version` elle-même
+      (après `norme`) → un motif ; sinon son entrée au contrat (absente → Impossible) ; AUTO-VÉRIFICATION : le module
+      de référence présent sous la racine et son empreinte HORS de l'ensemble figé → Impossible (refiger, A-957) ;
+      une de mes empreintes DANS l'ensemble figé → un motif qui la nomme.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — DECISION_FAMILLE. L-1 du RELU Cowork du 25-11-2026 : l'ancienne garde comparait le TEXTE du chemin ;
+      « ./programmes/… », « programmes/./… » ou une copie du module C5 sous un autre nom passaient sans déclaration.
+      Critère : si je renomme le module, ce contrôle ne change pas d'avis — il mesure le code, pas le nom. L-6 du RELU
+      Cowork du 25-11-2026 (14h20) : seule la ligne ACTUELLE de `sid` était lue ; une ligne de version sur le module C5
+      (la fiche que le juge lirait) passait. Superviseur R-759 du 25-11-2026 (R2 « de fond pour la version visée », Q4
+      « passer aussi fiche["module_signal"] ») : la version visée et le module de la fiche jugée comptent. L-11 et C13
+      du même RELU, FERMÉS par la décision de Jean-Luc du 25-11-2026 à 15h09 (« 1 » à « graver au contrat les
+      empreintes du code de C5 », forme du superviseur R-759 de 14h36) : la référence lue dans le registre de la copie
+      se changeait d'une ligne ; elle est désormais figée au contrat.
+    ⑨ CE QUI CLOCHE — ① LA DÉFINITION DE LA FAMILLE (« même code de module de signal » qu'une fiche déjà vue) est
+      celle de l'écrivain, NON DÉCIDÉE par Jean-Luc (L-5 du même RELU) ; une copie du module C5 dont UNE instruction
+      change (un seuil, un nom de variable) n'a plus la même empreinte et passe ; un module qui CHARGE le module C5 par
+      son chemin a sa propre empreinte et passe (même trou que N7, `J.empreinte_d_un_module` ⑨ ①). ② Seules les
+      fiches de FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE sont vues (aujourd'hui une, C5E10-QA-V1) ; une famille jouée sur
+      2000-2023 qui n'y est pas inscrite passe (L-5). ③ Le code est lu AU JOUR sous la racine, pas à la date de la
+      fiche déjà vue. ④ FERMÉ — L-11 et C13 du RELU Cowork du 25-11-2026, par la décision de Jean-Luc du 25-11-2026 à
+      15h09 : la RÉFÉRENCE de la famille était le module de la dernière ligne de la fiche déjà vue, lue dans le
+      registre DE LA COPIE (une ligne C5E10-QA-V1 ajoutée sur un autre module, ou ses lignes retirées, faisaient juger
+      C5 sans déclaration) ; elle est désormais l'ensemble figé de CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES. ⑤ Un module
+      de référence ABSENT sous la racine (racines fabriquées des épreuves) n'est pas auto-vérifié ; la comparaison à
+      l'ensemble figé se fait quand même. ⑥ L'auto-vérification fait lever « contrôle impossible » à TOUTE chaîne
+      dès que le code de C5 change, même pour une stratégie saine : c'est voulu (forcer à refiger, A-957).
+    ⑩ EFFET — lit le registre (le module de `sid` et de `version` seulement) et des modules.
+    ⑪ TERMINAISON — rend la main, ou lève Impossible.
+    [sort: non]
+    """
+    import CONTRATS_DES_FICHIERS as C
+    if J is None:
+        import JUGE_DES_STRATEGIES as J
+    lire_module = J.lire_module_du_jour(racine)
+
+    def module_de(ident):
+        """Rend (chemin, empreinte du code) du module de signal de `ident`.
+
+        ① RÔLE — Lire le module de signal d'une fiche du registre.
+        ② CONTEXTE D'APPEL — `famille_deja_jouee`, pour `sid` et pour la version visée (jamais pour une fiche déjà
+          vue : sa référence est figée au contrat).
+        ③ ENTRÉE — `ident` : un identifiant du registre de la racine ; exemple réel C5E10-QA-V1.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — DEUX valeurs : le chemin écrit au registre, l'empreinte du code (16 hexadécimaux).
+        [rend: 2]
+        ⑥ TRAITEMENT — `fiche_du_registre`, colonne module_signal, puis `lire_module`.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — voir ⑧ de `famille_deja_jouee` : le code, pas le nom.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — lit le registre et le module.
+        ⑪ TERMINAISON — rend la main, ou lève Impossible (vide, introuvable, illisible).
+        [sort: non]
+        """
+        chemin = (fiche_du_registre(racine, ident).get("module_signal") or "").strip()
+        if not chemin:
+            raise Impossible("famille de %s inconnue : module_signal vide au registre" % ident)
+        try:
+            emp = lire_module(chemin)
+        except (ValueError, ImportError, OSError) as e:     # module non analysable, emp.py introuvable : on ne sait pas
+            raise Impossible("famille de %s inconnue : module %s illisible (%s: %s)" % (ident, chemin,
+                                                                                    type(e).__name__, e))
+        if emp is None:
+            raise Impossible("famille de %s inconnue : module %s introuvable sous %s" % (ident, chemin, racine))
+        return chemin, emp
+
+    chemin, emp = module_de(sid)
+    mien = {emp: chemin}
+    if version and fiche_du_registre(racine, version, absente_permise=True) is not None:
+        chemin, emp = module_de(version)
+        mien.setdefault(emp, chemin)
+    if module is not None:
+        chemin = module.strip()
+        try:
+            emp = lire_module(chemin) if chemin else None
+        except (ValueError, ImportError, OSError) as e:
+            raise Impossible("famille de la fiche jugée inconnue : module %s illisible (%s: %s)" % (chemin,
+                                                                                               type(e).__name__, e))
+        if emp is None:
+            raise Impossible("famille de la fiche jugée inconnue : module %r vide ou introuvable sous %s" % (chemin,
+                                                                                                         racine))
+        mien.setdefault(emp, chemin)
+    moi = {norme(sid)} | ({norme(version)} if version else set())
+    m = []
+    for f in sorted(C.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE):
+        if norme(f) in moi:
+            m.append("%s : c'est la fiche elle-même" % f)
+            continue
+        if f not in C.CODE_DES_FAMILLES_DEJA_JOUEES:
+            raise Impossible("famille de %s inconnue : aucun code figé au contrat (CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES)"
+                             % f)
+        chemin_ref, ensemble = C.CODE_DES_FAMILLES_DEJA_JOUEES[f]
+        try:
+            emp_ref = lire_module(chemin_ref)
+        except (ValueError, ImportError, OSError) as e:
+            raise Impossible("module de référence de %s illisible : %s (%s: %s)" % (f, chemin_ref, type(e).__name__, e))
+        if emp_ref is not None and emp_ref not in ensemble:      # AUTO-VÉRIFICATION (A-957) : forcer à refiger
+            raise Impossible("le code du module de référence de %s a changé : %s a l'empreinte %s, absente de l'ensemble "
+                             "figé au contrat (CONTRATS.CODE_DES_FAMILLES_DEJA_JOUEES) — refiger, sur décision de "
+                             "Jean-Luc (A-957)" % (f, chemin_ref, emp_ref))
+        touches = sorted(e for e in mien if e in ensemble)
+        if touches:
+            m.append("%s : même code de module de signal (%s, empreinte %s, figée au contrat)" % (f, mien[touches[0]],
+                                                                                              touches[0]))
+    return m
+
+
+def declarer_la_famille(ch, texte):
+    """Écrit au journal de la chaîne la déclaration explicite qui lève le refus d'une famille déjà jouée.
+
+    ① RÔLE — Donner à la déclaration une place que la garde de ④ lit, quel que soit le chemin vers ④ (L-2).
+    ② CONTEXTE D'APPEL — `ENCHAINER_LA_MOULINETTE.py … declarer "<texte>"` (le lanceur passe par là).
+    ③ ENTRÉE — `ch` : le dossier de la chaîne ; `texte` : qui, quand, les mots de la décision. Exemple : « Jean-Luc,
+      25-11-2026 14h02 : « oui, rejouer C5 sur les 30 % » ».
+    ④ CONDITIONS D'ENTRÉE — `texte` non vide après `strip`.
+    ⑤ SORTIE — UNE valeur : vrai si la déclaration est écrite, faux si une déclaration était déjà au journal.
+    [rend: 1]
+    ⑥ TRAITEMENT — déjà témoignée → rien (la première fait foi) ; sinon `<ch>/famille_declaree.txt` écrit (le texte,
+      une ligne), puis `temoigner` sous TEMOIN_DE_FAMILLE : son empreinte est ensuite vérifiée par `motifs` comme
+      celle de tout témoin.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — consigne du Chat coordinateur du 25-11-2026 : « un refus d'une famille déjà jouée sur 2000-2023 sauf
+      déclaration explicite, la décision citée ».
+    ⑨ CE QUI CLOCHE — la déclaration n'est qu'un texte : rien ne vérifie que Jean-Luc l'a dite (même limite que la
+      mention de validation, ⑨ ① du fichier).
+    ⑩ EFFET — écrit un fichier et une ligne au journal.
+    ⑪ TERMINAISON — rend la main ; lève ValueError (texte vide) ou Impossible.
+    [sort: non]
+    """
+    texte = (texte or "").strip()
+    if not texte:
+        raise ValueError("déclaration vide : il faut qui, quand et les mots de la décision")
+    if TEMOIN_DE_FAMILLE in temoins(ch):
+        return False
+    os.makedirs(ch, exist_ok=True)
+    with open(os.path.join(ch, FICHIER_DE_FAMILLE), "w", encoding="utf-8") as fh:
+        fh.write(texte + "\n")
+    temoigner(ch, TEMOIN_DE_FAMILLE, FICHIER_DE_FAMILLE)
+    return True
+
+
+def garde_de_famille(racine, sid, essai, J=None, version=None, module=None):
+    """Rend [] si ④ est permis pour la famille de `sid`, sinon UN motif de refus.
+
+    ① RÔLE — La garde d'A-777 et de C12, à la porte de ④, là où l'ordre de la chaîne est déjà gardé.
+    ② CONTEXTE D'APPEL — `motifs`, quand une version est visée sur une chaîne complète : donc l'enchaîneur à l'étape
+      juger ET la porte du juge (`porte_du_juge`), quel que soit celui qui les lance (L-2).
+    ③ ENTRÉE — `racine`, `sid`, `essai` ; `J` : le module du juge, ou None ; `version` : la version visée par l'étape
+      juger, ou None ; `module` : le module_signal de la fiche jugée (porte du juge), ou None.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE liste : vide, ou un texte « REFUS ④ … », la décision citée.
+    [rend: 1]
+    ⑥ TRAITEMENT — une déclaration au journal (TEMOIN_DE_FAMILLE) → [] sans rien lire d'autre ; sinon
+      `famille_deja_jouee`, avec la version visée et le module de la fiche jugée (L-6) ; un motif → le refus.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — L-2 du RELU Cowork du 25-11-2026 : la garde ne vivait que dans le lanceur ; l'enchaîneur appelé à la
+      main jugeait une fiche de famille C5 sans déclaration, code 0.
+    ⑨ CE QUI CLOCHE — ① voir ⑨ de `famille_deja_jouee` · ② une fiche NON MARQUÉE jugée directement par le juge ne
+      passe pas par ici (trou assumé d'A-921, ⑨ ③ du fichier) · ③ un journal réécrit à la main avec une déclaration
+      passe (⑨ ② du fichier).
+    ⑩ EFFET — lit.
+    ⑪ TERMINAISON — rend la main, ou lève Impossible.
+    [sort: non]
+    """
+    if TEMOIN_DE_FAMILLE in temoins(dossier(racine, sid, essai)):
+        return []
+    deja = famille_deja_jouee(racine, sid, J, version, module)
+    if not deja:
+        return []
+    return ["REFUS ④ : la famille de %s est déjà jouée sur 2000-2023 (%s) — décision %s ; pour juger quand même, une "
+            "déclaration explicite au journal de la chaîne : ENCHAINER_LA_MOULINETTE.py <racine> %s %s declarer "
+            "\"<qui, quand, mots de la décision>\"" % (sid, " · ".join(deja), DECISION_FAMILLE, sid, essai)]
+
+
+def decoupage_mele(ch, n):
+    """Rend la liste des tranches déjà témoignées qui ne sont pas la tranche de même rang du découpage en `n`.
+
+    ① RÔLE — Refuser qu'une chaîne mêle des tranches de deux découpages (L-3), d'après ce que le journal PROUVE.
+    ② CONTEXTE D'APPEL — `ENCHAINER_LA_MOULINETTE.main` avant « jouer k n » ; `LANCER_UNE_STRATEGIE.executer` avant
+      toute étape.
+    ③ ENTRÉE — `ch` : le dossier de la chaîne ; `n` : le nombre de tranches voulu. Exemple réel (cas de L-3) :
+      sept versions, tranches 0, 1, 2 jouées en 3, n = 5 → trois motifs.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE liste de textes (vide : aucune tranche, ou toutes conformes au découpage en `n`).
+    [rend: 1]
+    ⑥ TRAITEMENT — pour chaque témoin « 2-tranche-<k> » : k ≥ n → motif ; sinon les id_version de son fichier
+      (ensemble) comparés à ceux de `JOUER_LES_VERSIONS.tranche(combinatoire, k, n)` — LE découpage, une fois (R-708) —
+      sur la combinatoire témoignée à ① ; différents → motif. Une tranche témoignée sans combinatoire témoignée →
+      motif.
+    ⑦ UNITÉ — tranches, versions.
+    ⑧ POURQUOI — L-3 du RELU Cowork du 25-11-2026 : le découpage n'était comparé qu'au fichier d'état du lanceur ;
+      une chaîne commencée à la main (ou un état effacé) laissait jouer `jouer 3 5` après `jouer 0..2 3`.
+    ⑨ CE QUI CLOCHE — deux découpages qui donnent les MÊMES tranches déjà jouées (sept versions en 4 ou en 5 : tranches
+      0 à 3 identiques) sont acceptés : c'est juste, la partition finale reste exacte.
+    ⑩ EFFET — lit.
+    ⑪ TERMINAISON — rend la main, ou lève Impossible (fichier illisible).
+    [sort: non]
+    """
+    t = temoins(ch)
+    pref = "2-tranche-"
+    faites = sorted((int(e[len(pref):]), f) for e, (f, _h) in t.items() if e.startswith(pref) and e[len(pref):].isdigit())
+    if not faites:
+        return []
+    if "1-decliner" not in t:
+        return ["tranches témoignées sans combinatoire témoignée à ① : découpage invérifiable"]
+    import JOUER_LES_VERSIONS as JOUER
+    comb = [norme(r["id_version"]) for r in lire(os.path.join(ch, t["1-decliner"][0]), ["id_version"])]
+    m = []
+    for k, f in faites:
+        attendu = set(JOUER.tranche(comb, k, n)) if k < n else None
+        vu = {norme(r["id_version"]) for r in lire(os.path.join(ch, f), ["id_version"])}
+        if vu != attendu:
+            m.append("tranche %d déjà jouée (%d versions) : ce n'est pas la tranche %d d'un découpage en %d%s" % (
+                k, len(vu), k, n, "" if attendu is None else " (%d versions attendues)" % len(attendu)))
+    return m
+
+
+def motifs(racine, sid, essai, exigees, version=None, juge_fait=False, empreinte=None, bareme=None, module=None):
     """Rend la liste des motifs de refus (vide : tout tient).
 
     ① RÔLE — LA GARDE.
     ② CONTEXTE D'APPEL — `porte_du_juge`, l'enchaîneur (avant chaque étape).
     ③ ENTRÉE — `racine`, `sid`, `essai` ; `exigees` : combien d'étapes d'ORDRE doivent avoir leur témoin ; `version` :
       la version visée, ou None ; `juge_fait` ; `empreinte` : celle des réglages de la fiche jugée, ou None
-      (l'enchaîneur, avant d'ajouter la fiche) ; `bareme` : le couple (nom, empreinte du contenu) du barème sous lequel le juge chiffrerait, ou None.
+      (l'enchaîneur, avant d'ajouter la fiche) ; `bareme` : le couple (nom, empreinte du contenu) du barème sous lequel le juge chiffrerait, ou None ;
+      `module` : le module_signal de la fiche jugée (porte du juge, Q4 du superviseur R-759 du 25-11-2026), ou None.
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE liste de textes.
     [rend: 1]
-    ⑥ TRAITEMENT — voir ⑥ du fichier.
+    ⑥ TRAITEMENT — voir ⑥ du fichier ; puis, une version visée sur une chaîne complète et AUCUN autre motif, la garde
+      de famille (`garde_de_famille`, ⑥ter du fichier). Après les autres : un refus déjà acquis n'a pas besoin d'elle,
+      et un module illisible (Impossible) ne masque pas un refus connu.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — A-919.
     ⑨ CE QUI CLOCHE — voir ⑨ du fichier.
@@ -340,6 +596,8 @@ def motifs(racine, sid, essai, exigees, version=None, juge_fait=False, empreinte
                     m.append("les cours que ② a joués ont changé : %s jusqu'au %s a pour empreinte %s, ② a écrit %s "
                              "(JOUER_LES_VERSIONS.empreinte_des_cours_jusqu_a)"
                              % (j["cours_joues"], j["fin_ecrite_dans_la_fiche"], vu, j["empreinte_des_cours"]))
+    if exigees >= len(ORDRE) and version is not None and not m:
+        m += garde_de_famille(racine, sid, essai, version=version, module=module)
     if juge_fait and not any(norme(e) == norme("4-juger-%s" % version) for e in t):
         m.append("témoin du juge ④ absent pour %s : le juge n'a pas tourné, ou a échoué" % version)
     return m
@@ -359,7 +617,8 @@ def porte_du_juge(racine, fiche, juge_fait=False, J=None, mod_pos=None):
     ⑥ TRAITEMENT — `marque_de` → chaîne trouvable, sinon Impossible → empreinte des réglages de la fiche
       (`J.empreinte_des_reglages`, module de signal lu au jour sous `racine`) et barème du juge : son nom
       (`J.bareme_des_verdicts(None, mod_pos)`) et l'empreinte de son contenu (`JOUER_LES_VERSIONS.empreinte_du_bareme`,
-      lue par ce même module) → `motifs` sur toute la chaîne → puis (depuis le 19-11-2026, A-923) les refus du
+      lue par ce même module) → `motifs` sur toute la chaîne, avec le module_signal de la fiche (la garde de famille
+      compare AUSSI ce module, Q4 du superviseur R-759 du 25-11-2026 ; vide → Impossible) → puis (depuis le 19-11-2026, A-923) les refus du
       CONTRAT DE STRATÉGIE (`CONTRATS_DES_FICHIERS.manques_du_contrat`, avec le juge et le module de positions de
       l'appelant), chacun préfixé « contrat de stratégie (A-923) — <case> : ».
     ⑦ UNITÉ — —
@@ -392,7 +651,7 @@ def porte_du_juge(racine, fiche, juge_fait=False, J=None, mod_pos=None):
         import CONTRATS_DES_FICHIERS as C
         contrat = ["contrat de stratégie (A-923) — " + r for r in C.manques_du_contrat(propre, racine, J=J, mod_pos=mod_pos)]
         return motifs(racine, sid, essai, len(ORDRE), fiche.get("id"), juge_fait, emp,
-                      (nom, JOUER.empreinte_du_bareme(mod_pos, nom))) + contrat
+                      module=fiche.get("module_signal") or "", bareme=(nom, JOUER.empreinte_du_bareme(mod_pos, nom))) + contrat
     except Impossible:
         raise
     except Exception as e:      # noqa: BLE001 — la frontière : rien ne sort d'ici en trace Python (R-734)

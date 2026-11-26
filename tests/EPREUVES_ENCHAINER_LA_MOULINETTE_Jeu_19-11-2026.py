@@ -61,6 +61,12 @@ _spec.loader.exec_module(E)          # ignorer, empreinte_du_depot, regards_du_d
 sys.argv = _argv
 
 SID, ESSAI, NB = "C5E10-OBS-V1", "E01", 5
+# LA DÉCLARATION DE FAMILLE (garde d'A-777 et C12 à la porte de ④, VERIFIER_LA_CHAINE.garde_de_famille, ajoutée le
+# 25-11-2026) : C5 est une famille déjà jouée sur 2000-2023 ; cette épreuve la fait juger EXPRÈS, sur une copie jetable
+# et sur la période de sa fiche (dès 2024), pour éprouver la porte (A-916 : « C5 sert à éprouver toute la chaîne »).
+# Écrite au journal par l'enchaîneur (étape « declarer ») avant ⓪, elle est donc dans les instantanés « inst ».
+DECLARATION_DE_FAMILLE = ("épreuve EPREUVES_ENCHAINER_LA_MOULINETTE sur copie jetable, période de la fiche dès 2024 — "
+                          "A-916 (Jean-Luc : C5 sert à éprouver toute la chaîne)")
 ENCH, VERIF, JUGE = "programmes/ENCHAINER_LA_MOULINETTE.py", "programmes/VERIFIER_LA_CHAINE.py", \
     "programmes/JUGE_DES_STRATEGIES.py"
 CH = "CHAINE_%s_%s" % (SID, ESSAI)
@@ -452,8 +458,8 @@ def main():
         return 0
     if phase == "passage":
         t0 = time.time()
-        for e in [["preparer"], ["decliner"]] + [["jouer", str(k), str(NB)] for k in range(NB)] + \
-                [["assembler"], ["trier"]]:
+        for e in [["declarer", DECLARATION_DE_FAMILLE], ["preparer"], ["decliner"]] + \
+                [["jouer", str(k), str(NB)] for k in range(NB)] + [["assembler"], ["trier"]]:
             t = time.time()
             c, o = ench(copie, *e)
             print("%-12s code %d en %5.1f s" % (" ".join(e), c, time.time() - t))

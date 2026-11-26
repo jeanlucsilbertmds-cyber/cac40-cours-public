@@ -64,6 +64,12 @@ _spec.loader.exec_module(E)          # helpers réutilisés (R-708) : ignorer, e
 sys.argv = _argv
 
 SID, ESSAI = "C5E10-OBS-V1", "E01"
+# LA DÉCLARATION DE FAMILLE (garde d'A-777 et C12 à la porte de ④, VERIFIER_LA_CHAINE.garde_de_famille, ajoutée le
+# 25-11-2026) : C5 est une famille déjà jouée sur 2000-2023 ; cette épreuve la fait juger EXPRÈS, sur une copie jetable,
+# par décision de Jean-Luc (A-916 : « C5 sert à éprouver toute la chaîne », verdict « déjà vu, ne prouve rien » ; A-917 :
+# sur une copie). Écrite au journal de la chaîne par l'enchaîneur (étape « declarer »), avant ⓪.
+DECLARATION_DE_FAMILLE = ("épreuve CHAINE_C5_MOULINETTE_SUR_COPIE sur copie jetable — A-916 (Jean-Luc : C5 sert à "
+                          "éprouver toute la chaîne, « déjà vu, ne prouve rien ») et A-917 (sur une copie)")
 COMB = "donnees/combinatoires/COMBINATOIRE_%s_%s.csv" % (SID, ESSAI)
 VARIABLES = "donnees/combinatoires/VARIABLES_DE_DECLINAISON_%s_%s.csv" % (SID, ESSAI)
 TEMOIN = "donnees/combinatoires/TEMOIN_RESULTATS_%s_%s.csv" % (SID, ESSAI)
@@ -129,6 +135,10 @@ def enchainer(copie, travail, *args, delai=600):
 
 def etape_preparer(copie, travail):
     """⓪ par l'enchaîneur (PREPARER rejoué, table validée recopiée et témoignée) ; comparé à la table validée."""
+    c, o, t = enchainer(copie, travail, "declarer", DECLARATION_DE_FAMILLE)
+    if c:
+        print("DÉCLARATION DE FAMILLE refusée : code %d\n%s" % (c, o))
+        return c
     c, o, t = enchainer(copie, travail, "preparer")
     print("⓪ PREPARER (enchaîneur) code %d en %.1f s · %s" % (c, t, [l for l in o.splitlines() if "VERSIONS QUE" in l]))
     if c:
