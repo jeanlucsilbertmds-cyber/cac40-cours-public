@@ -744,6 +744,22 @@
     "{copie}"
    ],
    "pourquoi": "superviseur R-759 du 25-11-2026 (travail-lanceur, après le RELU Cowork de 15h57) : régression de l'option « --essai-sans-regard » (A-863, A-865 à A-867) après la fermeture de L-11, qui change programmes/CONTRATS_DES_FICHIERS.py et la garde de famille de programmes/VERIFIER_LA_CHAINE.py ; les cas E-ancre, E1 à E11, A1 à A6-bis, sans « --saboter » (ses sabotages visent l'option d'essai, que cette livraison ne change pas) ; lit le témoin des vingt ans et passe par le juge complet ; durée non mesurée : elle se lira dans RESULTAT.json (duree_secondes) du premier passage"
+    },
+  "EnvoiEpreuves": {
+   "chemin": "tests/EPREUVES_ENVOYER_LES_EPREUVES_SUR_GITHUB_Jeu_26-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "pilote V8, 26-11-2026 15h12 : programmes/ENVOYER_LES_EPREUVES_SUR_GITHUB.py (travail-carte, A-1012, A-1055) change du code, et programmes/INSTALLER.py refuse « aucune » épreuve longue pour un travail qui change du code (N-3) ; les cas puis les 17 sabotages ; 75 s sur une copie sans .git le 26-11-2026 à 15h10 (code 0, « TOUS MORDENT »)"
+  },
+  "BlocagesRattach": {
+   "chemin": "tests/EPREUVES_RELEVER_LES_BLOCAGES_ET_RATTACHEMENT_Jeu_26-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "pilote V8, 26-11-2026 15h12 : dette A-1055 D-16 (programmes/RELEVER_LES_BLOCAGES.py et programmes/VERIFIER_LE_RATTACHEMENT.py, travail-carte), même raison (N-3) ; les cas, puis chaque sabotage de la table SABOTAGES (leurs nombres se lisent dans la sortie, ligne « INVENTAIRE »), sur une copie sans .git (code 0, « tout est conforme », mesuré au tour 3 le 26-11-2026)"
   }
  }
 }
