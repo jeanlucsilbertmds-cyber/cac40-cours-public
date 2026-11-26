@@ -62,12 +62,15 @@
   copies qui ne lisent pas ce module : copies connues, laissées telles quelles (traces datées, ou shell), à
   aligner si elles resservent (BACKLOG). · CE QUE LE DÉCODAGE COUVRE (N-90, puis N-99 le 26-11-2026) : le base64,
   standard ou sûr pour les adresses, avec ou sans « = », d'un texte qui porte une des quatre formes, écrit sur une
-  ligne OU coupé par des blancs ou des guillemets à toute largeur et toute position — la sortie par défaut de
+  ligne OU coupé par des blancs ou des guillemets SEULS, à toute largeur et toute position — la sortie par défaut de
   « base64 » (lignes de 76), PEM et MIME (64, 76), les fins de ligne CRLF, des chaînes entre guillemets posées
   côte à côte ou sur plusieurs lignes indentées. CE QUI EST HORS PÉRIMÈTRE est une CLASSE, pas une liste : tout autre
   codage ou transformation — exemples non limitatifs : hexadécimal, base32, %-URL, double encodage, compression,
-  échappement « \\n » littéral, UTF-16 avant encodage, jeton coupé en deux littéraux (en clair toujours ; en base64
-  quand les morceaux sont joints par « + » ou séparés par une virgule), secrets d'autres services
+  échappement « \\n » littéral, UTF-16 avant encodage, coupe qui insère tout autre caractère que des
+  blancs ou des guillemets (préfixe de littéral b, r ou f, « # » d'un commentaire, « > » de citation, « - » de liste,
+  « \\ », espace insécable : relecture de Cowork du 26-11-2026 05h56, N-103,
+  littéraux b"…" côte à côte vus 76 fois sur 120 seulement), jeton coupé en deux littéraux (en clair toujours ;
+  en base64 quand les morceaux sont joints par « + » ou séparés par une virgule), secrets d'autres services
   (« x-access-token:motdepasse » encodé échappe comme il échappe en clair). Une forme de cette classe qui est vue
   l'est par hasard (un morceau porte encore la forme entière), jamais par garantie. · RÈGLE D'ARRÊT — PROPOSITION du
   superviseur R-759 du 26-11-2026 (rapport brut : echanges/SUPERVISEUR_R759_JETON_B64.md), EN ATTENTE DE JEAN-LUC,
@@ -141,7 +144,9 @@ def porte_une_forme_de_jeton(donnee):
       pas OÙ est la chaîne ni laquelle : celui qui refuse ne doit pas l'afficher. · LE COÛT dépend de la part de
       caractères base64 dans `donnee` (« _ » et « - » compris : un identifiant snake_case est une suite à décoder) :
       quatre décodages par suite de 15 caractères ou plus, et cela DEUX fois depuis N-99 (une fois par vue). Mesuré
-      le 26-11-2026 : environ ×2 sur un fichier qui n'en contient que (20 Mo de base64 en lignes : 3,3 s → 6,0 s ;
+      le 26-11-2026 : environ ×8 par rapport au motif seul, dont ×2 dû à N-99, sur un fichier qui n'en contient que (20 Mo
+      de base64 en lignes, mesure de Cowork, N-104 : motif seul 0,75 s, N-90 3,25 s, N-99 5,67 s ; mesure de l'auteur :
+      3,3 s → 6,0 s ;
       20 Mo de snake_case : 2,6 s → 4,7 s), environ ×1,7 sur le dépôt entier (superviseur : 19,3 s → 32,5 s) —
       chiffres et remesure dans echanges/A_RELIRE.md de la branche travail-jeton-b64. Sans effet aujourd'hui : le
       fabricant ne publie que du code.
