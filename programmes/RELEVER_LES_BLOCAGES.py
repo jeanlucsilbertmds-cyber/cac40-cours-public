@@ -22,12 +22,13 @@
 ⑧ POURQUOI — Un blocage écrit mais non lu équivaut à un blocage caché ; c'est
   un programme qui le relève, pas la vigilance (directive 2 de Jean-Luc).
 ⑨ CE QUI CLOCHE — Un blocage écrit sans le mot « blocage » n'est pas vu ; un
-  « débloque » ne déclenche pas (mot entier exigé), mais « bloquant » non plus.
+  « déblocage » ne déclenche pas (mot entier exigé), mais « bloquant » non plus.
   Relevés du 26-11-2026 (pilote V8, textes seuls, NON corrigés — voir les ⑨ de
   `rapports_du_pilote` et de `main`) : un rapport dont le texte porte un « | »
   est ignoré (A-1035, A-1038) ; N = 0 lit tous les rapports, N négatif retire
-  les premiers ; un blocage LEVÉ (« fin du BLOCAGE », « BLOCAGE … TIENNENT »)
-  compte comme un blocage (« BLOCAGE LEVÉ », A-1020).
+  les premiers ; un blocage LEVÉ OU ABSENT compte comme un blocage
+  (« **BLOCAGE LEVÉ** », A-1020 ; « **Aucun blocage nouveau.** », A-1024, qui
+  n'est pas un blocage levé mais une absence).
 ⑩ EFFET — Aucun : lecture seule.
 ⑪ TERMINAISON — Toujours ; aucun appel externe.
 """

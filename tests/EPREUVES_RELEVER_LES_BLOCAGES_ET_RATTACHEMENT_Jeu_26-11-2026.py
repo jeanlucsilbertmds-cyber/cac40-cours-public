@@ -20,6 +20,17 @@ LES CAS (chacun dit le code attendu et un mot attendu dans la sortie) :
   V3  note qui sert une action absente du BACKLOG → code 3
   V4  note qui sert une action non décidée (À FAIRE) → code 3
   V5  aucune paire ÉTIQUETTE=CHEMIN → code 2, « USAGE »
+  Ajoutés au tour 2 (N-112, RELU Cowork 15h21 ; jugement du superviseur R-759 « DE FOND sous conditions ») :
+  C1  rapport du pilote, phrase SYNTHÉTIQUE où un blocage est en cours, écrit « blocage » en minuscules → code 3
+      (la fiche ⑥ promet « majuscules ou non » ; jamais la vraie ligne A-1024 « Aucun blocage nouveau », qui
+      n'est pas un blocage en cours)
+  C2a quatre rapports du pilote, blocage dans le plus ancien seulement, N non donné → code 0 (défaut N = 3)
+  C2b trois rapports du pilote, blocage dans le plus ancien, N non donné → code 3 (le défaut lit bien 3 rapports)
+  C3  « déblocage » seul dans un rapport du pilote → code 0 (mot entier exigé, fiche ⑥)
+  C4  note à deux lignes SERT, « SERT : A-1014 » puis « SERT : A-99999 » (absente du BACKLOG) → code 3 (toutes les
+      lignes SERT sont lues, ⑥ d'en-tête de VERIFIER). Ce cas remplace l'idée « SERT en ligne 3 », qui aurait figé
+      le défaut consigné ⑨-③ (« une ligne SERT placée n'importe où compte »).
+  NON FIGÉ, laissé au ⑨ de `index_du_backlog` : l'identifiant en double (seule la première ligne compte).
 LES SABOTAGES (chacun retire, dans la COPIE, ce qu'un cas teste ; le cas nommé doit rougir) : voir SABOTAGES.
 
 USAGE : python3 tests/EPREUVES_RELEVER_LES_BLOCAGES_ET_RATTACHEMENT_Jeu_26-11-2026.py <racine du dépôt>
@@ -55,6 +66,19 @@ SABOTAGES = {
                              "if a not in idx", "V4"),
     "S10_non_rattache_rend_0": (VERIFIER, "    return 3 if mauvais else 0\n", "    return 0\n", "V2"),
     "S11_sans_paire_accepte": (VERIFIER, "if len(argv) < 3 or", "if len(argv) < 2 or", "V5"),
+    # X1 : sans re.I, le motif ne lit plus que la casse qu'il écrit. Écrit en capitales (la forme du BACKLOG,
+    # « BLOCAGE »), il devient aveugle aux minuscules : C1 doit rougir. Retirer re.I en gardant le motif en
+    # minuscules (X1b) le rend aveugle aux capitales : c'est R1 qui rougit, pas C1 (mesuré au tour 2).
+    "X1_sans_re_I_motif_en_capitales": (RELEVER, 'MOT = re.compile(r"\\bblocages?\\b", re.I)',
+                                        'MOT = re.compile(r"\\bBLOCAGES?\\b")', "C1"),
+    "X1b_sans_re_I_motif_en_minuscules": (RELEVER, 'MOT = re.compile(r"\\bblocages?\\b", re.I)',
+                                          'MOT = re.compile(r"\\bblocages?\\b")', "R1"),
+    "X2_sans_re_M": (VERIFIER, 'SERT = re.compile(r"^\\s*SERT\\s*:\\s*(A-\\d+)", re.M)',
+                     'SERT = re.compile(r"^\\s*SERT\\s*:\\s*(A-\\d+)")', "C4"),
+    "X3a_N_defaut_4": (RELEVER, "if len(argv) == 3 else 3", "if len(argv) == 3 else 4", "C2a"),
+    "X3b_N_defaut_2": (RELEVER, "if len(argv) == 3 else 3", "if len(argv) == 3 else 2", "C2b"),
+    "X4_sans_mot_entier": (RELEVER, 'MOT = re.compile(r"\\bblocages?\\b", re.I)',
+                           'MOT = re.compile(r"blocages?", re.I)', "C3"),
 }
 
 
@@ -114,7 +138,7 @@ def lancer(programme, arguments, dossier):
 
 
 def jouer_les_cas(depot, sabotage=None):
-    """Joue les dix cas sur une copie ; rend la liste (cas, bon, détail). Lève NonJoue si un cas ne peut tourner."""
+    """Joue les quinze cas sur une copie ; rend la liste (cas, bon, détail). Lève NonJoue si un cas ne peut tourner."""
     l1055 = vraie_ligne(depot, "A-1055")
     l1014 = vraie_ligne(depot, "A-1014")
     tete = "| Id | Action | Statut | Responsable | Source | Échéance | Liens |\n|---|---|---|---|---|---|---|\n"
@@ -122,6 +146,10 @@ def jouer_les_cas(depot, sabotage=None):
     bloque = "| A-90002 | rapport de passage : **BLOCAGE** sur l'essai | CONSTAT·26/11 | Pilote V8 | essai | immédiat | — |"
     chat = "| A-90003 | le Chat écrit **BLOCAGE** ici | CONSTAT·26/11 | Chat | essai | immédiat | — |"
     afaire = "| A-90004 | une action proposée | À FAIRE·26/11 | Chat | essai | — | — |"
+    minus = ("| A-90005 | rapport de passage : le blocage de l'essai tient toujours, rien n'avance tant qu'il n'est "
+             "pas levé | CONSTAT·26/11 | Pilote V8 | essai | immédiat | — |")
+    p1, p2, p3 = (propre.replace("A-90001", "A-9001%d" % i) for i in (1, 2, 3))
+    debloc = "| A-90020 | rapport de passage : déblocage de l'essai constaté | CONSTAT·26/11 | Pilote V8 | essai | immédiat | — |"
     resultats = []
     d = tempfile.mkdtemp(prefix="epreuve_blocages_")
     try:
@@ -133,6 +161,11 @@ def jouer_les_cas(depot, sabotage=None):
             ("R3", r, [ecrire(d, "b3.md", tete + afaire + "\n")], 2, "AUCUN RAPPORT DU PILOTE"),
             ("R4", r, [ecrire(d, "b4.md", tete + bloque + "\n" + propre + "\n"), "1"], 0, "AUCUN BLOCAGE"),
             ("R5", r, [ecrire(d, "b5.md", tete + chat + "\n" + propre + "\n")], 0, "AUCUN BLOCAGE"),
+            ("C1", r, [ecrire(d, "c1.md", tete + minus + "\n")], 3, "BLOCAGE A-90005 :"),
+            ("C2a", r, [ecrire(d, "c2a.md", tete + "\n".join([bloque, p1, p2, p3]) + "\n")], 0,
+             "AUCUN BLOCAGE dans les 3 derniers"),
+            ("C2b", r, [ecrire(d, "c2b.md", tete + "\n".join([bloque, p1, p2]) + "\n")], 3, "BLOCAGE A-90002 :"),
+            ("C3", r, [ecrire(d, "c3.md", tete + debloc + "\n")], 0, "AUCUN BLOCAGE"),
         ]
         bv = ecrire(d, "backlog_v.md", tete + l1014 + "\n" + afaire + "\n")
         cas += [
@@ -142,6 +175,8 @@ def jouer_les_cas(depot, sabotage=None):
             ("V3", v, [bv, "n=" + ecrire(d, "n3.md", "SERT : A-99999\n")], 3, "NON RATTACHÉ n : A-99999"),
             ("V4", v, [bv, "n=" + ecrire(d, "n4.md", "SERT : A-90004\n")], 3, "NON RATTACHÉ n : A-90004"),
             ("V5", v, [bv], 2, "USAGE"),
+            ("C4", v, [bv, "n=" + ecrire(d, "c4.md", "SERT : A-1014\nSERT : A-99999\nRôle : essai.\n")], 3,
+             "NON RATTACHÉ n : A-99999"),
         ]
         for nom, prog, args, code_attendu, mot in cas:
             code, sortie = lancer(prog, args, d)
