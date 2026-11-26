@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=AncreC5,ChaineC5,ContratNuit,ContratSabot,Enchainer,EssaiSansRegard,Lanceur,MoulinetteEssai,ProprietesBout,ProprietesBoutSabot
+pointe=f76018ba9737e42c6f39d9c1d516f86bda8cc968
