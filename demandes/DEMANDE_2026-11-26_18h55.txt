@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=PublicationAuto,PublicationAutoSabot
+pointe=0e3a17ddf96cb78f32753764dbfef44e7b9eab76
