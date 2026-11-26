@@ -1,0 +1,4 @@
+circuit=epreuve
+epreuves=Relais,CircuitPublic,File,Certification
+pointe=a1d4439413fcf1ef1f3e19c4e030bf8b5aee5051
+version=travail-file-demandes
