@@ -754,6 +754,21 @@
     "--saboter"
    ],
    "pourquoi": "pilote V8, 26-11-2026 15h12 : dette A-1055 D-16 (programmes/RELEVER_LES_BLOCAGES.py et programmes/VERIFIER_LE_RATTACHEMENT.py, travail-carte), même raison (N-3) ; les cas, puis chaque sabotage de la table SABOTAGES (leurs nombres se lisent dans la sortie, ligne « INVENTAIRE »), sur une copie sans .git (code 0, « tout est conforme », mesuré au tour 3 le 26-11-2026)"
+  },
+  "PublicationAuto": {
+   "chemin": "tests/EPREUVES_DE_LA_PUBLICATION_AUTOMATIQUE_Mer_25-11-2026.py",
+   "arguments": [
+    "{copie}"
+   ],
+   "pourquoi": "publication automatique au dépôt public (étape A2, A-1012 ; décision de Jean-Luc A-1042 du 26-11-2026 à 08h35 : installer avec ses défauts écrits). INSTALLER.py (l.198-200) refuse « aucune » épreuve longue pour un travail qui change du code (N-3, mesuré par le pilote V8 à 09h56, A-1047) : la suite de la branche est donc déclarée ici. 19 s, « BILAN : TOUT VERT », code 0, sur la machine du pilote V8 le 26-11-2026 à 10h14"
+  },
+  "PublicationAutoSabot": {
+   "chemin": "tests/EPREUVES_DE_LA_PUBLICATION_AUTOMATIQUE_Mer_25-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "variante « --saboter » de PublicationAuto : chaque sabotage de l'épreuve doit faire rougir sa propriété (R-731). Jouée jusqu'ici par tranches sur la machine du Chat (note de la branche, tour 6) ; durée entière NON MESURÉE ici, d'où GitHub"
   }
  }
 }
