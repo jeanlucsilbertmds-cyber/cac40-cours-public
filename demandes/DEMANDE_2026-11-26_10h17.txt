@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Pilotage
+pointe=0ae6a1cb461f3bf193ca5064f97695a2ac5f127d
