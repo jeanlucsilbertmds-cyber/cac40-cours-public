@@ -1646,6 +1646,8 @@ def accidents_vus(cours, dates):
 # la borne de l'échéance (« z - a > h ») sans qu'aucun drapeau de la ligne de commande ne soit lu par le code éprouvé.
 SANS_CONTROLE = {a.split("=", 1)[1] for a in sys.argv if a.startswith("--sans-controle=")}
 
+APERCU_LONGUEUR_D_UN_DEFAUT = 300   # caractères gardés de CHAQUE défaut affiché (N-53) ; la seule coupe du détail
+
 
 def apercu_des_defauts(defauts, debuts=()):
     """Rend le texte qui montre les défauts d'une propriété : leur TOTAL, les quatre premiers, et le premier de chaque
@@ -1655,21 +1657,28 @@ def apercu_des_defauts(defauts, debuts=()):
     `couche` (P1 à P8), `suite` (ETA, POS, GAIN…), `bout_en_bout` (BEB-*). ③ ENTRÉE — la liste des défauts (textes) ;
     `debuts` : des (rang du premier défaut d'une origine, nom de l'origine), posés par l'appelant quand une propriété
     reçoit des défauts de plusieurs sources (POS : cas connus, cas limites I1-C*, propriétés sur les cours fabriqués).
-    ④ CONDITIONS D'ENTRÉE — les rangs sont croissants. ⑤ SORTIE — UNE valeur : un texte ; « aucun défaut » si la liste
-    est vide. [rend: 1] ⑥ TRAITEMENT — « N défaut(s) : » puis les quatre premiers joints par « ; », puis, pour chaque
-    origine dont le premier défaut est au-delà du quatrième, « [origine] » et ce défaut. ⑦ UNITÉ — —. ⑧ POURQUOI — le
-    détail n'est lu que par un humain et par les sabotages (raison exigée « contenue » dans le texte) : montrer PLUS que
-    les quatre premiers ne retire aucune raison exigée, et le total dit qu'il en reste. ⑨ CE QUI CLOCHE — une origine
-    qui n'est pas posée par l'appelant n'a pas son représentant (seule POS de la suite en pose). ⑩ EFFET — aucun.
+    ④ CONDITIONS D'ENTRÉE — les rangs sont croissants. ⑤ SORTIE — UNE valeur : un texte BORNÉ ; « aucun défaut » si la
+    liste est vide. [rend: 1] ⑥ TRAITEMENT — « N défaut(s) : », puis, pour chaque origine dont le premier défaut est
+    au-delà du quatrième, « [premier défaut de l'origine …] » et ce défaut, puis les quatre premiers ; joints par
+    « ; », chaque défaut coupé à APERCU_LONGUEUR_D_UN_DEFAUT caractères. ⑦ UNITÉ — caractères. ⑧ POURQUOI — LA COUPE
+    VIT ICI ET NULLE PART AILLEURS (N-53 de Cowork, 26-11-2026 à 00h56 ; R-708) : les affichages recoupaient ce texte à
+    400 ou 500 caractères, si bien que le représentant ajouté EN FIN par N-47 n'était jamais visible (0 sur 18 lignes
+    de ProprietesSuiteSabot 45721795876). Les représentants viennent donc AVANT, et la borne porte sur CHAQUE défaut,
+    pas sur le total : un défaut commence par son nom (« K01 … », « I1-C5 … »), si bien que la raison qu'exige un
+    sabotage (texte « contenu » dans le détail) reste dans la part gardée. Longueur au plus : préfixe + (4 + nombre
+    d'origines) × (APERCU_LONGUEUR_D_UN_DEFAUT + 60). ⑨ CE QUI CLOCHE — une origine qui n'est pas posée par l'appelant
+    n'a pas son représentant (seule POS de la suite en pose) ; une raison exigée placée au-delà du 300e caractère d'un
+    défaut serait coupée (aucune ne l'est : les raisons des sabotages sont des noms de cas, en tête). ⑩ EFFET — aucun.
     ⑪ TERMINAISON — rend la main. [sort: non]"""
     if not defauts:
         return "aucun défaut"
-    texte = "%d défaut(s) : %s" % (len(defauts), " ; ".join(defauts[:4]))
+    coupe = lambda x: x if len(x) <= APERCU_LONGUEUR_D_UN_DEFAUT else x[:APERCU_LONGUEUR_D_UN_DEFAUT] + "…"  # noqa: E731
+    parts = []
     for i, (rang, nom) in enumerate(debuts):
         fin = debuts[i + 1][0] if i + 1 < len(debuts) else len(defauts)
         if rang >= 4 and rang < fin:
-            texte += " ; [premier défaut de l'origine « %s »] %s" % (nom, defauts[rang])
-    return texte
+            parts.append("[premier défaut de l'origine « %s »] %s" % (nom, coupe(defauts[rang])))
+    return "%d défaut(s) : %s" % (len(defauts), " ; ".join(parts + [coupe(x) for x in defauts[:4]]))
 
 
 def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
@@ -1679,7 +1688,14 @@ def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     appel par trade du soir rejoué) et `cas_limites_des_defauts` (ses cas écrits à la main). ③ ENTRÉE — le trade
     (colonnes du journal), la série de la valeur, tp et sl en fractions, l'horizon (entier ou HORIZON_AUCUNE), le
     calendrier fabriqué. ④ CONDITIONS D'ENTRÉE — le trade porte ses colonnes (PREUVE l'a vérifié) ; tp et sl sont des
-    nombres (jamais « sans stop » : la lecture du soir le refuse).
+    nombres (jamais « sans stop » : la lecture du soir le refuse) ; CHAQUE SÉANCE DE LA SÉRIE EST COHÉRENTE : plus bas
+    <= ouverture <= plus haut et plus bas <= clôture <= plus haut. La fonction NE LE VÉRIFIE PAS (aucun comportement
+    ajouté, N-52 de Cowork du 26-11-2026 à 00h56) : c'est vrai des cours fabriqués de `suite` (`cours_fabriques` pose
+    plus haut >= max(ouverture, clôture) et plus bas <= min(ouverture, clôture)), des séries factices de l'épreuve des
+    mutants et, mesure de Cowork, des 28 929 séances >= 2024 de donnees/cours_maitre.csv (0 incohérente). Hors de ce
+    domaine, neuf des mutants déclarés équivalents dans l'épreuve des mutants deviennent de vrais défauts (W-INC1,
+    W-INC3 de Cowork : une ouverture sous le plus bas fait accepter un TP faux) ; refuser en tête une barre incohérente
+    serait un comportement nouveau, qui attend Jean-Luc.
     ⑤ SORTIE — DEUX valeurs : la liste des défauts (textes), et vrai si la fenêtre du trade contient un trou (l'échéance
     n'y est alors pas jugée). [rend: 2]
     ⑥ TRAITEMENT — objectif = pe×(1+tp), stop = pe×(1−sl) (valeurs exactes, sans l'arrondi du circuit) ; UNE COUPURE
@@ -3495,7 +3511,7 @@ def main_bout_en_bout(racine, base, saboter, t0):
         print("\n— TABLEAU PROPRIÉTÉ × VERDICT (sans sabotage) —")
         for p in PROPRIETES_BEB:
             e, det = final[p]
-            print("  %-11s %-12s %s\n         %s" % (p, e, ENONCES[p], det[:900]))
+            print("  %-11s %-12s %s\n         %s" % (p, e, ENONCES[p], det))
             rouge = rouge or e != "VERT"
         print("\n— REFUS —")
         for r in refus:
@@ -3513,7 +3529,7 @@ def main_bout_en_bout(racine, base, saboter, t0):
                 print("  %s %s → %s ; %s : %s" % (
                     "✅" if mord else "❌", sab[0], "MORD" if mord else (
                         "NON PROBANT (%s déjà %s sans sabotage)" % (sab[1], final[sab[1]][0]) if not probant else
-                        "SURVIT (%s)" % f2[sab[1]][0]), sab[1], f2[sab[1]][1][:400]))
+                        "SURVIT (%s)" % f2[sab[1]][0]), sab[1], f2[sab[1]][1]))
                 rouge = rouge or not mord
         # R-734 : tout maillon NON JOUÉ ou EN ÉCHEC du passage sans sabotage rougit, sauf ceux de PROP-BEB-X après son
         # refus (« la chaîne ne se saute pas », A-919) — et aucun maillon du tout est l'épreuve qui n'a pas tourné.
@@ -3708,7 +3724,7 @@ def main_suite(racine, base, saboter, t0):
         print("\n— TABLEAU PROPRIÉTÉ × VERDICT (sans sabotage) —")
         for p in PROPRIETES_SUITE:
             e, det = final[p]
-            print("  %-6s %-12s %s\n         %s" % (p, e, ENONCES[p], det[:900]))
+            print("  %-6s %-12s %s\n         %s" % (p, e, ENONCES[p], det))
             rouge = rouge or e != "VERT"
         print("\n— ÉCARTS CONNUS (ni verts ni rouges : nommés à chaque passage, le code n'applique pas encore la règle) —")
         for x in ecarts_connus:
@@ -3743,7 +3759,7 @@ def main_suite(racine, base, saboter, t0):
                 if raison is not None:
                     print("       raison exigée dans le détail de %s : « %s » — %s" % (
                         sab[1], raison, "présente" if raison in f2[sab[1]][1] else "ABSENTE"))
-                print("       %s : %s" % (sab[1], f2[sab[1]][1][:400]))
+                print("       %s : %s" % (sab[1], f2[sab[1]][1]))
                 rouge = rouge or not mord
         print("\nDURÉE : %.0f s" % (time.time() - t0))
         print("VERDICT : %s" % ("TOUT TIENT" if not rouge else "NON CONFORME"))
@@ -3800,7 +3816,7 @@ def main(argv):
         print("\n— TABLEAU PROPRIÉTÉ × VERDICT (sans sabotage) —")
         for p in PROPRIETES:
             e, det = final[p]
-            print("  %-4s %-12s %s\n         %s" % (p, e, ENONCES[p], det[:900]))
+            print("  %-4s %-12s %s\n         %s" % (p, e, ENONCES[p], det))
             rouge = rouge or e != "VERT"
         print("\n— MAILLONS OÙ UNE STRATÉGIE CONFORME EST REFUSÉE OU IGNORÉE —")
         vus = set()
@@ -3829,7 +3845,7 @@ def main(argv):
                                                           "MORD" if mord else "SURVIT (%s)" % f2[sab[1]][0],
                                                           ", ".join(rouges) or "aucune"))
                 if not mord:
-                    print("       %s : %s" % (sab[1], f2[sab[1]][1][:500]))
+                    print("       %s : %s" % (sab[1], f2[sab[1]][1]))
                 rouge = rouge or not mord
         print("\nDURÉE : %.0f s" % (time.time() - t0))
         print("VERDICT : %s" % ("TOUT TIENT" if not rouge else "NON CONFORME"))

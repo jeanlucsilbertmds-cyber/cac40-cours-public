@@ -24,13 +24,18 @@ celui que rend `vendre` (même motif, même date, même prix écrit en « %.5f �
 messages exclus) donne ses mutants : opérande d'un and/or forcé à vrai puis à faux · not retiré · comparaison
 inversée (sa négation) et sa borne changée (« < » ↔ « <= », « > » ↔ « >= ») · ±1 sur l'opérande de droite d'une
 comparaison numérique et sur les bornes d'une tranche ou d'un indice · constante numérique changée de signe et mise à
-zéro (EPS_SEUIL, EPS_PRIX…) · + ↔ − · appel rendu muet (`rendu.append` retiré) · ZONE MORTE de 1e-3 € rétablie sur UN
+zéro, multipliée par 10 et par 0,1 (EPS_SEUIL, EPS_PRIX…, N-50 ③) · booléen inversé · × ↔ / (« pe * (1 + tp) »)
+· appel d'une fonction native à un argument retiré (abs, float) · + ↔ − · appel rendu muet (`rendu.append` retiré) · ZONE MORTE de 1e-3 € rétablie sur UN
 appel de `haut` ou `bas` à la fois, dans le sens qui laisse passer (sous un `not`, le seuil s'éloigne ; ailleurs, il
 se rapproche). Chaque mutant est joué sur les témoins (b) puis sur les 26 cas I1-C* écrits à la main
 (`cas_limites_des_defauts`, gardés : R-732, cas réels) ; il est TUÉ dès qu'un témoin le contredit, et le témoin est
-nommé. CONTRÔLE DE COMPLÉTUDE (propriété, jamais un compte figé) : l'ensemble des nœuds réellement mutés doit être
-égal à l'ensemble des nœuds mutables relevé par un SECOND parcours, indépendant (`ast.walk`). Un survivant non déclaré
-dans EQUIVALENTS, ou une déclaration qui ne survit plus, rend le code 1.
+nommé. CONTRÔLES DE COMPLÉTUDE (propriétés, jamais un compte figé) : (1) l'ensemble des nœuds réellement mutés doit
+être égal à l'ensemble des nœuds mutables relevé par un SECOND parcours (`ast.walk`) — il voit un parcours qui saute
+une branche ; (2) PAR COMPLÉMENT, sans lire `genres` (N-51 de Cowork, 26-11-2026 à 00h56) : chaque nœud de calcul de
+l'arbre est muté ou d'une espèce déclarée non mutée avec sa raison (NON_MUTES) — il voit un genre perdu ; (3) chaque
+genre que `appliquer` sait faire, lu dans SON arbre, produit au moins un mutant — il voit un genre perdu sur un nœud
+qui en porte plusieurs. Un survivant non déclaré dans EQUIVALENTS ni dans EN_ATTENTE (vrais trous qui attendent
+Jean-Luc), ou une déclaration qui ne survit plus, rend le code 1.
 
 USAGE : python3 -B tests/EPREUVES_DES_MUTANTS_DU_CONTROLE_DES_TRADES_Jeu_26-11-2026.py <racine> [--saboter]
   [--sans-mutants : interne à --saboter, ne joue que l'intacte et la complétude]
@@ -41,6 +46,7 @@ CODE DE SORTIE : 0 tout tient · 1 un défaut (intacte contredite par l'oracle, 
 mord pas) · 2 l'épreuve n'a pas pu tourner (R-734). Aucun cours réel lu : les séries sont fabriquées ici.
 """
 import ast
+import builtins
 import copy
 import os
 import shutil
@@ -67,27 +73,40 @@ EQUIVALENTS = {
     '[dans egal] Compare borne/0 : abs(p - q) <= EPS_PRIX':
         "« <= » devenu « < » dans `egal` : ne diffère qu'à un écart EXACT de 1e-5 € entre deux prix écrits en « %.5f », qui ne sont alors pas le même prix ; K8 de Cowork (d1177fde, « quasi équivalente »)",
     "[si bas(b['open']) or bas(b['low']) or haut(b['op] BoolOp operande/0/False : bas(b['open']) or bas(b['low']) or haut(b['open']) or haut(b['high'])":
-        "boucle ② sans « bas(ouverture) » : une ouverture au stop ou dessous a un plus bas au stop ou dessous (plus bas <= ouverture, toute séance réelle ou fabriquée) : l'opérande « plus bas » qui reste dit déjà la même chose",
+        "boucle ② sans « bas(ouverture) » : une ouverture au stop ou dessous a un plus bas au stop ou dessous (plus bas <= ouverture : condition ④ de `defauts_d_un_trade`) : l'opérande « plus bas » qui reste dit déjà la même chose",
     "[si bas(b['open']) or bas(b['low']) or haut(b['op] BoolOp operande/2/False : bas(b['open']) or bas(b['low']) or haut(b['open']) or haut(b['high'])":
-        "boucle ② sans « haut(ouverture) » : une ouverture à l'objectif ou dessus a un plus haut à l'objectif ou dessus (ouverture <= plus haut) : l'opérande « plus haut » qui reste dit déjà la même chose",
+        "boucle ② sans « haut(ouverture) » : une ouverture à l'objectif ou dessus a un plus haut à l'objectif ou dessus (ouverture <= plus haut : condition ④ de `defauts_d_un_trade`) : l'opérande « plus haut » qui reste dit déjà la même chose",
     "[si motif == 'SL'] BoolOp operande/0/False : 'saut' in SANS_CONTROLE or not haut(b['open'])":
         "« 'saut' in SANS_CONTROLE » forcé à faux : il vaut déjà faux hors du sabotage S-I1a, seul à poser ce drapeau (S-I1a, joué par ProprietesSuiteSabot, le garde)",
     "[si motif == 'TP'] BoolOp operande/0/True : not bas(b['open']) and (not haut(b['open'])) and (not bas(b['low'])) a":
-        "TP sans « not bas(ouverture) » : la branche exige aussi « not bas(plus bas) », et une ouverture au stop ou dessous a un plus bas au stop ou dessous (plus bas <= ouverture, toute séance réelle ou fabriquée) : l'opérande « plus bas » qui reste dit déjà la même chose",
+        "TP sans « not bas(ouverture) » : la branche exige aussi « not bas(plus bas) », et une ouverture au stop ou dessous a un plus bas au stop ou dessous (plus bas <= ouverture : condition ④ de `defauts_d_un_trade`) : l'opérande « plus bas » qui reste dit déjà la même chose",
     "[si motif == 'TP'] Call zone_morte/True : bas(b['open'])":
-        "zone morte sur « not bas(ouverture) » du TP : même raison que l'opérande retiré, « not bas(plus bas) » décide seul",
+        "zone morte sur « not bas(ouverture) » du TP : même raison que l'opérande retiré, « not bas(plus bas) » décide seul (plus bas <= ouverture : condition ④ de `defauts_d_un_trade`)",
     "[si motif == 'HORIZON'] BoolOp operande/0/True : not bas(b['open']) and (not bas(b['low'])) and (not haut(b['open'])) a":
-        "HORIZON sans « not bas(ouverture) » : « not bas(plus bas) » reste, et une ouverture au stop ou dessous a un plus bas au stop ou dessous (plus bas <= ouverture, toute séance réelle ou fabriquée) : l'opérande « plus bas » qui reste dit déjà la même chose",
+        "HORIZON sans « not bas(ouverture) » : « not bas(plus bas) » reste, et une ouverture au stop ou dessous a un plus bas au stop ou dessous (plus bas <= ouverture : condition ④ de `defauts_d_un_trade`) : l'opérande « plus bas » qui reste dit déjà la même chose",
     "[si motif == 'HORIZON'] BoolOp operande/2/True : not bas(b['open']) and (not bas(b['low'])) and (not haut(b['open'])) a":
-        "HORIZON sans « not haut(ouverture) » : « not haut(plus haut) » reste, et une ouverture à l'objectif ou dessus a un plus haut à l'objectif ou dessus (ouverture <= plus haut) : l'opérande « plus haut » qui reste dit déjà la même chose",
+        "HORIZON sans « not haut(ouverture) » : « not haut(plus haut) » reste, et une ouverture à l'objectif ou dessus a un plus haut à l'objectif ou dessus (ouverture <= plus haut : condition ④ de `defauts_d_un_trade`) : l'opérande « plus haut » qui reste dit déjà la même chose",
     "[si motif == 'HORIZON'] Call zone_morte/True : bas(b['open'])":
-        'zone morte sur « not bas(ouverture) » du HORIZON : « not bas(plus bas) » décide seul (plus bas <= ouverture)',
+        'zone morte sur « not bas(ouverture) » du HORIZON : « not bas(plus bas) » décide seul (plus bas <= ouverture : condition ④ de `defauts_d_un_trade`)',
     "[si motif == 'HORIZON'] Call zone_morte/True : haut(b['open'])":
-        'zone morte sur « not haut(ouverture) » du HORIZON : « not haut(plus haut) » décide seul (ouverture <= plus haut)',
+        'zone morte sur « not haut(ouverture) » du HORIZON : « not haut(plus haut) » décide seul (ouverture <= plus haut : condition ④ de `defauts_d_un_trade`)',
     "[si motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and] BoolOp operande/2/True : motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and isinstance(h, int) and (":
         "« not isinstance(h, bool) » forcé à vrai : seul un horizon booléen le rend faux, et `vendre` refuse un horizon booléen (ValueError) : aucun trade du circuit n'en porte ; K14 de Cowork (« sans portée »)",
     "[si motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and] BoolOp operande/4/True : motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and isinstance(h, int) and (":
         "« 'echeance' not in SANS_CONTROLE » forcé à vrai : il vaut déjà vrai hors du sabotage S-I1b, seul à poser ce drapeau (S-I1b le garde)",
+}
+
+# LES SURVIVANTS CONNUS QUI ATTENDENT UNE DÉCISION DE JEAN-LUC — CE NE SONT PAS DES ÉQUIVALENTS : chacun est un vrai
+# trou, mesuré, que l'agent n'a pas le droit de fermer seul (la fermeture change ce que la suite accepte). Affichés
+# « ⚠ SURVIVANT EN ATTENTE », comptés à part au BILAN, ils ne font pas rougir ; une clé qui ne survit plus fait rougir
+# (la liste ne garde que de vrais survivants). Raison : consigne du pilote V8 du 26-11-2026 vers 01h10 — « NE CHANGE
+# PAS EPS_PRIX ni `egal` […] cela change ce que la suite accepte et attend Jean-Luc ».
+EN_ATTENTE = {
+    '[corps] Constant constante/fois10 : 1e-05':
+        "EPS_PRIX porté de 1e-5 à 1e-4 € : un prix de sortie faux de 2 à 9 unités de la cinquième décimale passerait. "
+        "Aucun témoin n'essaie un tel prix (les six prix essayés sont à 1e-4 € au moins de la vente). N-50 de Cowork "
+        "(26-11-2026, 00h56, C8 et D2) ; la réparation — témoins à ± k unités de la résolution écrite, et EPS_PRIX "
+        "déduit de cette résolution — attend Jean-Luc (superviseur R-759 de 01h1x) : mesure dans echanges/A_RELIRE.md",
 }
 
 
@@ -167,9 +186,18 @@ def genres(n, parent, exclus):
     if isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Name):
         g += [("indice", +1), ("indice", -1)]
     if isinstance(n, ast.Constant) and type(n.value) in (int, float):
-        g += [("constante", "signe"), ("constante", "zero")]
+        # N-50 ③ (Cowork, 26-11-2026 à 00h56) : une tolérance ÉLARGIE ou RÉTRÉCIE d'un facteur dix, pas seulement
+        # retournée ou annulée
+        g += [("constante", "signe"), ("constante", "zero"), ("constante", "fois10"), ("constante", "dixieme")]
+    if isinstance(n, ast.Constant) and type(n.value) is bool:
+        g.append(("constante", "non"))
     if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Sub)):
         g.append(("plus_moins",))
+    if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Mult, ast.Div)):
+        g.append(("fois_divise",))      # « pe * (1 + tp) » : vu par le complément (N-51), muté depuis le 26-11-2026
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in dir(builtins) and \
+            len(n.args) == 1 and not n.keywords:
+        g.append(("sans_appel",))       # abs(x) → x, float(x) → x : vu par le complément (N-51)
     if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Attribute) and \
             n.value.func.attr == "append":
         g.append(("muet",))
@@ -218,14 +246,126 @@ def noeuds_mutables(fn):
     D'ENTRÉE — —. ⑤ SORTIE — UNE valeur : ensemble de clés. [rend: 1] ⑥ TRAITEMENT — table des parents, puis `genres`.
     ⑦ UNITÉ — —. ⑧ POURQUOI — « nœuds mutés = nœuds mutables de l'arbre » (superviseur R-759, 26-11-2026), une
     propriété : renommer ou ajouter une branche ne change pas l'avis du contrôle. ⑨ CE QUI CLOCHE — partage `genres`
-    avec le mutateur : une erreur DANS `genres` n'est pas vue ici (elle l'est par les survivants). ⑩ EFFET — aucun.
-    ⑪ TERMINAISON — rend la main. [sort: non]"""
+    avec le mutateur : il ne voit QUE le parcours qui saute une branche (S-M3). Un genre perdu DANS `genres` n'est PAS
+    vu ici, et il ne produit aucun survivant — il ne produit rien (N-51 de Cowork, 26-11-2026 à 00h56 : retirer
+    « muet », « plus_moins » ou « constante » laissait TOUT TIENT). Ce trou est fermé par deux contrôles qui ne lisent
+    pas `genres` : `noeuds_ni_mutes_ni_declares` (complément sur l'arbre Python) et `genres_sans_mutant` (genres lus
+    dans l'arbre de `appliquer`). ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
     exclus = hors_calcul(fn)
     parents = {}
     for p in ast.walk(fn):
         for c in ast.iter_child_nodes(p):
             parents[id(c)] = p
     return {cle(n, fn.lineno) for n in ast.walk(fn) if genres(n, parents.get(id(n)), exclus)}
+
+# LES ESPÈCES DE NŒUDS QUI NE SONT PAS MUTÉES, CHACUNE AVEC SA RAISON (N-51 de Cowork, 26-11-2026 à 00h56 ; superviseur
+# R-759 du même jour, « DE FOND » : « tout nœud de ast.walk(fn) hors textes est soit muté, soit d'un TYPE déclaré
+# « non muté » dans une table par type de l'arbre Python avec sa raison »). La clé est l'ESPÈCE que rend `espece`, lue
+# dans l'arbre Python et jamais dans `genres` : un genre perdu laisse ses nœuds ni mutés ni déclarés, et l'épreuve
+# rougit. Une espèce qui porte un calcul n'est déclarée ici que si une autre mutation la couvre, et la raison le dit.
+NON_MUTES = {
+    "Name": "un nom lu : une mutation de nom (une variable pour une autre) n'est pas produite — ⑨ de `genres`, consigné",
+    "Store": "la cible d'une affectation : sans calcul", "Load": "la lecture d'un nom : sans calcul",
+    "arg": "un paramètre : sans calcul", "arguments": "la liste des paramètres : sans calcul",
+    "FunctionDef": "une définition : ses instructions sont parcourues", "Assign": "une affectation : sa valeur est mutée",
+    "If": "un test : sa condition est mutée", "For": "une boucle : son itérable (la tranche) est muté",
+    "Return": "un retour : ses valeurs sont mutées", "Tuple": "un n-uplet : ses éléments sont mutés",
+    "List": "une liste : ses éléments sont mutés", "ListComp": "la liste des dates : ses éléments sont lus",
+    "comprehension": "la boucle de la liste des dates : sans calcul",
+    "Attribute": "un attribut (`rendu.append`, `dd.index`) : l'appel qui le porte est couvert",
+    "Break": "la sortie de la boucle ② après le premier défaut : la retirer n'ajoute que des défauts à une liste déjà "
+             "non vide, le verdict est le même",
+    "Constant:str": "une clé de dictionnaire, un motif ou un drapeau de sabotage : une mutation de nom n'est pas "
+                    "produite — ⑨ de `genres`, consigné",
+    "Subscript:Constant": "une lecture par clé (b['open']) : une clé pour une autre n'est pas produite — ⑨ de `genres`",
+    "Subscript:Slice": "une tranche (serie[a:z]) : ses bornes sont mutées par le nœud Slice (genre « tranche »)",
+    "Call:egal": "son résultat est un opérande d'un and (forcé vrai et faux, genre « operande ») ou sous un not (retiré) ;"
+                 " son corps est muté dans `egal`",
+    "Call:isinstance": "son résultat est un opérande d'un and/or (genre « operande ») ou sous un not (retiré)",
+    "Call:dd.index": "le rang d'une date : les comparaisons, indices et tranches qui le lisent sont mutés de ±1",
+    "Call:calendrier.index": "le rang d'une date du calendrier : la soustraction et la comparaison qui le lisent sont "
+                             "mutées (+ ↔ −, ±1, négation)",
+    "Call:rendu.append": "porté par l'instruction qui l'appelle, mutée « muet » (appel retiré)",
+}
+for _op in ("Add", "Sub", "Mult", "Div", "And", "Or", "Not", "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE", "In", "NotIn",
+            "Is", "IsNot", "USub"):
+    NON_MUTES[_op] = "un opérateur : muté par le nœud qui le porte (BinOp, BoolOp, UnaryOp, Compare)"
+
+
+def espece(n):
+    """L'espèce d'un nœud, lue dans l'arbre Python, jamais dans `genres`. [rend: 1]
+    ① RÔLE — la clé de NON_MUTES. ② CONTEXTE D'APPEL — `noeuds_ni_mutes_ni_declares`. ③ ENTRÉE — un nœud.
+    ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UN texte. ⑥ TRAITEMENT — le nom du type ; précisé par l'opérateur
+    (BinOp, BoolOp, UnaryOp), le type de la valeur (Constant), le type de l'indice (Subscript), la fonction appelée
+    (Call). ⑦ UNITÉ — —. ⑧ POURQUOI — un type porte parfois du calcul et parfois non (une constante 1e-5 et une clé
+    « open ») : déclarer « Constant » entier cacherait la perte du genre « constante ». ⑨ CE QUI CLOCHE — un appel est
+    nommé par sa fonction : renommer `egal` fait rougir (faux défaut, jamais un défaut caché). ⑩ EFFET — aucun.
+    ⑪ TERMINAISON — rend la main. [sort: non]"""
+    nom = type(n).__name__
+    if isinstance(n, (ast.BinOp, ast.BoolOp, ast.UnaryOp)):
+        return "%s:%s" % (nom, type(n.op).__name__)
+    if isinstance(n, ast.Constant):
+        return "Constant:%s" % type(n.value).__name__
+    if isinstance(n, ast.Subscript):
+        return "Subscript:%s" % type(n.slice).__name__
+    if isinstance(n, ast.Call):
+        return "Call:%s" % ast.unparse(n.func)
+    return nom
+
+
+def noeuds_ni_mutes_ni_declares(fn, mutes):
+    """Rend la liste des nœuds de calcul qui ne sont NI mutés NI d'une espèce déclarée non mutée. [rend: 1]
+    ① RÔLE — la complétude PAR COMPLÉMENT (N-51 de Cowork ; superviseur R-759 du 26-11-2026, « DE FOND »).
+    ② CONTEXTE D'APPEL — `principal`. ③ ENTRÉE — la fonction, l'ensemble des clés des nœuds réellement mutés (ceux
+    d'au moins un mutant produit). ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE valeur : liste de (espèce, ligne depuis
+    le def, texte) ; vide si tout est couvert. ⑥ TRAITEMENT — chaque nœud de `ast.walk(fn)`, textes exclus
+    (`hors_calcul`) : couvert s'il porte une position et que sa clé est mutée, ou si son espèce est dans NON_MUTES.
+    ⑦ UNITÉ — lignes. ⑧ POURQUOI — l'ancien contrôle (`noeuds_mutables`) lisait `genres`, comme le mutateur : un genre
+    perdu des deux côtés restait invisible (C3, C4, C5 de Cowork). Ici, `genres` n'est pas lu : un genre perdu laisse
+    ses nœuds sans mutant, et ils tombent dans « ni l'un ni l'autre ». ⑨ CE QUI CLOCHE — un nœud qui porte PLUSIEURS
+    genres (Compare : négation, borne, ±1 ; BoolOp : vrai, faux) reste muté si un seul de ses genres se perd : c'est
+    `genres_sans_mutant` qui le voit. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la main. [sort: non]"""
+    exclus = hors_calcul(fn)
+    sortie = []
+    for n in ast.walk(fn):
+        if id(n) in exclus:
+            continue
+        if hasattr(n, "lineno") and cle(n, fn.lineno) in mutes:
+            continue
+        if espece(n) in NON_MUTES:
+            continue
+        sortie.append((espece(n), getattr(n, "lineno", fn.lineno) - fn.lineno,
+                       ast.unparse(n)[:60] if hasattr(n, "lineno") else type(n).__name__))
+    return sortie
+
+
+def genres_que_sait_faire_appliquer(arbre):
+    """Rend l'ensemble des genres que `appliquer` sait faire, lus dans SON arbre. [rend: 1]
+    ① RÔLE — l'étalon de `genres_sans_mutant`. ② CONTEXTE D'APPEL — `principal`. ③ ENTRÉE — l'arbre de CE fichier.
+    ④ CONDITIONS D'ENTRÉE — `appliquer` y est défini. ⑤ SORTIE — UNE valeur : ensemble de textes. ⑥ TRAITEMENT — chaque
+    comparaison « g[0] == "<genre>" » du corps de `appliquer`. ⑦ UNITÉ — —. ⑧ POURQUOI — la liste ne s'écrit pas une
+    seconde fois (R-708) : elle se lit là où les mutations se font. ⑨ CE QUI CLOCHE — un genre retiré À LA FOIS de
+    `genres` et de `appliquer` n'est pas vu ici ; s'il était seul sur son espèce, le complément le voit. ⑩ EFFET —
+    aucun. ⑪ TERMINAISON — rend la main ; lève StopIteration si `appliquer` manque (code 2). [sort: non]"""
+    f = next(n for n in arbre.body if isinstance(n, ast.FunctionDef) and n.name == "appliquer")
+    sortie = set()
+    for n in ast.walk(f):
+        if isinstance(n, ast.Compare) and isinstance(n.left, ast.Subscript) and ast.unparse(n.left) == "g[0]" and \
+                isinstance(n.comparators[0], ast.Constant):
+            sortie.add(n.comparators[0].value)
+    return sortie
+
+
+def genres_sans_mutant(arbre, ms):
+    """Rend la liste triée des genres que `appliquer` sait faire et qui n'ont produit AUCUN mutant. [rend: 1]
+    ① RÔLE — la seconde moitié de la complétude (N-51 (b), superviseur R-759 du 26-11-2026). ② CONTEXTE D'APPEL —
+    `principal`. ③ ENTRÉE — l'arbre de ce fichier, les mutants produits. ④ CONDITIONS D'ENTRÉE — —. ⑤ SORTIE — UNE
+    valeur : liste. ⑥ TRAITEMENT — différence d'ensembles. ⑦ UNITÉ — —. ⑧ POURQUOI — un genre perdu sur un nœud qui
+    en porte plusieurs (la « borne » d'une comparaison, encore niée et décalée de ±1) ne se voit pas au complément.
+    ⑨ CE QUI CLOCHE — exige que chaque genre trouve une espèce dans `defauts_d_un_trade` : une fonction qui perdrait
+    sa dernière multiplication ferait rougir (faux défaut, dit par son nom). ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la
+    main. [sort: non]"""
+    return sorted(genres_que_sait_faire_appliquer(arbre) - {g[0] for _k, g, _t, _f in ms})
 
 
 def appliquer(fn, k, g):
@@ -276,9 +416,14 @@ def appliquer(fn, k, g):
     elif g[0] == "indice":
         cible.slice = ast.BinOp(cible.slice, ast.Add(), ast.Constant(g[1]))
     elif g[0] == "constante":
-        cible.value = -cible.value if g[1] == "signe" else type(cible.value)(0)
+        cible.value = {"signe": lambda v: -v, "zero": lambda v: type(v)(0), "fois10": lambda v: v * 10,
+                       "dixieme": lambda v: v / 10, "non": lambda v: not v}[g[1]](cible.value)
     elif g[0] == "plus_moins":
         cible.op = ast.Sub() if isinstance(cible.op, ast.Add) else ast.Add()
+    elif g[0] == "fois_divise":
+        cible.op = ast.Div() if isinstance(cible.op, ast.Mult) else ast.Mult()
+    elif g[0] == "sans_appel":
+        nouveau = cible.args[0]
     elif g[0] == "muet":
         nouveau = ast.Pass()
     elif g[0] == "zone_morte":
@@ -303,7 +448,7 @@ def appliquer(fn, k, g):
 
 
 def mutants(fn):
-    """Rend la liste (clé, description, fonction mutée) de tous les mutants. [rend: 1]
+    """Rend la liste (clé, genre, description, fonction mutée) de tous les mutants. [rend: 1]
     ① RÔLE — le mutateur. ② CONTEXTE D'APPEL — `principal`. ③ ENTRÉE — la fonction. ④ CONDITIONS D'ENTRÉE — —.
     ⑤ SORTIE — UNE valeur : liste. ⑥ TRAITEMENT — `sites_par_recursion` puis `appliquer` ; un mutant dont le texte est
     celui de l'original est omis. ⑦ UNITÉ — —. ⑧ POURQUOI — voir le sens en tête. ⑨ CE QUI CLOCHE — —. ⑩ EFFET —
@@ -317,7 +462,7 @@ def mutants(fn):
             vus[texte] = vus.get(texte, 0) + 1
             if vus[texte] > 1:                      # deux sites au même lieu et au même texte : numérotés
                 texte += " #%d" % vus[texte]
-            sortie.append((k, texte, f))
+            sortie.append((k, g, texte, f))
     return sortie
 
 
@@ -345,7 +490,7 @@ def charger(racine, texte):
 
 def seance(d, o, h, l, c=None):
     """Une séance factice (dict). ① RÔLE — fabriquer. ② CONTEXTE D'APPEL — `familles`. ③ ENTRÉE — date, prix.
-    ④ CONDITIONS D'ENTRÉE — l <= o <= h. ⑤ SORTIE — UNE valeur. [rend: 1] ⑥ TRAITEMENT — clôture au milieu si absente,
+    ④ CONDITIONS D'ENTRÉE — l <= o <= h et l <= c <= h (la condition ④ de `defauts_d_un_trade`, N-52). ⑤ SORTIE — UNE valeur. [rend: 1] ⑥ TRAITEMENT — clôture au milieu si absente,
     à quatre décimales. ⑦ UNITÉ — euros. ⑧ POURQUOI — —. ⑨ CE QUI CLOCHE — —. ⑩ EFFET — aucun. ⑪ TERMINAISON — rend
     la main. [sort: non]"""
     return dict(date=d, open=o, high=h, low=l, close=round((h + l) / 2, 4) if c is None else c)
@@ -479,7 +624,9 @@ def temoins(MP, COMMUN):
             for cle_d in ("date_entree", "date_sortie"):
                 t = {"prix_entree": ref[3], "prix_sortie": ref[2], "motif_sortie": ref[0], "date_entree": dd[a],
                      "date_sortie": ref[1], cle_d: "2024-02-30"}
-                sortie.append(("%s h=%s ; %s hors de la série" % (nom, hn, cle_d), t, s, tp, sl, h, cal, False, None))
+                # trou attendu FAUX : sans fenêtre, pas de trou — et `suite` additionne ce drapeau même pour un trade
+                # refusé (fenetres_a_trou) ; tué ainsi le mutant « False → True » du retour anticipé (26-11-2026)
+                sortie.append(("%s h=%s ; %s hors de la série" % (nom, hn, cle_d), t, s, tp, sl, h, cal, False, False))
     return sortie
 
 
@@ -520,6 +667,7 @@ def principal(racine):
     affiche. ⑪ TERMINAISON — rend la main. [sort: non]"""
     t0 = time.time()
     texte, arbre, fn = lire_la_cible(racine)
+    arbre_moi = ast.parse(open(os.path.abspath(__file__), encoding="utf-8").read())
     M, MP, COMMUN = charger(racine, texte)
     tem = temoins(MP, COMMUN)
     print("(b) témoins fabriqués depuis MODULE_POSITIONS.vendre : %d trade(s) (%d accepté(s) attendu(s)), "
@@ -543,7 +691,7 @@ def principal(racine):
     else:
         print("✅ intacte : concorde avec vendre sur les %d témoins et les cas I1-C*" % (n,))
     ms = mutants(fn)
-    mutes = {k for k, _t, _f in ms}
+    mutes = {k for k, _g, _t, _f in ms}
     attendus = noeuds_mutables(fn)
     if mutes != attendus:
         print("❌ COMPLÉTUDE : nœuds mutables non mutés %s ; mutés hors liste %s" % (
@@ -552,12 +700,31 @@ def principal(racine):
     else:
         print("✅ complétude : %d nœud(s) muté(s) = %d nœud(s) mutable(s) de l'arbre (second parcours, ast.walk)" % (
             len(mutes), len(attendus)))
-    tues, equiv, survivants = 0, [], []
+    ni_ni = noeuds_ni_mutes_ni_declares(fn, mutes)
+    if ni_ni:
+        print("❌ COMPLÉTUDE PAR COMPLÉMENT : %d nœud(s) ni muté(s) ni d'une espèce déclarée non mutée : %s" % (
+            len(ni_ni), " ; ".join("%s l.%d « %s »" % (e, ligne + fn.lineno, x) for e, ligne, x in ni_ni[:6])))
+        rouge = True
+    else:
+        print("✅ complétude par complément : chaque nœud de calcul (ast.walk, textes exclus) est muté ou d'une des %d "
+              "espèce(s) déclarée(s) non mutée(s) avec sa raison (NON_MUTES)" % len(NON_MUTES))
+    par_genre = {}
+    for _k, g, _t, _f in ms:
+        par_genre[g[0]] = par_genre.get(g[0], 0) + 1
+    sans = genres_sans_mutant(arbre_moi, ms)
+    if sans:
+        print("❌ COMPLÉTUDE DES GENRES : genre(s) que `appliquer` sait faire sans AUCUN mutant : %s" % ", ".join(sans))
+        rouge = True
+    else:
+        print("✅ complétude des genres : les %d genre(s) que sait faire `appliquer` (lus dans son arbre) produisent "
+              "chacun au moins un mutant : %s" % (len(par_genre), ", ".join("%s %d" % x for x in sorted(
+                  par_genre.items()))))
+    tues, equiv, survivants, attente = 0, [], [], []
     if "--sans-mutants" in sys.argv:        # sous --saboter seulement (S-M1, S-M3, S-M4) : l'intacte et la complétude
         print("mutants non joués (--sans-mutants)")
         print("VERDICT : %s" % ("NON CONFORME" if rouge else "TOUT TIENT"))
         return 1 if rouge else 0
-    for _k, desc, f in ms:
+    for _k, _g, desc, f in ms:
         try:
             tue, _n = juger(compiler(f), tem, cas_i1)
         except Exception as e:  # noqa: BLE001 — un mutant qui ne compile pas est un défaut du mutateur
@@ -568,15 +735,18 @@ def principal(racine):
         elif desc in EQUIVALENTS:
             equiv.append(desc)
             print("  ÉQUIVALENT %s — %s" % (desc, EQUIVALENTS[desc]))
+        elif desc in EN_ATTENTE:
+            attente.append(desc)
+            print("⚠ EN ATTENTE DE JEAN-LUC (survit) %s (l.%d) — %s" % (desc, _k[1] + fn.lineno, EN_ATTENTE[desc]))
         else:
             survivants.append(desc)
             print("❌ SURVIVANT %s (l.%d)" % (desc, _k[1] + fn.lineno))
-    perimees = sorted(set(EQUIVALENTS) - set(equiv))
+    perimees = sorted(set(EQUIVALENTS) - set(equiv)) + sorted(set(EN_ATTENTE) - set(attente))
     for d in perimees:
-        print("❌ DÉCLARÉ ÉQUIVALENT MAIS NON SURVIVANT (ou absent) : %s" % d)
+        print("❌ DÉCLARÉ (ÉQUIVALENT OU EN ATTENTE) MAIS NON SURVIVANT (ou absent) : %s" % d)
     rouge |= bool(survivants) or bool(perimees)
-    print("BILAN : %d mutant(s) — %d tué(s), %d équivalent(s) déclaré(s), %d survivant(s)" % (
-        len(ms), tues, len(equiv), len(survivants)))
+    print("BILAN : %d mutant(s) — %d tué(s), %d équivalent(s) déclaré(s), %d survivant(s) en attente de Jean-Luc, "
+          "%d survivant(s) non déclaré(s)" % (len(ms), tues, len(equiv), len(attente), len(survivants)))
     print("DURÉE : %.0f s" % (time.time() - t0))
     print("VERDICT : %s" % ("NON CONFORME" if rouge else "TOUT TIENT"))
     return 1 if rouge else 0
@@ -605,7 +775,7 @@ SABOTAGES = {
     # S-M2 : un témoin retiré (la famille ARRONDI, seule à tuer « EPS_SEUIL = 0 », N-43) → un survivant nommé
     "S-M2 famille ARRONDI retirée": (
         os.path.join("tests", "EPREUVES_DES_MUTANTS_DU_CONTROLE_DES_TRADES_Jeu_26-11-2026.py"),
-        "    for pe in (100.0002, 100.0006, 25.6002, 145.0010, 33.3338):\n", "    for pe in ():\n", "SURVIVANT"),
+        "    for pe in (100.0002, 100.0006, 25.6002, 145.0010, 33.3338):\n", "    for pe in ():\n", "❌ SURVIVANT"),
     # S-M3 : le mutateur saute une branche → la complétude rougit
     "S-M3 mutateur qui saute la branche TP": (
         os.path.join("tests", "EPREUVES_DES_MUTANTS_DU_CONTROLE_DES_TRADES_Jeu_26-11-2026.py"),
@@ -626,12 +796,24 @@ def saboter(racine):
     racine. ④ CONDITIONS D'ENTRÉE — les textes « avant » existent une fois. ⑤ SORTIE — UNE valeur : le code.
     [rend: 1] ⑥ TRAITEMENT — copie de tests/ (ce fichier et l'épreuve) et de programmes/ sous un dossier temporaire,
     remplacement, lancement de ce fichier en processus neuf, code 1 et mot attendu exigés. ⑦ UNITÉ — secondes.
-    ⑧ POURQUOI — sabotages ① à ④ de la consigne. ⑨ CE QUI CLOCHE — S-M3 vise la branche TP par son texte : renommer
+    ⑧ POURQUOI — sabotages ① à ④ de la consigne, et S-M5 (un par genre produit). ⑨ CE QUI CLOCHE — S-M3 vise la branche TP par son texte : renommer
     le motif la fait chercher en vain (code 2, dit). ⑩ EFFET — écrit sous un dossier temporaire, l'efface.
     ⑪ TERMINAISON — chaque lancement a un délai de 600 s ; rend la main. [sort: non]"""
     code = 0
     moi = os.path.join("tests", os.path.basename(__file__))
-    for nom, (fichier, avant, apres, mot) in SABOTAGES.items():
+    # S-M5 (N-51, superviseur R-759 du 26-11-2026) : un genre retiré de `genres`, pour CHAQUE genre TIRÉ DES MUTANTS
+    # PRODUITS par le dépôt intact — jamais d'une liste écrite ici. Le mot attendu est « COMPLÉTUDE » : le complément
+    # ou la complétude des genres doit le voir.
+    _t, _a, fn = lire_la_cible(racine)
+    produits = sorted({g[0] for _k, g, _x, _f in mutants(fn)})
+    tous = dict(SABOTAGES)
+    for genre in produits:
+        tous["S-M5 genre « %s » retiré de `genres`" % genre] = (
+            moi, "def genres(n, parent, exclus):\n",
+            "def genres(n, parent, exclus):\n    return [x for x in _genres_intacts(n, parent, exclus) if x[0] != %r]"
+            "\n\n\ndef _genres_intacts(n, parent, exclus):\n" % genre, "COMPLÉTUDE")
+    print("S-M5 : %d genre(s) tiré(s) des mutants produits : %s" % (len(produits), ", ".join(produits)))
+    for nom, (fichier, avant, apres, mot) in tous.items():
         d = tempfile.mkdtemp(prefix="mutants_sabot_")
         try:
             os.makedirs(os.path.join(d, "tests"))
@@ -652,7 +834,7 @@ def saboter(racine):
                                capture_output=True, text=True, timeout=600)
             ligne = next((x for x in r.stdout.splitlines() if mot in x), "")
             if r.returncode == 1 and ligne:
-                print("✅ %s → MORD (code 1) : %s" % (nom, ligne.strip()[:220]))
+                print("✅ %s → MORD (code 1) : %s" % (nom, ligne.strip()[:260]))
             else:
                 print("❌ %s → NE MORD PAS (code %d, « %s » %s)" % (nom, r.returncode, mot,
                                                                    "absent" if not ligne else "présent"))
