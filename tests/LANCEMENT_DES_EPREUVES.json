@@ -730,6 +730,22 @@
     "--saboter"
    ],
    "pourquoi": "variante « --saboter » de ProprietesBout (décisions A-923, A-945, A-952) : les sabotages de SABOTAGES_BEB, dans l'épreuve, qui les affiche un par un (aucun compte écrit ici, R-728) (maillon retiré, fiche perdue entre deux maillons, garde éteinte, retour aux liens symboliques, fiche fautive rendue conforme, valeur qui ne sort jamais de l'indice ; S-BEB11 à 14 : chaque étalon désigné faussé ; S-BEB15 à 22, superviseur R-759 du 20-11-2026 : juge qui lève, détecteur qui lève vu par BEB-PASSE et par BEB-SIGNAL, cockpit sorti en 1 pour une autre raison, radar sorti en 1, réglage relié au réel par un lien symbolique, tri sans version retenue, fiche fautive refusée sur sl sans la phrase exacte de tp ; I1 de Cowork du 21-11-2026 : versement qui écrit une ligne ancienne en double), chacun doit faire rougir SA propriété (R-731). 171 s sur GitHub le 20-11-2026 pour la série d'alors (passage 44814017661) ; la série actuelle : NON MESURÉE ici, plus longue depuis que ② ③ ④ jouent (A-952)"
+  },
+  "EnvoiEpreuves": {
+   "chemin": "tests/EPREUVES_ENVOYER_LES_EPREUVES_SUR_GITHUB_Jeu_26-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "pilote V8, 26-11-2026 15h12 : programmes/ENVOYER_LES_EPREUVES_SUR_GITHUB.py (travail-carte, A-1012, A-1055) change du code, et programmes/INSTALLER.py refuse « aucune » épreuve longue pour un travail qui change du code (N-3) ; les cas puis les 17 sabotages ; 75 s sur une copie sans .git le 26-11-2026 à 15h10 (code 0, « TOUS MORDENT »)"
+  },
+  "BlocagesRattach": {
+   "chemin": "tests/EPREUVES_RELEVER_LES_BLOCAGES_ET_RATTACHEMENT_Jeu_26-11-2026.py",
+   "arguments": [
+    "{copie}",
+    "--saboter"
+   ],
+   "pourquoi": "pilote V8, 26-11-2026 15h12 : dette A-1055 D-16 (programmes/RELEVER_LES_BLOCAGES.py et programmes/VERIFIER_LE_RATTACHEMENT.py, travail-carte), même raison (N-3) ; les cas, puis chaque sabotage de la table SABOTAGES (leurs nombres se lisent dans la sortie, ligne « INVENTAIRE »), sur une copie sans .git (code 0, « tout est conforme », mesuré au tour 3 le 26-11-2026)"
   }
  }
 }
