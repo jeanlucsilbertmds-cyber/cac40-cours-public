@@ -1141,6 +1141,26 @@ FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE = {
     # Calibrage du juge sur C5E10-QA-V1 (124 lignes, 100/100 sorties) : sorties identiques, hors horodatage et
     # empreinte du module. Valeur mesurée par E-ancre sous Python 3.11, 3.12 et 3.13.
 }
+
+# LE CODE DES FAMILLES DÉJÀ JOUÉES SUR 2000-2023, FIGÉ (L-11 et C13 du RELU Cowork du 25-11-2026 ; forme du superviseur
+# R-759 du 25-11-2026, 14h36 ; DÉCISION DE JEAN-LUC du Mer 25-11-2026 à 15h09, « 1 » à « graver au contrat les empreintes
+# du code de C5 »). {fiche déjà vue : (module de signal de RÉFÉRENCE, chemin relatif à la racine ; ENSEMBLE des
+# empreintes emp-v2 du CODE de ce module, sans ses textes explicatifs)}. Sens : la garde de famille de la moulinette
+# (VERIFIER_LA_CHAINE.famille_deja_jouee, A-777, décision C12) refuse ④ à une fiche dont le module de signal a l'une de
+# ces empreintes, sauf déclaration explicite ; elle ne lit PLUS AUCUNE référence dans le registre de la copie — avant ce
+# jour, une ligne C5E10-QA-V1 ajoutée sur un autre module, ou ses lignes retirées, laissaient juger C5 sans déclaration.
+# L'ENSEMBLE NE FAIT QUE S'ALLONGER : une empreinte ancienne reste, parce qu'une copie de l'ancien code de C5 est toujours
+# la famille C5. AUTO-VÉRIFICATION : si le module de référence existe sous la racine et que son empreinte n'est PAS dans
+# l'ensemble, la garde lève « contrôle impossible » (code 2), pour forcer à refiger — piège connu : le code de C5 a changé
+# le 20-11-2026 sans que la valeur figée suive (A-957, 21-11-2026). Refiger = ajouter la nouvelle empreinte, sur
+# décision écrite de Jean-Luc citée ici. Valeur mesurée le 25-11-2026 par la fonction du juge
+# (`JUGE_DES_STRATEGIES.lire_module_du_jour`, emp.py format emp-v2 — jamais recopiée, R-708) sur le module de
+# travail-lanceur, identique à main (git diff vide sur ce fichier) : 9a540d210c78cf4b. Trou NOMMÉ, non fermé (L-5) :
+# une copie de C5 dont UNE instruction change n'a plus la même empreinte et passe.
+CODE_DES_FAMILLES_DEJA_JOUEES = {
+    "C5E10-QA-V1": ("programmes/MODULE_C5_ETENDU_10_Sam_11-07-2026_19h32.py",
+                    frozenset({"9a540d210c78cf4b"})),
+}
 # LE VERROU DE LA VALEUR FIGÉE (E1, point 4, du superviseur R-759 du 17-11-2026, sur MAJ-1 du relecteur du même jour) :
 # avec QUOI elle a été calculée — l'étiquette FORMAT d'emp.py et le sha256 des OCTETS d'emp.py. Raison : le geste
 # légitime après un changement d'emp.py est de recalculer la valeur figée (A-873) ; un emp.py AFFAIBLI suivi d'un

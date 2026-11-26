@@ -11,6 +11,8 @@ programmes/VERIFIER_LA_CHAINE.py, que le JUGE appelle lui-même (A-919 ; supervi
 USAGE
     python3 -B programmes/ENCHAINER_LA_MOULINETTE.py <racine> <STRATÉGIE> <ESSAI> <étape> [arguments]
     étapes dans l'ordre : preparer · decliner · jouer <k> <N> (k = 0 … N-1) · assembler · trier · juger <id_version>
+    à tout moment avant juger : declarer "<qui, quand, mots de la décision>" — la déclaration explicite qui permet de
+    juger une famille déjà jouée sur 2000-2023 (A-777, C12 ; VERIFIER_LA_CHAINE.garde_de_famille)
 
 ① RÔLE — Lancer les étapes de la moulinette dans l'ordre, sans en sauter, et en garder la trace.
 ② CONTEXTE D'APPEL — À la main, une étape par appel (chacune sous 10 minutes). Aucune tâche automatique.
@@ -21,7 +23,9 @@ USAGE
   A-861). Avant chaque étape, `VERIFIER_LA_CHAINE.motifs` exige les témoins intacts des étapes précédentes. La
   validation des réglages est exigée par DECLINER (colonne `valide_par`) puis par la porte du juge — c'est une
   mention écrite, rien de plus. La version jugée est donnée par l'appelant : la règle du choix n'est pas décidée
-  (A-775) ; une version absente du tri est refusée.
+  (A-775) ; une version absente du tri est refusée ; une version d'une famille déjà jouée sur 2000-2023 est refusée
+  sans déclaration (`V.motifs`, garde de famille). « jouer k N » est refusé si une tranche déjà témoignée n'est pas
+  celle du découpage en N (`V.decoupage_mele`, L-3 du RELU Cowork du 25-11-2026).
 ⑤ SORTIE — UNE valeur, le code : 0 l'étape a tenu · 1 refus ou programme de la chaîne en échec · 2 un contrôle n'a
   pas pu tourner (R-734). Fichiers sous <racine>/CHAINE_<STRATÉGIE>_<ESSAI>/ (journal, e0 … e4, sorties .txt).
 ⑥ TRAITEMENT — garde · lancement du programme de l'étape · témoin si et seulement si le programme a rendu 0.
@@ -49,8 +53,8 @@ import CONTRATS_DES_FICHIERS as C  # noqa: E402  le registre est nommé au contr
 
 REG = C.REGISTRE_DES_STRATEGIES
 FAITE = {"preparer": "0-proposition", "decliner": "1-decliner", "assembler": "2-assembler", "trier": "3-trier"}
-EXIGEES = {"preparer": 0, "decliner": 2, "jouer": 3, "assembler": 3, "trier": 4, "juger": 5}
-NB_ARGS = {"jouer": 2, "juger": 1}
+EXIGEES = {"preparer": 0, "decliner": 2, "jouer": 3, "assembler": 3, "trier": 4, "juger": 5, "declarer": 0}
+NB_ARGS = {"jouer": 2, "juger": 1, "declarer": 1}
 
 
 def lancer(racine, ch, nom, *args, delai=300):
@@ -136,14 +140,15 @@ def faire(racine, sid, essai, etape, args):
 
     ① RÔLE — L'aiguillage : lancer le programme de l'étape, puis écrire son témoin s'il a rendu 0.
     ② CONTEXTE D'APPEL — `main`, une fois, après la garde.
-    ③ ENTRÉE — `racine`, `sid`, `essai` ; `etape` : preparer, decliner, jouer, assembler, trier ou juger ; `args` :
-      (k, N) pour jouer, (id_version,) pour juger, vide sinon.
+    ③ ENTRÉE — `racine`, `sid`, `essai` ; `etape` : preparer, decliner, jouer, assembler, trier, juger ou declarer ;
+      `args` : (k, N) pour jouer, (id_version,) pour juger, (texte,) pour declarer, vide sinon.
     ④ CONDITIONS D'ENTRÉE — la garde de `main` (`V.motifs`) n'a rien rendu.
     ⑤ SORTIE — UNE valeur : 0 l'étape a tenu, 1 le programme de l'étape a échoué ou la tranche est déjà jouée.
       [rend: 1]
     ⑥ TRAITEMENT — selon l'étape : preparer (e0, et le tableau validé recopié dans valide/) · decliner (e1, et le
       témoin de résultats recopié s'il existe) · jouer (une tranche, e2) · assembler (e2) · trier (e3) · juger (la
-      fiche ajoutée au registre, MARQUÉE, puis le juge sur cette fiche, e4) ; le témoin au journal après un code 0.
+      fiche ajoutée au registre, MARQUÉE, puis le juge sur cette fiche, e4) · declarer (`V.declarer_la_famille`, une
+      fois : une seconde déclaration ne change rien et le dit) ; le témoin au journal après un code 0.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — A-919 : une étape n'existe pour la suite que si son témoin est écrit, et il ne l'est qu'après réussite.
     ⑨ CE QUI CLOCHE — ① la version jugée est donnée par l'appelant (A-775 non décidée) · ② l'étape juger se relance
@@ -157,7 +162,11 @@ def faire(racine, sid, essai, etape, args):
     ch = V.dossier(racine, sid, essai)
     t = V.temoins(ch)
     variables, comb = "VARIABLES_DE_DECLINAISON_%s_%s.csv" % (sid, essai), "COMBINATOIRE_%s_%s.csv" % (sid, essai)
-    if etape == "preparer":
+    if etape == "declarer":
+        print("DÉCLARATION DE FAMILLE %s : %s" % ("écrite" if V.declarer_la_famille(ch, args[0]) else
+                                                 "déjà au journal, inchangée (la première fait foi)",
+                                                 open(os.path.join(ch, V.FICHIER_DE_FAMILLE), encoding="utf-8").read().strip()))
+    elif etape == "preparer":
         for d in ("e0", "valide"):
             os.makedirs(os.path.join(ch, d))
         if lancer(racine, ch, "e0/sortie", "programmes/PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py", REG,
@@ -222,18 +231,25 @@ def main(argv):
     ⑤ SORTIE — UNE valeur : 0 l'étape a tenu · 1 refus · 2 usage faux, racine avec .git, ou contrôle impossible
       (R-734).
     [rend: 1]
-    ⑥ TRAITEMENT — ① arguments (nombre, étape connue, k et N entiers) · ② .git refusé (A-861) · ③ garde : `V.motifs`
-      exige les témoins des étapes précédentes, et une étape déjà faite est refusée · ④ `faire` · ⑤ les erreurs de
-      fichier et de contrôle converties en code 2.
+    ⑥ TRAITEMENT — ① arguments (nombre, étape connue ; pour « jouer » : k et N entiers ASCII écrits sans zéro de tête,
+      0 ≤ k < N — L-10 et L-7 du RELU Cowork du 25-11-2026) · ② .git refusé (A-861) · ③ garde :
+      `V.motifs` exige les témoins des étapes précédentes (et, à juger, la garde de famille), une étape déjà faite est
+      refusée, et « jouer k N » est refusé si les tranches déjà jouées sont d'un autre découpage (`V.decoupage_mele`)
+      · ④ `faire` · ⑤ les erreurs de fichier et de contrôle converties en code 2.
     ⑦ UNITÉ — —
-    ⑧ POURQUOI — A-919 : la chaîne ⓪ ① ② ③ ④ ne se saute pas.
+    ⑧ POURQUOI — A-919 : la chaîne ⓪ ① ② ③ ④ ne se saute pas. L-10 du RELU Cowork du 25-11-2026 (14h20) : `k` était
+      le TEXTE de l'argument ; « jouer 0 3 » puis « jouer 00 3 » écrivaient deux témoins (2-tranche-0, 2-tranche-00),
+      la tranche 0 jouée deux fois, puis l'assemblage refusait et la chaîne était perdue (cas B2). Une seule graphie
+      par nombre ferme ce chemin. L-7 du même RELU : « jouer 5 3 » passait le contrôle et ne tombait qu'au vrai JOUER
+      (`JOUER_LES_VERSIONS.lire_la_tranche` exige 0 ≤ k < N) ; refusé ici, avant tout écrit.
     ⑨ CE QUI CLOCHE — —
     ⑩ EFFET — voir l'en-tête du fichier ; affiche.
     ⑪ TERMINAISON — rend la main ; c'est `__main__` qui passe le code à `sys.exit`.
     [sort: non]
     """
     if len(argv) < 5 or argv[4] not in EXIGEES or len(argv) != 5 + NB_ARGS.get(argv[4], 0) or \
-            (argv[4] == "jouer" and not all(a.isdigit() for a in argv[5:])):
+            (argv[4] == "jouer" and not (all(a.isascii() and a.isdigit() and a == str(int(a)) for a in argv[5:]) and
+                                         0 <= int(argv[5]) < int(argv[6]))):
         print(__doc__.split("① RÔLE")[0])
         return 2
     racine, sid, essai, etape, args = os.path.abspath(argv[1]), argv[2], argv[3], argv[4], argv[5:]
@@ -245,6 +261,8 @@ def main(argv):
         m = V.motifs(racine, sid, essai, EXIGEES[etape], args[0] if etape == "juger" else None)
         if FAITE.get(etape) in V.temoins(V.dossier(racine, sid, essai)):
             m.append("étape %s déjà faite : un essai ne se refait pas" % etape)
+        if etape == "jouer" and not m:
+            m += V.decoupage_mele(V.dossier(racine, sid, essai), int(args[1]))
         if m:
             print("REFUS de l'étape %s — la chaîne ⓪ ① ② ③ ④ ne se saute pas (A-919) :\n  %s" % (etape, "\n  ".join(m)))
             return 1
