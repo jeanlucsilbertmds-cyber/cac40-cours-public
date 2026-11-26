@@ -108,7 +108,7 @@ jobs:
               if [ "$valeur" != "toutes" ]; then
                 deja=" "
                 for c in ${valeur//,/ }; do
-                  [[ " CircuitSeries CircuitPublic Relais NuitDecoupee Certification VenteUnique MessageDuSoir VingtAns RegistreEssais Bloc5A DossierLancement RegistreStrategies CircuitLecteur JugeLecteur Tri Moulinette ArriveeSignaux LectureCours PorteEntree Comblement VeriteJuge SeanceAchat VenteReglable ContratSabot Comptabilites BaremeFrais LectureFiche GardeFou Confrontation JeuRadar RsiRebond SoirFiche TroisElements CopieBoucles MoulinetteEssai File LivrerSabots ContratNuit ChaineC5 Lanceur Enchainer SoirDecide NomsContrat Carte AncreC5 Calibrage EcartDeGain EtatTravaux EtatTravauxSabot ProprietesChaine ProprietesSabot ProprietesSuite ProprietesSuiteSabot ProprietesBout ProprietesBoutSabot EssaiSansRegard EnvoiEpreuves BlocagesRattach " == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue : $c"; exit 1; }
+                  [[ " Pilotage CircuitSeries CircuitPublic Relais NuitDecoupee Certification VenteUnique MessageDuSoir VingtAns RegistreEssais Bloc5A DossierLancement RegistreStrategies CircuitLecteur JugeLecteur Tri Moulinette ArriveeSignaux LectureCours PorteEntree Comblement VeriteJuge SeanceAchat VenteReglable ContratSabot Comptabilites BaremeFrais LectureFiche GardeFou Confrontation JeuRadar RsiRebond SoirFiche TroisElements CopieBoucles MoulinetteEssai File LivrerSabots ContratNuit ChaineC5 Lanceur Enchainer SoirDecide NomsContrat Carte AncreC5 Calibrage EcartDeGain EtatTravaux EtatTravauxSabot ProprietesChaine ProprietesSabot ProprietesSuite ProprietesSuiteSabot ProprietesBout ProprietesBoutSabot EssaiSansRegard EnvoiEpreuves BlocagesRattach " == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue : $c"; exit 1; }
                   [[ "$deja" != *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve demandee deux fois : $c"; exit 1; }
                   deja="$deja$c "
                 done
@@ -232,7 +232,7 @@ jobs:
             # pas le choix) ; la fenetre de places consecutives la moins chargee.
             # Le reservoir est borne par les groupes de job, pas par ce choix : ce choix ne fait que repartir.
             if [ "$CIRCUIT" = "epreuve" ]; then
-              if [ "$EPREUVES" = "toutes" ]; then NOMBRE=58; else IFS=, read -ra liste <<<"$EPREUVES"; NOMBRE=${#liste[@]}; fi
+              if [ "$EPREUVES" = "toutes" ]; then NOMBRE=59; else IFS=, read -ra liste <<<"$EPREUVES"; NOMBRE=${#liste[@]}; fi
             elif [ "$CIRCUIT" = "series" ]; then
               NOMBRE=0
               if [ "$SERIE" = "toutes" ] || [ "$SERIE" = "Yahoo" ]; then NOMBRE=$(( NOMBRE + PARTS_YAHOO )); fi
