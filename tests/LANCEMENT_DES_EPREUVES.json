@@ -745,7 +745,7 @@
     "{copie}",
     "--saboter"
    ],
-   "pourquoi": "pilote V8, 26-11-2026 15h12 : dette A-1055 D-16 (programmes/RELEVER_LES_BLOCAGES.py et programmes/VERIFIER_LE_RATTACHEMENT.py, travail-carte), même raison (N-3) ; 10 cas puis 11 sabotages ; quelques secondes sur une copie sans .git le 26-11-2026 à 15h10 (code 0, « tout est conforme »)"
+   "pourquoi": "pilote V8, 26-11-2026 15h12 : dette A-1055 D-16 (programmes/RELEVER_LES_BLOCAGES.py et programmes/VERIFIER_LE_RATTACHEMENT.py, travail-carte), même raison (N-3) ; les cas, puis chaque sabotage de la table SABOTAGES (leurs nombres se lisent dans la sortie, ligne « INVENTAIRE »), sur une copie sans .git (code 0, « tout est conforme », mesuré au tour 3 le 26-11-2026)"
   }
  }
 }
