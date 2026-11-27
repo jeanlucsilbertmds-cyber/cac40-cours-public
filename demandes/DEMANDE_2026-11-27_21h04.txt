@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=ChronoEssai,MoulinetteEssai
+pointe=31485d66b85d632822c5a22f3d4da5cf6c3e0dde
