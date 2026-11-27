@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=CorrJeton,SignalNomme,JugeLecteur,Moulinette,BaremeFrais
+pointe=44d41154bb0ff868b0e4db6500f4ea7c04780359
