@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=CorrJeton,SignalNomme
+pointe=46c05e07c29eb2cff5055931731ac0a4191f0e43
