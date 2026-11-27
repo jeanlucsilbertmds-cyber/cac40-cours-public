@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=MoulEssaiT0,MoulEssaiT1,MoulEssaiT2
+pointe=8f8da118c78c46866e6b95f9e884fbf4097076e3
