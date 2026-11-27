@@ -696,7 +696,9 @@ def chaine(W, ids, octet):
             w.writerows(lignes)
         passe = True
         for etape, sous in (("preparer", "e0"), ("decliner", "e1")):
-            code, texte = lancer(W, os.path.join(W, ENCH), W, i, ESSAI, etape)
+            # « --cours-du-maitre » à ⓪ (A-1076, 27-11-2026) : 2024 et après seulement (A-952), le maître comme avant L1
+            code, texte = lancer(W, os.path.join(W, ENCH), W, i, ESSAI, etape,
+                                 *(["--cours-du-maitre"] if etape == "preparer" else []))
             ch = V.dossier(W, i, ESSAI)
             detail = os.path.join(ch, sous, "sortie.txt")
             detail = open(detail, encoding="utf-8").read() if os.path.isfile(detail) else ""
@@ -2964,7 +2966,8 @@ def beb(R, racine, sabotage):
     fiches = CT.fiches_du_registre(os.path.join(R, REG))
     # ③ LA MOULINETTE PAR L'ENCHAÎNEUR, COMME LA CHAÎNE OFFICIELLE (fiche conforme, puis fiche refusée)
     quand = __import__("datetime").datetime.now(__import__("zoneinfo").ZoneInfo("Europe/Paris"))
-    etapes = (("⓪ PREPARER", ["preparer"]), ("① DECLINER", ["decliner"]), ("② JOUER_LES_VERSIONS", ["jouer", "0", "1"]),
+    # « --cours-du-maitre » à ⓪ (A-1076, 27-11-2026) : 2024 et après seulement (A-952), le maître comme avant le lot L1
+    etapes = (("⓪ PREPARER", ["preparer", "--cours-du-maitre"]), ("① DECLINER", ["decliner"]), ("② JOUER_LES_VERSIONS", ["jouer", "0", "1"]),
               ("② assembler", ["assembler"]), ("③ TRIER_LES_VARIANTES", ["trier"]))
     for ident in (BEB_FICHE, BEB_REFUSEE):
         # LE TABLEAU DE LA CONFORME POUR LES DEUX, lu sur la fiche CONFORME elle-même : S-BEB22 donne à PROP-BEB-X un
