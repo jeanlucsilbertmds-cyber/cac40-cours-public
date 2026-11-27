@@ -412,7 +412,8 @@ def juger_une_fiche(racine, fiche_id, cas):
       [rend: 1]
     ⑥ TRAITEMENT — ① HEAD = la branche principale du contrat et arbre propre (`_head_est_la_branche`), sinon tout
       INCONNU (table vide, `cas=None`), et rien n'est lu ni joué · ①bis le registre des règles absent → tout INCONNU
-      (relecteur J, D8) · ①ter la table de la loi et la fiche · ② la déclaration, par `DECLARER_UNE_STRATEGIE.lire_la_declaration`
+      (relecteur J, D8) · ①ter la table de la loi, recouverte par les seuils de R-505 v2 pas encore au REGISTRE
+      (`MODULE_JUGEMENT.table_des_seuils_en_attente`, A-1093), et la fiche · ② la déclaration, par `DECLARER_UNE_STRATEGIE.lire_la_declaration`
       (B3) : COMPLETE → on continue ; NON_JUGEABLE (absente, incomplète, non engagée avant le premier regard, empreinte
       du code changée) → NON JUGEABLE avec ses champs ; ILLISIBLE → contrôle ① INCONNU ; dans ces deux cas RIEN n'est
       joué (aucun regard sans déclaration) · ③ le cas : celui de la déclaration ; l'appelant en dit un autre → cas inconnu ·
@@ -481,6 +482,9 @@ def juger_une_fiche(racine, fiche_id, cas):
         return rendre(cas=None, k="INCONNU", declaration_manquants=None)
     with open(chemin_loi, encoding="utf-8") as f:
         table.update(J.table_de_la_loi(f.read()))
+    # LES SEUILS DE R-505 v2 PAS ENCORE AU REGISTRE (lot L3, 27-11-2026) : la PBO maximale 0,05 (A-1093) RECOUVRE le
+    # 0,30 de la version 1 ; une lecture qui échoue rend la clé ILLISIBLE, donc le contrôle INCONNU, jamais l'ancien 0,30.
+    table.update(J.table_des_seuils_en_attente(racine))
     fiches = C.lire_les_fiches(racine)
     if fiche_id not in fiches:
         raise LookupError("fiche %r absente du registre des stratégies" % (fiche_id,))

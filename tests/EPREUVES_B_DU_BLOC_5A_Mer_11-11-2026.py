@@ -111,7 +111,7 @@ SABOTAGES = {
     "X01_epoques_toujours_passe": [(GRILLE, '    if raisons:\n        rendu["etat"] = "BLOQUE"', '    if False:\n        rendu["etat"] = "BLOQUE"')],
     "X02_frais_doubles_ignore": [(GRILLE, '_controle("PASSE" if m["gain_moyen_frais_doubles_eur"] > 0 else "BLOQUE",',
                                   '_controle("PASSE",')],
-    "X03_sharpe_ignore": [(GRILLE, '_controle("PASSE" if 1.0 - m["sharpe_degonfle"] < s_preuve else "BLOQUE",',
+    "X03_sharpe_ignore": [(GRILLE, '_controle("PASSE" if 1.0 - m["sharpe_degonfle"] < s_dsr else "BLOQUE",',
                            '_controle("PASSE",')],
     "X04_declaration_inconnue_valide": [(GRILLE, 'c["declaration"] = _controle("INCONNU", raison=rejet("declaration_manquants")',
                                          'c["declaration"] = _controle("PASSE", raison=rejet("declaration_manquants")')],
@@ -173,7 +173,7 @@ SABOTAGES = {
                                                           '(sens == "<=" and not valeur <= ref * 1.01)')],
     "Z06_M06_strictesse_relachee_de_1pct_vers_le_bas": [(GRILLE, '(sens == ">=" and not valeur >= ref)',
                                                          '(sens == ">=" and not valeur >= ref * 0.99)')],
-    "Z07_M07_sharpe_au_sens_large": [(GRILLE, '1.0 - m["sharpe_degonfle"] < s_preuve', '1.0 - m["sharpe_degonfle"] <= s_preuve')],
+    "Z07_M07_sharpe_au_sens_large": [(GRILLE, '1.0 - m["sharpe_degonfle"] < s_dsr', '1.0 - m["sharpe_degonfle"] <= s_dsr')],
     "Z08_M08_pbo_jusqu_a_moins_un": [(GRILLE, 'not 0.0 <= v <= 1.0', 'not -1.0 <= v <= 1.0')],
     "Z09_D1_minimum_au_seuil_005": [(GRILLE, 'lu["parts_des_seances"], s_preuve, s_epoque)', 'lu["parts_des_seances"], 0.05, s_epoque)')],
     "Z10_D1_motif_des_epoques_ignore": [(GRILLE, '            return _controle("INCONNU", raison=lu["motif"])',
@@ -222,6 +222,7 @@ TABLE_SYNTHETIQUE = """texte avant
   | gain_un_jeton | affichage | Q-G2 | épreuve |
   | epoque_perdante | 0,05 | époque | épreuve |
   | surapprentissage_maximum | 0,30 | PBO | épreuve |
+  | sharpe_degonfle_risque_maximum | 0,05 | contrôle 1 de R-505 v2, sans ÷ k (A-1095 corrigée) | épreuve |
   | voisins | 26 voisins à ±10 %, tous gagnants | drapeau | épreuve |
   | frais_doubles | courtage et taxe × 2, gain > 0 | drapeau | épreuve |
   | creux_un_jeton | affichage | Q-G2 | épreuve |
@@ -955,15 +956,17 @@ def cas(copie, racine):
                                 ("1 séance hors examen", dict(seances_hors_examen=1), "BLOQUE")],
             "surapprentissage": [
                 ("pbo = maximum − ε", dict(cas="2", mesures_externes={**tout_passe, **mesures_cas2, "surapprentissage": {"pbo": 0.30 - eps, "nombre_d_essais": 5}}), "PASSE"),
-                ("pbo = maximum", dict(cas="2", mesures_externes={**tout_passe, **mesures_cas2, "surapprentissage": {"pbo": 0.30, "nombre_d_essais": 5}}), "BLOQUE"),
+                # lot L3-FIX (relecture V1 du lot L3, D6) : « au-dessus du seuil, la stratégie n'est pas validée » (R-505 v2) ;
+                # « greater than 0.05 » (Bailey et al. 2017) — une PBO ÉGALE au maximum PASSE
+                ("pbo = maximum", dict(cas="2", mesures_externes={**tout_passe, **mesures_cas2, "surapprentissage": {"pbo": 0.30, "nombre_d_essais": 5}}), "PASSE"),
                 ("pbo = maximum + ε", dict(cas="2", mesures_externes={**tout_passe, **mesures_cas2, "surapprentissage": {"pbo": 0.30 + eps, "nombre_d_essais": 5}}), "BLOQUE"),
             ],
             # D3 (M07) : « 1 − 0,95 = 0,050000000000000044 » n'est pas une frontière en flottants ; 0,03125 = 2⁻⁵ et
             # 0,96875 = 1 − 2⁻⁵ sont exacts : 1 − 0,96875 == 0,03125, sans arrondi
             "sharpe_degonfle": [
-                ("1 − dsr juste sous le seuil (dsr = nextafter(0,96875, 1))", dict(cas="2", table=tv("seuil_de_preuve", "0,03125 ÷ k"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": math.nextafter(0.96875, 1.0), "nombre_d_essais": 5}}), "PASSE"),
-                ("1 − dsr = seuil exactement (0,03125)", dict(cas="2", table=tv("seuil_de_preuve", "0,03125 ÷ k"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": 0.96875, "nombre_d_essais": 5}}), "BLOQUE"),
-                ("1 − dsr juste au-dessus du seuil", dict(cas="2", table=tv("seuil_de_preuve", "0,03125 ÷ k"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": math.nextafter(0.96875, 0.0), "nombre_d_essais": 5}}), "BLOQUE"),
+                ("1 − dsr juste sous le seuil (dsr = nextafter(0,96875, 1))", dict(cas="2", table=tv("sharpe_degonfle_risque_maximum", "0,03125"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": math.nextafter(0.96875, 1.0), "nombre_d_essais": 5}}), "PASSE"),
+                ("1 − dsr = seuil exactement (0,03125)", dict(cas="2", table=tv("sharpe_degonfle_risque_maximum", "0,03125"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": 0.96875, "nombre_d_essais": 5}}), "BLOQUE"),
+                ("1 − dsr juste au-dessus du seuil", dict(cas="2", table=tv("sharpe_degonfle_risque_maximum", "0,03125"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": math.nextafter(0.96875, 0.0), "nombre_d_essais": 5}}), "BLOQUE"),
                 # D2 : nombre d'essais confronté à k (k = 10)
                 ("D2 nombre d'essais = k", dict(cas="2", k=10, mesures_externes={**tout_passe, "surapprentissage": {"pbo": 0.1, "nombre_d_essais": 10}, "sharpe_degonfle": {"sharpe_degonfle": 0.999999, "nombre_d_essais": 10}}), "PASSE"),
                 ("D2 nombre d'essais = k − 1", dict(cas="2", k=10, mesures_externes={**tout_passe, "surapprentissage": {"pbo": 0.1, "nombre_d_essais": 10}, "sharpe_degonfle": {"sharpe_degonfle": 0.999999, "nombre_d_essais": 9}}), "INCONNU"),
