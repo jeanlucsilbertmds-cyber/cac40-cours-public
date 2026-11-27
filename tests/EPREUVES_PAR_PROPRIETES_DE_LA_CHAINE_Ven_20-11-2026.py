@@ -236,8 +236,9 @@ SABOTAGES = (
        '    return False\n    etat = (fiche.get("etat_vie") or "").strip().upper()\n'
        '    return etat in ETATS_SUIVIS_PAR_LE_SOIR and')]),
     ("S-P5 vente jouée avec un autre tp", "P5", JUGE,
-     [('                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu)\n',
-       '                op = jouer_une_entree(v, serie, j, tp * 1.5, sl, h, mod_positions, lecture, bareme, recu)\n')]),
+     [('                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu, seances=_cal)\n',
+       '                op = jouer_une_entree(v, serie, j, tp * 1.5, sl, h, mod_positions, lecture, bareme, recu, '
+       'seances=_cal)\n')]),
     ("S-P6 module tricheur (clôture du lendemain)", "P6", MODULE,
      [('        if serie[i]["close"] / serie[i - 1]["close"] - 1 <= -baisse:\n',
        '        if i + 1 < n and serie[i + 1]["close"] / serie[i]["close"] - 1 <= -baisse:\n')]),
@@ -930,8 +931,8 @@ SABOTAGES_SUITE = (
        '    raise KeyError("sabotage S-JUG")\n'
        '    # SANS STOP, PAS DE POINT MORT, DONC PAS DE VERDICT (A-541 ④) : refus nommé, avant la lecture stricte du stop.\n')]),
     ("S-POS échéance du teneur décalée d'une séance", "POS", TENIR,
-     [('    return dates[i + h] if i + h < len(dates) else None\n',
-       '    return dates[i + h + 1] if i + h + 1 < len(dates) else None\n')]),
+     [('    return _moteur().seance_d_echeance(seances if seances is not None else dates, date_entree, h)\n',
+       '    return _moteur().seance_d_echeance(seances if seances is not None else dates, date_entree, h + 1)\n')]),
     ("S-GAIN cumul de la mesure majoré de 1 %", "GAIN", "MESURER",
      [("cumul=sum(pnls),", "cumul=sum(pnls) * 1.01,")]),
     ("S-PREUVE le journal perd bareme_reel", "PREUVE", TENIR, [('            "bareme_reel": _bar,\n', '')]),
@@ -974,8 +975,8 @@ SABOTAGES_SUITE = (
     # compte l'échéance large (« >= »), si bien qu'un TP le jour même de l'échéance est refusé.
     ("S-I1c zone morte rétablie autour des seuils (EPS_SEUIL = -1e-3)", "POS", "EPREUVE-TEXTE",
      [("    EPS_SEUIL = 5e-6\n", "    EPS_SEUIL = -1e-3\n")], "I1-C5 "),
-    ("S-I1d échéance comptée large (z - a >= h)", "POS", "EPREUVE-TEXTE",
-     [(" and z - a > h \\\n", " and z - a >= h \\\n")], "I1-C6 "),
+    ("S-I1d échéance comptée large (sortie >= échéance)", "POS", "EPREUVE-TEXTE",
+     [(" and dd[z] > echeance \\\n", " and dd[z] >= echeance \\\n")], "I1-C6 "),
 )
 
 # ═══ LES CAS CONNUS : RÉSULTATS ÉCRITS D'AVANCE, À L'ŒIL, SUR DES PRIX RONDS (réparation du 20-11-2026) ═══════════════
@@ -1074,18 +1075,28 @@ CAS_CONNUS = (
          attendu=dict(date_entree="2024-01-09", pe=100.0, motif="HORIZON", date_sortie="2024-01-12", px=101.0,
                       frais=301.5, net=698.5, px_conv=101.0, net_conv=698.5)),
     # K07 — SÉANCE MANQUANTE (R-112 ①) : le cours du 10-01 manque pour la valeur ; la bourse était ouverte (FABE, le
-    # « calendrier », l'a). R-112 : la séance manquante compte, l'échéance reste le 12-01, clôture 101,00. ÉCART CONNU
-    # (R-112, « CE QUI N'EST PAS ENCORE VRAI » ; `vendre` ⑨, n°315) : le code compte en LIGNES, 09 → 11 → 12 → 15-01,
-    # et vend à la clôture du 15-01, 102,00. Le cas est NOMMÉ à chaque passage, jamais compté vert.
+    # « calendrier », l'a). R-112 : la séance manquante compte, l'échéance reste le 12-01, clôture 101,00. Jusqu'au
+    # 27-11-2026 c'était un ÉCART CONNU (le code comptait en LIGNES, 09 → 11 → 12 → 15-01, et vendait à la clôture du
+    # 15-01, 102,00) ; corrigé par le lot L2 (A-950, A-1099). LE TÉMOIN DIFFÉRENTIEL `_c5e10_sortie`, gardé
+    # INDÉPENDANT (A-208 ⑤, « on n'y touche jamais »), compte encore en lignes : son désaccord est désormais ATTENDU et
+    # écrit ici (« temoin »), comme pour les sauts.
     dict(id="K07", quoi="séance manquante (R-112) : l'horizon avance", code="FABC", horizon="3", signal="2024-01-08",
          jours=JAN24, trous=("2024-01-10",), calendrier="FABE",
          barres={"2024-01-09": ACHAT, "2024-01-12": (100.5, 101.0, 99.5, 101.0),
                  "2024-01-15": (100.5, 102.5, 99.5, 102.0)}, saut=False,
          attendu=dict(date_entree="2024-01-09", pe=100.0, motif="HORIZON", date_sortie="2024-01-12", px=101.0,
                       frais=301.5, net=698.5, px_conv=101.0, net_conv=698.5),
-         ecart_connu=dict(pourquoi="R-112 non appliquée : l'horizon se compte en lignes (vendre ⑨, n°315)",
-                          date_entree="2024-01-09", pe=100.0, motif="HORIZON", date_sortie="2024-01-15", px=102.0,
-                          frais=303.0, net=1697.0, px_conv=102.0, net_conv=1697.0)),
+         temoin=dict(motif="HORIZON", px=102.0, date_sortie="2024-01-15")),
+    # K07B — L'ÉCHÉANCE ELLE-MÊME SANS COURS (R-112 ②, lot L2 du 27-11-2026) : achat le 09-01, horizon 3, échéance le
+    # 12-01, dont le cours manque (FABE l'a) ; aucun seuil touché ; vente à l'OUVERTURE de la séance cotée suivante,
+    # le 15-01, 100,50 € : 150,00 + 150,75 = 300,75 € de frais ; P&L 500,00 − 300,75 = +199,25 €. Le témoin
+    # indépendant, en lignes, vend à la clôture du 3e jour coté après l'achat (10, 11, 15-01) : 102,00 € le 15-01.
+    dict(id="K07B", quoi="échéance sans cours (R-112 ②) : vente à l'ouverture de la reprise", code="FABC",
+         horizon="3", signal="2024-01-08", jours=JAN24, trous=("2024-01-12",), calendrier="FABE",
+         barres={"2024-01-09": ACHAT, "2024-01-15": (100.5, 102.5, 99.5, 102.0)}, saut=False,
+         attendu=dict(date_entree="2024-01-09", pe=100.0, motif="HORIZON", date_sortie="2024-01-15", px=100.5,
+                      frais=300.75, net=199.25, px_conv=100.5, net_conv=199.25),
+         temoin=dict(motif="HORIZON", px=102.0, date_sortie="2024-01-15")),
     # K08 — VALEUR TAXÉE (FABB, taxée en 2024 : 0,3 % à l'achat) : mêmes séances que K02 ; à comparer à K02, non taxée.
     dict(id="K08", quoi="valeur taxée (K02 est la même, non taxée)", code="FABB", horizon="3", signal="2024-01-08",
          jours=JAN24, barres={"2024-01-09": ACHAT, "2024-01-10": (100.5, 104.5, 100.0, 104.2)}, saut=False,
@@ -1561,7 +1572,7 @@ def jouer_les_cas_connus(R, ctx, ME):
         if t is not None:
             n["ETA"] += 1
             tem = {"motif": t["motif"], "px": float(t["px_out"]), "date_sortie": serie[t["i_out"]]["date"]}
-            if cas["saut"]:
+            if cas.get("temoin"):      # un saut (R-607), ou un trou que le témoin compte en lignes (K07, A-208 ⑤)
                 e2 = comparer_au_litteral(tem, cas["temoin"], ("motif", "px", "date_sortie"))
                 if e2:
                     d["ETA"].append("%s : témoin hors du désaccord documenté : %s" % (k, " ; ".join(e2)))
@@ -1709,9 +1720,11 @@ def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     l'objectif (une ouverture à l'objectif ou au-dessus est un TP_GAP : R-607 ①③, et le « >= » du circuit pour
     l'égalité — I1 de Cowork, 20-11-2026, et I1p du superviseur, 25-11-2026) ; TP ouverture strictement entre les deux
     seuils, plus bas au-dessus du stop (sinon R-602 voulait SL), plus haut à l'objectif ou dessus, px = objectif ;
-    HORIZON aucun seuil atteint, px = clôture et, sans trou dans la fenêtre, h lignes après l'achat · ④ une sortie sur
-    seuil (SL_GAP, TP_GAP, SL, TP) d'un horizon entier se fait au plus h LIGNES après l'achat (z − a == h passe,
-    z − a == h + 1 est refusé) — `vendre` ne teste que serie[j:j+1+h] (I1 de Cowork, 20-11-2026). Les contrôles
+    HORIZON aucun seuil atteint, px = clôture, le jour de l'échéance — la h-ième séance du CALENDRIER après l'achat
+    (R-112, depuis le 27-11-2026, lot L2 : avant, h LIGNES et une fenêtre à trou n'était pas jugée) — ou, si
+    l'échéance n'a pas de cours, px = ouverture de la première séance cotée après elle (R-112 ②) · ④ une sortie sur
+    seuil (SL_GAP, TP_GAP, SL, TP) d'un horizon entier se fait au plus tard le jour de l'échéance (une sortie après
+    elle est refusée) — `vendre` ne teste que les séances jusqu'à l'échéance (I1 de Cowork, 20-11-2026). Les contrôles
     ③-SL-ouverture et ④ se retirent par « --sans-controle=saut » et « --sans-controle=echeance » (sabotages S-I1a,
     S-I1b) ; la coupure et la borne sont éprouvées par S-I1c et S-I1d ; tous par `cas_limites_des_defauts`.
     ⑦ UNITÉ — euros ; séances (des lignes de la série).
@@ -1728,7 +1741,9 @@ def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     à 1e-5 € 6 fois. La tolérance est ASYMÉTRIQUE : elle n'existe que du côté « touché », si bien qu'un seuil atteint
     pile est toujours vu ; l'ancienne zone morte de 1e-3 € des deux côtés cachait l'égalité (m1) et laissait passer un
     SL sur une ouverture pile à l'objectif (I1p).
-    ⑨ CE QUI CLOCHE — ① l'échéance d'une fenêtre à trou n'est pas jugée ici (R-112 non appliquée par le code : cas K07) ;
+    ⑨ CE QUI CLOCHE — ① (jusqu'au 27-11-2026 : l'échéance d'une fenêtre à trou n'était pas jugée, R-112 non appliquée,
+    cas K07 ; jugée depuis le lot L2) ; une sortie HORIZON à la fin des données d'une durée chiffrée (vente du juge,
+    « vendre ») est refusée : ce contrôle juge les trades du SOIR (« garder »), qui n'en a pas ;
     ② si le seuil exact tombe PILE sur une demi-unité de la cinquième décimale, l'arrondi du circuit (au pair, en
     binaire) le déplace de 5e-6 €, DANS UN SENS OU DANS L'AUTRE. S'il l'ÉLOIGNE (objectif monté, stop descendu), un
     prix égal au seuil exact moins 5e-6 € (plus 5e-6 € côté stop) est vu « touché » ici et « pas touché » par le
@@ -1791,6 +1806,11 @@ def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
         return ["entrée %s ou sortie %s hors de la série" % (t["date_entree"], t["date_sortie"])], False
     a, z = dd.index(t["date_entree"]), dd.index(t["date_sortie"])
     trou = calendrier.index(dd[z]) - calendrier.index(dd[a]) != z - a
+    # L'ÉCHÉANCE EN SÉANCES DU CALENDRIER (R-112, lot L2 du 27-11-2026, A-950) : la h-ième séance du calendrier après
+    # l'achat, cotée ou non pour la valeur ; None sans durée chiffrée, ou si le calendrier ne la porte pas.
+    echeance = None
+    if isinstance(h, int) and not isinstance(h, bool) and calendrier.index(dd[a]) + h < len(calendrier):
+        echeance = calendrier[calendrier.index(dd[a]) + h]
     rendu = []
     if not egal(serie[a]["open"], pe):
         rendu.append("prix d'entrée %s, ouverture %s" % (pe, serie[a]["open"]))
@@ -1812,18 +1832,22 @@ def defauts_d_un_trade(t, serie, tp, sl, h, calendrier):
     elif motif == "TP":
         ok = not bas(b["open"]) and not haut(b["open"]) and not bas(b["low"]) and haut(b["high"]) and egal(px, obj)
     elif motif == "HORIZON":
-        ok = not bas(b["open"]) and not bas(b["low"]) and not haut(b["open"]) and not haut(b["high"]) and \
-            egal(px, b["close"]) and (trou or not isinstance(h, int) or z - a == h)
+        if echeance is not None and dd[z] > echeance:
+            # L'ÉCHÉANCE N'AVAIT PAS DE COURS : vente à l'ouverture de la première séance cotée après elle (R-112 ②)
+            ok = egal(px, b["open"]) and dd[z - 1] < echeance
+        else:
+            ok = not bas(b["open"]) and not bas(b["low"]) and not haut(b["open"]) and not haut(b["high"]) and \
+                egal(px, b["close"]) and (not isinstance(h, int) or dd[z] == echeance)
     else:
         ok = False
     if not ok:
         rendu.append("sortie %s à %s le %s non justifiée par la séance (o %s h %s l %s c %s ; objectif %.4f stop %.4f ;"
                      " %d ligne(s) après l'achat, horizon %s)" % (motif, px, t["date_sortie"], b["open"], b["high"],
                                                                   b["low"], b["close"], obj, stp, z - a, h))
-    if motif in ("SL_GAP", "TP_GAP", "SL", "TP") and isinstance(h, int) and not isinstance(h, bool) and z - a > h \
+    if motif in ("SL_GAP", "TP_GAP", "SL", "TP") and echeance is not None and dd[z] > echeance \
             and "echeance" not in SANS_CONTROLE:
-        rendu.append("sortie %s le %s, %d ligne(s) après l'achat : au-delà de l'échéance (horizon %d)" % (
-            motif, t["date_sortie"], z - a, h))
+        rendu.append("sortie %s le %s, %d ligne(s) après l'achat : au-delà de l'échéance du %s (horizon %d)" % (
+            motif, t["date_sortie"], z - a, echeance, h))
     return rendu, trou
 
 
@@ -2166,12 +2190,14 @@ def suite(R, racine):
         if isinstance(h, int) and p.get("date_entree") in dd and dd.index(p["date_entree"]) + h < len(dd):
             ia = dd.index(p["date_entree"])
             a_trou = ctx["dates"].index(dd[ia + h]) - ctx["dates"].index(dd[ia]) != h
-        if a_trou:
-            fenetres_a_trou += 1      # R-112 non appliquée par le code (cas K07) : l'échéance n'est pas jugée ici
-        elif isinstance(h, int) and len(fin) == 10 and fin[4] == "-" and p.get("date_entree") in dd and \
-                dd.index(p["date_entree"]) + h < len(dd) and fin != dd[dd.index(p["date_entree"]) + h]:
-            d["POS"].append("%s %s : échéance %s, attendue %s (%d séances après l'achat)" % (
-                i, nom, p.get("horizon_fin"), dd[dd.index(p["date_entree"]) + h], h))
+        fenetres_a_trou += a_trou
+        # L'ÉCHÉANCE EST JUGÉE AUSSI À TRAVERS UN TROU depuis le 27-11-2026 (lot L2, R-112 appliquée : A-950) : la
+        # h-ième séance du CALENDRIER après l'achat, cotée ou non pour la valeur.
+        _cal = ctx["dates"]
+        if isinstance(h, int) and len(fin) == 10 and fin[4] == "-" and p.get("date_entree") in _cal and \
+                _cal.index(p["date_entree"]) + h < len(_cal) and fin != _cal[_cal.index(p["date_entree"]) + h]:
+            d["POS"].append("%s %s : échéance %s, attendue %s (%d séances du calendrier après l'achat)" % (
+                i, nom, p.get("horizon_fin"), _cal[_cal.index(p["date_entree"]) + h], h))
         n["PREUVE"] += 1
         manque = [c for c in CT.POSITION if c not in p]
         if manque:
@@ -2281,7 +2307,7 @@ def suite(R, racine):
         etats[p] = ["ROUGE" if d[p] else ("VERT" if n[p] else "NON MESURÉE"),
                     "%d mesure(s) ; %s" % (n[p], apercu_des_defauts(d[p], debuts.get(p, ())))]
     etats["POS"][1] += " · %d fiche(s) suivie(s), %d séance(s), %d position(s), %d trade(s) ; %d fenêtre(s) à " \
-        "trou (échéance non jugée, R-112)" % (len(ids), nj, len(ouvertures), len(trades), fenetres_a_trou)
+        "trou (échéance jugée au calendrier, R-112)" % (len(ids), nj, len(ouvertures), len(trades), fenetres_a_trou)
     etats["ACC"][1] += " · accidents vus %s · sorties %s · positions sorties sur double touche %d · traversant un " \
         "trou %d" % (", ".join("%s %d" % x for x in sorted(vus.items())),
                      ", ".join("%s %d" % x for x in sorted(motifs.items())), sur_double, sur_trou)

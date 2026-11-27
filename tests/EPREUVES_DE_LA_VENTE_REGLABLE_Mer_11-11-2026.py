@@ -33,7 +33,8 @@ CE QUI EST ÉPROUVÉ :
   W9 PREPARER : la vraie ligne `sl` de VOISINAGE.csv donne les 15 valeurs de la grille du 19-10-2026, « sans stop » en
      dernier ; liste vide → le pas régulier d'avant ; valeur de la fiche absente de la liste → ajoutée ; « aucune »
      dans une liste d'horizon → en dernier ; fiche « sans stop » sans liste → refus ; élément illisible → refus.
-  W10 PREPARER `main` sur le vrai registre et le vrai VOISINAGE.csv : 7 × 15 × 5 × 11 = 5 775 versions annoncées.
+  W10 PREPARER `main` sur le vrai registre et le vrai VOISINAGE.csv : 7 × 15 × 6 × 11 = 6 930 versions annoncées
+  (6 durées depuis le 27-11-2026, lot L2 : 5, 10, 15, 20, 25 et « aucune », A-1099 ; avant : 7 × 15 × 5 × 11 = 5 775).
   W11 DECLINER : « sans stop » et « aucune » normalisés en mots, la version de la fiche repérée une fois ; « sans stop »
      refusé pour tp ; « sans_stop » et « aucun » refusés.
   W12 JOUER_LES_VERSIONS `controler_fusion` : mot contre mot → aucun écart ; mot contre nombre → un écart.
@@ -281,7 +282,8 @@ def w10():
         c = PR.main([chemin_du_registre("."), "C5E10-OBS-V1", "donnees/combinatoires/VOISINAGE.csv", "E98", d])
     t = sortie.getvalue()
     import shutil; shutil.rmtree(d, ignore_errors=True)
-    note("W10 PREPARER main sur le vrai registre et le vrai voisinage : 5775 versions annoncees", c == 0 and "FABRIQUERA : 5775" in t, (c, t[-200:]))
+    # 7 objectifs × 15 stops × 6 durées (5, 10, 15, 20, 25, « aucune » : lot L2 du 27-11-2026, A-1099) × 11 univers
+    note("W10 PREPARER main sur le vrai registre et le vrai voisinage : 6930 versions annoncees", c == 0 and "FABRIQUERA : 6930" in t, (c, t[-200:]))
 essai("W10", w10)
 
 def w11():

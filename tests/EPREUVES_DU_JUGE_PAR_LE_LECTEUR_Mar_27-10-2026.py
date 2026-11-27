@@ -57,8 +57,9 @@ SAB = {
                                   '    if True:\n        return True'),
     "S5 les séries jamais coupées": ('if k < len(trous) and trous[k] < b["date"]:', "if False:"),
     # (29-10-2026, A-550 : l'appel porte le barème, le sabotage le garde)
-    "S6 les sorties testées dans le seul morceau": ("                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu)",
-                                                    "                op = jouer_une_entree(v, s, i + 1, tp, sl, h, mod_positions, lecture, bareme, recu) if i + 1 < len(s) else None"),
+    # (27-11-2026, lot L2 : l'appel porte aussi le calendrier de la vente, R-112 ; le sabotage le garde)
+    "S6 les sorties testées dans le seul morceau": ("                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu, seances=_cal)",
+                                                    "                op = jouer_une_entree(v, s, i + 1, tp, sl, h, mod_positions, lecture, bareme, recu, seances=_cal) if i + 1 < len(s) else None"),
     "S7 le signal de fin de morceau perdu": ("                j = rang[d_sig] + 1           #",
                                              "                j = rang[d_sig] + 1 if i + 1 < len(s) else len(serie)           #"),
     "S8 les lignes mises à part ignorées": ("    if a_part:\n", "    if False:\n"),

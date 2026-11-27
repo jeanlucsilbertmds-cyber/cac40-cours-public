@@ -3879,6 +3879,9 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
                         % type(mod_signal).__name__)
     fn = mod_signal
 
+    # L'HORIZON SE COMPTE EN SÉANCES DU CALENDRIER (R-112, A-950, lot L2 du 27-11-2026) : le calendrier, une fois par
+    # fiche, par la seule définition (`MODULE_POSITIONS.calendrier_des_seances`) ; `vendre` y compte l'échéance.
+    _cal = calendrier_pour_la_vente(cours, lecture, mod_positions)
     ops = []
     for v in univers:
         # AVEC UNE LECTURE (A-577, étape 1) : les SIGNAUX se calculent morceau par morceau — aucun
@@ -3903,7 +3906,7 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
                 # L'ACHAT ET LA SORTIE SE JOUENT DANS `jouer_une_entree`, LA SEULE MÉCANIQUE : l'étalon de hasard
                 # l'appelle aussi (R-708 ; superviseur R-759 du 28-10-2026 : deux copies avaient déjà divergé
                 # deux fois le 28-09-2026, sur les frais et sur la séance d'achat).
-                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu)
+                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu, seances=_cal)
                 if op is None:
                     continue
                 ops.append({"valeur": v, "date_signal": d_sig, "pe": op["pe"], "px": op["px"],
@@ -3941,7 +3944,34 @@ def achat_admis(v, serie, j, lecture):
     return dans_l_indice(lecture["passages"].get(v, []), serie[j]["date"])
 
 
-def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme=None, recu=None):
+def calendrier_pour_la_vente(cours, lecture, mod_positions):
+    """Rend le calendrier des séances sur lequel `vendre` compte l'horizon, ou None si le module ne le donne pas.
+
+    ① RÔLE — Donner à `jouer` et à l'étalon de hasard de `juger` le MÊME calendrier pour l'échéance (R-112).
+    ② CONTEXTE D'APPEL — `jouer`, une fois par fiche ; `juger`, une fois, avant l'étalon de hasard.
+    ③ ENTRÉE — `cours` : valeur → séances · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None ·
+      `mod_positions` : le module des positions.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : la liste triée des séances (AAAA-MM-JJ), ou None quand le module des positions n'expose
+      pas `calendrier_des_seances` (un module factice d'épreuve) — `vendre` compte alors en lignes.
+      [rend: 1]
+    ⑥ TRAITEMENT — appeler `mod_positions.calendrier_des_seances` avec la lecture si elle porte « seances », sans
+      elle sinon (réunion des dates des cours).
+    ⑦ UNITÉ — Des jours de bourse.
+    ⑧ POURQUOI — Défaut A-950 (lot L2, 27-11-2026) : l'échéance se comptait en lignes de la valeur ; le calendrier
+      vit dans le module des positions, une seule définition (R-708).
+    ⑨ CE QUI CLOCHE — Une lecture fabriquée sans « seances » (épreuves) retombe sur la réunion des dates des cours.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; aucun de ses appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    _cds = getattr(mod_positions, "calendrier_des_seances", None)
+    if not callable(_cds):
+        return None
+    return _cds(cours, lecture if (lecture or {}).get("seances") is not None else None)
+
+
+def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme=None, recu=None, seances=None):
     """Joue UNE entrée : achat à l'ouverture de la séance `j`, puis sortie ; la seule mécanique d'achat-sortie.
 
     ① RÔLE — Rendre l'opération qu'aurait faite un achat à l'ouverture de la séance `j` de la série d'une valeur :
@@ -3953,7 +3983,9 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
       11-11-2026, plan V7 bloc 4 : `vendre` ne vend alors que sur l'objectif, le stop ou la fin des données) ·
       `mod_positions` : le module des positions (`vendre`,
       `frais_aller_retour`) · `recu` : (racine, nom) d'un préenregistrement poussé, EXIGÉ si l'entrée touche la fenêtre
-      du regard unique (relecteur REGARD, R-D4), ou None · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None · `bareme` : le nom d'un barème
+      du regard unique (relecteur REGARD, R-D4), ou None · `lecture` : le second rendu de `lire_par_le_lecteur`, ou None ·
+      `seances` : le calendrier des séances sur lequel l'échéance se compte (R-112 ; `calendrier_pour_la_vente`,
+      depuis le 27-11-2026, lot L2), ou None : celui de la lecture s'il y en a une, sinon les lignes de la série · `bareme` : le nom d'un barème
       de `donnees/BAREME_FRAIS.csv`, None pour le barème des trades vécus (« REEL ») ; un autre nom rejoue un chiffre
       ancien sous le régime qui l'a produit (A-550).
     ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; le module des positions expose `vendre` et `frais_aller_retour` ;
@@ -3966,9 +3998,10 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
       où la taxe frappe). [rend: 1]
       [rend: 1]
     ⑥ TRAITEMENT — ① refuser un achat non permis · ② demander la vente à `MODULE_POSITIONS.vendre` (fin des
-      données : `"vendre"`), qui entre à l'ouverture de `serie[j]`, teste les séances `serie[j:j + 1 + h]`, séance
-      d'achat comprise (R-608), sort à la première qui touche un seuil, sinon à la clôture de la h-ième séance APRÈS
-      l'achat · ③ retrancher les frais des deux ordres.
+      données : `"vendre"`), qui entre à l'ouverture de `serie[j]`, teste les séances jusqu'à l'échéance, séance
+      d'achat comprise (R-608), sort à la première qui touche un seuil, sinon à la clôture de la h-ième séance DU
+      CALENDRIER après l'achat (R-112, lot L2 du 27-11-2026 ; à l'ouverture de la séance cotée suivante si l'échéance
+      n'a pas de cours) · ③ retrancher les frais des deux ordres.
     ⑦ UNITÉ — Seuils en FRACTIONS du prix d'entrée ; horizon en SÉANCES ; prix et gains en EUROS, pour 100 000 €
       engagés.
     ⑧ POURQUOI — Ce corps vivait dans `jouer`, et l'étalon de hasard en avait sa copie ; le superviseur R-759 du
@@ -4004,6 +4037,12 @@ def jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture=None, bareme
     if not callable(_vendre):
         raise RuntimeError("MODULE_POSITIONS n'expose pas vendre : "
                            "le juge des stratégies ne recopie pas la décision de vente")
+    # L'HORIZON EN SÉANCES DU CALENDRIER (R-112, A-950, lot L2) : le calendrier reçu, sinon celui de la lecture, lié à
+    # la vente ; aucun : `vendre` compte encore en lignes (un appelant sans calendrier, son ⑨).
+    _cal = seances if seances is not None else (lecture or {}).get("seances")
+    if _cal is not None:
+        import functools
+        _vendre = functools.partial(_vendre, seances=_cal)
     _vente = _vendre(serie, j, {"tp": tp, "sl": sl, "horizon": h}, "vendre")
     if _vente is None:
         return None
@@ -4656,6 +4695,7 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
         # flatteur. La strategie reste devant, l'ecart reel est bien plus mince.
         univ = [mnemo.get(m, cle_valeur(m)) for m in mnemoniques_de_l_univers(fiche["univers"])]
         univ = [v for v in univ if v in cours]
+        _cal_vente = calendrier_pour_la_vente(cours, lecture, mod_pos)   # R-112 : le calendrier de `jouer` (lot L2)
         for mode, lib in (("valeur", "l'ACTION au hasard"),
                           ("date", "les DATES au hasard")):
             # LE HASARD JOUE AVEC LA MÉCANIQUE DE LA STRATÉGIE ET SA RÈGLE D'ACHAT, SUR SA PÉRIODE (R-708 ; décision de
@@ -4664,8 +4704,9 @@ def juger(fiche, ops, cours, seances, J, S, mod_pos, mnemo=None,
             hz = J.etalon_hasard(ops, cours, univ, tp, sl, h, mod_pos,
                                  mode=mode, n_tirages=120,
                                  entree=lambda v, j: jouer_une_entree(v, cours[v], j, tp, sl, h, mod_pos, lecture,
-                                                                      bareme, **({} if jeton is None else
-                                                                                 {"recu": jeton})),
+                                                                      bareme, seances=_cal_vente,
+                                                                      **({} if jeton is None else
+                                                                         {"recu": jeton})),
                                  admis=lambda v, j: achat_admis(v, cours[v], j, lecture),
                                  periode=_bornes)
             if hz.get("n_tirages"):
