@@ -3003,9 +3003,33 @@ MESUREURS_DU_JUGE = {
     "frais_doubles": None,      # R-505 ⑩ : courtage et taxe × 2 — sans auteur
     "gain_un_jeton": None,      # Q-G2 — sans auteur
     "creux_un_jeton": None,     # Q-G2 — sans auteur
-    "surapprentissage": None,   # R-505 ⑧, cas 2 : attend le nombre d'essais (A-226)
-    "sharpe_degonfle": None,    # R-505 ⑧, cas 2 : attend le nombre d'essais (A-226)
+    # R-505 v2, étape 5, contrôle 5 (A-1093) : le calcul existe (`MODULE_SURAPPRENTISSAGE.mesurer_le_surapprentissage`, qui
+    # prend la matrice séances × versions des 70 %) ; SANS AUTEUR À LA PORTE tant que la moulinette ne rend pas le
+    # rendement quotidien du compte de chaque version (A-1071, lot W2b) — un mesureur (racine, fiche, ops) qui rendrait
+    # toujours « impossible » ferait croire le contrôle branché (L3, 27-11-2026).
+    "surapprentissage": None,
+    # R-505 v2, étape 5, contrôle 1 (A-1095) : le calcul existe (`MODULE_JUGEMENT.mesurer_le_sharpe_degonfle`, qui prend
+    # la série quotidienne du compte de la version, k et les Sharpe des essais) ; SANS AUTEUR À LA PORTE pour la même
+    # raison (A-1071, W2b) et parce que la porte juge UNE fiche, alors que la variance des Sharpe porte sur les k essais.
+    "sharpe_degonfle": None,
 }
+
+# LES SEUILS DE R-505 VERSION 2 QUE LE REGISTRE NE PORTE PAS ENCORE (lot L3 du plan R505, 27-11-2026) — un fichier de
+# données UNIQUE, lu par `MODULE_JUGEMENT.table_des_seuils_en_attente`, que la porte du juge (`JUGER_UNE_FICHE`) pose
+# PAR-DESSUS la table du REGISTRE. Une première clé, `surapprentissage_maximum`, le seuil de la probabilité de
+# surapprentissage, 0,05 au départ (décision de Jean-Luc du 27-11-2026 à 18h53, A-1093), alors que le REGISTRE porte
+# encore 0,30 (version 1, n°109). Raison : le mandat L3 exige ce seuil « lu à UN seul endroit […] jamais en dur dans le
+# code » avant l'installation. À L'INSTALLATION de R-505 v2 au REGISTRE (étape I1) : la ligne passe au REGISTRE, le
+# fichier part en archives/ sous un nom qui dit pourquoi, sa lecture sort de la porte (R-708). Les colonnes sont celles
+# d'une ligne de la table « LES SEUILS DE CETTE LOI » (clé, valeur, sens, source), lues de la même façon par
+# `MODULE_JUGEMENT.seuil_de_la_loi`. Une clé qui n'est pas listée ici est REFUSÉE : ce fichier n'est pas une grille
+# (la grille unique des critères est le lot L4).
+SEUILS_EN_ATTENTE_DU_REGISTRE = "donnees/SEUILS_DE_R505_V2_EN_ATTENTE_DU_REGISTRE.csv"
+SEUIL_EN_ATTENTE = ["cle", "valeur", "sens", "source"]
+# Lot W2c (27-11-2026) : les deux seuils de la ressemblance pour la mise en service (A-791, étape 6 ⑤), lus par
+# programmes/COMPTER_LES_ESSAIS_PAR_RESSEMBLANCE.py ; la table de R-505 v2 les porte en prose sur la ligne « ressemblance ».
+CLES_DES_SEUILS_EN_ATTENTE = ("surapprentissage_maximum", "ressemblance_correlation_minimum",
+                              "ressemblance_chevauchement_minimum")
 
 
 def declaration_de_la_fiche(racine, fiche_id, avant):

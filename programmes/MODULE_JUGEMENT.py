@@ -3339,6 +3339,8 @@ DOMAINES_DES_CLES_DE_LA_TABLE = {
     "refutation_borne_haute": "proba",   # RÉFUTÉE : DÉL-D40 (« 95 % » → 0,05) — À ÉCRIRE PAR A
     "embargo_sans_duree": "texte",       # embargo d'une stratégie sans durée (« non tranché » ⑤) — À ÉCRIRE PAR A
     "surapprentissage_maximum": "proba", # ⑧ : « 0,30 » (n°109)
+    "ressemblance_correlation_minimum": "proba",    # étape 6 ⑤ de R-505 v2 : « 0,5 » (A-791 ; lot W2c)
+    "ressemblance_chevauchement_minimum": "proba",  # étape 6 ⑤ de R-505 v2 : « 0,5 » (A-791 ; lot W2c)
     "voisins": "texte",                  # ⑩ : « 26 voisins à ±10 %, tous gagnants » (DÉL-D13, DÉL-D36)
     "frais_doubles": "texte",            # ⑩ : « courtage et taxe × 2, gain > 0 » (DÉL-D13, DÉL-D36)
 }
@@ -3397,6 +3399,14 @@ ROLE_DONNE_PAR_LA_LOI = {cle: "CONDITION" for cle in (
 ROLE_LU_A_LA_TABLE = ("taux_face_au_point_mort", "borne_basse_du_gain", "gain_un_jeton", "creux_un_jeton")
 # LES SEULS CONTRÔLES QUI PEUVENT ÊTRE SANS OBJET, et quand : la grille le décide elle-même (R-505 ⑧, cas 1).
 SANS_OBJET_EN_CAS_1 = ("surapprentissage", "sharpe_degonfle")
+# LES CONTRÔLES QUI PASSENT EN AFFICHAGE EN CAS 2 (R-505 version 2, étape 5, contrôle 1 ; décision de Jean-Luc du
+# 27-11-2026 à 19h00, « OK pour le 1 » à « Garder pour l'instant un seul calcul, le B », BACKLOG A-1095) : en cas 2,
+# « la stratégie gagne, à la barre 0,05 ÷ k » se calcule par le SHARPE DÉGONFLÉ SEUL (contrôle `sharpe_degonfle`) ; le
+# calcul « gain > 0 à 0,05 ÷ k » (`gain_bat_zero`, `probabilite_que_le_gain_soit_du_hasard`) est GARDÉ, calculé et
+# affiché, pour que le banc (A-1094) compare les deux — il ne décide plus. Raison de la loi : « deux tests pour une
+# question, c'est une chance de plus de rejeter une bonne stratégie par malchance » (A-1081, A-1094). En cas 1 (stratégie
+# figée), la loi v2 ne change rien (« LES DEUX CAS — inchangés ») : `gain_bat_zero` y reste une CONDITION.
+AFFICHAGE_EN_CAS_2 = ("gain_bat_zero",)
 
 # LE MOTIF D'UNE NON TRANCHÉE, PAR CONTRÔLE QUI BLOQUE (R-505 ⑫, DÉL-D40 ; mots lus au contrat MOTIFS_DE_NON_TRANCHEE).
 # Les anciens C7 et C8 n'ont pas de mot à eux au contrat gelé : ils portent « NE BAT PAS ZÉRO », le contrôle étant nommé
@@ -3573,6 +3583,147 @@ def _reference(texte, k):
             return None, "k inconnu"
         return nombre / k, ""
     return nombre, ""
+
+
+def _module_du_sharpe_degonfle():
+    """Charge `programmes/MODULE_SHARPE_DEGONFLE.py`, voisin de ce module, comme `_commun` charge COMMUN.
+    ① RÔLE — Atteindre la formule du Sharpe dégonflé sans la recopier (R-708).
+    ② CONTEXTE D'APPEL — `mesurer_le_sharpe_degonfle`.
+    ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — MODULE_SHARPE_DEGONFLE.py dans le même dossier que ce module.
+    ⑤ SORTIE — UNE valeur : le module.
+      [rend: 1]
+    ⑥ TRAITEMENT — ajouter le dossier de ce module au chemin d'import s'il manque, puis l'importer.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le même chemin que `_commun` : un seul chargement, sous un seul nom.
+    ⑨ CE QUI CLOCHE — modifie `sys.path` au premier appel.
+    ⑩ EFFET — peut ajouter un dossier à `sys.path`.
+    ⑪ TERMINAISON — Rend la main ; lève ImportError.
+      [sort: non]"""
+    import os
+    import sys
+    ici = os.path.dirname(os.path.abspath(__file__))
+    if ici not in sys.path:
+        sys.path.insert(0, ici)
+    import MODULE_SHARPE_DEGONFLE
+    return MODULE_SHARPE_DEGONFLE
+
+
+def mesurer_le_sharpe_degonfle(rendements, k, sharpes_des_essais):
+    """Rend la mesure `sharpe_degonfle` que la grille attend (contrôle 1 de l'étape 5 de R-505 v2), ou la raison.
+
+    ① RÔLE — Le mesureur du contrôle 1 : « elle gagne, frais, taxe et glissement payés, au-dessus de zéro, avec un
+      risque de se tromper inférieur à 0,05 ÷ k — CALCULÉ PAR LE SHARPE DÉGONFLÉ, UN SEUL CALCUL » ; « N vaut k »
+      (R-505 v2, étape 5 ; décision de Jean-Luc du 27-11-2026 à 19h00, A-1095). La grille compare ensuite
+      1 − Sharpe dégonflé au seuil de preuve 0,05 ÷ k lu à la table (`grille_de_validation`, contrôle `sharpe_degonfle`).
+    ② CONTEXTE D'APPEL — Au 27-11-2026 : les épreuves `tests/EPREUVES_DU_SHARPE_DEGONFLE_ET_DE_LA_PBO_Ven_27-11-2026.py`
+      et le banc (A-1094). PAS ENCORE la porte du juge : le contrat `MESUREURS_DU_JUGE` attend un mesureur
+      (racine, fiche, ops), et la série du compte au jour le jour (A-1071) que ce mesureur demande n'est pas fabriquée
+      (lot W2b) ; voir ⑨.
+    ③ ENTRÉE — `rendements` : le rendement QUOTIDIEN DU COMPTE de la version sur ses séances d'examen (A-1071), une
+      FRACTION par séance · `k` : le nombre d'essais du juge (entier ≥ 1 ; A-774, A-772, A-1082) · `sharpes_des_essais` :
+      les Sharpe PAR SÉANCE des essais comptés dans k, sur la même période (ignorés si k = 1).
+    ④ CONDITIONS D'ENTRÉE — Celles de `MODULE_SHARPE_DEGONFLE.sharpe_degonfle_d_une_serie`.
+    ⑤ SORTIE — DEUX valeurs : la mesure (un dictionnaire qui porte les champs du contrat DETAILS_DES_CONTROLES
+      ["sharpe_degonfle"] — `sharpe_degonfle`, la probabilité NON ARRONDIE, et `nombre_d_essais` = k — plus le détail
+      du calcul), ou None ; et la raison (vide si mesurée).
+      [rend: 2]
+    ⑥ TRAITEMENT — appeler `sharpe_degonfle_d_une_serie(rendements, k, sharpes_des_essais)` ; une ValueError devient
+      (None, sa raison) ; sinon recopier sa probabilité sous le nom du contrat.
+    ⑦ UNITÉ — Probabilité : fraction entre 0 et 1 ; Sharpe : par séance.
+    ⑧ POURQUOI — La grille ne reçoit jamais d'état, seulement des mesures (simplification 1 du superviseur R-759 du
+      11-11-2026) : ce mesureur rend la mesure, la grille la compare au seuil qu'elle lit.
+    ⑨ CE QUI CLOCHE — ① La série A-1071 n'existe pas : tant que W2b ne la fabrique pas, aucun appelant réel.
+      ② La loi applique la barre 0,05 ÷ k À la probabilité déjà dégonflée pour N = k : la barre monte deux fois avec k
+      (voir l'en-tête de MODULE_SHARPE_DEGONFLE, ⑨ ②) ; écart signalé, tranché par le banc (A-1094).
+    ⑩ EFFET — Charge MODULE_SHARPE_DEGONFLE au premier appel.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    try:
+        r = _module_du_sharpe_degonfle().sharpe_degonfle_d_une_serie(rendements, k, sharpes_des_essais)
+    except ValueError as e:
+        return None, "Sharpe dégonflé non calculable : %s" % e
+    m = dict(r)
+    m["sharpe_degonfle"] = r["probabilite"]
+    return m, ""
+
+
+def table_des_seuils_en_attente(racine):
+    """Rend, au format de `table_de_la_loi`, les seuils de R-505 v2 que le REGISTRE ne porte pas encore.
+
+    ① RÔLE — Lire à UN seul endroit le seuil de départ de la PBO, 0,05 (décision de Jean-Luc du 27-11-2026 à 18h53,
+      « 1 » à « Partir de 0,05, la valeur de l'article, puis comparer 0,05 et 0,30 sur le banc avant de figer »,
+      A-1093), tant que R-505 v2 n'est pas installée au REGISTRE (étape I1 du plan R505). La table du REGISTRE porte
+      encore 0,30 (version 1, n°109) : la porte du juge RECOUVRE sa ligne par celle-ci.
+    ② CONTEXTE D'APPEL — `JUGER_UNE_FICHE.juger_une_fiche`, juste après `table_de_la_loi` ; les épreuves.
+    ③ ENTRÉE — `racine` : la racine du dépôt (les DONNÉES viennent de la racine).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : {clé : {"valeur", "sens", "source"}} pour CHAQUE clé de
+      `CONTRATS_DES_FICHIERS.CLES_DES_SEUILS_EN_ATTENTE`. Fichier absent ou illisible, clé absente, en double ou
+      inconnue du contrat : CHAQUE clé porte la valeur « ILLISIBLE » et la raison dans « sens » — `seuil_de_la_loi` la
+      refuse alors (« n'est pas un nombre ») et le contrôle est INCONNU, jamais l'ancien 0,30.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire `CONTRATS_DES_FICHIERS.SEUILS_EN_ATTENTE_DU_REGISTRE` sous la racine · ② sauter les lignes
+      vides et celles qui commencent par « # » · ③ en-tête = `SEUIL_EN_ATTENTE` exactement · ④ une ligne par clé
+      déclarée, aucune autre.
+    ⑦ UNITÉ — Des textes (la conversion est celle de `seuil_de_la_loi`).
+    ⑧ POURQUOI — Consigne du mandat L3 (27-11-2026) : « lu à UN seul endroit […] lis-le d'un fichier de données unique
+      que tu déclares au contrat, jamais en dur dans le code ». Une lecture qui échoue ne rend JAMAIS une table vide :
+      le 0,30 du REGISTRE reprendrait la main en silence.
+    ⑨ CE QUI CLOCHE — À l'installation de R-505 v2 (I1), la ligne passe au REGISTRE ; ce fichier doit alors être archivé
+      et sa lecture retirée de la porte : sinon deux endroits (R-708).
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import csv
+    import io
+    import os
+    import CONTRATS_DES_FICHIERS as CT
+    cles = tuple(CT.CLES_DES_SEUILS_EN_ATTENTE)
+    chemin = os.path.join(racine, CT.SEUILS_EN_ATTENTE_DU_REGISTRE)
+
+    def illisible(raison):
+        """Rend la table où chaque clé déclarée porte « ILLISIBLE » et la raison.
+        ① RÔLE — La seule sortie d'échec de la lecture.
+        ② CONTEXTE D'APPEL — `table_des_seuils_en_attente`, à chacun de ses refus.
+        ③ ENTRÉE — `raison` : le texte du refus.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : la table, une ligne par clé déclarée, valeur « ILLISIBLE ».
+          [rend: 1]
+        ⑥ TRAITEMENT — une ligne par clé de `CLES_DES_SEUILS_EN_ATTENTE`.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Une table vide laisserait le 0,30 du REGISTRE en place (⑧ de la fonction).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]"""
+        return {c: {"valeur": "ILLISIBLE", "sens": raison, "source": CT.SEUILS_EN_ATTENTE_DU_REGISTRE} for c in cles}
+
+    try:
+        with open(chemin, encoding="utf-8", newline="") as f:
+            texte = f.read()
+    except (OSError, UnicodeDecodeError) as e:
+        return illisible("seuils en attente illisibles (%s) : %s" % (type(e).__name__, chemin))
+    lignes = [l for l in texte.splitlines() if l.strip() and not l.lstrip().startswith("#")]
+    rangs = list(csv.reader(io.StringIO("\n".join(lignes))))
+    if not rangs or rangs[0] != list(CT.SEUIL_EN_ATTENTE):
+        return illisible("en-tête %r, le contrat dit %r" % (rangs[0] if rangs else None, CT.SEUIL_EN_ATTENTE))
+    table = {}
+    for r in rangs[1:]:
+        if len(r) != len(CT.SEUIL_EN_ATTENTE):
+            return illisible("ligne à %d case(s) : %r" % (len(r), r))
+        cle = r[0].strip()
+        if cle not in cles:
+            return illisible("clé %r inconnue du contrat CLES_DES_SEUILS_EN_ATTENTE" % cle)
+        if cle in table:
+            return illisible("clé %r écrite deux fois" % cle)
+        table[cle] = {"valeur": r[1].strip(), "sens": r[2].strip(), "source": r[3].strip()}
+    manque = [c for c in cles if c not in table]
+    if manque:
+        return illisible("clé(s) absente(s) : %s" % ", ".join(manque))
+    return table
 
 
 def role_du_controle(table, cle):
@@ -3880,7 +4031,7 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
       [rend: 1]
     ⑥ TRAITEMENT — ① la garde d'entrée · ② lire les seuils (`seuil_de_la_loi`, domaines compris) · ③ ranger chaque
       contrôle, PASSE / BLOQUE / INCONNU / SANS_OBJET (seulement ⑧ en cas 1), l'état étant CALCULÉ depuis la mesure et
-      le seuil (strictesse comprise) · ④ imposer à chaque contrôle le rôle de la loi ou de la table (`role_du_controle`), jamais celui de l'appelant · ⑤ NON JUGEABLE si la déclaration manque un
+      le seuil (strictesse comprise) · ④ imposer à chaque contrôle le rôle de la loi ou de la table (`role_du_controle`), jamais celui de l'appelant ; en cas 2, `gain_bat_zero` est un AFFICHAGE (AFFICHAGE_EN_CAS_2 : R-505 v2, étape 5, A-1095 — le contrôle 1 y est le Sharpe dégonflé) · ⑤ NON JUGEABLE si la déclaration manque un
       champ (motif : le premier champ) · ⑥ RÉFUTÉE si la déclaration, les années et le regard passent, si les
       observations atteignent le plancher et si la borne haute du gain moyen, au niveau `refutation_borne_haute`, est
       sous zéro (DÉL-D40 : « seule voie ») · ⑦ « Validée … » PAR INCLUSION (`verdict_par_inclusion`) · ⑧ sinon NON
@@ -3900,7 +4051,7 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
     ⑨ CE QUI CLOCHE — ① « Aucun INCONNU, affichages compris » est la lecture la plus stricte de DÉL-D40. ② Le seuil est
       franchi par p < seuil, strictement. ③ C7 et C8 portent le motif « NE BAT PAS ZÉRO », faute d'un mot au contrat
       gelé. ④ Le Kelly, le surapprentissage, le Sharpe dégonflé, les voisins et les frais doublés ne sont pas mesurés
-      ici. ⑤ Plusieurs modes de hasard : le plus grand p décide. ⑥ Aucun « Validée » n'est à tenir pour vrai tant que
+      ici (Sharpe dégonflé : `mesurer_le_sharpe_degonfle` ; PBO : `MODULE_SURAPPRENTISSAGE.mesurer_le_surapprentissage`, hors du circuit du soir parce qu'il exige numpy). ⑤ Plusieurs modes de hasard : le plus grand p décide. ⑥ Aucun « Validée » n'est à tenir pour vrai tant que
       les épreuves de JONCTION avec `juger` et `jouer` n'existent pas (superviseur).
     ⑩ EFFET — Aucun : elle ne lit ni n'écrit de fichier.
     ⑪ TERMINAISON — Rend la main ; aucun de ses appels ne peut ne pas revenir : `borne_basse_gain` fait 2 000 tirages,
@@ -4124,6 +4275,8 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
         if role is None:
             x["etat"], x["raison"] = "INCONNU", r
             role = "CONDITION"       # un rôle inconnu compte comme le plus strict : il empêche la validation
+        if cas == "2" and cle in AFFICHAGE_EN_CAS_2:
+            role = "AFFICHAGE"       # A-1095 : en cas 2, le contrôle 1 est le Sharpe dégonflé ; celui-ci s'affiche
         x["role"] = role
     if cas != "1":
         for cle in SANS_OBJET_EN_CAS_1:

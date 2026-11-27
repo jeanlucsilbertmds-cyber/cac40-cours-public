@@ -360,6 +360,11 @@ def calculer_pbo(matrice_trades: list[list[dict]], n_partitions: int = 16) -> di
       ouvert sur ce seuil sera tranché — la table exige moins de 0,30, l'expert
       consulté le 08-07-2026 dit moins de 0,50 — corriger l'un sans l'autre fera
       afficher « FAIBLE » à côté d'un critère non passé.
+      ⑦ REMPLACÉE POUR LA DÉCISION le 27-11-2026 (lot L3 du plan R505, R-505 v2 étape 5, A-1093) par
+      `MODULE_SURAPPRENTISSAGE.probabilite_de_surapprentissage`, la transcription de l'algorithme 2.3 de l'article
+      (matrice de rendements synchrones, 12 870 coupures, seuil 0,05 lu dans un fichier) : celle-ci reste en place,
+      inchangée, parce que rien ne se supprime sans accord (R-751 ⑩) ; deux implémentations d'une même chose
+      divergent (R-708) : son retrait est à décider par Jean-Luc.
     ⑩ EFFET — Ne lit ni n'écrit aucun fichier, n'affiche rien, ne touche pas au
       réseau. Elle ne modifie pas le lot de stratégies qu'elle reçoit : elle en
       construit un tableau de gains par bloc à part. Le tirage au hasard qu'elle
@@ -775,6 +780,11 @@ def calculer_deflated_sharpe(sharpe_observe: float, n_strategies_testees: int,
       REGISTRE_REGLES.md`, règle R-743, deuxième geste. Et le 0,95 de la ligne 859
       est le même nombre que le seuil du critère C2, écrit ligne 1732 : un chiffre qui
       existe ailleurs ne se recopie pas (R-708).
+      ⑧ REMPLACÉE POUR LA DÉCISION le 27-11-2026 (lot L3 du plan R505, R-505 v2 étape 5, A-1095) par
+      `MODULE_SHARPE_DEGONFLE.sharpe_degonfle` : celle-ci arrondit au millième (la barre 0,05 ÷ k descend dessous),
+      refuse N = 1 et rend 0 quand elle refuse. Elle reste en place, inchangée (R-751 ⑩) ; l'épreuve
+      `tests/EPREUVES_DU_SHARPE_DEGONFLE_ET_DE_LA_PBO_Ven_27-11-2026.py` (E3) confronte les deux pour que leur
+      divergence se voie ; son retrait est à décider par Jean-Luc.
     ⑩ EFFET — Ne lit ni n'écrit aucun fichier, n'affiche rien, ne touche pas au
       réseau, ne modifie rien de ce qu'elle reçoit.
     ⑪ TERMINAISON — Rend la main par l'une de ses trois sorties dans le cas
