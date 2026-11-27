@@ -1949,36 +1949,53 @@ except (OSError, ValueError) as _e:
 EPREUVES_AU_PLUS = 64                 # codes au plus dans la table : une demande « toutes » reste sous 1 000 octets
 # Un argument figé : la racine de la copie jouée, ou un mot sans espace, sans guillemet ni caractère du shell.
 ARGUMENT_FIGE = r"\{copie\}|[A-Za-z0-9_.=,-]{1,40}"
+# LES FAMILLES DE TRANCHES (lot TRANSPORT du plan R505, A-965, 27-11-2026) : une entrée de la table qui porte
+# « tranches » = N (entier de 2 à TRANCHES_AU_PLUS) n'est PAS une épreuve : c'est une FAMILLE de N épreuves, une par
+# tranche k = 0 … N-1, nommées FORME_D_UNE_TRANCHE % (code, k) (« MoulEssai » → « MoulEssaiT0 », « MoulEssaiT1 »…).
+# Ses arguments portent « {k} » et « {n} » une fois chacun, remplacés par k et N dans la commande de la tranche k ; ce
+# sont des arguments FIGÉS : k et N viennent de la table de la version, jamais de la demande, qui ne porte que des
+# codes de tranche. Une famille n'entre ni dans « toutes » ni dans EPREUVES_DU_CIRCUIT (une demande « toutes » ne
+# lance donc jamais une moulinette) ; ses tranches sont connues du relais et du joueur (`epreuves_jouables`).
+ARGUMENT_DE_TRANCHE = r"\{k\}|\{n\}"
+FORME_D_UNE_TRANCHE = "%sT%d"
+TRANCHES_AU_PLUS = 256                # la matrice d'un passage en porte 256 au plus (pas « Fabriquer la matrice »)
 
 
-def epreuves_du_circuit(racine=None):
-    """Rend les épreuves longues de la table : [(code, chemin, arguments), …], dans l'ordre de la table.
+def lire_la_table_des_epreuves(racine=None):
+    """Rend (épreuves, familles) de la table des épreuves longues : deux listes, dans l'ordre de la table.
 
-    ① RÔLE — Lire UNE fois la table des épreuves longues d'un tenant, pour que le circuit des épreuves, son pas
-      « Fabriquer la matrice », le relais et le joueur d'une épreuve en soient tous tirés (R-708).
-    ② CONTEXTE D'APPEL — Le haut de ce programme, une fois, pour EPREUVES_DU_CIRCUIT (lu par les gabarits EPREUVES et
-      RELAIS) ; tests/outils/jouer_une_epreuve_longue.py, sur la copie jouée (la table de la version éprouvée) ;
-      l'épreuve tests/EPREUVES_DU_CIRCUIT_DES_EPREUVES_LONGUES_Dim_15-11-2026.py.
+    ① RÔLE — Lire et valider UNE fois la table des épreuves longues d'un tenant, épreuves simples et familles de
+      tranches, pour que le circuit des épreuves, son pas « Fabriquer la matrice », le relais, le joueur d'une
+      épreuve et l'envoi en soient tous tirés (R-708 : deux lectures d'une même table divergent toujours).
+    ② CONTEXTE D'APPEL — `epreuves_du_circuit`, `tranches_du_circuit`, `epreuves_jouables`.
     ③ ENTRÉE — `racine` : la racine du dépôt ; None = le dossier parent de celui de ce programme.
     ④ CONDITIONS D'ENTRÉE — `racine`/tests/LANCEMENT_DES_EPREUVES.json existe et se lit en UTF-8. La clé
-      « epreuves_longues » est facultative (absente : aucune épreuve, liste vide).
-    ⑤ SORTIE — UNE valeur : la liste des triplets (code : texte ; chemin : chemin relatif ; arguments : liste de
-      textes). Lève ValueError si la table ne convient pas, en nommant le code fautif.
-      [rend: 1]
+      « epreuves_longues » est facultative (absente : deux listes vides).
+    ⑤ SORTIE — DEUX valeurs : les épreuves [(code, chemin, arguments)] ; les familles [(code, chemin, arguments,
+      tranches)], arguments avec « {k} » et « {n} » non remplacés. Lève ValueError si la table ne convient pas, en
+      nommant le code fautif.
+      [rend: 2]
     ⑥ TRAITEMENT — pour chaque entrée : le code répond à CODE_DE_SERIE et n'est pas TOUTES ; deux codes ne se
       ressemblent pas à la casse près ; le chemin a la forme tests/<nom>.py ou programmes/<nom>.py (lettres, chiffres,
-      « _ . - ») ; « arguments » est une liste non vide de textes qui répondent chacun à ARGUMENT_FIGE et contient
-      « {copie} » ; « pourquoi » est un texte non vide ; une épreuve de « series_hors_de_la_nuit » n'est pas admise
-      avec « --saboter » (sa série a son propre circuit, et son « --saboter » joue la série entière : des heures) ;
-      au plus EPREUVES_AU_PLUS entrées.
+      « _ . - ») ; « arguments » est une liste non vide de textes qui répondent chacun à ARGUMENT_FIGE (ou, pour une
+      famille, à ARGUMENT_DE_TRANCHE) et contient « {copie} » ; « pourquoi » est un texte non vide ; une épreuve de
+      « series_hors_de_la_nuit » n'est pas admise avec « --saboter » (sa série a son propre circuit, et son
+      « --saboter » joue la série entière : des heures). Une entrée qui porte « tranches » : un entier (pas un
+      booléen) de 2 à TRANCHES_AU_PLUS, « {k} » et « {n} » une fois chacun ; chaque code de tranche répond à
+      CODE_DE_SERIE et ne ressemble, à la casse près, à aucun autre code ni à aucune autre tranche. Une entrée sans
+      « tranches » qui porte « {k} » ou « {n} » est refusée (ARGUMENT_FIGE). Au plus EPREUVES_AU_PLUS entrées,
+      familles comprises.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Point 1 de l'étape GHUB ② (« chaque code renvoie, dans la table, à une commande FIGÉE : aucun
       argument libre ne vient de la demande ») ; les formes sont vérifiées ICI parce que les codes deviennent du texte
-      du circuit (noms de jobs, motifs du relais) et les arguments une ligne de commande.
+      du circuit (noms de jobs, motifs du relais) et les arguments une ligne de commande. Les familles (lot TRANSPORT,
+      A-965) : la moulinette se découpe en N tranches (programmes/DECOUPER_LA_MOULINETTE.py) ; une tranche par entrée
+      de la table ne tiendrait pas (64 codes au plus, relevé du lot W2f, 27-11-2026) ; une famille est UNE entrée.
     ⑨ CE QUI CLOCHE — L'existence du fichier n'est pas vérifiée ici (une table de main peut nommer une épreuve d'une
       version en attente) : le joueur la vérifie sur la version jouée, le pas « Fabriquer la matrice » aussi. Qu'une
       épreuve ne nomme pas un programme interdit est vérifié par le joueur (tests/outils/jouer_une_epreuve_longue.py),
-      qui connaît INTERDITS, pas ici.
+      qui connaît INTERDITS, pas ici. Le fabricant de main d'AVANT le 27-11-2026 refuse une table qui porte une
+      famille (ARGUMENT_FIGE refuse « {k} ») : une version qui en porte ne se publie qu'avec son propre fabricant.
     ⑩ EFFET — Lit la table.
     ⑪ TERMINAISON — Rend la main, ou lève.
       [sort: non]
@@ -1988,11 +2005,11 @@ def epreuves_du_circuit(racine=None):
         table = json.load(f)
     entrees = table.get("epreuves_longues")
     if entrees is None:
-        return []
+        return [], []
     if not isinstance(entrees, dict):
         raise ValueError("« epreuves_longues » n'est pas une table code → épreuve")
     series = table.get("series_hors_de_la_nuit") or {}
-    rendu, vus = [], set()
+    rendu, familles, vus = [], [], set()
     for code, e in entrees.items():
         if not re.fullmatch(CODE_DE_SERIE, code) or code.lower() == TOUTES:
             raise ValueError(f"code d'épreuve longue refusé : {code!r}")
@@ -2002,10 +2019,12 @@ def epreuves_du_circuit(racine=None):
         if not isinstance(e, dict):
             raise ValueError(f"épreuve longue {code} : entrée illisible")
         chemin, arguments, pourquoi = e.get("chemin"), e.get("arguments"), e.get("pourquoi")
+        tranches = e.get("tranches")
+        permis = ARGUMENT_FIGE if tranches is None else "(?:%s)|(?:%s)" % (ARGUMENT_FIGE, ARGUMENT_DE_TRANCHE)
         if not isinstance(chemin, str) or not re.fullmatch(r"(?:tests|programmes)/[A-Za-z0-9_.-]+\.py", chemin):
             raise ValueError(f"épreuve longue {code} : chemin refusé {chemin!r} (tests/<nom>.py ou programmes/<nom>.py)")
         if (not isinstance(arguments, list) or not arguments or "{copie}" not in arguments
-                or not all(isinstance(a, str) and re.fullmatch(ARGUMENT_FIGE, a) for a in arguments)):
+                or not all(isinstance(a, str) and re.fullmatch(permis, a) for a in arguments)):
             raise ValueError(f"épreuve longue {code} : arguments refusés {arguments!r} (liste de mots figés, "
                              "« {copie} » compris)")
         if not isinstance(pourquoi, str) or not pourquoi.strip():
@@ -2013,16 +2032,110 @@ def epreuves_du_circuit(racine=None):
         if chemin in series and "--saboter" in arguments:
             raise ValueError(f"épreuve longue {code} : {chemin} --saboter est une série de sabotages, qui a son "
                              "propre circuit (series_longues.yml)")
-        rendu.append((code, chemin, list(arguments)))
-    if len(rendu) > EPREUVES_AU_PLUS:
-        raise ValueError(f"{len(rendu)} épreuves longues dans la table (au plus {EPREUVES_AU_PLUS})")
+        if tranches is None:
+            rendu.append((code, chemin, list(arguments)))
+            continue
+        if (not isinstance(tranches, int) or isinstance(tranches, bool) or not 2 <= tranches <= TRANCHES_AU_PLUS
+                or arguments.count("{k}") != 1 or arguments.count("{n}") != 1):
+            raise ValueError(f"famille de tranches {code} : « tranches » = {tranches!r} (entier de 2 à "
+                             f"{TRANCHES_AU_PLUS}) et « {{k}} », « {{n}} » une fois chacun dans les arguments")
+        familles.append((code, chemin, list(arguments), tranches))
+    for code, _, _, n in familles:
+        for k in range(n):
+            t = FORME_D_UNE_TRANCHE % (code, k)
+            if not re.fullmatch(CODE_DE_SERIE, t):
+                raise ValueError(f"famille de tranches {code} : le code de tranche {t!r} est hors de la forme d'un code")
+            if t.lower() in vus:
+                raise ValueError(f"famille de tranches {code} : le code de tranche {t} ressemble à un autre code")
+            vus.add(t.lower())
+    if len(rendu) + len(familles) > EPREUVES_AU_PLUS:
+        raise ValueError(f"{len(rendu) + len(familles)} épreuves longues dans la table (au plus {EPREUVES_AU_PLUS})")
+    return rendu, familles
+
+
+def epreuves_du_circuit(racine=None):
+    """Rend les épreuves longues SIMPLES de la table : [(code, chemin, arguments), …], dans l'ordre de la table.
+
+    ① RÔLE — Les épreuves qu'une demande « toutes » joue, et la liste que le relais connaît hors des tranches.
+    ② CONTEXTE D'APPEL — Le haut de ce programme, une fois, pour EPREUVES_DU_CIRCUIT (lu par les gabarits EPREUVES et
+      RELAIS) ; tests/outils/jouer_une_epreuve_longue.py, sur la copie jouée (la table de la version éprouvée, pour
+      « toutes ») ; programmes/PUBLIER_LES_VERSIONS_EN_ATTENTE.py ; l'épreuve
+      tests/EPREUVES_DU_CIRCUIT_DES_EPREUVES_LONGUES_Dim_15-11-2026.py.
+    ③ ENTRÉE — `racine` : la racine du dépôt ; None = le dossier parent de celui de ce programme.
+    ④ CONDITIONS D'ENTRÉE — Celles de `lire_la_table_des_epreuves`.
+    ⑤ SORTIE — UNE valeur : la liste des triplets (code : texte ; chemin : chemin relatif ; arguments : liste de
+      textes), SANS les familles de tranches. Lève ValueError si la table ne convient pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — `lire_la_table_des_epreuves`, première liste.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir `lire_la_table_des_epreuves`. Les familles sont hors de cette liste (commentaire de
+      FORME_D_UNE_TRANCHE) : « toutes » ne lance jamais une moulinette.
+    ⑨ CE QUI CLOCHE — Voir `lire_la_table_des_epreuves`.
+    ⑩ EFFET — Lit la table.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    return lire_la_table_des_epreuves(racine)[0]
+
+
+def tranches_du_circuit(racine=None):
+    """Rend les tranches des familles de la table : [(code de tranche, chemin, arguments, famille, k, n), …].
+
+    ① RÔLE — Déplier chaque famille de tranches en ses N épreuves, commande figée comprise.
+    ② CONTEXTE D'APPEL — Le haut de ce programme, une fois, pour TRANCHES_DU_CIRCUIT (lu par le relais) ;
+      `epreuves_jouables` ; programmes/TRANSPORTER_LA_MOULINETTE.py.
+    ③ ENTRÉE — `racine` : comme `lire_la_table_des_epreuves`.
+    ④ CONDITIONS D'ENTRÉE — Celles de `lire_la_table_des_epreuves`.
+    ⑤ SORTIE — UNE valeur : la liste des sextuplets, famille par famille, k croissant ; « {k} » et « {n} » remplacés
+      par k et N (en chiffres décimaux) dans les arguments. Lève ValueError si la table ne convient pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — `lire_la_table_des_epreuves`, seconde liste ; pour chaque famille et k de 0 à N-1 : le code
+      FORME_D_UNE_TRANCHE % (famille, k), les arguments remplacés.
+    ⑦ UNITÉ — k, n : des tranches.
+    ⑧ POURQUOI — Commentaire de FORME_D_UNE_TRANCHE.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Lit la table.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    rendu = []
+    for code, chemin, arguments, n in lire_la_table_des_epreuves(racine)[1]:
+        for k in range(n):
+            rendu.append((FORME_D_UNE_TRANCHE % (code, k), chemin,
+                          [str(k) if a == "{k}" else str(n) if a == "{n}" else a for a in arguments], code, k, n))
+    return rendu
+
+
+def epreuves_jouables(racine=None):
+    """Rend {code : (chemin, arguments)} de tout ce qu'une demande peut nommer : épreuves simples et tranches.
+
+    ① RÔLE — La seule table de recherche d'un code demandé, pour le joueur, son pas « Fabriquer la matrice » et
+      l'envoi (R-708).
+    ② CONTEXTE D'APPEL — tests/outils/jouer_une_epreuve_longue.py (`lire_la_liste`, `jouer`) ;
+      programmes/ENVOYER_LES_EPREUVES_SUR_GITHUB.py (`codes_inconnus`).
+    ③ ENTRÉE — `racine` : comme `lire_la_table_des_epreuves`.
+    ④ CONDITIONS D'ENTRÉE — Celles de `lire_la_table_des_epreuves`.
+    ⑤ SORTIE — UNE valeur : le dictionnaire, dans l'ordre de la table puis des tranches. Lève ValueError si la table
+      ne convient pas.
+      [rend: 1]
+    ⑥ TRAITEMENT — `epreuves_du_circuit` puis `tranches_du_circuit`.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Commentaire de FORME_D_UNE_TRANCHE.
+    ⑨ CE QUI CLOCHE — La table est lue deux fois (deux appels) : sans effet, elle ne change pas entre les deux.
+    ⑩ EFFET — Lit la table.
+    ⑪ TERMINAISON — Rend la main, ou lève.
+      [sort: non]
+    """
+    rendu = {c: (ch, a) for c, ch, a in epreuves_du_circuit(racine)}
+    rendu.update({t[0]: (t[1], t[2]) for t in tranches_du_circuit(racine)})
     return rendu
 
 
 try:
     EPREUVES_DU_CIRCUIT = epreuves_du_circuit()
+    TRANCHES_DU_CIRCUIT = tranches_du_circuit()
 except (OSError, ValueError) as _e:
-    EPREUVES_DU_CIRCUIT = []
+    EPREUVES_DU_CIRCUIT, TRANCHES_DU_CIRCUIT = [], []
     ERREUR_DE_LA_TABLE = ERREUR_DE_LA_TABLE or f"{type(_e).__name__} : {_e}"
 # Les morceaux du circuit des séries tirés de la table (une boucle chacun, sur la même liste) :
 # les entrées du bouton, et l'environnement du pas « Fabriquer la matrice ».
@@ -2620,7 +2733,7 @@ jobs:
               if [ "$valeur" != \"""" + TOUTES + """\" ]; then
                 deja=" "
                 for c in ${valeur//,/ }; do
-                  [[ " """ + " ".join(e[0] for e in EPREUVES_DU_CIRCUIT) + """ " == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue : $c"; exit 1; }
+                  [[ " """ + " ".join([e[0] for e in EPREUVES_DU_CIRCUIT] + [t[0] for t in TRANCHES_DU_CIRCUIT]) + """ " == *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve inconnue : $c"; exit 1; }
                   [[ "$deja" != *" $c "* ]] || { echo "::error::DEMANDE REFUSEE : epreuve demandee deux fois : $c"; exit 1; }
                   deja="$deja$c "
                 done
