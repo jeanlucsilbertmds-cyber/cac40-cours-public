@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=ChaineC5,SoirDecide,SoirFiche,CopieBoucles,Calibrage,EcartDeGain,AncreC5,Bloc5A
+pointe=64106ea719ec0b823ae2919fbc3828eb234607d5
