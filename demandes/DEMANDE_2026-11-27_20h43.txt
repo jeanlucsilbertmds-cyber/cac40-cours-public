@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Tri,Moulinette,ChaineC5,Enchainer,Lanceur,ProprietesChaine,MoulinetteEssai
+pointe=9ade46a02c14952d4a83f5f0ef8e0803af07c6bf
