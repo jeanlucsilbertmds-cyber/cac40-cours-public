@@ -61,7 +61,6 @@ Ce programme n'écrit donc AUCUN geste lui-même : il IMPORTE LIVRER et enchaîn
   fait, par branche, jusqu'à trois attentes d'une minute libre (≈ 183 s), puis refus (D-8 du RELU de Cowork du
   26-11-2026, 12h45 : la fiche disait « 61 s »).
 """
-import json
 import os
 import re
 import shutil
@@ -180,32 +179,41 @@ def lire_l_entree(item):
 
 
 def codes_inconnus(dossier, codes):
-    """Rend les codes absents de la table des épreuves longues du dossier ; lève Arret si la table manque.
+    """Rend les codes que le fabricant de la branche ne sait pas jouer ; lève Arret si la table manque.
 
     ① RÔLE — Ne jamais demander au relais une épreuve qu'il refusera (« épreuve inconnue »).
-    ② CONTEXTE D'APPEL — `envoyer_une_branche`, après la pose du dossier de travail, AVANT la publication.
+    ② CONTEXTE D'APPEL — `envoyer_une_branche`, après la pose du dossier de travail, AVANT la publication ;
+      programmes/TRANSPORTER_LA_MOULINETTE.py, par `envoyer_une_branche`.
     ③ ENTRÉE — `dossier` : le dossier de travail de la branche · `codes` : la liste demandée.
-    ④ CONDITIONS D'ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — Le dossier porte LIVRER.TABLE et programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py.
     ⑤ SORTIE — UNE valeur : la liste des codes inconnus (vide : tous connus).
       [rend: 1]
-    ⑥ TRAITEMENT — Lit la clé « epreuves_longues » de LIVRER.TABLE (tests/LANCEMENT_DES_EPREUVES.json) du dossier,
-      comme `main` de LIVRER ; garde les codes qui n'y sont pas.
+    ⑥ TRAITEMENT — Table absente → Arret. Sinon le fabricant DU DOSSIER est chargé (LIVRER.charger) et sa fonction
+      `epreuves_jouables` lit la table : épreuves simples et tranches des familles ; on garde les codes qui n'y sont
+      pas. Un fabricant sans `epreuves_jouables` (d'avant le 27-11-2026) : sa liste `epreuves_du_circuit`, comme le
+      relais qu'il fabrique.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — D-2 du RELU de Cowork (26-11-2026, 12h04) : « Inconnu » partait, « ENVOYÉ » était écrit, et le relais
       refuse (« epreuve inconnue », FABRIQUER_LE_CIRCUIT_PUBLIC.py). La table de LA BRANCHE fait foi : c'est elle
-      que le relais lira.
-    ⑨ CE QUI CLOCHE — Une table illisible (JSON faux) lève ValueError : `main` la compte comme un plantage, comme
-      LIVRER.
-    ⑩ EFFET — Lit un fichier.
+      que le relais lira. Lot TRANSPORT (A-965, 27-11-2026) : les codes de tranche (« MoulEssaiT0 ») ne sont pas des
+      clés de la table ; la liste vient donc du fabricant, qui la fabrique aussi pour le relais (R-708 : la clé
+      « epreuves_longues » lue ici à la main aurait divergé du relais dès la première famille).
+    ⑨ CE QUI CLOCHE — Une table refusée par le fabricant (JSON faux, famille mal formée) lève ValueError : `main` la
+      compte comme un plantage, comme LIVRER. Le code de tête du fabricant de la branche s'exécute (il lit sa table,
+      environ un dixième de seconde) : c'est le code que la branche publiera.
+    ⑩ EFFET — Lit des fichiers ; exécute le code de tête du fabricant de la branche.
     ⑪ TERMINAISON — Rend la main, ou lève.
       [sort: non]
     """
     chemin = os.path.join(dossier, LIVRER.TABLE)
     if not os.path.isfile(chemin):
         raise LIVRER.Arret(REFUSE, f"{LIVRER.TABLE} absent de la branche : les codes ne peuvent pas être vérifiés")
-    with open(chemin, encoding="utf-8") as f:
-        table = json.load(f).get("epreuves_longues", {})
-    return [c for c in codes if c not in table]
+    F = LIVRER.charger(os.path.join(dossier, "programmes", "FABRIQUER_LE_CIRCUIT_PUBLIC.py"), "FABRICANT_POUR_ENVOYER")
+    if hasattr(F, "epreuves_jouables"):
+        connus = set(F.epreuves_jouables(dossier))
+    else:
+        connus = {c for c, _, _ in F.epreuves_du_circuit(dossier)}
+    return [c for c in codes if c not in connus]
 
 
 def envoyer_une_branche(racine, item, k):
