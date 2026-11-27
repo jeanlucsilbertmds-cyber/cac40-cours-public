@@ -30,10 +30,12 @@ USAGE
     entière, et le témoin de résultats n'est comparé que sur les versions jouées ; l'assemblage le compare ENTIER
     (relecteur du 19-11-2026, I2). Un fichier de tranche ne se
     trie pas seul (le tri exige autant de lignes que `versions_dans_l_essai`) : il s'assemble.
-    python3 JOUER_LES_VERSIONS.py --assembler <combinatoire> <fichier_resultats> <tranche> [<tranche> ...] :
+    python3 JOUER_LES_VERSIONS.py --assembler <combinatoire> <fichier_resultats> <tranche> [<tranche> ...]
+        [--cours=<fichier>] :
     réunit les fichiers de tranche en UN fichier de résultats, dans l'ordre de la combinatoire ; refuse (1)
     si une version manque ou est en double, si une colonne n'est pas celle du contrat, si une colonne
-    commune au tri porte plus d'une valeur, si l'ensemble diffère du témoin de résultats entier. Raison : une moulinette entière dépasse les 10 minutes par appel
+    commune au tri porte plus d'une valeur, si l'ensemble diffère du témoin de résultats entier, et, avec --cours=, si une tranche a été jouée sur
+    un autre fichier de cours (A-1076, 27-11-2026). Raison : une moulinette entière dépasse les 10 minutes par appel
     (consigne du 19-11-2026) ; le découpage vit ICI, une seule fois (superviseur R-759 du 19-11-2026, R-708).
 
 CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
@@ -69,7 +71,11 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   couvre, elle est dite à l'écran ; ses positions encore ouvertes à la fin des cours sont
   mises à part, hors du total, depuis la décision de Jean-Luc du 12-11-2026 à 09h18, et
   comptées dans les deux colonnes « à part » des résultats) · ⑦ si un témoin de résultats
-  existe, chaque version le retrouve · ⑧ le fichier nommé par `--cours=` existe.
+  existe, chaque version le retrouve · ⑧ le fichier nommé par `--cours=` existe ·
+  ⑨ LA COUVERTURE (A-1076 ②, depuis le 27-11-2026) : la première séance des cours lus
+  n'est pas plus d'un mois de calendrier après le début déclaré par la fiche, ni la
+  dernière plus d'un mois avant sa fin (`couverture_des_cours`) ; la période et le
+  nombre de séances réellement lus sont affichés à chaque lancement (ligne « COURS LUS »).
   Le moindre manquement arrête tout, avant ou pendant le jeu.
 ⑤ SORTIE — UNE valeur : le code de sortie, 0 quand toutes les versions sont
   jouées et écrites, 1 sinon (dont une fiche relue, depuis le 19-11-2026, ou une
@@ -84,9 +90,19 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   fiche par `fiches_du_registre` du contrat (sa DERNIÈRE ligne, n°83, depuis le
   05-11-2026), charger le module de positions, passer la fiche PUIS CHAQUE VERSION
   fusionnée au contrat de stratégie (`manques_du_contrat`, A-923 ;
-  `refus_des_versions`) · ② lancer
-  le juge des stratégies seul sur la fiche (avec le même `--cours=`) et exiger son
-  calibrage · ③ charger cours et modules
+  `refus_des_versions`) · ①ter (depuis le 27-11-2026, AVANT le calibrage) lire les cours par
+  le lecteur unique du juge, afficher la période et le nombre de séances lus, et refuser une
+  couverture insuffisante (`couverture_des_cours`, A-1076) ; sur le fichier des 20 ans, refuser aussi une fiche qui ne
+  les déclare pas (`fiche_couvre_le_fichier`, V1-1, 27-11-2026) · ①quater (27-11-2026, lot L1-CORR, A-1078 :
+  R-505 v2, étape 3, « la moulinette joue toutes les versions déclarées sur les 70 % ») LA PARTIE DE RÉGLAGE : la
+  frontière 70/30 sur les cours lus EN ENTIER (`frontiere_de_la_fiche`), la dernière séance gardée avant la bande pour
+  l'horizon chiffré le plus long (`MODULE_JUGEMENT.fin_de_la_partie_de_reglage`), les cours COUPÉS à cette séance
+  avant tout jeu, la fin des achats calculée dans ce qui reste ; dans la fenêtre du regard unique, un jeton de réglage
+  (`JUGE_DES_STRATEGIES.jeton_de_reglage`) ; une fiche « sans délai » arrête tout, une version « sans délai » n'est
+  jamais jouée (largeur de bande non tranchée, A-764) et sa ligne est écrite sans chiffre · ② lancer
+  le juge des stratégies seul sur la fiche (avec le même `--cours=`, et depuis le 27-11-2026 l'option
+  CONTRATS.OPTION_DE_LA_PARTIE_DE_REGLAGE : il ne lit que la partie de réglage et NE JUGE PAS) et exiger son
+  calibrage · ③ charger les modules
   par les fonctions du juge · ④ jouer la fiche telle quelle et exiger le résultat
   que le juge vient d'afficher · ⑤ jouer la version identique et exiger le même
   résultat · ⑥ CALCULER LA FIN DE PÉRIODE UTILISABLE (`fin_utilisable`, plan V7,
@@ -94,12 +110,13 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   laisse à CHAQUE valeur jouée au moins « horizon le plus long + 1 » séances
   après elle ; puis recompter cette marge valeur par valeur ; si la fin calculée
   diffère de celle de la fiche, rejouer la fiche sur la période calculée ; refuser
-  un recul de plus de séances que `RECUL_MAXIMUM` n'en permet (réglage lu, provisoire) ;
+  un recul de plus de séances que `recul_maximum` n'en permet (CALCULÉ depuis le 27-11-2026 : le délai chiffré le
+  plus long des versions + 1, A-1100 ; il était lu dans un fichier provisoire de 26 séances) ;
   demander la frontière 70/30 à `frontiere_de_la_fiche` du module de jugement ·
   ⑦ pour chaque version : fusionner, contrôler la fusion, jouer sur la période
   calculée, la couper par la même coupure (`partie_de_reglage`), écrire une ligne
-  dans un fichier provisoire — chiffres de la période entière ET, colonnes « _70 »,
-  chiffres de la seule partie de réglage, les seules que le tri lit ; la version identique
+  dans un fichier provisoire — chiffres de la période JOUÉE (depuis le 27-11-2026 : la partie de réglage, plus jamais
+  la période entière) ET, colonnes « _70 », les mêmes par la coupure, les seules que le tri lit ; la version identique
   doit retrouver la fiche rejouée · ⑧ comparer au témoin de résultats s'il
   existe · ⑨ renommer le fichier provisoire en fichier final.
   OÙ VIT LA FIN CALCULÉE : dans la colonne `periode_fin` de chaque ligne du
@@ -128,18 +145,24 @@ CE QUE CE PROGRAMME EST DANS LA CHAÎNE (action A-541 du BACKLOG)
   fins différentes, alors que le bloc 5g ① veut une fin commune (question posée
   à Jean-Luc dans echanges/A_RELIRE_TRI.md) ; une valeur dont les cours
   s'arrêtent tôt (sortie de la cote) ramène la fin de TOUTES les versions — au
-  plus de `RECUL_MAXIMUM` séances, au-delà le programme refuse en la nommant ·
+  plus de `recul_maximum` séances (délai chiffré le plus long + 1), au-delà le programme refuse en la nommant ·
   ④bis le juge, lui, ne lit pas la fin calculée (relecteur neuf, D10, question
   posée) : la partie de réglage est coupée sur les bornes de la FICHE, comme le
   juge les coupe, donc la frontière 70/30 est la même des deux côtés ; seuls les
   30 % diffèrent ·
-  ④ un horizon « aucune » (COMMUN.lire_horizon_ou_aucune) n'a pas de marge
-  définie : `int` lève, ce programme s'arrête · ⑤ le signal est celui
+  ④ un horizon « aucune » (COMMUN.lire_horizon_ou_aucune) n'a ni marge ni bande
+  définies : la version n'est pas jouée (27-11-2026) · ⑤ le signal est celui
   que la fiche nomme (`module_signal`, `fonction_signal`, `reglages_signal`),
   lu par `signal_de_la_fiche` du juge — depuis le 30-10-2026 (A-542), il n'est
   plus forcé à `signaux_c5etendu10` ; une version ne fait pas varier le signal ·
   ⑥ la version à zéro
-  opération porte un gain de 0, que le tri devra traiter à part.
+  opération porte un gain de 0, que le tri devra traiter à part · ⑦ (27-11-2026) le témoin de résultats de
+  C5E10-OBS-V1 (08-10-2026) porte la période entière : il n'est plus comparable (« TÉMOIN NON COMPARABLE », arrêt) tant
+  que Jean-Luc ne l'a pas fait refaire sur la partie de réglage ; jusque-là, les frais des versions de cette
+  combinatoire ne sont plus protégés par lui · ⑧ (27-11-2026) le calibrage sur le golden (C5-ETENDU-10 sur le témoin du
+  golden, 2024-2026, chiffres figés) n'est pas coupé : il éprouve l'instrument, pas la fiche · ⑨ (27-11-2026) la bande
+  est celle de l'horizon chiffré le plus long : une version plus courte perd les séances entre sa propre bande et
+  celle-là (prudence, aucune séance des 30 % lue) · ⑩ (V1-2) le fichier des 20 ans s'arrête au 2026-11-11.
 ⑩ EFFET — Crée le fichier de résultats, via un fichier provisoire `.en_cours`
   effacé en cas d'échec s'il a été créé par ce lancement. Rien d'autre n'est
   écrit : le juge est lancé avec `-B`.
@@ -171,6 +194,11 @@ OPTION_COURS = "--cours="
 # confronte dès que l'option est lue : sans elle, ce programme n'importe rien de plus qu'avant.
 OPTION_ESSAI = "--essai-sans-regard"
 OPTION_TRANCHE = "--tranche="
+# LES COLONNES QUI PORTENT UN CHIFFRE JOUÉ : vides, toutes, sur la ligne d'une version « sans délai », qui n'est jamais
+# jouée (27-11-2026, lot L1-CORR ; R-505 v2, étape 3 ⑥ ; A-764). Les noms sont ceux du contrat RESULTATS_DES_VERSIONS.
+COLONNES_CHIFFREES = ("operations", "reussite_pourcents_exacte", "gain_net_euros", "embargo_seances",
+                      "operations_70", "reussite_pourcents_exacte_70", "gain_net_euros_70",
+                      "operations_a_part_fin_des_donnees", "gain_net_euros_a_part_fin_des_donnees")
 
 
 def lire_la_tranche(arguments):
@@ -229,11 +257,17 @@ def assembler(arguments):
 
     ① RÔLE — Refaire UN fichier de résultats, celui que le tri lit, à partir des tranches (A-919).
     ② CONTEXTE D'APPEL — `main`, sous `--assembler`.
-    ③ ENTRÉE — `arguments` : la combinatoire, le fichier de sortie, puis les fichiers de tranche.
+    ③ ENTRÉE — `arguments` : la combinatoire, le fichier de sortie, puis les fichiers de tranche ; et, n'importe où,
+      au plus une option `--cours=<fichier, relatif à la racine>` : le fichier de cours que les tranches DEVAIENT jouer
+      (l'enchaîneur la passe depuis le 27-11-2026, lot L1, A-1076). Exemple réel :
+      `--cours=temoins/TEMOIN_VINGT_ANS_2000_2026_COUPURE_2026-11-11_FIGE_Ven_13-11-2026_10h59.csv`.
     ④ CONDITIONS D'ENTRÉE — la sortie n'existe pas.
     ⑤ SORTIE — UNE valeur : 0 écrit, 1 refus.
     [rend: 1]
-    ⑥ TRAITEMENT — ① exiger les champs du contrat dans chaque tranche · ② refuser une version en double ou hors de
+    ⑥ TRAITEMENT — ⓪ avec `--cours=` : exiger que la colonne `cours_joues` de CHAQUE ligne de chaque tranche nomme ce
+    fichier (une tranche jouée sur d'autres cours est refusée, en nommant le fichier lu) ; sans l'option, rien de plus
+    qu'avant (les tranches doivent seulement s'accorder entre elles, ④) ·
+    ① exiger les champs du contrat dans chaque tranche · ② refuser une version en double ou hors de
     la combinatoire · ③ refuser une version de la combinatoire sans résultat (une tranche perdue rougit ICI) ·
     ④ exiger `versions_dans_l_essai` = la combinatoire entière et une seule valeur par colonne commune au tri ·
     ⑤ comparer l'ensemble au témoin de résultats ENTIER, sans filtre d'identifiants (`comparer_au_temoin` ; sous un
@@ -241,13 +275,21 @@ def assembler(arguments):
     provisoire renommé.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — le tri exige un fichier par essai.
-    ⑨ CE QUI CLOCHE — les chiffres ne sont pas rejoués : l'assemblage recopie.
+    ⑨ CE QUI CLOCHE — les chiffres ne sont pas rejoués : l'assemblage recopie. `--cours=` compare des NOMS de
+    fichier (chemins normalisés), pas les octets : l'empreinte des cours est gardée par la porte du juge
+    (VERIFIER_LA_CHAINE.motifs, `empreinte_des_cours_jusqu_a`).
     ⑩ EFFET — Écrit la sortie.
     ⑪ TERMINAISON — rend la main.
     [sort: non]
     """
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import CONTRATS_DES_FICHIERS as C
+    # LE FICHIER DE COURS ATTENDU (A-1076, lot L1) : lu et refusé comme dans `main` (`lire_la_ligne_de_commande`).
+    attendu = [a[len(OPTION_COURS):] for a in arguments if a.startswith(OPTION_COURS)]
+    arguments = [a for a in arguments if not a.startswith(OPTION_COURS)]
+    if len(attendu) > 1 or (attendu and not attendu[0]) or any(a.startswith("--") for a in arguments):
+        return arreter("--assembler : au plus une option « --cours=<fichier> », aucune autre option (lu %s)"
+                       % (attendu + [a for a in arguments if a.startswith("--")]))
     if len(arguments) < 3:
         return arreter("--assembler <combinatoire> <fichier_resultats> <tranche> [<tranche> ...]")
     f_comb, f_out, tranches = arguments[0], arguments[1], arguments[2:]
@@ -262,6 +304,10 @@ def assembler(arguments):
         for r in lecteur:
             if r["id_version"] in vus:
                 return arreter("%s en double (%s)" % (r["id_version"], f))
+            if attendu and os.path.normpath(r["cours_joues"]) != os.path.normpath(attendu[0]):
+                return arreter("%s : la version %s a été jouée sur %s, pas sur %s (--cours=) — une tranche jouée sur "
+                               "d'autres cours ne s'assemble pas (A-1076)" % (f, r["id_version"], r["cours_joues"],
+                                                                            attendu[0]))
             vus[r["id_version"]] = r
     hors, manque = sorted(set(vus) - set(ids)), [i for i in ids if i not in vus]
     if hors or manque:
@@ -297,54 +343,159 @@ def assembler(arguments):
     os.replace(f_out + ".en_cours", f_out)
     print("ASSEMBLÉ : %s · %d versions de %d tranches" % (f_out, len(ids), len(tranches)))
     return 0
-RECUL_MAXIMUM = "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv"
+# D'OÙ VIENT LE RECUL MAXIMUM (A-1100) : il était lu, jusqu'au 27-11-2026, dans
+# donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv (26 séances, « PROVISOIRE, À DÉCIDER PAR JEAN-LUC », posé par
+# l'agent TRI le 11-11-2026) ; il est désormais CALCULÉ (`recul_maximum`). Le fichier n'est plus lu ; il n'est ni effacé
+# ni déplacé ici (rien ne se supprime sans validation).
+DECISION_DU_RECUL = ("A-1100, Jean-Luc, 27-11-2026 à 19h29, « 1 » : le recul est calculé = le délai le plus long de la "
+                     "liste des versions + 1 (la séance d'achat)")
 
 
-def lire_le_recul_maximum(base):
-    """Lit, dans un fichier de réglages, de combien de séances la fin calculée peut au plus reculer.
+def recul_maximum(horizon_max):
+    """Rend de combien de séances, au plus, la fin calculée peut reculer : le délai chiffré le plus long + 1.
 
-    ① RÔLE — Remettre la protection que le refus « pas assez de cours » donnait avant le 11-11-2026 (un horizon
-      absurde, 250 au lieu de 25, faisait refuser), sans écrire de seuil dans le code (R-743 ②).
+    ① RÔLE — Borner le recul de la fin calculée par un chiffre CALCULÉ sur la liste des versions, jamais écrit à la
+      main (A-1100).
     ② CONTEXTE D'APPEL — `main`, une fois, juste après le calcul de la fin ; les épreuves, par import.
-    ③ ENTRÉE — `base` : la racine du dépôt.
-    ④ CONDITIONS D'ENTRÉE — `RECUL_MAXIMUM` existe sous la racine, en-tête « reglage, valeur, unite, statut, source »,
-      une seule ligne, réglage `recul_maximum`, valeur entière positive ou nulle, unité `seances`, statut non vide.
-    ⑤ SORTIE — TROIS valeurs : le recul maximum en séances ; son statut (« PROVISOIRE, À DÉCIDER PAR JEAN-LUC » tant
-      que Jean-Luc n'a pas décidé) ; sa source.
-      [rend: 3]
-    ⑥ TRAITEMENT — ① lire le fichier · ② contrôler l'en-tête, la ligne unique, le nom, l'unité, l'entier, le statut.
-    ⑦ UNITÉ — Des séances (dates de cours distinctes des valeurs jouées).
-    ⑧ POURQUOI — Relecteur neuf du 11-11-2026, D6 : sans plafond, une faute de frappe sur l'horizon, ou une seule
-      valeur dont les cours s'arrêtent tôt, ramenait la fin de TOUTES les versions de plusieurs mois sans arrêt. Le
-      plafond est une décision de Jean-Luc (question 6 de la note de la mission TRI) : la valeur du fichier est
-      provisoire et le dit.
-    ⑨ CE QUI CLOCHE — Le fichier ne vit pas au REGISTRE : c'est un réglage provisoire ; s'il devient une règle, il
-      s'y écrira et ce fichier sera lu de là.
-    ⑩ EFFET — Lit un fichier.
-    ⑪ TERMINAISON — Rend la main ; lève ValueError si le fichier manque ou est mal écrit.
+    ③ ENTRÉE — `horizon_max` : le délai (durée) CHIFFRÉ le plus long des versions de la combinatoire, en séances,
+      tel que `main` le calcule (`h_max`) : les versions « sans délai » (horizon AUCUNE, A-645) n'y comptent pas ;
+      0 quand aucune version n'a de délai chiffré. Exemple réel : la combinatoire d'IND-001-RETEST E01 (délais de 3 à
+      25 séances, décision du 08-10-2026) → 25.
+    ④ CONDITIONS D'ENTRÉE — `horizon_max` est un entier positif ou nul.
+    ⑤ SORTIE — UNE valeur : le recul maximum, en séances (exemple réel : 25 → 26, la valeur que le fichier provisoire
+      portait).
+      [rend: 1]
+    ⑥ TRAITEMENT — `horizon_max + 1`.
+    ⑦ UNITÉ — Des séances (dates de cours distinctes des valeurs jouées, comme `recul_en_seances`).
+    ⑧ POURQUOI — Décision de Jean-Luc du 27-11-2026 à 19h29 (A-1100, « 1 ») : « un chiffre qui se calcule ne s'écrit
+      pas à la main » (R-728) ; 26 = 25 (délai le plus long, décision du 08-10-2026) + 1 (la séance d'achat). La fin
+      calculée recule normalement d'au plus ce nombre de séances quand le fichier de cours s'arrête à la fin de la
+      fiche ; au-delà, c'est qu'une valeur s'arrête tôt (sortie de la cote, trou) : `main` refuse en la nommant
+      (relecteur neuf du 11-11-2026, D6).
+    ⑨ CE QUI CLOCHE — ① La protection « un horizon absurde (250 au lieu de 25) fait refuser » que donnait le chiffre
+      fixe DISPARAÎT : le recul permis grandit avec le délai le plus long ; un délai faux ne se voit plus qu'au contrôle
+      des réglages validés par Jean-Luc (⓪). ② « + 1 » est aussi le besoin de `fin_utilisable` (`besoin = horizon_max
+      + 1`) : deux écritures de la même séance d'achat, non reliées (la ligne de `fin_utilisable` est l'ancre d'un
+      sabotage de tests/EPREUVES_DU_TRI_ET_DE_LA_FIN_CALCULEE_Mer_11-11-2026.py, J6). ③ Les positions des versions
+      « sans délai » encore ouvertes à la fin des données ne sont pas traitées ici (lot L2 du plan R505).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
       [sort: non]
     """
-    chemin = os.path.join(base, RECUL_MAXIMUM)
-    if not os.path.isfile(chemin):
-        raise ValueError("réglage introuvable : %s (le recul maximum de la fin ne peut pas être contrôlé)"
-                         % RECUL_MAXIMUM)
-    lecteur = csv.DictReader(open(chemin, encoding="utf-8-sig"))
-    lignes = list(lecteur)
-    if lecteur.fieldnames != ["reglage", "valeur", "unite", "statut", "source"] or len(lignes) != 1:
-        raise ValueError("%s : il faut l'en-tête « reglage, valeur, unite, statut, source » et une seule ligne"
-                         % RECUL_MAXIMUM)
-    l = lignes[0]
-    v = (l["valeur"] or "").strip()
-    if l["reglage"].strip() != "recul_maximum" or l["unite"].strip() != "seances" or not v.isdigit() \
-            or not (l["statut"] or "").strip():
-        raise ValueError("%s : attendu « recul_maximum », un entier de séances et un statut ; lu %r" % (RECUL_MAXIMUM, l))
-    return int(v), l["statut"].strip(), (l["source"] or "").strip()
+    return horizon_max + 1
+
+
+def decaler_d_un_mois(date, sens):
+    """Rend la date décalée d'un mois de calendrier, vers l'avant (sens = +1) ou vers l'arrière (sens = -1).
+
+    ① RÔLE — Donner la tolérance « un mois » du contrôle de couverture (`couverture_des_cours`).
+    ② CONTEXTE D'APPEL — `couverture_des_cours`, deux fois ; les épreuves, par import.
+    ③ ENTRÉE — `date` : AAAA-MM-JJ ; `sens` : +1 ou -1. Exemple réel : (« 2000-01-03 », +1) → « 2000-02-03 ».
+    ④ CONDITIONS D'ENTRÉE — `date` est une date valide ; `sens` vaut +1 ou -1.
+    ⑤ SORTIE — UNE valeur : la date AAAA-MM-JJ ; le jour est ramené au dernier jour du mois quand il n'y existe pas
+      (« 2026-03-31 », -1 → « 2026-02-28 »).
+      [rend: 1]
+    ⑥ TRAITEMENT — mois ± 1, l'année suivant ; jour borné par `calendar.monthrange`.
+    ⑦ UNITÉ — Des dates de calendrier.
+    ⑧ POURQUOI — A-1076 ② : « écart d'un mois au plus » ; un mois de calendrier, pas un nombre de jours écrit ici.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ValueError sur une date illisible ou un sens autre que ±1.
+      [sort: non]
+    """
+    import calendar
+    if sens not in (1, -1):
+        raise ValueError("sens %r : +1 ou -1 seulement" % (sens,))
+    a, m, j = (int(x) for x in date.split("-"))
+    m += sens
+    a, m = (a + 1, 1) if m == 13 else (a - 1, 12) if m == 0 else (a, m)
+    return "%04d-%02d-%02d" % (a, m, min(j, calendar.monthrange(a, m)[1]))
+
+
+def couverture_des_cours(seances, bornes):
+    """Compare la période déclarée par la fiche à la période réellement couverte par les cours lus.
+
+    ① RÔLE — LE CONTRÔLE DE COUVERTURE (A-1076 ②) : refuser de jouer quand le fichier de cours lu ne couvre pas la
+      période que la fiche déclare.
+    ② CONTEXTE D'APPEL — `main`, une fois, juste après la lecture des cours et AVANT le calibrage par le juge (pour que
+      le juge ne joue même pas la fiche sur des cours qui ne la couvrent pas) ; les épreuves, par import.
+    ③ ENTRÉE — `seances` : l'ensemble des dates de séance des cours lus, toutes valeurs réunies (le calendrier que
+      `frontiere_de_la_fiche` reçoit) · `bornes` : (periode_debut, periode_fin) de la fiche, rendues par la porte 0 du
+      juge. Exemple réel : la fiche IND-001-RETEST déclare (« 2000-01-03 », « 2026-10-30 ») ; donnees/cours_maitre.csv
+      couvre du 2024-01-02 au 2026-11-26.
+    ④ CONDITIONS D'ENTRÉE — Les dates s'écrivent AAAA-MM-JJ.
+    ⑤ SORTIE — QUATRE valeurs : la première séance lue, la dernière (None, None si aucune), le nombre de séances lues
+      comprises dans les bornes, et le motif du refus (None si la couverture tient).
+      [rend: 4]
+    ⑥ TRAITEMENT — ① aucune séance → motif · ② première séance plus tard qu'un mois après periode_debut → motif ·
+      ③ dernière séance plus tôt qu'un mois avant periode_fin → motif · ④ compter les séances dans les bornes.
+    ⑦ UNITÉ — Des dates ; des séances.
+    ⑧ POURQUOI — A-1076 (découvert le 27-11-2026) : le 26-11-2026, IND-001-RETEST, qui déclarait 2000-01-03 →
+      2026-10-30, a été joué sur donnees/cours_maitre.csv (742 séances, 2024-01-02 → 2026-11-25) SANS ALERTE ; ses
+      « 70 % » allaient de janvier 2024 à décembre 2025. La loi R-505 version 2, étape 3, « CONTRÔLE AJOUTÉ » : « à
+      chaque lancement, elle vérifie qu'elle a bien lu les 20 ans (période et nombre de séances réellement lus) ;
+      sinon elle refuse de jouer ».
+    ⑨ CE QUI CLOCHE — ① Seuls les DEUX BOUTS sont contrôlés : un trou de plusieurs années au milieu du fichier passe ·
+      ② le calendrier réunit toutes les valeurs : une valeur de l'univers dont les cours commencent tard n'est pas
+      refusée ici (c'est voulu : une valeur entrée tard dans l'indice, I-8) · ③ le mois de tolérance vient d'A-1076 ;
+      l'interpréter comme un mois de calendrier est un choix de l'écrivain (lot L1 du 27-11-2026).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ValueError sur une borne illisible (`decaler_d_un_mois`).
+      [sort: non]
+    """
+    if not seances:
+        return None, None, 0, "aucune séance dans le fichier de cours lu"
+    premiere, derniere = min(seances), max(seances)
+    dedans = sum(1 for d in seances if bornes[0] <= d <= bornes[1])
+    motifs = []
+    if premiere > decaler_d_un_mois(bornes[0], 1):
+        motifs.append("la fiche commence le %s, les cours lus le %s" % (bornes[0], premiere))
+    if derniere < decaler_d_un_mois(bornes[1], -1):
+        motifs.append("la fiche finit le %s, les cours lus le %s" % (bornes[1], derniere))
+    return premiere, derniere, dedans, (" ; ".join(motifs) + " — écart de plus d'un mois (A-1076)") if motifs else None
+
+
+def fiche_couvre_le_fichier(seances, bornes):
+    """Dit si la période déclarée par la fiche couvre tout le fichier de cours lu (« les 20 ans »), à un mois près.
+
+    ① RÔLE — Le sens inverse de `couverture_des_cours` : en chaîne « 20 ans », une fiche qui ne déclare pas les 20 ans
+      est refusée (V1-1 de la relecture neuve du lot L1, 27-11-2026 ; R-505 v2, étape 3, « CONTRÔLE AJOUTÉ » : « elle
+      vérifie qu'elle a bien lu les 20 ans […] sinon elle refuse de jouer »).
+    ② CONTEXTE D'APPEL — `main`, une fois, quand le fichier lu est celui des 20 ans (`COURS_DES_VINGT_ANS` de
+      PREPARER_LA_MOULINETTE_D_ESSAI, la seule écriture du nom) ; les épreuves, par import.
+    ③ ENTRÉE — `seances` : les dates de séance des cours lus · `bornes` : (periode_debut, periode_fin) de la fiche.
+    ④ CONDITIONS D'ENTRÉE — Les dates s'écrivent AAAA-MM-JJ.
+    ⑤ SORTIE — UNE valeur : le motif du refus, ou None si la fiche couvre le fichier.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① aucune séance → motif · ② début de la fiche plus tard qu'un mois après la première séance lue →
+      motif · ③ fin de la fiche plus tôt qu'un mois avant la dernière séance lue → motif.
+    ⑦ UNITÉ — Des dates.
+    ⑧ POURQUOI — Mesure du relecteur (V1-1) : une fiche déclarée 2024-01-02 → 2026-10-30, lancée par la chaîne « 20 ans »,
+      était jouée sur 739 séances sans refus — A-1076 déplacé du « mauvais fichier » à la « mauvaise fiche ». Seule
+      exception : le mode « 2024 et après » (A-952, le fichier maître), qui ne sert jamais à un jugement ; il ne lit pas
+      ce fichier et n'entre pas ici.
+    ⑨ CE QUI CLOCHE — ① Le témoin des 20 ans s'arrête au 2026-11-11 (V1-2) : une fiche qui finit plus d'un mois
+      avant n'est pas concernée, mais une fiche qui finit après le 2026-12-11 est refusée par `couverture_des_cours`.
+      ② Le mois de tolérance reprend celui d'A-1076 (choix de l'écrivain du lot L1, mois de calendrier).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ValueError sur une borne illisible (`decaler_d_un_mois`).
+      [sort: non]
+    """
+    if not seances:
+        return "aucune séance dans le fichier de cours lu"
+    premiere, derniere = min(seances), max(seances)
+    motifs = []
+    if bornes[0] > decaler_d_un_mois(premiere, 1):
+        motifs.append("la fiche commence le %s, les 20 ans le %s" % (bornes[0], premiere))
+    if bornes[1] < decaler_d_un_mois(derniere, -1):
+        motifs.append("la fiche finit le %s, les 20 ans le %s" % (bornes[1], derniere))
+    return (" ; ".join(motifs) + " — la fiche ne déclare pas les 20 ans (R-505 v2, étape 3)") if motifs else None
 
 
 def recul_en_seances(dates_par_valeur, fin, fin_de_la_fiche):
     """Compte de combien de séances la fin calculée recule par rapport à celle de la fiche.
 
-    ① RÔLE — Mesurer le recul que `lire_le_recul_maximum` borne.
+    ① RÔLE — Mesurer le recul que `recul_maximum` borne (A-1100).
     ② CONTEXTE D'APPEL — `main`, une fois ; les épreuves, par import.
     ③ ENTRÉE — `dates_par_valeur` : {valeur : dates triées} des valeurs jouées · `fin` : la fin calculée ·
       `fin_de_la_fiche` : la fin écrite dans la fiche.
@@ -452,7 +603,9 @@ def partie_de_reglage(mod_jug, ops, seances_de_la_fiche, horizon, frontiere):
       [rend: 2]
     ⑥ TRAITEMENT — ① appeler `coupure_70_30` du module de jugement, avec l'horizon de la version et la frontière
       reçue · ② refuser une coupure qui ne reconnaît aucune date · ③ refuser une coupure qui a coupé à une AUTRE
-      séance que la frontière reçue, celle que `main` écrit dans le fichier (relecteur, tour 3, M1) · ④ rendre son
+      séance que la frontière reçue, celle que `main` écrit dans le fichier (relecteur, tour 3, M1) · ③bis refuser
+      toute opération rangée dans les 30 % ou dans la bande (depuis le 27-11-2026, A-1078 : la moulinette ne lit que
+      les 70 % moins la bande ; une telle opération prouverait une séance interdite lue) · ④ rendre son
       embargo et son résumé « res_70 ».
     ⑦ UNITÉ — Dates ; séances ; euros et pourcents dans le résumé.
     ⑧ POURQUOI — Relecteur neuf du 11-11-2026, D1 MAJEUR : le tri choisissait sur la période entière, 30 % réservés
@@ -467,8 +620,8 @@ def partie_de_reglage(mod_jug, ops, seances_de_la_fiche, horizon, frontiere):
       juge, et c'est voulu (la fin ne touche que les 30 %). ② Sans opération, `coupure_70_30` ne rend pas
       d'embargo : la case reste vide.
     ⑩ EFFET — Aucun.
-    ⑪ TERMINAISON — Rend la main ; lève ValueError si aucune date de signal n'est reconnue au calendrier, ou si la
-      coupe réelle n'est pas la frontière reçue.
+    ⑪ TERMINAISON — Rend la main ; lève ValueError si aucune date de signal n'est reconnue au calendrier, si la
+      coupe réelle n'est pas la frontière reçue, ou si une opération tombe dans la bande ou dans les 30 %.
       [sort: non]
     """
     c = mod_jug.coupure_70_30(ops, seances_de_la_fiche, horizon=horizon, frontiere=frontiere)
@@ -477,6 +630,13 @@ def partie_de_reglage(mod_jug, ops, seances_de_la_fiche, horizon, frontiere):
     if ops and c.get("frontiere") != frontiere:
         raise ValueError("la coupure a coupé au %s, la frontière écrite est le %s : rien n'est écrit"
                          % (c.get("frontiere"), frontiere))
+    # LE GARDE-FOU DE LA PARTIE DE RÉGLAGE (27-11-2026, lot L1-CORR ; A-1078) : `main` ne donne au jeu que les cours des
+    # 70 % moins la bande ; une opération que la coupure range dans la bande ou dans les 30 % prouve qu'une séance
+    # interdite a été lue. Rien n'est écrit.
+    if c.get("n_30") or c.get("n_ecartes"):
+        raise ValueError("%d opération(s) dans les 30 %% et %d dans la bande retirée : la moulinette ne joue que les 70 %% "
+                         "moins la bande (R-505 v2, étape 3 ; A-1078) — rien n'est écrit"
+                         % (c.get("n_30", 0), c.get("n_ecartes", 0)))
     return c.get("embargo_seances"), c.get("res_70", {"n": 0})
 
 
@@ -552,7 +712,7 @@ def fin_utilisable(dates_par_valeur, debut, fin_de_la_fiche, horizon_max):
       La fin de la fiche n'est jamais dépassée : la fiche dit jusqu'où on a le droit de regarder.
     ⑨ CE QUI CLOCHE — ① Les séances comptées sont celles du fichier de cours, trous exclus ; une valeur
       suspendue longtemps à la fin compterait moins de jours de calendrier. ② Cette fonction ne borne pas le recul :
-      `main` le borne ensuite par `lire_le_recul_maximum` (réglage provisoire, relecteur neuf du
+      `main` le borne ensuite par `recul_maximum` (calculé, A-1100 ; relecteur neuf du
       11-11-2026, D6) et refuse au-delà en nommant la valeur qui limite.
       ③ La fin dépend des valeurs jouées : une valeur sortie de la cote tôt ramène la fin de tous.
     ⑩ EFFET — Aucun.
@@ -766,7 +926,7 @@ def refus_des_versions(contrat, J, mod_pos, base, fiche, versions):
     return refus
 
 
-def calibrer_par_le_juge(base, ident, cours=None, essai=False):
+def calibrer_par_le_juge(base, ident, cours=None, essai=False, partie=None):
     """Lance le juge seul sur la fiche et lit son verdict.
 
     ① RÔLE — Prouver que l'instrument retrouve les chiffres de référence avant de
@@ -775,7 +935,9 @@ def calibrer_par_le_juge(base, ident, cours=None, essai=False):
     ③ ENTRÉE — `base` : la racine du dépôt · `ident` : l'identifiant de la fiche · `cours` : le
       fichier de cours de `--cours=`, relatif à la racine, ou None pour le fichier maître · `essai` : vrai sous
       l'option « --essai-sans-regard » (A-863), qui est alors passée au juge ; ses lignes, toutes marquées, sont
-      lues privées de la marque.
+      lues privées de la marque · `partie` : (dernière séance lue, fin des achats) de la partie de réglage, passées au
+      juge par CONTRATS.OPTION_DE_LA_PARTIE_DE_REGLAGE (27-11-2026, A-1078) : le juge coupe les cours, joue la fiche
+      jusqu'à la fin donnée et NE JUGE PAS ; None : l'appel d'avant (plus aucun appelant de ce fichier).
     ④ CONDITIONS D'ENTRÉE — Le juge est dans `programmes/` sous la racine.
     ⑤ SORTIE — DEUX valeurs : vrai si le juge est calibré et rend 0 ; la ligne de
       résultat qu'il affiche pour la fiche, ou None.
@@ -805,6 +967,9 @@ def calibrer_par_le_juge(base, ident, cours=None, essai=False):
     if essai:
         import CONTRATS_DES_FICHIERS as _CE
         commande.append(_CE.OPTION_D_ESSAI_SANS_REGARD)
+    if partie is not None:   # la partie de réglage seule (A-1078) : rien de la bande ni des 30 % n'est lu ni affiché
+        import CONTRATS_DES_FICHIERS as _CP
+        commande.append("%s%s,%s" % (_CP.OPTION_DE_LA_PARTIE_DE_REGLAGE, partie[0], partie[1]))
     p = subprocess.run(commande, capture_output=True, text=True)
     sortie = p.stdout + p.stderr
     if essai:   # la marque de chaque ligne du juge (A-863) ôtée pour lire sa ligne de résultat comme d'habitude
@@ -851,7 +1016,7 @@ def bareme_du_temoin(f_comb, sid, essai):
     return vals.pop()
 
 
-def comparer_au_temoin(f_comb, sid, essai, f_resultats, ids=None, chiffres=True):
+def comparer_au_temoin(f_comb, sid, essai, f_resultats, ids=None, chiffres=True, periode=None):
     """Compare les résultats d'un lancement au témoin de résultats, s'il existe.
 
     ① RÔLE — Protéger les réglages que le calibrage du juge ne touche pas : il ne
@@ -863,13 +1028,17 @@ def comparer_au_temoin(f_comb, sid, essai, f_resultats, ids=None, chiffres=True)
       versions ont été rejouées sous le barème du témoin · `ids` : sous --tranche, les
       versions jouées (le témoin est filtré sur elles), None sinon · `chiffres` : faux
       pour ne comparer que les identifiants (`assembler`, sous un autre barème que le
-      témoin, A-919).
+      témoin, A-919) · `periode` : (début, fin) jouée, pour les lignes qui ne la portent pas (le dictionnaire du barème
+      du témoin), None sinon (27-11-2026).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : la liste des écarts, vide si tout concorde ou s'il
       n'y a pas de témoin.
       [rend: 1]
     ⑥ TRAITEMENT — ① chercher `TEMOIN_RESULTATS_<STRATÉGIE>_<ESSAI>.csv` à côté
       de la combinatoire · ② absent : l'annoncer et rendre une liste vide ·
+      ②bis présent mais fait sur une autre période (`periode_debut`, `periode_fin`) que celle jouée : un seul écart
+      « TÉMOIN NON COMPARABLE », et aucun chiffre comparé (27-11-2026, A-1078 : le témoin de C5E10-OBS-V1 porte la
+      période entière, la moulinette ne joue plus que les 70 % moins la bande) ·
       ③ présent : comparer, version par version, opérations, réussite exacte et
       gain net, et signaler toute version manquante ou en trop.
     ⑦ UNITÉ — Euros ; pourcents.
@@ -901,6 +1070,23 @@ def comparer_au_temoin(f_comb, sid, essai, f_resultats, ids=None, chiffres=True)
         {r["id_version"]: r for r in csv.DictReader(open(f_resultats, encoding="utf-8"))}
     ecarts = ["%s absente du témoin" % k for k in sorted(set(res) - set(tem))]
     ecarts += ["%s absente des résultats" % k for k in sorted(set(tem) - set(res))]
+    # LA PÉRIODE D'ABORD (27-11-2026, lot L1-CORR ; A-1078) : un témoin fait sur une autre période que celle jouée n'est
+    # pas comparable — celui de C5E10-OBS-V1 (08-10-2026) porte la période ENTIÈRE de la fiche, la moulinette ne joue plus
+    # que les 70 % moins la bande. Comparer ses chiffres aux nouveaux ferait croire à des milliers d'écarts de calcul :
+    # l'écart dit la vraie raison, et rien n'est écrit (le témoin est à refaire sur la partie de réglage).
+    non_comparables = []
+    for k in sorted(set(res) & set(tem)):
+        p_res = (res[k].get("periode_debut"), res[k].get("periode_fin")) if res[k].get("periode_fin") else periode
+        p_tem = (tem[k].get("periode_debut"), tem[k].get("periode_fin"))
+        if p_tem[1] and p_res and tuple(p_res) != p_tem:
+            non_comparables.append((k, p_tem, tuple(p_res)))
+    if non_comparables:
+        k, p_tem, p_res = non_comparables[0]
+        ecarts.append("TÉMOIN NON COMPARABLE : %d version(s) du témoin jouées sur une autre période (ex. %s : témoin %s -> "
+                      "%s, jouée %s -> %s) — la moulinette ne joue que les 70 %% moins la bande (A-1078) : témoin à "
+                      "refaire sur la partie de réglage" % (len(non_comparables), k, p_tem[0], p_tem[1], p_res[0],
+                                                            p_res[1]))
+        chiffres = False
     for k in sorted(set(res) & set(tem)) if chiffres else ():    # chiffres=False : les identifiants seuls (A-919)
         for c in champs:
             if res[k].get(c) != tem[k].get(c):
@@ -1063,18 +1249,13 @@ def main():
                        % (len(refus_des_v), " ‖ ".join(refus_des_v[:5]), " ‖ …" if len(refus_des_v) > 5 else ""))
     print("CONTRAT DE STRATÉGIE : la fiche et les %d versions le suivent" % len(versions))
 
-    ok, ligne_juge = (calibrer_par_le_juge(base, sid, autre_cours) if jeton is None
-                      else calibrer_par_le_juge(base, sid, autre_cours, essai=True))
-    print("CALIBRAGE PAR LE JUGE SEUL : %s" % ("OK" if ok else "ÉCHEC"))
-    if not ok or not ligne_juge:
-        return arreter("le juge des stratégies ne se calibre pas, ou n'a pas joué la fiche")
-    print("  le juge affiche : %s" % ligne_juge)
-
     mnemo = J.table_mnemoniques(J.trouver(base, "REFERENTIEL_VALEURS"))
     # LES COURS PASSENT PAR LE LECTEUR UNIQUE, COMME DANS `main` DU JUGE (A-577, étape 1, 27-10-2026) : ce
     # programme se compare au juge, il lit donc comme lui — sinon le juge affiche 89 opérations et ce
     # programme 100 sur la même fiche (C5E10-OBS-V1, mesuré le 27-10-2026). Deux lectures divergent (R-708).
     # `--cours=` : le fichier nommé, relatif à la racine, comme le juge (plan V7, bloc 5l ⑤) ; sinon le maître.
+    # LUS AVANT LE CALIBRAGE depuis le 27-11-2026 (A-1076, lot L1) : le contrôle de couverture refuse AVANT que le juge
+    # ne joue la fiche sur des cours qui ne couvrent pas sa période.
     f_cours_rel = (os.path.relpath(os.path.join(base, autre_cours), base) if autre_cours is not None
                    else os.path.relpath(J.fichiers_de_cours(base)[0], base))
     try:   # le juge refuse lui-même une lecture qui a écarté des lignes (`lire_par_le_lecteur`, 27-10-2026)
@@ -1083,121 +1264,104 @@ def main():
         if not str(e).startswith("le lecteur unique"):
             raise
         return arreter(str(e))
-    # LE SIGNAL N'EST PLUS CHARGÉ ICI (A-542, 30-10-2026) : chaque fiche jouée le nomme, `jouer_une` le lit par
-    # `signal_de_la_fiche` du juge, la seule lecture (R-708). LE MODULE DE POSITIONS, LA FICHE ET LE CONTRAT sont
-    # chargés et contrôlés AVANT le calibrage depuis le 20-11-2026 (plus haut).
+    # LE CONTRÔLE DE COUVERTURE (A-1076 ② ; R-505 v2, étape 3, « CONTRÔLE AJOUTÉ ») : la période déclarée par la fiche
+    # contre la période réellement lue ; affiché à CHAQUE lancement, refus au-delà d'un mois d'écart.
+    seances_lues = {b["date"] for s_ in cours.values() for b in s_}
+    ok_c, _manq_c, bornes_c = J.porte_0(dict(fiche))
+    if ok_c:   # sinon la porte 0 refuse plus bas, avant tout jeu, en nommant ce qui manque
+        prem_c, dern_c, dedans_c, refus_c = couverture_des_cours(seances_lues, bornes_c)
+        print("COURS LUS : %s · %s -> %s · %d séance(s) lues, dont %d dans la période de la fiche %s -> %s"
+              % (f_cours_rel, prem_c, dern_c, len(seances_lues), dedans_c, bornes_c[0], bornes_c[1]))
+        if refus_c:
+            return arreter("COUVERTURE DES COURS INSUFFISANTE : %s ; le fichier %s ne couvre pas la période déclarée "
+                           "par la fiche %s. Rien n'est joué." % (refus_c, f_cours_rel, sid))
+        # EN CHAÎNE « 20 ANS », LA FICHE DOIT DÉCLARER LES 20 ANS (V1-1, 27-11-2026) : le nom du fichier des 20 ans vit
+        # dans PREPARER_LA_MOULINETTE_D_ESSAI (`COURS_DES_VINGT_ANS`, lu aussi par l'enchaîneur), jamais recopié ici.
+        import PREPARER_LA_MOULINETTE_D_ESSAI as _PM
+        if os.path.normpath(f_cours_rel) == os.path.normpath(_PM.COURS_DES_VINGT_ANS):
+            refus_v = fiche_couvre_le_fichier(seances_lues, bornes_c)
+            if refus_v:
+                return arreter("FICHE QUI NE COUVRE PAS LES 20 ANS : %s ; fiche %s. Rien n'est joué." % (refus_v, sid))
 
-    def jouer_une(f, bareme=None, ops_rendues=None, periode=None):
-        """Fait passer une fiche par la porte 0 puis la joue.
-
-        ① RÔLE — Un seul chemin de jeu pour la fiche, la version identique et
-          toutes les versions.
-        ② CONTEXTE D'APPEL — `main`, une fois par fiche à jouer.
-        ③ ENTRÉE — `f` : une fiche, d'origine ou fusionnée · `bareme` : None pour le
-          barème des trades vécus, sinon le nom d'un barème (celui du témoin, C15) ·
-          `ops_rendues` : une liste où recopier les opérations jouées, ou None · `periode` : les bornes à
-          jouer, ou None pour celles de la fiche (la fin calculée, bloc 5g, arrive par là).
-        ④ CONDITIONS D'ENTRÉE — Les cours, le référentiel et les deux modules sont
-          chargés par `main`.
-        ⑤ SORTIE — DEUX valeurs : le résumé rendu par `resumer` du juge ; les bornes
-          de la période rendues par la porte 0 (celles de la fiche, même quand `periode`
-          en impose d'autres : `main` compare ces bornes d'une version à l'autre).
-          [rend: 2]
-        ⑥ TRAITEMENT — ① porte 0 · ② lire le signal que la fiche nomme, par
-          `signal_de_la_fiche` du juge (A-542) · ③ `jouer` sur `periode`, ou à défaut
-          sur la période de la fiche, avec CE signal · ④ refuser une valeur absente
-          des cours · ⑤ résumer.
-        ⑦ UNITÉ — Euros ; pourcents ; dates AAAA-MM-JJ.
-        ⑧ POURQUOI — Le même appel que `main` du juge, ligne `ops, inconnus = jouer(...)`.
-        ⑨ CE QUI CLOCHE — Rien vu.
-        ⑩ EFFET — Aucun sur la fiche reçue. Charge le module de signal nommé au
-          premier appel (le juge le garde ensuite en mémoire).
-        ⑪ TERMINAISON — Rend la main, ou lève ValueError sur un refus — porte 0, ou
-          signal nommé introuvable.
-          [sort: non]
-        ⑫ DÉFINITIONS
-          la porte 0 : la fonction `porte_0` du juge, qui refuse une fiche incomplète.
-        """
-        ok0, manq, bornes = J.porte_0(f)
-        if not ok0:
-            raise ValueError("la porte 0 refuse : %s" % manq)
-        mod_sig = J.signal_de_la_fiche(base, f)   # le signal que la fiche nomme, lu à un seul endroit (A-542)
-        a_jouer = periode if periode is not None else bornes
-        # REGARD UNIQUE (R-505 ③, mission REGARD du 12-11-2026) : aucune inscription ici, donc aucun reçu — une version
-        # jouée dans la fenêtre du regard unique est REFUSÉE par `jouer` (RegardNonInscrit). Pas 7 (GitHub), hors mission.
-        # ESSAI DÉCLARÉ (A-863) : le jeton tient lieu de reçu ; None hors essai, comme avant.
-        _recu = {} if jeton is None else {"recu": jeton}   # sans essai, l'appel d'avant, à l'identique
-        if bareme is None:
-            ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=a_jouer, lecture=lecture, **_recu)
-        else:
-            ops, inconnus = J.jouer(f, cours, mnemo, mod_sig, mod_pos, periode=a_jouer, lecture=lecture,
-                                    bareme=bareme, **_recu)
-        if ops_rendues is not None:
-            ops_rendues.extend(ops)
-        if inconnus:
-            raise ValueError("valeurs absentes des cours : %s" % inconnus)
-        return J.resumer(ops), bornes
-
-    ref, bornes = jouer_une(dict(fiche))
-    if ref["n"] == 0:
-        return arreter("la fiche elle-même ne produit aucune opération")
-    texte_ref = "{} operations . {} % de reussite . {:+,.2f} EUR".format(ref["n"], ref["wr"], ref["net"])
-    print("  ce programme : %s" % texte_ref)
-    if texte_ref != ligne_juge:
-        return arreter("ce programme et le juge seul ne rendent pas la même chose pour la fiche")
-    r_id, _ = jouer_une(fusionner(fiche, ident_v[0]))
-    if (r_id["n"], r_id.get("wr_exact"), r_id.get("net")) != (ref["n"], ref["wr_exact"], ref["net"]):
-        if jeton is not None:   # sous l'option d'essai, refus en 2 comme les autres refus d'essai (M5)
-            print("ARRÊT (essai refusé) : la version %s, identique à la fiche, ne retrouve pas la fiche"
-                  % ident_v[0]["id_version"])
-            return 2
-        return arreter("la version %s, identique à la fiche, ne retrouve pas la fiche"
-                       % ident_v[0]["id_version"])
-    print("  version identique %s : même résultat" % ident_v[0]["id_version"])
-
-    # LA FIN DE LA PÉRIODE JOUÉE SE CALCULE (plan V7, bloc 5g, complément du 11-11-2026 à 20h17) : la plus tardive
-    # qui laisse à chaque valeur l'horizon CHIFFRÉ le plus long plus la séance d'achat, sans dépasser la fiche. La
-    # fiche n'est pas modifiée ; la fin calculée vit dans la colonne `periode_fin` des résultats.
-    # LA DURÉE « AUCUNE » (A-645, mission VENTE du 11-11-2026) N'A PAS D'ÉCHÉANCE : aucune fin calculée ne protège
-    # une position ouverte en fin de période. `vendre` la rend à la dernière clôture connue sous le motif
-    # FIN_DES_DONNEES, et `resumer` du juge la met À PART, hors du total (décision de Jean-Luc du 12-11-2026 à
-    # 09h18) ; elle s'écrit dans les colonnes « à part » des résultats. La fin se calcule sur les durées chiffrées ;
-    # le cas « aucune » est DIT ici. Sans aucune durée chiffrée, le besoin est la seule séance d'achat (h_max = 0).
-    # UN HORIZON ILLISIBLE (« 0 », « abc ») N'EST PAS ARRÊTÉ ICI : `controler_fusion` l'arrête version par version,
-    # avec son motif « horizon lu … » (cas de l'épreuve de la moulinette, 20-10-2026) ; il ne compte pas dans la fin.
+    # ═══ LA PARTIE DE RÉGLAGE, AVANT LE CALIBRAGE ET AVANT TOUT JEU (27-11-2026, lot L1-CORR du plan R505) ═══
+    # R-505 v2, étape 3, validée par Jean-Luc le 27-11-2026 à 16h24 (« 1 », A-1078) : « la moulinette joue toutes les
+    # versions déclarées sur les 70 % les plus anciens » ; n°42 (31-10-2026 à 19h46) : les années d'examen ne se
+    # regardent qu'UNE fois ; A-1063 : une stratégie ne se prouve jamais sur les années qui ont servi à la régler.
+    # RELU de Cowork sur lot-r505-L1 (défaut L1-2) : ce programme jouait chaque version sur TOUTE la période de la fiche
+    # et écrivait son gain des 30 %. Désormais : ① la frontière 70/30 se calcule sur les cours LUS EN ENTIER
+    # (`frontiere_de_la_fiche`, la seule fonction qui l'établit) · ② la dernière séance LUE est celle que garde la coupure
+    # avant sa bande, pour l'horizon chiffré le plus long de la combinatoire (`fin_de_la_partie_de_reglage`, qui demande
+    # à `coupure_70_30` ; la bande d'une version plus courte est plus étroite : lire jusqu'à la plus large ne lit jamais
+    # la bande d'aucune) · ③ les cours sont COUPÉS à cette séance avant tout jeu, calibrage du juge compris · ④ la fin des
+    # achats recule ensuite de l'horizon le plus long + 1 (A-1100), comme avant, mais depuis cette séance.
     import COMMUN
     _durees = [COMMUN.lire_horizon_ou_aucune(v["horizon"]) for v in versions]
     _aucunes = sum(1 for d in _durees if d is COMMUN.HORIZON_AUCUNE)
     _chiffrees = [d for d in _durees if d is not COMMUN.HORIZON_AUCUNE and d is not None]
+    if not ok_c:
+        return arreter("la porte 0 refuse : %s" % _manq_c)
+    bornes = bornes_c
+    h_fiche = COMMUN.lire_horizon_ou_aucune(fiche.get("horizon"))
+    if h_fiche is COMMUN.HORIZON_AUCUNE or not _chiffrees:
+        # LA VERSION « SANS DÉLAI » N'A PAS DE BANDE (R-505 v2 ⑥ : « NON TRANCHÉ » ; A-764) : la fiche elle-même, si elle
+        # est sans délai, ne peut ni se calibrer ni se jouer sur les 70 % sans une largeur inventée.
+        return arreter("la fiche %s%s : la largeur de la bande retirée d'une version « sans délai » n'est pas tranchée "
+                       "(R-505 v2, étape 3 ⑥ ; A-764) — contrôle INCONNU, rien n'est joué"
+                       % (sid, " est sans délai" if h_fiche is COMMUN.HORIZON_AUCUNE else " : aucune version chiffrée"))
+    h_max = max(_chiffrees)
     if _aucunes:
-        print("DURÉE « AUCUNE » : %d version(s) ; une position encore ouverte à la fin des cours est mise À PART, hors du"
-              " total (motif FIN_DES_DONNEES, décision de Jean-Luc du 12-11-2026 à 09h18)" % _aucunes)
-    h_max = max(_chiffrees) if _chiffrees else 0
-    dates = {}
+        print("DURÉE « AUCUNE » : %d version(s) REFUSÉE(S), jamais jouée(s) : la largeur de la bande retirée d'une version "
+              "« sans délai » n'est pas tranchée (R-505 v2, étape 3 ⑥ ; A-764) — contrôle INCONNU ; leurs lignes sont "
+              "écrites sans aucun chiffre, et le tri les écarte comme NON MESURABLES" % _aucunes)
+    mod_jug = J.charger_module(J.trouver(base, "MODULE_JUGEMENT.py"), "jug")
+    # `seances_lues` : le calendrier des cours lus EN ENTIER, établi une fois, juste après la lecture (couverture).
+    frontiere = mod_jug.frontiere_de_la_fiche(fiche, seances_lues, bornes)
+    if frontiere is None:
+        return arreter("aucune séance des cours lus dans les bornes de la fiche : pas de frontière 70/30")
+    seances_fiche = {d for d in seances_lues if bornes[0] <= d <= bornes[1]}
+    derniere, largeur = mod_jug.fin_de_la_partie_de_reglage(seances_fiche, h_max, frontiere)
+    if derniere is None:
+        return arreter("aucune séance des 70 %% ne reste avant la bande retirée (%d séances avant la frontière %s)"
+                       % (largeur, frontiere))
+    cours_du_jeu = {v: [b for b in s_ if b["date"] <= derniere] for v, s_ in cours.items()}
+    print("PARTIE DE RÉGLAGE : frontière 70/30 %s · bande retirée de %d séances (horizon chiffré le plus long %d) · "
+          "cours lus jusqu'au %s, rien après : ni la bande ni les 30 %% ne sont lus (R-505 v2, étape 3 ; A-1078)"
+          % (frontiere, largeur, h_max, derniere))
+
+    # LA FIN DES ACHATS SE CALCULE DANS LES 70 % (plan V7, bloc 5g ; A-1100) : la plus tardive qui laisse à chaque valeur
+    # l'horizon CHIFFRÉ le plus long plus la séance d'achat AVANT la dernière séance lue. Une valeur sans aucune séance
+    # dans les 70 % (entrée en bourse plus tard) ne joue pas et ne ramène pas la fin : elle est dite.
+    # UN HORIZON ILLISIBLE (« 0 », « abc ») N'EST PAS ARRÊTÉ ICI : `controler_fusion` l'arrête version par version.
+    dates, sans_seance = {}, []
     for m in sorted({c for v in versions for c in codes(v["univers"])}):
         cle = mnemo.get(m, J.cle_valeur(m))
-        dates[m] = [b["date"] for b in cours.get(cle, [])]
-    fin, limite = fin_utilisable(dates, bornes[0], bornes[1], h_max)
+        ds = [b["date"] for b in cours_du_jeu.get(cle, [])]
+        if ds:
+            dates[m] = ds
+        elif cle in cours:
+            sans_seance.append(m)
+    if sans_seance:
+        print("VALEURS SANS AUCUNE SÉANCE DANS LES 70 %% : %s (elles ne jouent pas ; elles ne ramènent pas la fin)"
+              % ", ".join(sans_seance))
+    if not dates:
+        return arreter("aucune valeur de l'univers n'a de séance dans les 70 %")
+    fin, limite = fin_utilisable(dates, bornes[0], derniere, h_max)
     if fin is None:
         return arreter("pas assez de cours après la période pour %s et l'horizon %d" % (limite, h_max))
     periode_jouee = (bornes[0], fin)
-    try:
-        recul_max, statut_recul, _ = lire_le_recul_maximum(base)
-    except ValueError as e:
-        return arreter(str(e))
-    recul = recul_en_seances(dates, fin, bornes[1])
-    print("RECUL DE LA FIN : %d séance(s) · au plus %d (%s, %s)" % (recul, recul_max, statut_recul, RECUL_MAXIMUM))
+    recul_max = recul_maximum(h_max)   # CALCULÉ, plus lu dans un fichier (A-1100)
+    recul = recul_en_seances(dates, fin, derniere)
+    print("RECUL DE LA FIN : %d séance(s) · au plus %d (calculé : délai chiffré le plus long %d + 1 ; %s)"
+          % (recul, recul_max, h_max, DECISION_DU_RECUL))
     if recul > recul_max:
         # UNE SEULE VALEUR QUI S'ARRÊTE TÔT NE RAMÈNE PAS EN SILENCE LA FIN DE TOUTES LES VERSIONS (D6, 11-11-2026)
         return arreter("la fin calculée recule de %d séances (au plus %d) : ramenée au %s par %s et l'horizon %d ; "
                        "rien n'est joué" % (recul, recul_max, fin, limite, h_max))
-    print("PÉRIODE ÉCRITE DANS LA FICHE : %s -> %s · FIN CALCULÉE : %s%s" % (
-        bornes[0], bornes[1], fin, " (inchangée)" if limite is None else
-        " (ramenée par %s et l'horizon %d ; la fiche n'est pas modifiée)" % (limite, h_max)))
-    # LA MARGE SE COMPTE VALEUR PAR VALEUR, ET SE RECOMPTE APRÈS LE CALCUL : compter les séances de toutes les
-    # valeurs laissait passer un univers dont les cours s'arrêtaient trois séances après la période (relecture du
-    # 08-10-2026, défaut N3). Ce recompte est le garde-fou du calcul : il ne peut rougir que si `fin_utilisable` se
-    # trompe.
+    print("PÉRIODE ÉCRITE DANS LA FICHE : %s -> %s · FIN CALCULÉE : %s (fin des achats, dans les 70 %%, %s ; la fiche "
+          "n'est pas modifiée)" % (bornes[0], bornes[1], fin, "ramenée par %s et l'horizon %d" % (limite, h_max)
+                                   if limite is not None else "dernière séance lue"))
+    # LA MARGE SE COMPTE VALEUR PAR VALEUR, ET SE RECOMPTE APRÈS LE CALCUL (relecture du 08-10-2026, défaut N3) : ce
+    # recompte est le garde-fou du calcul ; il ne peut rougir que si `fin_utilisable` se trompe.
     marge = {m: sum(1 for d in ds if d > fin) for m, ds in dates.items()}
     plus_court = min(marge, key=marge.get)
     print("PÉRIODE JOUÉE : %s -> %s · cours : %s · marge la plus courte : %s, %d séances après la fin"
@@ -1206,25 +1370,105 @@ def main():
     if marge[plus_court] < h_max + 1:
         return arreter("pas assez de cours après la période pour %s et l'horizon %d"
                        % (plus_court, h_max))
-    # LA FICHE REJOUÉE SUR LA PÉRIODE CALCULÉE : la version identique doit la retrouver plus bas, sur cette période-là.
-    ref_jouee = ref if fin == bornes[1] else jouer_une(dict(fiche), periode=periode_jouee)[0]
-    if fin != bornes[1]:
-        # AUCUNE OPÉRATION EST UN RÉSULTAT, JAMAIS UN ARRÊT (D5, 11-11-2026) : `resumer` rend alors {"n": 0}, sans « wr ».
-        print("  la fiche sur la période jouée : %s" % ("aucune opération" if not ref_jouee["n"] else
-              "{} operations . {} % de reussite . {:+,.2f} EUR".format(ref_jouee["n"], ref_jouee["wr"],
-                                                                     ref_jouee["net"])))
-    # LA PARTIE DE RÉGLAGE (70 %) : coupée par le module de jugement, sur les séances des bornes de la FICHE, comme
-    # `juger` le fera (D1, 11-11-2026). LA FRONTIÈRE VIENT DE `frontiere_de_la_fiche`, la seule fonction qui l'établit,
-    # appelée aussi par le juge et par le tri (superviseur R-759 de la mission TRI, 12-11-2026) ; le calendrier est
-    # celui que `main` du juge construit (`seances = {b["date"] for s in cours.values() for b in s}`).
-    mod_jug = J.charger_module(J.trouver(base, "MODULE_JUGEMENT.py"), "jug")
-    seances_lues = {b["date"] for s_ in cours.values() for b in s_}
-    frontiere = mod_jug.frontiere_de_la_fiche(fiche, seances_lues, bornes)
-    if frontiere is None:
-        return arreter("aucune séance des cours lus dans les bornes de la fiche : pas de frontière 70/30")
-    seances_fiche = {d for d in seances_lues if bornes[0] <= d <= bornes[1]}
-    print("PARTIE DE RÉGLAGE : signaux avant la frontière %s, embargo déduit (coupure du module de jugement) ;"
-          " SEULE cette partie est écrite dans les colonnes « _70 », les seules que le tri lit" % frontiere)
+
+    # LE REÇU DU JEU. Essai déclaré (A-863) : son jeton, comme avant. Sinon, dans la fenêtre du regard unique du contrat
+    # (2000-2023, celle du cas 1 de C5) : un JETON DE RÉGLAGE (`jeton_de_reglage` du juge, la seule décision) — la
+    # moulinette sur les 70 % n'est pas un regard (point 39 de la file vérifiée du 27-11-2026 ; A-777, A-853, A-1073) ;
+    # il refuse une famille déjà jouée sur 2000-2023 et toute lecture qui dépasse la partie de réglage. Hors de la
+    # fenêtre : aucun reçu, comme avant.
+    _premiere_lue = min(ds[0] for ds in dates.values())
+    recu_du_jeu = jeton
+    if jeton is None and J.touche_la_fenetre_du_regard_unique(_premiere_lue, derniere):
+        try:
+            recu_du_jeu, motif_r = J.jeton_de_reglage(base, fiche, seances_lues, bornes, h_max, derniere, mod_jug)
+        except Exception as e:   # une famille non reconnue (VERIFIER_LA_CHAINE.Impossible) : rien ne se joue
+            return arreter("le jeton de réglage n'a pas pu être établi : %s: %s. Rien n'est joué."
+                           % (type(e).__name__, e))
+        if recu_du_jeu is None:
+            return arreter("jeton de réglage refusé : %s. Rien n'est joué." % motif_r)
+        print("JETON DE RÉGLAGE : %s, séances jouées jusqu'au %s au plus, dans la fenêtre du regard unique ; ce n'est pas "
+              "un regard (cas 2 de R-505 v2)" % (sid, derniere))
+
+    ok, ligne_juge = calibrer_par_le_juge(base, sid, autre_cours, essai=jeton is not None, partie=(derniere, fin))
+    print("CALIBRAGE PAR LE JUGE SEUL : %s" % ("OK" if ok else "ÉCHEC"))
+    if not ok or not ligne_juge:
+        return arreter("le juge des stratégies ne se calibre pas, ou n'a pas joué la fiche")
+    print("  le juge affiche : %s" % ligne_juge)
+    # LE SIGNAL N'EST PLUS CHARGÉ ICI (A-542, 30-10-2026) : chaque fiche jouée le nomme, `jouer_une` le lit par
+    # `signal_de_la_fiche` du juge, la seule lecture (R-708). LE MODULE DE POSITIONS, LA FICHE ET LE CONTRAT sont
+    # chargés et contrôlés AVANT le calibrage depuis le 20-11-2026 (plus haut).
+
+    def jouer_une(f, bareme=None, ops_rendues=None, periode=None):
+        """Fait passer une fiche par la porte 0 puis la joue, sur les seuls cours de la partie de réglage.
+
+        ① RÔLE — Un seul chemin de jeu pour la fiche, la version identique et
+          toutes les versions.
+        ② CONTEXTE D'APPEL — `main`, une fois par fiche à jouer.
+        ③ ENTRÉE — `f` : une fiche, d'origine ou fusionnée · `bareme` : None pour le
+          barème des trades vécus, sinon le nom d'un barème (celui du témoin, C15) ·
+          `ops_rendues` : une liste où recopier les opérations jouées, ou None · `periode` : les bornes à
+          jouer, ou None pour celles de la fiche.
+        ④ CONDITIONS D'ENTRÉE — `cours_du_jeu` (les cours coupés à la dernière séance de la partie de réglage), le
+          référentiel, les deux modules et `recu_du_jeu` sont établis par `main`.
+        ⑤ SORTIE — DEUX valeurs : le résumé rendu par `resumer` du juge ; les bornes
+          de la période rendues par la porte 0 (celles de la fiche, même quand `periode`
+          en impose d'autres : `main` compare ces bornes d'une version à l'autre).
+          [rend: 2]
+        ⑥ TRAITEMENT — ① porte 0 · ② lire le signal que la fiche nomme, par
+          `signal_de_la_fiche` du juge (A-542) · ③ `jouer` sur `periode`, ou à défaut
+          sur la période de la fiche, avec CE signal, sur `cours_du_jeu` et avec `recu_du_jeu` · ④ refuser une
+          valeur absente des cours · ⑤ résumer.
+        ⑦ UNITÉ — Euros ; pourcents ; dates AAAA-MM-JJ.
+        ⑧ POURQUOI — Le même appel que `main` du juge, ligne `ops, inconnus = jouer(...)`. Les cours COUPÉS : aucune
+          séance de la bande ni des 30 % ne peut entrer dans un calcul (A-1078, défaut L1-2, 27-11-2026).
+        ⑨ CE QUI CLOCHE — Rien vu.
+        ⑩ EFFET — Aucun sur la fiche reçue. Charge le module de signal nommé au
+          premier appel (le juge le garde ensuite en mémoire).
+        ⑪ TERMINAISON — Rend la main, ou lève ValueError sur un refus — porte 0, ou
+          signal nommé introuvable ; lève RegardNonInscrit si la garde du regard unique refuse.
+          [sort: non]
+        ⑫ DÉFINITIONS
+          la porte 0 : la fonction `porte_0` du juge, qui refuse une fiche incomplète.
+        """
+        ok0, manq, bornes_f = J.porte_0(f)
+        if not ok0:
+            raise ValueError("la porte 0 refuse : %s" % manq)
+        mod_sig = J.signal_de_la_fiche(base, f)   # le signal que la fiche nomme, lu à un seul endroit (A-542)
+        a_jouer = periode if periode is not None else bornes_f
+        # REGARD UNIQUE (R-505 ③) : sans essai ni jeton de réglage, aucun reçu — une version jouée dans la fenêtre du
+        # regard unique est REFUSÉE par `jouer` (RegardNonInscrit).
+        _recu = {} if recu_du_jeu is None else {"recu": recu_du_jeu}   # sans reçu, l'appel d'avant, à l'identique
+        if bareme is None:
+            ops, inconnus = J.jouer(f, cours_du_jeu, mnemo, mod_sig, mod_pos, periode=a_jouer, lecture=lecture, **_recu)
+        else:
+            ops, inconnus = J.jouer(f, cours_du_jeu, mnemo, mod_sig, mod_pos, periode=a_jouer, lecture=lecture,
+                                    bareme=bareme, **_recu)
+        if ops_rendues is not None:
+            ops_rendues.extend(ops)
+        if inconnus:
+            raise ValueError("valeurs absentes des cours : %s" % inconnus)
+        return J.resumer(ops), bornes_f
+
+    # LA FICHE, JOUÉE SUR LA PARTIE DE RÉGLAGE SEULE, DOIT RETROUVER LA LIGNE DU JUGE SEUL, joué sur la même coupe.
+    ref, _b_ref = jouer_une(dict(fiche), periode=periode_jouee)
+    if ref["n"] == 0:
+        return arreter("la fiche elle-même ne produit aucune opération dans la partie de réglage")
+    texte_ref = "{} operations . {} % de reussite . {:+,.2f} EUR".format(ref["n"], ref["wr"], ref["net"])
+    print("  ce programme : %s" % texte_ref)
+    if texte_ref != ligne_juge:
+        return arreter("ce programme et le juge seul ne rendent pas la même chose pour la fiche")
+    r_id, _ = jouer_une(fusionner(fiche, ident_v[0]), periode=periode_jouee)
+    if (r_id["n"], r_id.get("wr_exact"), r_id.get("net")) != (ref["n"], ref["wr_exact"], ref["net"]):
+        if jeton is not None:   # sous l'option d'essai, refus en 2 comme les autres refus d'essai (M5)
+            print("ARRÊT (essai refusé) : la version %s, identique à la fiche, ne retrouve pas la fiche"
+                  % ident_v[0]["id_version"])
+            return 2
+        return arreter("la version %s, identique à la fiche, ne retrouve pas la fiche"
+                       % ident_v[0]["id_version"])
+    print("  version identique %s : même résultat" % ident_v[0]["id_version"])
+    ref_jouee = ref
+    print("PARTIE DE RÉGLAGE : signaux avant la frontière %s moins la bande ; les colonnes de la période jouée et les "
+          "colonnes « _70 » portent la MÊME partie de réglage, rien des 30 %%" % frontiere)
 
     # LES CHAMPS DU FICHIER DE RÉSULTATS VIVENT AU CONTRAT : le tri les lit aussi (programmes/TRIER_LES_VARIANTES.py,
     # 11-11-2026) ; un fichier lu par deux programmes se déclare une fois (instructions du projet, §7).
@@ -1271,19 +1515,29 @@ def main():
                 ecarts = controler_fusion(J, fusion, v)
                 if ecarts:
                     raise ValueError("fusion fausse pour %s : %s" % (v["id_version"], ecarts))
+                commun = {"id_version": v["id_version"], "strategie": sid, "essai": essai,
+                          "versions_dans_l_essai": len(versions), "tp": v["tp"], "sl": v["sl"],
+                          "horizon": v["horizon"], "univers": v["univers"],
+                          "empreinte_des_reglages": empreinte_de_la_version(J, fiche, v, lire_module),
+                          "empreinte_de_la_fiche": empreinte_fiche,
+                          "periode_debut": periode_jouee[0], "periode_fin": periode_jouee[1],
+                          "bareme": b_res, "empreinte_du_bareme": empreinte_bareme,
+                          "fin_ecrite_dans_la_fiche": bornes[1],
+                          "cours_joues": f_cours_rel, "empreinte_des_cours": empreinte_cours,
+                          "frontiere_70_30": frontiere}
+                # UNE VERSION « SANS DÉLAI » N'EST JAMAIS JOUÉE (27-11-2026, lot L1-CORR ; R-505 v2, étape 3 ⑥ : la
+                # largeur de sa bande n'est PAS tranchée, A-764 ; tant qu'elle ne l'est pas, le contrôle est INCONNU et
+                # la version n'est jamais validée, DÉL-D26). Avant ce geste, elle était jouée sur la période ENTIÈRE et
+                # ses colonnes de la période portaient des chiffres des 30 %. Sa ligne est écrite SANS AUCUN CHIFFRE —
+                # jamais « 0 », qui serait un résultat inventé — : le tri la lit NON MESURABLE et l'écarte.
+                if COMMUN.lire_horizon_ou_aucune(v["horizon"]) is COMMUN.HORIZON_AUCUNE:
+                    w.writerow(dict(commun, **dict({c: "" for c in COLONNES_CHIFFREES}, **colonne_d_essai)))
+                    continue
                 ops_r = []
                 r, b = jouer_une(fusion, None, ops_r, periode_jouee)
                 if b != bornes:
                     raise ValueError("période différente pour %s : %s" % (v["id_version"], b))
-                # UNE DURÉE « AUCUNE » N'A PAS DE PARTIE DE RÉGLAGE CHIFFRÉE (phase 2 d'E1F, 13-11-2026) : l'embargo de
-                # la coupure 70/30 sans durée maximale n'est PAS tranché par Jean-Luc (`juger` refuse par
-                # MOTIF_AUCUNE_NON_TRANCHEE ; `duree_d_embargo_sans_horizon` reste une proposition). Les colonnes
-                # « _70 » et l'embargo restent VIDES — jamais « 0 » — : le tri lit une case vide comme NON MESURABLE
-                # et écarte la version (`passe_le_critere`). Avant ce geste, `int("aucune")` arrêtait toute la moulinette.
-                if COMMUN.lire_horizon_ou_aucune(v["horizon"]) is COMMUN.HORIZON_AUCUNE:
-                    emb_v, r70 = None, None
-                else:
-                    emb_v, r70 = partie_de_reglage(mod_jug, ops_r, seances_fiche, int(v["horizon"]), frontiere)
+                emb_v, r70 = partie_de_reglage(mod_jug, ops_r, seances_fiche, int(v["horizon"]), frontiere)
                 if v is ident_v[0] and (r["n"], r.get("wr_exact"), r.get("net")) != (
                         ref_jouee["n"], ref_jouee.get("wr_exact"), ref_jouee.get("net")):
                     raise ValueError("la version %s, identique à la fiche, ne retrouve pas la fiche sur la période"
@@ -1306,19 +1560,11 @@ def main():
                     ecart = sum(o["net"] for o in ops_t) - sum(o["net"] for o in ops_r)
                     if [cle_op(o) for o in ops_t] != [cle_op(o) for o in ops_r] or abs(ecart - taxes) > 0.01:
                         invariant_faux.append("%s : écart %.2f € pour %.2f € de taxe" % (v["id_version"], ecart, taxes))
-                w.writerow(dict({"id_version": v["id_version"], "strategie": sid, "essai": essai,
-                            "versions_dans_l_essai": len(versions), "tp": v["tp"], "sl": v["sl"],
-                            "horizon": v["horizon"], "univers": v["univers"],
-                            "empreinte_des_reglages": empreinte_de_la_version(J, fiche, v, lire_module),
-                            "empreinte_de_la_fiche": empreinte_fiche,
-                            "periode_debut": periode_jouee[0], "periode_fin": periode_jouee[1],
+                w.writerow(dict(commun, **dict({
                             "operations": r["n"],
                             "reussite_pourcents_exacte": "%.6f" % r["wr_exact"] if r["n"] else "",
                             "gain_net_euros": "%.2f" % r["net"] if r["n"] else "0.00",
-                            "bareme": b_res, "empreinte_du_bareme": empreinte_bareme,
-                            "fin_ecrite_dans_la_fiche": bornes[1],
-                            "cours_joues": f_cours_rel, "empreinte_des_cours": empreinte_cours,
-                            "frontiere_70_30": frontiere, "embargo_seances": "" if emb_v is None else emb_v,
+                            "embargo_seances": "" if emb_v is None else emb_v,
                             "operations_70": "" if r70 is None else r70["n"],
                             "reussite_pourcents_exacte_70": "%.6f" % r70["wr_exact"] if r70 and r70["n"] else "",
                             "gain_net_euros_70": "" if r70 is None else ("%.2f" % r70["net"] if r70["n"] else "0.00"),
@@ -1328,7 +1574,7 @@ def main():
                             # restent ouvertes ne s'écrit plus « 0 opération, 0,00 € » sans trace.
                             "operations_a_part_fin_des_donnees": r.get("fin_des_donnees", {}).get("n", 0),
                             "gain_net_euros_a_part_fin_des_donnees": "%.2f" % r.get("fin_des_donnees", {}).get(
-                                "net", 0.0)}, **colonne_d_essai))
+                                "net", 0.0)}, **colonne_d_essai)))
                 if i % 250 == 0:
                     print("  %d / %d" % (i, len(jouees)), flush=True)
         if invariant_faux:
@@ -1338,7 +1584,8 @@ def main():
             os.remove(provisoire)
             return arreter("l'écart au témoin n'est pas expliqué par la taxe : rien n'est écrit")
         ecarts = comparer_au_temoin(f_comb, sid, essai, vue_du_temoin if rejouer else provisoire,
-                                    None if n_tranches is None else {v["id_version"] for v in jouees})
+                                    None if n_tranches is None else {v["id_version"] for v in jouees},
+                                    periode=periode_jouee)
         if ecarts:
             print("ÉCARTS AVEC LE TÉMOIN DE RÉSULTATS (%d) :" % len(ecarts))
             for e in ecarts[:10]:

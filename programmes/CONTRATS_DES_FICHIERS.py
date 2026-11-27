@@ -1191,6 +1191,13 @@ EMPREINTE_FIGEE_CALCULEE_AVEC = {
 OPTION_D_ESSAI_SANS_REGARD = "--essai-sans-regard"
 STATUT_D_ESSAI = "ESSAI — NI RÉSULTAT NI SÉLECTION"
 COLONNE_DU_STATUT_D_ESSAI = "statut_d_essai"
+# LA PARTIE DE RÉGLAGE SEULE (27-11-2026, lot L1-CORR du plan R505 ; R-505 v2, étape 3, validée par Jean-Luc le
+# 27-11-2026 à 16h24, « 1 », A-1078 : « la moulinette joue toutes les versions déclarées sur les 70 % ») : l'option que
+# JOUER_LES_VERSIONS passe au juge pour son calibrage, « <option><dernière séance lue>,<fin de la période jouée> » ; le juge
+# coupe alors les cours à la dernière séance lue (refus si elle dépasse les 70 % moins la bande,
+# `JUGE_DES_STRATEGIES.lecture_permise_pour_regler`), joue la fiche jusqu'à la fin donnée et NE JUGE PAS (`juger` n'est
+# pas appelé) : aucune séance de la bande ni des 30 % n'est lue, rien des 30 % n'est affiché.
+OPTION_DE_LA_PARTIE_DE_REGLAGE = "--partie-de-reglage="
 
 # LES FICHIERS DE COURS QUI PORTENT LES SOCIÉTÉS SORTIES DE L'INDICE (14-11-2026, QE2 tour 2, superviseur R-759 ①) : pour
 # eux, le lecteur unique attend chaque société sortie à chaque séance de sa présence dans l'indice, même sans aucune barre
