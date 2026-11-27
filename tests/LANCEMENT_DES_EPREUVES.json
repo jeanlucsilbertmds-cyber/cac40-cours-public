@@ -584,6 +584,8 @@
    ],
    "pourquoi": "variante « --saboter » d'une des 8 épreuves rouges non relancée, nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-r207bis (81ffa756)"
   },
+  "SignalNomme": {"chemin": "tests/EPREUVES_DU_SIGNAL_NOMME_Ven_30-10-2026.py", "arguments": ["{copie}"], "pourquoi": "ajout du lot W2f (27-11-2026, consigne du Chat) sur une branche d'essai seulement : dire si le rouge du relevé local de L2 existe déjà sur main ; table seule changée, aucun code"},
+  "CorrJeton": {"chemin": "tests/EPREUVES_DE_LA_CORRECTION_UN_JETON_Mer_18-11-2026.py", "arguments": ["{copie}"], "pourquoi": "ajout du lot W2f (27-11-2026, consigne du Chat) sur une branche d'essai seulement : dire si le rouge du relevé local de L2 existe déjà sur main ; table seule changée, aucun code"},
   "MoulinetteEssai": {
    "chemin": "programmes/PREPARER_LA_MOULINETTE_D_ESSAI.py",
    "arguments": [
