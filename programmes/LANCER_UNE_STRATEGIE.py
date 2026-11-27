@@ -28,7 +28,10 @@ le lanceur le LIT dans cette table, et joue alors les tranches EN LOCAL, l'une a
 
 USAGE
     python3 -B programmes/LANCER_UNE_STRATEGIE.py <racine> <STRATÉGIE> <ESSAI> [--tranches=N]
-        [--famille-deja-jouee-declaree=<qui, quand, mots de la décision>]
+        [--famille-deja-jouee-declaree=<qui, quand, mots de la décision>] [--cours-du-maitre]
+    LES COURS (A-1076, 27-11-2026) : par défaut LES 20 ANS, que l'enchaîneur fixe à ⓪ et passe à ②, à l'assemblage et
+    à ④ ; « --cours-du-maitre » : le fichier maître (épreuves sur 2024 et après, A-952), transmis à ⓪ seulement ; après
+    ⓪, le journal de la chaîne fait foi et une option qui le contredit est refusée.
     exemple : python3 -B programmes/LANCER_UNE_STRATEGIE.py /dev/shm/x/depot IND-001-RETEST E01 --tranches=5
 
 ① RÔLE — Enchaîner ⓪ → ① → ② → ③ → ④ d'une stratégie sans intervention, et s'arrêter sur les décisions de Jean-Luc.
@@ -41,7 +44,7 @@ USAGE
   LARGEUR_DES_CIRCUITS_LONGS, 18, A-888), lue et non recopiée, pour que le même découpage serve le jour où ② partira
   sur GitHub ; `--famille-deja-jouee-declaree=<texte non vide>` : la déclaration explicite qui lève le refus d'une famille
   déjà jouée sur 2000-2023 (écrite au journal de la chaîne par l'enchaîneur, et recopiée dans l'état ; le lanceur ne
-  la vérifie pas ; inutile et non écrite pour une famille neuve). Lu : <racine>/donnees/combinatoires/VARIABLES_DE_DECLINAISON_<STRATÉGIE>_<ESSAI>.csv (les réglages
+  la vérifie pas ; inutile et non écrite pour une famille neuve) ; `--cours-du-maitre` (voir l'usage). Lu : <racine>/donnees/combinatoires/VARIABLES_DE_DECLINAISON_<STRATÉGIE>_<ESSAI>.csv (les réglages
   validés), le journal de la chaîne (VERIFIER_LA_CHAINE), le fichier d'état d'un appel précédent.
 ④ CONDITIONS D'ENTRÉE — La racine existe et ne porte pas .git. Un appel qui reprend une chaîne garde le découpage
   des tranches déjà jouées, quel qu'en soit l'auteur (sinon des tranches de deux découpages se mêleraient : refus,
@@ -56,9 +59,13 @@ USAGE
   les réglages validés, sinon arrêt code 3 · ⑤ pour chaque étape non témoignée, dans l'ordre : l'enchaîneur, puis son
   code, puis son témoin, l'état écrit après chacune · ⑥ après ⓪ : la validation relue sur la copie figée que DECLINER
   lira · ⑦ avant ② : où jouer (GitHub ou local, lu dans la table du relais) · ⑧ après ③ : ④ pour chaque version
-  retenue par ③, dans l'ordre du tri (l'enchaîneur refait la garde de famille à sa porte).
+  retenue par ③, dans l'ordre du tri (l'enchaîneur refait la garde de famille à sa porte) · ⑨ LES COURS : avant ⓪,
+  `--cours-du-maitre` est passé à l'enchaîneur « preparer » ; après ⓪, les cours lus au journal
+  (`E.options_de_cours`) sont affichés et une option `--cours-du-maitre` qui les contredit est refusée (code 1).
 ⑦ UNITÉ — secondes (délais, durées) ; heure de Paris (horodatages).
-⑧ POURQUOI — A-965 (Jean-Luc, 21-11-2026 14h43) : une commande au lieu de cinq étapes tapées à la main ; A-919 :
+⑧ POURQUOI — A-1076 (⛔, 27-11-2026) : le 26-11-2026, le lanceur a joué IND-001-RETEST sur le fichier maître (2024-2026)
+  au lieu des 20 ans, sans alerte ; les cours sont désormais fixés par l'enchaîneur (`--cours=` à toutes les étapes).
+  A-965 (Jean-Luc, 21-11-2026 14h43) : une commande au lieu de cinq étapes tapées à la main ; A-919 :
   l'ordre est gardé par l'enchaîneur et le juge, jamais sauté ; A-777 et C12 (ci-dessus) : ④ seulement sur une
   famille jamais jouée sur 2000-2023, sauf déclaration.
 ⑨ CE QUI CLOCHE — ① Trois noms sont recopiés de l'enchaîneur faute de constante qui les porte : le chemin du
@@ -104,6 +111,7 @@ FIN = "TERMINÉ : ⓪ ① ② ③ ④ faits"
 ARRET_REGLAGES = "ATTEND JEAN-LUC : validation des réglages (⓪)"
 CODE_REGLAGES = 3
 DECLARER = "--famille-deja-jouee-declaree="
+MAITRE = E.OPTION_DU_MAITRE   # l'option vit dans l'enchaîneur, qui seul la lit (R-708)
 
 
 def maintenant():
@@ -238,13 +246,13 @@ def etapes_restantes(t, n):
     return [x for x in tout if x[2] not in t]
 
 
-def executer(racine, sid, essai, n, declaration=None):
+def executer(racine, sid, essai, n, declaration=None, maitre=False):
     """Enchaîne les étapes restantes ; rend le code de sortie.
 
     ① RÔLE — Le cœur du lanceur.
     ② CONTEXTE D'APPEL — `main`, une fois.
     ③ ENTRÉE — `racine` (absolu, sans .git), `sid`, `essai`, `n` (tranches) ; `declaration` : le texte de
-      --famille-deja-jouee-declaree, ou None.
+      --famille-deja-jouee-declaree, ou None ; `maitre` : vrai sous `--cours-du-maitre`.
     ④ CONDITIONS D'ENTRÉE — `main` a vérifié les arguments et l'absence de .git.
     ⑤ SORTIE — UNE valeur : 0, 1, 2 ou 3 (voir ⑤ de l'en-tête).
     [rend: 1]
@@ -307,6 +315,17 @@ def executer(racine, sid, essai, n, declaration=None):
                   "VARIABLES_DE_DECLINAISON_DES_STRATEGIES.py donnees/cac40_strategies.csv %s donnees/combinatoires/"
                   "VOISINAGE.csv %s donnees/combinatoires" % (ARRET_REGLAGES, "\n  ".join(m), sid, essai))
             return CODE_REGLAGES
+    # LES COURS DE LA CHAÎNE (A-1076) : après ⓪, le journal fait foi ; une option qui le contredit est refusée.
+    if E.FAITE["preparer"] in t:
+        lus = E.options_de_cours(ch)
+        print("COURS DE LA CHAÎNE (fixés à ⓪, journal) : %s" % (" ".join(lus) or E.MOT_DU_MAITRE))
+        if maitre and lus:
+            message = ("REFUS : %s demandé, mais la chaîne a été commencée sur %s — les cours ne changent pas en cours "
+                       "de chaîne (A-1076)" % (MAITRE, " ".join(lus)))
+            ecrire_l_etat(ch, etat, "ÉCHEC", message)
+            print(message)
+            return 1
+    etat["cours_du_maitre_demande"] = bool(maitre)
     ou = None
     for etape, args, temoin in etapes_restantes(t, n):
         if etape == "jouer" and ou is None:
@@ -318,8 +337,9 @@ def executer(racine, sid, essai, n, declaration=None):
                 return 2
         ecrire_l_etat(ch, etat, "EN COURS", "étape %s %s lancée" % (etape, " ".join(args)))
         debut, t0 = maintenant(), time.monotonic()
+        options = [MAITRE] if etape == "preparer" and maitre else []
         code = E.lancer(racine, ch, "lanceur/%s%s" % (etape, "_" + args[0] if etape == "jouer" else ""),
-                        ENCHAINEUR, racine, sid, essai, etape, *args, delai=DELAI)
+                        ENCHAINEUR, racine, sid, essai, etape, *args, *options, delai=DELAI)
         etat["etapes"].append({"etape": etape, "arguments": list(args), "code": code, "ou": ou or "local",
                                "debut": debut, "secondes": round(time.monotonic() - t0, 1)})
         if code != 0:
@@ -393,8 +413,9 @@ def main(argv):
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — UNE valeur : 0, 1, 2 ou 3.
     [rend: 1]
-    ⑥ TRAITEMENT — ① 3 arguments, au plus une fois « --tranches=N » (N de 1 à 99) et au plus une fois
-      « --famille-deja-jouee-declaree=<texte non vide> », aucune autre option, sinon usage et 2 · ② racine absente ou
+    ⑥ TRAITEMENT — ① 3 arguments, au plus une fois « --tranches=N » (N de 1 à 99), au plus une fois
+      « --famille-deja-jouee-declaree=<texte non vide> » et au plus une fois « --cours-du-maitre », aucune autre
+      option, sinon usage et 2 · ② racine absente ou
       portant .git → 2 · ③ `executer` · ④ V.Impossible, OSError, ValueError, KeyError, IndexError → 2.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — R-734 : un contrôle qui n'a pas pu tourner ne rend jamais 0 ; A-861 : jamais dans un dépôt.
@@ -406,10 +427,11 @@ def main(argv):
     pos = [a for a in argv[1:] if not a.startswith("--")]
     tr = [a[len("--tranches="):] for a in argv[1:] if a.startswith("--tranches=")]
     dec = [a[len(DECLARER):].strip() for a in argv[1:] if a.startswith(DECLARER)]
-    autres = [a for a in argv[1:] if a.startswith("--") and not a.startswith(("--tranches=", DECLARER))]
+    maitre = argv[1:].count(MAITRE)
+    autres = [a for a in argv[1:] if a.startswith("--") and not a.startswith(("--tranches=", DECLARER)) and a != MAITRE]
     n = int(tr[0]) if len(tr) == 1 and tr[0].isdigit() else None
     if len(pos) != 3 or autres or len(tr) > 1 or len(dec) > 1 or (tr and not (n and 1 <= n <= 99)) or \
-            (dec and not dec[0]):
+            (dec and not dec[0]) or maitre > 1:
         print(__doc__.split("① RÔLE")[0])
         return 2
     racine, sid, essai = os.path.abspath(pos[0]), pos[1], pos[2]
@@ -420,7 +442,7 @@ def main(argv):
         if n is None:
             import FABRIQUER_LE_CIRCUIT_PUBLIC as F
             n = F.LARGEUR_DES_CIRCUITS_LONGS
-        return executer(racine, sid, essai, n, dec[0] if dec else None)
+        return executer(racine, sid, essai, n, dec[0] if dec else None, maitre=bool(maitre))
     except (V.Impossible, OSError, ValueError, KeyError, IndexError) as e:
         print("CONTRÔLE IMPOSSIBLE (R-734) : %s: %s" % (type(e).__name__, e))
         return 2
