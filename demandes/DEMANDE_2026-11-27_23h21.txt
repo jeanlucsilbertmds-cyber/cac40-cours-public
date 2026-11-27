@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Relais
+pointe=32ef73cf6ec4c13eb4cb240fb016cde1058949fb
