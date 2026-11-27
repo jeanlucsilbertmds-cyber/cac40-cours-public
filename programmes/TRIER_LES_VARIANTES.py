@@ -285,7 +285,10 @@ def lire_les_resultats(chemin, contrat):
       chiffrée : `operations_70`, `gain_net_euros_70` et `embargo_seances` jamais vides, sinon ARRÊT, et
       `embargo_seances` un entier ≥ 0 (lu par isdigit, comme les opérations), sinon ARRÊT ; toute version :
       `empreinte_des_reglages` et `empreinte_de_la_fiche` en seize hexadécimaux, sinon ARRÊT (14-11-2026) ; la partie de
-      réglage d'une version « aucune » n'est pas lue plus avant (superviseur R-759 E1F phase 2, M-1).
+      réglage d'une version « aucune » n'est pas lue plus avant (superviseur R-759 E1F phase 2, M-1) ; depuis le
+      27-11-2026 (lot L1-CORR, A-1078), une version « aucune » dont les trois colonnes de la période sont vides
+      ENSEMBLE est une version NON JOUÉE (JOUER refuse de la jouer : largeur de bande non tranchée) : rien de ses
+      chiffres n'est lu.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Le nombre de versions essayées est la moitié du travail du tri (A-541) : un fichier tronqué
       le fausserait sans bruit. JOUER annonce le nombre de versions de l'essai sur chaque ligne ; il est relu ici.
@@ -354,7 +357,12 @@ def lire_les_resultats(chemin, contrat):
         if not aucune and not l["embargo_seances"].strip().isdigit():
             raise ValueError("%s : %s, embargo_seances illisible « %s » sur une version à durée chiffrée : un nombre "
                              "entier de séances, positif ou nul, est attendu" % (nom, l["id_version"], l["embargo_seances"]))
-        for suffixe in (("",) if aucune else ("", "_70")):
+        # UNE VERSION « SANS DÉLAI » JAMAIS JOUÉE (27-11-2026, lot L1-CORR ; R-505 v2, étape 3 ⑥ ; A-764) : JOUER écrit
+        # sa ligne SANS AUCUN CHIFFRE ; ses colonnes de la période vides ENSEMBLE se lisent « non jouée », et rien de plus
+        # n'est lu. Une seule case remplie parmi les trois retombe dans le contrôle d'avant, qui l'arrête.
+        non_jouee = aucune and not any((l[c] or "").strip() for c in ("operations", "reussite_pourcents_exacte",
+                                                                      "gain_net_euros"))
+        for suffixe in (() if non_jouee else ("",) if aucune else ("", "_70")):
             ops = l["operations" + suffixe].strip()
             if not ops.isdigit():
                 raise ValueError("%s : %s, nombre d'opérations%s illisible « %s »" % (nom, l["id_version"], suffixe, ops))

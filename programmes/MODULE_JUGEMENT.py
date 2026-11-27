@@ -1369,6 +1369,49 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
             "res_70": _resume(avant), "res_30": _resume(apres)}
 
 
+def fin_de_la_partie_de_reglage(seances_de_la_fiche, horizon, frontiere):
+    """Rend la DERNIÈRE séance des 70 % qui reste après le retrait de la bande, et la largeur de cette bande.
+
+    ① RÔLE — Dire jusqu'où la moulinette a le droit de LIRE des cours : les 70 % les plus anciens, moins la bande
+      retirée entre les deux parties (R-505 v2, étape 3 : « la moulinette joue toutes les versions […] sur les 70 % les
+      plus anciens » ; ⑥ « LA COUPURE ET SA BANDE RETIRÉE (PURGE ET EMBARGO) »).
+    ② CONTEXTE D'APPEL — `programmes/JOUER_LES_VERSIONS.py` (`main`, une fois, avec l'horizon chiffré le plus long de la
+      combinatoire) ; `JUGE_DES_STRATEGIES.jeton_de_reglage` (l'horizon de la fiche). Depuis le 27-11-2026 (lot L1-CORR
+      du plan R505, A-1078).
+    ③ ENTRÉE — `seances_de_la_fiche` : les dates de séance des cours lus comprises dans les bornes de la fiche, toutes
+      valeurs réunies (le calendrier que `coupure_70_30` reçoit du juge) · `horizon` : un horizon chiffré, entier > 0,
+      en séances · `frontiere` : la date rendue par `frontiere_de_la_fiche`.
+    ④ CONDITIONS D'ENTRÉE — Celles de `coupure_70_30` ; `horizon` n'est PAS « aucune » : la largeur de la bande d'une
+      version sans délai n'est pas tranchée (R-505 v2 ⑥ : « NON TRANCHÉ […] le code refuse de couper ») et cette
+      fonction lève alors, comme `coupure_70_30`.
+    ⑤ SORTIE — DEUX valeurs : la dernière séance gardée dans les 70 % (AAAA-MM-JJ), ou None si aucune séance ne l'est ;
+      la largeur de la bande, en séances. Exemple : calendrier de 100 séances, frontière au rang 70, horizon 5 →
+      bande de 21, dernière séance gardée = la séance de rang 48.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① fabriquer une opération fictive par séance (date de signal = la séance, gain nul) · ② les passer à
+      `coupure_70_30` avec l'horizon et la frontière · ③ les séances rangées « avant » sont les `n_70` premières du
+      calendrier trié (la coupure range par rang) : rendre la dernière et `embargo_seances`.
+    ⑦ UNITÉ — Des séances de bourse ; des dates.
+    ⑧ POURQUOI — LA RÈGLE DE LA BANDE VIT DANS `coupure_70_30` ET NULLE PART AILLEURS (R-708 : deux implémentations
+      d'une même chose divergent toujours) : cette fonction ne recopie ni le « plus grand de 21 et de l'horizon », ni le
+      « rang < rang de la frontière − largeur » ; elle DEMANDE à la coupure où tombe chaque séance. RELU de Cowork sur
+      lot-r505-L1, défaut L1-2 (27-11-2026) : la moulinette jouait et écrivait la période entière, 30 % compris.
+    ⑨ CE QUI CLOCHE — ① La bande n'est posée qu'avant la frontière (⑨ ② de `coupure_70_30`) : c'est la loi, les 30 %
+      étant à la fin. ② Un trade dont le signal tombe sur la dernière séance gardée a besoin de séances APRÈS elle pour
+      se revendre : c'est l'appelant qui recule la fin des achats (recul calculé, A-1100), cette fonction ne le fait pas.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ce que lève `coupure_70_30` (frontière absente ou hors du calendrier,
+      TypeError sur un horizon « aucune »), et ValueError si la coupure ne rend pas de partie de réglage.
+      [sort: non]
+    """
+    cal = sorted(set(seances_de_la_fiche))
+    c = coupure_70_30([{"date_signal": d, "net": 0.0} for d in cal], cal, horizon=horizon, frontiere=frontiere)
+    if "n_70" not in c or "embargo_seances" not in c:
+        raise ValueError("fin_de_la_partie_de_reglage : la coupure ne rend pas de partie de réglage (%s)"
+                         % c.get("motif", sorted(c)))
+    return (cal[c["n_70"] - 1] if c["n_70"] else None), c["embargo_seances"]
+
+
 def _resume(ops):
     """Rend le taux EXACT a cote de l'arrondi d'affichage.
 

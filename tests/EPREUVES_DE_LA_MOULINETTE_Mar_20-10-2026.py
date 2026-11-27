@@ -508,14 +508,22 @@ def cas_jouer_dehors(racine):
            ("fiche STRATEGIE-INCONNUE absente du registre",))
     un_cas("JOUER, version marquée identique qui ne l'est pas", None, "identique à la fiche, ne retrouve pas la fiche",
            fiche="%s-%s-0001" % (SID, ESSAI))
-    # LA FIN DE LA PÉRIODE SE CALCULE (plan V7, bloc 5g, 11-11-2026) : un horizon de 500 séances la ramènerait de près
-    # de deux ans ; le recul est borné par donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv (valeur provisoire, à
-    # décider par Jean-Luc ; relecteur neuf de la mission TRI, D6) : refus. Un horizon que les cours ne peuvent pas
-    # porter du tout refuse avant, « pas assez de cours ».
-    un_cas("JOUER, horizon de 500 séances : la fin reculerait au-delà du réglage, refus",
-           sur_0500(horizon="500"), ("la fin calculée recule de", "rien n'est joué"))
-    un_cas("JOUER, horizon de 5000 séances : aucune fin possible, marge de cours insuffisante",
-           sur_0500(horizon="5000"), "pas assez de cours après la période")
+    # LA FIN DE LA PÉRIODE SE CALCULE (plan V7, bloc 5g, 11-11-2026) : un horizon de 500 séances la ramène de près
+    # de deux ans. Jusqu'au 27-11-2026, le recul était borné par donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv (26,
+    # provisoire) : refus. Depuis A-1100 (Jean-Luc, 27-11-2026 à 19h29, « 1 »), le recul permis est CALCULÉ = délai le
+    # plus long + 1 = 501 : la fin recule SANS refus (mesuré le 27-11-2026 sur le maître : 402 séances de recul, code 0).
+    # La protection D6 contre un horizon faux disparaît : signalé dans la note du lot L1. Un horizon que les cours ne
+    # peuvent pas porter du tout refuse toujours, « pas assez de cours ».
+    # (27-11-2026, lot L1-CORR, A-1078) LA MOULINETTE NE LIT PLUS QUE LES 70 % MOINS LA BANDE, et la bande vaut au moins
+    # l'horizon (`coupure_70_30`) : sur les 644 séances de la fiche, 500 séances de bande ne laissent rien. Le recul
+    # calculé s'éprouve donc à 100 séances (bande 100, recul permis 101 : un recul fixe de 26 refuserait) ; la marge
+    # insuffisante à 300 (bande 300 : 150 séances lues, moins que 301 + 1) ; et 5000 refuse par la bande.
+    un_cas("JOUER, horizon de 100 séances : recul permis CALCULÉ (101, A-1100), la fin recule sans refus",
+           sur_0500(horizon="100"), ("au plus 101 (calculé", "ramenée par"), code_attendu=0)
+    un_cas("JOUER, horizon de 300 séances : aucune fin possible, marge de cours insuffisante dans les 70 %",
+           sur_0500(horizon="300"), "pas assez de cours après la période")
+    un_cas("JOUER, horizon de 5000 séances : la bande retirée mange toute la partie de réglage, refus",
+           sur_0500(horizon="5000"), "aucune séance des 70 % ne reste avant la bande retirée")
     d, f_out, _ = un_cas("JOUER, objectif écrit 1.5 au lieu d'une fraction : fusion fausse",
                          sur_0500(tp="1.5"),
                          ("fusion fausse pour %s-%s-0500" % (SID, ESSAI), "tp lu '1.5', version '1.5'"))
@@ -535,6 +543,16 @@ def cas_jouer_dehors(racine):
            ("%s-%s-0914 — horizon" % (SID, ESSAI),))
     d, f_out, c = un_cas("JOUER, combinatoire réduite sans témoin : écrit, code 0", None, "AUCUN TÉMOIN DE RÉSULTATS", code_attendu=0)
     noter("JOUER, sans témoin : le fichier de résultats est écrit", c == 0 and os.path.exists(f_out))
+    # (27-11-2026, lot L1-CORR, A-1078) LES TROIS VRAIES LIGNES JOUÉES SUR LA PARTIE DE RÉGLAGE : elles servent de témoin
+    # au cas « abîmé d'un euro » — le témoin du dépôt (08-10-2026) porte la période ENTIÈRE et n'est plus comparable.
+    f_trois = os.path.join(dossier(), "TROIS_JOUEES.csv")
+    if c == 0 and os.path.exists(f_out):
+        shutil.copyfile(f_out, f_trois)
+    _col_r, _jouees = lire(f_trois) if os.path.exists(f_trois) else ([], [])
+    noter("JOUER, sans témoin : rien des 30 % — fin jouée avant la frontière, colonnes de la période = colonnes « _70 »",
+          len(_jouees) == 3 and all(l["periode_fin"] < l["frontiere_70_30"] and
+                                    (l["operations"], l["gain_net_euros"]) == (l["operations_70"], l["gain_net_euros_70"])
+                                    for l in _jouees), str([(l["periode_fin"], l["frontiere_70_30"]) for l in _jouees]))
 
     def temoin_abime(d):
         """Écrit dans un dossier un témoin réel réduit, abîmé d'un euro.
@@ -554,7 +572,9 @@ def cas_jouer_dehors(racine):
         ⑪ TERMINAISON — Rend la main.
           [sort: non]
         """
-        col, tem = lire(os.path.join(racine, TEMOIN))
+        # (27-11-2026, A-1078) le témoin est fait des trois lignes RÉELLEMENT jouées sur la partie de réglage par le cas
+        # « sans témoin » (même période) ; celui du dépôt, de la période entière, ne se compare plus (cas suivant).
+        col, tem = _col_r, _jouees
         garde = [dict(l) for l in tem if l["id_version"] in TROIS]
         for l in garde:
             if l["id_version"].endswith("-0500"):
@@ -563,11 +583,20 @@ def cas_jouer_dehors(racine):
 
     # Le détail de l'écart est exigé aussi (cassure M2 de Cowork, 9702048) ; le montant est relu dans le témoin,
     # jamais recopié (R-708 : un chiffre qui existe ailleurs ne se recopie pas).
-    vrai = [l for l in lire(os.path.join(racine, TEMOIN))[1] if l["id_version"].endswith("-0500")][0]
+    vrai = ([l for l in _jouees if l["id_version"].endswith("-0500")] or [{"id_version": "?", "gain_net_euros": "nan"}])[0]
     detail = "%s gain_net_euros : %s au lieu de %.2f" % (vrai["id_version"], vrai["gain_net_euros"], float(vrai["gain_net_euros"]) + 1)
     d, f_out, _ = un_cas("JOUER, témoin réel abîmé d'un euro : arrêt",
                          None, ("les résultats ne retrouvent pas le témoin : rien n'est écrit", detail), temoin=temoin_abime)
     noter("JOUER, témoin abîmé : aucun fichier de résultats", not os.path.exists(f_out) and not os.path.exists(f_out + ".en_cours"))
+
+    # (27-11-2026, lot L1-CORR, A-1078) LE TÉMOIN DU DÉPÔT, fait le 08-10-2026 sur la période ENTIÈRE de la fiche, n'est
+    # plus comparable : la moulinette ne joue que les 70 % moins la bande. Arrêt, la raison nommée, rien n'est écrit.
+    def temoin_du_depot(d):
+        col, tem = lire(os.path.join(racine, TEMOIN))
+        ecrire(os.path.join(d, os.path.basename(TEMOIN)), col, [dict(l) for l in tem if l["id_version"] in TROIS])
+    d, f_out, _ = un_cas("JOUER, témoin du dépôt (période entière) : NON COMPARABLE, arrêt", None,
+                         ("TÉMOIN NON COMPARABLE : 3 version(s)", "témoin à refaire sur la partie de réglage",
+                          "rien n'est écrit"), temoin=temoin_du_depot)
 
     # LE TÉMOIN SE COMPARE SOUS SON BARÈME (A-550, superviseur R-759, C15, 29-10-2026). Deux témoins FAUX, faits des trois
     # vraies lignes : ① sans étiquette de barème -> arrêt ; ② étiqueté d'un autre barème (le forfait de 300 €) -> l'écart
@@ -625,7 +654,12 @@ def faux_juge(base, **reglages):
     bornes = ("2024-01-02", "2026-07-10")
     # (12-11-2026) JOUER hache les séances du fichier de cours jusqu'à la fin de la fiche : le faux fichier existe
     J.fichiers_de_cours = lambda b: [os.path.join(b, "cours")]
-    J.charger_cours = lambda f: {"TTE": [{"date": "2026-08-%02d" % k} for k in range(1, 31)]}
+    # (27-11-2026, A-1076) le contrôle de couverture exige des séances aux deux bouts de la période de la fiche : la
+    # première et la dernière séance de ses bornes s'ajoutent aux 30 séances d'août 2026 (la marge après la fin).
+    # (27-11-2026, lot L1-CORR, A-1078) la moulinette ne lit plus que les cours de la partie de réglage : la marge après
+    # la fin des achats vient de juin 2026, AVANT la fin de la fiche (la dernière séance lue, rendue plus bas).
+    J.charger_cours = lambda f: {"TTE": [{"date": bornes[0]}] + [{"date": "2026-06-%02d" % k} for k in range(1, 31)] +
+                                        [{"date": bornes[1]}]}
     # JOUER_LES_VERSIONS lit les cours par le lecteur unique, comme le juge, depuis le 27-10-2026 (A-577, étape 1) :
     # le faux juge rend les mêmes séances et une lecture neutre — aucun passage, aucun trou, aucun défaut.
     def lire_par_le_lecteur(b, f, m, jusqu_au=None):
@@ -639,6 +673,8 @@ def faux_juge(base, **reglages):
     # (12-11-2026) : la frontière vient de `frontiere_de_la_fiche`, que la coupure reçoit
     J.charger_module = lambda f, nom: types.SimpleNamespace(
         frontiere_de_la_fiche=lambda fiche, seances, bornes: "2025-06-02",
+        # (27-11-2026, A-1078) la dernière séance lue de la partie de réglage : fixe, la fin de la fiche
+        fin_de_la_partie_de_reglage=lambda sea, horizon, frontiere: (bornes[1], 21),
         coupure_70_30=lambda ops, sea, horizon=None, frontiere=None: {
             "frontiere": frontiere, "embargo_seances": 21, "res_70": {"n": 1, "wr_exact": 100.0, "net": 10.0}}) \
         if nom == "jug" else (types.SimpleNamespace(       # (19-11-2026, I2) JOUER lit le CONTENU du barème par ce module
@@ -648,6 +684,8 @@ def faux_juge(base, **reglages):
     J.empreinte = lambda chemin: "0000000000000000"
     # le signal que la fiche nomme (A-542, 30-10-2026) : le faux juge n'en lit pas, son faux `jouer` n'en a pas besoin
     J.signal_de_la_fiche = lambda b, f: None
+    # (27-11-2026, lot L1-CORR) la fenêtre du regard unique : le faux juge joue 2024-2026, hors fenêtre, sans reçu
+    J.touche_la_fenetre_du_regard_unique = lambda premiere, derniere: False
     # le barème des verdicts (A-550, 29-10-2026) : le faux juge n'a pas de module des positions, il en donne le nom
     J.bareme_des_verdicts = lambda bareme, mod: bareme or "HIST_COURTAGE_SANS_TTF"
     J.trouver = lambda b, motif: reglages.get("registre") if motif == NOM_DU_REGISTRE_DES_STRATEGIES else "fichier"
@@ -729,10 +767,7 @@ def cas_jouer_dedans(racine):
         base = os.path.join(d, "depot")
         os.makedirs(os.path.join(base, "programmes"))
         open(os.path.join(base, "cours"), "w", encoding="utf-8").write("valeur,date\n")   # le faux fichier de cours
-        # le réglage du recul maximum de la fin (mission TRI, 11-11-2026), lu par JOUER sous sa racine
-        os.makedirs(os.path.join(base, "donnees", "combinatoires"))
-        shutil.copy(os.path.join(racine, "donnees", "combinatoires", "RECUL_MAXIMUM_DE_LA_FIN.csv"),
-                    os.path.join(base, "donnees", "combinatoires"))
+        # (le réglage du recul maximum n'est plus recopié ici : JOUER le calcule depuis le 27-11-2026, A-1100)
         f_reg = ecrire(os.path.join(d, "registre.csv"), list(fiche),
                        [fiche] * (nb_fiches - 1) + [dict(fiche, **(derniere or {}))])
         f_comb = ecrire(os.path.join(d, "COMBINATOIRE_F_E01.csv"), colonnes, deux)
@@ -741,7 +776,8 @@ def cas_jouer_dedans(racine):
         avant_mod, avant_argv, avant_cal = sys.modules.get("JUGE_DES_STRATEGIES"), sys.argv, jouer.calibrer_par_le_juge
         sys.modules["JUGE_DES_STRATEGIES"] = J
         sys.argv = ["JOUER_LES_VERSIONS.py", base, f_comb, f_out]
-        jouer.calibrer_par_le_juge = lambda b, i, cours=None: (True, ligne_juge)   # `cours` : --cours=, 11-11-2026
+        # `cours` : --cours=, 11-11-2026 ; `essai`, `partie` (la partie de réglage, 27-11-2026)
+        jouer.calibrer_par_le_juge = lambda b, i, cours=None, essai=False, partie=None: (True, ligne_juge)
         # LE CONTRAT DE STRATÉGIE EST NEUTRALISÉ (20-11-2026) : JOUER l'appelle avec le juge reçu, et le faux juge n'en
         # porte pas les fonctions (mesuré le 20-11-2026 sur e77edfacf : « AttributeError … no attribute 'VIDE' », la
         # famille interrompue au deuxième cas). Le contrat dans JOUER est éprouvé par
@@ -774,13 +810,20 @@ def cas_jouer_dedans(racine):
     # DERNIÈRE ligne est jouée : elle seule porte un horizon de 21, et la porte 0 du faux juge ne refuse qu'elle ; si
     # JOUER prenait la première, la porte passerait et le cas rougirait.
     un_cas("JOUER (faux juge), fiche deux fois au registre : la DERNIÈRE ligne est jouée (n°83)",
-           "la porte 0 refuse : ['ligne ajoutée lue']", nb_fiches=2, leve=True, derniere={"horizon": "21"},
+           "la porte 0 refuse : ['ligne ajoutée lue']", nb_fiches=2, derniere={"horizon": "21"},
            porte=lambda f: (False, ["ligne ajoutée lue"], None) if f.get("horizon") == "21"
            else (True, [], ("2024-01-02", "2026-07-10")))
-    un_cas("JOUER (faux juge), la porte 0 refuse", "la porte 0 refuse", leve=True, porte=(False, ["tp illisible"], None))
+    # (27-11-2026, lot L1-CORR) la porte 0 refuse AVANT tout jeu (la partie de réglage se calcule sur ses bornes) : un
+    # arrêt en 1, plus une erreur levée par le premier jeu
+    un_cas("JOUER (faux juge), la porte 0 refuse", "la porte 0 refuse", porte=(False, ["tp illisible"], None))
     un_cas("JOUER (faux juge), valeurs absentes des cours", "valeurs absentes des cours", leve=True, inconnus=["XYZ"])
     un_cas("JOUER (faux juge), la fiche ne produit aucune opération", "la fiche elle-même ne produit aucune opération", n=0)
     un_cas("JOUER (faux juge), le lecteur refuse la lecture", "le lecteur unique a mis 1 ligne(s)", refus_lecture=True)
+    # (27-11-2026, A-1076 ②) la fiche déclare 2000-01-03 → 2026-07-10, les cours lus commencent le 2024-01-02 : refus
+    # AVANT le calibrage (le cas réel du 26-11-2026 : IND-001-RETEST, déclarée 2000-2026, jouée sur 2024-2026).
+    un_cas("JOUER (faux juge), cours qui ne couvrent pas la période déclarée : refus de couverture",
+           "COUVERTURE DES COURS INSUFFISANTE : la fiche commence le 2000-01-03, les cours lus le 2024-01-02",
+           porte=(True, [], ("2000-01-03", "2026-07-10")))
     un_cas("JOUER (faux juge), le juge ne se calibre pas (aucune ligne de résultat)",
            "le juge des stratégies ne se calibre pas", ligne_juge=None)
     un_cas("JOUER (faux juge), le juge seul dit autre chose", "ne rendent pas la même chose pour la fiche",
@@ -814,8 +857,13 @@ def cas_rejeu_complet(racine):
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
     """
+    # (27-11-2026, lot L1-CORR, A-1078) le témoin du 08-10-2026 porte la période ENTIÈRE ; la moulinette ne joue plus que
+    # les 70 % moins la bande : le rejeu complet doit le dire NON COMPARABLE et ne rien écrire. Refaire le témoin sur la
+    # partie de réglage est une décision de Jean-Luc (« un témoin se fige sur décision de Jean-Luc », ⑨ de
+    # `comparer_au_temoin`) : jusque-là, ce rejeu ne protège plus les frais des 2 695 versions.
     c, s = lancer(racine, P_JOUER, ".", COMBINATOIRE, os.path.join(dossier(), "RESULTATS.csv"))
-    attendre("JOUER, rejeu complet contre le témoin : 0 écart", c, s, 0, "2695 versions comparées, 0 écarts")
+    attendre("JOUER, rejeu complet contre le témoin de la période entière : NON COMPARABLE", c, s, 1,
+             "TÉMOIN NON COMPARABLE : 2695 version(s)")
 
 
 def main(argv):
