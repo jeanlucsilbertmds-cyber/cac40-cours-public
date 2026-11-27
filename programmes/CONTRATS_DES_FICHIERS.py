@@ -551,9 +551,14 @@ MISE_EN_SERVICE_DU_BAREME_REEL = "2026-10-30"
 # LA LISTE ANNUELLE DES VALEURS TAXÉES (A-550) — une ligne par année et par valeur :
 # `assujettie` vaut OUI ou NON, selon la liste publiée au BOFiP en décembre de l'année
 # précédente. Lue par `programmes/MODULE_POSITIONS.py` (`valeur_taxee`).
+# `taxee_jusqu_au` (lot L2, 27-11-2026) : pour une ligne OUI, le DERNIER jour d'achat taxé de l'année, AAAA-MM-JJ, de
+# la même année ; vide = toute l'année. Un achat d'après ce jour n'est pas taxé. Raison : décision de Jean-Luc n°92 du
+# 01-11-2026 à 12h44 — Peugeot (UG) taxée du 04-01 au 15-01-2021 seulement (fusion dans Stellantis), Stellantis
+# (STLAP) non taxée en 2021 ; une liste par ANNÉE ne savait pas le dire. Une case remplie sur une ligne NON, ou hors
+# de l'année, est refusée par `valeur_taxee` (ValueError).
 VALEURS_TTF = [
     "annee", "mnemonique", "nom_usuel", "assujettie", "liste_reference", "source",
-    "releve_le",
+    "releve_le", "taxee_jusqu_au",
 ]
 
 # LES COMPTABILITÉS ADMISES dans la colonne `comptabilite` des positions et du journal.

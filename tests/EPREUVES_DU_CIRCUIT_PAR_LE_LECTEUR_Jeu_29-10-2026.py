@@ -113,7 +113,9 @@ SABOTAGES = {
                                          "    seances = sorted({iso(d) for d in lues})")],
     "J2_les_seances_au_dela_des_cours": [(BAN, 'lecteur.CAL.seances_entre(min(lues), max(lues), c["seances"])',
                                           'lecteur.CAL.seances_entre(min(lues), c["fin"], c["seances"])')],
-    "P1_le_calendrier_ignore_la_lecture": [(POS, '    if lecture is not None:\n        return list(lecture["seances"])',
+    # P1 vise depuis le 27-11-2026 (lot L2, A-950) le corps du calendrier, déplacé de `TENIR_LES_POSITIONS.calendrier`
+    # dans `MODULE_POSITIONS.calendrier_des_seances`, que le teneur appelle.
+    "P1_le_calendrier_ignore_la_lecture": [("programmes/MODULE_POSITIONS.py", '    if lecture is not None:\n        return list(lecture["seances"])',
                                             '    if False:\n        return list(lecture["seances"])')],
     "P2_l_achat_hors_de_l_indice_admis": [(POS, "        if lecture is not None:\n            _j = next(", "        if False:\n            _j = next(")],
     "P3_tenir_pour_de_vrai_ne_passe_pas_la_lecture": [(POS, "    r = tenir(positions, cours, signaux, prochaine, mod, base=base, lecture=lecture, juge=juge)",

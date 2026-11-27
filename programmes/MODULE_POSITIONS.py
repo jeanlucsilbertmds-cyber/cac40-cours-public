@@ -61,17 +61,18 @@ LES ONZE ÉLÉMENTS — ce programme est une fonction comme les autres
   `seuils_de_vente`, `prix_de_convention`, `vendre`) ne lisent rien ; `vendre` importe
   `programmes/COMMUN.py` (la valeur « aucune durée »).
 ⑤ SORTIE — **Lancé seul : un code de sortie, 0 si le calibrage passe.**
-  Utilisé comme module : ce que rendent ses fonctions publiques (neuf, listées au ⑥).
+  Utilisé comme module : ce que rendent ses fonctions publiques (onze, listées au ⑥).
 ⑥ TRAITEMENT — Il expose cinq constantes (`CAPITAL`, `TP_PCT`, `SL_PCT`, `HORIZON`,
-  `BAREME_PAR_DEFAUT`) et neuf fonctions publiques
+  `BAREME_PAR_DEFAUT`) et onze fonctions publiques
   (`cout_d_un_ordre`, `valeur_taxee`, `frais_ordre`, `frais_aller_retour`, `pnl_net`,
-  `seuils_de_vente`, `tester_seance`, `prix_de_convention`, `vendre`) ; `parametres_entree` et `sortie_position`
+  `seuils_de_vente`, `tester_seance`, `prix_de_convention`, `vendre`, et, depuis le 27-11-2026 (lot L2, A-950),
+  `calendrier_des_seances` et `seance_d_echeance`, le calendrier et l'échéance en séances de R-112) ; `parametres_entree` et `sortie_position`
   sont retirées le 11-11-2026 (plan V7, bloc 4, accord de Jean-Luc du 08-11-2026 à 17h06, n°351 ; récupérables dans
   l'historique git). **Rien ne s exécute au chargement**, sinon la
   définition des constantes ; le barème est lu au premier calcul de frais.
 ⑦ UNITÉ — **`CAPITAL` en euros · `TP_PCT`, `SL_PCT` et les taux du barème en
   FRACTIONS, jamais en pourcents — 0,0015 vaut 0,15 %** · `HORIZON` en SÉANCES
-  DE BOURSE, jamais en jours calendaires · les prix en euros · les dates en
+  DU CALENDRIER DE LA BOURSE (R-112), jamais en jours calendaires ni en lignes de cours · les prix en euros · les dates en
   texte AAAA-MM-JJ.
 ⑧ POURQUOI — **Un seul endroit pour le coût d un ordre, et un barème DATÉ**,
   parce qu un chiffre recopié diverge et qu un taux unique ne dit pas la taxe, qui
@@ -336,11 +337,15 @@ def valeur_taxee(valeur, date):
       [rend: 1]
     ⑥ TRAITEMENT — ① prendre l'année de la date · ② chercher la valeur dans les lignes
       de cette année, par mnémonique puis par nom rapproché · ③ lire la colonne
-      `assujettie` (OUI ou NON).
+      `assujettie` (OUI ou NON) · ④ une ligne OUI dont `taxee_jusqu_au` est remplie n'est
+      taxée que jusqu'à ce jour inclus (depuis le 27-11-2026, lot L2, n°92).
     ⑦ UNITÉ — —
     ⑧ POURQUOI — La liste change chaque année (publiée au BOFiP en décembre pour l'année
       suivante) : un drapeau écrit une fois pour toutes serait faux un an plus tard.
       Exemple : Bureau Veritas (BVI) est taxée en 2026, Airbus (AIR) ne l'est pas.
+      LA FIN EN COURS D'ANNÉE : décision de Jean-Luc n°92 du 01-11-2026 à 12h44 — Peugeot (UG)
+      taxée du 04-01 au 15-01-2021 seulement, Stellantis (STLAP) non taxée en 2021 ; la ligne
+      « 2021,UG » porte `taxee_jusqu_au` = 2021-01-15 (rapporté par A-1100 et R-505 v2, étape 3).
     ⑨ CE QUI CLOCHE — Une année sans liste lève au lieu de supposer : un juge qui
       rejoue 2000-2023 avec le barème réel s'arrête donc (la taxe existe depuis 2012, et
       les listes d'avant 2024 ne sont pas relevées). C'est voulu : supposer zéro ferait
@@ -353,7 +358,8 @@ def valeur_taxee(valeur, date):
     ⑪ TERMINAISON — Rend la main ; lève `ValueError` sur une date illisible ou absente
       du calendrier, `FraisNonChiffrables` (un cas de `LookupError`) si l'année n'a pas de
       liste ou si la valeur n'y est pas, `ValueError` si la colonne `assujettie` ne vaut
-      ni OUI ni NON.
+      ni OUI ni NON, ou si `taxee_jusqu_au` est remplie sur une ligne NON, illisible, ou
+      hors de l'année de la ligne.
       [sort: non]
     """
     _date_du_calendrier(date, "date de l'ordre, pour la taxe")
@@ -373,6 +379,15 @@ def valeur_taxee(valeur, date):
     drapeau = trouvees[0]["assujettie"].strip().upper()
     if drapeau not in ("OUI", "NON"):
         raise ValueError(f"donnees/VALEURS_TTF.csv : assujettie = {drapeau!r} pour {valeur!r} en {annee}")
+    # LA FIN PROPRE À UNE VALEUR (n°92, 01-11-2026 : Peugeot taxée du 04-01 au 15-01-2021 seulement) : le dernier jour
+    # d'achat taxé de l'année ; vide, toute l'année.
+    jusqu_au = (trouvees[0].get("taxee_jusqu_au") or "").strip()
+    if jusqu_au:
+        _date_du_calendrier(jusqu_au, f"taxee_jusqu_au de {valeur!r} en {annee}")
+        if drapeau != "OUI" or jusqu_au[:4] != annee:
+            raise ValueError(f"donnees/VALEURS_TTF.csv : taxee_jusqu_au = {jusqu_au!r} pour {valeur!r} en {annee} "
+                             f"(admis seulement sur une ligne OUI, dans l'année de la ligne)")
+        return date <= jusqu_au
     return drapeau == "OUI"
 
 
@@ -798,6 +813,73 @@ def _stop_aucun():
     return COMMUN.STOP_AUCUN
 
 
+def calendrier_des_seances(cours, lecture=None):
+    """Rend les séances de la Bourse, triées, AAAA-MM-JJ : celles du calendrier officiel quand une lecture est donnée.
+
+    ① RÔLE — LE calendrier sur lequel se compte l'horizon d'une position (R-112), pour le juge et pour le soir : une
+      seule définition (R-708 : deux implémentations d'une même chose divergent toujours).
+    ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py` (`jouer`, `juger` pour l'étalon de hasard), une fois
+      par fiche ; `programmes/TENIR_LES_POSITIONS.py` (`calendrier`, qui lui délègue depuis le 27-11-2026, lot L2).
+    ③ ENTRÉE — `cours` : dictionnaire valeur → liste de séances, chacune portant au moins `date` · `lecture` : le
+      second rendu de `JUGE_DES_STRATEGIES.lire_par_le_lecteur`, ou None.
+    ④ CONDITIONS D'ENTRÉE — Dates au format AAAA-MM-JJ (l'ordre du texte est alors celui du temps). Une lecture porte
+      « seances » (depuis le 29-10-2026), sinon KeyError.
+    ⑤ SORTIE — UNE valeur : la liste triée des dates, sans doublon.
+      [rend: 1]
+    ⑥ TRAITEMENT — avec une lecture : une copie de ses « seances » (le calendrier officiel de R-110, l'indice publié
+      pour le passé, la liste d'Euronext pour l'avenir, bornées aux dates du fichier) ; sans lecture : la réunion des
+      dates de TOUTES les valeurs.
+    ⑦ UNITÉ — Des jours de bourse, AAAA-MM-JJ.
+    ⑧ POURQUOI — La séance est une date de la BOURSE, pas une date propre à une valeur (R-110) : compter l'horizon dans
+      les seules lignes d'une valeur fait glisser sa vente à chaque trou (A-950 ; cas K07 de l'épreuve par
+      propriétés : vente due le 12-01, partie le 15-01). Ce corps était celui de `TENIR_LES_POSITIONS.calendrier`.
+    ⑨ CE QUI CLOCHE — Sans lecture, une séance où AUCUNE valeur n'a de cours manque au calendrier, et une date fausse
+      portée par une seule valeur y entre pour toutes (mesuré le 27-09-2026 sur le maître : chaque séance portée par
+      39 ou 40 valeurs). Le juge et le teneur sans lecture (calibrage, épreuves, copie des boucles Cowork) en héritent.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève KeyError pour une lecture sans « seances ». Aucun de ses appels ne peut ne pas
+      revenir.
+      [sort: non]
+    """
+    if lecture is not None:
+        return list(lecture["seances"])
+    return sorted({b["date"] for serie in cours.values() for b in serie})
+
+
+def seance_d_echeance(seances, date_achat, h):
+    """Rend la date de la h-ième séance du calendrier APRÈS la séance d'achat, ou None : LE seul calcul de l'échéance.
+
+    ① RÔLE — Dire quel jour tombe l'échéance d'une position à durée chiffrée, en SÉANCES DU CALENDRIER (R-112), pour
+      tout le dépôt.
+    ② CONTEXTE D'APPEL — `vendre` (le juge, la moulinette, l'étalon de hasard) ; `programmes/TENIR_LES_POSITIONS.py`,
+      `echeance` (le soir : `entrer` et `completer_echeances`), depuis le 27-11-2026 (lot L2, A-950).
+    ③ ENTRÉE — `seances` : la liste TRIÉE des séances, AAAA-MM-JJ (celle de `calendrier_des_seances`) · `date_achat` :
+      la date de la séance d'achat · `h` : l'horizon, un entier > 0 de séances.
+    ④ CONDITIONS D'ENTRÉE — `seances` triée sans doublon ; `h` entier > 0 (l'appelant l'a validé) ; `date_achat` au
+      format AAAA-MM-JJ.
+    ⑤ SORTIE — UNE valeur : la date de l'échéance, ou None si le calendrier ne porte pas encore h séances après
+      l'achat.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① rang de la première séance STRICTEMENT après l'achat (recherche dichotomique) · ② la séance h − 1
+      rangs plus loin, si elle existe.
+    ⑦ UNITÉ — Des SÉANCES du calendrier, jamais des lignes de cours d'une valeur.
+    ⑧ POURQUOI — R-112 (décision de Jean-Luc du 10-10-2026, « Oui, telle quelle ») : « une séance manquante compte
+      comme une séance de l'horizon » ; A-950 (défaut trouvé le 20-11-2026 par l'épreuve par propriétés, cas K07 : le
+      cours du 10-01 manque, achat le 09-01, horizon 3 → échéance le 12-01, le code comptait 11, 12, 15-01) ; mise en
+      conformité demandée par Jean-Luc le 27-11-2026 à 19h27 (A-1099, « 1 »). Sur les 20 ans, 975 séances manquent pour
+      Alstom (A-1099).
+    ⑨ CE QUI CLOCHE — Une date d'achat absente du calendrier n'est pas refusée : l'échéance se compte depuis la séance
+      qui la suit. Le lecteur unique refuse déjà une barre hors calendrier (R-110) ; sans lecture, le calendrier est
+      la réunion des dates des cours, qui contient la date d'achat.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main ; aucun de ses appels ne peut ne pas revenir.
+      [sort: non]
+    """
+    import bisect
+    k = bisect.bisect_right(seances, date_achat) + h - 1
+    return seances[k] if k < len(seances) else None
+
+
 def seuils_de_vente(prix_entree, tp, sl):
     """Rend l'objectif et le stop, en euros, d'un achat fait à `prix_entree` : LE seul calcul des deux seuils.
 
@@ -870,14 +952,15 @@ def prix_de_convention(motif, prix_sortie, objectif, stop):
     return prix_sortie
 
 
-def vendre(serie, j, vente, fin_des_donnees):
+def vendre(serie, j, vente, fin_des_donnees, seances=None):
     """Dit quand et à quel prix se revend un achat fait à l'ouverture de la séance `j` : LA décision de vente, pour tout le dépôt.
 
     ① RÔLE — Le seul endroit où se décide une vente : à partir d'un achat à l'ouverture de la séance `j`, rendre le
       jour, le prix et le motif de la revente — objectif, stop, ou échéance. Elle ne chiffre rien : ni frais, ni gain.
     ② CONTEXTE D'APPEL — `programmes/JUGE_DES_STRATEGIES.py`, `jouer_une_entree` (donc `jouer`, l'étalon de hasard,
       le juge à huit critères et la moulinette), fin des données `"vendre"` ; `programmes/TENIR_LES_POSITIONS.py`,
-      `cloturer` (le circuit du soir), fin des données `"garder"`, seuils en euros lus dans la position. Depuis le
+      `cloturer` (le circuit du soir), fin des données `"garder"`, seuils en euros et échéance (date) lus dans la
+      position. Depuis le
       11-11-2026 (plan V7, bloc 4) ; avant, le soir gardait sa propre boucle. Le radar (`_c5e10_sortie`) ne l'appelle
       PAS : son recalcul reste indépendant (BACKLOG A-208 ⑤, décision de Jean-Luc du 14-08-2026).
     ③ ENTRÉE — `serie` : la série ENTIÈRE des séances d'une valeur, triée par date, chaque séance avec `date`,
@@ -885,34 +968,45 @@ def vendre(serie, j, vente, fin_des_donnees):
       qui porte `horizon` et, AU CHOIX, soit `tp` et `sl` (les seuils en FRACTIONS du prix d'achat, 0.04 et 0.025
       pour « +4 % » et « −2,5 % » ; les prix sont alors posés par `seuils_de_vente`), soit `objectif` et `stop` (les
       prix en euros, déjà posés : ceux qu'une position du soir porte depuis son achat). `sl` ou `stop` peut valoir
-      `COMMUN.STOP_AUCUN` (« sans stop », depuis le 11-11-2026 : A-541, compléments du 19-10-2026 ; A-645). La clé
-      `horizon` porte l'échéance en SÉANCES après l'achat, un entier > 0, ou `COMMUN.HORIZON_AUCUNE` (aucune durée
-      maximale) · `fin_des_donnees` :
+      `COMMUN.STOP_AUCUN` (« sans stop », depuis le 11-11-2026 : A-541, compléments du 19-10-2026 ; A-645). La vente
+      porte, AU CHOIX, soit la clé « horizon », l'échéance en SÉANCES DU CALENDRIER après l'achat, un entier > 0, ou
+      `COMMUN.HORIZON_AUCUNE` (aucune durée maximale), soit la clé « echeance », la DATE de l'échéance, AAAA-MM-JJ, déjà
+      posée par `seance_d_echeance` (le soir la porte dans la position, depuis le 27-11-2026, lot L2) · `seances` : le
+      calendrier des séances, liste triée AAAA-MM-JJ (`calendrier_des_seances`), sur lequel se compte `horizon`
+      (R-112) ; None : les dates de `serie` elle-même — l'ancien compte en lignes, gardé pour les appelants sans
+      calendrier (voir ⑨) · `fin_des_donnees` :
       `"vendre"` (le juge rejoue un passé fini : une série qui s'arrête avant l'échéance vend à la dernière clôture)
       ou `"garder"` (le soir vit un présent qui continue : la position reste ouverte).
-    ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; `vente` porte `horizon` et exactement l'une des deux paires.
+    ④ CONDITIONS D'ENTRÉE — `0 <= j < len(serie)` ; `vente` porte exactement l'un de `horizon` et `echeance`, et
+      exactement l'une des deux paires de seuils ; une `echeance` tombe après la séance d'achat.
     ⑤ SORTIE — UNE valeur : None si la position reste ouverte (`"garder"` : l'échéance n'est pas encore dans la
       série, ou il n'y en a pas) ou si l'achat tombe sur la DERNIÈRE séance sans qu'un seuil y soit touché
       (`"vendre"` : aucune séance après lui) ; sinon un dictionnaire de six clés — `pe` (l'ouverture de `serie[j]`),
       `px` (le prix de vente), `motif` (`SL_GAP`, `TP_GAP`, `SL`, `TP` ou `HORIZON`), `date_sortie`, `objectif` et
       `stop` (les deux seuils en euros, pour le prix de convention ; `stop` vaut `COMMUN.STOP_AUCUN` sans stop, et
-      aucun motif `SL…` n'est alors possible). En `"vendre"`, un achat suivi de moins de
-      `horizon` séances est vendu à la dernière clôture connue, motif `HORIZON` ; SANS horizon (HORIZON_AUCUNE), il
+      aucun motif `SL…` n'est alors possible). UNE ÉCHÉANCE SANS COURS POUR LA VALEUR (un trou, une suspension) vend
+      à l'OUVERTURE de la première séance cotée après elle, motif `HORIZON` (R-112 ②). En `"vendre"`, un achat suivi de
+      moins de
+      `horizon` séances (aucune séance cotée à l'échéance ni après) est vendu à la dernière clôture connue, motif
+      `HORIZON` ; SANS horizon (HORIZON_AUCUNE), il
       l'est au même prix mais sous le motif `COMMUN.MOTIF_FIN_DES_DONNEES` (« FIN_DES_DONNEES ») : ce n'est pas une
       vente, c'est la position encore ouverte, que ses lecteurs mettent à part (décision de Jean-Luc du 12-11-2026
       à 09h18).
       [rend: 1]
-    ⑥ TRAITEMENT — ① refuser un `fin_des_donnees` inconnu, une paire de seuils ambiguë ou un horizon qui n'est ni un
-      entier > 0 ni HORIZON_AUCUNE · ② prix d'achat = ouverture de `serie[j]` (R-601) ; seuils en euros reçus, ou
+    ⑥ TRAITEMENT — ① refuser un `fin_des_donnees` inconnu, une vente qui porte à la fois « horizon » et
+      « echeance », une paire de seuils ambiguë, un horizon qui n'est ni un entier > 0 ni HORIZON_AUCUNE, une échéance
+      illisible ou pas après l'achat · ② prix d'achat = ouverture de `serie[j]` (R-601) ; seuils en euros reçus, ou
       posés par `seuils_de_vente` (arrondis à cinq décimales, n°311) ; sans stop, le stop TESTÉ vaut moins l'infini,
-      le stop RENDU la sentinelle · ③ tester, par `tester_seance`, les séances
-      `serie[j]` à `serie[j + horizon]` (toutes les suivantes sans horizon), séance d'achat comprise (R-608), et
-      vendre à la première qui touche un seuil · ④ sinon, si la `horizon`-ième séance APRÈS l'achat est dans la
-      série, vendre à sa clôture, motif `HORIZON` · ⑤ sinon (fin des données) : `"garder"` rend None ; `"vendre"`
-      vend à la dernière clôture connue, motif `HORIZON` (durée chiffrée) ou `FIN_DES_DONNEES` (durée « aucune »),
-      ou rend None s'il n'y a aucune séance après l'achat.
-    ⑦ UNITÉ — Seuils en FRACTIONS du prix d'achat, ou en EUROS ; échéance en SÉANCES de la série (des lignes : voir
-      ⑨) ; prix en EUROS ; dates en texte AAAA-MM-JJ ; `j` est un rang compté depuis zéro.
+      le stop RENDU la sentinelle · ③ date de l'échéance : reçue (`echeance`), ou la `horizon`-ième séance du
+      calendrier après l'achat (`seance_d_echeance`), ou aucune (HORIZON_AUCUNE, ou calendrier trop court) · ④ parcourir
+      les séances de la série depuis `serie[j]`, séance d'achat comprise (R-608) : une séance APRÈS l'échéance (celle-ci
+      n'avait pas de cours) vend à son ouverture, motif `HORIZON` (R-112 ②) ; sinon `tester_seance`, et vendre à la
+      première qui touche un seuil ; la séance DE l'échéance, non touchée, vend à sa clôture, motif `HORIZON` · ⑤ sinon
+      (fin des données) : `"garder"` rend None ; `"vendre"` vend à la dernière clôture connue, motif `HORIZON` (durée
+      chiffrée) ou `FIN_DES_DONNEES` (durée « aucune »), ou rend None s'il n'y a aucune séance après l'achat.
+    ⑦ UNITÉ — Seuils en FRACTIONS du prix d'achat, ou en EUROS ; échéance en SÉANCES DU CALENDRIER (R-112) quand
+      `seances` est donné, en lignes de la série sinon (voir ⑨) ; prix en EUROS ; dates en texte AAAA-MM-JJ ; `j` est
+      un rang compté depuis zéro.
     ⑧ POURQUOI — Deux implémentations d'une même chose divergent toujours (R-708) : la décision « quand vendre » était
       écrite à quatre endroits, qui divergeaient (conception J1 du 07-11-2026, §1.4 : une séance qui ouvre au-dessus
       de l'objectif puis passe sous le stop donnait l'objectif au juge et le stop au radar ; la séance d'achat n'était
@@ -926,10 +1020,13 @@ def vendre(serie, j, vente, fin_des_donnees):
       La durée « aucune » : plan V6 et V7, bloc 4 ; contrat du lot 0 (09-11-2026) dans `programmes/COMMUN.py`.
       « Sans stop » : décision de Jean-Luc du 19-10-2026 à 20h22 (« et bien sûr, ajoutez le sans stop », A-541), pour
       que la moulinette mesure ce que le stop rapporte ou coûte ; contrat du stop « sans stop » dans `programmes/COMMUN.py`.
-    ⑨ CE QUI CLOCHE — Consigné, non corrigé (R-752) : · l'échéance se compte en LIGNES de la série de la valeur, pas
-      en séances du calendrier de la Bourse ; R-112 (décision de Jean-Luc du 10-10-2026) veut qu'une séance manquante
-      fasse avancer l'horizon, et n°315 (07-11-2026) veut la mise en conformité « dans la refonte » — non faite ici :
-      elle change la vente de toute position qui traverse un trou, à décider avec le calendrier passé en entrée ·
+    ⑨ CE QUI CLOCHE — Consigné, non corrigé (R-752) : · SANS `seances`, l'échéance se compte encore en LIGNES de la
+      série (l'ancien défaut A-950) ; le juge, la moulinette par le juge et le soir passent le calendrier depuis le
+      27-11-2026 (lot L2) ; un appelant qui l'omet garde l'ancien compte, sans le dire · UNE ÉCHÉANCE QUI TOMBE SUR
+      UN TROU DE DONNÉES (la Bourse a coté, notre fichier n'a pas le cours) est vendue comme une suspension, à
+      l'ouverture de la séance cotée suivante : R-112 ② ne parle que de la suspension, et la nature des trous n'est
+      pas établie (R-112, « leur nature n'est pas encore établie ») ; R-114 ①, pour l'achat, attendrait le vrai prix —
+      à confirmer par Jean-Luc (lot L2, 27-11-2026) ·
       une vente forcée par la FIN DES DONNÉES porte le motif `HORIZON`, comme une vraie échéance (décision 7 de la
       conception J1, non tranchée), pour une stratégie À DURÉE CHIFFRÉE ; depuis le 13-11-2026, une stratégie SANS
       durée maximale y porte `FIN_DES_DONNEES` (décision de Jean-Luc du 12-11-2026 à 09h18, qui ne porte que sur
@@ -937,7 +1034,8 @@ def vendre(serie, j, vente, fin_des_donnees):
       refusé, un flottant aussi : seul un entier Python est un nombre de séances.
     ⑩ EFFET — Aucun : ne lit ni n'écrit aucun fichier, ne modifie pas `serie`.
     ⑪ TERMINAISON — Rend la main ; lève ValueError (fin des données inconnue, seuils ambigus, horizon refusé),
-      KeyError si `vente` ou une séance manque d'une clé, IndexError si `j >= len(serie)`. UN `j` NÉGATIF NE LÈVE
+      KeyError si `vente` manque de sa durée (ni « horizon » ni « echeance ») ou d'un seuil, ou si une séance manque
+      d'une clé, IndexError si `j >= len(serie)`. UN `j` NÉGATIF NE LÈVE
       PAS : Python le compte depuis la fin de `serie` ; le ④ l'interdit, rien ne le vérifie ici ; le juge ne passe
       que des rangs >= 1, le soir des rangs trouvés dans la série. Aucun de ses appels ne peut ne pas
       revenir : `tester_seance` ne fait que comparer.
@@ -952,10 +1050,27 @@ def vendre(serie, j, vente, fin_des_donnees):
     if fin_des_donnees not in ("vendre", "garder"):
         raise ValueError("vendre : fin_des_donnees %r inconnue ; \"vendre\" (le juge) ou \"garder\" (le soir, le "
                          "radar)" % (fin_des_donnees,))
-    h = vente["horizon"]
-    aucune = h is _horizon_aucune()
-    if not aucune and (type(h) is not int or h <= 0):
-        raise ValueError("vendre : horizon %r refusé ; un entier de séances > 0, ou HORIZON_AUCUNE" % (h,))
+    if "horizon" in vente and "echeance" in vente:
+        raise ValueError("vendre : la vente porte soit `horizon`, soit `echeance` (une date), pas les deux")
+    aucune = False
+    if "echeance" in vente:
+        echeance = _date_du_calendrier(vente["echeance"], "échéance de la vente")
+        if echeance <= serie[j]["date"]:
+            raise ValueError("vendre : échéance %s pas après la séance d'achat du %s" % (echeance, serie[j]["date"]))
+    else:
+        h = vente["horizon"]
+        aucune = h is _horizon_aucune()
+        if not aucune and (type(h) is not int or h <= 0):
+            raise ValueError("vendre : horizon %r refusé ; un entier de séances > 0, ou HORIZON_AUCUNE" % (h,))
+        # L'HORIZON SE COMPTE EN SÉANCES DU CALENDRIER (R-112, A-950, lot L2 du 27-11-2026) : une séance manquante
+        # pour la valeur fait quand même avancer l'échéance. Sans calendrier, la h-ième ligne de la série (l'ancien
+        # compte, lu en un pas : recopier les dates de la série à chaque vente coûterait sa longueur).
+        if aucune:
+            echeance = None
+        elif seances is not None:
+            echeance = seance_d_echeance(seances, serie[j]["date"], h)
+        else:
+            echeance = serie[j + h]["date"] if j + h < len(serie) else None
     pe = serie[j]["open"]
     en_euros, en_fractions = ("objectif" in vente or "stop" in vente), ("tp" in vente or "sl" in vente)
     if en_euros and en_fractions:
@@ -974,31 +1089,35 @@ def vendre(serie, j, vente, fin_des_donnees):
     # LA SEANCE D'ACHAT COMPTE (R-608, decision de Jean-Luc du 27-09-2026 a 19h40 ; defaut 4 de A-491) : les
     # seuils se testent des la seance ou l'on achete a l'ouverture. Exemple reel du tableau de reference : Vinci,
     # achete le 07-06-2024 a 113,60, plus bas du jour 110,75 sous la vente forcee 110,76 -> vendu le jour meme.
-    # L'echeance, elle, est la h-ieme seance APRES l'achat, serie[j + h].
-    if aucune:
-        suite = serie[j:]
-    else:
-        suite = serie[j:j + 1 + h]
-    for b in suite:
+    # UN PARCOURS PAR RANG, SANS COPIE DE LA SÉRIE : la boucle s'arrête à l'échéance ; seule une vente sans durée
+    # parcourt la série jusqu'au bout, comme avant (mesure du lot L2 : une copie `serie[j:]` à chaque vente ralentissait
+    # le juge sur les longues séries).
+    for k in range(j, len(serie)):
+        b = serie[k]
+        if echeance is not None and b["date"] > echeance:
+            # L'ÉCHÉANCE N'A PAS DE COURS POUR LA VALEUR (R-112 ② : « la vente se fait à l'ouverture de la reprise ») :
+            # la première séance cotée après elle vend à son ouverture, le premier prix possible.
+            return {"pe": pe, "px": b["open"], "motif": "HORIZON", "date_sortie": b["date"],
+                    "objectif": objectif, "stop": stop_rendu}
         r = tester_seance(b, objectif, stop)
         if r:
             return {"pe": pe, "px": r[0], "motif": r[1], "date_sortie": b["date"],
                     "objectif": objectif, "stop": stop_rendu}
-    apres = suite[1:]          # l'echeance se compte APRES la seance d'achat
-    if not aucune and len(apres) == h:
-        return {"pe": pe, "px": apres[-1]["close"], "motif": "HORIZON", "date_sortie": apres[-1]["date"],
-                "objectif": objectif, "stop": stop_rendu}
+        if echeance is not None and b["date"] == echeance:
+            return {"pe": pe, "px": b["close"], "motif": "HORIZON", "date_sortie": b["date"],
+                    "objectif": objectif, "stop": stop_rendu}
     # LA SERIE S'ARRETE AVANT L'ECHEANCE (ou il n'y en a pas) : le soir GARDE la position, le juge,
     # qui rejoue un passe fini, la VEND a la derniere cloture (RealTest : « when the data ends before the test does »).
-    if fin_des_donnees == "garder" or not apres:
+    if fin_des_donnees == "garder" or j + 1 >= len(serie):
         return None
+    dernier = serie[-1]
     # SANS DURÉE MAXIMALE, CE N'EST PAS UNE ÉCHÉANCE (décision de Jean-Luc du 12-11-2026 à 09h18, « 1 » : « On les met
     # à part : exclues du total, affichées séparément avec leur nombre et leur gain ou perte du moment ») : le motif
     # le dit, ici et nulle part ailleurs (R-708) ; `resumer` du juge et la moulinette le lisent pour les mettre à part.
+    # C'est la marque « NON TERMINÉE » de R-505 v2 (A-1100) : jamais une vente HORIZON au dernier cours.
     motif = _motif_fin_des_donnees() if aucune else "HORIZON"
-    return {"pe": pe, "px": apres[-1]["close"], "motif": motif, "date_sortie": apres[-1]["date"],
+    return {"pe": pe, "px": dernier["close"], "motif": motif, "date_sortie": dernier["date"],
             "objectif": objectif, "stop": stop_rendu}
-
 
 # ══════════════════════════════════════════════════════════════
 # CALIBRAGE — reproduire des résultats connus AVANT tout usage (A-550 ④, ÉTUDE 18 A5).
