@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=PartieReglage,CoursMoulinette
+pointe=fa74dd531340c9bbd29e924e3ae367a2c2748b17
