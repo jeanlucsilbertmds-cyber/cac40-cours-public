@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=JugeLecteur,VeriteJuge,Comptabilites,BaremeFrais,ContratSabot,Tri,Moulinette,Enchainer
+pointe=64106ea719ec0b823ae2919fbc3828eb234607d5
