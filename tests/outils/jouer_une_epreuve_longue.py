@@ -26,8 +26,8 @@ seulement, la sortie entière et le code de sortie.
   elle n'a pas pu l'être (code inconnu, fichier absent, programme interdit, sortie impossible à écrire) : un contrôle
   qui n'a pas pu tourner rend un code non nul (R-734).
   [rend: 1]
-⑥ TRAITEMENT — (a) `lire_la_liste`. (b) `jouer` : la table de la COPIE (`epreuves_du_circuit` du fabricant de la
-  copie), le code cherché, le fichier vérifié (présent, pas un lien, dans la copie, ne nomme aucun programme
+⑥ TRAITEMENT — (a) `lire_la_liste`. (b) `jouer` : la table de la COPIE (`epreuves_jouables` du fabricant de la
+  copie : épreuves simples et tranches des familles, « {k} » et « {n} » déjà remplacés), le code cherché, le fichier vérifié (présent, pas un lien, dans la copie, ne nomme aucun programme
   interdit), puis `python3 -B <copie>/<chemin> <arguments>` lancé dans la copie, sortie et erreurs écrites au fil de
   l'eau dans SORTIE.txt, arrêt du groupe de processus au délai de `delai_restant` (le temps qui reste au job, au
   plus DELAI secondes) ; RESULTAT.json écrit après.
@@ -95,15 +95,18 @@ def lire_la_liste(racine, liste):
     version jouée ; `liste` : « toutes », ou des codes séparés par des virgules. ④ CONDITIONS D'ENTRÉE — Fiche en
     tête, ④. ⑤ SORTIE — UNE valeur : la liste [{"code": …}, …], dans l'ordre demandé (dans l'ordre de la table pour
     « toutes »). Lève ValueError si la liste est refusée. [rend: 1] ⑥ TRAITEMENT — forme de la liste ; chaque code
-    connu de la table (`epreuves_du_circuit`), une seule fois ; son fichier présent dans la racine et non interdit
-    (`refus_du_fichier`). ⑦ UNITÉ — — ⑧ POURQUOI — Le relais valide déjà la liste, mais il ne lit pas la version
-    jouée : un code de la table de main absent de la version en attente se voit ICI, avant d'occuper une machine.
-    ⑨ CE QUI CLOCHE — — ⑩ EFFET — Lit la racine. ⑪ TERMINAISON — Rend la main, ou lève. [sort: non]
+    connu du fabricant (`epreuves_jouables` : épreuves simples et tranches des familles, depuis le 27-11-2026, lot
+    TRANSPORT, A-965), une seule fois ; « toutes » = les épreuves SIMPLES seulement (`epreuves_du_circuit`) ; son
+    fichier présent dans la racine et non interdit (`refus_du_fichier`). ⑦ UNITÉ — — ⑧ POURQUOI — Le relais valide
+    déjà la liste, mais il ne lit pas la version jouée : un code de la table de main absent de la version en attente
+    se voit ICI, avant d'occuper une machine. « toutes » ne lance jamais une moulinette (commentaire de
+    FORME_D_UNE_TRANCHE du fabricant). ⑨ CE QUI CLOCHE — — ⑩ EFFET — Lit la racine. ⑪ TERMINAISON — Rend la main, ou
+    lève. [sort: non]
     """
     F = charger(racine, FABRICANT, "FABRICANT_DE_L_EPREUVE_LONGUE")
-    table = {c: (ch, a) for c, ch, a in F.epreuves_du_circuit(racine)}
+    table = F.epreuves_jouables(racine)
     if liste == F.TOUTES:
-        codes = list(table)
+        codes = [c for c, _, _ in F.epreuves_du_circuit(racine)]
     elif re.fullmatch(F.CODE_DE_SERIE + "(?:," + F.CODE_DE_SERIE + ")*", liste or ""):
         codes = liste.split(",")
     else:
@@ -217,7 +220,7 @@ def jouer(copie, code, sortie):
 
     try:
         F = charger(copie, FABRICANT, "FABRICANT_DE_L_EPREUVE_LONGUE")
-        table = {c: (ch, a) for c, ch, a in F.epreuves_du_circuit(copie)}
+        table = F.epreuves_jouables(copie)
         if code not in table:
             raise ValueError(f"épreuve inconnue de la table : {code}")
         chemin, arguments = table[code]

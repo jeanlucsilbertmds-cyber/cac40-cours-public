@@ -66,7 +66,10 @@ DEBUT, FIN = "2024-01-02", "2025-12-31"
 FICHIERS_COPIES = ("emp.py", "donnees/CALENDRIER_EURONEXT.csv", "donnees/NATURE_DES_TROUS.csv",
                    "donnees/BAREME_FRAIS.csv", "donnees/VALEURS_TTF.csv", "donnees/sources_indice/INDICE_CAC40.csv",
                    "donnees/sources_indice/PASSAGES_DANS_LE_CAC40.csv",
-                   "donnees/sources_indice/IDENTITES_DES_SOCIETES.csv", "donnees/REGLAGES_DU_REGISTRE_DES_ESSAIS.csv")
+                   "donnees/sources_indice/IDENTITES_DES_SOCIETES.csv", "donnees/REGLAGES_DU_REGISTRE_DES_ESSAIS.csv",
+                   # (28-11-2026, lot I1FIX) le hasard du même type, mesuré le jour même (A-1105), se joue désormais
+                   # dans la porte : le découpage du jour même lit ses réglages (MODULE_QUAND_JOUER.decoupage_par_defaut)
+                   "donnees/REGLAGES_DES_TYPES_DE_MARCHE.csv")
 DATE_REGISTRE = "2026-11-01T12:00:00+01:00"
 DATE_DECLARATIONS = "2026-11-02T12:00:00+01:00"
 DECLAREE_LE = "2026-11-02T10:00+01:00"
@@ -102,7 +105,10 @@ SABOTAGES = {
     "S04_le_regard_se_compte_lui_meme": (PORTE, 'decl["temoins"], sauf=(nom,))', 'decl["temoins"], sauf=())', "V2"),
     "S05_liste_vide_au_lieu_de_la_lecture": (PORTE, 'declaration_manquants=lecture["champs_en_defaut"])',
                                              "declaration_manquants=[])", "V5"),
-    "S06_trop_peu_de_tirages": (PORTE, "n = int(1.0 / s_hasard) + 1", "n = int(1.0 / s_hasard) - 1", "V2"),
+    # S06 recalé le 28-11-2026 (lot I1FIX) : la porte ne calcule plus le nombre de tirages, elle appelle
+    # `MODULE_CONTROLE_2_DU_HASARD.nombre_de_tirages` (réunion I1, R-708) ; même visée : deux tirages de moins
+    "S06_trop_peu_de_tirages": ("programmes/MODULE_CONTROLE_2_DU_HASARD.py", "    return n\n",
+                                "    return n - 2\n", "V2"),
     "S07_cas_de_l_appelant_cru": (PORTE, 'cas_retenu = lu["cas_declare"] if str(cas).strip() == lu["cas_declare"] else None',
                                   "cas_retenu = str(cas).strip()", "V9"),
     "S08_vente_non_comptee": (PORTE, 'for cle in ("date_entree", "date_sortie"):', 'for cle in ("date_entree",):', "V10"),
@@ -225,6 +231,26 @@ def fabriquer(source, dossier):
         w = csv.DictWriter(f, fieldnames=entete)
         w.writeheader()
         w.writerows(fiches)
+    # LES SÉRIES DES VERSIONS ENVOYÉES AU JUGE (28-11-2026, lot I1FIX ; C-5 du RELU de Cowork, I1-6) : depuis la réunion
+    # I1, k vient de `COMPTER_LES_ESSAIS_PAR_RESSEMBLANCE.k_du_juge` SEUL (A-1082, k par ressemblance) ; sans ces séries,
+    # k est INCONNU et la porte ne tranche plus (V1, V2, V4, V12 rouges sur GitHub, passage 46154620266). Chaque fiche
+    # reçoit DIX versions FICTIVES indépendantes (gains tirés à graine fixe, 30 % des séances) : la ressemblance en
+    # compte dix (k_prudent mesuré 10,46 → plafonné au nombre de versions), comme les dix lignes que comptait le
+    # registre avant — la barre 0,05 ÷ k reste aussi stricte qu'avant. Aucun programme n'écrit encore ces séries pour
+    # les vraies fiches (hors de ce lot) : ce fichier est la donnée d'épreuve, pas une donnée du circuit.
+    contrat_j = charger(os.path.join(source, "programmes", "CONTRATS_DES_FICHIERS.py"), "contrat_des_series_j")
+    import random as _rnd
+    for l in fiches:
+        f_s = os.path.join(dossier, contrat_j.SERIES_DES_VERSIONS_ENVOYEES.format(fiche_id=l["id"]))
+        os.makedirs(os.path.dirname(f_s), exist_ok=True)
+        g_s = _rnd.Random("series-" + l["id"])
+        with open(f_s, "w", encoding="utf-8", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(contrat_j.SERIE_D_UNE_VERSION_ENVOYEE)
+            for n_v in range(10):
+                for d_s in dates[:300]:
+                    w.writerow(["%s-V%02d" % (l["id"], n_v), d_s,
+                                repr(round(g_s.gauss(0.0, 100.0), 2)) if g_s.random() < 0.3 else "0.0"])
     git = lambda *a, date=None: subprocess.run(["git", "-C", dossier] + list(a), check=True, capture_output=True,
                                                env=dict(os.environ, GIT_AUTHOR_DATE=date or "",
                                                         GIT_COMMITTER_DATE=date or ""))
@@ -402,11 +428,16 @@ def cas(dossier):
     ancien = pieces_a_venir(P)
     r = juger("BONNE-B")
     ok("V2 bonne, pièces à venir simulées : Validée", r["verdict"] == VAL, dit(r) + " · " + str(etats(r)))
-    # V12 — k est LU au registre des stratégies à la date de la déclaration : 9 fiches, 9 versions, aucun témoin
+    # V12 — RECALÉ LE 28-11-2026 (lot I1FIX) : depuis la réunion I1, k vient de la RESSEMBLANCE des séries des versions
+    # envoyées (A-1082, `k_du_juge`), plus du compte du registre (avant : « k lu au registre, 10 versions »). Les dix
+    # versions fictives de BONNE-B sont indépendantes : la ressemblance en compte dix ; k = ces dix + les autres
+    # stratégies déjà jugées (V1 vient de juger BONNE-A) ; le seuil de preuve est 0,05 ÷ CE k.
     kk = (r.get("lu") or {}).get("k") or {}
-    ok("V12 k lu au registre (10 versions, 0 témoin), seuil de preuve = 0,05 ÷ 10", kk.get("valeur") == 10
-       and kk.get("versions_comptees") == 10 and r.get("seuil_de_preuve") == 0.05 / 10,
-       "k %r · seuil %r" % (kk, r.get("seuil_de_preuve")))
+    ok("V12 k par ressemblance (10 versions envoyées indépendantes → 10) + autres jugées, seuil de preuve = 0,05 ÷ k",
+       kk.get("k_des_versions") == 10 and isinstance(kk.get("autres_strategies_jugees"), int)
+       and kk.get("k") == 10 + kk["autres_strategies_jugees"] and r.get("seuil_de_preuve") == 0.05 / kk["k"],
+       "k %r · seuil %r" % ({c: kk.get(c) for c in ("k", "k_des_versions", "autres_strategies_jugees")},
+                            r.get("seuil_de_preuve")))
     # V9 — BONNE-C, l'appelant dit cas 2, la déclaration dit 1 : jamais Validée
     r = juger("BONNE-C", "2")
     ok("V9 cas 2 annoncé, cas 1 déclaré : pas Validée, ⑧ INCONNU", r["verdict"] != VAL

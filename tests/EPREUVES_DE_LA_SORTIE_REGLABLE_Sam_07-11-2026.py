@@ -67,18 +67,23 @@ FIGE_E1 = {"A": ["TP_GAP", "2026-01-03", 105], "B": ["SL", "2026-01-02", 97.5],
 SABOTAGES = {
     "Z0": [],
     # dans `vendre`
-    "S1_echeance_un_cran_trop_tot": [(MODP, "    suite = serie[j:j + 1 + h]", "    suite = serie[j:j + h]")],
-    "S2_seance_d_achat_sautee": [(MODP, "    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")],
+    # S1, S2, S4, S7 recalées le 27-11-2026 (lot L2, A-950) sur `vendre` au calendrier, même intention : l'échéance
+    # se pose par `seance_d_echeance` (avec calendrier) ou par la h-ième ligne (sans), la boucle va par rang.
+    "S1_echeance_un_cran_trop_tot": [(MODP, "    k = bisect.bisect_right(seances, date_achat) + h - 1\n",
+                                      "    k = bisect.bisect_right(seances, date_achat) + h - 2\n"),
+                                     (MODP, '            echeance = serie[j + h]["date"] if j + h < len(serie) else None\n',
+                                      '            echeance = serie[j + h - 1]["date"] if j + h - 1 < len(serie) else None\n')],
+    "S2_seance_d_achat_sautee": [(MODP, "    for k in range(j, len(serie)):", "    for k in range(j + 1, len(serie)):")],
     # Cibles de S3 à S8, N4, N12 recalées le 11-11-2026 sur `vendre` réécrite (plan V7, bloc 4), même intention.
     "S3_achat_a_l_ouverture_de_la_veille": [(MODP, '    pe = serie[j]["open"]\n    en_euros', '    pe = serie[j - 1]["open"]\n    en_euros')],
-    "S4_echeance_vendue_a_l_ouverture": [(MODP, '    if not aucune and len(apres) == h:\n        return {"pe": pe, "px": apres[-1]["close"]',
-                                          '    if not aucune and len(apres) == h:\n        return {"pe": pe, "px": apres[-1]["open"]')],
+    "S4_echeance_vendue_a_l_ouverture": [(MODP, '        if echeance is not None and b["date"] == echeance:\n            return {"pe": pe, "px": b["close"]',
+                                          '        if echeance is not None and b["date"] == echeance:\n            return {"pe": pe, "px": b["open"]')],
     "S5_vendu_au_seuil_meme_sur_un_saut": [(MODP, '            return {"pe": pe, "px": r[0], "motif": r[1]',
                                             '            return {"pe": pe, "px": (objectif if r[1].startswith("TP") else stop), "motif": r[1]')],
     "S6_seuils_bruts": [(MODP, '    return float("%.5f" % (prix_entree * (1.0 + tp))), float("%.5f" % (prix_entree * (1.0 - sl)))',
                          '    return prix_entree * (1.0 + tp), prix_entree * (1.0 - sl)')],
-    "S7_fin_des_donnees_vendue_le_jour_d_achat": [(MODP, '    if fin_des_donnees == "garder" or not apres:\n        return None',
-                                                   '    apres = apres or suite\n    if fin_des_donnees == "garder":\n        return None')],
+    "S7_fin_des_donnees_vendue_le_jour_d_achat": [(MODP, '    if fin_des_donnees == "garder" or j + 1 >= len(serie):\n        return None',
+                                                   '    if fin_des_donnees == "garder":\n        return None')],
     "S8_fin_inconnue_acceptee_en_silence": [(MODP, '    if fin_des_donnees not in ("vendre", "garder"):\n        raise',
                                              '    if False:\n        raise')],
     # dans `tester_seance`, qu'elle emploie (ordre et comparaisons)
