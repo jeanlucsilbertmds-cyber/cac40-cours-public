@@ -114,6 +114,10 @@ import PREPARER_LES_VARIABLES_DE_DECLINAISON_DES_STRATEGIES as PREPARER  # noqa:
 import CONTRATS_DES_FICHIERS as CONTRAT  # noqa: E402  la règle « la dernière ligne d'un identifiant fait foi » (n°83)
 
 OBLIGATOIRES = ("tp", "sl", "horizon", "univers")
+# LES RÉGLAGES JOUABLES FACULTATIFS (lot W2e-FIX du 27-11-2026, A-1079) : « quand jouer ». Un tableau qui ne porte pas
+# sa ligne se décline comme avant (mêmes colonnes, mêmes numéros) ; s'il la porte, elle est JOUABLE, VALIDÉE comme les
+# autres, et croisée APRÈS les obligatoires (les numéros d'un tableau sans elle ne bougent pas).
+FACULTATIFS = ("quand_jouer",)
 # Les réglages non jouables viennent de PREPARER, qui les écrit : une seule liste (R-708).
 DU_SIGNAL = tuple(p for p, _ in PREPARER.REGLAGES_DU_SIGNAL)
 D_ACHAT = tuple(p for p, _ in PREPARER.REGLAGES_D_ACHAT)
@@ -195,6 +199,17 @@ def normaliser(parametre, texte):
         if not codes or len(codes) != len(set(codes)) or not all(FORME_CODE.match(c) for c in codes):
             return None
         return tuple(sorted(codes)), ",".join(codes)
+    if parametre == "quand_jouer":
+        # LU PAR LE LECTEUR DU JUGE (MODULE_QUAND_JOUER, R-708) : la clé est l'ENSEMBLE des types de marché joués,
+        # « toujours » à part ; deux écritures du même ensemble (« HAUSSE+BAISSE », « CALME+AGITE ») sont une même valeur.
+        import MODULE_QUAND_JOUER
+        try:
+            ens = MODULE_QUAND_JOUER.lire_quand_jouer(t)
+        except ValueError:
+            return None
+        if ens is None:
+            return (MODULE_QUAND_JOUER.TOUJOURS,), MODULE_QUAND_JOUER.TOUJOURS
+        return tuple(sorted(ens)), t.upper().replace(" ", "")
     return None
 
 
@@ -232,13 +247,13 @@ def verifier(lignes, fiche, codes_connus):
     if len(params) != len(set(params)):
         motifs.append("un paramètre apparaît deux fois")
     for p in params:
-        if p not in OBLIGATOIRES + DU_SIGNAL + D_ACHAT:
+        if p not in OBLIGATOIRES + FACULTATIFS + DU_SIGNAL + D_ACHAT:
             motifs.append("paramètre inconnu : %r" % p)
     for l in lignes:
         p, j = l.get("parametre"), l.get("jouable")
         if j not in ("OUI", "NON"):
             motifs.append("ligne « %s » : jouable doit valoir OUI ou NON, pas %r" % (p, j))
-        elif p in OBLIGATOIRES and j != "OUI":
+        elif p in OBLIGATOIRES + FACULTATIFS and j != "OUI":
             motifs.append("ligne « %s » : ce réglage doit être jouable" % p)
         elif p in DU_SIGNAL and j != "NON":
             motifs.append("ligne « %s » : jouer ne sait pas encore faire varier le signal (A-542)" % p)
@@ -262,7 +277,7 @@ def verifier(lignes, fiche, codes_connus):
             motifs.append("réglage obligatoire absent : %s" % p)
     for l in lignes:
         p = l.get("parametre")
-        if l.get("jouable") != "OUI" or p not in OBLIGATOIRES:
+        if l.get("jouable") != "OUI" or p not in OBLIGATOIRES + FACULTATIFS:
             continue
         if not validation_valable(l):
             motifs.append("ligne « %s » non validée (colonne valide_par : « Jean-Luc le JJ-MM-AAAA », date réelle, pas avant la préparation)" % p)
@@ -355,7 +370,31 @@ def valeur_au_registre(parametre, fiche):
         return COMMUN.lire_horizon_ou_aucune(fiche.get(parametre))
     if parametre == "univers":
         return tuple(sorted(c.strip().upper() for c in (fiche.get("univers") or "").split(",") if c.strip()))
+    if parametre == "quand_jouer":   # absent ou vide au registre : « toujours » (lot W2e-FIX)
+        import MODULE_QUAND_JOUER
+        x = normaliser("quand_jouer", (fiche.get("quand_jouer") or "").strip() or MODULE_QUAND_JOUER.TOUJOURS)
+        return None if x is None else x[0]
     return None
+
+
+def croises_du_tableau(par):
+    """Rend les réglages que le tableau fait varier, dans l'ordre du croisement.
+
+    ① RÔLE — Dire, à UN SEUL endroit, quels réglages sont croisés : les obligatoires, puis les facultatifs présents.
+    ② CONTEXTE D'APPEL — `decliner` ; `main` (le bilan affiché).
+    ③ ENTRÉE — `par` : {parametre : ligne du tableau}.
+    ④ CONDITIONS D'ENTRÉE — Le tableau a passé `verifier`.
+    ⑤ SORTIE — UNE valeur : un tuple de noms de réglages.
+      [rend: 1]
+    ⑥ TRAITEMENT — OBLIGATOIRES, puis chaque FACULTATIFS dont la ligne existe et est jouable.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Un tableau sans « quand jouer » doit rendre les mêmes colonnes et les mêmes numéros qu'avant.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    return OBLIGATOIRES + tuple(p for p in FACULTATIFS if p in par and par[p].get("jouable") == "OUI")
 
 
 def decliner(lignes):
@@ -384,8 +423,9 @@ def decliner(lignes):
     """
     par = {l["parametre"]: l for l in lignes}
     strat, essai = lignes[0]["strategie"], lignes[0]["essai"]
+    croises = croises_du_tableau(par)
     listes, fiche = [], []
-    for p in OBLIGATOIRES:
+    for p in croises:
         vals = [normaliser(p, v) for v in par[p]["valeurs_a_essayer"].split(";") if v.strip()]
         listes.append(vals)
         fiche.append(normaliser(p, par[p]["valeur_fiche"])[0])
@@ -393,11 +433,11 @@ def decliner(lignes):
     for v in listes:
         total *= len(v)
     largeur = max(4, len(str(total)))
-    colonnes = ["id_version", "strategie", "essai"] + list(OBLIGATOIRES) + ["versions_dans_l_essai", "version_de_la_fiche"]
+    colonnes = ["id_version", "strategie", "essai"] + list(croises) + ["versions_dans_l_essai", "version_de_la_fiche"]
     versions = []
     for i, combo in enumerate(itertools.product(*listes), start=1):
         v = {"id_version": "%s-%s-%0*d" % (strat, essai, largeur, i), "strategie": strat, "essai": essai}
-        v.update({p: x[1] for p, x in zip(OBLIGATOIRES, combo)})
+        v.update({p: x[1] for p, x in zip(croises, combo)})
         v["versions_dans_l_essai"] = str(total)
         v["version_de_la_fiche"] = "OUI" if [x[0] for x in combo] == fiche else ""
         versions.append(v)
@@ -468,7 +508,8 @@ def main(argv):
         print("ÉCHEC : le fichier relu ne portait pas exactement les versions calculées — il est effacé : %s" % sortie)
         return 1
     print("ÉCRIT : %s" % sortie)
-    print("VERSIONS : %d · réglages croisés : %s" % (len(relu), ", ".join(OBLIGATOIRES)))
+    print("VERSIONS : %d · réglages croisés : %s" % (len(relu), ", ".join(
+        p for p in OBLIGATOIRES + FACULTATIFS if relu and p in relu[0])))
     print("VERSION IDENTIQUE À LA FICHE : %s" % fiche[0])
     return 0
 

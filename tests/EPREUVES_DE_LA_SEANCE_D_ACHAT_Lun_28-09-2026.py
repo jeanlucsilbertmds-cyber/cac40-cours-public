@@ -36,14 +36,17 @@ SABOTAGES = {
     # (son rang d'achat), et `vendre` compte l'échéance à son niveau d'indentation.
     "S1_circuit_saute_la_seance_d_achat": [(TEN, 'j = next((k for k, b in enumerate(serie) if b["date"] >= d_ent), None)',
                                             'j = next((k for k, b in enumerate(serie) if b["date"] > d_ent), None)')],
-    "S2_banc_saute_la_seance_d_achat": [(MODP, "    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")],
+    # S2, S6 et E6 visent depuis le 27-11-2026 (lot L2, A-950) la vente au calendrier : le parcours par rang depuis la
+    # séance d'achat, et le calcul de l'échéance (`seance_d_echeance`) ; avant, `suite = serie[j:j + 1 + h]` et
+    # `apres = suite[1:]`, retirées par ce lot.
+    "S2_banc_saute_la_seance_d_achat": [(MODP, "    for k in range(j, len(serie)):", "    for k in range(j + 1, len(serie)):")],
     "S3_banc_n_exige_plus_les_sorties": [(BAN, "        ok = ok and _ok_t\n", "        ok = ok\n")],
     "S4_banc_relit_l_horizon_a_sa_facon": [(BAN, '    if "horizon" not in manq and lire_horizon_ou_aucune(fiche.get("horizon")) is None:',
                                             '    if "horizon" not in manq and not str(fiche.get("horizon")).strip().lstrip("-").isdigit():')],
     "S5_circuit_recopie_lire_horizon": [(TEN, "from COMMUN import lire_horizon                 # la seule lecture d'un horizon (R-708)",
                                          "lire_horizon = lambda x: (lambda h: int(h) if h.isdecimal() and int(h) > 0 else None)(str(x).strip().lower().rstrip('j'))")],
-    "S6_echeance_comptee_des_l_achat": [(MODP, "    apres = suite[1:]          # l'echeance se compte APRES la seance d'achat",
-                                         "    apres = suite[:-1]")],
+    "S6_echeance_comptee_des_l_achat": [(MODP, "    k = bisect.bisect_right(seances, date_achat) + h - 1\n",
+                                         "    k = bisect.bisect_right(seances, date_achat) + h - 2\n")],
     "S7_pas_de_second_passage_le_soir_de_l_achat": [(TEN, "    if _juste_entrees:\n", "    if False:\n")],
     "S8_banc_ne_compare_plus_les_dates": [(BAN, ' or _o.get("date_sortie") != _r["date_sortie"]:', ':')],
     "S9_banc_ne_compare_plus_les_familles": [(BAN, ' or _fam(_o["motif"]) != _fam(_r["motif"])', '')],
@@ -165,8 +168,9 @@ def epreuves(sab):
     # Depuis le 28-10-2026, la ligne vit dans `jouer_une_entree`, la mécanique partagée avec l'étalon de hasard (R-708) ;
     # depuis le 07-11-2026, dans `MODULE_POSITIONS.vendre`, que `jouer_une_entree` appelle (lot ①a de J1) : on la
     # sabote là, et c'est toujours le juge qui doit s'arrêter.
-    assert sab or t.count("    suite = serie[j:j + 1 + h]") == 1, "E6 : la ligne des sorties du juge a changé"
-    t = t.replace("    suite = serie[j:j + 1 + h]", "    suite = serie[j + 1:j + 1 + h]")
+    # Depuis le 27-11-2026 (lot L2, A-950), la ligne visée est le parcours par rang de `vendre` au calendrier.
+    assert sab or t.count("    for k in range(j, len(serie)):") == 1, "E6 : la ligne des sorties du juge a changé"
+    t = t.replace("    for k in range(j, len(serie)):", "    for k in range(j + 1, len(serie)):")
     open(p, "w", encoding="utf-8").write(t)
     c, o = run(d, BAN, d)
     dire("E6 defaut remis dans le juge des stratégies : il s'arrete", c == 1 and "ARRET TOTAL" in o, f"code {c}")

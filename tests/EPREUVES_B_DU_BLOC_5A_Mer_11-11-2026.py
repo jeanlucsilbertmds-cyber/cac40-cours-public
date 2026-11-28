@@ -52,7 +52,10 @@ _git_sans_la_machine.isoler_git_de_la_machine()
 GRILLE = "programmes/MODULE_JUGEMENT.py"
 ESSAIS = "programmes/TENIR_LE_REGISTRE_DES_ESSAIS.py"
 DECL = "programmes/DECLARER_UNE_STRATEGIE.py"
-VOISINS = ("programmes/CONTRATS_DES_FICHIERS.py", "programmes/COMMUN.py")
+# (28-11-2026, réunion I1) la grille appelle `MODULE_CONTROLE_2_DU_HASARD.controle_2` (contrôle ⑥, A-1081), qui importe
+# MODULE_QUAND_JOUER : les deux voisins sont copiés avec elle.
+VOISINS = ("programmes/CONTRATS_DES_FICHIERS.py", "programmes/COMMUN.py", "programmes/MODULE_CONTROLE_2_DU_HASARD.py",
+           "programmes/MODULE_QUAND_JOUER.py")
 
 # LES SABOTAGES : (fichier, texte présent UNE fois, remplacement). Chacun retire ce qu'un cas teste.
 SABOTAGES = {
@@ -111,7 +114,7 @@ SABOTAGES = {
     "X01_epoques_toujours_passe": [(GRILLE, '    if raisons:\n        rendu["etat"] = "BLOQUE"', '    if False:\n        rendu["etat"] = "BLOQUE"')],
     "X02_frais_doubles_ignore": [(GRILLE, '_controle("PASSE" if m["gain_moyen_frais_doubles_eur"] > 0 else "BLOQUE",',
                                   '_controle("PASSE",')],
-    "X03_sharpe_ignore": [(GRILLE, '_controle("PASSE" if 1.0 - m["sharpe_degonfle"] < s_preuve else "BLOQUE",',
+    "X03_sharpe_ignore": [(GRILLE, '_controle("PASSE" if 1.0 - m["sharpe_degonfle"] < s_dsr else "BLOQUE",',
                            '_controle("PASSE",')],
     "X04_declaration_inconnue_valide": [(GRILLE, 'c["declaration"] = _controle("INCONNU", raison=rejet("declaration_manquants")',
                                          'c["declaration"] = _controle("PASSE", raison=rejet("declaration_manquants")')],
@@ -173,7 +176,7 @@ SABOTAGES = {
                                                           '(sens == "<=" and not valeur <= ref * 1.01)')],
     "Z06_M06_strictesse_relachee_de_1pct_vers_le_bas": [(GRILLE, '(sens == ">=" and not valeur >= ref)',
                                                          '(sens == ">=" and not valeur >= ref * 0.99)')],
-    "Z07_M07_sharpe_au_sens_large": [(GRILLE, '1.0 - m["sharpe_degonfle"] < s_preuve', '1.0 - m["sharpe_degonfle"] <= s_preuve')],
+    "Z07_M07_sharpe_au_sens_large": [(GRILLE, '1.0 - m["sharpe_degonfle"] < s_dsr', '1.0 - m["sharpe_degonfle"] <= s_dsr')],
     "Z08_M08_pbo_jusqu_a_moins_un": [(GRILLE, 'not 0.0 <= v <= 1.0', 'not -1.0 <= v <= 1.0')],
     "Z09_D1_minimum_au_seuil_005": [(GRILLE, 'lu["parts_des_seances"], s_preuve, s_epoque)', 'lu["parts_des_seances"], 0.05, s_epoque)')],
     "Z10_D1_motif_des_epoques_ignore": [(GRILLE, '            return _controle("INCONNU", raison=lu["motif"])',
@@ -222,6 +225,7 @@ TABLE_SYNTHETIQUE = """texte avant
   | gain_un_jeton | affichage | Q-G2 | épreuve |
   | epoque_perdante | 0,05 | époque | épreuve |
   | surapprentissage_maximum | 0,30 | PBO | épreuve |
+  | sharpe_degonfle_risque_maximum | 0,05 | contrôle 1 de R-505 v2, sans ÷ k (A-1095 corrigée) | épreuve |
   | voisins | 26 voisins à ±10 %, tous gagnants | drapeau | épreuve |
   | frais_doubles | courtage et taxe × 2, gain > 0 | drapeau | épreuve |
   | creux_un_jeton | affichage | Q-G2 | épreuve |
@@ -413,7 +417,10 @@ def cas(copie, racine):
         ⑥ TRAITEMENT — gains sous `net`, puis `au_dessus` gains au-dessus. ⑦ UNITÉ — euros. ⑧ POURQUOI — vérité connue.
         ⑨ CE QUI CLOCHE — —. ⑩ EFFET — Aucun. ⑪ TERMINAISON — Rend la main. [sort: non]"""
         g = sorted([net - 1000.0 - i for i in range(n - au_dessus)] + [net + 1.0 + i for i in range(au_dessus)])
-        return {"n_tirages": n, "gains_des_tirages": g}
+        # (28-11-2026, réunion I1) seul le jour au hasard du MÊME TYPE décide (A-1081) : le rendu synthétique est au
+        # format du mode « meme_type », sans opération exclue (A-1117) ni opération sans achat tirable.
+        return {"mode": "meme_type", "n_tirages": n, "gains_des_tirages": g, "signaux_sans_type": [],
+                "operations_sans_type": 0, "operations_sans_achat_tirable": 0}
 
     # Une stratégie au gain franc : 60 opérations, 40 gagnantes à +900 €, 20 perdantes à −300 € (point mort fictif 40 %).
     bonnes, seances = ops_synthetiques([900] * 40 + [-300] * 20)
@@ -490,8 +497,16 @@ def cas(copie, racine):
         ok("G2b 150 tirages sur 2000 font mieux : p = 151/2001 > 0,05 → NE BAT PAS LE HASARD",
            r["motif"] == "NE BAT PAS LE HASARD" and abs(r["controles"]["bat_le_hasard"]["valeur"] - 151 / 2001) < 1e-12,
            "%s %r" % (r["motif"], r["controles"]["bat_le_hasard"]["valeur"]))
-        r = g_base(hasard=[hasard(net_bon, 2000), hasard(net_bon, 2000, au_dessus=150)])
-        ok("G2c deux modes, l'un battu de peu : le plus strict décide", r["motif"] == "NE BAT PAS LE HASARD", r["motif"])
+        # G2c RENVERSÉ LE 28-11-2026 (réunion I1, A-1081) : l'action au hasard (mode « valeur ») s'AFFICHE sans décider ;
+        # avant, le plus grand p de tous les modes décidait.
+        r = g_base(hasard=[hasard(net_bon, 2000), dict(hasard(net_bon, 2000, au_dessus=150), mode="valeur")])
+        bh = r["controles"]["bat_le_hasard"]
+        ok("G2c l'action au hasard battue de peu ne décide pas : le jour au hasard du même type décide, l'autre s'affiche",
+           bh["etat"] == "PASSE" and abs(bh["detail"]["affiches"]["valeur"]["p"] - 151 / 2001) < 1e-12, (bh["etat"],
+                                                                                                         bh.get("detail")))
+        r = g_base(hasard=[dict(hasard(net_bon, 2000), mode="valeur")])
+        ok("G2e sans rendu du même type : INCONNU, pas de validation (A-1081)",
+           r["controles"]["bat_le_hasard"]["etat"] == "INCONNU" and r["verdict"] != C.MOTS_DU_VERDICT[0], r["motif"])
         p, n, _ = J.p_du_hasard(10.0, {"gains_des_tirages": list(range(11))})
         ok("G2d p_du_hasard : 11 tirages 0..10, la stratégie à 10 → p = 2/12", abs(p - 2 / 12) < 1e-12 and n == 11)
     essai("G2", g2)
@@ -607,11 +622,19 @@ def cas(copie, racine):
         for nom, f in (("coupure", lambda **k: J.coupure_70_30(bonnes, seances,
                                                              frontiere=J.frontiere_de_la_fiche({}, seances, None), **k)),
                        ("fenetres", lambda **k: J.fenetres_glissantes(bonnes, seances, n=3, **k))):
-            try:
-                f(horizon=A)
-                ok("G9f %s : « aucune » sans embargo est refusée" % nom, False, "pas d'erreur")
-            except TypeError as ex:
-                ok("G9f %s : « aucune » sans embargo est refusée" % nom, COMMUN.MESSAGE_DE_L_HORIZON_AUCUNE[:30] in str(ex))
+            if nom == "coupure":
+                # DEPUIS LE 28-11-2026 (A-1106, lot L1CORR2) la coupure coupe « aucune » par la PURGE, embargo publié de
+                # 21 séances : elle ne refuse plus ; les fenêtres glissantes, non visées, refusent toujours
+                rc = f(horizon=A)
+                ok("G9f coupure : « aucune » sans embargo est coupée par la purge (embargo 21, A-1106)",
+                   rc.get("embargo_seances") == 21 and "n_purgees" in rc, rc.get("embargo_seances"))
+            else:
+                try:
+                    f(horizon=A)
+                    ok("G9f %s : « aucune » sans embargo est refusée" % nom, False, "pas d'erreur")
+                except TypeError as ex:
+                    ok("G9f %s : « aucune » sans embargo est refusée" % nom,
+                       COMMUN.MESSAGE_DE_L_HORIZON_AUCUNE[:30] in str(ex))
             cle = "embargo_seances" if nom == "coupure" else "embargo"
             a, b = f(horizon=A, **{cle: 25}), f(horizon=20, **{cle: 25})
             ok("G9g %s : « aucune » avec embargo 25 = horizon 20 avec embargo 25" % nom, a == b)
@@ -955,15 +978,17 @@ def cas(copie, racine):
                                 ("1 séance hors examen", dict(seances_hors_examen=1), "BLOQUE")],
             "surapprentissage": [
                 ("pbo = maximum − ε", dict(cas="2", mesures_externes={**tout_passe, **mesures_cas2, "surapprentissage": {"pbo": 0.30 - eps, "nombre_d_essais": 5}}), "PASSE"),
-                ("pbo = maximum", dict(cas="2", mesures_externes={**tout_passe, **mesures_cas2, "surapprentissage": {"pbo": 0.30, "nombre_d_essais": 5}}), "BLOQUE"),
+                # lot L3-FIX (relecture V1 du lot L3, D6) : « au-dessus du seuil, la stratégie n'est pas validée » (R-505 v2) ;
+                # « greater than 0.05 » (Bailey et al. 2017) — une PBO ÉGALE au maximum PASSE
+                ("pbo = maximum", dict(cas="2", mesures_externes={**tout_passe, **mesures_cas2, "surapprentissage": {"pbo": 0.30, "nombre_d_essais": 5}}), "PASSE"),
                 ("pbo = maximum + ε", dict(cas="2", mesures_externes={**tout_passe, **mesures_cas2, "surapprentissage": {"pbo": 0.30 + eps, "nombre_d_essais": 5}}), "BLOQUE"),
             ],
             # D3 (M07) : « 1 − 0,95 = 0,050000000000000044 » n'est pas une frontière en flottants ; 0,03125 = 2⁻⁵ et
             # 0,96875 = 1 − 2⁻⁵ sont exacts : 1 − 0,96875 == 0,03125, sans arrondi
             "sharpe_degonfle": [
-                ("1 − dsr juste sous le seuil (dsr = nextafter(0,96875, 1))", dict(cas="2", table=tv("seuil_de_preuve", "0,03125 ÷ k"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": math.nextafter(0.96875, 1.0), "nombre_d_essais": 5}}), "PASSE"),
-                ("1 − dsr = seuil exactement (0,03125)", dict(cas="2", table=tv("seuil_de_preuve", "0,03125 ÷ k"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": 0.96875, "nombre_d_essais": 5}}), "BLOQUE"),
-                ("1 − dsr juste au-dessus du seuil", dict(cas="2", table=tv("seuil_de_preuve", "0,03125 ÷ k"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": math.nextafter(0.96875, 0.0), "nombre_d_essais": 5}}), "BLOQUE"),
+                ("1 − dsr juste sous le seuil (dsr = nextafter(0,96875, 1))", dict(cas="2", table=tv("sharpe_degonfle_risque_maximum", "0,03125"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": math.nextafter(0.96875, 1.0), "nombre_d_essais": 5}}), "PASSE"),
+                ("1 − dsr = seuil exactement (0,03125)", dict(cas="2", table=tv("sharpe_degonfle_risque_maximum", "0,03125"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": 0.96875, "nombre_d_essais": 5}}), "BLOQUE"),
+                ("1 − dsr juste au-dessus du seuil", dict(cas="2", table=tv("sharpe_degonfle_risque_maximum", "0,03125"), mesures_externes={**tout_passe, **mesures_cas2, "sharpe_degonfle": {"sharpe_degonfle": math.nextafter(0.96875, 0.0), "nombre_d_essais": 5}}), "BLOQUE"),
                 # D2 : nombre d'essais confronté à k (k = 10)
                 ("D2 nombre d'essais = k", dict(cas="2", k=10, mesures_externes={**tout_passe, "surapprentissage": {"pbo": 0.1, "nombre_d_essais": 10}, "sharpe_degonfle": {"sharpe_degonfle": 0.999999, "nombre_d_essais": 10}}), "PASSE"),
                 ("D2 nombre d'essais = k − 1", dict(cas="2", k=10, mesures_externes={**tout_passe, "surapprentissage": {"pbo": 0.1, "nombre_d_essais": 10}, "sharpe_degonfle": {"sharpe_degonfle": 0.999999, "nombre_d_essais": 9}}), "INCONNU"),

@@ -276,6 +276,31 @@ def preparer(copie):
     return {"source": ident, "debut": debut, "fin": fin, "combinatoire": COMBINATOIRE, "version": version}
 
 
+def commande_de_jeu(copie, combinatoire, resultats, option_d_essai):
+    """Rend la ligne de commande qui joue la combinatoire d'essai de la copie : une liste de textes.
+
+    ① RÔLE — Écrire UNE fois la commande de la moulinette d'essai, pour `jouer` et pour la tranche d'essai de
+      programmes/DECOUPER_LA_MOULINETTE.py (R-708 : deux écritures d'une même commande divergent toujours).
+    ② CONTEXTE D'APPEL — `jouer` ; DECOUPER_LA_MOULINETTE.faire_une_tranche_d_essai (lot TRANSPORT, A-965).
+    ③ ENTRÉE — `copie` : la racine de la copie de travail · `combinatoire` : la combinatoire jouée, relative à la
+      copie (COMBINATOIRE pour `jouer` ; la tranche d'essai joue une combinatoire d'une version à elle) ·
+      `resultats` : le chemin du fichier de résultats à écrire (absent) · `option_d_essai` : CONTRATS_DES_FICHIERS.OPTION_D_ESSAI_SANS_REGARD, lue par l'appelant au contrat de
+      SON dossier.
+    ④ CONDITIONS D'ENTRÉE — `preparer` a été fait dans la copie.
+    ⑤ SORTIE — UNE valeur : la liste [python, -B, moulinette, copie, combinatoire, résultats, --cours=…, option].
+      [rend: 1]
+    ⑥ TRAITEMENT — Assemble la liste.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Voir ① ; l'option et le fichier des 20 ans sont ceux de A-863 et A-853.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return [sys.executable, "-B", os.path.join(copie, MOULINETTE), copie, os.path.join(copie, combinatoire),
+            resultats, "--cours=" + COURS_DES_VINGT_ANS, option_d_essai]
+
+
 def jouer(copie):
     """Lance la moulinette sur la combinatoire d'essai, avec --cours= les 20 ans ; recopie ses résultats ; rend son code.
 
@@ -303,9 +328,7 @@ def jouer(copie):
     dossier = tempfile.mkdtemp(prefix="moulinette_essai_")
     try:
         resultats = os.path.join(dossier, "RESULTATS.csv")
-        code = subprocess.call([sys.executable, "-B", os.path.join(copie, MOULINETTE), copie,
-                                os.path.join(copie, COMBINATOIRE), resultats, "--cours=" + COURS_DES_VINGT_ANS,
-                                _CE.OPTION_D_ESSAI_SANS_REGARD],
+        code = subprocess.call(commande_de_jeu(copie, COMBINATOIRE, resultats, _CE.OPTION_D_ESSAI_SANS_REGARD),
                                cwd=copie)
         if os.path.isfile(resultats):
             print("RÉSULTATS DE LA MOULINETTE D'ESSAI :")

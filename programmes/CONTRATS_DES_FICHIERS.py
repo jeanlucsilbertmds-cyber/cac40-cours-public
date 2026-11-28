@@ -50,6 +50,8 @@ Quand l'appeler : par tout programme qui écrit ou lit un fichier de liaison. Ja
   ①quinquies (19-11-2026, A-923, A-925) déclarer le CONTRAT DE STRATÉGIE — les 13 cases qu'une fiche porte pour entrer
   dans la chaîne (CONTRAT_DE_STRATEGIE), deux réglages À DÉCIDER par Jean-Luc — et le contrôler (`manques_du_contrat`,
   qui APPELLE les contrôles du juge ; `avis_du_contrat`) ·
+  ①sexies (27-11-2026, lot L4, A-1067) déclarer la GRILLE UNIQUE de R-505 v2 (GRILLE_R505, GRILLE_R505_V2, ses états,
+  rôles et étapes), lue par programmes/CONTROLER_LA_GRILLE.py ·
   ② déclarer la table qui relie les noms de fichiers à ces listes · ③ définir les
   fonctions · ④ lancé à la main, jouer les six épreuves du contrat des signaux et sortir.
 ⑦ UNITÉ — Aucune grandeur physique : des NOMS DE CHAMPS et des NOMBRES DE CHAMPS.
@@ -551,9 +553,14 @@ MISE_EN_SERVICE_DU_BAREME_REEL = "2026-10-30"
 # LA LISTE ANNUELLE DES VALEURS TAXÉES (A-550) — une ligne par année et par valeur :
 # `assujettie` vaut OUI ou NON, selon la liste publiée au BOFiP en décembre de l'année
 # précédente. Lue par `programmes/MODULE_POSITIONS.py` (`valeur_taxee`).
+# `taxee_jusqu_au` (lot L2, 27-11-2026) : pour une ligne OUI, le DERNIER jour d'achat taxé de l'année, AAAA-MM-JJ, de
+# la même année ; vide = toute l'année. Un achat d'après ce jour n'est pas taxé. Raison : décision de Jean-Luc n°92 du
+# 01-11-2026 à 12h44 — Peugeot (UG) taxée du 04-01 au 15-01-2021 seulement (fusion dans Stellantis), Stellantis
+# (STLAP) non taxée en 2021 ; une liste par ANNÉE ne savait pas le dire. Une case remplie sur une ligne NON, ou hors
+# de l'année, est refusée par `valeur_taxee` (ValueError).
 VALEURS_TTF = [
     "annee", "mnemonique", "nom_usuel", "assujettie", "liste_reference", "source",
-    "releve_le",
+    "releve_le", "taxee_jusqu_au",
 ]
 
 # LES COMPTABILITÉS ADMISES dans la colonne `comptabilite` des positions et du journal.
@@ -1191,6 +1198,13 @@ EMPREINTE_FIGEE_CALCULEE_AVEC = {
 OPTION_D_ESSAI_SANS_REGARD = "--essai-sans-regard"
 STATUT_D_ESSAI = "ESSAI — NI RÉSULTAT NI SÉLECTION"
 COLONNE_DU_STATUT_D_ESSAI = "statut_d_essai"
+# LA PARTIE DE RÉGLAGE SEULE (27-11-2026, lot L1-CORR du plan R505 ; R-505 v2, étape 3, validée par Jean-Luc le
+# 27-11-2026 à 16h24, « 1 », A-1078 : « la moulinette joue toutes les versions déclarées sur les 70 % ») : l'option que
+# JOUER_LES_VERSIONS passe au juge pour son calibrage, « <option><dernière séance lue>,<fin de la période jouée> » ; le juge
+# coupe alors les cours à la dernière séance lue (refus si elle dépasse les 70 % moins la bande,
+# `JUGE_DES_STRATEGIES.lecture_permise_pour_regler`), joue la fiche jusqu'à la fin donnée et NE JUGE PAS (`juger` n'est
+# pas appelé) : aucune séance de la bande ni des 30 % n'est lue, rien des 30 % n'est affiché.
+OPTION_DE_LA_PARTIE_DE_REGLAGE = "--partie-de-reglage="
 
 # LES FICHIERS DE COURS QUI PORTENT LES SOCIÉTÉS SORTIES DE L'INDICE (14-11-2026, QE2 tour 2, superviseur R-759 ①) : pour
 # eux, le lecteur unique attend chaque société sortie à chaque séance de sa présence dans l'indice, même sans aucune barre
@@ -1444,6 +1458,48 @@ COURS_DE_FRANCFORT = ["valeur", "symbole", "date", "close"]
 INDICE_CAC40 = ["date", "bnains", "yahoo"]
 # Lu aussi, depuis le 10-10-2026, par programmes/CALENDRIER_DE_LA_BOURSE.py (`lire_les_seances`) : c'est le
 # calendrier des séances du passé (R-110 ① : une séance est un jour où l'indice est publié).
+# Lu aussi, depuis le 27-11-2026, par programmes/DATER_LES_TYPES_DE_MARCHE.py (lot L5 du plan R505).
+
+# LES TYPES DE MARCHÉ (A-1064, A-1078 étape 2, A-1091 ; décisions de Jean-Luc du 27-11-2026). Le découpage de
+# l'indice CAC 40 en HAUSSE ou BAISSE croisé avec CALME ou AGITÉ vit à UN seul endroit,
+# programmes/DATER_LES_TYPES_DE_MARCHE.py, que liront le juge, la moulinette, la météo et le calendrier (R-708).
+# ① SES RÉGLAGES : donnees/REGLAGES_DES_TYPES_DE_MARCHE.csv, une ligne par paramètre ; `unite` dit dans quelle
+# unité la valeur est écrite (les durées de Pagan et Sossounov sont en MOIS, converties en séances par le
+# programme) ; `source` dit d'où vient la valeur, `raison` pourquoi elle est là.
+REGLAGES_DES_TYPES_DE_MARCHE = ["parametre", "valeur", "unite", "source", "raison"]
+# Les paramètres attendus, chacun avec son unité ; un paramètre absent, en double, inconnu ou dans une autre
+# unité est REFUSÉ par `lire_les_reglages`.
+# La levée de Pagan et Sossounov se mesure sur le LOGARITHME du cours (programme des auteurs, bbstkjae.prg,
+# `abs(x[nind]-x[cind]) .> .2` sur « the log of monthly US stock prices ») : son unité est « logarithme ».
+# Le pas de temps (quotidien ou mensuel) est un choix déclaré (défaut D6 de la relecture V1 du 27-11-2026).
+# Le paramètre `retrait_dans_un_cycle` du lot L5 est RETIRÉ le 27-11-2026 (lot L5-CORR, défaut D1) : la règle
+# des auteurs le tranche (« choose highest peak and lowest trough », bbstkjae.prg l.278).
+PARAMETRES_DES_TYPES_DE_MARCHE = (
+    ("methode", "—"), ("pas_de_temps", "—"), ("fenetre_des_sommets", "mois"), ("censure", "mois"),
+    ("phase_minimale", "mois"), ("cycle_minimal", "mois"), ("seuil_de_levee", "logarithme"),
+    ("durees_minimales", "—"), ("seuil_de_hausse", "fraction"), ("seuil_de_baisse", "fraction"),
+    ("fenetre_de_volatilite", "seances"), ("centile_d_agitation", "fraction"),
+)
+# PS : Pagan et Sossounov (sommets et creux dans une fenêtre, puis durées minimales) ; LT : Lunde et Timmermann
+# (filtre d'amplitude, seuils de hausse et de baisse).
+METHODES_DES_TYPES_DE_MARCHE = ("PS", "LT")
+# quotidien : les séances, durées converties au nombre mesuré de séances par mois ; mensuel : les cours de fin de
+# mois, comme les auteurs, chaque retournement reporté sur la dernière séance de son mois.
+PAS_DE_TEMPS_DES_TYPES_DE_MARCHE = ("quotidien", "mensuel")
+# ② SA SORTIE, une ligne par séance : `sens` HAUSSE ou BAISSE ; `epoque` numéro de la phase (1 = la première) ;
+# `phase_terminee` 1 si la phase a ses deux bouts datés, 0 pour les deux phases ouvertes des bords ;
+# `volatilite` écart-type glissant des rendements quotidiens (vide tant qu'il n'est pas connu) ; `agitation`
+# CALME, AGITE ou INCONNUE ; `type` l'un de TYPES_DE_MARCHE_ADMIS.
+TYPES_DE_MARCHE = ["date", "cloture", "sens", "epoque", "phase_terminee", "volatilite", "agitation", "type"]
+TYPES_DE_MARCHE_ADMIS = ("HAUSSE_CALME", "HAUSSE_AGITEE", "BAISSE_CALME", "BAISSE_AGITEE", "INCONNU")
+# ③ LE DÉCOUPAGE FIGÉ (A-1063, A-1064 ⑤ : figé AVANT de regarder les résultats d'une stratégie) : l'option
+# `figer` de DATER_LES_TYPES_DE_MARCHE.py écrit le CSV au contrat TYPES_DE_MARCHE et, à côté, une fiche JSON
+# (même chemin + « .fige.json ») portant ces clés : la période (`jusqu_au`, première et dernière séance, nombre),
+# l'empreinte des séances lues (`empreinte_entree`, sha256 des lignes « date;clôture » datées), celle du fichier de
+# l'indice, des réglages, du programme et du CSV écrit (`empreinte_sortie`), les réglages, les points, l'heure.
+FIGEAGE_DES_TYPES_DE_MARCHE = ("jusqu_au", "premiere_seance", "derniere_seance", "seances", "empreinte_entree",
+                               "empreinte_indice", "empreinte_reglages", "empreinte_programme", "empreinte_sortie",
+                               "reglages", "points", "fige_le")
 
 # LA NATURE DE CHAQUE TROU — la seule chose qu'on ne calcule pas sur un trou (R-111 ⑤, décision de Jean-Luc du
 # 10-10-2026). Un trou est une séance du calendrier sans cours pour une valeur ; la liste des trous se RECALCULE à
@@ -1662,6 +1718,9 @@ CHAMPS_P0 = [
     "date_regle_univers",     # AAAA-MM-JJ, la date où cette règle a été écrite
     "lignee",                 # mère → filles, par leurs identifiants au registre (C-9) ; « aucune » s'écrit
     "hypothese",              # l'hypothèse écrite d'avance, en une phrase (C-16)
+    "raison",                 # POURQUOI elle devrait gagner : qui perd en face, et pourquoi — OBLIGATOIRE (R-505 v2
+                              # étape 1 ; décision de Jean-Luc du 27-11-2026 à 18h06, « 1 », A-1090) ; affichée au
+                              # verdict sans décider. Vide = MANQUE ; « inconnue » écrit est accepté (A-1090)
     "parametres_libres",      # le nombre de réglages libres (C-16), un entier
     "moment_du_regard",       # quand les années d'examen seront regardées, écrit d'avance (R-505 ③, C-4)
     "biais_du_survivant",     # la déclaration du biais du survivant, même pour 2024-2026 (C-20)
@@ -1692,6 +1751,11 @@ DECLARATION_DATEE = [
 # Le seul champ de la déclaration qui peut rester vide : l'exception n'existe que si Jean-Luc l'a déclarée. Tout autre
 # champ vide est un champ qui MANQUE : « aucune », « aucun » ou « 0 » s'écrivent (vide n'est pas « aucune »).
 CHAMPS_FACULTATIFS_DE_LA_DECLARATION = ("regard_sans_decision",)
+# LA RAISON « INCONNUE » EST UNE RAISON DÉCLARÉE (lot W2e-FIX, 27-11-2026). La loi R-505 v2 (étape 1) rend la case
+# OBLIGATOIRE et dit aussi : « une stratégie qui gagne vraiment sans explication connue n'est pas refusée » (décision de
+# Jean-Luc du 27-11-2026 à 18h06, « 1 », A-1090). Seule une case VIDE manque (un oubli) ; « inconnue », « aucune » ou
+# toute autre phrase écrite est une déclaration, comme ailleurs dans ce contrat (« vide n'est pas aucune »). Le lot W2e
+# refusait une liste de mots (« aucune », « inconnue »…) : c'était plus strict que la loi, et la loi l'emporte.
 # Les deux cas de R-505 (décision de Jean-Luc du 01-11-2026 à 00h12, n°61), tels que la colonne `cas` les écrit.
 CAS_DE_LA_LOI = ("1", "2")
 # LES CHAMPS QUI SE CALCULENT (R-728 : « ce qui se calcule ne s'écrit jamais à la main ») — ajouté le 11-11-2026 par
@@ -1998,8 +2062,25 @@ FICHIERS_A_VENIR = {
     "donnees/sources_dividendes/DISTRIBUTIONS_DECIDEES.csv": ("DISTRIBUTIONS_DECIDEES", "ÉCRIT À LA MAIN", "DIV"),
 }
 
+# LA GRILLE UNIQUE DE R-505 VERSION 2 (lot L4 du plan R505, 27-11-2026 ; BACKLOG A-1067, demande de Jean-Luc du
+# 27-11-2026 à 13h25 : « toutes les décisions qu'on prend […] seront bien branchées sur le circuit »). Une ligne par
+# critère ou affichage de la loi : décision au BACKLOG, extrait de la loi copié tel quel, fonction du code qui
+# l'applique, épreuve qui le prouve, état. Écrite à la main au fil des décisions (c'est une déclaration, pas un calcul) ;
+# lue par programmes/CONTROLER_LA_GRILLE.py, qui refuse tout verdict tant qu'une ligne décidée n'est pas BRANCHÉE.
+# Séparateur « ; ». Le sens de chaque colonne est écrit en tête de programmes/CONTROLER_LA_GRILLE.py.
+GRILLE_R505 = "donnees/GRILLE_R505_V2.csv"
+NOM_DE_LA_GRILLE_R505 = GRILLE_R505.rsplit("/", 1)[-1]
+GRILLE_R505_V2 = ["identifiant", "libelle", "role", "etape", "decisions", "phrase_de_la_loi", "seuils_de_la_loi",
+                  "fonction", "epreuve", "etat", "constat"]
+# PLUS_TARD : seulement là où la loi écrit elle-même « plus tard » (le contrôleur l'exige mot pour mot) ; ne bloque pas.
+ETATS_DE_LA_GRILLE = ("DÉCIDÉ_NON_BRANCHÉ", "BRANCHÉ", "PLUS_TARD")
+ROLES_DE_LA_GRILLE = ("DÉCIDE", "AFFICHE")
+ETAPES_DE_LA_GRILLE = ("PRINCIPE", "1", "2", "3", "4", "5", "6", "VERDICT", "AFFICHAGE", "DIRECT")
+
 # La table qui relie un fichier à son contrat — un seul endroit.
 CONTRATS_PAR_FICHIER = {
+    # la grille unique de R-505 v2 (lot L4, 27-11-2026) : confrontée dès le premier jour
+    NOM_DE_LA_GRILLE_R505: GRILLE_R505_V2,
     # la déclaration datée, née avec son seul en-tête le 05-11-2026 (lot C) : confrontée dès le premier jour
     NOM_DES_DECLARATIONS_DATEES: DECLARATION_DATEE,
     # l'étalon des versions, écrit à la main au tour 2 du lot C (05-11-2026) : confronté dès le premier jour
@@ -3003,9 +3084,46 @@ MESUREURS_DU_JUGE = {
     "frais_doubles": None,      # R-505 ⑩ : courtage et taxe × 2 — sans auteur
     "gain_un_jeton": None,      # Q-G2 — sans auteur
     "creux_un_jeton": None,     # Q-G2 — sans auteur
-    "surapprentissage": None,   # R-505 ⑧, cas 2 : attend le nombre d'essais (A-226)
-    "sharpe_degonfle": None,    # R-505 ⑧, cas 2 : attend le nombre d'essais (A-226)
+    # R-505 v2, étape 5, contrôle 5 (A-1093) : le calcul existe (`MODULE_SURAPPRENTISSAGE.mesurer_le_surapprentissage`, qui
+    # prend la matrice séances × versions des 70 %) ; SANS AUTEUR À LA PORTE tant que la moulinette ne rend pas le
+    # rendement quotidien du compte de chaque version (A-1071, lot W2b) — un mesureur (racine, fiche, ops) qui rendrait
+    # toujours « impossible » ferait croire le contrôle branché (L3, 27-11-2026).
+    "surapprentissage": None,
+    # R-505 v2, étape 5, contrôle 1 (A-1095) : le calcul existe (`MODULE_JUGEMENT.mesurer_le_sharpe_degonfle`, qui prend
+    # la série quotidienne du compte de la version, k et les Sharpe des essais) ; SANS AUTEUR À LA PORTE pour la même
+    # raison (A-1071, W2b) et parce que la porte juge UNE fiche, alors que la variance des Sharpe porte sur les k essais.
+    "sharpe_degonfle": None,
 }
+
+# LES SEUILS DE R-505 VERSION 2 QUE LE REGISTRE NE PORTE PAS ENCORE (lot L3 du plan R505, 27-11-2026) — un fichier de
+# données UNIQUE, lu par `MODULE_JUGEMENT.table_des_seuils_en_attente`, que la porte du juge (`JUGER_UNE_FICHE`) pose
+# PAR-DESSUS la table du REGISTRE. Plusieurs clés (CLES_DES_SEUILS_EN_ATTENTE ci-dessous) ; la première, `surapprentissage_maximum`, le seuil de la probabilité de
+# surapprentissage, 0,05 au départ (décision de Jean-Luc du 27-11-2026 à 18h53, A-1093), alors que le REGISTRE porte
+# encore 0,30 (version 1, n°109). Raison : le mandat L3 exige ce seuil « lu à UN seul endroit […] jamais en dur dans le
+# code » avant l'installation. À L'INSTALLATION de R-505 v2 au REGISTRE (étape I1) : la ligne passe au REGISTRE, le
+# fichier part en archives/ sous un nom qui dit pourquoi, sa lecture sort de la porte (R-708). Les colonnes sont celles
+# d'une ligne de la table « LES SEUILS DE CETTE LOI » (clé, valeur, sens, source), lues de la même façon par
+# `MODULE_JUGEMENT.seuil_de_la_loi`. Une clé qui n'est pas listée ici est REFUSÉE : ce fichier n'est pas une grille
+# (la grille unique des critères est le lot L4).
+# LES GAINS QUOTIDIENS DES VERSIONS ENVOYÉES AU JUGE (réunion I1 du plan R505, 28-11-2026 ; contradiction C3 de la
+# relecture V2) : un fichier par fiche, une ligne par (version, séance), gains en euros mesurés sur les 70 %. LU par
+# `COMPTER_LES_ESSAIS_PAR_RESSEMBLANCE.lire_les_series_des_versions_envoyees`, d'où `k_du_juge` tire k (A-1082, A-772).
+# ÉCRIVAIN : AUCUN au 28-11-2026 (à faire écrire par la moulinette ; Section 0 du BACKLOG) — sans lui, k est INCONNU.
+SERIES_DES_VERSIONS_ENVOYEES = "donnees/SERIES_DES_VERSIONS_ENVOYEES_AU_JUGE/{fiche_id}.csv"
+SERIE_D_UNE_VERSION_ENVOYEE = ["id_version", "date", "gain_eur"]
+SEUILS_EN_ATTENTE_DU_REGISTRE = "donnees/SEUILS_DE_R505_V2_EN_ATTENTE_DU_REGISTRE.csv"
+SEUIL_EN_ATTENTE = ["cle", "valeur", "sens", "source"]
+# Lot W2c (27-11-2026) : les deux seuils de la ressemblance pour la mise en service (A-791, étape 6 ⑤), lus par
+# programmes/COMPTER_LES_ESSAIS_PAR_RESSEMBLANCE.py ; la table de R-505 v2 les porte en prose sur la ligne « ressemblance ».
+# Lot L3-FIX (27-11-2026) : `sharpe_degonfle_risque_maximum`, le risque maximal du contrôle 1 (Sharpe dégonflé, N = k),
+# 0,05 SANS division par k (BACKLOG A-1095, corrigée le 27-11-2026 à 21h19) ; une clé à part parce que
+# `seuil_de_preuve` (0,05 ÷ k) sert encore au calcul « gain > 0 » (affiché en cas 2, condition en cas 1), au minimum
+# d'observations et aux époques ; le contrôle 2 (jour au hasard) lit `seuil_du_hasard`, 0,05 ÷ k, inchangé.
+# Lot W2b (27-11-2026) : `puissance_visee`, la puissance de l'analyse de puissance du contrôle 4 (A-1071 ; R-505 v2,
+# « À PRÉCISER » ⑦ : 80 %), lue par `MODULE_COURBE_DU_COMPTE.puissance_visee` ; la table de la loi n'en a pas de ligne.
+CLES_DES_SEUILS_EN_ATTENTE = ("surapprentissage_maximum", "ressemblance_correlation_minimum",
+                              "ressemblance_chevauchement_minimum", "sharpe_degonfle_risque_maximum",
+                              "puissance_visee")
 
 
 def declaration_de_la_fiche(racine, fiche_id, avant):
@@ -3086,13 +3204,15 @@ def champs_de_la_declaration_manquants(declaration):
       dont `lignee` est vide rend ["lignee"].
       [rend: 1]
     ⑥ TRAITEMENT — Pour chaque champ du contrat qui n'est pas dans CHAMPS_FACULTATIFS_DE_LA_DECLARATION : manquant
-      si la case est absente ou vide après retrait des espaces ; et `cas` manquant si sa valeur n'est pas dans
-      CAS_DE_LA_LOI.
+      si la case est absente ou vide après retrait des espaces — `raison` comprise : « inconnue » écrit est accepté
+      (A-1090 : une stratégie sans explication connue n'est pas refusée ; lot W2e-FIX) ; et `cas` manquant si sa
+      valeur n'est pas dans CAS_DE_LA_LOI.
     ⑦ UNITÉ — Des noms de champs.
     ⑧ POURQUOI — « vide n'est pas aucune » : une case vide peut être un oubli ; « aucune » écrit est une déclaration.
       Le juge nomme le premier champ de cette liste dans le `motif` du verdict NON JUGEABLE (VERDICT).
-    ⑨ CE QUI CLOCHE — Elle ne juge pas le CONTENU d'une case remplie (une hypothèse d'un mot passe) : c'est le travail
-      du relecteur des déclarations (P0D), pas d'un contrat.
+    ⑨ CE QUI CLOCHE — Elle ne juge pas le CONTENU d'une case remplie (une hypothèse d'un mot passe ; une raison qui
+      ne dit pas « qui perd en face » passe, « inconnue » aussi, voulu par la loi) : c'est le travail
+      du relecteur des déclarations (P0D) et de l'examen de la logique (A-605), pas d'un contrat.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
@@ -3100,6 +3220,7 @@ def champs_de_la_declaration_manquants(declaration):
     exiges = [c for c in DECLARATION_DATEE if c not in CHAMPS_FACULTATIFS_DE_LA_DECLARATION]
     if declaration is None:
         return exiges
+    # la raison suit la règle commune : vide = manque ; « inconnue » écrit est une déclaration (A-1090, lot W2e-FIX)
     manquants = [c for c in exiges if not (declaration.get(c) or "").strip()]
     if "cas" not in manquants and (declaration.get("cas") or "").strip() not in CAS_DE_LA_LOI:
         manquants.append("cas")

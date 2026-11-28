@@ -1159,6 +1159,12 @@ def frontiere_de_la_fiche(fiche, seances, bornes, part=0.70):
     return cal[min(int(len(cal) * part), len(cal) - 1)]
 
 
+# LA LARGEUR PUBLIÉE DE L'EMBARGO, ÉCRITE ICI UNE FOIS (R-708) : 21 séances (A-305 ②, validé par Jean-Luc le 28-08-2026 :
+# « sa valeur est PUBLIÉE : 21 jours » ; Lopez de Prado 2018, chapitres 7 et 12). `coupure_70_30` la lit pour les
+# horizons fixes (le plus grand de 21 et de l'horizon) et pour la version « sans délai » (21, après la purge, A-1106).
+EMBARGO_PUBLIE_SEANCES = 21
+
+
 def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, frontiere=None):
     """Coupe le TEMPS en deux, avec PURGE et EMBARGO. Aucun chiffre invente.
 
@@ -1215,26 +1221,29 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       tour 3, M1) : ce repli ignorait une frontière déclarée dans la fiche, et
       un appelant qui oubliait `frontiere=` faisait fuir les 30 % sans bruit.
       CONTRAT DU LOT 0 (09-11-2026) — `horizon` est un entier > 0, None (non
-      fourni), ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale). Ce dernier
-      refuse tout calcul par une TypeError : il n'est accepté qu'avec un
-      embargo explicite (`embargo_seances`), sinon elle tombe (`int(horizon or 0)`). Rien n'y lit « aucune » en texte.
+      fourni), ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale). DEPUIS LE
+      28-11-2026 (A-1106, lot L1CORR2), « aucune » est COUPÉ PAR LA PURGE : les
+      opérations doivent alors porter aussi `date_sortie` (et `motif`). Rien n'y
+      lit « aucune » en texte.
     ④ CONDITIONS D'ENTRÉE — Les dates doivent s'écrire de la même façon dans
       les opérations, dans le calendrier et dans la frontière (AAAA-MM-JJ). Le
       calendrier ne doit pas être vide, sans quoi la recherche de la frontière tombe.
     ⑤ SORTIE — UNE valeur : un dictionnaire, et il prend TROIS formes
       différentes. Sur une liste d'opérations vide, trois cases seulement :
-      les deux effectifs et le nombre d'écartées, tous à zéro — mesuré le
+      les deux effectifs et le nombre d'écartées, tous à zéro (plus `n_purgees` à zéro en « sans délai ») — mesuré le
       19-09-2026 — MAIS SEULEMENT SI LA FRONTIÈRE EST ACCEPTÉE : depuis le
       15-11-2026 son contrôle passe AVANT, et une frontière manquante ou hors
       d'un calendrier non vide LÈVE même sur une liste vide (relecture de
       Cowork du 15-11-2026, 5/N-4 : « '2030-01-01' vide -> ValueError … hors du
       calendrier »). Quand aucune date n'est reconnue au calendrier : une seule
-      case, un motif en clair. Dans le cas normal : sept cases, dont la date de
-      frontière, la largeur retenue de la zone retirée, les trois effectifs et
-      les deux résumés chiffrés des deux parties.
+      case, un motif en clair. Dans le cas normal : huit cases, dont la date de
+      frontière, la largeur retenue de la zone retirée, les trois effectifs, le
+      nombre d'opérations PURGÉES (`n_purgees`, toujours 0 pour un horizon fixe)
+      et les deux résumés chiffrés des deux parties.
       [rend: 1]
     ⑥ TRAITEMENT — ① si aucune largeur n'est imposée, prendre la plus grande des
-      deux valeurs entre 21 séances et l'horizon · ② rendre trois zéros si la
+      deux valeurs entre 21 séances et l'horizon, et 21 pour un horizon « aucune »
+      (EMBARGO_PUBLIE_SEANCES) · ② rendre trois zéros si la
       liste est vide · ③ numéroter les séances dans l'ordre · ④ ne garder que
       les opérations dont la date de signal est au calendrier, et rendre un
       motif s'il n'en reste aucune · ⑤ prendre la frontière reçue (refus si elle
@@ -1243,8 +1252,11 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       vide, juste après le tri du calendrier) et la situer dans le calendrier (rang de la première séance qui ne
       la précède pas) ; la case `frontiere` rendue est la séance où la coupure a
       RÉELLEMENT coupé, que l'appelant compare à celle qu'il écrit · ⑥ ranger chaque opération avant la zone retirée, après la
-      frontière, ou dans la zone retirée · ⑦ rendre les effectifs et le résumé
-      de chaque côté.
+      frontière, ou dans la zone retirée · ⑥bis HORIZON « AUCUNE » SEULEMENT, LA
+      PURGE (A-1106) : retirer des 70 % toute opération qui n'est pas refermée
+      AVANT la première séance de la bande (motif FIN_DES_DONNEES, sortie absente,
+      ou sortie dans la bande ou après), quelle que soit sa durée · ⑦ rendre les
+      effectifs et le résumé de chaque côté.
     ⑦ UNITÉ — Les largeurs et les positions se comptent en SÉANCES de bourse.
       La part de 70 % est une FRACTION du temps (dans `frontiere_de_la_fiche`), jamais un nombre d'opérations. Les
       résumés portent un taux de réussite en POURCENTS et un gain en EUROS.
@@ -1260,6 +1272,18 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       d'horizon 30 : le nettoyage était incomplet par construction, et l'écart
       grandissait avec l'horizon. Défaut trouvé le 29-08-2026, et corrigé en
       prenant la plus grande des deux valeurs.
+      LA VERSION « SANS DÉLAI » N'A PAS D'HORIZON qui borne sa détention : aucune
+      largeur fixe ne suffit. A-1106 (27-11-2026, application d'A-305 ② validé par
+      Jean-Luc le 28-08-2026, « purge et embargo — Lopez de Prado 2018, chapitres 7
+      et 12 ») : on RETIRE des 70 % toute opération encore ouverte à la frontière,
+      puis on laisse vide une bande de 21 séances posée AVANT la frontière, comme
+      pour les horizons fixes : les 30 % commencent à la même date pour toutes les
+      versions. « Encore ouverte » se lit ici « pas refermée avant le début de la
+      bande » : une opération refermée DANS la bande lirait des séances que la
+      bande laisse vides, et la moulinette, qui ne lit pas la bande, la voit
+      ouverte (FIN_DES_DONNEES) ; ainsi le juge et la moulinette, qui appellent
+      cette même fonction (R-708), purgent les mêmes opérations (lecture du lot
+      L1CORR2, signalée dans sa note).
     ⑨ CE QUI CLOCHE —
       ① Les deux formes courtes du dictionnaire rendu font tomber le seul
       appelant de production. Le juge des stratégies lit les cases `res_70` et `res_30`
@@ -1290,9 +1314,9 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
     ⑪ TERMINAISON — Rend la main dans tous les cas que son appelant lui donne,
       calendrier vide compris (mesuré le 12-11-2026 : elle rend alors le motif
       « aucune date de signal reconnue au calendrier »). LÈVE ValueError si la
-      frontière manque (« la frontière est exigée »), et TypeError si l'horizon
-      vaut « aucune » sans embargo explicite ; le juge des stratégies rattrape
-      et affiche « COUPURE 70/30 non mesuree ».
+      frontière manque (« la frontière est exigée ») ; depuis le 28-11-2026
+      (A-1106), un horizon « aucune » ne lève plus : il est coupé par la purge ;
+      le juge des stratégies rattrape et affiche « COUPURE 70/30 non mesuree ».
       LÈVE aussi ValueError (15-11-2026, A-751 ②, RT-2 de Cowork du 13-11-2026)
       si la frontière est vide ou faite de blancs (« la frontière est exigée »),
       ou si elle tombe hors du calendrier non vide reçu (« hors du calendrier ») :
@@ -1332,8 +1356,9 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
     # nettoyage etait incomplet PAR CONSTRUCTION, et l'ecart grandit avec
     # l'horizon. Les 21 seances de la litterature valent pour un horizon plus
     # court ; on prend donc le PLUS GRAND des deux.
+    aucune = horizon is _commun().HORIZON_AUCUNE
     if embargo_seances is None:
-        embargo_seances = max(21, int(horizon or 0))
+        embargo_seances = EMBARGO_PUBLIE_SEANCES if aucune else max(EMBARGO_PUBLIE_SEANCES, int(horizon or 0))
     if frontiere is None or not str(frontiere).strip():
         raise ValueError("coupure_70_30 : la frontière est exigée (frontiere=, rendue par frontiere_de_la_fiche)")
     cal = sorted(seances_projet)
@@ -1343,7 +1368,11 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
     if cal and not (cal[0] <= frontiere <= cal[-1]):
         raise ValueError("coupure_70_30 : frontière %s hors du calendrier (%s -> %s)" % (frontiere, cal[0], cal[-1]))
     if not ops:
-        return {"n_70": 0, "n_30": 0, "n_ecartes": 0}
+        # SANS OPÉRATION, LA BANDE A QUAND MÊME UNE LARGEUR (réunion I1 du 28-11-2026 : la moulinette écrivait alors
+        # `embargo_seances` vide, et le tri arrêtait 245 versions à durée chiffrée de C5E10-OBS-V1, épreuves GitHub du
+        # 28-11, passage 46146140308) : la largeur ne dépend que de l'horizon, elle est rendue pour toute version.
+        return dict({"n_70": 0, "n_30": 0, "n_ecartes": 0, "embargo_seances": embargo_seances},
+                    **({"n_purgees": 0} if aucune else {}))
     rang = {d: i for i, d in enumerate(cal)}
     connues = [o for o in ops if o["date_signal"] in rang]
     if not connues:
@@ -1364,9 +1393,63 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
             apres.append(o)
         else:
             ecartes.append(o)          # la zone d'embargo, retiree des deux cotes
+    # LA PURGE DE LA VERSION « SANS DÉLAI » (A-1106) : hors des 70 % toute opération qui n'est pas refermée avant la
+    # première séance de la bande, quelle que soit sa durée.
+    purgees = []
+    if aucune:
+        debut_bande = cal[max(i_frontiere - embargo_seances, 0)]
+        # une position NON TERMINÉE se reconnaît par la seule règle `est_non_terminee` (réunion I1, R-708)
+        purgees = [o for o in avant if est_non_terminee(o) or not o["date_sortie"] < debut_bande]
+        _p = {id(o) for o in purgees}
+        avant = [o for o in avant if id(o) not in _p]
     return {"frontiere": frontiere, "embargo_seances": embargo_seances,
-            "n_70": len(avant), "n_30": len(apres), "n_ecartes": len(ecartes),
+            "n_70": len(avant), "n_30": len(apres), "n_ecartes": len(ecartes), "n_purgees": len(purgees),
             "res_70": _resume(avant), "res_30": _resume(apres)}
+
+
+def fin_de_la_partie_de_reglage(seances_de_la_fiche, horizon, frontiere):
+    """Rend la DERNIÈRE séance des 70 % qui reste après le retrait de la bande, et la largeur de cette bande.
+
+    ① RÔLE — Dire jusqu'où la moulinette a le droit de LIRE des cours : les 70 % les plus anciens, moins la bande
+      retirée entre les deux parties (R-505 v2, étape 3 : « la moulinette joue toutes les versions […] sur les 70 % les
+      plus anciens » ; ⑥ « LA COUPURE ET SA BANDE RETIRÉE (PURGE ET EMBARGO) »).
+    ② CONTEXTE D'APPEL — `programmes/JOUER_LES_VERSIONS.py` (`main`, une fois, avec l'horizon chiffré le plus long de la
+      combinatoire) ; `JUGE_DES_STRATEGIES.jeton_de_reglage` (l'horizon de la fiche). Depuis le 27-11-2026 (lot L1-CORR
+      du plan R505, A-1078).
+    ③ ENTRÉE — `seances_de_la_fiche` : les dates de séance des cours lus comprises dans les bornes de la fiche, toutes
+      valeurs réunies (le calendrier que `coupure_70_30` reçoit du juge) · `horizon` : un horizon chiffré, entier > 0,
+      en séances, ou `COMMUN.HORIZON_AUCUNE` (bande de 21 séances, A-1106) · `frontiere` : la date rendue par `frontiere_de_la_fiche`.
+    ④ CONDITIONS D'ENTRÉE — Celles de `coupure_70_30`. Un horizon « aucune » est admis depuis le 28-11-2026 (A-1106 :
+      la version « sans délai » est coupée par la purge, puis 21 séances d'embargo avant la frontière).
+    ⑤ SORTIE — DEUX valeurs : la dernière séance gardée dans les 70 % (AAAA-MM-JJ), ou None si aucune séance ne l'est ;
+      la largeur de la bande, en séances. Exemple : calendrier de 100 séances, frontière au rang 70, horizon 5 →
+      bande de 21, dernière séance gardée = la séance de rang 48.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① fabriquer une opération fictive par séance (date de signal et de sortie = la séance, gain nul) · ② les passer à
+      `coupure_70_30` avec l'horizon et la frontière · ③ les séances rangées « avant » sont les `n_70` premières du
+      calendrier trié (la coupure range par rang) : rendre la dernière et `embargo_seances`.
+    ⑦ UNITÉ — Des séances de bourse ; des dates.
+    ⑧ POURQUOI — LA RÈGLE DE LA BANDE VIT DANS `coupure_70_30` ET NULLE PART AILLEURS (R-708 : deux implémentations
+      d'une même chose divergent toujours) : cette fonction ne recopie ni le « plus grand de 21 et de l'horizon », ni le
+      « rang < rang de la frontière − largeur » ; elle DEMANDE à la coupure où tombe chaque séance. RELU de Cowork sur
+      lot-r505-L1, défaut L1-2 (27-11-2026) : la moulinette jouait et écrivait la période entière, 30 % compris.
+    ⑨ CE QUI CLOCHE — ① La bande n'est posée qu'avant la frontière (⑨ ② de `coupure_70_30`) : c'est la loi, les 30 %
+      étant à la fin. ② Un trade dont le signal tombe sur la dernière séance gardée a besoin de séances APRÈS elle pour
+      se revendre : c'est l'appelant qui recule la fin des achats (recul calculé, A-1100), cette fonction ne le fait pas.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ce que lève `coupure_70_30` (frontière absente ou hors du calendrier),
+      et ValueError si la coupure ne rend pas de partie de réglage.
+      [sort: non]
+    """
+    cal = sorted(set(seances_de_la_fiche))
+    # une opération fictive par séance, refermée le jour même : la purge d'un horizon « aucune » (A-1106) n'en retire
+    # aucune avant la bande, et la bande se lit comme pour un horizon fixe
+    c = coupure_70_30([{"date_signal": d, "date_sortie": d, "net": 0.0} for d in cal], cal, horizon=horizon,
+                      frontiere=frontiere)
+    if "n_70" not in c or "embargo_seances" not in c:
+        raise ValueError("fin_de_la_partie_de_reglage : la coupure ne rend pas de partie de réglage (%s)"
+                         % c.get("motif", sorted(c)))
+    return (cal[c["n_70"] - 1] if c["n_70"] else None), c["embargo_seances"]
 
 
 def _resume(ops):
@@ -2742,7 +2825,8 @@ def borne_basse_gain(ops, n_tirages=2000, graine=GRAINE):
 # ─────────────────────────────────────────────────────────────────────
 
 def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
-                  mode="valeur", n_tirages=200, graine=GRAINE, entree=None, admis=None, periode=None):
+                  mode="valeur", n_tirages=200, graine=GRAINE, entree=None, admis=None, periode=None,
+                  decoupage=None):
     """Rejoue le MEME nombre d'operations au hasard, et rend la distribution.
 
     TROIS MODES, ET LA LITTERATURE DIT DE FAIRE LES TROIS :
@@ -2806,7 +2890,14 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       ou None (`JUGE_DES_STRATEGIES.jouer_une_entree`), appelée `entree(v, j)` · `admis` : sa règle
       d'achat, vrai si l'achat est permis (`JUGE_DES_STRATEGIES.achat_admis`) ·
       `periode` : le couple des bornes de la fiche, ou None. `mod_positions` n'est
-      plus lu ici depuis le 28-10-2026 : la mécanique le porte.
+      plus lu ici depuis le 28-10-2026 : la mécanique le porte ·
+      `decoupage` (lot W2a, 28-11-2026) : en mode « meme_type » SEULEMENT, un
+      `MODULE_QUAND_JOUER.Decoupage` MESURÉ LE JOUR MÊME (`jour_meme` vrai), qui
+      donne le type de marché de chaque date de signal ; ignoré dans les autres modes.
+      MODE « meme_type » (A-1072, A-1105, loi R-505 v2 étape 5 contrôle 2) : pour
+      chaque opération réelle, l'action ET le jour sont tirés au hasard parmi les
+      achats permis dont la date de signal est du MÊME type de marché, mesuré le
+      jour même, que la date de signal de l'opération réelle.
       CONTRAT DU LOT 0 (09-11-2026) — `horizon` est un entier > 0, None (non
       fourni), ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale). Ce dernier
       refuse tout calcul par une TypeError. ICI le corps ne lit PAS `horizon`
@@ -2829,7 +2920,12 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       28-10-2026, douze cases : s'y ajoutent le nombre d'opérations réelles et le
       plus petit et le plus grand nombre d'opérations jouées par un tirage ; depuis
       le 11-11-2026, treize : `gains_des_tirages`, la liste triée des gains totaux
-      de chaque tirage, en euros, que lit `p_du_hasard` (R-505 ⑥).
+      de chaque tirage, en euros, que lit `p_du_hasard` (R-505 ⑥) ; en mode
+      « meme_type » SEULEMENT (lot W2a, 28-11-2026), seize : s'y ajoutent
+      `operations_par_type` (type → nombre d'opérations réelles), `achats_permis_par_type`
+      (type → nombre d'achats tirables) et `operations_sans_type` (nombre d'opérations
+      réelles dont la date de signal n'a pas de type connu ou aucun achat tirable dans
+      son type : non tirées, et c'est à l'appelant de rendre son contrôle INCONNU).
       [rend: 1]
     ⑥ TRAITEMENT (depuis le 28-10-2026) — ① refuser sans `entree` ni `admis` ·
       ② dresser les achats que la stratégie aurait pu faire : une séance d'achat
@@ -2838,6 +2934,9 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
       tirages avec la graine · ④ répéter autant de fois que demandé : pour chaque
       opération réelle, tirer un achat — en mode « valeur », la date du signal
       réel est gardée et la valeur est tirée parmi les achats permis ce jour-là ;
+      en mode « meme_type », l'action et le jour sont tirés parmi les achats permis
+      dont la date de signal a le même type, mesuré le jour même, que celle de
+      l'opération réelle (refus d'un découpage absent ou fait après coup) ;
       sinon, la valeur réelle est gardée et la date est tirée parmi ses achats
       permis dans la période · ⑤ le jouer par `entree`, la mécanique de la
       stratégie ; None = non joué, et compté · ⑥ cumuler le gain net, le nombre de
@@ -2941,12 +3040,23 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
                          "passées par le juge des stratégies — l'étalon ne recopie pas la mécanique (R-708). Une étude "
                          "close qui l'appelle encore à l'ancienne se rejoue au commit de son gel (09e43c2, 812e705 : "
                          "voir la fiche ② de cette fonction)")
+    # LE MODE « meme_type » EXIGE LE DÉCOUPAGE DU JOUR MÊME (A-1105, décision de Jean-Luc du 27-11-2026 à 22h15) : un
+    # découpage daté après coup connaît l'avenir et comparerait la version à des jours où elle n'avait pas le droit de
+    # jouer. Refus explicite plutôt qu'un tirage faux en silence.
+    types_du_jour = None
+    if mode == "meme_type":
+        if decoupage is None or getattr(decoupage, "jour_meme", None) is not True \
+                or not isinstance(getattr(decoupage, "types", None), dict):
+            raise ValueError("etalon_hasard, mode « meme_type » : il faut un découpage MESURÉ LE JOUR MÊME "
+                             "(MODULE_QUAND_JOUER.decoupage_par_defaut) ; reçu %r — un découpage fait après coup "
+                             "est refusé (A-1105)" % (getattr(decoupage, "nom", decoupage),))
+        types_du_jour = decoupage.types
     dispo = [v for v in univers if v in cours]
     if not dispo or not ops:
         return {"n_tirages": 0, "motif": "univers ou operations insuffisants"}
     # LES ACHATS QUE LA STRATÉGIE AURAIT PU FAIRE : une séance d'achat j permise (dans l'indice ce jour-là, quand la
     # lecture le demande), dont la veille — la séance du signal — tombe dans la période de la fiche, comme dans `jouer`.
-    par_date, par_valeur = {}, {}
+    par_date, par_valeur, par_type = {}, {}, {}
     for v in dispo:
         s = cours[v]
         for j in range(1, len(s)):
@@ -2957,13 +3067,24 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
                 continue
             par_date.setdefault(d_sig, []).append((v, j))
             par_valeur.setdefault(v, []).append(j)
+            if types_du_jour is not None:
+                t = types_du_jour.get(d_sig)
+                if t is not None and t != "INCONNU":
+                    par_type.setdefault(t, []).append((v, j))
     r = random.Random(graine)
     taux, gains, joues = [], [], []
     for _ in range(n_tirages):
         g = n = 0
         somme = 0.0
         for o in ops:
-            if mode == "valeur":
+            if mode == "meme_type":
+                # mode « meme_type » : l'ACTION et le JOUR sont tirés parmi les achats permis dont la date de signal
+                # a le même type de marché, mesuré le jour même, que le vrai signal (A-1072, A-1105)
+                cands = par_type.get(types_du_jour.get(o["date_signal"]), [])
+                if not cands:
+                    continue
+                v, j = cands[r.randrange(len(cands))]
+            elif mode == "valeur":
                 # mode « valeur » : la DATE réelle du signal est gardée, la VALEUR est tirée parmi les achats permis ce jour-là
                 cands = par_date.get(o["date_signal"], [])
                 if not cands:
@@ -2992,7 +3113,29 @@ def etalon_hasard(ops, cours, univers, tp, sl, horizon, mod_positions,
         return {"n_tirages": 0, "motif": "aucun tirage exploitable"}
     taux.sort()
     gains.sort()
-    return {"mode": mode, "n_tirages": len(taux),
+    en_plus = {}
+    if types_du_jour is not None:
+        # A-1117 (28-11-2026, application par le Chat de la règle de Jean-Luc d'A-1113) : une opération dont le jour n'a
+        # PAS DE TYPE mesuré le jour même est EXCLUE du contrôle 2 et son nombre AFFICHÉ ; ses dates de signal sont
+        # rendues (`signaux_sans_type`) pour que le contrôle retire ces opérations du gain comparé. Une opération
+        # TYPÉE sans aucun achat tirable dans son type reste comptée à part (`operations_sans_achat_tirable`) : elle
+        # rend le contrôle INCONNU (A-1117 ne vise que l'absence de type).
+        par_op = {}
+        sans_type, sans_achat, signaux_sans_type = 0, 0, []
+        for o in ops:
+            t = types_du_jour.get(o["date_signal"])
+            if t is None or t == "INCONNU":
+                sans_type += 1
+                signaux_sans_type.append(o["date_signal"])
+            elif not par_type.get(t):
+                sans_achat += 1
+            else:
+                par_op[t] = par_op.get(t, 0) + 1
+        en_plus = {"operations_par_type": par_op,
+                   "achats_permis_par_type": {t: len(c) for t, c in sorted(par_type.items())},
+                   "operations_sans_type": sans_type, "operations_sans_achat_tirable": sans_achat,
+                   "signaux_sans_type": sorted(set(signaux_sans_type))}
+    return {**en_plus, "mode": mode, "n_tirages": len(taux),
             "taux_median": round(taux[len(taux) // 2], 1),
             "taux_95pct": round(taux[int(0.95 * len(taux))], 1),
             "taux_max": round(taux[-1], 1),
@@ -3339,6 +3482,9 @@ DOMAINES_DES_CLES_DE_LA_TABLE = {
     "refutation_borne_haute": "proba",   # RÉFUTÉE : DÉL-D40 (« 95 % » → 0,05) — À ÉCRIRE PAR A
     "embargo_sans_duree": "texte",       # embargo d'une stratégie sans durée (« non tranché » ⑤) — À ÉCRIRE PAR A
     "surapprentissage_maximum": "proba", # ⑧ : « 0,30 » (n°109)
+    "sharpe_degonfle_risque_maximum": "proba",  # étape 5, contrôle 1 de R-505 v2 : « 0,05 », sans ÷ k (A-1095 corrigée le 27-11 à 21h19)
+    "ressemblance_correlation_minimum": "proba",    # étape 6 ⑤ de R-505 v2 : « 0,5 » (A-791 ; lot W2c)
+    "ressemblance_chevauchement_minimum": "proba",  # étape 6 ⑤ de R-505 v2 : « 0,5 » (A-791 ; lot W2c)
     "voisins": "texte",                  # ⑩ : « 26 voisins à ±10 %, tous gagnants » (DÉL-D13, DÉL-D36)
     "frais_doubles": "texte",            # ⑩ : « courtage et taxe × 2, gain > 0 » (DÉL-D13, DÉL-D36)
 }
@@ -3359,6 +3505,9 @@ REFERENCES_DE_STRICTESSE = {
     "kelly_minimum": (">=", "0,05", "n°88"),
     "epoque_perdante": (">=", "0,05", "n°58"),
     "surapprentissage_maximum": ("<=", "0,30", "n°109"),
+    # contrôle 1 de R-505 v2 (Sharpe dégonflé, N = k) : 0,05 SANS division par k — le Sharpe dégonflé compte déjà les
+    # k essais ; diviser encore par k les compterait deux fois (A-1095, correction du 27-11-2026 à 21h19)
+    "sharpe_degonfle_risque_maximum": ("<=", "0,05", "A-1095"),
     "refutation_borne_haute": ("<=", "0,05", "DÉL-D40"),
     "embargo_sans_duree": (">=", "21", "A-305 ②"),
 }
@@ -3397,6 +3546,23 @@ ROLE_DONNE_PAR_LA_LOI = {cle: "CONDITION" for cle in (
 ROLE_LU_A_LA_TABLE = ("taux_face_au_point_mort", "borne_basse_du_gain", "gain_un_jeton", "creux_un_jeton")
 # LES SEULS CONTRÔLES QUI PEUVENT ÊTRE SANS OBJET, et quand : la grille le décide elle-même (R-505 ⑧, cas 1).
 SANS_OBJET_EN_CAS_1 = ("surapprentissage", "sharpe_degonfle")
+# LES CONTRÔLES QUI PASSENT EN AFFICHAGE EN CAS 2 (R-505 version 2, étape 5, contrôle 1 ; décision de Jean-Luc du
+# 27-11-2026 à 19h00, « OK pour le 1 » à « Garder pour l'instant un seul calcul, le B », BACKLOG A-1095) : en cas 2,
+# « la stratégie gagne » se calcule par le SHARPE DÉGONFLÉ SEUL, N = k, au seuil 0,05 SANS ÷ k (contrôle `sharpe_degonfle`,
+# clé `sharpe_degonfle_risque_maximum` ; A-1095, correction du 27-11-2026 à 21h19) ; le
+# calcul « gain > 0 à 0,05 ÷ k » (`gain_bat_zero`, `probabilite_que_le_gain_soit_du_hasard`) est GARDÉ, calculé et
+# affiché, pour que le banc (A-1094) compare les deux — il ne décide plus. Raison de la loi : « deux tests pour une
+# question, c'est une chance de plus de rejeter une bonne stratégie par malchance » (A-1081, A-1094). En cas 1 (stratégie
+# figée), la loi v2 ne change rien (« LES DEUX CAS — inchangés ») : `gain_bat_zero` y reste une CONDITION.
+# LE CONTRÔLE ④ (« ASSEZ DE DONNÉES ») PASSE LUI AUSSI EN AFFICHAGE EN CAS 2 (décision de Jean-Luc du 27-11-2026 à
+# 22h04, « 1 », BACKLOG A-1103 : le contrôle « assez de données » est calculé et AFFICHÉ, il ne bloque plus ; « le
+# minimum d'A-782 (14-11) ne décide plus »). Raison de la loi : quand le contrôle 1 passe, il y avait assez de données
+# par définition ; quand il échoue, la fourchette du gain dit RÉFUTÉE ou NON TRANCHÉE (A-1074) ; un contrôle de plus pour
+# la même question est une chance de plus de rejeter une bonne stratégie (A-1094). En cas 2, son ÉTAT ne dépend donc
+# plus du minimum : PASSE dès que les observations sont mesurées, le minimum et sa comparaison restant AFFICHÉS dans le
+# détail (`minimum_a_782`, `au_dessus_du_minimum`). En cas 1, la loi v2 ne change rien (« LES DEUX CAS » gardés) : il
+# reste une CONDITION — lecture du lot W2bFIX, signalée dans sa note.
+AFFICHAGE_EN_CAS_2 = ("gain_bat_zero", "observations_independantes")
 
 # LE MOTIF D'UNE NON TRANCHÉE, PAR CONTRÔLE QUI BLOQUE (R-505 ⑫, DÉL-D40 ; mots lus au contrat MOTIFS_DE_NON_TRANCHEE).
 # Les anciens C7 et C8 n'ont pas de mot à eux au contrat gelé : ils portent « NE BAT PAS ZÉRO », le contrôle étant nommé
@@ -3573,6 +3739,155 @@ def _reference(texte, k):
             return None, "k inconnu"
         return nombre / k, ""
     return nombre, ""
+
+
+def _module_du_sharpe_degonfle():
+    """Charge `programmes/MODULE_SHARPE_DEGONFLE.py`, voisin de ce module, comme `_commun` charge COMMUN.
+    ① RÔLE — Atteindre la formule du Sharpe dégonflé sans la recopier (R-708).
+    ② CONTEXTE D'APPEL — `mesurer_le_sharpe_degonfle`.
+    ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — MODULE_SHARPE_DEGONFLE.py dans le même dossier que ce module.
+    ⑤ SORTIE — UNE valeur : le module.
+      [rend: 1]
+    ⑥ TRAITEMENT — ajouter le dossier de ce module au chemin d'import s'il manque, puis l'importer.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Le même chemin que `_commun` : un seul chargement, sous un seul nom.
+    ⑨ CE QUI CLOCHE — modifie `sys.path` au premier appel.
+    ⑩ EFFET — peut ajouter un dossier à `sys.path`.
+    ⑪ TERMINAISON — Rend la main ; lève ImportError.
+      [sort: non]"""
+    import os
+    import sys
+    ici = os.path.dirname(os.path.abspath(__file__))
+    if ici not in sys.path:
+        sys.path.insert(0, ici)
+    import MODULE_SHARPE_DEGONFLE
+    return MODULE_SHARPE_DEGONFLE
+
+
+def mesurer_le_sharpe_degonfle(rendements, k, sharpes_des_essais):
+    """Rend la mesure `sharpe_degonfle` que la grille attend (contrôle 1 de l'étape 5 de R-505 v2), ou la raison.
+
+    ① RÔLE — Le mesureur du contrôle 1 : la stratégie gagne, frais, taxe et glissement payés, au-dessus de zéro —
+      CALCULÉ PAR LE SHARPE DÉGONFLÉ, UN SEUL CALCUL, « N vaut k » (R-505 v2, étape 5 ; décision de Jean-Luc du
+      27-11-2026 à 19h00, A-1095). La grille compare ensuite 1 − Sharpe dégonflé au seuil 0,05, SANS division par k
+      (clé `sharpe_degonfle_risque_maximum` ; A-1095, correction du 27-11-2026 à 21h19 : « contrôle 1 = Sharpe dégonflé
+      avec k essais, au seuil 0,05, sans division par k ; le contrôle 2 (jour au hasard) garde 0,05 ÷ k »).
+    ② CONTEXTE D'APPEL — Au 27-11-2026 : les épreuves `tests/EPREUVES_DU_SHARPE_DEGONFLE_ET_DE_LA_PBO_Ven_27-11-2026.py`
+      et le banc (A-1094). PAS ENCORE la porte du juge : le contrat `MESUREURS_DU_JUGE` attend un mesureur
+      (racine, fiche, ops), et la série du compte au jour le jour (A-1071) que ce mesureur demande n'est pas fabriquée
+      (lot W2b) ; voir ⑨.
+    ③ ENTRÉE — `rendements` : le rendement QUOTIDIEN DU COMPTE de la version sur ses séances d'examen (A-1071), une
+      FRACTION par séance · `k` : le nombre d'essais du juge (entier ≥ 1 ; A-774, A-772, A-1082) · `sharpes_des_essais` :
+      les Sharpe PAR SÉANCE des essais comptés dans k, sur la même période (ignorés si k = 1).
+    ④ CONDITIONS D'ENTRÉE — Celles de `MODULE_SHARPE_DEGONFLE.sharpe_degonfle_d_une_serie`.
+    ⑤ SORTIE — DEUX valeurs : la mesure (un dictionnaire qui porte les champs du contrat DETAILS_DES_CONTROLES
+      ["sharpe_degonfle"] — `sharpe_degonfle`, la probabilité NON ARRONDIE, et `nombre_d_essais` = k — plus le détail
+      du calcul), ou None ; et la raison (vide si mesurée).
+      [rend: 2]
+    ⑥ TRAITEMENT — appeler `sharpe_degonfle_d_une_serie(rendements, k, sharpes_des_essais)` ; une ValueError ou une
+      erreur numérique (ArithmeticError : débordement, division par zéro), ou une probabilité qui n'est pas un nombre
+      fini entre 0 et 1, devient (None, sa raison) ; sinon recopier sa probabilité sous le nom du contrat.
+    ⑦ UNITÉ — Probabilité : fraction entre 0 et 1 ; Sharpe : par séance.
+    ⑧ POURQUOI — La grille ne reçoit jamais d'état, seulement des mesures (simplification 1 du superviseur R-759 du
+      11-11-2026) : ce mesureur rend la mesure, la grille la compare au seuil qu'elle lit.
+    ⑨ CE QUI CLOCHE — ① La série A-1071 n'existe pas : tant que W2b ne la fabrique pas, aucun appelant réel.
+      ② Le Sharpe dégonflé est conçu pour « la meilleure parmi N » ; le juge l'applique à CHAQUE version envoyée
+      (réserve de la loi, étape 5) ; lequel des deux calculs rejette le moins de bonnes stratégies se mesure au banc
+      (A-1094). ③ Des rendements absurdes (au-delà de 1e154 par séance) débordent : rendus (None, raison), jamais un
+      plantage (relecture V1 du lot L3, D7).
+    ⑩ EFFET — Charge MODULE_SHARPE_DEGONFLE au premier appel.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import math
+    try:
+        r = _module_du_sharpe_degonfle().sharpe_degonfle_d_une_serie(rendements, k, sharpes_des_essais)
+    except (ValueError, ArithmeticError) as e:
+        return None, "Sharpe dégonflé non calculable : %s: %s" % (type(e).__name__, e)
+    p = r.get("probabilite")
+    if isinstance(p, bool) or not isinstance(p, float) or not math.isfinite(p) or not 0.0 <= p <= 1.0:
+        return None, "Sharpe dégonflé non calculable : probabilité %r hors de [0, 1] ou non finie" % (p,)
+    m = dict(r)
+    m["sharpe_degonfle"] = r["probabilite"]
+    return m, ""
+
+
+def table_des_seuils_en_attente(racine):
+    """Rend, au format de `table_de_la_loi`, les seuils de R-505 v2 que le REGISTRE ne porte pas encore.
+
+    ① RÔLE — Lire à UN seul endroit le seuil de départ de la PBO, 0,05 (décision de Jean-Luc du 27-11-2026 à 18h53,
+      « 1 » à « Partir de 0,05, la valeur de l'article, puis comparer 0,05 et 0,30 sur le banc avant de figer »,
+      A-1093), tant que R-505 v2 n'est pas installée au REGISTRE (étape I1 du plan R505). La table du REGISTRE porte
+      encore 0,30 (version 1, n°109) : la porte du juge RECOUVRE sa ligne par celle-ci.
+    ② CONTEXTE D'APPEL — `JUGER_UNE_FICHE.juger_une_fiche`, juste après `table_de_la_loi` ; les épreuves.
+    ③ ENTRÉE — `racine` : la racine du dépôt (les DONNÉES viennent de la racine).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — UNE valeur : {clé : {"valeur", "sens", "source"}} pour CHAQUE clé de
+      `CONTRATS_DES_FICHIERS.CLES_DES_SEUILS_EN_ATTENTE`. Fichier absent ou illisible, clé absente, en double ou
+      inconnue du contrat : CHAQUE clé porte la valeur « ILLISIBLE » et la raison dans « sens » — `seuil_de_la_loi` la
+      refuse alors (« n'est pas un nombre ») et le contrôle est INCONNU, jamais l'ancien 0,30.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire `CONTRATS_DES_FICHIERS.SEUILS_EN_ATTENTE_DU_REGISTRE` sous la racine · ② sauter les lignes
+      vides et celles qui commencent par « # » · ③ en-tête = `SEUIL_EN_ATTENTE` exactement · ④ une ligne par clé
+      déclarée, aucune autre.
+    ⑦ UNITÉ — Des textes (la conversion est celle de `seuil_de_la_loi`).
+    ⑧ POURQUOI — Consigne du mandat L3 (27-11-2026) : « lu à UN seul endroit […] lis-le d'un fichier de données unique
+      que tu déclares au contrat, jamais en dur dans le code ». Une lecture qui échoue ne rend JAMAIS une table vide :
+      le 0,30 du REGISTRE reprendrait la main en silence.
+    ⑨ CE QUI CLOCHE — À l'installation de R-505 v2 (I1), la ligne passe au REGISTRE ; ce fichier doit alors être archivé
+      et sa lecture retirée de la porte : sinon deux endroits (R-708).
+    ⑩ EFFET — Lit un fichier.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    import csv
+    import io
+    import os
+    import CONTRATS_DES_FICHIERS as CT
+    cles = tuple(CT.CLES_DES_SEUILS_EN_ATTENTE)
+    chemin = os.path.join(racine, CT.SEUILS_EN_ATTENTE_DU_REGISTRE)
+
+    def illisible(raison):
+        """Rend la table où chaque clé déclarée porte « ILLISIBLE » et la raison.
+        ① RÔLE — La seule sortie d'échec de la lecture.
+        ② CONTEXTE D'APPEL — `table_des_seuils_en_attente`, à chacun de ses refus.
+        ③ ENTRÉE — `raison` : le texte du refus.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — UNE valeur : la table, une ligne par clé déclarée, valeur « ILLISIBLE ».
+          [rend: 1]
+        ⑥ TRAITEMENT — une ligne par clé de `CLES_DES_SEUILS_EN_ATTENTE`.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Une table vide laisserait le 0,30 du REGISTRE en place (⑧ de la fonction).
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Aucun.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]"""
+        return {c: {"valeur": "ILLISIBLE", "sens": raison, "source": CT.SEUILS_EN_ATTENTE_DU_REGISTRE} for c in cles}
+
+    try:
+        with open(chemin, encoding="utf-8", newline="") as f:
+            texte = f.read()
+    except (OSError, UnicodeDecodeError) as e:
+        return illisible("seuils en attente illisibles (%s) : %s" % (type(e).__name__, chemin))
+    lignes = [l for l in texte.splitlines() if l.strip() and not l.lstrip().startswith("#")]
+    rangs = list(csv.reader(io.StringIO("\n".join(lignes))))
+    if not rangs or rangs[0] != list(CT.SEUIL_EN_ATTENTE):
+        return illisible("en-tête %r, le contrat dit %r" % (rangs[0] if rangs else None, CT.SEUIL_EN_ATTENTE))
+    table = {}
+    for r in rangs[1:]:
+        if len(r) != len(CT.SEUIL_EN_ATTENTE):
+            return illisible("ligne à %d case(s) : %r" % (len(r), r))
+        cle = r[0].strip()
+        if cle not in cles:
+            return illisible("clé %r inconnue du contrat CLES_DES_SEUILS_EN_ATTENTE" % cle)
+        if cle in table:
+            return illisible("clé %r écrite deux fois" % cle)
+        table[cle] = {"valeur": r[1].strip(), "sens": r[2].strip(), "source": r[3].strip()}
+    manque = [c for c in cles if c not in table]
+    if manque:
+        return illisible("clé(s) absente(s) : %s" % ", ".join(manque))
+    return table
 
 
 def role_du_controle(table, cle):
@@ -3757,6 +4072,115 @@ def _controle(etat, valeur=None, seuil=None, raison="", role="CONDITION", detail
     return {"etat": etat, "valeur": valeur, "seuil": seuil, "raison": raison, "role": role, "detail": detail or {}}
 
 
+def _controle_2():
+    """Charge `programmes/MODULE_CONTROLE_2_DU_HASARD.py`, voisin de ce module, à la demande.
+
+    ① RÔLE — Atteindre `controle_2`, la seule règle du contrôle 2 de l'étape 5, sans la recopier (R-708).
+    ② CONTEXTE D'APPEL — `grille_de_validation`, au contrôle ⑥ « bat le hasard ».
+    ③ ENTRÉE — —
+    ④ CONDITIONS D'ENTRÉE — MODULE_CONTROLE_2_DU_HASARD.py dans le même dossier que ce module.
+    ⑤ SORTIE — UNE valeur : le module.
+      [rend: 1]
+    ⑥ TRAITEMENT — ajouter le dossier de ce module au chemin s'il n'y est pas, puis importer.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Ce module importe MODULE_JUGEMENT : l'importer en tête ferait une boucle ; à la demande, elle n'existe
+      pas (les deux modules sont alors chargés).
+    ⑨ CE QUI CLOCHE — Le module chargé est celui du dossier de CE fichier : une copie sabotée l'est aussi (voulu).
+    ⑩ EFFET — Modifie sys.path une fois ; charge un module.
+    ⑪ TERMINAISON — Rend la main ; lève ImportError si le fichier manque.
+      [sort: non]
+    """
+    import importlib
+    import os
+    import sys
+    ici = os.path.dirname(os.path.abspath(__file__))
+    if ici not in sys.path:
+        sys.path.insert(0, ici)
+    return importlib.import_module("MODULE_CONTROLE_2_DU_HASARD")
+
+
+def est_non_terminee(o):
+    """Dit si UNE opération est une position NON TERMINÉE (encore ouverte au dernier jour des données) — LA seule règle.
+
+    ① RÔLE — L'endroit UNIQUE (R-708 : deux implémentations d'une même chose divergent toujours) où se reconnaît une
+      position « NON TERMINÉE » (A-1100, A-1108) : avant la réunion I1 du 28-11-2026, trois façons coexistaient (motif
+      seul ici ; motif ou sortie absente dans le parcours à un jeton et dans la purge ; HORIZON ou FIN_DES_DONNEES dans
+      la plus longue opération du juge), contradiction C1 de la relecture neuve V2 (preuves/V2_RELU.md).
+    ② CONTEXTE D'APPEL — `mettre_a_part_les_non_terminees` (donc la grille, la porte du juge `JUGER_UNE_FICHE` et la
+      courbe du compte) ; la purge « sans délai » de `coupure_70_30` ; `JUGE_DES_STRATEGIES.resumer` ;
+      `MODULE_PARCOURS_A_UN_JETON._non_terminee` (W2d).
+    ③ ENTRÉE — `o` : une opération, un dictionnaire (cases `motif`, `date_sortie`).
+    ④ CONDITIONS D'ENTRÉE — `o` porte une méthode `get` (dictionnaire).
+    ⑤ SORTIE — UNE valeur : vrai si le motif de sortie est `COMMUN.MOTIF_FIN_DES_DONNEES` OU si la date de sortie est
+      absente ou vide ; faux sinon.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① lire le motif, le comparer au motif de COMMUN (lu, pas recopié) · ② lire la date de sortie.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Décisions de Jean-Luc A-1100 (27-11-2026 à 19h29 : « NON TERMINÉES », comptées à part, jamais
+      inventées) et A-1108 (27-11-2026 à 22h29, « 2 » : exclues du gain jugé, de la courbe, du Kelly et du taux de
+      réussite, affichées à part). Le critère le plus large des deux lots qui en avaient un (W2d, L1CORR2) est gardé :
+      une opération sans date de sortie n'est pas terminée, quel que soit son motif.
+    ⑨ CE QUI CLOCHE — ① Une version À DURÉE CHIFFRÉE forcée par la fin des données porte le motif HORIZON
+      (MODULE_POSITIONS) : elle n'est PAS reconnue ici (aveu ⑨② du lot W2bFIX, à porter en Section 0 du BACKLOG). ② La
+      plus longue opération du juge (`JUGE_DES_STRATEGIES`, mesure de la bande) écarte encore HORIZON et
+      FIN_DES_DONNEES par sa propre règle : c'est une autre question (durée mesurable), laissée telle quelle.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main.
+      [sort: non]
+    """
+    return o.get("motif") == _commun().MOTIF_FIN_DES_DONNEES or not o.get("date_sortie")
+
+
+def mettre_a_part_les_non_terminees(ops):
+    """Sépare les opérations TERMINÉES des positions NON TERMINÉES (encore ouvertes au dernier jour des données).
+
+    ① RÔLE — L'endroit UNIQUE (R-708 : deux implémentations d'une même chose divergent toujours) où se fait la règle
+      d'A-1108 : décision de Jean-Luc du 27-11-2026 à 22h29, « 2 », à l'option « les exclure du gain jugé et les afficher
+      seulement » — une position encore ouverte au dernier jour des données, ni vendue à son objectif ni à son stop, est
+      EXCLUE du gain jugé, de la courbe du compte au jour le jour (à partir de son achat), du Kelly et du taux de
+      réussite ; elle est AFFICHÉE à part : leur nombre et leur résultat latent au dernier cours réel, frais de vente
+      compris (R-505 v2, étape 3 ⑤, point ⓕ clos).
+    ② CONTEXTE D'APPEL — `grille_de_validation` (gain jugé, taux de réussite) ; `JUGER_UNE_FICHE.juger_une_fiche` avant
+      le hasard, le point mort et les mesureurs (dont le Kelly) ; `MODULE_COURBE_DU_COMPTE.courbe_du_compte` (la courbe).
+    ③ ENTRÉE — `ops` : une liste d'opérations, chacune un dictionnaire portant `motif` (motif de sortie) et `net` (gain
+      net en euros, frais d'achat et de vente payés).
+    ④ CONDITIONS D'ENTRÉE — `ops` itérable de dictionnaires ; une opération NON TERMINÉE doit porter un `net` fini, sinon
+      ValueError (un résultat latent illisible ne s'affiche pas en silence). `ops` None ou vide : rendu vide.
+    ⑤ SORTIE — DEUX valeurs : la liste des opérations terminées (ordre gardé, mêmes objets) ; le dictionnaire
+      d'affichage {`n` : nombre de positions non terminées, `resultat_latent_eur` : somme de leurs `net`, euros non
+      arrondis, `role` : « AFFICHAGE »}.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① reconnaître une position non terminée par `est_non_terminee` (la seule règle, réunion I1 du
+      28-11-2026 : motif FIN_DES_DONNEES OU sortie absente) · ② les ranger à part, les autres gardées dans l'ordre ·
+      ③ sommer leurs `net`.
+    ⑦ UNITÉ — Nombre de positions ; euros.
+    ⑧ POURQUOI — Le juge vend une position sans délai encore ouverte à la DERNIÈRE CLÔTURE CONNUE, sous le motif
+      FIN_DES_DONNEES (`MODULE_POSITIONS`, décision de Jean-Luc du 12-11-2026 à 09h18) : son `net` est donc exactement
+      « le résultat latent au dernier cours réel, frais de vente compris » d'A-1108. On ne sait pas comment elle se
+      serait terminée : la compter inventerait une sortie. LE RISQUE, dit à Jean-Luc avant sa décision : une version qui
+      finit sur de grosses pertes non vendues paraîtrait meilleure qu'elle n'est ; c'est pourquoi ce résultat latent est
+      TOUJOURS rendu, même quand il vaut zéro.
+    ⑨ CE QUI CLOCHE — ① La loi dit « NON TERMINÉES » ; le code n'a qu'un motif, FIN_DES_DONNEES : aucun motif « NON
+      TERMINÉE » n'existe au 28-11-2026 (recherche dans programmes/). ② Une version À DURÉE CHIFFRÉE forcée par la fin des
+      données porte le motif HORIZON (MODULE_POSITIONS, ⑨) : elle n'est pas reconnue ici, comme avant (A-1100 ne vise que
+      les versions « sans délai »).
+    ⑩ EFFET — Aucun : ne modifie ni la liste ni les opérations.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError.
+      [sort: non]
+    """
+    import math
+    terminees, a_part = [], []
+    for o in (ops or []):
+        (a_part if est_non_terminee(o) else terminees).append(o)
+    latent = 0.0
+    for o in a_part:
+        net = o.get("net")
+        if isinstance(net, bool) or not isinstance(net, (int, float)) or not math.isfinite(net):
+            raise ValueError("position non terminée au gain latent illisible : %r" % (net,))
+        latent += net
+    return terminees, {"n": len(a_part), "resultat_latent_eur": latent, "role": "AFFICHAGE"}
+
+
 def _garde_d_entree(cas, k, ops, point_mort_pct, declaration_manquants, seances_hors_examen, regards_anterieurs,
                     hasard, epoques_declarees, annees_d_examen, seances_d_examen, mesures_externes):
     """LA SEULE GARDE D'ENTRÉE DE LA GRILLE : rend les entrées dont le type est strictement celui du contrat, et None
@@ -3873,16 +4297,18 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
       une mesure absente ou mal typée rend le contrôle INCONNU ; LES ÉPOQUES SE CALCULENT ICI (`lire_les_epoques`, puis
       `controle_des_epoques` avec le seuil de preuve et le seuil d'époque lus à la table).
     ④ CONDITIONS D'ENTRÉE — Aucune : toute entrée hors de sa forme est écartée par `_garde_d_entree` et devient INCONNU.
-    ⑤ SORTIE — UNE valeur : un dictionnaire de six clés : `verdict` (un mot de MOTS_DU_VERDICT), `motif`,
-      `premier_controle_bloquant` (une clé, ou vide), `seuil_de_preuve`, `seuil_du_hasard` (nombres ou None) et
-      `controles` ({clé de CONTROLES_DU_VERDICT : CONTROLE_DU_VERDICT}). Le juge y ajoute ce que le contrat VERDICT
+    ⑤ SORTIE — UNE valeur : un dictionnaire de sept clés : `verdict` (un mot de MOTS_DU_VERDICT), `motif`,
+      `premier_controle_bloquant` (une clé, ou vide), `seuil_de_preuve`, `seuil_du_hasard` (nombres ou None),
+      `controles` ({clé de CONTROLES_DU_VERDICT : CONTROLE_DU_VERDICT}) et `non_terminees` (AFFICHAGE d'A-1108 : nombre
+      et résultat latent des positions encore ouvertes au dernier jour, rendu de `mettre_a_part_les_non_terminees`). Le juge y ajoute ce que le contrat VERDICT
       demande d'autre (règle, date, fiche, déclaration, k, affichages, empreinte, préenregistrement).
       [rend: 1]
-    ⑥ TRAITEMENT — ① la garde d'entrée · ② lire les seuils (`seuil_de_la_loi`, domaines compris) · ③ ranger chaque
+    ⑥ TRAITEMENT — ① la garde d'entrée, puis les positions NON TERMINÉES mises à part (A-1108 : hors du gain jugé et du
+      taux de réussite, affichées) · ② lire les seuils (`seuil_de_la_loi`, domaines compris) · ③ ranger chaque
       contrôle, PASSE / BLOQUE / INCONNU / SANS_OBJET (seulement ⑧ en cas 1), l'état étant CALCULÉ depuis la mesure et
-      le seuil (strictesse comprise) · ④ imposer à chaque contrôle le rôle de la loi ou de la table (`role_du_controle`), jamais celui de l'appelant · ⑤ NON JUGEABLE si la déclaration manque un
+      le seuil (strictesse comprise) · ④ imposer à chaque contrôle le rôle de la loi ou de la table (`role_du_controle`), jamais celui de l'appelant ; en cas 2, `gain_bat_zero` est un AFFICHAGE (AFFICHAGE_EN_CAS_2 : R-505 v2, étape 5, A-1095 — le contrôle 1 y est le Sharpe dégonflé), et `observations_independantes` aussi (A-1103 : PASSE dès qu'elles sont mesurées, le minimum d'A-782 affiché sans décider) · ⑤ NON JUGEABLE si la déclaration manque un
       champ (motif : le premier champ) · ⑥ RÉFUTÉE si la déclaration, les années et le regard passent, si les
-      observations atteignent le plancher et si la borne haute du gain moyen, au niveau `refutation_borne_haute`, est
+      observations atteignent le plancher (en cas 2 : si elles sont mesurées, A-1103) et si la borne haute du gain moyen, au niveau `refutation_borne_haute`, est
       sous zéro (DÉL-D40 : « seule voie ») · ⑦ « Validée … » PAR INCLUSION (`verdict_par_inclusion`) · ⑧ sinon NON
       TRANCHÉE, avec le motif du premier contrôle qui empêche l'inclusion.
     ⑦ UNITÉ — Probabilités sans unité ; point mort et bornes de taux en POURCENTS ; gains en EUROS ; observations en
@@ -3900,7 +4326,7 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
     ⑨ CE QUI CLOCHE — ① « Aucun INCONNU, affichages compris » est la lecture la plus stricte de DÉL-D40. ② Le seuil est
       franchi par p < seuil, strictement. ③ C7 et C8 portent le motif « NE BAT PAS ZÉRO », faute d'un mot au contrat
       gelé. ④ Le Kelly, le surapprentissage, le Sharpe dégonflé, les voisins et les frais doublés ne sont pas mesurés
-      ici. ⑤ Plusieurs modes de hasard : le plus grand p décide. ⑥ Aucun « Validée » n'est à tenir pour vrai tant que
+      ici (Sharpe dégonflé : `mesurer_le_sharpe_degonfle` ; PBO : `MODULE_SURAPPRENTISSAGE.mesurer_le_surapprentissage`, hors du circuit du soir parce qu'il exige numpy). ⑤ Hasard (réunion I1, 28-11-2026, A-1081) : seul le rendu « meme_type » décide, par `MODULE_CONTROLE_2_DU_HASARD.controle_2` ; les autres modes s'affichent. ⑥ Aucun « Validée » n'est à tenir pour vrai tant que
       les épreuves de JONCTION avec `juger` et `jouer` n'existent pas (superviseur).
     ⑩ EFFET — Aucun : elle ne lit ni n'écrit de fichier.
     ⑪ TERMINAISON — Rend la main ; aucun de ses appels ne peut ne pas revenir : `borne_basse_gain` fait 2 000 tirages,
@@ -3912,6 +4338,9 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
                                 regards_anterieurs, hasard, epoques_declarees, annees_d_examen, seances_d_examen,
                                 mesures_externes)
     cas, ops, point_mort_pct = g["cas"], g["ops"] or [], g["point_mort_pct"]
+    # LES POSITIONS NON TERMINÉES SONT MISES À PART AVANT TOUT CALCUL (A-1108, décision de Jean-Luc du 27-11-2026 à
+    # 22h29, « 2 ») : hors du gain jugé et du taux de réussite, rendues dans `non_terminees` (nombre et résultat latent).
+    ops, non_terminees = mettre_a_part_les_non_terminees(ops)
     declaration_manquants, seances_hors_examen = g["declaration_manquants"], g["seances_hors_examen"]
     regards_anterieurs, hasard = g["regards_anterieurs"], g["hasard"]
     externes = dict(g["mesures_externes"] or {})
@@ -3967,6 +4396,12 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
                 r_plancher = str(ex)
         if n_obs is None:
             c["observations_independantes"] = _controle("INCONNU", raison=e["motif"] or "mesure impossible")
+        elif cas == "2":
+            # A-1103 : affiché, ne décide plus — l'état ne dépend pas du minimum, qui reste montré.
+            detail = dict(detail, minimum_a_782=plancher, raison_du_minimum=r_plancher,
+                          au_dessus_du_minimum=None if plancher is None else n_obs >= plancher)
+            c["observations_independantes"] = _controle("PASSE", valeur=n_obs, seuil=plancher, detail=detail,
+                                                        raison="affiché, ne décide pas (A-1103)")
         elif plancher is None:
             c["observations_independantes"] = _controle("INCONNU", valeur=n_obs, raison=r_plancher)
         else:
@@ -3991,31 +4426,40 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
             c["gain_bat_zero"] = _controle("PASSE" if p_gain < s_preuve else "BLOQUE", valeur=p_gain, seuil=s_preuve,
                                            detail={"methode": "bootstrap-t par blocs (A-782, A-786)",
                                                    "graine": GRAINE_DU_HASARD_DES_GAINS})
-    # ⑥ LE HASARD : la plus grande part de tirages qui font aussi bien, sur tous les modes reçus
+    # ⑥ LE HASARD — CONTRÔLE 2 DE L'ÉTAPE 5 (A-1081, décision de Jean-Luc du 27-11-2026 à 16h40, « c'est le 1 ») :
+    # SEUL LE JOUR AU HASARD DU MÊME TYPE DE MARCHÉ (mode « meme_type », mesuré le jour même, A-1105) DÉCIDE, à la barre
+    # 0,05 ÷ k, par `MODULE_CONTROLE_2_DU_HASARD.controle_2` (l'endroit unique, R-708 ; A-1117 : opérations sans type
+    # exclues et comptées). Les autres modes reçus (l'action au hasard…) s'AFFICHENT avec leur p, sans décider.
+    # Réunion I1 du 28-11-2026 : remplace « le plus grand p de tous les modes décide » (modes « valeur » et « date »).
     if not hasard or not ops:
         c["bat_le_hasard"] = _controle("INCONNU", raison=rejet("hasard", "ops") or "étalon de hasard non reçu")
     elif s_hasard is None:
         c["bat_le_hasard"] = _controle("INCONNU", raison=r_hasard)
     else:
         net = math.fsum(gains)
-        ps, raisons, tirages = [], [], []
+        decideurs = [h for h in hasard if h.get("mode") == "meme_type"]
+        affiches = {}
         for h in hasard:
-            p, n_t, r = p_du_hasard(net, h)
-            tirages.append(n_t)
-            if p is None:
-                raisons.append(r)
-            elif 1.0 / n_t >= s_hasard:
-                raisons.append("%d tirages : 1 ÷ tirages = %.5f ne passe pas sous le seuil %.5f (DÉL-D38)"
-                               % (n_t, 1.0 / n_t, s_hasard))
-            else:
-                ps.append(p)
-        if raisons:
-            c["bat_le_hasard"] = _controle("INCONNU", seuil=s_hasard, raison=" ; ".join(raisons),
-                                           detail={"tirages": tirages})
+            if h.get("mode") != "meme_type":
+                p_a, n_a, r_a = p_du_hasard(net, h)
+                affiches[str(h.get("mode"))] = {"p": p_a, "tirages": n_a, "raison": r_a}
+        sans_mode = sum(1 for h in hasard if not h.get("mode"))
+        if sans_mode:
+            # un rendu SANS MODE n'est pas un rendu d'`etalon_hasard` (qui écrit toujours son mode quand il a tiré) :
+            # entrée hors contrat, jamais lue comme un affichage inoffensif
+            c["bat_le_hasard"] = _controle("INCONNU", seuil=s_hasard, detail={"affiches": affiches},
+                                           raison="%d rendu(s) du hasard sans mode : hors contrat" % sans_mode)
+        elif len(decideurs) != 1:
+            c["bat_le_hasard"] = _controle("INCONNU", seuil=s_hasard, detail={"affiches": affiches},
+                                           raison="il faut UN rendu du jour au hasard du même type de marché "
+                                                  "(mode « meme_type », A-1081) ; reçu %d" % len(decideurs))
         else:
-            p = max(ps)
-            c["bat_le_hasard"] = _controle("PASSE" if p < s_hasard else "BLOQUE", valeur=p, seuil=s_hasard,
-                                           detail={"tirages": tirages, "p_par_mode": ps})
+            r2 = _controle_2().controle_2(ops, decideurs[0], "30", k=kk, table=table)
+            c["bat_le_hasard"] = _controle(r2["etat"], valeur=r2["valeur"], seuil=r2["seuil"], raison=r2["raison"],
+                                           detail={"tirages": r2["tirages"],
+                                                   "operations_exclues_sans_type": r2["operations_exclues_sans_type"],
+                                                   "types_sans_operation": r2["types_sans_operation"],
+                                                   "affiches": affiches})
     # ⑦ À ⑩ ET Q-G2 : DES MESURES, JAMAIS UN ÉTAT (simplification 1 du superviseur) — la grille calcule l'état
     s_epoque, r_epoque = seuil_de_la_loi(table, "epoque_perdante")
     c["epoques"] = _epoques_calculees(ops, g["epoques_declarees"], g["annees_d_examen"], g["seances_d_examen"],
@@ -4023,6 +4467,8 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
                                       rejet("ops", "epoques_declarees", "annees_d_examen", "seances_d_examen"))
     # ⑧ CAS 2 SEULEMENT
     s_pbo, r_pbo = seuil_de_la_loi(table, "surapprentissage_maximum")
+    # contrôle 1 de R-505 v2 : son seuil est 0,05 SANS ÷ k (A-1095, correction du 27-11-2026 à 21h19), une clé à part
+    s_dsr, r_dsr = seuil_de_la_loi(table, "sharpe_degonfle_risque_maximum")
     for cle in ("surapprentissage", "sharpe_degonfle"):
         if cas is None:
             c[cle] = _controle("INCONNU", raison=rejet("cas") or "cas de la loi inconnu")
@@ -4040,12 +4486,14 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
                                    raison="nombre d'essais %r inférieur à k = %r (ou k inconnu) : la correction du "
                                    "nombre d'essais ne couvre pas toutes les stratégies jugées" % (m["nombre_d_essais"], kk))
             elif cle == "surapprentissage":
+                # « au-dessus du seuil, la stratégie n'est pas validée » (R-505 v2, étape 5) ; l'article : « reject
+                # models for which PBO is estimated to be greater than 0.05 » — une PBO ÉGALE au seuil PASSE
                 c[cle] = (_controle("INCONNU", raison=r_pbo) if s_pbo is None else
-                          _controle("PASSE" if m["pbo"] < s_pbo else "BLOQUE", valeur=m["pbo"], seuil=s_pbo, detail=m))
-            else:   # la probabilité que le vrai Sharpe dépasse la barre dégonflée ; échec = 1 − elle, au seuil de preuve
-                c[cle] = (_controle("INCONNU", raison=r_preuve) if s_preuve is None else
-                          _controle("PASSE" if 1.0 - m["sharpe_degonfle"] < s_preuve else "BLOQUE",
-                                    valeur=m["sharpe_degonfle"], seuil=s_preuve, detail=m))
+                          _controle("PASSE" if m["pbo"] <= s_pbo else "BLOQUE", valeur=m["pbo"], seuil=s_pbo, detail=m))
+            else:   # la probabilité que le vrai Sharpe dépasse la barre dégonflée ; échec = 1 − elle, sous 0,05 SANS ÷ k
+                c[cle] = (_controle("INCONNU", raison=r_dsr) if s_dsr is None else
+                          _controle("PASSE" if 1.0 - m["sharpe_degonfle"] < s_dsr else "BLOQUE",
+                                    valeur=m["sharpe_degonfle"], seuil=s_dsr, detail=m))
     # ⑨ KELLY
     kmin, r_kmin = seuil_de_la_loi(table, "kelly_minimum")
     m, r = _mesure(externes.get("kelly"), "kelly")
@@ -4124,6 +4572,8 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
         if role is None:
             x["etat"], x["raison"] = "INCONNU", r
             role = "CONDITION"       # un rôle inconnu compte comme le plus strict : il empêche la validation
+        if cas == "2" and cle in AFFICHAGE_EN_CAS_2:
+            role = "AFFICHAGE"       # A-1095 : en cas 2, le contrôle 1 est le Sharpe dégonflé ; celui-ci s'affiche
         x["role"] = role
     if cas != "1":
         for cle in SANS_OBJET_EN_CAS_1:
@@ -4134,7 +4584,7 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
     ordre = _contrat("CONTROLES_DU_VERDICT")
     controles = {cle: c[cle] for cle in ordre}
     rendu = {"verdict": None, "motif": "", "premier_controle_bloquant": "", "seuil_de_preuve": s_preuve,
-             "seuil_du_hasard": s_hasard, "controles": controles}
+             "seuil_du_hasard": s_hasard, "controles": controles, "non_terminees": non_terminees}
     mots = _contrat("MOTS_DU_VERDICT")
     if c["declaration"]["etat"] == "BLOQUE":
         rendu.update(verdict=mots[3], motif=declaration_manquants[0], premier_controle_bloquant="declaration")
@@ -4144,8 +4594,11 @@ def grille_de_validation(table, cas, k, ops=None, point_mort_pct=None, declarati
         return rendu
     # RÉFUTÉE — seule voie (DÉL-D40) : années, regard, plancher atteint, borne haute du gain moyen sous zéro
     niveau, _rn = seuil_de_la_loi(table, "refutation_borne_haute")
+    # En cas 2, le minimum d'A-782 ne décide plus (A-1103) : la voie RÉFUTÉE n'exige que des observations MESURÉES
+    # (n_obs sert au calcul de la borne haute) ; en cas 1, elle exige toujours le plancher atteint.
+    obs_ok = (n_obs is not None) if cas == "2" else c["observations_independantes"]["etat"] == "PASSE"
     if (niveau is not None and c["annees_d_examen"]["etat"] == "PASSE" and c["regard_unique"]["etat"] == "PASSE"
-            and c["observations_independantes"]["etat"] == "PASSE"):
+            and obs_ok):
         rr = probabilite_epoque_perdante(gains, n_obs)
         if _nombre_fini(rr["p_perdante"]) and rr["p_perdante"] < niveau:
             rendu.update(verdict=mots[1], motif="", premier_controle_bloquant="gain_bat_zero")

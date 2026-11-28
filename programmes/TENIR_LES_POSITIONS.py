@@ -739,6 +739,42 @@ def trouver_module(base):
         "aucune des deux graphies du module des positions n'existe sous " + base)
 
 
+_MOTEUR = []
+
+
+def _moteur():
+    """Rend `programmes/MODULE_POSITIONS.py`, importé une fois par son nom, pour le calendrier et l'échéance.
+
+    ① RÔLE — Donner à `calendrier` et `echeance` les deux fonctions du module des positions qui comptent l'horizon en
+      séances du calendrier (R-112), sans les recopier (R-708).
+    ② CONTEXTE D'APPEL — `calendrier`, `echeance`, à chaque appel (le module est gardé après le premier).
+    ③ ENTRÉE — Aucune.
+    ④ CONDITIONS D'ENTRÉE — Le module des positions est dans le dossier de ce programme (le dépôt) ou trouvable par
+      `trouver_module` sous ce dossier (la copie à plat, nom avec espace compris).
+    ⑤ SORTIE — UNE valeur : le module.
+      [rend: 1]
+    ⑥ TRAITEMENT — ① `import MODULE_POSITIONS` (le dossier de ce programme est déjà dans le chemin d'import) ;
+      ② sinon `trouver_module` puis `charger_module_positions` ; ③ garder le module.
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Lot L2 du 27-11-2026 (A-950) : l'échéance se comptait ici en lignes de la valeur (`dates[i + h]`) ;
+      elle se compte désormais à UN endroit, `MODULE_POSITIONS.seance_d_echeance`. `echeance` et
+      `completer_echeances` ne reçoivent pas le module : il est chargé ici.
+    ⑨ CE QUI CLOCHE — Le module peut être chargé deux fois (ici par son nom, ailleurs par son chemin sous le nom
+      « mod_positions ») : sans effet, les deux fonctions ne gardent rien.
+    ⑩ EFFET — Exécute le code du module au premier appel.
+    ⑪ TERMINAISON — Rend la main ; lève ce que lève `trouver_module` (FileNotFoundError). Aucun de ses appels ne peut
+      ne pas revenir.
+      [sort: non]
+    """
+    if not _MOTEUR:
+        try:
+            import MODULE_POSITIONS as _m
+        except ImportError:
+            _m = charger_module_positions(trouver_module(os.path.dirname(os.path.abspath(__file__))))
+        _MOTEUR.append(_m)
+    return _MOTEUR[0]
+
+
 def calendrier(cours, lecture=None):
     """Rend les séances de bourse, triées : celles du calendrier officiel quand une lecture est donnée.
 
@@ -793,9 +829,9 @@ def calendrier(cours, lecture=None):
     ⑪ TERMINAISON — Rend la main ; lève KeyError pour une lecture sans « seances ».
       [sort: non]
     """
-    if lecture is not None:
-        return list(lecture["seances"])
-    return sorted({b["date"] for serie in cours.values() for b in serie})
+    # LE CORPS VIT DANS LE MODULE DES POSITIONS depuis le 27-11-2026 (lot L2, A-950) : le juge y lit le même calendrier
+    # pour compter l'horizon (R-112) ; une seule définition (R-708).
+    return _moteur().calendrier_des_seances(cours, lecture)
 
 
 def seance_suivante(dates_triees, date):
@@ -928,7 +964,7 @@ def horizon_de(p, reglages, horizon_seances):
     return horizon_connu(p, reglages) or horizon_seances
 
 
-def echeance(serie, date_entree, h):
+def echeance(serie, date_entree, h, seances=None):
     """Rend la date de la séance qui tombe h séances après la séance d achat, ou None.
 
     ① RÔLE — **Dire quand une position arrive à son échéance** : à la clôture de
@@ -936,7 +972,9 @@ def echeance(serie, date_entree, h):
     ② CONTEXTE D APPEL — `entrer`, le soir de l achat, et `completer_echeances`,
       les soirs suivants.
     ③ ENTRÉE — `serie` : les séances de la valeur · `date_entree` : la date de la
-      séance d achat · `h` : l horizon en séances.
+      séance d achat · `h` : l horizon en séances · `seances` : le calendrier des
+      séances (`calendrier`), ou None : les dates de la série (l ancien compte en
+      lignes, gardé pour les appelants sans calendrier).
     ④ CONDITIONS D ENTRÉE — Les dates au format AAAA-MM-JJ. Une date présente
       deux fois dans la série est comptée une fois.
     ⑤ SORTIE — UNE valeur : la date de l échéance, ou None si la séance d achat
@@ -944,8 +982,11 @@ def echeance(serie, date_entree, h):
       publiée.
       [rend: 1]
     ⑥ TRAITEMENT — ① trier la série · ② trouver la séance d achat · ③ rendre la
-      séance située h rangs plus loin, si elle existe.
-    ⑦ UNITÉ — Des SÉANCES de bourse, jamais des jours du calendrier.
+      h-ième séance du calendrier après elle, par `MODULE_POSITIONS.seance_d_echeance`
+      (depuis le 27-11-2026, lot L2 : R-112, une séance manquante fait avancer
+      l horizon — A-950, cas K07 : échéance le 12-01, et non le 15-01).
+    ⑦ UNITÉ — Des SÉANCES du calendrier de la bourse, jamais des jours civils ni
+      des lignes de la valeur (sauf sans calendrier).
     ⑧ POURQUOI — **Défaut trouvé le 27-09-2026 (défaut 2 de A-491).**
       L échéance était calculée le soir de l achat, sur les seules séances
       connues ce soir-là, et bornée à la dernière : elle tombait sur la séance
@@ -963,11 +1004,10 @@ def echeance(serie, date_entree, h):
     dates = sorted({b["date"] for b in serie})
     if date_entree not in dates:
         return None
-    i = dates.index(date_entree)
-    return dates[i + h] if i + h < len(dates) else None
+    return _moteur().seance_d_echeance(seances if seances is not None else dates, date_entree, h)
 
 
-def completer_echeances(positions, cours, reglages, horizon_seances=20, cle=None):
+def completer_echeances(positions, cours, reglages, horizon_seances=20, cle=None, seances=None):
     """Recalcule, chaque soir, l échéance de chaque position ouverte, depuis sa séance d achat.
 
     ① RÔLE — **Donner à chaque position ouverte son échéance exacte** — la
@@ -978,7 +1018,8 @@ def completer_echeances(positions, cours, reglages, horizon_seances=20, cle=None
       après `entrer`, position par position, sur celles qui viennent d entrer.
     ③ ENTRÉE — `positions` · `cours` · `reglages` : les réglages par stratégie ·
       `horizon_seances` : la valeur de repli · `cle` : la fonction qui rapproche
-      les graphies.
+      les graphies · `seances` : le calendrier des séances (`calendrier`), sur
+      lequel l échéance se compte (R-112, lot L2 du 27-11-2026), ou None.
     ④ CONDITIONS D ENTRÉE — Aucune. Une position dont la séance d achat est
       illisible ou absente des cours garde l échéance déjà écrite si c est une
       date, et un incident le dit. Une position aux prix illisibles reçoit
@@ -1042,7 +1083,7 @@ def completer_echeances(positions, cours, reglages, horizon_seances=20, cle=None
                                  % (v, ancienne, MOT_DE_L_HORIZON_AUCUNE))
             p["horizon_fin"] = MOT_DE_L_HORIZON_AUCUNE
             continue
-        fin = echeance(s, d, h)
+        fin = echeance(s, d, h, seances)
         nouvelle = fin or INCONNU
         if ancienne != nouvelle and ancienne not in ("", INCONNU):
             incidents.append("position %s : echeance ecrite %r remplacee par %s "
@@ -1170,18 +1211,20 @@ def cloturer(positions, cours, mod, horizon_seances=20, cle=None, bareme=None):
         # avec l'horizon de SA strategie. Une date : la premiere seance de la serie a cette date ou apres, en
         # rang APRES l'achat. Pas une date (pas encore publiee, ou « aucune ») : aucune vente a l'echeance dans
         # les seances connues — HORIZON_AUCUNE avec « garder » dit exactement cela.
+        # DEPUIS LE 27-11-2026 (lot L2, A-950, R-112) : la DATE d'echeance passe telle quelle a `vendre` ; elle est
+        # comptee en seances du calendrier (`echeance`), et une echeance sans cours pour la valeur vend a
+        # l'ouverture de la seance cotee suivante (R-112 ②). Avant, elle se traduisait ici en rang de la serie.
         _fin = (p.get("horizon_fin") or "").strip()
         if _est_date(_fin):
-            k = next((k for k, b in enumerate(serie) if b["date"] >= _fin), len(serie))
-            h = k - j
-            if h <= 0:
+            if _fin <= serie[j]["date"]:
                 incidents.append("position %s : echeance %s anterieure ou egale a l'achat du %s : position "
                                  "laissee ouverte, a trancher" % (v, _fin, d_ent))
                 restantes.append(p)
                 continue
+            _duree = {"echeance": _fin}
         else:
-            h = HORIZON_AUCUNE
-        vente = mod.vendre(serie, j, {"objectif": tp, "stop": sl, "horizon": h}, "garder")
+            _duree = {"horizon": HORIZON_AUCUNE}
+        vente = mod.vendre(serie, j, dict({"objectif": tp, "stop": sl}, **_duree), "garder")
         if vente is None:
             restantes.append(p)
             continue
@@ -1458,7 +1501,7 @@ def entrer(positions, cours, mod, horizon_seances=20, cle=None,
         # existe deja — le soir de l achat, elle n existe jamais (defaut 2,
         # 27-09-2026 : elle tombait sur la seance d achat elle-meme).
         _h = horizon_de(p, reglages, horizon_seances)
-        fin = MOT_DE_L_HORIZON_AUCUNE if _h is HORIZON_AUCUNE else (echeance(s, bar["date"], _h) or INCONNU)
+        fin = MOT_DE_L_HORIZON_AUCUNE if _h is HORIZON_AUCUNE else (echeance(s, bar["date"], _h, toutes) or INCONNU)
 
         p["prix_entree"] = "%.5f" % pe
         p["tp"] = "%.5f" % tp
@@ -1912,8 +1955,10 @@ def tenir(positions, cours, signaux, prochaine_seance, mod,
         _sans_registre = ""
 
     # L ECHEANCE SE RECALCULE AVANT LA CLOTURE (defaut 2, 27-09-2026).
+    # LE CALENDRIER DE L'ECHEANCE (R-112, lot L2 du 27-11-2026) : celui d'`entrer`, officiel avec une lecture.
+    _cal = calendrier(cours, lecture)
     positions, inc_e = completer_echeances(positions, cours, reglages,
-                                           horizon_seances, cle)
+                                           horizon_seances, cle, _cal)
     trades, restantes, inc_b = cloturer(positions, cours, mod, horizon_seances, cle, bareme)
     _en_attente = {id(p) for p in restantes if (p.get("statut") or "").strip() == EN_ATTENTE}
     restantes, inc_c = entrer(restantes, cours, mod, horizon_seances, cle,
@@ -1938,7 +1983,7 @@ def tenir(positions, cours, signaux, prochaine_seance, mod,
         # (relecteur du Chat, tour 3 : une vente a l'echeance de repli passait sans un mot).
         _inc_par_pos = {}
         for _p in _juste_entrees:
-            _pp, _ip = completer_echeances([_p], cours, reglages, horizon_seances, cle)
+            _pp, _ip = completer_echeances([_p], cours, reglages, horizon_seances, cle, _cal)
             _inc_par_pos[id(_p)] = _ip
         _t2, _r2, _i2 = cloturer(_juste_entrees, cours, mod, horizon_seances, cle, bareme)
         _fermees = {id(p) for p in _juste_entrees} - {id(p) for p in _r2}
