@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=JugeLecteur,Tri,Bloc5A,PorteEntree
+pointe=88a790bb839681413e67a22bb954061380849a51
