@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=PartieReglage,CoursMoulinette,TemoinObs
+pointe=4e07ae23294f3ba16547d52496339b2635b1933d
