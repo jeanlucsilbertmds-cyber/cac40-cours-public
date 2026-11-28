@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=ChaineC5,Enchainer,Tri
+pointe=0bff87bee21c81a5d03f7bb7ed7beeb507889297
