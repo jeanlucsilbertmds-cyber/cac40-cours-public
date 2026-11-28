@@ -551,9 +551,14 @@ MISE_EN_SERVICE_DU_BAREME_REEL = "2026-10-30"
 # LA LISTE ANNUELLE DES VALEURS TAXÉES (A-550) — une ligne par année et par valeur :
 # `assujettie` vaut OUI ou NON, selon la liste publiée au BOFiP en décembre de l'année
 # précédente. Lue par `programmes/MODULE_POSITIONS.py` (`valeur_taxee`).
+# `taxee_jusqu_au` (lot L2, 27-11-2026) : pour une ligne OUI, le DERNIER jour d'achat taxé de l'année, AAAA-MM-JJ, de
+# la même année ; vide = toute l'année. Un achat d'après ce jour n'est pas taxé. Raison : décision de Jean-Luc n°92 du
+# 01-11-2026 à 12h44 — Peugeot (UG) taxée du 04-01 au 15-01-2021 seulement (fusion dans Stellantis), Stellantis
+# (STLAP) non taxée en 2021 ; une liste par ANNÉE ne savait pas le dire. Une case remplie sur une ligne NON, ou hors
+# de l'année, est refusée par `valeur_taxee` (ValueError).
 VALEURS_TTF = [
     "annee", "mnemonique", "nom_usuel", "assujettie", "liste_reference", "source",
-    "releve_le",
+    "releve_le", "taxee_jusqu_au",
 ]
 
 # LES COMPTABILITÉS ADMISES dans la colonne `comptabilite` des positions et du journal.
@@ -1444,6 +1449,48 @@ COURS_DE_FRANCFORT = ["valeur", "symbole", "date", "close"]
 INDICE_CAC40 = ["date", "bnains", "yahoo"]
 # Lu aussi, depuis le 10-10-2026, par programmes/CALENDRIER_DE_LA_BOURSE.py (`lire_les_seances`) : c'est le
 # calendrier des séances du passé (R-110 ① : une séance est un jour où l'indice est publié).
+# Lu aussi, depuis le 27-11-2026, par programmes/DATER_LES_TYPES_DE_MARCHE.py (lot L5 du plan R505).
+
+# LES TYPES DE MARCHÉ (A-1064, A-1078 étape 2, A-1091 ; décisions de Jean-Luc du 27-11-2026). Le découpage de
+# l'indice CAC 40 en HAUSSE ou BAISSE croisé avec CALME ou AGITÉ vit à UN seul endroit,
+# programmes/DATER_LES_TYPES_DE_MARCHE.py, que liront le juge, la moulinette, la météo et le calendrier (R-708).
+# ① SES RÉGLAGES : donnees/REGLAGES_DES_TYPES_DE_MARCHE.csv, une ligne par paramètre ; `unite` dit dans quelle
+# unité la valeur est écrite (les durées de Pagan et Sossounov sont en MOIS, converties en séances par le
+# programme) ; `source` dit d'où vient la valeur, `raison` pourquoi elle est là.
+REGLAGES_DES_TYPES_DE_MARCHE = ["parametre", "valeur", "unite", "source", "raison"]
+# Les paramètres attendus, chacun avec son unité ; un paramètre absent, en double, inconnu ou dans une autre
+# unité est REFUSÉ par `lire_les_reglages`.
+# La levée de Pagan et Sossounov se mesure sur le LOGARITHME du cours (programme des auteurs, bbstkjae.prg,
+# `abs(x[nind]-x[cind]) .> .2` sur « the log of monthly US stock prices ») : son unité est « logarithme ».
+# Le pas de temps (quotidien ou mensuel) est un choix déclaré (défaut D6 de la relecture V1 du 27-11-2026).
+# Le paramètre `retrait_dans_un_cycle` du lot L5 est RETIRÉ le 27-11-2026 (lot L5-CORR, défaut D1) : la règle
+# des auteurs le tranche (« choose highest peak and lowest trough », bbstkjae.prg l.278).
+PARAMETRES_DES_TYPES_DE_MARCHE = (
+    ("methode", "—"), ("pas_de_temps", "—"), ("fenetre_des_sommets", "mois"), ("censure", "mois"),
+    ("phase_minimale", "mois"), ("cycle_minimal", "mois"), ("seuil_de_levee", "logarithme"),
+    ("durees_minimales", "—"), ("seuil_de_hausse", "fraction"), ("seuil_de_baisse", "fraction"),
+    ("fenetre_de_volatilite", "seances"), ("centile_d_agitation", "fraction"),
+)
+# PS : Pagan et Sossounov (sommets et creux dans une fenêtre, puis durées minimales) ; LT : Lunde et Timmermann
+# (filtre d'amplitude, seuils de hausse et de baisse).
+METHODES_DES_TYPES_DE_MARCHE = ("PS", "LT")
+# quotidien : les séances, durées converties au nombre mesuré de séances par mois ; mensuel : les cours de fin de
+# mois, comme les auteurs, chaque retournement reporté sur la dernière séance de son mois.
+PAS_DE_TEMPS_DES_TYPES_DE_MARCHE = ("quotidien", "mensuel")
+# ② SA SORTIE, une ligne par séance : `sens` HAUSSE ou BAISSE ; `epoque` numéro de la phase (1 = la première) ;
+# `phase_terminee` 1 si la phase a ses deux bouts datés, 0 pour les deux phases ouvertes des bords ;
+# `volatilite` écart-type glissant des rendements quotidiens (vide tant qu'il n'est pas connu) ; `agitation`
+# CALME, AGITE ou INCONNUE ; `type` l'un de TYPES_DE_MARCHE_ADMIS.
+TYPES_DE_MARCHE = ["date", "cloture", "sens", "epoque", "phase_terminee", "volatilite", "agitation", "type"]
+TYPES_DE_MARCHE_ADMIS = ("HAUSSE_CALME", "HAUSSE_AGITEE", "BAISSE_CALME", "BAISSE_AGITEE", "INCONNU")
+# ③ LE DÉCOUPAGE FIGÉ (A-1063, A-1064 ⑤ : figé AVANT de regarder les résultats d'une stratégie) : l'option
+# `figer` de DATER_LES_TYPES_DE_MARCHE.py écrit le CSV au contrat TYPES_DE_MARCHE et, à côté, une fiche JSON
+# (même chemin + « .fige.json ») portant ces clés : la période (`jusqu_au`, première et dernière séance, nombre),
+# l'empreinte des séances lues (`empreinte_entree`, sha256 des lignes « date;clôture » datées), celle du fichier de
+# l'indice, des réglages, du programme et du CSV écrit (`empreinte_sortie`), les réglages, les points, l'heure.
+FIGEAGE_DES_TYPES_DE_MARCHE = ("jusqu_au", "premiere_seance", "derniere_seance", "seances", "empreinte_entree",
+                               "empreinte_indice", "empreinte_reglages", "empreinte_programme", "empreinte_sortie",
+                               "reglages", "points", "fige_le")
 
 # LA NATURE DE CHAQUE TROU — la seule chose qu'on ne calcule pas sur un trou (R-111 ⑤, décision de Jean-Luc du
 # 10-10-2026). Un trou est une séance du calendrier sans cours pour une valeur ; la liste des trous se RECALCULE à
@@ -1662,6 +1709,9 @@ CHAMPS_P0 = [
     "date_regle_univers",     # AAAA-MM-JJ, la date où cette règle a été écrite
     "lignee",                 # mère → filles, par leurs identifiants au registre (C-9) ; « aucune » s'écrit
     "hypothese",              # l'hypothèse écrite d'avance, en une phrase (C-16)
+    "raison",                 # POURQUOI elle devrait gagner : qui perd en face, et pourquoi — OBLIGATOIRE (R-505 v2
+                              # étape 1 ; décision de Jean-Luc du 27-11-2026 à 18h06, « 1 », A-1090) ; affichée au
+                              # verdict sans décider. Vide = MANQUE ; « inconnue » écrit est accepté (A-1090)
     "parametres_libres",      # le nombre de réglages libres (C-16), un entier
     "moment_du_regard",       # quand les années d'examen seront regardées, écrit d'avance (R-505 ③, C-4)
     "biais_du_survivant",     # la déclaration du biais du survivant, même pour 2024-2026 (C-20)
@@ -1692,6 +1742,11 @@ DECLARATION_DATEE = [
 # Le seul champ de la déclaration qui peut rester vide : l'exception n'existe que si Jean-Luc l'a déclarée. Tout autre
 # champ vide est un champ qui MANQUE : « aucune », « aucun » ou « 0 » s'écrivent (vide n'est pas « aucune »).
 CHAMPS_FACULTATIFS_DE_LA_DECLARATION = ("regard_sans_decision",)
+# LA RAISON « INCONNUE » EST UNE RAISON DÉCLARÉE (lot W2e-FIX, 27-11-2026). La loi R-505 v2 (étape 1) rend la case
+# OBLIGATOIRE et dit aussi : « une stratégie qui gagne vraiment sans explication connue n'est pas refusée » (décision de
+# Jean-Luc du 27-11-2026 à 18h06, « 1 », A-1090). Seule une case VIDE manque (un oubli) ; « inconnue », « aucune » ou
+# toute autre phrase écrite est une déclaration, comme ailleurs dans ce contrat (« vide n'est pas aucune »). Le lot W2e
+# refusait une liste de mots (« aucune », « inconnue »…) : c'était plus strict que la loi, et la loi l'emporte.
 # Les deux cas de R-505 (décision de Jean-Luc du 01-11-2026 à 00h12, n°61), tels que la colonne `cas` les écrit.
 CAS_DE_LA_LOI = ("1", "2")
 # LES CHAMPS QUI SE CALCULENT (R-728 : « ce qui se calcule ne s'écrit jamais à la main ») — ajouté le 11-11-2026 par
@@ -3086,13 +3141,15 @@ def champs_de_la_declaration_manquants(declaration):
       dont `lignee` est vide rend ["lignee"].
       [rend: 1]
     ⑥ TRAITEMENT — Pour chaque champ du contrat qui n'est pas dans CHAMPS_FACULTATIFS_DE_LA_DECLARATION : manquant
-      si la case est absente ou vide après retrait des espaces ; et `cas` manquant si sa valeur n'est pas dans
-      CAS_DE_LA_LOI.
+      si la case est absente ou vide après retrait des espaces — `raison` comprise : « inconnue » écrit est accepté
+      (A-1090 : une stratégie sans explication connue n'est pas refusée ; lot W2e-FIX) ; et `cas` manquant si sa
+      valeur n'est pas dans CAS_DE_LA_LOI.
     ⑦ UNITÉ — Des noms de champs.
     ⑧ POURQUOI — « vide n'est pas aucune » : une case vide peut être un oubli ; « aucune » écrit est une déclaration.
       Le juge nomme le premier champ de cette liste dans le `motif` du verdict NON JUGEABLE (VERDICT).
-    ⑨ CE QUI CLOCHE — Elle ne juge pas le CONTENU d'une case remplie (une hypothèse d'un mot passe) : c'est le travail
-      du relecteur des déclarations (P0D), pas d'un contrat.
+    ⑨ CE QUI CLOCHE — Elle ne juge pas le CONTENU d'une case remplie (une hypothèse d'un mot passe ; une raison qui
+      ne dit pas « qui perd en face » passe, « inconnue » aussi, voulu par la loi) : c'est le travail
+      du relecteur des déclarations (P0D) et de l'examen de la logique (A-605), pas d'un contrat.
     ⑩ EFFET — Aucun.
     ⑪ TERMINAISON — Rend la main.
       [sort: non]
@@ -3100,6 +3157,7 @@ def champs_de_la_declaration_manquants(declaration):
     exiges = [c for c in DECLARATION_DATEE if c not in CHAMPS_FACULTATIFS_DE_LA_DECLARATION]
     if declaration is None:
         return exiges
+    # la raison suit la règle commune : vide = manque ; « inconnue » écrit est une déclaration (A-1090, lot W2e-FIX)
     manquants = [c for c in exiges if not (declaration.get(c) or "").strip()]
     if "cas" not in manquants and (declaration.get("cas") or "").strip() not in CAS_DE_LA_LOI:
         manquants.append("cas")

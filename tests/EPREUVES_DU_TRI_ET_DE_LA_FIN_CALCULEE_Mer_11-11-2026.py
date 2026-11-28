@@ -17,13 +17,14 @@ USAGE
   sans opération, compte chaque version une fois par son empreinte, refuse des essais joués dans des conditions
   différentes, lit son critère au REGISTRE puis au fichier provisoire et refuse ce qui est illisible ; que JOUER lit
   `--cours=` comme le juge et le lui passe ; que la fin calculée est la plus tardive qui laisse « horizon + 1 »
-  séances à chaque valeur, sans reculer au-delà du réglage lu ; puis que chaque sabotage fait rougir.
+  séances à chaque valeur, sans reculer au-delà du recul calculé (A-1100) ; puis que chaque sabotage fait rougir.
 ② CONTEXTE D'APPEL — À la main, par l'auteur, son relecteur et Cowork (boucle R-731). Aucune tâche du soir.
 ③ ENTRÉE — La ligne de commande : la racine d'un dépôt ; `--sabotages` ou `--un-sabotage=Sn` en option.
 ④ CONDITIONS D'ENTRÉE — Sous la racine : les deux programmes, le juge, le module de jugement, le contrat,
   `donnees/cours_maitre.csv`, la combinatoire de C5E10-OBS-V1 E01, le fichier réel d'avant le 11-11-2026
   `etudes/IND-001-RETEST/moulinette_a_blanc_2024-2026/RESULTATS_IND-001-RETEST_E01.csv`, et les deux réglages
-  provisoires `donnees/combinatoires/SEUIL_DU_TRI_PROVISOIRE.csv` et `RECUL_MAXIMUM_DE_LA_FIN.csv`.
+  provisoire `donnees/combinatoires/SEUIL_DU_TRI_PROVISOIRE.csv` (depuis le 27-11-2026, le recul maximum n'est plus
+  lu dans `RECUL_MAXIMUM_DE_LA_FIN.csv` : il est calculé, A-1100).
 ⑤ SORTIE — Un code de sortie : 0 si tout passe (et, avec `--sabotages`, si chaque sabotage rougit) ; 1 sinon ; 2 si
   la racine est inutilisable (R-734). Une ligne par cas.
   [rend: 1]
@@ -961,7 +962,7 @@ def brute(dates, debut, fin_fiche, h):
 
 
 def famille_fin():
-    """Éprouve `fin_utilisable`, `recul_en_seances` et `lire_le_recul_maximum`.
+    """Éprouve `fin_utilisable`, `recul_en_seances` et `recul_maximum` (calculé depuis le 27-11-2026, A-1100).
     ① RÔLE — Les cas F1 à F14 (F10 à F14 : la frontière 70/30 et la coupure du module de jugement ; F14, étape MIN
       du 15-11-2026 : la frontière vide ou hors du calendrier refusée). ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — —
       ④ CONDITIONS D'ENTRÉE — Le maître existe.
@@ -1004,23 +1005,14 @@ def famille_fin():
     p, c_, refus = V.lire_la_ligne_de_commande(["a", "b", "c", "--cours=x.csv"])
     noter("F7 lecture de la ligne de commande : « --cours=x.csv » rendu, trois positions",
           (p, c_, refus) == (["a", "b", "c"], "x.csv", None), (p, c_, refus))
-    rm = V.lire_le_recul_maximum(RACINE)
-    noter("F8 le recul maximum se lit dans %s, marqué provisoire" % V.RECUL_MAXIMUM,
-          rm[0] >= 0 and rm[1] == "PROVISOIRE, À DÉCIDER PAR JEAN-LUC", rm)
-    mauvais = 0
-    for texte in ("reglage,valeur,unite,statut,source\nrecul_maximum,vingt,seances,P,x\n",
-                  "reglage,valeur,unite,statut,source\nrecul_maximum,26,jours,P,x\n",
-                  "reglage,valeur,unite,statut,source\nrecul_maximum,26,seances,,x\n", "a,b\n1,2\n", None):
-        d = dossier()
-        if texte is not None:
-            os.makedirs(os.path.join(d, os.path.dirname(V.RECUL_MAXIMUM)))
-            open(os.path.join(d, V.RECUL_MAXIMUM), "w", encoding="utf-8").write(texte)
-        try:
-            V.lire_le_recul_maximum(d)
-        except ValueError:
-            mauvais += 1
-    noter("F9 recul maximum illisible, d'une autre unité, sans statut, mal formé ou absent : 5 refus sur 5",
-          mauvais == 5, mauvais)
+    # F8-F9 (27-11-2026, A-1100 : décision de Jean-Luc à 19h29, « 1 ») : le recul maximum n'est plus LU dans
+    # donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv (26, provisoire) ; il est CALCULÉ = délai le plus long + 1.
+    rm = [V.recul_maximum(h) for h in (25, 20, 3, 0)]
+    noter("F8 le recul maximum est calculé : délai le plus long + 1 (25 → 26, la valeur que le fichier provisoire "
+          "portait ; 20 → 21 ; 3 → 4 ; aucune durée chiffrée → 1, la séance d'achat)", rm == [26, 21, 4, 1], rm)
+    noter("F9 le programme ne lit plus le fichier provisoire du recul (ni constante RECUL_MAXIMUM, ni lecture)",
+          not hasattr(V, "RECUL_MAXIMUM") and not hasattr(V, "lire_le_recul_maximum"),
+          [n for n in ("RECUL_MAXIMUM", "lire_le_recul_maximum") if hasattr(V, n)])
     MJ = module(P_MJ, "mj_epreuve")
     if voulu("F10"):
         b = ("2024-01-02", "2026-07-10")
@@ -1171,8 +1163,9 @@ def famille_jouer():
               c == 1 and "la fin calculée recule de" in s and "par AIR" in s and not os.path.exists(os.path.join(d, "R7.csv")),
               s[-600:])
     if voulu("J8"):
-        # D5 : une copie dont le réglage du recul est remplacé par un fichier temporaire permissif ; un horizon géant sur
-        # la version 0500 : la fiche n'a AUCUNE opération sur la période ramenée ; c'est un résultat, pas un arrêt.
+        # D5 : un horizon géant sur la version 0500 : la fiche n'a AUCUNE opération sur la période ramenée ; c'est un
+        # résultat, pas un arrêt. Depuis le 27-11-2026 (A-1100), le recul permis est CALCULÉ (h8 + 1) : plus besoin de
+        # la copie dont le réglage du recul était remplacé par un fichier permissif — le VRAI programme est joué.
         # INDÉPENDANT DE LA DATE DES DONNÉES (A1 du RELU 33ee384ae, 20-11-2026) : avant, J8 jouait le fichier maître
         # ENTIER avec un horizon fixe de 700 ; le maître grandissant, la période ramenée s'allongeait (2024-01-02 ->
         # 2024-02-20 sur GitHub le 20-11-2026) et attrapait une opération : « CAS : 102 / 103 tenus ». Désormais J8 joue
@@ -1187,13 +1180,7 @@ def famille_jouer():
         codes8 = sorted({x.strip() for l in trois for x in l["univers"].split(",") if x.strip()})
         debut8 = "2024-01-02"
         h8 = min(sum(1 for b in lus8[mn8.get(m, J.cle_valeur(m))] if b["date"] > debut8) for m in codes8) - 1
-        reglage = os.path.join(dossier(), "RECUL.csv")
-        open(reglage, "w", encoding="utf-8").write("reglage,valeur,unite,statut,source\n"
-                                                    "recul_maximum,100000,seances,ÉPREUVE,épreuve J8\n")
-        texte = open(CHEMINS[P_JOUER], encoding="utf-8").read()
-        avant = 'RECUL_MAXIMUM = "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv"'
-        copie = os.path.join(dossier(), "JOUER_LES_VERSIONS.py")
-        open(copie, "w", encoding="utf-8").write(texte.replace(avant, "RECUL_MAXIMUM = %r" % reglage))
+        copie = CHEMINS[P_JOUER]
         c700 = ecrire(os.path.join(d, "C700.csv"), champs, [dict(l, horizon=str(h8)) if l["id_version"].endswith("-0500")
                                                              else l for l in trois])
         r = subprocess.run([sys.executable, "-B", copie, ".", c700, os.path.join(d, "R8.csv"), "--cours=" + rel(court)],
@@ -1201,7 +1188,7 @@ def famille_jouer():
         s = r.stdout + r.stderr
         noter("J8 la fiche n'a aucune opération sur la période ramenée (jeu figé au 2026-07-20, horizon %d calculé : "
               "fin ramenée au %s) : « aucune opération », code 0, jamais KeyError" % (h8, debut8),
-              texte.count(avant) == 1 and r.returncode == 0 and "FIN CALCULÉE : %s " % debut8 in s
+              r.returncode == 0 and "FIN CALCULÉE : %s " % debut8 in s
               and "la fiche sur la période jouée : aucune opération" in s and "KeyError" not in s, s[-600:])
     if voulu("J9"):
         F = resultats_reels()
@@ -1409,7 +1396,6 @@ def main(argv):
     RACINE = os.path.abspath(pos[0])
     manque = [f for f in (P_TRI, P_JOUER, REEL_ANCIEN, COMB_C5, "donnees/cours_maitre.csv",
                           "donnees/combinatoires/SEUIL_DU_TRI_PROVISOIRE.csv",
-                          "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv",
                           # le témoin réel dont J14 part (étape MIN, 15-11-2026)
                           os.path.join(os.path.dirname(COMB_C5), "TEMOIN_RESULTATS_C5E10-OBS-V1_E01.csv"))
               if not os.path.exists(os.path.join(RACINE, f))]
