@@ -584,6 +584,9 @@
    ],
    "pourquoi": "variante « --saboter » d'une des 8 épreuves rouges non relancée, nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-r207bis (81ffa756)"
   },
+  "TemoinObs": {"chemin": "programmes/REFAIRE_LE_TEMOIN_OBS.py", "arguments": ["{copie}", "0", "1"], "pourquoi": "ajout du lot W2f (28-11-2026, consigne du Chat) sur une branche d'essai seulement ; point ③ de la note de L1CORR2 : rejouer les 2 695 versions de C5E10-OBS-V1 E01 (2024-01-02 → 2026-07-10) sur la partie de réglage ; 15 s pour 90 versions sur la machine du Chat"},
+  "CoursMoulinette": {"chemin": "tests/EPREUVES_DES_COURS_DE_LA_MOULINETTE_Ven_27-11-2026.py", "arguments": ["{copie}"], "pourquoi": "ajout du lot W2f (28-11-2026, consigne du Chat) sur une branche d'essai seulement ; épreuve de L1, sans code à sa table"},
+  "PartieReglage": {"chemin": "tests/EPREUVES_DE_LA_PARTIE_DE_REGLAGE_Ven_27-11-2026.py", "arguments": ["{copie}"], "pourquoi": "ajout du lot W2f (28-11-2026, consigne du Chat) sur une branche d'essai seulement ; épreuve neuve de L1CORR, sans code à sa table"},
   "MoulinetteEssai": {
    "chemin": "programmes/PREPARER_LA_MOULINETTE_D_ESSAI.py",
    "arguments": [

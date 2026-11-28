@@ -3463,6 +3463,166 @@ def _jeton_valable(jeton, qui, nom_du_module=None):
     return True, None
 
 
+# LE SCEAU DES JETONS DE RÉGLAGE : un objet propre à ce processus ; seul `jeton_de_reglage` le pose (même limite que le
+# sceau des essais : filet contre l'erreur d'agent, pas contre un faussaire, A-708).
+_SCEAU_DE_REGLAGE = object()
+
+
+class JetonDeReglage(object):
+    """Le jeton de la PARTIE DE RÉGLAGE : la moulinette joue les 70 % moins la bande, et rien d'autre (cas 2 de R-505).
+
+    ① RÔLE — Porter jusqu'à la garde du regard unique la preuve que les séances jouées s'arrêtent AVANT la bande retirée
+      et les 30 % de la fiche : « la moulinette sur les 70 % n'est pas un regard » (point 39 de la file vérifiée du
+      27-11-2026 ; R-505 v2, étape 3, validée par Jean-Luc le 27-11-2026 à 16h24, « 1 », A-1078).
+    ② CONTEXTE D'APPEL — Créé par `jeton_de_reglage` seulement ; passé comme `recu` à `jouer` et `jouer_une_entree`, par
+      `programmes/JOUER_LES_VERSIONS.py` et par `main` du juge sous l'option de la partie de réglage.
+    ③ ENTRÉE — `racine` : le dossier joué · `fiche_id` : l'identifiant de la fiche · `derniere` : la dernière séance
+      que le jeu a le droit de lire (AAAA-MM-JJ) · `frontiere` : la première séance des 30 % de la fiche · `sceau`.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — —
+    ⑥ TRAITEMENT — —
+    ⑦ UNITÉ — Des dates.
+    ⑧ POURQUOI — A-777 (Jean-Luc, 14-11-2026 à 15h55, « 3 ») : IND-001-RETEST, famille jamais jouée sur 2000-2023, se
+      rejoue sur les 20 ans ; A-853 : elle « garde son regard pour son vrai passage » ; A-1073 (27-11-2026 à 13h56) :
+      « on ne regarde qu'UNE fois ». La fenêtre 2000-2023 du contrat est celle du cas 1 de C5 ; en cas 2, les années
+      d'examen sont les 30 % de la fiche : c'est elles que ce jeton protège, et seulement elles qu'il ne couvre pas.
+    ⑨ CE QUI CLOCHE — Un programme qui recopie le sceau en fabrique un faux (limite J1, A-708).
+    ⑩ EFFET — —
+    ⑪ TERMINAISON — —
+    """
+    __slots__ = ("racine", "fiche_id", "derniere", "frontiere", "sceau")
+
+    def __init__(self, racine, fiche_id, derniere, frontiere, sceau):
+        """Range les cinq cases du jeton.
+
+        ① RÔLE — Construire le jeton.
+        ② CONTEXTE D'APPEL — `jeton_de_reglage`, seulement.
+        ③ ENTRÉE — `self` : le jeton · `racine`, `fiche_id`, `derniere`, `frontiere`, `sceau` : voir la classe.
+        ④ CONDITIONS D'ENTRÉE — —
+        ⑤ SORTIE — Aucune valeur.
+          [rend: rien]
+        ⑥ TRAITEMENT — Recopier les cinq valeurs.
+        ⑦ UNITÉ — —
+        ⑧ POURQUOI — Voir la classe.
+        ⑨ CE QUI CLOCHE — —
+        ⑩ EFFET — Remplit l'objet.
+        ⑪ TERMINAISON — Rend la main.
+          [sort: non]
+        """
+        self.racine, self.fiche_id, self.derniere, self.frontiere, self.sceau = \
+            racine, fiche_id, derniere, frontiere, sceau
+
+
+def jeton_de_reglage(racine, fiche, seances, bornes, horizon, derniere, mod_jug):
+    """Accepte ou refuse que des séances de la fenêtre du regard unique soient jouées pour RÉGLER (les 70 % moins la bande).
+
+    ① RÔLE — LE SEUL ENDROIT où se décide qu'un jeu dans la fenêtre du regard unique n'est pas un regard : quand il
+      s'arrête avant la bande retirée et les 30 % de la fiche, calculés sur les cours LUS EN ENTIER (cas 2 de R-505 v2).
+    ② CONTEXTE D'APPEL — `programmes/JOUER_LES_VERSIONS.py` (`main`, une fois, avec l'horizon chiffré le plus long) ;
+      `main` du juge sous l'option de la partie de réglage (avec l'horizon de la fiche).
+    ③ ENTRÉE — `racine` : le dossier joué · `fiche` : la ligne du registre · `seances` : TOUTES les dates de séance des
+      cours lus (jamais les cours coupés : la frontière se calcule sur les cours lus, R-505 v2 « LES MOTS ») · `bornes` :
+      (début, fin) de la fiche, rendues par la porte 0 · `horizon` : l'horizon qui fixe la largeur de la bande, entier
+      > 0, ou `COMMUN.HORIZON_AUCUNE` · `derniere` : la dernière séance que l'appelant veut lire · `mod_jug` :
+      `programmes/MODULE_JUGEMENT.py` chargé.
+    ④ CONDITIONS D'ENTRÉE — Les dates s'écrivent AAAA-MM-JJ.
+    ⑤ SORTIE — DEUX valeurs : le jeton (`JetonDeReglage`) et None ; ou None et le motif du refus, en français.
+      [rend: 2]
+    ⑥ TRAITEMENT — Refuser, dans cet ordre : ①②③ ce que refuse `lecture_permise_pour_regler` (horizon « aucune »,
+      fiche sans frontière, `derniere` absente ou après la dernière séance gardée des 70 %) · ④ une fiche d'une famille déjà jouée sur 2000-2023 (`VERIFIER_LA_CHAINE.famille_deja_jouee`, la seule définition,
+      A-777) : pour elle, 2000-2023 sont des années d'examen du cas 1 ; régler dessus les consommerait. Sinon rendre le
+      jeton.
+    ⑦ UNITÉ — Des séances ; des dates.
+    ⑧ POURQUOI — Voir `JetonDeReglage`. La famille est contrôlée ICI parce que la garde ne voit que des dates : sans ce
+      contrôle, une version de C5 jouée sur 2000-2018 passerait pour un réglage.
+    ⑨ CE QUI CLOCHE — ① Une famille non reconnue lève (`VERIFIER_LA_CHAINE.Impossible`) : l'appelant s'arrête, jamais il
+      ne passe. ② Le jeton ne dit rien des valeurs jouées (univers) : la garde M s'applique toujours (`garde_composition`).
+    ⑩ EFFET — Lit le registre et des modules de signal (famille).
+    ⑪ TERMINAISON — Rend la main ; lève ce que lève `famille_deja_jouee` ou la coupure. Aucun appel ne boucle.
+      [sort: non]
+    """
+    frontiere, motif = lecture_permise_pour_regler(fiche, seances, bornes, horizon, derniere, mod_jug)
+    if motif:
+        return None, motif
+    import VERIFIER_LA_CHAINE as _VC
+    deja = _VC.famille_deja_jouee(racine, fiche.get("id") or "", sys.modules[__name__])
+    if deja:
+        return None, ("famille déjà jouée sur 2000-2023 (A-777) : %s — ses années d'examen du cas 1 ne servent pas à "
+                      "régler" % " ; ".join(deja))
+    return JetonDeReglage(racine, fiche.get("id") or "", str(derniere), frontiere, _SCEAU_DE_REGLAGE), None
+
+
+def lecture_permise_pour_regler(fiche, seances, bornes, horizon, derniere, mod_jug):
+    """Dit si une lecture des cours jusqu'à `derniere` reste dans les 70 % moins la bande retirée de la fiche.
+
+    ① RÔLE — La seule mesure, côté juge, de « cette lecture ne touche ni la bande ni les 30 % » : `jeton_de_reglage` et
+      `main` du juge sous l'option de la partie de réglage l'appellent (dans et hors de la fenêtre du regard unique).
+    ② CONTEXTE D'APPEL — `jeton_de_reglage` ; `main` (option `CONTRATS.OPTION_DE_LA_PARTIE_DE_REGLAGE`).
+    ③ ENTRÉE — `fiche` : la ligne du registre · `seances` : TOUTES les dates de séance des cours lus · `bornes` :
+      (début, fin) de la fiche · `horizon` : entier > 0 ou `COMMUN.HORIZON_AUCUNE` · `derniere` : la dernière séance que
+      l'appelant veut lire · `mod_jug` : `programmes/MODULE_JUGEMENT.py` chargé.
+    ④ CONDITIONS D'ENTRÉE — Les dates s'écrivent AAAA-MM-JJ ; `seances` sont TOUTES les séances des cours lus.
+    ⑤ SORTIE — DEUX valeurs : la frontière 70/30 (ou None) ; le motif d'un refus, ou None si la lecture est permise.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① horizon absent → refus ; « aucune » admis depuis le 28-11-2026 (A-1106 : bande de 21 séances
+      après la purge, par la même fonction que la moulinette) ·
+      ② frontière par `MODULE_JUGEMENT.frontiere_de_la_fiche` ; aucune → refus · ③ dernière séance gardée par
+      `MODULE_JUGEMENT.fin_de_la_partie_de_reglage` sur les séances des bornes ; `derniere` vide ou après elle → refus.
+    ⑦ UNITÉ — Des séances ; des dates.
+    ⑧ POURQUOI — Voir `JetonDeReglage` ; la frontière et la bande ne s'établissent qu'au module de jugement (R-708).
+    ⑨ CE QUI CLOCHE — `derniere` AVANT la dernière séance permise est accepté : lire moins est toujours permis (la
+      moulinette lit jusqu'à la bande de l'horizon le plus long de la combinatoire, plus large que celle de la fiche).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ce que lève la coupure (frontière hors du calendrier). Aucun appel ne boucle.
+      [sort: non]
+    """
+    import COMMUN as _CO
+    if horizon is None:
+        return None, "horizon absent : pas de bande retirée, rien n'est joué"
+    frontiere = mod_jug.frontiere_de_la_fiche(fiche, seances, bornes)
+    if frontiere is None:
+        return None, "aucune séance des cours lus dans les bornes de la fiche : pas de frontière 70/30"
+    dedans = [d for d in seances if bornes[0] <= d <= bornes[1]]
+    limite, largeur = mod_jug.fin_de_la_partie_de_reglage(
+        dedans, horizon if horizon is _CO.HORIZON_AUCUNE else int(horizon), frontiere)
+    if limite is None or not derniere or str(derniere) > limite:
+        return frontiere, ("la lecture demandée va jusqu'au %s, la partie de réglage s'arrête au %s (bande de %s séances "
+                           "avant la frontière %s) : la moulinette ne lit ni la bande ni les 30 %%"
+                           % (derniere, limite, largeur, frontiere))
+    return frontiere, None
+
+
+def _reglage_valable(jeton, qui, derniere):
+    """Dit si un jeton de réglage couvre des séances jouées jusqu'à `derniere` pour la fiche `qui`.
+
+    ① RÔLE — La seule vérification d'un jeton de réglage à la garde du regard unique (R-708).
+    ② CONTEXTE D'APPEL — `_garde_du_regard_unique`.
+    ③ ENTRÉE — `jeton` : un `JetonDeReglage` · `qui` : l'identifiant de la fiche jouée, ou None (`jouer_une_entree`)
+      · `derniere` : la dernière séance jouée, AAAA-MM-JJ.
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : vrai ou faux ; le motif d'un refus, ou None.
+      [rend: 2]
+    ⑥ TRAITEMENT — Faux si le sceau n'est pas `_SCEAU_DE_REGLAGE` · si `qui` n'est ni None ni la fiche du jeton · si
+      `derniere` est après la dernière séance permise. Sinon vrai.
+    ⑦ UNITÉ — Des dates.
+    ⑧ POURQUOI — Une séance de la bande ou des 30 % lue par la moulinette serait un regard sur les années d'examen avant
+      le juge (n°42, 31-10-2026 ; A-1063 ; A-1073).
+    ⑨ CE QUI CLOCHE — Avec `qui` à None, seule la date se confronte (même limite que le reçu, ③ de la garde).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    if jeton.sceau is not _SCEAU_DE_REGLAGE:
+        return False, "jeton de réglage sans sceau : il n'a pas été rendu par jeton_de_reglage"
+    if qui is not None and qui != jeton.fiche_id:
+        return False, "jeton de réglage de la fiche %s, pas de %r" % (jeton.fiche_id, qui)
+    if str(derniere) > jeton.derniere:
+        return False, ("le jeu lit jusqu'au %s, après la dernière séance de la partie de réglage (%s) : la bande retirée "
+                       "et les 30 %% (à partir du %s) ne se lisent qu'au jugement, UNE fois, après la déclaration datée "
+                       "de la stratégie (A-1073)" % (derniere, jeton.derniere, jeton.frontiere))
+    return True, None
+
+
 class _SortieMarquee(object):
     """Un flux de sortie dont chaque ligne commence par la marque d'un essai.
 
@@ -3567,7 +3727,60 @@ def marquer_la_sortie():
         sys.stderr = _SortieMarquee(sys.stderr, _C.STATUT_D_ESSAI)
 
 
-def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_module=None):
+_TRENTE_DES_FICHES = {}
+
+
+def trente_pour_cent_de_la_fiche(fiche, racine=None):
+    """Rend la frontière et la fin des 30 % d'une fiche RÉGLÉE SUR LES 20 ANS (cas 2), ou None pour une autre fiche.
+
+    ① RÔLE — Donner à la garde du regard unique la fenêtre des 30 % DE LA FICHE (point 39 de la file vérifiée du
+      27-11-2026, « L1-1 TRANCHÉ (A-777, A-853, A-1073) : adapter la garde du regard unique au cas 2 (fenêtre = 30 % de la
+      fiche), reçu = déclaration datée d'IND-001 »).
+    ② CONTEXTE D'APPEL — `jouer`, une fois par appel, quand il n'a pas de jeton (essai ou réglage) ; les épreuves.
+    ③ ENTRÉE — `fiche` : la ligne du registre (dictionnaire) · `racine` : la racine du dépôt, None = celle de ce
+      programme (programmes/..).
+    ④ CONDITIONS D'ENTRÉE — Le calendrier de la Bourse lisible sous la racine (`CALENDRIER_DE_LA_BOURSE.lire_les_seances`).
+    ⑤ SORTIE — UNE valeur : (frontière, fin) en AAAA-MM-JJ, ou None quand la fiche n'est pas réglée sur les 20 ans
+      (sa période déclarée ne touche pas la fenêtre du contrat 2000-2023 : cas 1, garde inchangée) ou quand sa période
+      est illisible (la porte 0 refusera la fiche ailleurs).
+      [rend: 1]
+    ⑥ TRAITEMENT — ① bornes par `porte_0` · ② période qui ne touche pas la fenêtre du regard unique → None ·
+      ③ séances du CALENDRIER de la Bourse entre les bornes (pas celles des cours lus : joués sur le seul fichier maître
+      2024-2026, les cours ne montreraient pas où tombe la frontière des 20 ans) · ④ `MODULE_JUGEMENT.frontiere_de_la_fiche`
+      (la seule fonction qui l'établit, R-708) · ⑤ garder le résultat en mémoire par fiche et bornes.
+    ⑦ UNITÉ — Des dates.
+    ⑧ POURQUOI — Constat L1-1 du RELU de Cowork (27-11-2026) et D4 de L1-CORR : sans jeton, la garde ne protégeait que
+      2000-2023 ; les 30 % d'IND-001-RETEST tombent en grande partie APRÈS 2023 et pouvaient être joués sur le fichier
+      maître sans reçu. Le cas 2 est « réglée sur les 20 ans » (CONTRATS_DES_FICHIERS, champ `cas` de la déclaration).
+    ⑨ CE QUI CLOCHE — ① Une fiche du cas 2 dont la période ne toucherait pas 2000-2023 (une stratégie passée sur 2024 et
+      après seulement, décision du 20-11-2026) n'est pas reconnue ici : ses 30 % restent sans garde (signalé dans la
+      note du lot L1CORR2). ② La frontière se calcule sur le calendrier, la moulinette la calcule sur les cours lus :
+      elles peuvent différer d'une séance (une séance du calendrier sans cours, ex. 2016-03-28).
+    ⑩ EFFET — Lit le calendrier au premier appel pour une fiche.
+    ⑪ TERMINAISON — Rend la main ; lève ce que lève la lecture du calendrier.
+      [sort: non]
+    """
+    porte = porte_0(dict(fiche))
+    if len(porte) != 3 or not porte[0] or not porte[2]:
+        return None
+    b0, b1 = str(porte[2][0]), str(porte[2][1])
+    if not touche_la_fenetre_du_regard_unique(b0, b1):
+        return None
+    racine = racine or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cle = (racine, fiche.get("id") or "", b0, b1, fiche.get("frontiere_70_30") or "")
+    if cle not in _TRENTE_DES_FICHES:
+        import datetime as _dt
+        import CALENDRIER_DE_LA_BOURSE as _CAL
+        sc = _CAL.lire_les_seances(racine)
+        seances = [d.isoformat() for d, _e in _CAL.seances_entre(_dt.date.fromisoformat(b0), _dt.date.fromisoformat(b1),
+                                                                   sc)]
+        mj = charger_module(trouver(racine, "MODULE_JUGEMENT.py"), "jug_trente")
+        fr = mj.frontiere_de_la_fiche(fiche, seances, (b0, b1))
+        _TRENTE_DES_FICHES[cle] = None if fr is None else (fr, b1)
+    return _TRENTE_DES_FICHES[cle]
+
+
+def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_module=None, trente=None):
     """Exige le reçu d'une inscription au registre des essais dès que des séances jouées touchent la fenêtre du regard
     unique ; sinon lève, avant toute opération.
 
@@ -3581,13 +3794,16 @@ def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_modul
       `derniere` : la première et la dernière séance jouée, textes AAAA-MM-JJ · `periode` : (début, fin) que le reçu
       doit couvrir, ou None · `recu` : (racine, nom d'entrée) rendu par `TENIR_LE_REGISTRE_DES_ESSAIS.preenregistrer`,
       ou None, ou le jeton d'un essai déclaré (`jeton_d_essai`, A-863) · `nom_du_module` : le nom du fichier du module,
-      ou None — si donné, la fiche du reçu doit nommer ce module (`backtest_c5etendu10`, qui ne connaît pas sa fiche).
+      ou None — si donné, la fiche du reçu doit nommer ce module (`backtest_c5etendu10`, qui ne connaît pas sa fiche) ·
+      `trente` : (frontière, fin) des 30 % de la fiche, rendu par `trente_pour_cent_de_la_fiche`, ou None (28-11-2026).
     ④ CONDITIONS D'ENTRÉE — —
     ⑤ SORTIE — Aucune valeur : rend la main si la garde passe.
       [rend: rien]
     ⑥ TRAITEMENT — ① la fenêtre au contrat (`CONTRATS_DES_FICHIERS.fenetre_du_regard_unique`) · ② [premiere,
-      derniere] ne touche pas la fenêtre → rendre la main sans rien lire · ②bis un jeton d'essai → rendre la main s'il
-      vaut pour `qui` et `nom_du_module` (`_jeton_valable`), lever sinon (A-863) · ③ pas de reçu → lever · ④ reçu déjà lu
+      derniere] ne touche ni la fenêtre ni les 30 % de la fiche (`trente`, cas 2 : derniere ≥ frontière et premiere ≤
+      fin) → rendre la main sans rien lire · ②bis un jeton d'essai → rendre la main s'il
+      vaut pour `qui` et `nom_du_module` (`_jeton_valable`), lever sinon (A-863) · ②ter un jeton de réglage (cas 2,
+      27-11-2026) → rendre la main s'il couvre `qui` et `derniere` (`_reglage_valable`), lever sinon · ③ pas de reçu → lever · ④ reçu déjà lu
       dans ce processus → son entrée en mémoire, sans relire · ⑤ sinon le registre lu sur la branche des regards (`lire_le_registre`, après
       fetch ; il signale aussi un dépôt distant qui n'est pas le dépôt commun), sans défaut ; l'entrée nommée est un
       PREENREGISTREMENT ; aucun RESULTAT ne la clôt ; sa fiche est `qui` (forme canonique) si `qui` est donné ; sa
@@ -3601,23 +3817,41 @@ def _garde_du_regard_unique(qui, premiere, derniere, periode, recu, nom_du_modul
       12-11-2026 à 08h58, « 1 · Empêcher l'erreur (recommandé) », BACKLOG A-708). ② Une série qui saute la fenêtre (avant 2000 puis après 2023) est prise pour la toucher : côté strict.
       ③ `jouer_une_entree` ne connaît pas sa fiche : le reçu n'y est confronté qu'à la période. ④ Des calculateurs non
       nommés ici (`MODULE_JUGEMENT.etalon_hasard` appelé seul, des frais propres à `JUGER_SUR_8_CRITERES`) ne sont pas
-      gardés : relevé par énumération (superviseur REGARD, M6). ⑤ Le cas 2 de R-505 est bloqué (J1 GITHUB).
+      gardés : relevé par énumération (superviseur REGARD, M6). ⑤ Le cas 2 de R-505 n'est plus bloqué pour la
+      moulinette (jeton de réglage, 27-11-2026) ; mais SANS jeton, la fenêtre protégée reste celle du cas 1
+      (2000-2023) : les 30 % d'une fiche du cas 2 qui tombent après 2023 (IND-001-RETEST sur le fichier maître
+      2024-2026) n'étaient pas gardés ici ; depuis le 28-11-2026 (L1-1 tranché : A-777, A-853, A-1073), `trente` les
+      garde quand l'appelant le passe (`jouer` le passe ; `jouer_une_entree` et `backtest_c5etendu10` non : ils ne
+      connaissent pas la fiche — limite signalée).
     ⑩ EFFET — Lit la branche des regards (réseau) seulement si la fenêtre est touchée.
     ⑪ TERMINAISON — Rend la main ou lève RegardNonInscrit ; le fetch peut ne pas revenir.
       [sort: non]
     """
     import CONTRATS_DES_FICHIERS as _C
     debut, fin = _C.fenetre_du_regard_unique()
-    if not touche_la_fenetre_du_regard_unique(premiere, derniere):
+    # LES 30 % DE LA FICHE DU CAS 2 (L1-1 tranché, 28-11-2026) : touchés dès qu'une séance jouée est à la frontière ou
+    # après, jusqu'à la fin de la fiche
+    dans_les_30 = bool(trente) and bool(premiere) and str(derniere) >= trente[0] and str(premiere) <= trente[1]
+    if not touche_la_fenetre_du_regard_unique(premiere, derniere) and not dans_les_30:
         return
     cause = "fiche %s : séances jouées de %s à %s, dans la fenêtre du regard unique %s..%s" % (
         qui or "(non nommée)", premiere, derniere, debut, fin)
+    if dans_les_30:
+        cause += " ou dans les 30 %% de la fiche (%s..%s)" % trente
     # L'ESSAI DÉCLARÉ (A-863) : un jeton rendu par `jeton_d_essai` tient lieu de reçu, y compris quand `qui` vaut None ;
     # un jeton qui ne vaut pas pour cette fiche, ce module ou ce lieu refuse, sans jamais se rabattre sur un reçu.
     if isinstance(recu, JetonDEssai):
         _ok, _motif = _jeton_valable(recu, qui, nom_du_module)
         if not _ok:
             raise RegardNonInscrit(cause + " : jeton d'essai refusé : " + _motif)
+        return
+    # LA PARTIE DE RÉGLAGE (cas 2 de R-505 v2, lot L1-CORR du 27-11-2026) : la moulinette sur les 70 % moins la bande
+    # n'est pas un regard ; un jeton de réglage qui ne couvre pas la dernière séance jouée REFUSE, sans jamais se
+    # rabattre sur un reçu — le jugement des 30 % passe par la déclaration datée (A-1073) et son reçu, jamais par lui.
+    if isinstance(recu, JetonDeReglage):
+        _ok, _motif = _reglage_valable(recu, qui, derniere)
+        if not _ok:
+            raise RegardNonInscrit(cause + " : " + _motif)
         return
     if recu is None:
         raise RegardNonInscrit(cause + " sans reçu d'inscription au registre des essais (R-505 ③)")
@@ -3682,7 +3916,9 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
       nom d'un barème de frais, None pour le barème réel (A-550, voir `jouer_une_entree`). · `recu` : (racine, nom)
       d'un préenregistrement poussé au registre des essais, ou None — EXIGÉ dès qu'une séance jouée tombe dans la
       fenêtre du regard unique (`_garde_du_regard_unique`, mission REGARD du 12-11-2026) ; ou le jeton d'un essai
-      déclaré (`jeton_d_essai`, A-863), qui tient lieu de reçu aux deux gardes.
+      déclaré (`jeton_d_essai`, A-863), qui tient lieu de reçu aux deux gardes ; ou un jeton de réglage
+      (`jeton_de_reglage`, 27-11-2026, cas 2 de R-505 v2) : la garde du regard passe tant que les cours reçus s'arrêtent
+      à sa dernière séance permise ; il ne lève PAS le refus de la garde M.
     ④ CONDITIONS D'ENTRÉE — La fiche doit avoir passé la porte 0 : l'objectif de
       gain, la perte acceptée et l'horizon doivent être lisibles, faute de quoi la
       fonction lève (un horizon illisible : ValueError depuis le 11-11-2026 ; « aucune »
@@ -3865,12 +4101,17 @@ def jouer(fiche, cours, mnemo, mod_signal, mod_positions, periode=None, lecture=
     # LA GARDE M SUR LA PORTE QUI CONSOMME LE REGARD (Q-1 de Cowork, 14-11-2026) : avec un reçu et des séances jouées
     # dans la fenêtre du regard unique, la même fonction que `main`, AVANT la vérification du reçu
     if recu and touche_la_fenetre_du_regard_unique(_premiere, max(_fins, default="")):
-        _l_m, _refus_m = garde_composition(recu.racine if isinstance(recu, JetonDEssai) else recu[0], fiche,
+        # un jeton de réglage porte sa racine comme un jeton d'essai ; il NE lève PAS le refus de la garde M
+        # (`_jeton_valable` ne reconnaît que les jetons d'essai) : la règle la plus stricte, 27-11-2026
+        _l_m, _refus_m = garde_composition(recu.racine if isinstance(recu, (JetonDEssai, JetonDeReglage)) else recu[0],
+                                           fiche,
                                            (_premiere, max(_fins, default="")), recu)
         if _refus_m:
             raise UniversBorneSurLeRegard(_refus_m.strip())
     # une fiche SANS identifiant n'est jamais la fiche d'un reçu : « » ne se ramène à aucune fiche (T2-D4)
-    _garde_du_regard_unique(fiche.get("id") or "", _premiere, max(_fins, default=""), periode, recu)
+    # LES 30 % DE LA FICHE (L1-1 tranché, 28-11-2026) : calculés seulement sans jeton (un jeton se vérifie lui-même)
+    _trente = None if isinstance(recu, (JetonDEssai, JetonDeReglage)) else trente_pour_cent_de_la_fiche(fiche)
+    _garde_du_regard_unique(fiche.get("id") or "", _premiere, max(_fins, default=""), periode, recu, trente=_trente)
 
     # LE SIGNAL EST CELUI QUE LA FICHE NOMME, LU PAR `signal_de_la_fiche` SEULE (A-542, 30-10-2026) : plus aucun
     # repli — un module passé à la place, ou une fonction prise ailleurs, est refusé.
@@ -5162,6 +5403,12 @@ def main():
       unique consommé ; chaque ligne écrite commence par « ESSAI — NI RÉSULTAT NI SÉLECTION » ;
       refus en 2 si la racine porte .git, sans fiche visée, ou si la fiche visée n'est
       identique à aucune fiche de CONTRATS.FICHES_DEJA_VUES_SUR_LE_REGARD_UNIQUE (`jeton_d_essai`).
+      Option « --partie-de-reglage=<dernière séance lue>,<fin jouée> » (CONTRATS.OPTION_DE_LA_PARTIE_DE_REGLAGE,
+      27-11-2026, lot L1-CORR, A-1078) : passée par JOUER_LES_VERSIONS pour son calibrage ; une fiche visée exigée ;
+      la lecture doit rester dans les 70 % moins la bande de la fiche (`lecture_permise_pour_regler`, sinon la fiche
+      est EN ÉCHEC, code 1) ; les cours sont coupés à la dernière séance lue, la fiche jouée jusqu'à la fin donnée,
+      avec un jeton de réglage dans la fenêtre du regard unique (`jeton_de_reglage`, hors essai), et `juger` N'EST PAS
+      appelé : rien de la bande ni des 30 % n'est lu ni affiché. Le calibrage sur le golden est inchangé.
       Variable d'environnement ETALONNAGE_DU_DEPOT (A-952, 20-11-2026) : absente, le golden, son témoin, le
       tableau des 100 trades et le référentiel du calibrage se cherchent sous la racine (le circuit) ; posée, dans
       le dossier qu'elle désigne (`CONTRATS_DES_FICHIERS.dossier_d_etalonnage`), annoncé ; désignant un dossier
@@ -5435,11 +5682,28 @@ def main():
     print("JUGE DES STRATÉGIES . %s . %s\n" % (VERSION, horodatage()))
     # UNE OPTION INCONNUE OU MAL ÉCRITE ARRÊTE TOUT (relecture et superviseur du 27-10-2026) : « --cours fichier »,
     # sans « = », était ignoré, et « fichier » devenait la fiche visée — aucune fiche jugée, code 0.
+    # LA PARTIE DE RÉGLAGE SEULE (27-11-2026, lot L1-CORR ; A-1078) : le texte de l'option vit au contrat ; elle n'est
+    # lue que si elle est écrite — sans elle, rien de plus n'est importé ni lu qu'avant.
+    _opt_reglage = None
+    if any(a.startswith("--partie-de-reglage") for a in sys.argv[1:]):
+        import CONTRATS_DES_FICHIERS as _CR
+        _opt_reglage = _CR.OPTION_DE_LA_PARTIE_DE_REGLAGE
     _mal = [a for a in sys.argv[1:] if a.startswith("--") and not (a.startswith("--cours=") and len(a) > len("--cours="))
-            and a != OPTION_ESSAI]
+            and a != OPTION_ESSAI and not (_opt_reglage and a.startswith(_opt_reglage) and len(a) > len(_opt_reglage))]
     if _mal:
-        print("ARRET : option inconnue ou mal ecrite : %s (seules « --cours=<fichier> » et « --essai-sans-regard » existent). Rien n'est juge." % _mal)
+        print("ARRET : option inconnue ou mal ecrite : %s (seules « --cours=<fichier> » et « --essai-sans-regard » existent, "
+              "et « --partie-de-reglage=<derniere>,<fin> » pour la moulinette). Rien n'est juge." % _mal)
         return 1
+    _reglage = None
+    if _opt_reglage:
+        _textes = [a[len(_opt_reglage):] for a in sys.argv[1:] if a.startswith(_opt_reglage)]
+        _morceaux = _textes[0].split(",") if len(_textes) == 1 else []
+        if len(_morceaux) != 2 or not all(len(x) == 10 and x[4] == "-" and x[7] == "-" for x in _morceaux) \
+                or _morceaux[1] > _morceaux[0] or not cible:
+            print("ARRET : %s attend UNE fois « <dernière séance lue>,<fin de la période jouée> », deux dates AAAA-MM-JJ, "
+                  "la fin au plus la dernière séance, et une fiche visée : %s. Rien n'est juge." % (_opt_reglage, _textes))
+            return 1
+        _reglage = tuple(_morceaux)
 
     # LE JUGE DES STRATÉGIES LIT LE REGISTRE DES STRATEGIES, PLUS LE SAS.
     # Le sas — registre_candidates.csv — a ete ABSORBE le 29-08-2026 : il
@@ -5736,6 +6000,30 @@ def main():
         # 1), sauf décision écrite de Jean-Luc au contrat (UNIVERS_BORNES_ACCEPTES_SUR_LE_REGARD_UNIQUE).
         _s_lues = lecture.get("seances") if lecture else []
         _per = (max(str(_bornes[0]), _s_lues[0]), min(str(_bornes[1]), _s_lues[-1])) if _s_lues else None
+        # LA PARTIE DE RÉGLAGE SEULE (27-11-2026, lot L1-CORR ; A-1078) : la lecture s'arrête à la dernière séance donnée,
+        # si elle reste dans les 70 % moins la bande de CETTE fiche, mesurés sur les cours LUS EN ENTIER (`seances`) ;
+        # les cours sont coupés là AVANT tout jeu ; dans la fenêtre du regard unique, le reçu est un jeton de réglage
+        # (hors essai) ; `juger` n'est pas appelé plus bas.
+        _cours_joues, _periode_jouee, _recu_joue = cours, _bornes, jeton
+        if _reglage:
+            if mod_jug is None:   # la frontière et la bande ne s'établissent qu'au module de jugement (R-708)
+                en_echec.append(f["id"])
+                print("    PARTIE DE RÉGLAGE REFUSÉE : module de jugement introuvable, la bande ne se mesure pas\n")
+                continue
+            import COMMUN as _COM
+            _h_f = _COM.lire_horizon_ou_aucune(f.get("horizon"))
+            _front, _motif_r = lecture_permise_pour_regler(f, seances, _bornes, _h_f, _reglage[0], mod_jug)
+            if not _motif_r and jeton is None and _per and touche_la_fenetre_du_regard_unique(_per[0], _reglage[0]):
+                _recu_joue, _motif_r = jeton_de_reglage(base, f, seances, _bornes, _h_f, _reglage[0], mod_jug)
+            if _motif_r:
+                en_echec.append(f["id"])
+                print("    PARTIE DE RÉGLAGE REFUSÉE : %s\n" % _motif_r)
+                continue
+            _cours_joues = {v: [b for b in s_ if b["date"] <= _reglage[0]] for v, s_ in cours.items()}
+            _periode_jouee = (_bornes[0], _reglage[1])
+            _per = (_per[0], min(_per[1], _reglage[0])) if _per else None
+            print("    PARTIE DE RÉGLAGE SEULE : cours lus jusqu'au %s, achats jusqu'au %s, frontière 70/30 %s ; ni la "
+                  "bande ni les 30 %% ne sont lus, rien n'est jugé (A-1078)" % (_reglage[0], _reglage[1], _front))
         _ligne_m, _refus_m = garde_composition(base, f, _per, jeton)
         if _refus_m:
             en_echec.append(f["id"])
@@ -5744,9 +6032,10 @@ def main():
             continue
         try:
             # REGARD UNIQUE (R-505 ③) : `main` n'inscrit rien, donc ne passe aucun reçu — refus dans la fenêtre.
-            ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture) \
-                if jeton is None else jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture,
-                                            recu=jeton)   # l'essai déclaré : le jeton tient lieu de reçu (A-863)
+            ops, inconnus = jouer(f, _cours_joues, mnemo, mod_sig, mod_pos, periode=_periode_jouee, lecture=lecture) \
+                if _recu_joue is None else jouer(f, _cours_joues, mnemo, mod_sig, mod_pos, periode=_periode_jouee,
+                                                 lecture=lecture, recu=_recu_joue)
+            # l'essai déclaré : le jeton tient lieu de reçu (A-863) ; la partie de réglage : le jeton de réglage
         except SignalRefuse as _refus_au_jeu:
             # UN REFUS NOMMÉ, PAS UNE PANNE (point 8 du plan du juge, 31-10-2026) : sortie du signal mal formée. La fiche
             # n'est pas jugée ; ce n'est pas « EN ÉCHEC », le code ne change pas.
@@ -5798,7 +6087,7 @@ def main():
         # Le juge des stratégies n'implemente AUCUNE de ces mesures : il APPELLE.
         # Sans ce branchement, tout ce qui a ete mesure le 28/08 ne vivait
         # que dans des scripts jetables — donc nulle part.
-        if mod_jug:
+        if mod_jug and not _reglage:   # la partie de réglage seule ne juge jamais (rien des 30 %, A-1078)
             try:
                 juger(f, ops, cours, seances, mod_jug, mod_stats, mod_pos, mnemo,
                       _bornes, (mod_sig,), lecture=lecture, racine=base, jeton=jeton)

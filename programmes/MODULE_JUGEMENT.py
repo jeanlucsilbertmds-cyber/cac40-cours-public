@@ -1159,6 +1159,12 @@ def frontiere_de_la_fiche(fiche, seances, bornes, part=0.70):
     return cal[min(int(len(cal) * part), len(cal) - 1)]
 
 
+# LA LARGEUR PUBLIÉE DE L'EMBARGO, ÉCRITE ICI UNE FOIS (R-708) : 21 séances (A-305 ②, validé par Jean-Luc le 28-08-2026 :
+# « sa valeur est PUBLIÉE : 21 jours » ; Lopez de Prado 2018, chapitres 7 et 12). `coupure_70_30` la lit pour les
+# horizons fixes (le plus grand de 21 et de l'horizon) et pour la version « sans délai » (21, après la purge, A-1106).
+EMBARGO_PUBLIE_SEANCES = 21
+
+
 def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, frontiere=None):
     """Coupe le TEMPS en deux, avec PURGE et EMBARGO. Aucun chiffre invente.
 
@@ -1215,26 +1221,29 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       tour 3, M1) : ce repli ignorait une frontière déclarée dans la fiche, et
       un appelant qui oubliait `frontiere=` faisait fuir les 30 % sans bruit.
       CONTRAT DU LOT 0 (09-11-2026) — `horizon` est un entier > 0, None (non
-      fourni), ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale). Ce dernier
-      refuse tout calcul par une TypeError : il n'est accepté qu'avec un
-      embargo explicite (`embargo_seances`), sinon elle tombe (`int(horizon or 0)`). Rien n'y lit « aucune » en texte.
+      fourni), ou `COMMUN.HORIZON_AUCUNE` (aucune durée maximale). DEPUIS LE
+      28-11-2026 (A-1106, lot L1CORR2), « aucune » est COUPÉ PAR LA PURGE : les
+      opérations doivent alors porter aussi `date_sortie` (et `motif`). Rien n'y
+      lit « aucune » en texte.
     ④ CONDITIONS D'ENTRÉE — Les dates doivent s'écrire de la même façon dans
       les opérations, dans le calendrier et dans la frontière (AAAA-MM-JJ). Le
       calendrier ne doit pas être vide, sans quoi la recherche de la frontière tombe.
     ⑤ SORTIE — UNE valeur : un dictionnaire, et il prend TROIS formes
       différentes. Sur une liste d'opérations vide, trois cases seulement :
-      les deux effectifs et le nombre d'écartées, tous à zéro — mesuré le
+      les deux effectifs et le nombre d'écartées, tous à zéro (plus `n_purgees` à zéro en « sans délai ») — mesuré le
       19-09-2026 — MAIS SEULEMENT SI LA FRONTIÈRE EST ACCEPTÉE : depuis le
       15-11-2026 son contrôle passe AVANT, et une frontière manquante ou hors
       d'un calendrier non vide LÈVE même sur une liste vide (relecture de
       Cowork du 15-11-2026, 5/N-4 : « '2030-01-01' vide -> ValueError … hors du
       calendrier »). Quand aucune date n'est reconnue au calendrier : une seule
-      case, un motif en clair. Dans le cas normal : sept cases, dont la date de
-      frontière, la largeur retenue de la zone retirée, les trois effectifs et
-      les deux résumés chiffrés des deux parties.
+      case, un motif en clair. Dans le cas normal : huit cases, dont la date de
+      frontière, la largeur retenue de la zone retirée, les trois effectifs, le
+      nombre d'opérations PURGÉES (`n_purgees`, toujours 0 pour un horizon fixe)
+      et les deux résumés chiffrés des deux parties.
       [rend: 1]
     ⑥ TRAITEMENT — ① si aucune largeur n'est imposée, prendre la plus grande des
-      deux valeurs entre 21 séances et l'horizon · ② rendre trois zéros si la
+      deux valeurs entre 21 séances et l'horizon, et 21 pour un horizon « aucune »
+      (EMBARGO_PUBLIE_SEANCES) · ② rendre trois zéros si la
       liste est vide · ③ numéroter les séances dans l'ordre · ④ ne garder que
       les opérations dont la date de signal est au calendrier, et rendre un
       motif s'il n'en reste aucune · ⑤ prendre la frontière reçue (refus si elle
@@ -1243,8 +1252,11 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       vide, juste après le tri du calendrier) et la situer dans le calendrier (rang de la première séance qui ne
       la précède pas) ; la case `frontiere` rendue est la séance où la coupure a
       RÉELLEMENT coupé, que l'appelant compare à celle qu'il écrit · ⑥ ranger chaque opération avant la zone retirée, après la
-      frontière, ou dans la zone retirée · ⑦ rendre les effectifs et le résumé
-      de chaque côté.
+      frontière, ou dans la zone retirée · ⑥bis HORIZON « AUCUNE » SEULEMENT, LA
+      PURGE (A-1106) : retirer des 70 % toute opération qui n'est pas refermée
+      AVANT la première séance de la bande (motif FIN_DES_DONNEES, sortie absente,
+      ou sortie dans la bande ou après), quelle que soit sa durée · ⑦ rendre les
+      effectifs et le résumé de chaque côté.
     ⑦ UNITÉ — Les largeurs et les positions se comptent en SÉANCES de bourse.
       La part de 70 % est une FRACTION du temps (dans `frontiere_de_la_fiche`), jamais un nombre d'opérations. Les
       résumés portent un taux de réussite en POURCENTS et un gain en EUROS.
@@ -1260,6 +1272,18 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
       d'horizon 30 : le nettoyage était incomplet par construction, et l'écart
       grandissait avec l'horizon. Défaut trouvé le 29-08-2026, et corrigé en
       prenant la plus grande des deux valeurs.
+      LA VERSION « SANS DÉLAI » N'A PAS D'HORIZON qui borne sa détention : aucune
+      largeur fixe ne suffit. A-1106 (27-11-2026, application d'A-305 ② validé par
+      Jean-Luc le 28-08-2026, « purge et embargo — Lopez de Prado 2018, chapitres 7
+      et 12 ») : on RETIRE des 70 % toute opération encore ouverte à la frontière,
+      puis on laisse vide une bande de 21 séances posée AVANT la frontière, comme
+      pour les horizons fixes : les 30 % commencent à la même date pour toutes les
+      versions. « Encore ouverte » se lit ici « pas refermée avant le début de la
+      bande » : une opération refermée DANS la bande lirait des séances que la
+      bande laisse vides, et la moulinette, qui ne lit pas la bande, la voit
+      ouverte (FIN_DES_DONNEES) ; ainsi le juge et la moulinette, qui appellent
+      cette même fonction (R-708), purgent les mêmes opérations (lecture du lot
+      L1CORR2, signalée dans sa note).
     ⑨ CE QUI CLOCHE —
       ① Les deux formes courtes du dictionnaire rendu font tomber le seul
       appelant de production. Le juge des stratégies lit les cases `res_70` et `res_30`
@@ -1290,9 +1314,9 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
     ⑪ TERMINAISON — Rend la main dans tous les cas que son appelant lui donne,
       calendrier vide compris (mesuré le 12-11-2026 : elle rend alors le motif
       « aucune date de signal reconnue au calendrier »). LÈVE ValueError si la
-      frontière manque (« la frontière est exigée »), et TypeError si l'horizon
-      vaut « aucune » sans embargo explicite ; le juge des stratégies rattrape
-      et affiche « COUPURE 70/30 non mesuree ».
+      frontière manque (« la frontière est exigée ») ; depuis le 28-11-2026
+      (A-1106), un horizon « aucune » ne lève plus : il est coupé par la purge ;
+      le juge des stratégies rattrape et affiche « COUPURE 70/30 non mesuree ».
       LÈVE aussi ValueError (15-11-2026, A-751 ②, RT-2 de Cowork du 13-11-2026)
       si la frontière est vide ou faite de blancs (« la frontière est exigée »),
       ou si elle tombe hors du calendrier non vide reçu (« hors du calendrier ») :
@@ -1332,8 +1356,9 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
     # nettoyage etait incomplet PAR CONSTRUCTION, et l'ecart grandit avec
     # l'horizon. Les 21 seances de la litterature valent pour un horizon plus
     # court ; on prend donc le PLUS GRAND des deux.
+    aucune = horizon is _commun().HORIZON_AUCUNE
     if embargo_seances is None:
-        embargo_seances = max(21, int(horizon or 0))
+        embargo_seances = EMBARGO_PUBLIE_SEANCES if aucune else max(EMBARGO_PUBLIE_SEANCES, int(horizon or 0))
     if frontiere is None or not str(frontiere).strip():
         raise ValueError("coupure_70_30 : la frontière est exigée (frontiere=, rendue par frontiere_de_la_fiche)")
     cal = sorted(seances_projet)
@@ -1343,7 +1368,7 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
     if cal and not (cal[0] <= frontiere <= cal[-1]):
         raise ValueError("coupure_70_30 : frontière %s hors du calendrier (%s -> %s)" % (frontiere, cal[0], cal[-1]))
     if not ops:
-        return {"n_70": 0, "n_30": 0, "n_ecartes": 0}
+        return dict({"n_70": 0, "n_30": 0, "n_ecartes": 0}, **({"n_purgees": 0} if aucune else {}))
     rang = {d: i for i, d in enumerate(cal)}
     connues = [o for o in ops if o["date_signal"] in rang]
     if not connues:
@@ -1364,9 +1389,64 @@ def coupure_70_30(ops, seances_projet, embargo_seances=None, horizon=None, front
             apres.append(o)
         else:
             ecartes.append(o)          # la zone d'embargo, retiree des deux cotes
+    # LA PURGE DE LA VERSION « SANS DÉLAI » (A-1106) : hors des 70 % toute opération qui n'est pas refermée avant la
+    # première séance de la bande, quelle que soit sa durée.
+    purgees = []
+    if aucune:
+        debut_bande = cal[max(i_frontiere - embargo_seances, 0)]
+        fin_des_donnees = _commun().MOTIF_FIN_DES_DONNEES
+        purgees = [o for o in avant if o.get("motif") == fin_des_donnees or not o.get("date_sortie")
+                   or not o["date_sortie"] < debut_bande]
+        _p = {id(o) for o in purgees}
+        avant = [o for o in avant if id(o) not in _p]
     return {"frontiere": frontiere, "embargo_seances": embargo_seances,
-            "n_70": len(avant), "n_30": len(apres), "n_ecartes": len(ecartes),
+            "n_70": len(avant), "n_30": len(apres), "n_ecartes": len(ecartes), "n_purgees": len(purgees),
             "res_70": _resume(avant), "res_30": _resume(apres)}
+
+
+def fin_de_la_partie_de_reglage(seances_de_la_fiche, horizon, frontiere):
+    """Rend la DERNIÈRE séance des 70 % qui reste après le retrait de la bande, et la largeur de cette bande.
+
+    ① RÔLE — Dire jusqu'où la moulinette a le droit de LIRE des cours : les 70 % les plus anciens, moins la bande
+      retirée entre les deux parties (R-505 v2, étape 3 : « la moulinette joue toutes les versions […] sur les 70 % les
+      plus anciens » ; ⑥ « LA COUPURE ET SA BANDE RETIRÉE (PURGE ET EMBARGO) »).
+    ② CONTEXTE D'APPEL — `programmes/JOUER_LES_VERSIONS.py` (`main`, une fois, avec l'horizon chiffré le plus long de la
+      combinatoire) ; `JUGE_DES_STRATEGIES.jeton_de_reglage` (l'horizon de la fiche). Depuis le 27-11-2026 (lot L1-CORR
+      du plan R505, A-1078).
+    ③ ENTRÉE — `seances_de_la_fiche` : les dates de séance des cours lus comprises dans les bornes de la fiche, toutes
+      valeurs réunies (le calendrier que `coupure_70_30` reçoit du juge) · `horizon` : un horizon chiffré, entier > 0,
+      en séances, ou `COMMUN.HORIZON_AUCUNE` (bande de 21 séances, A-1106) · `frontiere` : la date rendue par `frontiere_de_la_fiche`.
+    ④ CONDITIONS D'ENTRÉE — Celles de `coupure_70_30`. Un horizon « aucune » est admis depuis le 28-11-2026 (A-1106 :
+      la version « sans délai » est coupée par la purge, puis 21 séances d'embargo avant la frontière).
+    ⑤ SORTIE — DEUX valeurs : la dernière séance gardée dans les 70 % (AAAA-MM-JJ), ou None si aucune séance ne l'est ;
+      la largeur de la bande, en séances. Exemple : calendrier de 100 séances, frontière au rang 70, horizon 5 →
+      bande de 21, dernière séance gardée = la séance de rang 48.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① fabriquer une opération fictive par séance (date de signal et de sortie = la séance, gain nul) · ② les passer à
+      `coupure_70_30` avec l'horizon et la frontière · ③ les séances rangées « avant » sont les `n_70` premières du
+      calendrier trié (la coupure range par rang) : rendre la dernière et `embargo_seances`.
+    ⑦ UNITÉ — Des séances de bourse ; des dates.
+    ⑧ POURQUOI — LA RÈGLE DE LA BANDE VIT DANS `coupure_70_30` ET NULLE PART AILLEURS (R-708 : deux implémentations
+      d'une même chose divergent toujours) : cette fonction ne recopie ni le « plus grand de 21 et de l'horizon », ni le
+      « rang < rang de la frontière − largeur » ; elle DEMANDE à la coupure où tombe chaque séance. RELU de Cowork sur
+      lot-r505-L1, défaut L1-2 (27-11-2026) : la moulinette jouait et écrivait la période entière, 30 % compris.
+    ⑨ CE QUI CLOCHE — ① La bande n'est posée qu'avant la frontière (⑨ ② de `coupure_70_30`) : c'est la loi, les 30 %
+      étant à la fin. ② Un trade dont le signal tombe sur la dernière séance gardée a besoin de séances APRÈS elle pour
+      se revendre : c'est l'appelant qui recule la fin des achats (recul calculé, A-1100), cette fonction ne le fait pas.
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend la main ; lève ce que lève `coupure_70_30` (frontière absente ou hors du calendrier),
+      et ValueError si la coupure ne rend pas de partie de réglage.
+      [sort: non]
+    """
+    cal = sorted(set(seances_de_la_fiche))
+    # une opération fictive par séance, refermée le jour même : la purge d'un horizon « aucune » (A-1106) n'en retire
+    # aucune avant la bande, et la bande se lit comme pour un horizon fixe
+    c = coupure_70_30([{"date_signal": d, "date_sortie": d, "net": 0.0} for d in cal], cal, horizon=horizon,
+                      frontiere=frontiere)
+    if "n_70" not in c or "embargo_seances" not in c:
+        raise ValueError("fin_de_la_partie_de_reglage : la coupure ne rend pas de partie de réglage (%s)"
+                         % c.get("motif", sorted(c)))
+    return (cal[c["n_70"] - 1] if c["n_70"] else None), c["embargo_seances"]
 
 
 def _resume(ops):
