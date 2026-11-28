@@ -82,18 +82,18 @@ EQUIVALENTS = {
         "TP sans « not bas(ouverture) » : la branche exige aussi « not bas(plus bas) », et une ouverture au stop ou dessous a un plus bas au stop ou dessous (plus bas <= ouverture : condition ④ de `defauts_d_un_trade`) : l'opérande « plus bas » qui reste dit déjà la même chose",
     "[si motif == 'TP'] Call zone_morte/True : bas(b['open'])":
         "zone morte sur « not bas(ouverture) » du TP : même raison que l'opérande retiré, « not bas(plus bas) » décide seul (plus bas <= ouverture : condition ④ de `defauts_d_un_trade`)",
-    "[si motif == 'HORIZON'] BoolOp operande/0/True : not bas(b['open']) and (not bas(b['low'])) and (not haut(b['open'])) a":
+    "[si echeance is not None and dd[z] > echeance] BoolOp operande/0/True : not bas(b['open']) and (not bas(b['low'])) and (not haut(b['open'])) a":
         "HORIZON sans « not bas(ouverture) » : « not bas(plus bas) » reste, et une ouverture au stop ou dessous a un plus bas au stop ou dessous (plus bas <= ouverture : condition ④ de `defauts_d_un_trade`) : l'opérande « plus bas » qui reste dit déjà la même chose",
-    "[si motif == 'HORIZON'] BoolOp operande/2/True : not bas(b['open']) and (not bas(b['low'])) and (not haut(b['open'])) a":
+    "[si echeance is not None and dd[z] > echeance] BoolOp operande/2/True : not bas(b['open']) and (not bas(b['low'])) and (not haut(b['open'])) a":
         "HORIZON sans « not haut(ouverture) » : « not haut(plus haut) » reste, et une ouverture à l'objectif ou dessus a un plus haut à l'objectif ou dessus (ouverture <= plus haut : condition ④ de `defauts_d_un_trade`) : l'opérande « plus haut » qui reste dit déjà la même chose",
-    "[si motif == 'HORIZON'] Call zone_morte/True : bas(b['open'])":
+    "[si echeance is not None and dd[z] > echeance] Call zone_morte/True : bas(b['open'])":
         'zone morte sur « not bas(ouverture) » du HORIZON : « not bas(plus bas) » décide seul (plus bas <= ouverture : condition ④ de `defauts_d_un_trade`)',
-    "[si motif == 'HORIZON'] Call zone_morte/True : haut(b['open'])":
+    "[si echeance is not None and dd[z] > echeance] Call zone_morte/True : haut(b['open'])":
         'zone morte sur « not haut(ouverture) » du HORIZON : « not haut(plus haut) » décide seul (ouverture <= plus haut : condition ④ de `defauts_d_un_trade`)',
-    "[si motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and] BoolOp operande/2/True : motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and isinstance(h, int) and (":
-        "« not isinstance(h, bool) » forcé à vrai : seul un horizon booléen le rend faux, et `vendre` refuse un horizon booléen (ValueError) : aucun trade du circuit n'en porte ; K14 de Cowork (« sans portée »)",
-    "[si motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and] BoolOp operande/4/True : motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and isinstance(h, int) and (":
-        "« 'echeance' not in SANS_CONTROLE » forcé à vrai : il vaut déjà vrai hors du sabotage S-I1b, seul à poser ce drapeau (S-I1b le garde)",
+    "[si isinstance(h, int) and (not isinstance(h, boo] BoolOp operande/1/True : isinstance(h, int) and (not isinstance(h, bool)) and (calendrier.index":
+        "« not isinstance(h, bool) » forcé à vrai (le calcul de l'échéance au calendrier, lot L2 du 27-11-2026 ; il remplace le même opérande du contrôle ④) : seul un horizon booléen le rend faux, et `vendre` refuse un horizon booléen (ValueError) : aucun trade du circuit n'en porte ; K14 de Cowork (« sans portée »)",
+    "[si motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and] BoolOp operande/3/True : motif in ('SL_GAP', 'TP_GAP', 'SL', 'TP') and echeance is not None and":
+        "« 'echeance' not in SANS_CONTROLE » forcé à vrai : il vaut déjà vrai hors du sabotage S-I1b, seul à poser ce drapeau (S-I1b le garde) ; depuis le lot L2 (27-11-2026), quatrième opérande au lieu du cinquième",
 }
 
 # LES SURVIVANTS CONNUS QUI ATTENDENT UNE DÉCISION DE JEAN-LUC — CE NE SONT PAS DES ÉQUIVALENTS : chacun est un vrai
@@ -286,6 +286,10 @@ NON_MUTES = {
     "Call:calendrier.index": "le rang d'une date du calendrier : la soustraction et la comparaison qui le lisent sont "
                              "mutées (+ ↔ −, ±1, négation)",
     "Call:rendu.append": "porté par l'instruction qui l'appelle, mutée « muet » (appel retiré)",
+    "Constant:NoneType": "l'absence d'échéance (None, lot L2 du 27-11-2026) : les comparaisons « is not None » qui la "
+                         "lisent sont mutées (négation), et l'opérande qui les porte est forcé vrai et faux",
+    "Subscript:BinOp": "une lecture à un rang calculé (calendrier[rang + h], dd[z - 1], lot L2 du 27-11-2026) : le "
+                       "calcul du rang est muté par son BinOp (+ ↔ −, ±1)",
 }
 for _op in ("Add", "Sub", "Mult", "Div", "And", "Or", "Not", "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE", "In", "NotIn",
             "Is", "IsNot", "USub"):
@@ -560,6 +564,15 @@ def familles():
             s[1 + k] = seance(DATES[1 + k], 100.0, obj, 99.0)
         s = [x for x in s if x["date"] != TROU]
         sortie.append(("TROU %s k=%s" % (TROU, k), s, 1, list(DATES), (100.0, 0.04, 0.025)))
+    # FIN (lot L2 du 27-11-2026) : un calendrier qui s'arrête PRÈS de l'échéance, sans fin des données dans la vente —
+    # échéance sur la DERNIÈRE séance du calendrier (vente HORIZON à sa clôture), ou une séance APRÈS sa fin (l'objectif
+    # est touché avant : la vente sur seuil se juge sans échéance connue). Sans elles, la borne « rang + h <
+    # len(calendrier) » du calcul de l'échéance n'était éprouvée par aucun témoin (mutants survivants du 27-11-2026).
+    for n, k_tp in ((5, None), (4, 1)):
+        s = [calme(d) for d in DATES[:n]]
+        if k_tp is not None:
+            s[1 + k_tp] = seance(DATES[1 + k_tp], 100.0, obj, 99.0)
+        sortie.append(("FIN n=%d k=%s" % (n, k_tp), s, 1, list(DATES[:n]), (100.0, 0.04, 0.025)))
     # ARRONDI (N-43) : pe = k/1e4 avec k ≡ 2 (mod 4) met le stop −2,5 % sur une demi-unité de la cinquième décimale
     for pe in (100.0002, 100.0006, 25.6002, 145.0010, 33.3338):
         for tp, sl in ((0.04, 0.025), (0.03, 0.015), (0.05, 0.035)):
@@ -583,8 +596,8 @@ def temoins(MP, COMMUN):
     de `vendre` (mode « vendre ») ; une vente FIN_DES_DONNEES (aucun seuil sans échéance) n'est pas un trade, sautée ;
     puis chaque motif sur chaque séance de l'achat −1 à l'achat + h + 1 au prix naturel du motif ; le prix de la séance
     de sortie remplacé par six prix ; le prix d'entrée décalé d'un centime. Verdict attendu : accepté ⇔ (motif, date,
-    « %.5f » du prix, prix d'entrée) == la vente — sauf R-112 (fenêtre à trou, HORIZON à la clôture d'une séance qui ne
-    touche rien : accepté, cas K07). Trou attendu : les rangs du calendrier et de la série diffèrent. ⑦ UNITÉ — euros ;
+    « %.5f » du prix, prix d'entrée) == la vente, vendue AU CALENDRIER de la famille (R-112, depuis le 27-11-2026, lot
+    L2 : l'ancienne exception des fenêtres à trou, cas K07, est retirée). Trou attendu : les rangs du calendrier et de la série diffèrent. ⑦ UNITÉ — euros ;
     séances. ⑧ POURQUOI — l'oracle est le circuit lui-même : la propriété « accepte ⇔ identique à vendre » ne recopie
     aucune règle (R-708). ⑨ CE QUI CLOCHE — si `vendre` est faux, la propriété l'est aussi, mais elle le DIT : la
     fonction intacte, qui ne l'appelle pas, la contredit (sabotage S-M4). ⑩ EFFET — aucun. ⑪ TERMINAISON — rend la
@@ -593,7 +606,9 @@ def temoins(MP, COMMUN):
     for nom, s, a, cal, (pe, tp, sl) in familles():
         dd = [b["date"] for b in s]
         for h in (1, 2, 3, COMMUN.HORIZON_AUCUNE):
-            v = MP.vendre(s, a, {"tp": tp, "sl": sl, "horizon": h}, "vendre")
+            # L'ORACLE VEND AU CALENDRIER DE LA FAMILLE (R-112, lot L2 du 27-11-2026, A-950) : une séance manquante fait
+            # avancer l'échéance ; une échéance sans cours vend à l'ouverture de la reprise (R-112 ②).
+            v = MP.vendre(s, a, {"tp": tp, "sl": sl, "horizon": h}, "vendre", seances=cal)
             if v is None or v["motif"] not in MOTIFS:
                 continue
             ref = (v["motif"], v["date_sortie"], "%.5f" % v["px"], "%.5f" % pe)
@@ -620,11 +635,8 @@ def temoins(MP, COMMUN):
                 attendu = (m, dd[z], t["prix_sortie"], t["prix_entree"]) == ref
                 trou = cal.index(dd[z]) - cal.index(dd[a]) != z - a if z >= a else \
                     cal.index(dd[a]) - cal.index(dd[z]) != a - z
-                if trou and m == "HORIZON" and v["motif"] == "HORIZON" and z > a and \
-                        t["prix_sortie"] == "%.5f" % s[z]["close"] and t["prix_entree"] == ref[3] and \
-                        all(x["low"] > v["stop"] and x["high"] < v["objectif"] and v["stop"] < x["open"] <
-                            v["objectif"] for x in s[a:z + 1]):
-                    attendu = True      # R-112 non appliquée (K07) : l'échéance d'une fenêtre à trou n'est pas jugée
+                # (jusqu'au 27-11-2026, une fenêtre à trou acceptait tout HORIZON : R-112 n'était pas appliquée, cas
+                # K07 ; le lot L2 l'applique, l'échéance d'une fenêtre à trou est jugée comme les autres)
                 if not isinstance(h, int) and m == "HORIZON" and z >= a and \
                         t["prix_sortie"] == "%.5f" % s[z]["close"] and t["prix_entree"] == ref[3] and \
                         all(x["low"] > v["stop"] and x["high"] < v["objectif"] and v["stop"] < x["open"] <
@@ -777,7 +789,8 @@ SABOTAGES = {
     # S-M1 : chaque mutation de Cowork (N-42 K1 K2 K4 K12, N-46 C-11 à C-15) dans le VRAI fichier → l'intacte rougit
     "S-M1a K1 boucle ② sans la séance d'achat": (EPREUVE, "    for b in serie[a:z]:\n", "    for b in serie[a + 1:z]:\n",
                                                  "INTACTE CONTREDITE"),
-    "S-M1b K2 HORIZON au-delà de l'échéance": (EPREUVE, "or z - a == h)", "or z - a >= h)", "INTACTE CONTREDITE"),
+    "S-M1b K2 HORIZON au-delà de l'échéance": (EPREUVE, "or dd[z] == echeance)", "or dd[z] >= echeance)",
+                                               "INTACTE CONTREDITE"),
     "S-M1c K4 échéance sans SL_GAP/TP_GAP/SL": (EPREUVE, 'if motif in ("SL_GAP", "TP_GAP", "SL", "TP") and',
                                                 'if motif in ("TP",) and', "INTACTE CONTREDITE"),
     "S-M1d K12 TP_GAP par le plus haut": (EPREUVE, 'ok = haut(b["open"]) and egal(px, b["open"])',

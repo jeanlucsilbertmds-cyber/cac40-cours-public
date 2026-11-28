@@ -57,8 +57,9 @@ SAB = {
                                   '    if True:\n        return True'),
     "S5 les séries jamais coupées": ('if k < len(trous) and trous[k] < b["date"]:', "if False:"),
     # (29-10-2026, A-550 : l'appel porte le barème, le sabotage le garde)
-    "S6 les sorties testées dans le seul morceau": ("                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu)",
-                                                    "                op = jouer_une_entree(v, s, i + 1, tp, sl, h, mod_positions, lecture, bareme, recu) if i + 1 < len(s) else None"),
+    # (27-11-2026, lot L2 : l'appel porte aussi le calendrier de la vente, R-112 ; le sabotage le garde)
+    "S6 les sorties testées dans le seul morceau": ("                op = jouer_une_entree(v, serie, j, tp, sl, h, mod_positions, lecture, bareme, recu, seances=_cal)",
+                                                    "                op = jouer_une_entree(v, s, i + 1, tp, sl, h, mod_positions, lecture, bareme, recu, seances=_cal) if i + 1 < len(s) else None"),
     "S7 le signal de fin de morceau perdu": ("                j = rang[d_sig] + 1           #",
                                              "                j = rang[d_sig] + 1 if i + 1 < len(s) else len(serie)           #"),
     "S8 les lignes mises à part ignorées": ("    if a_part:\n", "    if False:\n"),
@@ -69,9 +70,12 @@ SAB = {
     # S11 recalé le 29-10-2026 (A-577, étape 7) : la lecture porte aussi « seances », la cible est le même texte allongé.
     # S11 recalé le 14-11-2026 (QE2 : la lecture porte aussi « trous_non_decides ») ; même visée
     "S11 la composition éteinte par le lecteur": ('"composition": True, "seances": seances,', '"composition": False, "seances": seances,'),
+    # S12 recalé le 28-11-2026 (lot I1FIX) : l'appel de `main` lit les cours coupés à la partie de réglage
+    # (`_cours_joues`, `_periode_jouee`, lot L1-CORR, A-1078) et porte le découpage du jour même (`types_de_marche=_tm`,
+    # lot W2e-FIX, A-1105) ; même visée : retirer `lecture=lecture` du premier appel (celui sans reçu).
     "S12 la lecture non passée par main": (
-        "ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes, lecture=lecture)",
-        "ops, inconnus = jouer(f, cours, mnemo, mod_sig, mod_pos, periode=_bornes)"),
+        "ops, inconnus = jouer(f, _cours_joues, mnemo, mod_sig, mod_pos, periode=_periode_jouee, lecture=lecture,\n",
+        "ops, inconnus = jouer(f, _cours_joues, mnemo, mod_sig, mod_pos, periode=_periode_jouee,\n"),
     "S13 les passages d'une autre valeur": ('passages[v] = [(iso(a), iso(b) if b else None) for a, b in c["dans_l_indice"].get(m, [])]',
                                             'passages[v] = [(iso(a), iso(b) if b else None) for a, b in c["dans_l_indice"].get("VIE", [])]'),
     "S15 une valeur sans passage acceptée": ("    if sans:   #", "    if False:   #"),
@@ -94,7 +98,11 @@ SAB = {
     "S23 le mnémonique d'une société sortie exigé au référentiel": ("        v = mnemo.get(m.upper(), cle_valeur(m))\n",
                                                                     "        v = mnemo[m.upper()]\n"),
     # QE2 (14-11-2026) : les trous non expliqués de l'univers d'une fiche, signalés sur sa période (R10)
-    "S25 les trous non expliqués comptés hors de la période": ("if bornes[0] <= d <= bornes[1]]", "]"),
+    # S25 recalé le 28-11-2026 (lot I1FIX) : le même texte vit aussi dans `lecture_permise_pour_regler` (lot L1-CORR,
+    # A-1078) ; la visée est allongée pour ne désigner que la ligne des trous non décidés, même sabotage.
+    "S25 les trous non expliqués comptés hors de la période": (
+        '.get("trous_non_decides", {}).get(v, []) if bornes[0] <= d <= bornes[1]]',
+        '.get("trous_non_decides", {}).get(v, [])]'),
     "S26 les trous non expliqués jamais rendus par la lecture": (
         "        non_decides[v] = sorted(iso(d) for d, n in lecteur.trous(c, m) if n == lecteur.NON_DECIDEE)",
         "        non_decides[v] = []"),

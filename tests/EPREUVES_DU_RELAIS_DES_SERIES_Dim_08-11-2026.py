@@ -862,7 +862,10 @@ def tour(racine):
         # compte des passages en cours porte sur les DEUX circuits du groupe des machines longues
         epreuves = os.path.basename(F.CIRCUIT_EPREUVES)
         series_yml = os.path.basename(F.CIRCUIT_SERIES)
-        codes = list(table.get("epreuves_longues") or {})
+        # les épreuves SIMPLES : une famille de tranches (lot TRANSPORT, A-965, 27-11-2026) n'entre pas dans « toutes »
+        # (FORME_D_UNE_TRANCHE du fabricant) ; la liste est celle du fabricant, pas les clés de la table (R-708)
+        codes = [c for c, _, _ in F.epreuves_du_circuit(racine)] if hasattr(F, "tranches_du_circuit") \
+            else list(table.get("epreuves_longues") or {})
         env_mx, script_mx = pas_du_gabarit(F.EPREUVES or "", "matrice")
         p_ = "1c5302a94959b9702e41bb49b13c7a5220a6da43"
         if len(codes) < 2 or env_mx is None:

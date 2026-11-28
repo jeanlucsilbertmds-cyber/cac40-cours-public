@@ -139,7 +139,8 @@ def etape_preparer(copie, travail):
     if c:
         print("DÉCLARATION DE FAMILLE refusée : code %d\n%s" % (c, o))
         return c
-    c, o, t = enchainer(copie, travail, "preparer")
+    # « --cours-du-maitre » (A-1076, 27-11-2026) : fiche dès 2024, la chaîne joue le maître comme avant le lot L1.
+    c, o, t = enchainer(copie, travail, "preparer", "--cours-du-maitre")
     print("⓪ PREPARER (enchaîneur) code %d en %.1f s · %s" % (c, t, [l for l in o.splitlines() if "VERSIONS QUE" in l]))
     if c:
         print(o)

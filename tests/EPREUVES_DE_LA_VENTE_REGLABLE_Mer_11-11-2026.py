@@ -33,7 +33,8 @@ CE QUI EST ÉPROUVÉ :
   W9 PREPARER : la vraie ligne `sl` de VOISINAGE.csv donne les 15 valeurs de la grille du 19-10-2026, « sans stop » en
      dernier ; liste vide → le pas régulier d'avant ; valeur de la fiche absente de la liste → ajoutée ; « aucune »
      dans une liste d'horizon → en dernier ; fiche « sans stop » sans liste → refus ; élément illisible → refus.
-  W10 PREPARER `main` sur le vrai registre et le vrai VOISINAGE.csv : 7 × 15 × 5 × 11 = 5 775 versions annoncées.
+  W10 PREPARER `main` sur le vrai registre et le vrai VOISINAGE.csv : 7 × 15 × 6 × 11 = 6 930 versions annoncées
+  (6 durées depuis le 27-11-2026, lot L2 : 5, 10, 15, 20, 25 et « aucune », A-1099 ; avant : 7 × 15 × 5 × 11 = 5 775).
   W11 DECLINER : « sans stop » et « aucune » normalisés en mots, la version de la fiche repérée une fois ; « sans stop »
      refusé pour tp ; « sans_stop » et « aucun » refusés.
   W12 JOUER_LES_VERSIONS `controler_fusion` : mot contre mot → aucun écart ; mot contre nombre → un écart.
@@ -281,7 +282,8 @@ def w10():
         c = PR.main([chemin_du_registre("."), "C5E10-OBS-V1", "donnees/combinatoires/VOISINAGE.csv", "E98", d])
     t = sortie.getvalue()
     import shutil; shutil.rmtree(d, ignore_errors=True)
-    note("W10 PREPARER main sur le vrai registre et le vrai voisinage : 5775 versions annoncees", c == 0 and "FABRIQUERA : 5775" in t, (c, t[-200:]))
+    # 7 objectifs × 15 stops × 6 durées (5, 10, 15, 20, 25, « aucune » : lot L2 du 27-11-2026, A-1099) × 11 univers
+    note("W10 PREPARER main sur le vrai registre et le vrai voisinage : 6930 versions annoncees", c == 0 and "FABRIQUERA : 6930" in t, (c, t[-200:]))
 essai("W10", w10)
 
 def w11():
@@ -502,11 +504,16 @@ def bout_en_bout(d):
         # N-3 (relecture Cowork du 14-11-2026, superviseur R-759 E1F) : les versions CHIFFRÉES passent le tri ; leur
         # nombre est CALCULÉ depuis l'entrée de W13 (`entree`), jamais écrit en dur.
         chiffrees = {i for i, (_, h) in entree.items() if h != "aucune"}
+        # DEPUIS LE 28-11-2026 (A-1106, lot L1CORR2) les versions « aucune » sont JOUÉES et coupées par la purge : le tri
+        # les mesure comme les autres (plus de « NON MESURABLE — durée « aucune » ») ; les chiffrées passent toujours.
+        chiffrees_ids = {"C5E10-OBS-V1-E97-%04d" % i for i, (_, h) in enumerate(entree.values(), 1) if h != "aucune"}
+        aucunes = [x for x in lignes if x["horizon"] == "aucune"]
         ok_t = (c_t == 0 and "VERSIONS ESSAYÉES : %d (" % len(entree) in o_t
-                and "NON MESURABLE — durée « aucune » : embargo non tranché : %d version(s)" % (len(entree) - len(chiffrees)) in o_t
-                and "RETENUES : %d " % len(chiffrees) in o_t and {x["id_version"] for x in triees} == chiffrees)
+                and "embargo non tranché" not in o_t
+                and chiffrees_ids <= {x["id_version"] for x in triees}
+                and len(aucunes) == 2 and all(x["embargo_seances"] == "21" and x["operations_70"] != "" for x in aucunes))
         return {"W13 JOUER_LES_VERSIONS puis TRIER de bout en bout : 4 versions (2,5 % / sans stop x 20 / aucune), "
-                "les « aucune » non mesurables": [ok and ok_t, "jouer code %d · %d ligne(s) · tri code %s · %d triee(s) · %s"
+                "les « aucune » jouées et mesurées (A-1106)": [ok and ok_t, "jouer code %d · %d ligne(s) · tri code %s · %d triee(s) · %s"
                                                   % (c, len(lignes), c_t, len(triees), (o_t or o).strip()[-260:])]}
     finally:
         shutil.rmtree(t, ignore_errors=True)
