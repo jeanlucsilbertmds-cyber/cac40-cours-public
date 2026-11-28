@@ -435,6 +435,41 @@ def confronter(page, connu, decisions, notes):
     return ajout
 
 
+def cotes_de_la_moyenne(serie):
+    """Rend, pour CHAQUE séance, la moyenne des 200 dernières clôtures et le côté de la clôture : dessus ou dessous.
+
+    ① RÔLE — Le calcul du voyant de la météo, séance par séance : la seule écriture de la moyenne des 200 séances et
+      du côté de la clôture (R-708).
+    ② CONTEXTE D'APPEL — `voyant`, une fois ; `MODULE_QUAND_JOUER.decoupage_du_jour_meme` (lot W2e-FIX du 27-11-2026),
+      pour le sens du marché de chaque séance du réglage « quand jouer ».
+    ③ ENTRÉE — `serie` : {date AAAA-MM-JJ : clôture}.
+    ④ CONDITIONS D'ENTRÉE — Celles de `voyant` (dates AAAA-MM-JJ, série sans trou vérifiée par l'appelant).
+    ⑤ SORTIE — TROIS valeurs, des listes de même longueur que la série, dans l'ordre des dates : les dates triées ;
+      le côté (vrai si la clôture est STRICTEMENT au-dessus de la moyenne, faux sinon, None avant la 200e séance) ;
+      la moyenne des 200 dernières clôtures, séance comprise (None avant la 200e séance).
+      [rend: 3]
+    ⑥ TRAITEMENT — En un passage : somme glissante des SEANCES_MOYENNE dernières clôtures ; à partir de la 200e
+      séance, moyenne = somme ÷ SEANCES_MOYENNE et côté = clôture > moyenne.
+    ⑦ UNITÉ — Points d'indice.
+    ⑧ POURQUOI — Déplacé de `voyant` sans changement (lot W2e-FIX) pour que le découpage « du jour même » ne recopie
+      pas ce calcul : à la séance i, il ne lit que les séances ≤ i, donc rien de l'avenir.
+    ⑨ CE QUI CLOCHE — Ceux de `voyant` ① et ② (égalité comptée dessous ; arrondis de la somme glissante).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    dates = sorted(serie)
+    c = [serie[d] for d in dates]
+    somme, dessus, moyennes = 0.0, [], []
+    for k, x in enumerate(c):
+        somme += x
+        if k >= SEANCES_MOYENNE: somme -= c[k - SEANCES_MOYENNE]
+        moy = somme / SEANCES_MOYENNE if k >= SEANCES_MOYENNE - 1 else None
+        moyennes.append(moy)
+        dessus.append(x > moy if moy is not None else None)
+    return dates, dessus, moyennes
+
+
 def voyant(serie):
     """voyant de la dernière séance, en UN passage sur toute la série ; None si moins de 252 séances.
 
@@ -488,12 +523,10 @@ def voyant(serie):
     dates = sorted(serie)
     if len(dates) < SEANCES_PLUS_HAUT: return None
     c = [serie[d] for d in dates]
-    somme, dessus = 0.0, []
-    for k, x in enumerate(c):
-        somme += x
-        if k >= SEANCES_MOYENNE: somme -= c[k - SEANCES_MOYENNE]
-        dessus.append(x > somme / SEANCES_MOYENNE if k >= SEANCES_MOYENNE - 1 else None)
-    mm = somme / SEANCES_MOYENNE
+    # la somme glissante et le côté de chaque séance vivent dans `cotes_de_la_moyenne` (lot W2e-FIX : le réglage
+    # « quand jouer » lit le même calcul à chaque séance, R-708) ; mêmes opérations, dans le même ordre
+    _d, dessus, moyennes = cotes_de_la_moyenne(serie)
+    mm = moyennes[-1]
     depuis = 0
     for x in reversed(dessus):
         if x is None or x != dessus[-1]: break

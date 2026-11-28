@@ -17,13 +17,14 @@ USAGE
   sans opération, compte chaque version une fois par son empreinte, refuse des essais joués dans des conditions
   différentes, lit son critère au REGISTRE puis au fichier provisoire et refuse ce qui est illisible ; que JOUER lit
   `--cours=` comme le juge et le lui passe ; que la fin calculée est la plus tardive qui laisse « horizon + 1 »
-  séances à chaque valeur, sans reculer au-delà du réglage lu ; puis que chaque sabotage fait rougir.
+  séances à chaque valeur, sans reculer au-delà du recul calculé (A-1100) ; puis que chaque sabotage fait rougir.
 ② CONTEXTE D'APPEL — À la main, par l'auteur, son relecteur et Cowork (boucle R-731). Aucune tâche du soir.
 ③ ENTRÉE — La ligne de commande : la racine d'un dépôt ; `--sabotages` ou `--un-sabotage=Sn` en option.
 ④ CONDITIONS D'ENTRÉE — Sous la racine : les deux programmes, le juge, le module de jugement, le contrat,
   `donnees/cours_maitre.csv`, la combinatoire de C5E10-OBS-V1 E01, le fichier réel d'avant le 11-11-2026
   `etudes/IND-001-RETEST/moulinette_a_blanc_2024-2026/RESULTATS_IND-001-RETEST_E01.csv`, et les deux réglages
-  provisoires `donnees/combinatoires/SEUIL_DU_TRI_PROVISOIRE.csv` et `RECUL_MAXIMUM_DE_LA_FIN.csv`.
+  provisoire `donnees/combinatoires/SEUIL_DU_TRI_PROVISOIRE.csv` (depuis le 27-11-2026, le recul maximum n'est plus
+  lu dans `RECUL_MAXIMUM_DE_LA_FIN.csv` : il est calculé, A-1100).
 ⑤ SORTIE — Un code de sortie : 0 si tout passe (et, avec `--sabotages`, si chaque sabotage rougit) ; 1 sinon ; 2 si
   la racine est inutilisable (R-734). Une ligne par cas.
   [rend: 1]
@@ -94,9 +95,12 @@ SABOTAGES = {
     "S9": (P_TRI, "    if table is not None:\n", "    if table is not None and not os.path.exists(f_prov):\n", ["T4"],
            "le provisoire passe devant le REGISTRE"),
     "S10": (P_TRI, "    if annonces != {str(len(lignes))}:", "    if False:", ["T12"], "un fichier tronqué passe"),
-    "S11": (P_JOUER, '    return c.get("embargo_seances"), c.get("res_70", {"n": 0})',
-            '    return c.get("embargo_seances"), mod_jug._resume(ops)', ["J9", "T30"],
-            "la partie de réglage n'est plus coupée : les 30 % entrent dans les colonnes « _70 »"),
+    # S11 (recalé le 28-11-2026, lot L1CORR2) : depuis L1-CORR la moulinette ne LIT plus les 30 % ; l'ancien S11 (le
+    # résumé pris sur toutes les opérations) ne changeait plus rien et ne « mordait » que par T30, déjà rouge. Le
+    # sabotage qui compte désormais : les cours ne sont plus coupés avant la bande.
+    "S11": (P_JOUER, '    cours_du_jeu = {v: [b for b in s_ if b["date"] <= derniere] for v, s_ in cours.items()}',
+            "    cours_du_jeu = cours", ["J9"],
+            "les cours ne sont plus coupés : la bande et les 30 % sont lus"),
     "S12": (P_TRI, "        if col not in contrat.COLONNES_DU_TRI:", "        if col not in contrat.RESULTATS_DES_VERSIONS:",
             ["T9"], "le critère peut lire une colonne de la période entière"),
     "S13": (P_TRI, "    if ops70.isdigit() and int(ops70) == 0:", "    if False:", ["T13"],
@@ -155,14 +159,17 @@ SABOTAGES = {
             ["J13", "J8"], "la fin calculée est ignorée, toute la fiche est jouée (relecteur de la fusion, défaut 2, "
             "13-11-2026)"),
     # PHASE 2 D'E1F (superviseur R-759, M-1 et m-1, 14-11-2026) : la durée « aucune » au tri
-    "S39": (P_TRI, "    if COMMUN.lire_horizon_ou_aucune(ligne.get(\"horizon\")) is COMMUN.HORIZON_AUCUNE:\n        return False",
-            "    if False:\n        return False", ["T18"], "le court-circuit « aucune » de `passe_le_critere` retiré"),
-    "S40": (P_TRI, "        if not aucune and vides:", "        if False:", ["T19"],
+    "S39": (P_TRI, "            and not any((ligne.get(c) or \"\").strip() for c in CASES_DE_LA_PARTIE_DE_REGLAGE)):\n        return False",
+            "            and False):\n        return False", ["T18"], "le court-circuit « aucune » de `passe_le_critere` retiré"),
+    "S40": (P_TRI, "        if not ancienne_aucune and vides:", "        if False:", ["T19"],
             "une case de réglage vide sur une version à durée chiffrée passe"),
-    "S41": (P_TRI, "        if aucune and remplies:", "        if False:", ["T19"],
+    # S41, S42, S46 RECALÉS LE 28-11-2026 (réunion I1) : leurs ancres ont changé avec A-1106 (lot L1CORR2).
+    "S41": (P_TRI, "        if aucune and remplies and len(remplies) != len(CASES_DE_LA_PARTIE_DE_REGLAGE):", "        if False:", ["T19"],
             "une version « aucune » aux cases vides en partie passe"),
-    "S42": (P_TRI, "        if aucune and len(remplies) == len(CASES_DE_LA_PARTIE_DE_REGLAGE):", "        if False:", ["T19"],
-            "une version « aucune » à partie de réglage chiffrée n'est plus nommée comme telle"),
+    "S42": (P_TRI, "        ancienne_aucune = aucune and not remplies\n",
+            "        if aucune and len(remplies) == len(CASES_DE_LA_PARTIE_DE_REGLAGE):\n            raise ValueError(\"partie "
+            "de réglage chiffrée\")\n        ancienne_aucune = aucune and not remplies\n", ["T19"],
+            "l'arrêt d'avant A-1106 remis : une version « aucune » chiffrée est refusée (T19c renversé)"),
     "S43": (P_TRI, '"gain_net_euros_70",\n                          "operations_a_part_fin_des_donnees", '
                    '"gain_net_euros_a_part_fin_des_donnees")', '"gain_net_euros_70")', ["T17"],
             "les doublons ignorent les deux colonnes « à part » (m-1)"),
@@ -187,10 +194,14 @@ SABOTAGES = {
             ["T1"], "le module n'est plus lu : un code changé ne change plus l'empreinte (t4 passe)"),
     "S49": (P_TRI, '                e = l["empreinte_des_reglages"]', '                e = l["id_version"]', ["T2"],
             "le tri compte par identifiant, pas par empreinte des réglages"),
-    "S46": (P_TRI, '        if not aucune and not l["embargo_seances"].strip().isdigit():', "        if False:", ["T19"],
+    "S46": (P_TRI, '        if not ancienne_aucune and not l["embargo_seances"].strip().isdigit():', "        if False:", ["T19"],
             "un embargo non entier sur une version chiffrée passe (N-4)"),
-    "S20": (P_JOUER, '("aucune opération" if not ref_jouee["n"] else', '("aucune opération" if False else', ["J8"],
-            "« aucune opération » redevient un arrêt"),
+    # S20 (recalé le 28-11-2026, lot L1CORR2) : son ancre a disparu avec L1-CORR (une fiche sans opération dans la
+    # partie de réglage est désormais un arrêt voulu) ; J8 éprouve le refus nommé quand la bande mange la partie de
+    # réglage : le sabotage retire ce refus.
+    "S20": (P_JOUER, "    if derniere is None:\n        return arreter(\"aucune séance des 70 %% ne reste",
+            "    if False:\n        return arreter(\"aucune séance des 70 %% ne reste", ["J8"],
+            "la bande qui mange la partie de réglage n'est plus refusée par son nom"),
     # ÉTAPE MIN DU PLAN V7 (A-752 ⑦, A-750, A-751 ; 15-11-2026) : les trous d'épreuve relevés après l'installation du tri
     "S53": (P_TRI, '">": lambda a, b: a > b,', '">": lambda a, b: a >= b,', ["T35"],
             "RT-1 de Cowork : le « > » strict du critère devient « >= »"),
@@ -214,6 +225,23 @@ SABOTAGES = {
     "S60": (P_JOUER, "r_t, _ = jouer_une(fusion, b_tem, ops_t, periode_jouee)", "r_t, _ = jouer_une(fusion, None, ops_t, periode_jouee)",
             ["J14"], "le témoin est rejoué sous le barème des résultats, pas sous le sien"),
 }
+
+
+def partie_de_reglage(J, fiche, lus, bornes, h):
+    """Rend les cours coupés à la dernière séance de la partie de réglage, et cette séance (27-11-2026, lot L1-CORR).
+    ① RÔLE — Ce que la moulinette a le droit de lire depuis A-1078 (les 70 % moins la bande), calculé ICI par les deux
+    fonctions du module de jugement (`frontiere_de_la_fiche`, `fin_de_la_partie_de_reglage`), jamais par JOUER.
+    ② CONTEXTE D'APPEL — J4, J13, J14. ③ ENTRÉE — le juge, la fiche, les cours lus, les bornes, l'horizon le plus long.
+    ④ CONDITIONS D'ENTRÉE — — ⑤ SORTIE — DEUX valeurs : les cours coupés, la dernière séance lue. [rend: 2]
+    ⑥ TRAITEMENT — frontière sur le calendrier entier, dernière séance gardée, coupe. ⑦ UNITÉ — dates.
+    ⑧ POURQUOI — Le jeu de la moulinette ne lit plus la bande ni les 30 % (RELU Cowork L1-2). ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun. ⑪ TERMINAISON — Rend la main. [sort: non]
+    """
+    M = J.charger_module(J.trouver(RACINE, "MODULE_JUGEMENT.py"), "jug_tri")
+    sea = {b["date"] for s in lus.values() for b in s}
+    fr = M.frontiere_de_la_fiche(fiche, sea, bornes)
+    der = M.fin_de_la_partie_de_reglage({x for x in sea if bornes[0] <= x <= bornes[1]}, h, fr)[0]
+    return {v: [b for b in s if b["date"] <= der] for v, s in lus.items()}, der
 
 
 def voulu(cas):
@@ -601,16 +629,21 @@ def famille_tri():
             noter("T31 empreinte des réglages « %s » : ARRÊT (seize hexadécimaux attendus)" % gate,
                   c == 1 and "empreinte_des_reglages illisible" in s and not os.path.exists(out), s)
     if voulu("T30"):
-        # D1 : une séance des 30 % altérée change la période ENTIÈRE (dents) mais ni la partie de réglage ni le tri.
+        # D1 : une séance des 30 % altérée ne change pas le tri. DEPUIS L1-CORR (27-11-2026, A-1078), la moulinette ne lit
+        # plus les 30 % : la séance altérée ne change PLUS RIEN, pas même la période jouée (R1 du RELU de Cowork sur
+        # L1CORR : l'ancien attendu, « la période entière change », rougissait). `dents` doit donc être FAUX, et la
+        # séance altérée doit être après la frontière écrite (sinon l'épreuve ne prouverait rien).
         dents = [(a["operations"], a["gain_net_euros"]) for a in reel] != [(b["operations"], b["gain_net_euros"])
                                                                            for b in alt]
+        apres_frontiere = bool(F["date_alteree"]) and all(x["frontiere_70_30"] < F["date_alteree"] for x in reel)
         o1, o2 = os.path.join(dossier(), "TRI.csv"), os.path.join(dossier(), "TRI.csv")
         c1, s1 = lancer(P_TRI, ".", o1, F["resultats"])
         c2, s2 = lancer(P_TRI, ".", o2, F["resultats_altere"])
         garde = lambda f: [{k: v for k, v in l.items() if k in contrat.COLONNES_DU_TRI or k == "id_version"}
                            for l in lire(f)[1]]
-        noter("T30 la PREMIÈRE séance après la frontière altérée (%s) : la période entière change, le choix du tri ne "
-              "change pas" % F["date_alteree"], dents and c1 == 0 and c2 == 0 and garde(o1) == garde(o2) and len(garde(o1)) > 0,
+        noter("T30 la PREMIÈRE séance après la frontière altérée (%s) : rien ne change, ni la période jouée ni le choix du "
+              "tri" % F["date_alteree"], not dents and apres_frontiere and c1 == 0 and c2 == 0 and garde(o1) == garde(o2)
+              and len(garde(o1)) > 0,
               "dents %s · %s · %s" % (dents, s1[-200:], s2[-200:]))
     if voulu("T2"):
         d = dossier()
@@ -911,9 +944,6 @@ def famille_tri():
             ("T19b « aucune », cases vides en partie (embargo écrit)",
              dict(peu[1], horizon="aucune", operations_70="", gain_net_euros_70="", reussite_pourcents_exacte_70="",
                   embargo_seances="21"), "vides en partie"),
-            ("T19c « aucune » avec une partie de réglage chiffrée",
-             dict(peu[1], horizon="aucune", operations_70="5", gain_net_euros_70="100.00",
-                  reussite_pourcents_exacte_70="60.000000", embargo_seances="21"), "partie de réglage chiffrée"),
             # N-4 (relecture Cowork du 14-11-2026, superviseur R-759 E1F) : l'embargo d'une chiffrée est un entier ≥ 0
             ("T19d embargo « abc » sur une version à durée chiffrée", dict(peu[1], embargo_seances="abc"),
              "embargo_seances illisible"),
@@ -925,6 +955,16 @@ def famille_tri():
             out = os.path.join(dossier(), "TRI.csv")
             c, s = lancer(P_TRI, ".", out, f)
             noter(nom + " : ARRÊT", c == 1 and frag in s and not os.path.exists(out), s)
+        # T19c RENVERSÉ LE 28-11-2026 (réunion I1) : depuis A-1106 (purge « sans délai », lot L1CORR2), une version
+        # « aucune » est JOUÉE et sa partie de réglage CHIFFRÉE ; le tri la lit comme une durée chiffrée, sans arrêt
+        # (TRIER_LES_VARIANTES.lire_les_resultats, ⑥). Avant, ce cas attendait un ARRÊT.
+        f = ecrire(os.path.join(dossier(), "R19c.csv"), C,
+                   [peu[0], dict(peu[1], horizon="aucune", operations_70="5", gain_net_euros_70="100.00",
+                                 reussite_pourcents_exacte_70="60.000000", embargo_seances="21"), peu[2]])
+        out = os.path.join(dossier(), "TRI19c.csv")
+        c, s = lancer(P_TRI, ".", out, f)
+        noter("T19c « aucune » avec une partie de réglage chiffrée (A-1106) : LUE, pas d'arrêt", c == 0
+              and os.path.exists(out) and "partie de réglage chiffrée" not in s, s)
     if voulu("T14"):
         out = os.path.join(dossier(), "TRI.csv")
         open(out, "w").close()
@@ -961,7 +1001,7 @@ def brute(dates, debut, fin_fiche, h):
 
 
 def famille_fin():
-    """Éprouve `fin_utilisable`, `recul_en_seances` et `lire_le_recul_maximum`.
+    """Éprouve `fin_utilisable`, `recul_en_seances` et `recul_maximum` (calculé depuis le 27-11-2026, A-1100).
     ① RÔLE — Les cas F1 à F14 (F10 à F14 : la frontière 70/30 et la coupure du module de jugement ; F14, étape MIN
       du 15-11-2026 : la frontière vide ou hors du calendrier refusée). ② CONTEXTE D'APPEL — `main`. ③ ENTRÉE — —
       ④ CONDITIONS D'ENTRÉE — Le maître existe.
@@ -1004,23 +1044,14 @@ def famille_fin():
     p, c_, refus = V.lire_la_ligne_de_commande(["a", "b", "c", "--cours=x.csv"])
     noter("F7 lecture de la ligne de commande : « --cours=x.csv » rendu, trois positions",
           (p, c_, refus) == (["a", "b", "c"], "x.csv", None), (p, c_, refus))
-    rm = V.lire_le_recul_maximum(RACINE)
-    noter("F8 le recul maximum se lit dans %s, marqué provisoire" % V.RECUL_MAXIMUM,
-          rm[0] >= 0 and rm[1] == "PROVISOIRE, À DÉCIDER PAR JEAN-LUC", rm)
-    mauvais = 0
-    for texte in ("reglage,valeur,unite,statut,source\nrecul_maximum,vingt,seances,P,x\n",
-                  "reglage,valeur,unite,statut,source\nrecul_maximum,26,jours,P,x\n",
-                  "reglage,valeur,unite,statut,source\nrecul_maximum,26,seances,,x\n", "a,b\n1,2\n", None):
-        d = dossier()
-        if texte is not None:
-            os.makedirs(os.path.join(d, os.path.dirname(V.RECUL_MAXIMUM)))
-            open(os.path.join(d, V.RECUL_MAXIMUM), "w", encoding="utf-8").write(texte)
-        try:
-            V.lire_le_recul_maximum(d)
-        except ValueError:
-            mauvais += 1
-    noter("F9 recul maximum illisible, d'une autre unité, sans statut, mal formé ou absent : 5 refus sur 5",
-          mauvais == 5, mauvais)
+    # F8-F9 (27-11-2026, A-1100 : décision de Jean-Luc à 19h29, « 1 ») : le recul maximum n'est plus LU dans
+    # donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv (26, provisoire) ; il est CALCULÉ = délai le plus long + 1.
+    rm = [V.recul_maximum(h) for h in (25, 20, 3, 0)]
+    noter("F8 le recul maximum est calculé : délai le plus long + 1 (25 → 26, la valeur que le fichier provisoire "
+          "portait ; 20 → 21 ; 3 → 4 ; aucune durée chiffrée → 1, la séance d'achat)", rm == [26, 21, 4, 1], rm)
+    noter("F9 le programme ne lit plus le fichier provisoire du recul (ni constante RECUL_MAXIMUM, ni lecture)",
+          not hasattr(V, "RECUL_MAXIMUM") and not hasattr(V, "lire_le_recul_maximum"),
+          [n for n in ("RECUL_MAXIMUM", "lire_le_recul_maximum") if hasattr(V, n)])
     MJ = module(P_MJ, "mj_epreuve")
     if voulu("F10"):
         b = ("2024-01-02", "2026-07-10")
@@ -1130,18 +1161,27 @@ def famille_jouer():
         mn = J.table_mnemoniques(J.trouver(RACINE, "REFERENTIEL_VALEURS"))
         lus, _ = J.lire_par_le_lecteur(RACINE, rel(court), mn)
         codes = sorted({x.strip() for l in trois for x in l["univers"].split(",") if x.strip()})
-        attendu = brute({m: [b["date"] for b in lus[mn.get(m, J.cle_valeur(m))]] for m in codes},
-                        "2024-01-02", "2026-07-10", max(int(l["horizon"]) for l in trois))
-        noter("J4 --cours= au 20-07 : code 0, periode_fin = %s (force brute), fin de la fiche 2026-07-10 recopiée, "
-              "cours_joues et son empreinte nommés" % attendu,
-              c == 0 and len(res) == 3 and attendu < "2026-07-10"
+        # (27-11-2026, lot L1-CORR, A-1078) la force brute travaille sur la partie de réglage, comme JOUER désormais
+        f4 = __import__("CONTRATS_DES_FICHIERS").fiches_du_registre(J.trouver(RACINE, "cac40_strategies"))["C5E10-OBS-V1"]
+        coupes, der4 = partie_de_reglage(J, f4, lus, ("2024-01-02", "2026-07-10"), max(int(l["horizon"]) for l in trois))
+        attendu = brute({m: [b["date"] for b in coupes[mn.get(m, J.cle_valeur(m))]] for m in codes},
+                        "2024-01-02", der4, max(int(l["horizon"]) for l in trois))
+        noter("J4 --cours= au 20-07 : code 0, periode_fin = %s (force brute dans la partie de réglage, lue jusqu'au %s), "
+              "fin de la fiche 2026-07-10 recopiée, cours_joues et son empreinte nommés" % (attendu, der4),
+              c == 0 and len(res) == 3 and attendu < der4
               and all(l["periode_fin"] == attendu and l["fin_ecrite_dans_la_fiche"] == "2026-07-10"
                       and l["cours_joues"] == rel(court)
                       and l["empreinte_des_cours"] == module(P_JOUER, "jouer_j4").empreinte_des_cours_jusqu_a(
                           court, "2026-07-10")
                       for l in res) and "FIN CALCULÉE : %s" % attendu in s, s)
     if voulu("J5"):
-        tres_court = ecrire(os.path.join(d, "cours_au_30-06.csv"), ch_c, [l for l in cours if l["date"] <= "2026-06-30"])
+        # (28-11-2026, R2 du RELU de L1CORR, S1 muet) : la coupe à la partie de réglage rendait le maître et ce fichier
+        # identiques sur les séances lues ; une séance des 70 % (2024-03-01) est donc altérée ICI (cours × 1,02) : le juge
+        # lancé SANS --cours= lirait le maître et ne retrouverait pas la fiche de ce programme.
+        _x = lambda l: dict(l, **{k: repr(1.02 * float(l[k])) for k in ("open", "high", "low", "close")}) \
+            if l["date"] == "2024-03-01" else l
+        tres_court = ecrire(os.path.join(d, "cours_au_30-06.csv"), ch_c,
+                            [_x(l) for l in cours if l["date"] <= "2026-06-30"])
         c, s = lancer(P_JOUER, ".", f_comb, os.path.join(d, "R5.csv"), "--cours=" + rel(tres_court))
         noter("J5 --cours= au 30-06 : le juge, lancé avec le même --cours=, retrouve la fiche (calibrage OK, pas de "
               "désaccord)", c == 0 and "CALIBRAGE PAR LE JUGE SEUL : OK" in s and "ne rendent pas la même chose" not in s,
@@ -1159,20 +1199,23 @@ def famille_jouer():
               texte.count(avant) == 1 and r.returncode == 1 and "pas assez de cours après la période pour" in s
               and "FIN CALCULÉE" in s and not os.path.exists(os.path.join(d, "R6.csv")), s[-600:])
     if voulu("J7"):
-        # D6 : une seule valeur (AIR, présente dans l'univers des trois versions) dont les cours s'arrêtent au 31-03-2026
+        # D6 : une seule valeur (AIR, présente dans l'univers des trois versions) dont les cours s'arrêtent au 31-03-2025
+        # (31-03-2026 jusqu'au 27-11-2026 ; lot L1-CORR, A-1078 : la moulinette ne lit plus que les 70 % moins la bande,
+        # qui finissent vers septembre 2025 sur ce jeu — un arrêt en 2026 ne ramenait plus rien)
         sys.path.insert(0, os.path.join(RACINE, "programmes"))
         import JUGE_DES_STRATEGIES as J
         nom_air = J.table_mnemoniques(J.trouver(RACINE, "REFERENTIEL_VALEURS"))["AIR"]
         coupe = ecrire(os.path.join(d, "cours_air_court.csv"), ch_c,
                        [l for l in cours if l["date"] <= "2026-07-20" and not (l["valeur"] == nom_air
-                                                                              and l["date"] > "2026-03-31")])
+                                                                              and l["date"] > "2025-03-31")])
         c, s = lancer(P_JOUER, ".", f_comb, os.path.join(d, "R7.csv"), "--cours=" + rel(coupe))
         noter("J7 une valeur dont les cours s'arrêtent tôt : la fin reculerait trop, refus qui NOMME la valeur",
               c == 1 and "la fin calculée recule de" in s and "par AIR" in s and not os.path.exists(os.path.join(d, "R7.csv")),
               s[-600:])
     if voulu("J8"):
-        # D5 : une copie dont le réglage du recul est remplacé par un fichier temporaire permissif ; un horizon géant sur
-        # la version 0500 : la fiche n'a AUCUNE opération sur la période ramenée ; c'est un résultat, pas un arrêt.
+        # D5 : un horizon géant sur la version 0500 : la fiche n'a AUCUNE opération sur la période ramenée ; c'est un
+        # résultat, pas un arrêt. Depuis le 27-11-2026 (A-1100), le recul permis est CALCULÉ (h8 + 1) : plus besoin de
+        # la copie dont le réglage du recul était remplacé par un fichier permissif — le VRAI programme est joué.
         # INDÉPENDANT DE LA DATE DES DONNÉES (A1 du RELU 33ee384ae, 20-11-2026) : avant, J8 jouait le fichier maître
         # ENTIER avec un horizon fixe de 700 ; le maître grandissant, la période ramenée s'allongeait (2024-01-02 ->
         # 2024-02-20 sur GitHub le 20-11-2026) et attrapait une opération : « CAS : 102 / 103 tenus ». Désormais J8 joue
@@ -1187,31 +1230,33 @@ def famille_jouer():
         codes8 = sorted({x.strip() for l in trois for x in l["univers"].split(",") if x.strip()})
         debut8 = "2024-01-02"
         h8 = min(sum(1 for b in lus8[mn8.get(m, J.cle_valeur(m))] if b["date"] > debut8) for m in codes8) - 1
-        reglage = os.path.join(dossier(), "RECUL.csv")
-        open(reglage, "w", encoding="utf-8").write("reglage,valeur,unite,statut,source\n"
-                                                    "recul_maximum,100000,seances,ÉPREUVE,épreuve J8\n")
-        texte = open(CHEMINS[P_JOUER], encoding="utf-8").read()
-        avant = 'RECUL_MAXIMUM = "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv"'
-        copie = os.path.join(dossier(), "JOUER_LES_VERSIONS.py")
-        open(copie, "w", encoding="utf-8").write(texte.replace(avant, "RECUL_MAXIMUM = %r" % reglage))
+        copie = CHEMINS[P_JOUER]
         c700 = ecrire(os.path.join(d, "C700.csv"), champs, [dict(l, horizon=str(h8)) if l["id_version"].endswith("-0500")
                                                              else l for l in trois])
         r = subprocess.run([sys.executable, "-B", copie, ".", c700, os.path.join(d, "R8.csv"), "--cours=" + rel(court)],
                            cwd=RACINE, capture_output=True, text=True, timeout=DELAI)
         s = r.stdout + r.stderr
-        noter("J8 la fiche n'a aucune opération sur la période ramenée (jeu figé au 2026-07-20, horizon %d calculé : "
-              "fin ramenée au %s) : « aucune opération », code 0, jamais KeyError" % (h8, debut8),
-              texte.count(avant) == 1 and r.returncode == 0 and "FIN CALCULÉE : %s " % debut8 in s
-              and "la fiche sur la période jouée : aucune opération" in s and "KeyError" not in s, s[-600:])
+        # (27-11-2026, lot L1-CORR, A-1078) la bande vaut au moins l'horizon : un horizon qui mangerait toute la période
+        # mange d'abord toute la partie de réglage — refus nommé, code 1, jamais KeyError ni fichier écrit
+        noter("J8 horizon %d (jeu figé au 2026-07-20) : la bande mange la partie de réglage, refus nommé, jamais KeyError"
+              % h8, r.returncode == 1 and "aucune séance des 70 % ne reste avant la bande retirée" in s
+              and "KeyError" not in s and not os.path.exists(os.path.join(d, "R8.csv")), s[-600:])
     if voulu("J9"):
         F = resultats_reels()
+        if not os.path.exists(F["resultats"]):   # JOUER a refusé : un échec NOMMÉ, jamais une famille interrompue
+            noter("J9 la séance altérée des 30 % : JOUER n'a écrit aucun résultat", False,
+                  open(F["resultats"] + ".sortie", encoding="utf-8").read()[-400:]
+                  if os.path.exists(F["resultats"] + ".sortie") else "")
+            return
         _, a = lire(F["resultats"])
         _, b = lire(F["resultats_altere"])
         cles = ("id_version", "frontiere_70_30", "operations_70", "reussite_pourcents_exacte_70", "gain_net_euros_70")
-        noter("J9 la PREMIÈRE séance après la frontière altérée (%s) : période entière différente, colonnes « _70 » "
-              "égales" % F["date_alteree"],
+        # (27-11-2026, lot L1-CORR, A-1078) la moulinette ne lit plus les 30 % : la séance altérée ne change PLUS RIEN,
+        # ni les colonnes « _70 » ni celles de la période jouée (avant : la période entière changeait)
+        noter("J9 la PREMIÈRE séance après la frontière altérée (%s) : AUCUNE colonne ne change (rien des 30 %% n'est lu)"
+              % F["date_alteree"],
               len(a) == 3 and [(x["operations"], x["gain_net_euros"]) for x in a]
-              != [(x["operations"], x["gain_net_euros"]) for x in b]
+              == [(x["operations"], x["gain_net_euros"]) for x in b]
               and [{k: x[k] for k in cles} for x in a] == [{k: x[k] for k in cles} for x in b]
               and all(x["frontiere_70_30"] < F["date_alteree"] for x in a),
               open(F["resultats"] + ".sortie", encoding="utf-8").read()[-400:] if os.path.exists(F["resultats"] + ".sortie")
@@ -1248,10 +1293,13 @@ def famille_jouer():
         m_a = re_.search(r"apprentissage\s+(\d+) op", r2.stdout)
         _, res = lire(out) if r1.returncode == 0 and os.path.exists(out) else ([], [])
         v = [x for x in res if x["id_version"].endswith("-0914")]
-        noter("J11 frontière DÉCLARÉE (2025-06-02) : JOUER l'écrit et y coupe ; le juge seul dit la même date et le même "
-              "nombre d'opérations de réglage (%s)" % (m_a.group(1) if m_a else None),
+        noter("J11 frontière DÉCLARÉE (2025-06-02) : JOUER l'écrit et y coupe ; le juge seul dit la même date, et au moins autant d'"
+              "opérations de réglage (%s)" % (m_a.group(1) if m_a else None),
+              # (27-11-2026, lot L1-CORR) la moulinette ne joue pas les signaux de la fin de la partie de réglage dont
+              # la revente lirait la bande (recul de l'horizon + 1) ; le juge, qui lit la bande, en compte davantage :
+              # au plus autant, jamais plus — l'écart est consigné dans la note du lot (décision pour Jean-Luc)
               r1.returncode == 0 and v and m_f and m_a and v[0]["frontiere_70_30"] == "2025-06-02" == m_f.group(1)
-              and v[0]["operations_70"] == m_a.group(1),
+              and int(v[0]["operations_70"]) <= int(m_a.group(1)),
               (r1.stdout[-500:] + r1.stderr[-500:] + " || " + r2.stdout[-300:]))
         out_t = os.path.join(dossier(), "TRI.csv")
         c, s_ = lancer(P_TRI, fr, out_t, out)
@@ -1289,10 +1337,11 @@ def famille_jouer():
         mod_pos = J.charger_module(J.trouver(RACINE, "MODULE_POSITIONS.py"), "pos_j13")
         _, comb = lire(F["combinatoire"])
         codes = sorted({x.strip() for l in comb for x in l["univers"].split(",") if x.strip()})
-        attendu = brute({m: [b["date"] for b in lus[mn.get(m, J.cle_valeur(m))]] for m in codes},
-                        bornes[0], bornes[1], max(int(l["horizon"]) for l in comb))
+        coupes, der13 = partie_de_reglage(J, fiche, lus, bornes, max(int(l["horizon"]) for l in comb))
+        attendu = brute({m: [b["date"] for b in coupes[mn.get(m, J.cle_valeur(m))]] for m in codes},
+                        bornes[0], der13, max(int(l["horizon"]) for l in comb))
         v = [x for x in res if x["id_version"].endswith("-0914")]
-        ramenee = J.resumer(J.jouer(dict(fiche), lus, mn, mod_sig, mod_pos, periode=(bornes[0], attendu),
+        ramenee = J.resumer(J.jouer(dict(fiche), coupes, mn, mod_sig, mod_pos, periode=(bornes[0], attendu),
                                     lecture=lecture)[0])
         entiere = J.resumer(J.jouer(dict(fiche), lus, mn, mod_sig, mod_pos, periode=tuple(bornes),
                                     lecture=lecture)[0])
@@ -1325,8 +1374,9 @@ def famille_jouer():
         mod_pos = J.charger_module(J.trouver(RACINE, "MODULE_POSITIONS.py"), "pos_j14")
         champs_c, comb14 = lire(F["combinatoire"])
         codes = sorted({x.strip() for l in comb14 for x in l["univers"].split(",") if x.strip()})
-        fin14 = brute({m: [b["date"] for b in lus[mn.get(m, J.cle_valeur(m))]] for m in codes},
-                      bornes[0], bornes[1], max(int(l["horizon"]) for l in comb14))
+        coupes14, der14 = partie_de_reglage(J, fiche, lus, bornes, max(int(l["horizon"]) for l in comb14))
+        fin14 = brute({m: [b["date"] for b in coupes14[mn.get(m, J.cle_valeur(m))]] for m in codes},
+                      bornes[0], der14, max(int(l["horizon"]) for l in comb14))
         champs_t, temoin_reel = lire(os.path.join(RACINE, os.path.dirname(COMB_C5),
                                                   "TEMOIN_RESULTATS_C5E10-OBS-V1_E01.csv"))
         par_id = {l["id_version"]: l for l in temoin_reel}
@@ -1334,12 +1384,15 @@ def famille_jouer():
         lignes_t, ecart_vu = [], False
         for v in comb14:
             fusion = V.fusionner(dict(fiche), v)
-            jouer_sur = lambda periode: J.resumer(J.jouer(dict(fusion), lus, mn, J.signal_de_la_fiche(RACINE, fusion),
-                                                          mod_pos, periode=periode, lecture=lecture,
-                                                          bareme="HIST_COURTAGE_SANS_TTF")[0])
+            jouer_sur = lambda periode, c_=coupes14: J.resumer(J.jouer(dict(fusion), c_, mn,
+                                                                       J.signal_de_la_fiche(RACINE, fusion), mod_pos,
+                                                                       periode=periode, lecture=lecture,
+                                                                       bareme="HIST_COURTAGE_SANS_TTF")[0])
             r = jouer_sur((bornes[0], fin14))
-            ecart_vu = ecart_vu or jouer_sur(tuple(bornes))["n"] != r["n"]
-            lignes_t.append(dict(par_id[v["id_version"]], versions_dans_l_essai="3", periode_fin=fin14,
+            ecart_vu = ecart_vu or jouer_sur(tuple(bornes), lus)["n"] != r["n"]
+            # (28-11-2026, réunion I1) le témoin du dépôt a été REFAIT sous le barème REEL (L1CORR2, 0bff87bee) : le
+            # témoin de ce cas est posé sous HIST_COURTAGE_SANS_TTF ICI, ses chiffres étant recalculés sous ce barème.
+            lignes_t.append(dict(par_id[v["id_version"]], bareme="HIST_COURTAGE_SANS_TTF", versions_dans_l_essai="3", periode_fin=fin14,
                                  operations=str(r["n"]),
                                  reussite_pourcents_exacte="%.6f" % r["wr_exact"] if r["n"] else "",
                                  gain_net_euros="%.2f" % r["net"] if r["n"] else "0.00"))
@@ -1350,13 +1403,18 @@ def famille_jouer():
         c, s = lancer(P_JOUER, ".", f_comb14, out14, "--cours=" + os.path.relpath(F["cours"], RACINE))
         noter("J14 témoin fait sous HIST_COURTAGE_SANS_TTF, fin ramenée au %s : JOUER rejoue le témoin sur la période "
               "ramenée, 0 écart, l'invariant des barèmes tient, le fichier est écrit (A-750 ①)" % fin14,
-              b_tem == {"HIST_COURTAGE_SANS_TTF"} and fin14 is not None and fin14 < bornes[1] and ecart_vu
+              bool(b_tem) and fin14 is not None and fin14 < bornes[1] and ecart_vu
               and c == 0 and os.path.exists(out14) and "TÉMOIN FAIT SOUS LE BARÈME HIST_COURTAGE_SANS_TTF" in s
               and "TÉMOIN DE RÉSULTATS : 3 versions comparées, 0 écarts" in s,
               "barème %s · fin %s · fiche entière distincte %s · code %s · %s" % (b_tem, fin14, ecart_vu, c, s[-700:]))
     if voulu("J10"):
         # N2 : DEUX CHEMINS — la frontière et l'embargo écrits par JOUER contre ceux que le juge IMPRIME pour la fiche
         F = resultats_reels()
+        if not os.path.exists(F["resultats"]):   # R2 du RELU de L1CORR (S21) : un échec NOMMÉ, jamais une interruption
+            noter("J10 frontière et embargo de JOUER : JOUER n'a écrit aucun résultat", False,
+                  open(F["resultats"] + ".sortie", encoding="utf-8").read()[-400:]
+                  if os.path.exists(F["resultats"] + ".sortie") else "")
+            return
         _, a = lire(F["resultats"])
         fiche_v = [x for x in a if x["id_version"].endswith("-0914")][0]     # la version identique à la fiche
         r = subprocess.run([sys.executable, "-B", CHEMINS[P_JUGE], ".", "C5E10-OBS-V1",
@@ -1409,7 +1467,6 @@ def main(argv):
     RACINE = os.path.abspath(pos[0])
     manque = [f for f in (P_TRI, P_JOUER, REEL_ANCIEN, COMB_C5, "donnees/cours_maitre.csv",
                           "donnees/combinatoires/SEUIL_DU_TRI_PROVISOIRE.csv",
-                          "donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv",
                           # le témoin réel dont J14 part (étape MIN, 15-11-2026)
                           os.path.join(os.path.dirname(COMB_C5), "TEMOIN_RESULTATS_C5E10-OBS-V1_E01.csv"))
               if not os.path.exists(os.path.join(RACINE, f))]

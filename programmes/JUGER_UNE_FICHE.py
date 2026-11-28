@@ -55,16 +55,21 @@ import CONTRATS_DES_FICHIERS as C  # noqa: E402
 import DECLARER_UNE_STRATEGIE as D  # noqa: E402
 import JUGE_DES_STRATEGIES as JS  # noqa: E402
 import MODULE_JUGEMENT as J  # noqa: E402
+import COMPTER_LES_ESSAIS_PAR_RESSEMBLANCE as KR  # noqa: E402  k du juge, par ressemblance (A-1082, réunion I1)
+import MODULE_CONTROLE_2_DU_HASARD as C2  # noqa: E402  nombre de tirages du contrôle 2 (R-708)
+import MODULE_QUAND_JOUER as QJ  # noqa: E402  le découpage du jour même (A-1105)
 import TENIR_LE_REGISTRE_DES_ESSAIS as TR  # noqa: E402
 
 PARIS = ZoneInfo("Europe/Paris")
 # LE REGISTRE DES RÈGLES, où vit la table « LES SEUILS DE CETTE LOI » de R-505 (instructions du projet, §11 : nom fixe,
 # un seul exemplaire) ; la porte la lit SOUS LA RACINE, jamais dans le dossier de ce fichier.
 REGISTRE_DES_REGLES = os.path.join("gouvernance", "REGISTRE_REGLES.md")
-# LES DEUX MODES DE L'ÉTALON DE HASARD, ceux que `JUGE_DES_STRATEGIES.juger` joue déjà (« l'ACTION au hasard », « les
-# DATES au hasard ») ; la liste y est écrite dans le code, pas dans une constante : elle est RÉPÉTÉE ici (⑨ de
-# `_hasard`, au BACKLOG). Le plus grand p décide (grille, ⑨ ⑤).
-MODES_DU_HASARD = ("valeur", "date")
+# LES MODES DE L'ÉTALON DE HASARD JOUÉS PAR LA PORTE (réunion I1 du 28-11-2026, A-1081, décision de Jean-Luc du
+# 27-11-2026 à 16h40) : « meme_type », le JOUR AU HASARD dans le même type de marché mesuré le jour même, le SEUL qui
+# décide (grille, contrôle ⑥, par `MODULE_CONTROLE_2_DU_HASARD.controle_2`) ; « valeur », l'ACTION au hasard le même
+# jour, AFFICHÉE sans décider. Le mode « date » n'est plus joué (A-1081 ne le compte pas parmi les trois comparaisons ;
+# la REVENTE au hasard, troisième comparaison, n'est pas programmée : ligne non branchée de la grille).
+MODES_DU_HASARD = ("meme_type", "valeur")
 # LA BRANCHE PRINCIPALE est UNE constante du contrat (`CONTRATS_DES_FICHIERS.BRANCHE_PRINCIPALE`), jamais un paramètre.
 
 
@@ -348,7 +353,10 @@ def _jouer_les_annees_d_examen(racine, fiche, bornes, recu):
     mod_pos = JS.charger_module(f_pos, "pos_porte")
     signal = JS.signal_de_la_fiche(racine, fiche)
     periode = (bornes[0].isoformat(), bornes[1].isoformat())
-    ops, inconnus = JS.jouer(fiche, cours, mnemo, signal, mod_pos, periode=periode, lecture=lecture, recu=recu)
+    # LE DÉCOUPAGE DU JOUR MÊME d'une fiche « quand jouer » (A-1105), comme `JUGE_DES_STRATEGIES.main` ; None pour
+    # « toujours » (réunion I1 du 28-11-2026 : la porte ne le passait pas, une fiche « quand jouer » levait ValueError)
+    ops, inconnus = JS.jouer(fiche, cours, mnemo, signal, mod_pos, periode=periode, lecture=lecture, recu=recu,
+                             types_de_marche=JS.decoupage_pour_la_fiche(racine, fiche))
     if inconnus:
         return None, "valeur(s) de la fiche absente(s) des cours : %s (identité des valeurs)" % ", ".join(inconnus)
     tp, sl = JS.seuil_de_la_fiche(fiche, "tp"), JS.seuil_de_la_fiche(fiche, "sl")
@@ -358,37 +366,64 @@ def _jouer_les_annees_d_examen(racine, fiche, bornes, recu):
             "h": h, "univ": [v for v in univ if v in cours], "periode": periode, "recu": recu}, ""
 
 
-def _hasard(jeu, s_hasard):
+def _operations_jugees(jeu):
+    """Rend le jeu dont les opérations sont les seules TERMINÉES, et l'affichage des positions non terminées.
+
+    ① RÔLE — Faire, à un endroit éprouvable, la mise à part d'A-1108 AVANT le point mort, le hasard et les mesureurs
+      (réunion I1 du 28-11-2026 : le sabotage « résultat de la mise à part jeté » restait vert, relecture V2, W2bFIX ②).
+    ② CONTEXTE D'APPEL — `juger_une_fiche`, une fois ; les épreuves de la réunion I1.
+    ③ ENTRÉE — `jeu` : le rendu de `_jouer_les_annees_d_examen` (case `ops`).
+    ④ CONDITIONS D'ENTRÉE — Celles de `MODULE_JUGEMENT.mettre_a_part_les_non_terminees`.
+    ⑤ SORTIE — DEUX valeurs : un NOUVEAU dictionnaire de jeu, `ops` = les opérations terminées ; l'affichage
+      {n, resultat_latent_eur, role}.
+      [rend: 2]
+    ⑥ TRAITEMENT — appeler `mettre_a_part_les_non_terminees` ; recopier le jeu avec les opérations terminées.
+    ⑦ UNITÉ — Nombre de positions ; euros.
+    ⑧ POURQUOI — A-1108 (Jean-Luc, 27-11-2026 à 22h29, « 2 ») : les positions non terminées sont exclues du Kelly, du
+      hasard et du point mort ; la grille, elle, reçoit TOUTES les opérations et les met à part elle-même pour les afficher.
+    ⑨ CE QUI CLOCHE — —
+    ⑩ EFFET — Aucun : le jeu reçu n'est pas modifié.
+    ⑪ TERMINAISON — Rend la main, ou lève ValueError.
+      [sort: non]
+    """
+    ops, a_part = J.mettre_a_part_les_non_terminees(jeu["ops"])
+    return dict(jeu, ops=ops), a_part
+
+
+def _hasard(racine, jeu, s_hasard):
     """Joue l'étalon de hasard de R-505 ⑥ avec assez de tirages pour que 1 ÷ tirages passe sous le seuil.
 
-    ① RÔLE — Donner à la grille sa liste `hasard` (un rendu d'`etalon_hasard` par mode).
+    ① RÔLE — Donner à la grille sa liste `hasard` (un rendu d'`etalon_hasard` par mode de MODES_DU_HASARD).
     ② CONTEXTE D'APPEL — `juger_une_fiche`, une fois.
-    ③ ENTRÉE — `jeu` : le rendu de `_jouer_les_annees_d_examen` · `s_hasard` : le seuil du hasard LU à la table
-      (`seuil_de_la_loi`), sans unité.
+    ③ ENTRÉE — `racine` : le dépôt (pour le découpage du jour même) · `jeu` : le rendu de `_operations_jugees` ·
+      `s_hasard` : le seuil du hasard LU à la table (`seuil_de_la_loi`), sans unité.
     ④ CONDITIONS D'ENTRÉE — `s_hasard` dans ]0, 1].
     ⑤ SORTIE — UNE valeur : la liste des rendus, un par mode de MODES_DU_HASARD.
       [rend: 1]
-    ⑥ TRAITEMENT — ① tirages = la partie entière de 1 ÷ seuil, plus un (le plus petit nombre dont l'inverse est sous
-      le seuil) · ② pour chaque mode, `etalon_hasard` avec l'achat et l'admission du juge (`jouer_une_entree`,
-      `achat_admis`) et la période des années d'examen, comme `JUGE_DES_STRATEGIES.juger`.
+    ⑥ TRAITEMENT — ① tirages = `MODULE_CONTROLE_2_DU_HASARD.nombre_de_tirages(seuil)` (la seule formule, R-708) ·
+      ② le découpage du jour même, `MODULE_QUAND_JOUER.decoupage_par_defaut(racine)` (A-1105) · ③ pour chaque mode,
+      `etalon_hasard` avec l'achat et l'admission du juge (`jouer_une_entree`, `achat_admis`), la période des années
+      d'examen et, pour « meme_type », le découpage.
     ⑦ UNITÉ — Des tirages ; des euros.
     ⑧ POURQUOI — R-505 ⑥ : « Il faut assez de tirages pour que 1 ÷ (nombre de tirages) passe sous le seuil, sinon le
       contrôle est INCONNU » (DÉL-D38) : le nombre se CALCULE depuis le seuil, il ne s'écrit pas.
-    ⑨ CE QUI CLOCHE — ① MODES_DU_HASARD répète la liste écrite dans `juger` (deux écritures : BACKLOG). ② Pour k = 69,
-      0,05 ÷ 69 donne 1 381 tirages par mode : long sur les vraies données (non mesuré ici).
+    ⑨ CE QUI CLOCHE — ① `JUGE_DES_STRATEGIES.juger` (l'ancien juge) joue encore « valeur » et « date » : deux listes
+      (BACKLOG). ② Pour k = 69, 0,05 ÷ 69 donne 1 381 tirages par mode : long sur les vraies données (non mesuré ici).
     ⑩ EFFET — Exécute le module de positions.
     ⑪ TERMINAISON — Rend la main ; le nombre de tirages est borné par le seuil.
       [sort: non]
     """
-    n = int(1.0 / s_hasard) + 1
+    n = C2.nombre_de_tirages(s_hasard)
     cours, lecture, mod_pos = jeu["cours"], jeu["lecture"], jeu["mod_pos"]
     tp, sl, h = jeu["tp"], jeu["sl"], jeu["h"]
+    decoupage = QJ.decoupage_par_defaut(racine)
     rendus = []
     for mode in MODES_DU_HASARD:
         rendus.append(J.etalon_hasard(
             jeu["ops"], cours, jeu["univ"], tp, sl, h, mod_pos, mode=mode, n_tirages=n,
             entree=lambda v, j: JS.jouer_une_entree(v, cours[v], j, tp, sl, h, mod_pos, lecture, None, jeu["recu"]),
-            admis=lambda v, j: JS.achat_admis(v, cours[v], j, lecture), periode=jeu["periode"]))
+            admis=lambda v, j: JS.achat_admis(v, cours[v], j, lecture), periode=jeu["periode"],
+            decoupage=decoupage if mode == "meme_type" else None))
     return rendus
 
 
@@ -406,20 +441,23 @@ def juger_une_fiche(racine, fiche_id, cas):
       registre des règles de la racine (sinon ValueError de `table_de_la_loi` ; un registre ABSENT rend INCONNU) ;
       HEAD est la branche principale et l'arbre est propre (sinon INCONNU) ; le dépôt distant joignable (le regard se
       pousse avant le jeu ; sinon RuntimeError de l'inscription, et rien n'est joué).
-    ⑤ SORTIE — UNE valeur : le rendu de `grille_de_validation` (six clés : verdict, motif, premier_controle_bloquant,
-      seuil_de_preuve, seuil_du_hasard, controles), plus `lu` : ce que la porte a lu et pourquoi elle s'est arrêtée
+    ⑤ SORTIE — UNE valeur : le rendu de `grille_de_validation` (sept clés : verdict, motif, premier_controle_bloquant,
+      seuil_de_preuve, seuil_du_hasard, controles, non_terminees), plus `lu` : ce que la porte a lu et pourquoi elle s'est arrêtée
       ({fiche_id, cas_declare, declaration : le rendu de `lire_la_declaration`, k, regard, bilan : celui de B2, raisons}).
       [rend: 1]
     ⑥ TRAITEMENT — ① HEAD = la branche principale du contrat et arbre propre (`_head_est_la_branche`), sinon tout
       INCONNU (table vide, `cas=None`), et rien n'est lu ni joué · ①bis le registre des règles absent → tout INCONNU
-      (relecteur J, D8) · ①ter la table de la loi et la fiche · ② la déclaration, par `DECLARER_UNE_STRATEGIE.lire_la_declaration`
+      (relecteur J, D8) · ①ter la table de la loi, recouverte par les seuils de R-505 v2 pas encore au REGISTRE
+      (`MODULE_JUGEMENT.table_des_seuils_en_attente`, A-1093), et la fiche · ② la déclaration, par `DECLARER_UNE_STRATEGIE.lire_la_declaration`
       (B3) : COMPLETE → on continue ; NON_JUGEABLE (absente, incomplète, non engagée avant le premier regard, empreinte
       du code changée) → NON JUGEABLE avec ses champs ; ILLISIBLE → contrôle ① INCONNU ; dans ces deux cas RIEN n'est
       joué (aucun regard sans déclaration) · ③ le cas : celui de la déclaration ; l'appelant en dit un autre → cas inconnu ·
       ⑤ les séances d'examen au calendrier (`seances_entre`) · ⑥ PRÉENREGISTRER le regard · ④ puis le BILAN de B2
-      (`bilan_de_la_fiche`, en s'excluant par `sauf`) : k à la date de la déclaration, regards de la lignée, parts
-      déjà regardées déclarées par la lignée · ⑦ jouer ·
-      ⑧ séances hors examen, point mort, hasard, mesures externes des mesureurs du contrat (`_mesureurs`) · ⑨ la grille · ⑩ inscrire le
+      (`bilan_de_la_fiche`, en s'excluant par `sauf`) : k du registre (AFFICHÉ seulement), regards de la lignée,
+      parts déjà regardées déclarées par la lignée ; k du juge par `COMPTER_LES_ESSAIS_PAR_RESSEMBLANCE.k_du_juge`
+      (A-1082, réunion I1) · ⑦ jouer ·
+      ⑧ séances hors examen (toutes les opérations), puis les positions NON TERMINÉES mises à part
+      (`_operations_jugees`, A-1108) avant le point mort, le hasard et les mesures externes des mesureurs du contrat (`_mesureurs`) · ⑨ la grille · ⑩ inscrire le
       résultat (ou l'échec, puis relever l'erreur).
     ⑦ UNITÉ — Celles de la grille : probabilités sans unité, point mort en POURCENTS, gains en EUROS.
     ⑧ POURQUOI — Point 2 du superviseur : une liste vide reçue ne distingue pas « lu et rien » de « pas lu ». Ici,
@@ -481,6 +519,9 @@ def juger_une_fiche(racine, fiche_id, cas):
         return rendre(cas=None, k="INCONNU", declaration_manquants=None)
     with open(chemin_loi, encoding="utf-8") as f:
         table.update(J.table_de_la_loi(f.read()))
+    # LES SEUILS DE R-505 v2 PAS ENCORE AU REGISTRE (lot L3, 27-11-2026) : la PBO maximale 0,05 (A-1093) RECOUVRE le
+    # 0,30 de la version 1 ; une lecture qui échoue rend la clé ILLISIBLE, donc le contrôle INCONNU, jamais l'ancien 0,30.
+    table.update(J.table_des_seuils_en_attente(racine))
     fiches = C.lire_les_fiches(racine)
     if fiche_id not in fiches:
         raise LookupError("fiche %r absente du registre des stratégies" % (fiche_id,))
@@ -522,12 +563,19 @@ def juger_une_fiche(racine, fiche_id, cas):
     nom = TR.preenregistrer(racine, fiche_id, hypothese, declaration=decl)
     lu["regard"] = nom
     try:
-        # ④ LE BILAN DU REGISTRE DES ESSAIS (B2) : k à la date de la déclaration, regards de la LIGNÉE, parts déclarées
+        # ④ LE BILAN DU REGISTRE DES ESSAIS (B2) : k du registre (affiché), regards de la LIGNÉE, parts déclarées
         bilan = TR.bilan_de_la_fiche(racine, fiche_id, decl["annees_d_examen"], decl["date_declaration"],
                                      decl["temoins"], sauf=(nom,))
-        lu["bilan"], lu["k"] = bilan, bilan["k"]
         raisons.update({"bilan " + c: r for c, r in bilan["raisons"].items()})
-        k = (bilan["k"] or {}).get("valeur", "INCONNU")
+        # k DU JUGE = LE COMPTE PAR RESSEMBLANCE (réunion I1 du 28-11-2026, contradiction C3 de la relecture V2 ;
+        # A-1082, Jean-Luc, 27-11-2026 à 16h46 : les versions RÉELLEMENT envoyées au juge, regroupées par ressemblance,
+        # plus les stratégies déjà RÉELLEMENT jugées). Le compte du registre (`k_a_la_date`, dans le bilan) ne décide
+        # plus : il est AFFICHÉ (`lu["k_du_registre"]`). Sans séries des versions envoyées, k est INCONNU.
+        k_r, k_detail, r_k = KR.k_du_juge(racine, fiche_id, datetime.now(PARIS))
+        lu["bilan"], lu["k"], lu["k_du_registre"] = bilan, k_detail, bilan["k"]
+        if k_r is None:
+            raisons["k"] = r_k
+        k = k_r if k_r is not None else "INCONNU"
         entrees["k"] = k
         entrees["regards_anterieurs"] = bilan["regards"]
         parts = (None if bilan["lignee"] is None
@@ -547,11 +595,16 @@ def juger_une_fiche(racine, fiche_id, cas):
             if r_hors:
                 raisons["seances_hors_examen"] = r_hors
             entrees["seances_hors_examen"] = n_hors
+            # LES POSITIONS NON TERMINÉES (A-1108, décision de Jean-Luc du 27-11-2026 à 22h29, « 2 ») n'entrent ni dans
+            # le point mort, ni dans le hasard, ni dans les mesureurs (Kelly, Sharpe dégonflé…) ; la grille reçoit TOUTES
+            # les opérations et les met à part elle-même, par la même fonction (R-708), pour les AFFICHER.
+            jeu, _non_terminees = _operations_jugees(jeu)
+            ops = jeu["ops"]
             if ops:
                 entrees["point_mort_pct"] = J.point_mort_des_operations(jeu["tp"], jeu["sl"], ops, jeu["mod_pos"])
             s_hasard, r_s = J.seuil_de_la_loi(table, "seuil_du_hasard", k if isinstance(k, int) else None)
             if s_hasard is not None and ops:
-                entrees["hasard"] = _hasard(jeu, s_hasard)
+                entrees["hasard"] = _hasard(racine, jeu, s_hasard)
             else:
                 raisons["hasard"] = r_s or "aucune opération"
             externes = {}

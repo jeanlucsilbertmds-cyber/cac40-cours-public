@@ -77,6 +77,8 @@
  "delais": {
   "tests/EPREUVES_DES_MUTANTS_DU_CONTROLE_DES_TRADES_Jeu_26-11-2026.py": {"secondes": 300, "pourquoi": "Épreuve COURTE nouvelle (N-44 de Cowork, 25-11-2026 à 23h53 : « faire de MUTATIONS_DE_DEFAUTS.py une épreuve COURTE déclarée dans tests/LANCEMENT_DES_EPREUVES.json » ; superviseur R-759 du 26-11-2026 à 00h02 : « le mutateur devient une épreuve COURTE déclarée »), A-923 étape B, tour 3 du pilote V8 : le mutateur de l'arbre de defauts_d_un_trade et ses témoins fabriqués depuis MODULE_POSITIONS.vendre. Comme toute épreuve de tests/, la certification la trouve seule ; cette ligne lui donne son délai. Règle (relecteur E1 du 12-11-2026, M-2) : la PLUS LONGUE mesure connue, × 4 pour la couverture, + 25 %, arrondi au multiple de 300 s supérieur, plancher 300 s. Mesure sans couverture : 20 s (le pilote V8, 26-11-2026, deux cœurs). Calcul : 20 × 4 × 1,25 = 100 s → plancher 300 s."},
   "tests/EPREUVES_DES_MUTANTS_DU_CONTROLE_DES_TRADES_Jeu_26-11-2026.py --saboter": {"secondes": 300, "pourquoi": "Même épreuve, ses dix sabotages S-M1a à S-M4 (dictionnaire SABOTAGES), chacun sur une copie ; seul S-M2 rejoue les mutants. Même règle. Mesure sans couverture : 39 s (le pilote V8, 26-11-2026). Calcul : 39 × 4 × 1,25 = 195 s → plancher 300 s."},
+  "tests/EPREUVES_DU_TRANSPORT_DE_LA_MOULINETTE_Ven_27-11-2026.py": {"secondes": 300, "pourquoi": "Lancement nouveau (lot TRANSPORT du plan R505, A-965, 27-11-2026), jamais joué une nuit. Règle (relecteur E1 du 12-11-2026, M-2) : la PLUS LONGUE mesure connue, × 4 pour la couverture, + 25 %, arrondi au multiple de 300 s supérieur, plancher 300 s. Mesure sans couverture : 37 s pour les 10 cas et les 9 sabotages (machine du Chat, 27-11-2026). Calcul : 37 × 4 × 1,25 = 185 s → 300 s."},
+  "tests/EPREUVES_DE_DECOUPER_LA_MOULINETTE_Ven_27-11-2026.py": {"secondes": 600, "pourquoi": "Lancement nouveau (lot W2f du plan R505, A-965, 27-11-2026), jamais joué une nuit. Règle (relecteur E1 du 12-11-2026, M-2) : la PLUS LONGUE mesure connue, × 4 pour la couverture, + 25 %, arrondi au multiple de 300 s supérieur, plancher 300 s. Mesure sans couverture : 105 s pour les 16 cas et les 9 sabotages (machine du Chat, 27-11-2026). Calcul : 105 × 4 × 1,25 = 525 s → 600 s."},
   "tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py": {"secondes": 300, "pourquoi": "Lancement nouveau (A-968, décision de Jean-Luc du 21-11-2026 à 15h34), jamais joué une nuit : sans durée déclarée il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Règle (relecteur E1 du 12-11-2026, M-2) : la PLUS LONGUE mesure connue, × 4 pour la couverture, + 25 %, arrondi au multiple de 300 s supérieur, plancher 300 s. Mesure sans couverture : 3 s pour Z0 et ses dix sabotages ensemble (le Chat, 21-11-2026). Calcul : 3 × 4 × 1,25 = 15 s → plancher 300 s."},
   "tests/EPREUVES_DES_DUREES_PUBLIEES_Sam_21-11-2026.py --saboter": {"secondes": 300, "pourquoi": "Lancement nouveau (A-968, décision de Jean-Luc du 21-11-2026 à 15h34), jamais joué une nuit : sans durée déclarée il compterait pour 1 500 s dans la répartition des tranches (N5 de l'épreuve de la nuit découpée). Règle (relecteur E1 du 12-11-2026, M-2) : la PLUS LONGUE mesure connue, × 4 pour la couverture, + 25 %, arrondi au multiple de 300 s supérieur, plancher 300 s. Mesure sans couverture : 20 s pour Z0 et tous ses sabotages, dépôts git joués compris (le Chat, 22-11-2026, I-5). Calcul : 20 × 4 × 1,25 = 25 × 4 = 100 s → plancher 300 s."},
   "tests/EPREUVES_D_VERITE_CONNUE_DU_JUGE_Mar_10-11-2026.py --saboter": {"secondes": 5400, "pourquoi": "12 sabotages (S1 à S11 de D, S12 de l'agent A) ; 618 s mesurées le 11-11-2026 sans couverture, sur la machine du Chat ; la mesure de couverture ralentit jusqu'à quatre fois : au-delà du délai par défaut de 1 500 s"},
@@ -309,6 +311,18 @@
  },
  "format_des_epreuves_longues": "code (lettres et chiffres, commence par une lettre, 20 au plus : le nom de l'épreuve dans une demande « circuit=epreuve ») → chemin (tests/<nom>.py ou programmes/<nom>.py), arguments (mots figés ; « {copie} » désigne la racine de la copie jouée), pourquoi (d'où vient l'épreuve, et sa durée mesurée quand on l'a). Ajouté le 15-11-2026 (étape GHUB ②, décisions de Jean-Luc A-809, A-811, A-816) : la table des épreuves longues d'un tenant que le circuit .github/workflows/epreuves_longues.yml du dépôt public joue sur GitHub, une machine par épreuve. Une demande ne porte que des codes : la commande est celle de CETTE table, dans la version éprouvée. Lu par epreuves_du_circuit (programmes/FABRIQUER_LE_CIRCUIT_PUBLIC.py), seul lecteur, et par tests/outils/jouer_une_epreuve_longue.py, qui l'appelle. Exclues : une épreuve qui nomme un programme interdit (INTERDITS de tests/outils/jouer_une_part.py), et le « --saboter » d'une série de « series_hors_de_la_nuit » (son circuit est series_longues.yml).",
  "epreuves_longues": {
+  "PartieReglage": {"chemin": "tests/EPREUVES_DE_LA_PARTIE_DE_REGLAGE_Ven_27-11-2026.py", "arguments": ["{copie}"], "pourquoi": "ajout du lot W2f (28-11-2026, consigne du Chat) sur une branche d'essai seulement (table de I1 pleine : ChronoEssai, MoulEssai, EtatTravauxSabot retirés ICI) ; aucun code changé"},
+  "CoursMoulinette": {"chemin": "tests/EPREUVES_DES_COURS_DE_LA_MOULINETTE_Ven_27-11-2026.py", "arguments": ["{copie}"], "pourquoi": "ajout du lot W2f (28-11-2026, consigne du Chat) sur une branche d'essai seulement (table de I1 pleine : ChronoEssai, MoulEssai, EtatTravauxSabot retirés ICI) ; aucun code changé"},
+  "LotW2eSabot": {"chemin": "tests/EPREUVES_DU_LOT_W2E_Ven_27-11-2026.py", "arguments": ["{copie}", "--saboter"], "pourquoi": "ajout du lot W2f (28-11-2026, consigne du Chat) sur une branche d'essai seulement (table de I1 pleine : ChronoEssai, MoulEssai, EtatTravauxSabot retirés ICI) ; aucun code changé"},
+  "EssaisRessemblance": {
+   "chemin": "programmes/COMPTER_LES_ESSAIS_PAR_RESSEMBLANCE.py",
+   "arguments": [
+    "{copie}",
+    "--calibrer-c5",
+    "--processus=2"
+   ],
+   "pourquoi": "lot W2c du plan R505 (27-11-2026) : calibrage COMPLET du compte des essais par ressemblance (A-772) et de la ressemblance pour la mise en service (A-791) sur les 2 695 versions de C5E10-OBS-V1 E01 rejouées une à une (sans raccourci) ; code 0 si les chiffres de l'expert et du collège du 14-11-2026 sont reproduits (k plein 168 ± 5 %, k prudent dans [140 ; 178,5], corrélations des paires, ρ et chevauchement de trois paires). Durées locales mesurées par morceaux le 27-11-2026 : 2 450 versions à une valeur en 72 s sur 2 processus (plus environ 0,5 s par version à 10 valeurs), mesure de k en 114 s : au-delà de 2 minutes"
+  },
   "Pilotage": {
    "chemin": "tests/EPREUVES_DU_PROGRAMME_DE_PILOTAGE_Mer_25-11-2026.py",
    "arguments": [
@@ -690,14 +704,6 @@
     "{copie}"
    ],
    "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat, 20-11-2026) : faux dépôt git et faux gh fabriqués dans un dossier temporaire, cas réels travail-contrat-6 (passage 44804954374, RELU DÉPLOYABLE 21h16, installée par 38bec5772) et travail-proprietes-7 (EN ÉPREUVE au passage 44814017661) ; consigne du Chat du 20-11-2026 à 22h08 : aucune épreuve ni aucun sabotage sur la machine du Chat, saturée ; jeu sans sabotage, 34 cas depuis le RELU Cowork du 20-11-2026 à 22h25 (B1, I1, I2, I3, m1, m2), 3,3 s mesurées le 20-11-2026"
-  },
-  "EtatTravauxSabot": {
-   "chemin": "tests/EPREUVES_DE_L_ETAT_DES_TRAVAUX_Ven_20-11-2026.py",
-   "arguments": [
-    "{copie}",
-    "--saboter"
-   ],
-   "pourquoi": "programmes/ETAT_DES_TRAVAUX.py et programmes/ALARME_DES_MACHINES_OISIVES.py (branche travail-etat) : faux dépôt git et faux gh dans un dossier temporaire, cas réels travail-contrat-6, travail-proprietes-7, journal du passage 44846586835 (largeur imprimée par le fabricant) et passages en parallèle du 21-11-2026 à 01h41 (places 1+3, 4+3, 7+2) ; vingt sabotages S1 à S20 (S15 à S20 : tour 4, RELU Cowork de 02h15, L1 à L4), de 6 à 12 s chacun mesurés le 21-11-2026 sur une machine chargée ; 14 sabotages ont pris 45 s sur GitHub (passage 44847878901), 20 en prendraient environ 65 s ; option --seuls= pour un essai court"
   },
   "ProprietesChaine": {
    "chemin": "tests/EPREUVES_PAR_PROPRIETES_DE_LA_CHAINE_Ven_20-11-2026.py",
