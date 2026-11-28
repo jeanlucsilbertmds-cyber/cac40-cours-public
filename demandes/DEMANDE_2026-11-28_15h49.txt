@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=PublicationAutoSabot
+pointe=b604f5964dac8ab0fb8518576a5df79d9ac40baf
