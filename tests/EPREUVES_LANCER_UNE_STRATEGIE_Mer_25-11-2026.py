@@ -104,7 +104,8 @@ def ecrire(p, lignes):
         w.writeheader(); w.writerows(lignes)
 CHAMPS = ["id_version", "tp", "sl", "horizon", "univers", "gain"]
 if sys.argv[1] == "--assembler":
-    comb, sortie, tranches = sys.argv[2], sys.argv[3], sys.argv[4:]
+    # « --cours=… » (l'enchaîneur le passe depuis le 27-11-2026, A-1076) n'est pas une tranche
+    comb, sortie, tranches = sys.argv[2], sys.argv[3], [a for a in sys.argv[4:] if not a.startswith("--")]
     toutes = [l for t in tranches for l in lire(t)]
     par_id = {l["id_version"]: l for l in toutes}
     ids = [l["id_version"] for l in lire(comb)]
@@ -359,8 +360,9 @@ def les_cas(prog, travail):
     reg = sha(os.path.join(a, "donnees", "cac40_strategies.csv"))
     code, out = lancer(prog, a, "--tranches=%d" % N)
     e, j = etat(a), journal(a)
-    attendu = {"0-variables-validees", "0-proposition", "1-decliner", "2-assembler", "3-trier"} | \
-        {"2-tranche-%d" % k for k in range(N)}
+    # « 0-cours-de-la-chaine » : les cours fixés à ⓪ par l'enchaîneur (A-1076, lot L1 du 27-11-2026)
+    attendu = {"0-variables-validees", "0-proposition", "0-cours-de-la-chaine", "1-decliner", "2-assembler",
+               "3-trier"} | {"2-tranche-%d" % k for k in range(N)}
     juges = {"4-juger-%s-%s-%04d" % (SID, ESSAI, i) for i in (7, 6)}   # la doublure de TRIER garde les 2 meilleures
     ok = code == 0 and FIN in out and e.get("statut") == "TERMINÉ" and e.get("message", "").startswith(FIN) \
         and j == attendu | juges and sha(os.path.join(a, "donnees", "cac40_strategies.csv")) != reg \

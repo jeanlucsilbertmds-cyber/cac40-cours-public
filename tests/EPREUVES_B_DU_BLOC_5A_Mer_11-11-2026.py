@@ -607,11 +607,19 @@ def cas(copie, racine):
         for nom, f in (("coupure", lambda **k: J.coupure_70_30(bonnes, seances,
                                                              frontiere=J.frontiere_de_la_fiche({}, seances, None), **k)),
                        ("fenetres", lambda **k: J.fenetres_glissantes(bonnes, seances, n=3, **k))):
-            try:
-                f(horizon=A)
-                ok("G9f %s : « aucune » sans embargo est refusée" % nom, False, "pas d'erreur")
-            except TypeError as ex:
-                ok("G9f %s : « aucune » sans embargo est refusée" % nom, COMMUN.MESSAGE_DE_L_HORIZON_AUCUNE[:30] in str(ex))
+            if nom == "coupure":
+                # DEPUIS LE 28-11-2026 (A-1106, lot L1CORR2) la coupure coupe « aucune » par la PURGE, embargo publié de
+                # 21 séances : elle ne refuse plus ; les fenêtres glissantes, non visées, refusent toujours
+                rc = f(horizon=A)
+                ok("G9f coupure : « aucune » sans embargo est coupée par la purge (embargo 21, A-1106)",
+                   rc.get("embargo_seances") == 21 and "n_purgees" in rc, rc.get("embargo_seances"))
+            else:
+                try:
+                    f(horizon=A)
+                    ok("G9f %s : « aucune » sans embargo est refusée" % nom, False, "pas d'erreur")
+                except TypeError as ex:
+                    ok("G9f %s : « aucune » sans embargo est refusée" % nom,
+                       COMMUN.MESSAGE_DE_L_HORIZON_AUCUNE[:30] in str(ex))
             cle = "embargo_seances" if nom == "coupure" else "embargo"
             a, b = f(horizon=A, **{cle: 25}), f(horizon=20, **{cle: 25})
             ok("G9g %s : « aucune » avec embargo 25 = horizon 20 avec embargo 25" % nom, a == b)

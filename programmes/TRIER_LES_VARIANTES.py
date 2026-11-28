@@ -107,6 +107,7 @@ AJOUTS = ["variantes_essayees", "essais_comptes", "critere_du_tri", "statut_du_c
 # Les quatre cases de la partie de réglage que JOUER laisse vides, toutes ensemble, pour une durée « aucune ».
 CASES_DE_LA_PARTIE_DE_REGLAGE = ("operations_70", "gain_net_euros_70", "reussite_pourcents_exacte_70", "embargo_seances")
 # Les raisons d'une version non mesurable, écrites au bilan (relecteur neuf E1F phase 2, m-3).
+# (28-11-2026) le texte est gardé tel quel : des épreuves le lisent ; il ne vaut plus que pour une ligne d'avant A-1106
 RAISON_AUCUNE = "durée « aucune » : embargo non tranché"
 RAISON_ZERO = "zéro opération dans la partie de réglage"
 RAISON_CASE_VIDE = "case lue par le critère vide"
@@ -285,7 +286,12 @@ def lire_les_resultats(chemin, contrat):
       chiffrée : `operations_70`, `gain_net_euros_70` et `embargo_seances` jamais vides, sinon ARRÊT, et
       `embargo_seances` un entier ≥ 0 (lu par isdigit, comme les opérations), sinon ARRÊT ; toute version :
       `empreinte_des_reglages` et `empreinte_de_la_fiche` en seize hexadécimaux, sinon ARRÊT (14-11-2026) ; la partie de
-      réglage d'une version « aucune » n'est pas lue plus avant (superviseur R-759 E1F phase 2, M-1).
+      réglage d'une version « aucune » n'est pas lue plus avant (superviseur R-759 E1F phase 2, M-1) ; depuis le
+      27-11-2026 (lot L1-CORR, A-1078), une version « aucune » dont les trois colonnes de la période sont vides
+      ENSEMBLE est une version NON JOUÉE (JOUER refuse de la jouer : largeur de bande non tranchée) : rien de ses
+      chiffres n'est lu. DEPUIS LE 28-11-2026 (A-1106, lot L1CORR2), une version « aucune » est jouée et coupée par la
+      purge : ses quatre cases remplies se lisent comme celles d'une durée chiffrée ; vides ensemble, c'est une ligne
+      d'avant, lue comme avant ; remplies en partie, ARRÊT.
     ⑦ UNITÉ — —
     ⑧ POURQUOI — Le nombre de versions essayées est la moitié du travail du tri (A-541) : un fichier tronqué
       le fausserait sans bruit. JOUER annonce le nombre de versions de l'essai sur chaque ligne ; il est relu ici.
@@ -329,16 +335,15 @@ def lire_les_resultats(chemin, contrat):
         # durée se lit par le lecteur de JOUER (`lire_horizon_ou_aucune`), jamais par une comparaison de texte.
         aucune = COMMUN.lire_horizon_ou_aucune(l["horizon"]) is COMMUN.HORIZON_AUCUNE
         remplies = [c for c in CASES_DE_LA_PARTIE_DE_REGLAGE if (l[c] or "").strip()]
-        if aucune and len(remplies) == len(CASES_DE_LA_PARTIE_DE_REGLAGE):
-            raise ValueError("%s : %s, durée « aucune » avec une partie de réglage chiffrée (%s) : l'embargo sans durée "
-                             "maximale n'est pas tranché, aucun programme ne doit l'avoir écrite"
-                             % (nom, l["id_version"], ", ".join(remplies)))
-        if aucune and remplies:
+        # DEPUIS LE 28-11-2026 (A-1106) une durée « aucune » est JOUÉE et coupée par la purge : sa partie de réglage est
+        # chiffrée comme celle d'une durée chiffrée. La ligne d'avant (cases vides ENSEMBLE, version non jouée) reste lue.
+        ancienne_aucune = aucune and not remplies
+        if aucune and remplies and len(remplies) != len(CASES_DE_LA_PARTIE_DE_REGLAGE):
             raise ValueError("%s : %s, durée « aucune » dont les cases de la partie de réglage sont vides en partie "
                              "seulement (remplies : %s) : vides toutes ensemble, ou c'est un défaut d'écriture"
                              % (nom, l["id_version"], ", ".join(remplies)))
         vides = [c for c in ("operations_70", "gain_net_euros_70", "embargo_seances") if not (l[c] or "").strip()]
-        if not aucune and vides:
+        if not ancienne_aucune and vides:
             raise ValueError("%s : %s, case(s) vide(s) %s sur une version à durée chiffrée : seule une durée « aucune » "
                              "laisse la partie de réglage vide" % (nom, l["id_version"], ", ".join(vides)))
         # L'EMBARGO D'UNE VERSION CHIFFRÉE EST UN NOMBRE DE SÉANCES, ENTIER ≥ 0 (relecture Cowork du 14-11-2026, N-4 ;
@@ -351,10 +356,15 @@ def lire_les_resultats(chemin, contrat):
             if not re.fullmatch(r"[0-9a-f]{16}", l[col] or ""):
                 raise ValueError("%s : %s, %s illisible « %s » : seize caractères hexadécimaux, écrits par JOUER au jeu, "
                                  "sont attendus" % (nom, l["id_version"], col, l[col]))
-        if not aucune and not l["embargo_seances"].strip().isdigit():
+        if not ancienne_aucune and not l["embargo_seances"].strip().isdigit():
             raise ValueError("%s : %s, embargo_seances illisible « %s » sur une version à durée chiffrée : un nombre "
                              "entier de séances, positif ou nul, est attendu" % (nom, l["id_version"], l["embargo_seances"]))
-        for suffixe in (("",) if aucune else ("", "_70")):
+        # UNE VERSION « SANS DÉLAI » JAMAIS JOUÉE (27-11-2026, lot L1-CORR ; R-505 v2, étape 3 ⑥ ; A-764) : JOUER écrit
+        # sa ligne SANS AUCUN CHIFFRE ; ses colonnes de la période vides ENSEMBLE se lisent « non jouée », et rien de plus
+        # n'est lu. Une seule case remplie parmi les trois retombe dans le contrôle d'avant, qui l'arrête.
+        non_jouee = ancienne_aucune and not any((l[c] or "").strip() for c in ("operations", "reussite_pourcents_exacte",
+                                                                               "gain_net_euros"))
+        for suffixe in (() if non_jouee else ("",) if ancienne_aucune else ("", "_70")):
             ops = l["operations" + suffixe].strip()
             if not ops.isdigit():
                 raise ValueError("%s : %s, nombre d'opérations%s illisible « %s »" % (nom, l["id_version"], suffixe, ops))
@@ -383,8 +393,9 @@ def passe_le_critere(ligne, conditions):
       mesurable » (elle ne passe pas) ; la RAISON, en texte (RAISON_AUCUNE, RAISON_ZERO ou RAISON_CASE_VIDE), vide
       quand la version est mesurable.
       [rend: 3]
-    ⑥ TRAITEMENT — ⓪ durée « aucune » (lue par `COMMUN.lire_horizon_ou_aucune`) → non mesurable, RAISON_AUCUNE,
-      AVANT toute condition : sa partie de réglage n'existe pas tant que l'embargo n'est pas tranché (superviseur
+    ⑥ TRAITEMENT — ⓪ durée « aucune » (lue par `COMMUN.lire_horizon_ou_aucune`) dont la partie de réglage est VIDE (ligne
+      d'avant le 28-11-2026 : depuis A-1106 elle est jouée et chiffrée, et se trie comme les autres) → non mesurable,
+      RAISON_AUCUNE, AVANT toute condition : sa partie de réglage n'existe pas tant que l'embargo n'est pas tranché (superviseur
       R-759 E1F phase 2, M-1 : ne pas compter sur une case vide, une condition sur une autre colonne passerait) ·
       ① zéro opération dans la partie de réglage → non mesurable, ne passe JAMAIS, quel que soit le
       critère (relecteur neuf du 11-11-2026, D2 : « gain_net_euros >= 0 » retenait une version sans opération) ·
@@ -398,7 +409,9 @@ def passe_le_critere(ligne, conditions):
       [sort: non]
     """
     import COMMUN
-    if COMMUN.lire_horizon_ou_aucune(ligne.get("horizon")) is COMMUN.HORIZON_AUCUNE:
+    # une durée « aucune » n'est non mesurable que sur une ligne d'avant A-1106 (28-11-2026), partie de réglage vide
+    if (COMMUN.lire_horizon_ou_aucune(ligne.get("horizon")) is COMMUN.HORIZON_AUCUNE
+            and not any((ligne.get(c) or "").strip() for c in CASES_DE_LA_PARTIE_DE_REGLAGE)):
         return False, True, RAISON_AUCUNE
     ops70 = (ligne.get("operations_70") or "").strip()
     if ops70.isdigit() and int(ops70) == 0:      # le NOMBRE, pas le texte : « 00 » est zéro (relecteur, tour 2, N4)
