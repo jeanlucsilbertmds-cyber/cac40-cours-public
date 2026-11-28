@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Moulinette,ContratSabot,ContratNuit,ChaineC5,Enchainer
+pointe=2c9e564e9317bacd92f932f5f8302ec188a39c4f
