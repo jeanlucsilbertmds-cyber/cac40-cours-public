@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=PartieReglage,CoursMoulinette,LotW2eSabot
+pointe=72169f46adcfd50637cc7edfd2e351f30bcbd8c9
