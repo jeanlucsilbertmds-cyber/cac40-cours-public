@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=Moulinette,Tri,JugeLecteur,Bloc5A
+pointe=aaed705ebf7af951a12fb877ee1d5c8b3a8a8201
