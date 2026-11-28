@@ -331,6 +331,54 @@ def valeurs_de_la_liste(parametre, liste, valeur_fiche):
     return [ecrire_nombre(x) for x in nombres] + mots
 
 
+def ligne_quand_jouer(ident, essai, horodatage, fiche, regle):
+    """Rend la ligne « quand jouer » du tableau, ou le manque qui l'empêche.
+
+    ① RÔLE — Faire du réglage « quand jouer » une variable de la moulinette (A-1079, décision de Jean-Luc du
+      27-11-2026 à 16h30 : « le réglage « quand jouer » est un réglage de la moulinette comme les autres, déclaré
+      d'avance »).
+    ② CONTEXTE D'APPEL — `preparer`, quand le voisinage porte une ligne « quand_jouer » ; les épreuves du lot W2e-FIX.
+    ③ ENTRÉE — `ident`, `essai`, `horodatage` : ceux de `preparer` · `fiche` : la ligne du registre (case
+      `quand_jouer`, absente = « toujours ») · `regle` : la ligne du voisinage (colonne `liste`, valeurs séparées par
+      « ; », par exemple « toujours;AGITE »).
+    ④ CONDITIONS D'ENTRÉE — —
+    ⑤ SORTIE — DEUX valeurs : une liste d'au plus une ligne, et une liste d'au plus un manque.
+      [rend: 2]
+    ⑥ TRAITEMENT — ① `liste` vide : un manque (aucun pas ne se compte entre des types de marché) · ② lire chaque
+      valeur et celle de la fiche par `MODULE_QUAND_JOUER.lire_quand_jouer` ; illisible : un manque · ③ garder la
+      première écriture de chaque ENSEMBLE de types (deux écritures du même ensemble sont une seule version) ·
+      ④ ajouter la valeur de la fiche si elle manque, en tête · ⑤ une ligne JOUABLE, unité « — ».
+    ⑦ UNITÉ — —
+    ⑧ POURQUOI — Une valeur mal écrite ne doit jamais devenir « jamais joué » en silence ; chaque valeur ajoutée est
+      un essai de plus (A-1079, limite ②) et se compte au nombre de versions affiché avant validation.
+    ⑨ CE QUI CLOCHE — Quelles valeurs essayer n'est pas décidé : le voisinage livré ne porte que « toujours »
+      (A-1079 dit « 4 types + « toujours », par exemple » ; question à Jean-Luc, note du lot W2e-FIX).
+    ⑩ EFFET — Aucun.
+    ⑪ TERMINAISON — Rend toujours la main.
+      [sort: non]
+    """
+    import MODULE_QUAND_JOUER as Q
+    liste = (regle.get("liste") or "").strip()
+    if not liste:
+        return [], ["la ligne « quand_jouer » du voisinage n'a pas de liste : aucun pas ne se compte entre des types "
+                    "de marché"]
+    v_fiche = (fiche.get("quand_jouer") or "").strip() or Q.TOUJOURS
+    vues, ecrites = set(), []
+    for brut in [v_fiche] + [x.strip() for x in liste.split(";")]:
+        if not brut:
+            continue
+        try:
+            ens = Q.lire_quand_jouer(brut)
+        except ValueError as e:
+            return [], ["valeur « quand_jouer » illisible %r : %s" % (brut, e)]
+        cle = Q.TOUJOURS if ens is None else tuple(sorted(ens))
+        if cle not in vues:
+            vues.add(cle)
+            ecrites.append(Q.TOUJOURS if ens is None else brut.upper().replace(" ", ""))
+    return [nouvelle_ligne(ident, essai, horodatage, "quand_jouer", ecrites[0], ";".join(ecrites), "—", "OUI",
+                           regle.get("raison", ""))], []
+
+
 def preparer(fiche, voisinage, essai, horodatage, codes_connus):
     """Fabrique les lignes du tableau des réglages à essayer.
 
@@ -402,6 +450,14 @@ def preparer(fiche, voisinage, essai, horodatage, codes_connus):
         lignes.append(nouvelle_ligne(ident, essai, horodatage, p, ecrire_nombre(v),
                                      ";".join(ecrire_nombre(x) for x in vals),
                                      unite, "OUI", voisinage[p].get("raison", "")))
+    # LE RÉGLAGE « QUAND JOUER » (A-1079 ; lot W2e-FIX du 27-11-2026) : une ligne JOUABLE seulement si le voisinage
+    # porte une ligne « quand_jouer » ; ses valeurs viennent de sa `liste`, telles qu'écrites, lues par le lecteur du
+    # juge (MODULE_QUAND_JOUER, R-708) ; la valeur de la fiche (« toujours » si la fiche n'en dit rien) est toujours
+    # comprise. Sans ligne au voisinage : rien ne change (aucune ligne, aucune colonne).
+    if "quand_jouer" in voisinage:
+        lignes_qj, manque_qj = ligne_quand_jouer(ident, essai, horodatage, fiche, voisinage["quand_jouer"])
+        lignes.extend(lignes_qj)
+        manques.extend(manque_qj)
     brut = fiche.get("univers") or ""
     codes = [m.strip().upper() for m in brut.split(",") if m.strip()]
     inconnus = [c for c in codes if c not in codes_connus]   # codes_connus exclut les valeurs hors univers

@@ -199,6 +199,9 @@ def cas(copie, racine):
             "date_regle_univers": "2026-11-11", "lignee": "IND-001 → IND-001-RETEST",
             "hypothese": "Quand le RSI 14 jours d'une valeur du CAC 40 repasse au-dessus de 30 après être passé dessous, "
                          "le cours remonte assez souvent dans les 20 séances pour gagner, frais compris.",
+            # LA RAISON (A-1090, lot W2e, 27-11-2026) : la case « Raison avancée » de la même déclaration, mot pour mot
+            "raison": "après une forte baisse, le rebond prend du temps et secoue d'abord ; un stop serré coupe la "
+                      "position avant le rebond",
             "parametres_libres": "3", "moment_du_regard": "les 30 % les plus récents, une seule fois, au jugement",
             "biais_du_survivant": "univers du jour, déclaré", "annees_d_examen": EXAMEN, "regard_sans_decision": "",
             "reglages": '{"periode": 14, "seuil": 30, "chauffe": 100}', "bareme": "épreuve", "reference_hasard": "épreuve",

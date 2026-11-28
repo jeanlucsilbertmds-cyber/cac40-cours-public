@@ -584,6 +584,7 @@
    ],
    "pourquoi": "variante « --saboter » d'une des 8 épreuves rouges non relancée, nommée « à jouer chez Cowork » dans la note echanges/A_RELIRE.md de travail-r207bis (81ffa756)"
   },
+  "LotW2eSabot": {"chemin": "tests/EPREUVES_DU_LOT_W2E_Ven_27-11-2026.py", "arguments": ["{copie}", "--saboter"], "pourquoi": "ajout du lot W2f (28-11-2026, consigne du Chat) sur une branche d'essai seulement : le --saboter complet demandé par la preuve de W2eFIX ; table seule changée"},
   "MoulinetteEssai": {
    "chemin": "programmes/PREPARER_LA_MOULINETTE_D_ESSAI.py",
    "arguments": [

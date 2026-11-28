@@ -83,13 +83,17 @@ ECRITS = (_K.NOM_DU_REGISTRE_DES_STRATEGIES, "claude_positions_ouvertes.csv", "c
 
 SABOTAGES = {
     "Z0": [],
-    "S1_garder_vend_quand_meme": [(MODP, '    if fin_des_donnees == "garder" or not apres:', '    if not apres:')],
-    "S2_aucune_lue_comme_vingt": [(MODP, '    if aucune:\n        suite = serie[j:]\n', '    if aucune:\n        suite = serie[j:j + 21]\n')],
+    # S1, S2, S6 recalées le 27-11-2026 (lot L2, A-950) sur `vendre` au calendrier et sur `cloturer`, qui passe la DATE
+    # d'échéance ; même intention.
+    "S1_garder_vend_quand_meme": [(MODP, '    if fin_des_donnees == "garder" or j + 1 >= len(serie):', '    if j + 1 >= len(serie):')],
+    "S2_aucune_lue_comme_vingt": [(MODP, '        if aucune:\n            echeance = None\n',
+                                   '        if aucune:\n            echeance = serie[min(j + 20, len(serie) - 1)]["date"]\n')],
     "S3_seuils_bruts": [(MODP, '    return float("%.5f" % (prix_entree * (1.0 + tp))), float("%.5f" % (prix_entree * (1.0 - sl)))',
                          '    return prix_entree * (1.0 + tp), prix_entree * (1.0 - sl)')],
     "S4_horizon_flottant_accepte": [(MODP, '    if not aucune and (type(h) is not int or h <= 0):', '    if not aucune and h <= 0:')],
     "S5_seuils_ambigus_acceptes": [(MODP, '    if en_euros and en_fractions:\n        raise', '    if False:\n        raise')],
-    "S6_soir_vend_a_la_fin_des_donnees": [(TEN, '{"objectif": tp, "stop": sl, "horizon": h}, "garder")', '{"objectif": tp, "stop": sl, "horizon": h}, "vendre")')],
+    "S6_soir_vend_a_la_fin_des_donnees": [(TEN, 'dict({"objectif": tp, "stop": sl}, **_duree), "garder")',
+                                           'dict({"objectif": tp, "stop": sl}, **_duree), "vendre")')],
     "S7_horizon_connu_filtre_aucune": [(TEN, '    if h is HORIZON_AUCUNE:\n        return h\n    return h if', '    return h if')],
     # S8 recalé le 12-11-2026 (mission VENTE tour 2) : le soir lit l'horizon par `lecture_du_soir` du juge.
     "S8_reglages_relit_par_lire_horizon": [(BAN, '    h = lire_horizon_ou_aucune(fiche.get("horizon", ""))\n    if h is HORIZON_AUCUNE and not soir_accepte_aucune(racine):',

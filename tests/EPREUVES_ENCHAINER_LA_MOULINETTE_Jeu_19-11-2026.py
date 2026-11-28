@@ -458,7 +458,9 @@ def main():
         return 0
     if phase == "passage":
         t0 = time.time()
-        for e in [["declarer", DECLARATION_DE_FAMILLE], ["preparer"], ["decliner"]] + \
+        # « --cours-du-maitre » (A-1076, 27-11-2026) : la période de la fiche commence en 2024 ; la chaîne joue le maître,
+        # comme avant le lot L1 (sans l'option, l'enchaîneur fixe les 20 ans).
+        for e in [["declarer", DECLARATION_DE_FAMILLE], ["preparer", "--cours-du-maitre"], ["decliner"]] + \
                 [["jouer", str(k), str(NB)] for k in range(NB)] + [["assembler"], ["trier"]]:
             t = time.time()
             c, o = ench(copie, *e)

@@ -289,10 +289,24 @@ def cas_preparer(racine):
         f = ecrire(os.path.join(dossier(), "VOISINAGE.csv"), col, lignes)
         c, s = lancer(racine, P_PREP, os.path.join(racine, REGISTRE), SID, f, "E99", dossier())
         attendre("PREPARER, voisinage de l'objectif au %s : code 1" % nom, c, s, 1, "REFUS : " + fragment)
-    lignes = [dict(l, **({"pas": "cinq"} if l["parametre"] == "horizon" else {})) for l in vois]
+    # RECALÉ LE 27-11-2026 (lot W2e-FIX) : depuis le lot L2 (27-11-2026, A-1099), la ligne de l'HORIZON porte une
+    # `liste` (« 5;10;15;20;25;aucune »), qui remplace son pas : un pas abîmé n'y était plus lu, et ce cas rougissait
+    # depuis la fusion L1+L2. Même intention : la liste est vidée, le pas « cinq » redevient lu et doit être refusé.
+    lignes = [dict(l, **({"pas": "cinq", "liste": ""} if l["parametre"] == "horizon" else {})) for l in vois]
     f = ecrire(os.path.join(dossier(), "VOISINAGE.csv"), col, lignes)
     c, s = lancer(racine, P_PREP, os.path.join(racine, REGISTRE), SID, f, "E99", dossier())
     attendre("PREPARER, pas d'horizon « cinq » : code 1", c, s, 1, "le pas de voisinage de l'horizon doit être un nombre entier")
+    # LA MÊME INTENTION SUR LA LISTE (lot W2e-FIX) : une durée illisible écrite DANS la liste de l'horizon est refusée.
+    lignes = [dict(l, **({"liste": "5;cinq;aucune"} if l["parametre"] == "horizon" else {})) for l in vois]
+    f = ecrire(os.path.join(dossier(), "VOISINAGE.csv"), col, lignes)
+    c, s = lancer(racine, P_PREP, os.path.join(racine, REGISTRE), SID, f, "E99", dossier())
+    attendre("PREPARER, liste d'horizon « 5;cinq;aucune » : code 1", c, s, 1,
+             "liste du voisinage de « horizon » : élément illisible")
+    # « QUAND JOUER » (lot W2e-FIX, A-1079) : un mot inconnu dans sa liste est refusé, jamais joué « jamais » en silence.
+    lignes = [dict(l, **({"liste": "toujours;TEMPETE"} if l["parametre"] == "quand_jouer" else {})) for l in vois]
+    f = ecrire(os.path.join(dossier(), "VOISINAGE.csv"), col, lignes)
+    c, s = lancer(racine, P_PREP, os.path.join(racine, REGISTRE), SID, f, "E99", dossier())
+    attendre("PREPARER, quand_jouer « TEMPETE » : code 1", c, s, 1, "valeur « quand_jouer » illisible")
 
 
 def cas_decliner(racine):
@@ -508,12 +522,14 @@ def cas_jouer_dehors(racine):
            ("fiche STRATEGIE-INCONNUE absente du registre",))
     un_cas("JOUER, version marquée identique qui ne l'est pas", None, "identique à la fiche, ne retrouve pas la fiche",
            fiche="%s-%s-0001" % (SID, ESSAI))
-    # LA FIN DE LA PÉRIODE SE CALCULE (plan V7, bloc 5g, 11-11-2026) : un horizon de 500 séances la ramènerait de près
-    # de deux ans ; le recul est borné par donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv (valeur provisoire, à
-    # décider par Jean-Luc ; relecteur neuf de la mission TRI, D6) : refus. Un horizon que les cours ne peuvent pas
-    # porter du tout refuse avant, « pas assez de cours ».
-    un_cas("JOUER, horizon de 500 séances : la fin reculerait au-delà du réglage, refus",
-           sur_0500(horizon="500"), ("la fin calculée recule de", "rien n'est joué"))
+    # LA FIN DE LA PÉRIODE SE CALCULE (plan V7, bloc 5g, 11-11-2026) : un horizon de 500 séances la ramène de près
+    # de deux ans. Jusqu'au 27-11-2026, le recul était borné par donnees/combinatoires/RECUL_MAXIMUM_DE_LA_FIN.csv (26,
+    # provisoire) : refus. Depuis A-1100 (Jean-Luc, 27-11-2026 à 19h29, « 1 »), le recul permis est CALCULÉ = délai le
+    # plus long + 1 = 501 : la fin recule SANS refus (mesuré le 27-11-2026 sur le maître : 402 séances de recul, code 0).
+    # La protection D6 contre un horizon faux disparaît : signalé dans la note du lot L1. Un horizon que les cours ne
+    # peuvent pas porter du tout refuse toujours, « pas assez de cours ».
+    un_cas("JOUER, horizon de 500 séances : recul permis CALCULÉ (501, A-1100), la fin recule sans refus",
+           sur_0500(horizon="500"), ("au plus 501 (calculé", "ramenée par"), code_attendu=0)
     un_cas("JOUER, horizon de 5000 séances : aucune fin possible, marge de cours insuffisante",
            sur_0500(horizon="5000"), "pas assez de cours après la période")
     d, f_out, _ = un_cas("JOUER, objectif écrit 1.5 au lieu d'une fraction : fusion fausse",
@@ -625,7 +641,10 @@ def faux_juge(base, **reglages):
     bornes = ("2024-01-02", "2026-07-10")
     # (12-11-2026) JOUER hache les séances du fichier de cours jusqu'à la fin de la fiche : le faux fichier existe
     J.fichiers_de_cours = lambda b: [os.path.join(b, "cours")]
-    J.charger_cours = lambda f: {"TTE": [{"date": "2026-08-%02d" % k} for k in range(1, 31)]}
+    # (27-11-2026, A-1076) le contrôle de couverture exige des séances aux deux bouts de la période de la fiche : la
+    # première et la dernière séance de ses bornes s'ajoutent aux 30 séances d'août 2026 (la marge après la fin).
+    J.charger_cours = lambda f: {"TTE": [{"date": bornes[0]}, {"date": bornes[1]}] +
+                                        [{"date": "2026-08-%02d" % k} for k in range(1, 31)]}
     # JOUER_LES_VERSIONS lit les cours par le lecteur unique, comme le juge, depuis le 27-10-2026 (A-577, étape 1) :
     # le faux juge rend les mêmes séances et une lecture neutre — aucun passage, aucun trou, aucun défaut.
     def lire_par_le_lecteur(b, f, m, jusqu_au=None):
@@ -729,10 +748,7 @@ def cas_jouer_dedans(racine):
         base = os.path.join(d, "depot")
         os.makedirs(os.path.join(base, "programmes"))
         open(os.path.join(base, "cours"), "w", encoding="utf-8").write("valeur,date\n")   # le faux fichier de cours
-        # le réglage du recul maximum de la fin (mission TRI, 11-11-2026), lu par JOUER sous sa racine
-        os.makedirs(os.path.join(base, "donnees", "combinatoires"))
-        shutil.copy(os.path.join(racine, "donnees", "combinatoires", "RECUL_MAXIMUM_DE_LA_FIN.csv"),
-                    os.path.join(base, "donnees", "combinatoires"))
+        # (le réglage du recul maximum n'est plus recopié ici : JOUER le calcule depuis le 27-11-2026, A-1100)
         f_reg = ecrire(os.path.join(d, "registre.csv"), list(fiche),
                        [fiche] * (nb_fiches - 1) + [dict(fiche, **(derniere or {}))])
         f_comb = ecrire(os.path.join(d, "COMBINATOIRE_F_E01.csv"), colonnes, deux)
@@ -781,6 +797,11 @@ def cas_jouer_dedans(racine):
     un_cas("JOUER (faux juge), valeurs absentes des cours", "valeurs absentes des cours", leve=True, inconnus=["XYZ"])
     un_cas("JOUER (faux juge), la fiche ne produit aucune opération", "la fiche elle-même ne produit aucune opération", n=0)
     un_cas("JOUER (faux juge), le lecteur refuse la lecture", "le lecteur unique a mis 1 ligne(s)", refus_lecture=True)
+    # (27-11-2026, A-1076 ②) la fiche déclare 2000-01-03 → 2026-07-10, les cours lus commencent le 2024-01-02 : refus
+    # AVANT le calibrage (le cas réel du 26-11-2026 : IND-001-RETEST, déclarée 2000-2026, jouée sur 2024-2026).
+    un_cas("JOUER (faux juge), cours qui ne couvrent pas la période déclarée : refus de couverture",
+           "COUVERTURE DES COURS INSUFFISANTE : la fiche commence le 2000-01-03, les cours lus le 2024-01-02",
+           porte=(True, [], ("2000-01-03", "2026-07-10")))
     un_cas("JOUER (faux juge), le juge ne se calibre pas (aucune ligne de résultat)",
            "le juge des stratégies ne se calibre pas", ligne_juge=None)
     un_cas("JOUER (faux juge), le juge seul dit autre chose", "ne rendent pas la même chose pour la fiche",
