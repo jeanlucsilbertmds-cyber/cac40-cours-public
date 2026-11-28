@@ -1,0 +1,3 @@
+circuit=epreuve
+epreuves=LotW2eSabot
+pointe=9a40e78194edca8d3ee6a2fcb55f7107b8debbc4
